@@ -17,7 +17,7 @@ fn executor(original: c.DirectTableClient, grant: c.DirectReadDelegation) !c.Dir
 fn acquisition(grant: c.DirectReadDelegation) w.Action {
     return .{ .pin = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner, .expected = grant.binding.expected, .selection = grant.binding.selection } };
 }
-fn status(client: c.DirectTableClient, grant: c.DirectReadDelegation) !std.json.Parsed(w.Response) {
+fn status(client: c.DirectTableClient, grant: c.DirectReadDelegation) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .pin_status = .{ .object = grant.binding.interpretation.object, .owner = grant.binding.owner } });
 }
 

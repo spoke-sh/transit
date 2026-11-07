@@ -384,6 +384,15 @@ pub fn clientTokenState(self: *Self, key: c.DirectClientToken.Key) !?c.DirectCli
     try self.ready();
     return self.clientTokenAt(self.root, key);
 }
+/// Internal graph/publication resolution. The caller enforces the published
+/// destination's policy; this does not expose original-token discovery publicly.
+pub fn clientTokenDigest(self: *Self, digest: [32]u8) !?c.DirectClientToken.Progress {
+    try self.ready();
+    const value = try self.tree().get(self.root.client_tokens, try pages.Key.init(&digest)) orelse return null;
+    const state = try self.tokenRecord(self.root, value);
+    if (!std.mem.eql(u8, &digest, &try state.receipt.binding.key.digest())) return error.DataIdentityConflict;
+    return state;
+}
 fn tokenRecord(self: *Self, basis: r.Root, value: pages.Value) !c.DirectClientToken.Progress {
     if (value.len != 8) return error.InvalidClientToken;
     const at = std.mem.readInt(u64, value.data[0..8], .little);
@@ -486,11 +495,21 @@ pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Prog
 }
 fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const accepted = record.action.client_token;
+    if (accepted.receipt.binding.intent == .transaction and accepted.receipt.binding.intent.transaction.purpose == .source_capture) {
+        const plan = try c.DirectSourcePublication.load(self.allocator, self.objects, accepted.receipt.binding.intent.transaction.purpose.source_capture);
+        try plan.requireProgress(self.allocator, self.objects, accepted);
+        const candidate = (try self.clientTokenAt(before, plan.candidate)) orelse return error.InvalidSourcePublication;
+        const capture = candidate.capture orelse return error.InvalidSourcePublication;
+        if (capture.phase != .publishing or capture.publication == null or !std.meta.eql(capture.publication.?, plan)) return error.InvalidSourcePublication;
+    }
     const key = accepted.receipt.binding.key;
     const prior = try self.clientTokenAt(before, key);
     if (prior) |old| {
         if (!std.meta.eql(old.receipt, accepted.receipt) or (!old.pending and accepted.pending) or
             (old.cancel and !accepted.cancel) or record.root.client_token_count != before.client_token_count) return error.InvalidDirectCatalogTransition;
+        if (old.capture) |capture| {
+            try c.DirectSourceCapture.State.transition(capture, accepted.capture orelse return error.InvalidSourceCaptureTransition);
+        } else if (accepted.capture != null) return error.InvalidSourceCaptureTransition;
         if (old.source) |source| {
             try c.DirectDocumentSource.State.transition(source, accepted.source orelse return error.InvalidDocumentSourceTransition);
         } else if (accepted.source != null) return error.InvalidDocumentSourceTransition;
@@ -513,6 +532,7 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
         };
     } else {
         var initial = c.DirectClientToken.Progress.initial(accepted.receipt);
+        if (accepted.capture) |capture| initial.capture = c.DirectSourceCapture.State.initial(capture.descriptor);
         if (accepted.source) |source| initial.source = c.DirectDocumentSource.State.initial(source.descriptor);
         if (!std.meta.eql(accepted, initial) or
             record.root.client_token_count != try std.math.add(u64, before.client_token_count, 1)) return error.InvalidDirectCatalogTransition;
@@ -525,7 +545,7 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
             if (transaction.begin.catalog.next_lsn != before.next_lsn) {
                 // Only an exact, already durable protected reservation can
                 // retain an earlier selection after unrelated publication.
-                if (transaction.purpose != .queue_transfer) return error.InvalidDirectCatalogTransition;
+                if (transaction.purpose == .interactive) return error.InvalidDirectCatalogTransition;
                 const saved = try c.OperationBinding.lookupTransaction(self.allocator, self.objects, transaction.identity()) orelse return error.InvalidDirectCatalogTransition;
                 if (!std.meta.eql(saved.reference, transaction) or !std.mem.eql(u8, &saved.token, &try key.digest())) return error.InvalidDirectCatalogTransition;
             }

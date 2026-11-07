@@ -52,21 +52,21 @@ pub const Binding = struct {
 pub const Client = struct {
     context: *anyopaque,
     connection: w.Connection,
-    exchange: *const fn (*anyopaque, w.Connection, w.Action) anyerror!std.json.Parsed(w.Response),
-    pub fn call(self: Client, action: w.Action) !std.json.Parsed(w.Response) {
+    exchange: *const fn (*anyopaque, w.Connection, w.Action) anyerror!c.DirectTableClient.OwnedResponse,
+    pub fn call(self: Client, action: w.Action) !c.DirectTableClient.OwnedResponse {
         return self.exchange(self.context, self.connection, action);
     }
     pub fn direct(client: *c.DirectTableClient) Client {
         return .{ .context = client, .connection = client.connection, .exchange = http };
     }
-    fn http(raw: *anyopaque, connection: w.Connection, action: w.Action) !std.json.Parsed(w.Response) {
+    fn http(raw: *anyopaque, connection: w.Connection, action: w.Action) !c.DirectTableClient.OwnedResponse {
         const client: *c.DirectTableClient = @ptrCast(@alignCast(raw));
         if (!std.meta.eql(connection, client.connection)) return error.CounterDataBindingChanged;
         return client.call(action);
     }
 };
 pub const Definition = struct {
-    response: std.json.Parsed(w.Response),
+    response: c.DirectTableClient.OwnedResponse,
     value: w.Definition,
     pub fn deinit(self: *Definition) void {
         self.response.deinit();

@@ -2256,10 +2256,12 @@ Audit basis: `fe420d98bab493e7037adf1654c96a7055fc1280`. The
 independent fixtures and typed `SourceSql` parser establish the initial contract
 and syntax foundation, merged in [PR #400](https://github.com/spoke-sh/transit/pull/400).
 The [next SOURCE slice](#next-source-slice-durable-declarations-and-inspection--2026-11-06)
-details recoverable declaration publication and inspection. Installed execution
-remains unchanged. Durable catalog publication, owned capture storage/read guards,
-connector handoff, scheduling and the installed SQL lifecycle below remain
-implementation targets. This foundation
+details recoverable declaration publication and inspection, merged in
+[PR #410](https://github.com/spoke-sh/transit/pull/410). Native cohosted declaration
+publication and inspection are implemented; combined qualification remains open.
+The [owned capture slice](#next-source-slice-owned-capture-storage-and-readers--2026-11-07)
+plans the next storage and disclosure boundary. Connector handoff, scheduling and
+the activated SQL lifecycle below remain implementation targets. This foundation
 does not complete S0–S6, R8, the earthquake tracker or the dataflow milestone.
 
 ### Outcome and language decision
@@ -2287,7 +2289,9 @@ partition routing, CDC, overlapping polls, pagination, redirects, automatic
 request retries, arbitrary request bodies and schema inference are later profiles.
 SMTP, branch review, JSON_TABLE and alert triggers retain their owners in #398.
 
-Target example; all SOURCE/CONNECTION operations shown remain proposed:
+Target journey: declarations, EXPLAIN, inspection and RETIRE are implemented in
+the native cohosted profile. AUTHORIZE, ACTIVATE, SUSPEND and RESUME remain
+proposed execution steps and reject before admission:
 
 ```text
 CREATE STREAM quake_captures (
@@ -2360,7 +2364,7 @@ with a matching schema cannot masquerade as verified connector observations.
 
 | Boundary | Reuse and exact missing work |
 | --- | --- |
-| Grammar and typed SQL | [Current SOURCE](../handbook/reference/sql/create-source.md), [reference grammar](../../contracts/sql/TransitExtensions.g4) and `SourceSql` now cover the mandatory destination, typed HTTP options and SOURCE lifecycle roots. Installed lowering, catalog resolution and execution remain absent. |
+| Grammar and typed SQL | [Current SOURCE](../handbook/reference/sql/create-source.md), [reference grammar](../../contracts/sql/TransitExtensions.g4) and `SourceSql` cover the mandatory destination, typed HTTP options and SOURCE lifecycle roots. Native cohosted declaration lowering, resolution and inspection are implemented; activation and HTTP execution remain absent. |
 | Identity, definitions and dependencies | [Catalog](../../packages/zig/transit-catalog/README.md) and [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md) own stable identities, exact definitions and current rights. Extend their object/dependent variants and persisted operations; do not store a second name registry in a poller. |
 | Control and scheduling | Reuse [managed lifecycle obligations](../../contracts/DATAFLOW_V1.md), direct KV/progress/token ownership and the paged discovery/wakeup patterns in [DatabaseRuntime](../../packages/zig/transit-sql/src/DatabaseRuntime.zig). Source has its own typed state and poll records, not a fake finite Table query. |
 | Atomic decisions | [M6 R5](06-streams-queues-and-durable-runtime.md#r5-extend-the-transaction-owner-and-deliver-direct-kv) and the [direct transaction owner](../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action) must compose source KV, intent/completion Queue work and Stream appends with exact retry. A sequence of standalone SQL writes is not a substitute. |
@@ -2553,7 +2557,7 @@ or a proposal for another standalone server.
 | --- | --- | --- |
 | S0 — Contract and cutover | `transit-protocol`, source/HTTP/Stream/direct-transaction contracts, neutral fixtures and capability ledger. Freeze identities, output envelope, schedule/unknown/lifecycle rules, authority, retention graph and M6/M16 handoff obligations above. | Independent transition/encoding fixtures, foreign/missing-definition rejection, explicit proof obligations and consumer inventory. No runtime exposure. |
 | S1 — Typed declarations and Catalog lifecycle | The [next SOURCE slice](#next-source-slice-durable-declarations-and-inspection--2026-11-06): CONNECTION/SOURCE variants, atomic dependencies, original-token publication, declaration/control records, paged inspection and narrow native SQL lowering. Poll records remain with S3/S4. | CREATE/EXPLAIN/inspect/recover through typed callers; duplicate names/tokens, wrong schema, denied rights, DROP conflicts and crash during publication. These operations issue no connector requests. Activation reports unsupported until S2–S4 qualify. |
-| S2 — Owned capture storage and reader | Catalog/storage/data-client with M16: paged raw-body manifest, transaction-owned candidate attachment, Stream read guards, graph traversal and explicit original capture handoff. | 4 MiB and empty bodies, corrupt/missing/reordered chunks, restart at staging/commit/hold release, revoked buffered reads, retention/GC and growth beyond cache. No orphan accepted output or raw-read bypass. |
+| S2 — Owned capture storage and reader | The [next capture slice](#next-source-slice-owned-capture-storage-and-readers--2026-11-07), Catalog/storage/data-client with M16: paged raw-body manifest, transaction-owned candidate attachment, Stream read guards, graph traversal and explicit original capture handoff. | 4 MiB and empty bodies, corrupt/missing/reordered chunks, restart at staging/commit/hold release, revoked buffered reads, retention/GC and growth beyond cache. No orphan accepted output or raw-read bypass. |
 | S3 — Fenced connector consumer | HTTP/effect host and M6 Queue owner: configured route/TLS/secret binding, original attempt, one bounded GET, terminal evidence and completion handoff. Keep I/O outside database/query packages. | Independent HTTP/TLS peers; kill before/after send and final seal; duplicate claims, expired leases, revoked policy/secret, timeout, non-2xx, unsupported compression and unknown closure. Replay sends nothing. |
 | S4 — Durable source scheduler and atomic output | Catalog/source owner plus cohosted `DatabaseRuntime`: paged discovery, fixed-delay timers, one pending poll, common KV/Queue schedule and KV/Stream/completion publication, suspend/resume/retire fencing. | Full lost-reply/crash matrix, original offset recovery, no duplicate append, no overlapping request, no catch-up burst, bounded idle/recovery work and settlement under pressure. Enable typed activation only after S2/S3 gates. |
 | S5 — SQL and caller composition | `transit-sql`, `transit-sql-service`, session/result types, `transit-sql-client`, `transit-data-client`, console, diagnostics and generated bindings. Share typed operations; do not copy retry logic into adapters. | Installed native/console declare → inspect → authorize → activate → consume/read → suspend/resume → retire journey; session close leaves active ingestion intact, exact accepted-token recovery and current disclosure. Unsupported gateways reject explicitly. |
@@ -2603,8 +2607,11 @@ all gates above; general R8 and #398 remain open for their other workloads.
 
 ## Next SOURCE slice: durable declarations and inspection — 2026-11-06
 
-**Status: In Progress.** The durable declaration and native SQL implementation
-is under qualification. Current behavior is described in
+**Status: Completed (declarations and inspection).** The implementation merged
+in [PR #410](https://github.com/spoke-sh/transit/pull/410); its C6 proof is now
+recorded at the integrated SOURCE capture definition in the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07).
+Current behavior is described in
 [CREATE SOURCE](../handbook/reference/sql/create-source.md) and
 [CREATE CONNECTION](../handbook/reference/sql/create-connection.md); HTTP
 execution remains future work. The planning baseline was `origin/main` at
@@ -2858,10 +2865,11 @@ dependent binding consumers. Preserve explicit adapter rejection tests without
 claiming those adapters now execute SOURCE. Record commands, revision, budgets,
 raw evidence and terminal results in the qualification owner.
 
-Implementation qualification includes the registered `source-declarations`
-installed journey and the Catalog's publication, fault, growth and collection
-controls. Keep M12 and this slice `In Progress` until the complete required
-qualification is recorded, and keep #398 open for the remaining workload.
+The registered `source-declarations` installed journey and Catalog publication,
+fault, growth and collection controls pass at the integrated revision in the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07). This closes C6 for the scoped
+declaration/inspection behavior; M12 remains `In Progress`, and #398 remains open
+for the remaining workload.
 
 After C1–C6, S2 implements owned paged captures and Stream-scoped disclosure;
 S3 implements the fenced original HTTP attempt and retained handoff. S4 joins
@@ -2870,3 +2878,264 @@ G3 can then select and validate a complete GeoJSON capture for atomic current-Ta
 replacement; G4–G7 retain their own composition, reviewed-policy, delivery and
 installed-workload gates. No closure of those gaps follows from declaration
 publication alone.
+
+## Next SOURCE slice: owned capture storage and readers — 2026-11-07
+
+**Status: Completed (owned capture storage and readers).** The planning baseline
+was `origin/main` at `d837992fe`, including
+[PR #410](https://github.com/spoke-sh/transit/pull/410). P0–P5 are implemented and
+qualified at `7f557aaf7`, rebased onto `87ccf4e15`; the
+[combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07)
+records component, process-death, signed native reader and dependent installed
+proofs. This slice delivers S2 above and advances **G2 — Governed capture** in
+[#398](https://github.com/spoke-sh/transit/issues/398). The application needs to
+retain one complete external observation, recover its original publication, and
+read its bytes under the destination's current policy. A 4 MiB body must fit that
+lifecycle without becoming a 4 MiB Stream cell or an actor message.
+
+The declaration prerequisite C6 now passes at the same integrated definition;
+its earlier evidence remains in the
+[original account](../history/qualification/catalog.md#durable-connection-and-source-declarations--2026-11-06).
+The qualified capture importer starts from an already sealed finite response in
+an explicitly trusted host. S3/S4 admission, HTTP polling and activation remain
+future work; S0–S6 as a whole, R8, M12 and G2 remain incomplete.
+
+### Deliverable and scope
+
+Deliver a bounded, destination-owned capture candidate, a transaction attachment
+that retains its complete graph with exactly one Stream envelope, and a shared
+typed reader with original-publication evidence. Recover the same candidate,
+decision and offset after lost replies or restart. Preserve the original receipt
+after payload release, distinguishing retained metadata from available bytes.
+
+The first proof starts from an **already sealed finite HTTP capture** and uses
+the single-owner, branch-one, same-Catalog, one-partition profile. HTTP status,
+framing coverage, original attempt and retained content must all agree. Complete
+200, non-2xx and empty responses remain distinct observations. The reader returns
+raw permitted body bytes; it performs no JSON decoding or current-Table update.
+
+Stage/attach are component operations for the explicitly trusted capture owner.
+The existing declaration executor field alone cannot authorize them. Bind their
+admission to a host-verified original attempt and current destination rights;
+client-supplied `Poll.state = captured` or a `Source.Capture` value is insufficient.
+Exercise these operations through the shared typed caller in an explicitly
+configured test host. Install the public read boundary over that accepted state,
+but keep installed capture mutation routes unavailable until S3/S4 supply their
+qualified admission owner. No SQL upload/import verb or alternate one-shot SOURCE
+dialect is introduced to bypass activation.
+
+AUTHORIZE, ACTIVATE, SUSPEND and RESUME continue to reject, and the ordinary
+installed declaration test continues to observe zero HTTP requests and zero
+capture rows. Poll scheduling, Queue dispatch/settlement, live HTTP attempts,
+control-versus-output races and the activated SQL journey remain S3–S5 work.
+G1's constant projections and column comparisons can proceed independently;
+G3's JSON_TABLE and replacement, reviewed rules and alert delivery keep their
+own gates. Do not expand this slice to a general Document runtime or SMTP.
+
+### Current owners and concrete gaps
+
+| Owner at the baseline | Reuse and required extension |
+| --- | --- |
+| [Source](../../packages/zig/transit-protocol/src/Source.zig), [SOURCE_V1](../../contracts/SOURCE_V1.md), [SourceBinding](../../packages/zig/transit-catalog/src/SourceBinding.zig) | Exact definitions, poll/capture identities, body budget and seven stable columns exist. `Capture.manifest` is only a content commitment; it supplies neither retained pages, a complete HTTP proof nor a reader. |
+| [DirectSource](../../packages/zig/transit-catalog/src/DirectSource.zig) and [SourceDeclaration](../../packages/zig/transit-catalog/src/SourceDeclaration.zig) | Preserve immutable declarations, dependency edges, destination writer and retired/dropped attribution. Add capture ownership separately from declaration control; metadata publication remains free of effect execution. |
+| [DirectTransactionRecord](../../packages/zig/transit-catalog/src/DirectTransactionRecord.zig), [DirectOwnedRecord](../../packages/zig/transit-catalog/src/DirectOwnedRecord.zig) and [direct transactions](../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action) | Reuse reservation before creation, readiness, frozen workspaces and original common decisions. TXR1 stores individual bounded records; it does not recursively retain a capture manifest or prove an attachment matches a Stream row. |
+| [DocumentSource](../../packages/zig/transit-storage/src/DocumentSource.zig) and [DirectDocumentSource](../../packages/zig/transit-catalog/src/DirectDocumentSource.zig) | Reuse the 64 KiB immutable-chunk/paged-index mechanics and reservation/readiness/verification controls. Document targets, DSS1 authority and its uninstalled attachment path cannot be reused as Stream authority. Factor genuinely shared storage mechanics below both owners; do not create a fake Document. |
+| [DirectRecord](../../packages/zig/transit-catalog/src/DirectRecord.zig) and [LogAuthority](../../packages/zig/transit-catalog/src/LogAuthority.zig) | Existing guarded records cover Table/KV objects. Add exact Stream-bound disclosure and reject capture-specific formats through unguarded generic staging, reading and attachment paths. |
+| [DirectStorageGraph](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig), [Stream storage](../../packages/zig/transit-storage/README.md) and [retention](../handbook/reference/retention.md) | Walk candidates, attachment directories, manifest pages and chunks from accepted roots, retained Stream reads and uncertain work. A BINARY cell or a digest does not create a graph edge. |
+| [HTTP Replay](../../packages/zig/transit-station-http/src/Replay.zig), [Exchange](../../packages/zig/transit-exchange/README.md) and [M16's handoffs](16-document-profiles-and-gateway-exchange-lifecycle.md#dependencies-and-handoffs) | Reuse current-policy complete replay and token/holder retention. The adapter sits above the database and connector packages. Catalog/storage/data-client must not import Station, perform transport I/O or reimplement HTTP framing. |
+| [Data client](../../packages/zig/transit-data-client/README.md), native Catalog dispatch and the [public Zig SDK](../../sdks/zig/README.md) | Add saved capture handles and bounded reader ownership through the existing signed boundary. Keep Board read-only and do not add a second SDK retry or permission authority. |
+
+### Contract decisions before persistence
+
+Extend SOURCE_V1 and the direct transaction/record contracts before exposing
+dependent operations. Define neutral types and independently encoded fixtures
+for the candidate, manifest, attachment, original receipt and reader continuation.
+Use the shared current-v1 hard cutover for incompatible persisted/wire changes;
+migrate generated schemas, host resources, signing fixtures and affected consumers
+together. Reject missing or foreign definitions before reading saved work.
+
+Freeze these identities separately:
+
+- Exact SOURCE, CONNECTION and destination Stream definitions; stable output
+  column IDs; original poll operation, UUID, sequence and admitted control epoch.
+- Original finite exchange/effect attempt and its complete coverage commitment;
+  the authenticated verifier/adapter and its versioned interpretation. A signed
+  executor assertion establishes attribution, not honest remote computation.
+- Candidate owner/token, byte commitment and manifest root; output transaction,
+  decision and exact Stream partition/offset. An identical body in two polls
+  remains two observations with different originals.
+
+Use a canonical bounded root and a paged ordered inventory of chunk offset,
+length and SHA-256. Retain the terminal HTTP evidence and the exact source capture
+reference with that root. Separate whole-body SHA-256 from manifest commitment.
+An empty body has zero data chunks, an explicit verified terminal record and the
+SHA-256 of empty bytes; absence of a page is never evidence of an empty response.
+Missing, duplicate, reordered, overlapping, extra or inconsistent chunks reject.
+
+The proposed `body_ref` encoding is an opaque descriptor bounded to 4 KiB,
+containing identity/commitment references rather than the page inventory. Prove
+its maximum encoding and the complete seven-column envelope fit the existing
+Stream budgets. Keep 64 KiB raw chunks and the current 16 KiB Catalog WAL ceiling;
+charge base64/wire encoding, manifests, index updates and closure separately.
+No change raises the existing TableRow or actor-message limits.
+
+For this profile, destination Stream READ is the published raw-body disclosure
+policy, alongside current database CONNECT and schema USAGE. Source inspection,
+control, CONNECTION use and Stream metadata inspection confer no body access.
+Private candidate reads additionally require the original owner. The importing
+adapter needs current source-capture read/disclosure authority and destination
+append authority; downstream readers need no credentials or private connector
+resource access. Any stronger disclosure policy requires an explicit contract,
+not an ambient provider credential or a new implicit permission bit.
+
+### Ownership, publication and recovery
+
+1. **Hold the original.** Persist an import/handoff identity before requesting
+   an Exchange consumer hold. Resolve an uncertain hold through the same token
+   and holder. The adapter must prove its current disclosure rights; the hold
+   grants lifetime protection only. Do not release the finite caller's existing
+   hold before the new ownership is authoritative.
+2. **Verify the retained input.** Read the complete sealed exchange using the
+   existing HTTP replay validator and shared coverage checks. Derive status,
+   body length and whole-body digest only after terminal verification. Freeze
+   those results with the exact exchange commitment. A status line, HTC1 alone
+   or a body hash without exchange coverage cannot authorize publication.
+3. **Reserve and stage.** Reserve the destination candidate and its aggregate
+   byte/work budget before writing. Make a second bounded replay pass to copy
+   permitted body bytes into sequential chunks, reserving each chunk before its
+   put and publishing readiness afterward. Recheck current rights and the frozen
+   commitment throughout. This deliberate two-pass profile uses an already
+   sealed input; it avoids pretending the existing fixed-content Document source
+   API can accept an unknown live body. Charge both passes and repeated recovery.
+4. **Seal the candidate.** Recompute complete ordered coverage and the body hash,
+   then publish readiness for the bounded root. Seal is not a Stream append or
+   source progress update. A ready retry verifies existing bytes; it cannot repair
+   accepted missing content from a caller's replacement bytes.
+5. **Attach in the original transaction.** Freeze the ready root, exact envelope
+   and Stream participant in one saved request. Register capture ownership before
+   accepting the common decision. Commit makes the attachment, one envelope and
+   its authoritative position visible together. Refuse incomplete registration,
+   wrong definitions/columns, an unrelated output row, a competing original or
+   authority loss. A lost reply resolves the same decision/offset; it never
+   creates another transaction or append. S4 later adds source progress and Queue
+   completion to this same owner, rather than following publication with a
+   separately accepted checkpoint.
+6. **Transfer or close.** Persist the authoritative destination result before
+   releasing the original Exchange hold. A release timeout retains the same
+   pending acknowledgement. Abort permits private-byte cleanup only after its
+   authoritative decision and complete participant cleanup; an uncertain decision
+   preserves both sides. A revoked permission or failed inspection is not an
+   abort. Late writes cannot reopen a closed candidate or attach it elsewhere.
+
+Give the handoff a paged durable directory and bounded recovery steps using the
+existing original-token/progress owner. Each stored phase names the original
+hold, candidate and transaction; a process-local hash continuation is only an
+optimization. Reopen may rehash from the start under the accepted work budget.
+Exhaustion refuses further data work while preserving control capacity for
+original inspection and closure. The initial implementation admits one unfinished
+handoff per original, without a total-cardinality in-memory array.
+
+### Reachability and reader contract
+
+Use an explicit capture attachment entry keyed by the accepted destination
+partition/offset and original decision. Verify its exact envelope and root;
+ordinary appends with lookalike binary values do not install attachments.
+Copying a valid descriptor preserves its original provenance and cannot certify
+a different row, poll or destination. Readers resolve the authoritative attachment
+before disclosing bytes; arbitrary provider paths and unattached candidates reject.
+
+Uncertain candidates retain their graph through their original owner. Committed
+attachments retain it through current Stream data, retained reads and required
+recovery/history roots. Abort cleanup, logical payload expiry and physical
+collection are separate decisions. Preserve original operation commitments after
+payload release without keeping every expired body alive through a permanent
+receipt. Do not change the existing lifetime of unrelated committed TXR1 managed
+results: capture attachment/release needs its own explicit ownership semantics.
+
+Reuse the Stream's declared retention and read-pin machinery. Default retention
+is unlimited. With explicit age expiry, a retained reader continues to protect
+its original attachment; a new reader below the retained boundary receives a gap.
+Retire/DROP of SOURCE or CONNECTION does not release destination-owned bytes.
+Destination DROP/name reuse cannot retarget historical reads. Walk manifests and
+chunks in bounded collector steps, preserving allocation-epoch and reader-grace
+fences, including objects created after a collection cut.
+
+The shared reader has open, bounded next/read, original observation and explicit
+close operations. Open acquires the required durable retention before disclosure;
+failed/uncertain acquisition recovers its original pin rather than retrying with
+a new identity. Bind continuation to caller/effective role, exact publication,
+retained root, position and budget. Own returned bytes independently of the next
+scratch reset. Return at most one 64 KiB raw chunk per call and mark prefixes
+provisional until verified terminal coverage; distinguish empty completion from
+EOF, cancellation, budget exhaustion and missing content.
+
+Recheck current rights after buffering and before every disclosure, including
+duplicate, empty and terminal calls. Clear pending output on failure; restoring
+rights does not splice a new publication into an invalidated reader. Explicit
+early close releases only that reader's pin, using control capacity and the same
+original identity after lost replies. It does not roll back publication or release
+another reader or the upstream handoff hold.
+
+### Implementation sequence and exit evidence
+
+| Commit group | Scope and owners | Required executed evidence |
+| --- | --- | --- |
+| P0 — Contracts and independent fixtures | Freeze identities, capture admission trust, body/ref encodings, Stream read policy, attachment/release lifecycle, bounds and current-v1 migration inventory in the existing owners. | Independent empty/maximum encodings, wrong definition/kind/scope/attempt and all capability refusals; explicit list of affected schemas/SDK consumers. |
+| P1 — Owned paged candidates | Factor shared chunk/index mechanics in storage; implement Catalog reservation, sequential staging, seal, original inspection and closure without Station dependencies. | Disk reopen and lost replies before/after reservation, put, readiness and seal; corrupt/missing/duplicate/reordered chunks; zero/exact-bound/over-budget inputs; no visible accepted root from a prefix. |
+| P2 — Atomic attachment and collection | Extend the transaction owner, Stream attachment directory, accepted output validation and DirectStorageGraph. Keep unrelated TXR1 lifetimes intact. | Commit/abort/lost decision replies yield exactly one original offset or no row; incomplete registration and forged rows reject; uncertain work survives collection; explicit expiry plus final read release permits cleanup while original receipts remain attributable. |
+| P3 — Shared guarded reader | Typed Catalog/data-client operations, signed native read dispatch, retained-pin recovery, independent output buffers and bounded continuation. | Independent reader without producer credentials; source-inspect-only denial; raw generic-read bypass controls; revocation after buffering and on repeated/empty terminal reads; early close, uncertain pin acquisition, incomplete prefixes and cross-principal/cross-publication cursors. |
+| P4 — Retained HTTP handoff | Adapter above HTTP/Exchange and the data client, durable hold/copy/attach/release phases and two-pass complete replay. No dispatch or scheduler. | Already sealed finite capture; restart/lost replies at every hold, pass, candidate, decision and release boundary; revoked source disclosure, expired original availability, closure races and zero replay network requests. |
+| P5 — Combined qualification and public owners | Test-host component journey, installed public reader, unchanged SOURCE execution refusals, contracts/SDK migration and current capability documentation. | One committed-revision proof set combines a 4 MiB capture, exact hashes/bytes/offset, two independent readers, original recovery, pressure, retention and collection. Publish exact supported profile and remaining S3/S4 admission gates. |
+
+P0 precedes persisted implementation. P1/P2 establish ownership before the public
+reader; P4 composes those operations with the existing finite capture owner.
+Every group includes its owning positive and negative tests. P5 is integration
+evidence, not the first time storage, authorization or recovery is exercised.
+
+### Acceptance matrix and validation
+
+Use independently constructed binary bodies with known hashes: empty, one byte,
+64 KiB minus/at/plus one, multiple manifest pages, exactly 4,194,304 bytes, and one
+byte over the configured budget. Split HTTP records across capture chunks and
+body chunks across storage boundaries. Cover complete 200/204/4xx/5xx responses,
+missing final coverage, truncated/extra bytes, wrong lengths/digests and unsupported
+framing. Failure cannot become an empty observation or overwrite a previous one.
+
+Run a real process-death schedule around reservation, readiness, sealing, common
+decision and hold release in addition to deterministic lost-reply injection.
+For each boundary verify original identities, exact bytes/offset, retained roots
+and cleanup, not only final row counts. Label process death, disk reopen and
+injected I/O faults separately; none establishes physical power-loss durability.
+
+Create more captures, chunks, receipts and readers than the configured caches.
+Measure peak capture working memory separately from storage caches and transport
+buffers, charge every active owner across accounts, and refuse before exceeding
+the declared limits. Use reusable chunk buffers and bounded scratch, with
+counting-allocator controls for the steady-state storage loop. No allocation may
+scale with the full body or retained history. Exhaust data admission and prove
+inspection, original decision recovery and closure still have reserved capacity.
+
+`just test::source-capture` now runs the importer components and real process-death
+oracle in the `interfaces-connectors` lane. `test::local-catalog` includes the
+signed native capture reader, and `test::source-declarations` preserves the
+installed declaration-only journey with zero HTTP requests and zero capture rows.
+Run focused storage/Catalog/HTTP/caller proofs, then affected committed-HEAD clean
+`core`, `storage-query`, `interfaces-sql`, `interfaces-connectors`,
+`installation-ui` and dependent SDK lanes according to the final changed surface. Extend model checks when ownership
+or decision transitions change. SQL service/startup changes require the pinned
+console latency and server SQL type gates; adapter changes require their owning
+wire checks. Generated browser contracts require Board and affected browser
+proofs. Preserve the existing budgets and rejection/recovery cases.
+
+Before opening or updating the implementation PR, run all repository baseline
+gates and `just check contracts`; record exact commands, revisions, terminal
+outcomes and limits in the qualification owner. Promote delivered behavior into
+SOURCE_V1, the direct contract, Stream/retention references and component/client
+guides. Keep future scheduling and M16's Document-backed exchange cutover in their
+owners; this raw-body representation does not complete either.
+
+P0–P5 now qualify the bounded storage/read seam, with exact executed gates and
+limits in the [combined qualification](../history/qualification/catalog.md#owned-source-capture-storage-and-readers--2026-11-07).
+S3 must supply fenced original-attempt admission, and S4 must join schedule,
+progress and output through the common decision before activation is exposed.
+This completion does not close G2 or make the earthquake script run.

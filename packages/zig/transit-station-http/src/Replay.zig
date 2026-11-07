@@ -3,39 +3,47 @@
 const std = @import("std");
 const http = @import("root.zig");
 const x = http.exchange;
-const Self = @This();
-client: *x.Client,
-reference: x.Client.Reference,
-cursor: x.Exchange.Cursor,
-validator: Validator,
-done: bool = false,
-failed: bool = false,
-pub const Policy = enum { captured, require_unredacted };
-pub const Part = struct { kind: http.Kind, bytes: x.p.Value, complete: bool };
-pub fn open(client: *x.Client, reference: x.Client.Reference, policy: Policy) !Self {
-    const cursor = try client.open(reference);
-    if (cursor.descriptor.protocol != http.protocol_format) return error.WrongExchangeProtocol;
-    return .{ .client = client, .reference = reference, .cursor = cursor, .validator = .{ .terminal_status = cursor.descriptor.terminal_code, .policy = policy } };
-}
-pub fn read(self: *Self) !?Part {
-    if (self.failed) return error.HttpReplayFailed;
-    if (self.done) return null;
-    errdefer self.failed = true;
-    const part = try self.client.read(self.reference, self.cursor);
-    const kind = std.enums.fromInt(http.Kind, part.kind) orelse return error.InvalidHttpCapture;
-    try self.validator.push(kind, part.bytes.slice());
-    if (part.next) |cursor| self.cursor = cursor else {
-        _ = try self.validator.finish();
-        self.done = true;
-    }
-    return .{ .kind = kind, .bytes = part.bytes, .complete = self.done };
+const ReplayPolicy = enum { captured, require_unredacted };
+/// Alternate current-authorized Exchange clients share the same HTTP replay
+/// state machine. Client.open/read must use the Exchange coverage reader.
+pub fn WithClient(comptime Client: type) type {
+    return struct {
+        const Self = @This();
+        client: *Client,
+        reference: x.Client.Reference,
+        cursor: x.Exchange.Cursor,
+        validator: Validator,
+        done: bool = false,
+        failed: bool = false,
+        pub const Policy = ReplayPolicy;
+        pub const Validator = ReplayValidator;
+        pub const Part = struct { kind: http.Kind, bytes: x.p.Value, complete: bool };
+        pub fn open(client: *Client, reference: x.Client.Reference, policy: Policy) !Self {
+            const cursor = try client.open(reference);
+            if (cursor.descriptor.protocol != http.protocol_format) return error.WrongExchangeProtocol;
+            return .{ .client = client, .reference = reference, .cursor = cursor, .validator = .{ .terminal_status = cursor.descriptor.terminal_code, .policy = policy } };
+        }
+        pub fn read(self: *Self) !?Part {
+            if (self.failed) return error.HttpReplayFailed;
+            if (self.done) return null;
+            errdefer self.failed = true;
+            const part = try self.client.read(self.reference, self.cursor);
+            const kind = std.enums.fromInt(http.Kind, part.kind) orelse return error.InvalidHttpCapture;
+            try self.validator.push(kind, part.bytes.slice());
+            if (part.next) |cursor| self.cursor = cursor else {
+                _ = try self.validator.finish();
+                self.done = true;
+            }
+            return .{ .kind = kind, .bytes = part.bytes, .complete = self.done };
+        }
+    };
 }
 /// A bounded protocol validator layered over the shared digest/coverage reader.
 /// Direct users must independently verify the exchange commitment before trusting
 /// its result. Feed records in order; splitting records into chunks is supported.
-pub const Validator = struct {
+const ReplayValidator = struct {
     terminal_status: u32,
-    policy: Policy = .captured,
+    policy: ReplayPolicy = .captured,
     current: ?http.Kind = null,
     buffer: [http.Request.maximum_head_bytes]u8 = undefined,
     used: usize = 0,
@@ -49,7 +57,7 @@ pub const Validator = struct {
     status: u16 = 0,
     omission: ?http.Omission = null,
     completion: ?http.Completion = null,
-    pub fn push(self: *Validator, kind: http.Kind, bytes: []const u8) !void {
+    pub fn push(self: *ReplayValidator, kind: http.Kind, bytes: []const u8) !void {
         if (self.completion != null) return error.InvalidHttpCapture;
         if (self.current != kind) {
             if (self.current) |old| {
@@ -99,7 +107,7 @@ pub const Validator = struct {
             },
         }
     }
-    fn end(self: *Validator, kind: http.Kind) !void {
+    fn end(self: *ReplayValidator, kind: http.Kind) !void {
         const bytes = self.buffer[0..self.used];
         switch (kind) {
             .request_template => if (self.template_bytes == 0 or self.template_bytes > http.Request.maximum_head_bytes) return error.InvalidHttpCapture,
@@ -123,7 +131,7 @@ pub const Validator = struct {
             .completion => self.completion = try x.codec.decode(http.Completion, try x.p.Value.init(bytes)),
         }
     }
-    pub fn finish(self: *Validator) !http.Completion {
+    pub fn finish(self: *ReplayValidator) !http.Completion {
         if (self.current != .completion) return error.HttpReplayGap;
         if (self.completion == null) try self.end(.completion);
         const value = self.completion.?;

@@ -108,7 +108,12 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4`.
+`392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7`.
+
+Owned SOURCE capture staging adds mandatory capture ownership to saved Catalog
+progress. Missing ownership fields and earlier definitions reject; old accepted
+work must be resolved with its matching build. The cutover does not reset data
+or enable SOURCE activation.
 It binds dedicated CONNECTION/SOURCE declarations, mandatory distinct native
 authority domains, Catalog connector entries and paged writer ownership,
 immutable source artifacts, original control receipts and typed SQL connector

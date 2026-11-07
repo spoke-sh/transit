@@ -19,6 +19,10 @@ pub fn main(init: std.process.Init) !void {
         try out.objectField("DocumentSource" ++ name);
         try c.protocol.Schema.writeRecursiveAt(@field(c.DirectDocumentSource, name), &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/DocumentSource" ++ name);
     }
+    inline for (.{ "Descriptor", "State", "Observation", "Manifest" }) |name| {
+        try out.objectField("SourceCapture" ++ name);
+        try c.protocol.Schema.writeRecursiveAt(@field(c.DirectSourceCapture, name), &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/SourceCapture" ++ name);
+    }
     try out.objectField("SavedLogIntent");
     try c.protocol.Schema.writeRecursiveAt(c.DirectLogIntent.Saved, &out, .{ .text_max_length = 256, .sequence_max_length = 128 }, "/$defs/SavedLogIntent");
     try out.objectField("SavedWorkloadIntent");

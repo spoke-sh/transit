@@ -124,6 +124,7 @@ fn target(action: w.Action) ?u64 {
             else => null,
         },
         .stream => |value| value.target().interpretation.object.object,
+        .capture_read => |value| value.reference().destination.object.object,
         .queue => |value| value.target().interpretation.object.object,
         .workload_result => |value| value.target().interpretation.object.object,
         .kv => |value| value.target().object,

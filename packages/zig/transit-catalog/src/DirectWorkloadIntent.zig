@@ -209,7 +209,7 @@ pub const Reference = struct {
     /// Resolve or execute only the retained body. Loading and current native
     /// authorization are separate; neither this descriptor nor its digest grants
     /// rights or supplies completion. No new operation identity is generated.
-    pub fn operation(self: Reference, client: c.DirectTableClient, command: enum { inspect, execute, cancel }) !std.json.Parsed(w.Response) {
+    pub fn operation(self: Reference, client: c.DirectTableClient, command: enum { inspect, execute, cancel }) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
         const bytes = try c.DirectRecord.read(client.allocator, client, self.record);

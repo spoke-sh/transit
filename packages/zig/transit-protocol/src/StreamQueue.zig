@@ -52,12 +52,21 @@ pub const Append = struct {
     producer: ?Producer,
     rows: u64,
     payload: d.Content,
+    /// Only the protected capture transaction may install this graph edge.
+    capture: ?p.SourceCapture.Attachment = null,
 
     pub fn validate(self: Append) !void {
         try self.target.requireOperation(self.operation);
         try self.payload.validate();
         if (self.rows == 0) return error.InvalidLogAppend;
         if (self.producer) |producer| try producer.validate();
+        if (self.capture) |capture| {
+            try capture.validate();
+            if (self.kind != .stream or self.rows != 1 or self.producer != null or self.target.partition != 0 or
+                !std.meta.eql(capture.reference.destination, self.target.interpretation) or
+                !std.meta.eql(capture.transaction.begin.scope, self.operation.scope) or
+                capture.transaction.begin.principal != self.operation.principal) return error.InvalidSourceCapture;
+        }
     }
 
     pub fn requireSame(self: Append, other: Append) !void {

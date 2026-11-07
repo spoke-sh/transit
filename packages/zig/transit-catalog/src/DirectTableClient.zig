@@ -30,6 +30,97 @@ borrow: ?c.DirectReadDelegation.Borrow = null,
 /// starting a new host action; nested reads must not erase a mutation attempt.
 attempt: ?*Attempt = null,
 
+/// Owns the parsed response arena. Borrowed fields remain valid until deinit;
+/// moving this value transfers its single cleanup obligation. Cleanup takes a
+/// reference so deferred error paths never copy the wide protocol result union.
+pub const OwnedResponse = struct {
+    arena: *std.heap.ArenaAllocator,
+    value: w.Response,
+
+    /// Transfer a parser's existing arena without allocating or copying slices.
+    pub fn init(parsed: std.json.Parsed(w.Response)) OwnedResponse {
+        return .{ .arena = parsed.arena, .value = parsed.value };
+    }
+    pub fn deinit(self: *const OwnedResponse) void {
+        // The owner itself may live in the arena that is about to be released.
+        const arena = self.arena;
+        const allocator = arena.child_allocator;
+        arena.deinit();
+        allocator.destroy(arena);
+    }
+};
+
+test "owned direct response may reside inside its parsed arena" {
+    const t = std.testing;
+    const arena = try t.allocator.create(std.heap.ArenaAllocator);
+    errdefer t.allocator.destroy(arena);
+    arena.* = .init(t.allocator);
+    errdefer arena.deinit();
+    const response = try arena.allocator().create(OwnedResponse);
+    response.* = .{ .arena = arena, .value = .{
+        .definition = p.Growth.current_definition,
+        .context = @splat(1),
+        .policy_revision = 1,
+        .subject = .{ .principal = 101, .login_role = 101, .role = 101, .credential_epoch = 1, .audience = 100, .context = @splat(1) },
+        .result = .initialized,
+    } };
+    response.deinit();
+}
+
+test "owned direct responses unwind retained arenas on a bounded stack" {
+    const t = std.testing;
+    const count = 32;
+    const Worker = struct {
+        noinline fn visit(responses: *const [count]OwnedResponse, labels: *const [count][]const u8, closed: *[count]bool, index: usize, stop: usize) !void {
+            defer {
+                responses[index].deinit();
+                closed[index] = true;
+            }
+            try t.expectEqual(index + 1, responses[index].value.policy_revision);
+            try t.expectEqualStrings("retained arena", labels[index]);
+            if (index + 1 < count) try visit(responses, labels, closed, index + 1, stop);
+            try t.expectEqualStrings("retained arena", labels[index]);
+            if (index == stop) return error.ExpectedStop;
+        }
+        fn run(responses: *const [count]OwnedResponse, labels: *const [count][]const u8, closed: *[count]bool, stop: usize, failure: *?anyerror) void {
+            visit(responses, labels, closed, 0, stop) catch |err| {
+                failure.* = err;
+            };
+        }
+    };
+    const responses = try t.allocator.create([count]OwnedResponse);
+    defer t.allocator.destroy(responses);
+    // Every failure depth and normal exhaustion must close each original arena
+    // exactly once, while outer response fields stay readable through inner calls.
+    for (0..count + 1) |stop| {
+        var labels: [count][]const u8 = undefined;
+        var closed: [count]bool = @splat(false);
+        var initialized: usize = 0;
+        defer for (0..initialized) |i| if (!closed[i]) responses[i].deinit();
+        for (responses, &labels, 0..) |*response, *label, i| {
+            const arena = try t.allocator.create(std.heap.ArenaAllocator);
+            errdefer t.allocator.destroy(arena);
+            arena.* = .init(t.allocator);
+            errdefer arena.deinit();
+            label.* = try arena.allocator().dupe(u8, "retained arena");
+            response.* = OwnedResponse.init(.{ .arena = arena, .value = .{
+                .definition = p.Growth.current_definition,
+                .context = @splat(1),
+                .policy_revision = i + 1,
+                .subject = .{ .principal = 101, .login_role = 101, .role = 101, .credential_epoch = 1, .audience = 100, .context = @splat(1) },
+                .result = .initialized,
+            } });
+            initialized += 1;
+        }
+        var failure: ?anyerror = null;
+        // Include the linked catalog test binary's TLS in this bounded stack.
+        const thread = try std.Thread.spawn(.{ .stack_size = 1024 * 1024 }, Worker.run, .{ responses, &labels, &closed, stop, &failure });
+        thread.join();
+        try t.expectEqual(if (stop < count) @as(?anyerror, error.ExpectedStop) else null, failure);
+        try t.expect(std.mem.allEqual(bool, &closed, true));
+    }
+}
+
 pub const Attempt = struct {
     mutation: ?Mutation = null,
     pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation };
@@ -41,6 +132,7 @@ pub const Attempt = struct {
                 .source => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .descriptor => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .stream => |value| value.identity(),
+                .capture_read => |value| value.identity(),
                 .queue => |value| value.identity(),
                 .kv => |value| value.identity(),
                 .kv_declaration => |value| value.declaration.binding.identity,
@@ -195,7 +287,7 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
 }
 /// No retry, resubmission, pin renewal or settlement is implicit. A timeout can
 /// leave accepted work; inspect or resume its original binding explicitly.
-pub fn call(self: Self, action: w.Action) !std.json.Parsed(w.Response) {
+pub fn call(self: Self, action: w.Action) !OwnedResponse {
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
     var temporary = self;
@@ -207,7 +299,7 @@ pub fn call(self: Self, action: w.Action) !std.json.Parsed(w.Response) {
     // mutating transport is conservative evidence of possible acceptance,
     // including failure before a response can prove what actually happened.
     if (self.attempt) |attempt| attempt.begin(request);
-    const response = try self.service.callOwned(w.Response, "/table/v1", request, .{ .request_bytes = w.max_request_bytes, .response_bytes = w.max_response_bytes });
+    const response = OwnedResponse.init(try self.service.callOwned(w.Response, "/table/v1", request, .{ .request_bytes = w.max_request_bytes, .response_bytes = w.max_response_bytes }));
     errdefer response.deinit();
     try validateResponse(arena.allocator(), request, response.value);
     return response;

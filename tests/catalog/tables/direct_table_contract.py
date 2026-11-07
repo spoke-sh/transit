@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
+definition = "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -823,6 +823,96 @@ source_key = "document-sources/" + hashlib.sha256(b"transit.document.source.chun
 persist(root / "packages/zig/transit-catalog/src/fixtures/document-source-v1.json",
         (json.dumps({"descriptor": source_descriptor, "binding": source_binding, "chunk_key": source_key}, indent=2) + "\n").encode())
 
+# Capture candidates share the original-token owner, with a disjoint storage
+# namespace and no inherited Document target or authority.
+capture_evidence = copy.deepcopy(json.loads((root / "packages/zig/transit-protocol/src/fixtures/source-capture-v1.json").read_text())["evidence"])
+def capture_scope(value):
+    if isinstance(value, dict):
+        for name, child in value.items():
+            if name == "scope":
+                value[name] = copy.deepcopy(request_input["connection"]["scope"])
+            else:
+                capture_scope(child)
+    elif isinstance(value, list):
+        for child in value:
+            capture_scope(child)
+capture_scope(capture_evidence)
+capture_evidence["poll"]["operation"] = copy.deepcopy(source_descriptor["operation"])
+capture_evidence["body"] = dict(bytes=3, sha256=list(source_digest))
+capture_descriptor = dict(key=token_key, operation=source_descriptor["operation"], namespace=1,
+                          evidence=capture_evidence, budget=source_descriptor["budget"], limits=source_descriptor["limits"])
+capture_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SourceCaptureDescriptor"})
+capture_validator.validate(capture_descriptor)
+for field in capture_descriptor:
+    invalid = copy.deepcopy(capture_descriptor)
+    del invalid[field]
+    assert not capture_validator.is_valid(invalid), field
+capture_envelope = canonical(dict(definition=definition, key=token_key, format=0x53434331,
+                                 bytes=dict(base64=base64.b64encode(canonical(capture_descriptor)).decode())))
+capture_reference = dict(scope=original_reference["scope"], format=0x534F5231,
+                         content=dict(bytes=len(capture_envelope), sha256=list(hashlib.sha256(capture_envelope).digest())))
+capture_binding = dict(key=token_key, fingerprint=capture_reference["content"]["sha256"],
+                       intent=dict(external=dict(connection=request_input["connection"], namespace=1,
+                                                 operation=2**64 - 1, record=capture_reference)),
+                       budget=capture_descriptor["budget"])
+capture_key = "source-captures/" + hashlib.sha256(b"transit.source.capture.chunk.v1\0" + bytes.fromhex(definition)
+                                                + source_owner + struct.pack(">QQ", 0, 3) + source_digest).hexdigest() + ".data"
+assert capture_key != source_key
+persist(root / "packages/zig/transit-catalog/src/fixtures/source-capture-v1.json",
+        (json.dumps(dict(descriptor=capture_descriptor, binding=capture_binding, chunk_key=capture_key), indent=2) + "\n").encode())
+
+# Independently authored publication, signed reader and known-key continuation.
+# This vector proves encoding/binding, not accepted storage or remote honesty.
+import hmac
+reader_evidence = copy.deepcopy(capture_evidence)
+reader_body = bytes((i * 73 + 19) & 255 for i in range(65537))
+reader_evidence["body"] = dict(bytes=len(reader_body), sha256=list(hashlib.sha256(reader_body).digest()))
+reader_reference = dict(definition=definition, destination=reader_evidence["destination"],
+                        candidate=list(source_owner), manifest=dict(bytes=1234, sha256=[61]*32))
+reader_scope = request_input["connection"]["scope"]
+def reader_operation(id, principal=4):
+    return dict(scope=reader_scope, principal=principal, operation=id)
+reader_identity = dict(begin=reader_operation(50001), branch=1)
+reader_directory = dict(content=dict(bytes=100, sha256=[62]*32), count=1)
+reader_attempt = dict(definition=definition, transaction=reader_identity, operation=reader_operation(50002),
+                      cut=dict(bytes=100, sha256=[63]*32), workspace=dict(bytes=100, sha256=[64]*32),
+                      participants=reader_directory, writes=1, last_statement=1)
+reader_decision = dict(attempt=reader_attempt, outcome="committed", prepared=reader_directory,
+                       position=dict(partition=92, next_lsn=3), coordinator_epoch=1, policy_epoch=1)
+reader_target = dict(definition=definition, interpretation=reader_reference["destination"], partition=0)
+reader_append = dict(target=reader_target, operation=reader_operation(50003), kind="stream", producer=None,
+                     rows=1, payload=dict(bytes=200, sha256=[65]*32),
+                     capture=dict(reference=reader_reference, transaction=reader_identity))
+reader_publication = dict(reference=reader_reference, evidence=reader_evidence, decision=reader_decision,
+                          append=dict(append=reader_append, first=7, next=8,
+                                      accepted=dict(partition=93, next_lsn=3), observed_ms=None))
+reader_connection = {**request_input["connection"], "principal": 9}
+reader_open = dict(reference=reader_reference, operation=reader_operation(50004, 9))
+reader_saved = dict(definition=definition, connection=reader_connection, open=reader_open, release=reader_operation(50005, 9))
+reader_pin = dict(request=dict(target=reader_target, operation=reader_open["operation"], group=None,
+                               **{"from": 7}, until=8, timestamp=None),
+                  cut=dict(target=reader_target, accepted=dict(partition=93, next_lsn=3), retained_from=0, next=8),
+                  until=8, source=dict(bytes=100, sha256=[66]*32), accepted=dict(partition=93, next_lsn=4))
+reader_handle = dict(definition=definition, connection=reader_connection, role=None,
+                     publication=reader_publication, read=reader_pin)
+reader_cursor = dict(handle=reader_handle, offset=0)
+reader_cursor["authentication"] = list(hmac.digest(bytes([4]*32), b"transit.source.capture.cursor.v1\0" + canonical(reader_cursor), "sha256"))
+reader_input = {**request_input, "connection": reader_connection, "action": dict(capture_read=dict(next=reader_cursor))}
+reader_claim = {**claim, "principal": 9, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(reader_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-capture-read-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    reader_request = {**reader_input, "proof": dict(claim=reader_claim,
+        signature=signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(reader_claim)).digest()))}
+validator.validate(reader_request)
+for field in ("handle", "offset", "authentication"):
+    invalid = copy.deepcopy(reader_request)
+    del invalid["action"]["capture_read"]["next"][field]
+    assert not validator.is_valid(invalid), field
+reader_fixture = (json.dumps(dict(saved=reader_saved, cursor=reader_cursor, request=reader_request,
+                                  public_key=public_key), indent=2) + "\n").encode()
+for package in ("transit-catalog", "transit-data-client"):
+    persist(root / f"packages/zig/{package}/src/fixtures/source-capture-read-v1.json", reader_fixture)
+
 # A log declaration token commits to its complete canonical saved body before
 # declaration admission. Content, account and the original binding are explicit.
 saved_log = {"definition": definition, "connection": request_input["connection"], "work": log_input["action"]["log_admit"]}
@@ -1028,7 +1118,7 @@ log_work = {"append": {
     "target": stream_work["consume"]["target"],
     "operation": {**log_binding["identity"], "operation": 2**64 - 2},
     "kind": "stream", "producer": None, "rows": 1,
-    "payload": {"bytes": 3, "sha256": list(hashlib.sha256(b"abc").digest())},
+    "payload": {"bytes": 3, "sha256": list(hashlib.sha256(b"abc").digest())}, "capture": None,
 }}
 log_work_digest = hashlib.sha256(b"transit.catalog.transaction.log.work.v1\0" + bytes.fromhex(definition) + canonical(log_work)).digest()
 log_statement = {

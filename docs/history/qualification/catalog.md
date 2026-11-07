@@ -9,6 +9,208 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Owned SOURCE capture storage and readers — 2026-11-07
+
+This proof checks whether an application can retain one complete external
+observation, recover its original publication, and read its bytes under the
+capture Stream's current policy. The runtime proof source is
+`7f557aaf7334ee8476919c175872d0faa95a4c5a`,
+rebased onto `origin/main` at `87ccf4e15`. Its current-v1 definition is
+`392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7`.
+Current semantics belong to [SOURCE_V1](../../../contracts/SOURCE_V1.md),
+[owned captures](../../handbook/reference/streams.md#owned-source-captures),
+[retention](../../handbook/reference/retention.md), and the
+[import adapter](../../../packages/zig/transit-source-import/README.md).
+The later Java packaging fix `54833c06e0f08a1ac452a7f7028ea0434321c102`
+changes only `bindings/build_java.py`; the qualified Transit runtime sources are
+unchanged. The SDK aggregate and console gate execute at that packaging
+revision. The final qualification-account commit changes documentation only.
+
+The admitted profile starts from an already sealed finite HTTP capture in one
+Catalog, branch one and one destination partition. An explicitly trusted host
+verifies the original attempt and current upstream disclosure. The production
+importer holds that original, verifies complete HTTP coverage, copies bounded
+pages, seals the candidate, publishes one protected Stream transaction, records
+the authoritative result, then releases its own upstream hold. Installed capture
+mutation and SOURCE activation remain unavailable pending S3/S4. The capture
+fixture sends no HTTP requests and does not establish native Station credential admission,
+honest remote computation, physical power-loss recovery or a formal refinement
+proof of the composed Exchange/Catalog handoff.
+
+### Executed capture and disclosure evidence
+
+The clean connector lane runs `test::source-capture`: component tests, a separate
+process fixture and an independent Python oracle. Real Exchange turns are
+persisted in TransitLog; destination publication uses the production Catalog,
+immutable objects, protected transaction and shared reader. Seven live child
+processes receive SIGKILL after reservation, upstream hold, chunk readiness,
+sealing, destination decision, pending release and accepted release. Reopening
+the same stores recovers one **4,194,304-byte** body with the independently
+expected SHA-256 and exactly one Stream offset `[0, 1)`. The upstream dependent
+count returns to zero while the finite caller's independent hold remains held.
+
+Measured destination peak allocation is **3,873,846 bytes** under its 7 MiB
+limit; importer scratch peaks at **774,222 bytes** under 2 MiB. The recorded
+passes and restarts charge **12,583,359 bytes** and **52,251 parts**. Upstream
+fixture materialization is separate from these measured budgets. These are
+allocator observations, not OS RSS or physical-sync measurements.
+
+The complete process report has SHA-256
+`ff0fd9e0958589e0fbb7a5f93509cd68d95bef92084912706668ef90dec1a8d8`.
+Its source/toolchain and binary identities, child exit/signal records, complete
+log hashes and report are retained in
+`.cache/ci/clean/7f557aaf7334-transit-ci-hj4e_50h/verification/source-capture/runs/process-uupkra23/`.
+The fixture binary has SHA-256
+`855f954a42b65907b45e438a4fee453f7837b650e80f284730257b9a1131cf96`.
+
+The component and signed native-service schedules exercise empty, boundary and
+over-budget bodies; corrupt or missing coverage; exact original recovery;
+independent reader pins; borrowed-input lifetime; current authorization after
+buffering, including repeated and empty terminal responses; private-candidate
+and generic-read bypass refusals; and retained metadata after payload release.
+Explicit expiry cannot collect a live reader's graph. Closing the final retained
+read permits collection without changing the original publication receipt.
+Dropping SOURCE or CONNECTION does not release destination-owned content.
+
+The installed `source-declarations` journey qualifies declaration publication,
+inspection, original-token recovery and retirement at this combined definition.
+It continues to observe **zero HTTP requests and zero capture rows**; unsupported
+execution controls reject before admission. This completes the scoped S1/C6
+combined declaration proof and S2/P0–P5 storage/read proof. G2, S3/S4, general R8,
+M12 and [#398](https://github.com/spoke-sh/transit/issues/398) remain open.
+
+### Committed-source gates
+
+All required baseline commands pass at packaging revision `54833c06e`:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+nix develop --command just check contracts
+```
+
+This includes 69 fast checks and 20 contract checks. The locked dependency install
+prepares the complete handbook gate; it does not substitute for it. Exact records
+are in `.cache/source-capture/runs/qualification-y9_a9pdf/`.
+
+Each lane below runs as `nix develop --command just ci clean --lane NAME`, with
+its declared shell and preparation. Browser additionally uses
+`--browser-system-deps preinstalled`. Seconds include clean preparation, and are
+wall-clock observations of concurrent qualification, not performance budgets.
+
+| Clean lane | Source | Passed tasks | Seconds | Retained archive |
+| --- | --- | --- | --- | --- |
+| `core` | `7f557aaf7` | 28/28 | 4,453.967 | `.cache/ci/clean/7f557aaf7334-transit-ci-4jejtba8/` |
+| `storage-query` | `7f557aaf7` | 33/33 | 11,402.338 | `.cache/ci/clean/7f557aaf7334-transit-ci-qjvzpgb_/` |
+| `interfaces-sql` | `7f557aaf7` | 8/8 | 2,745.567 | `.cache/ci/clean/7f557aaf7334-transit-ci-d_jvek73/` |
+| `interfaces-relational` | `7f557aaf7` | 5/5 | 1,207.180 | `.cache/ci/clean/7f557aaf7334-transit-ci-ld83ggn7/` |
+| `interfaces-connectors` | `7f557aaf7` | 13/13 | 2,239.225 | `.cache/ci/clean/7f557aaf7334-transit-ci-hj4e_50h/` |
+| `installation-ui` | `7f557aaf7` | 23/23 | 4,343.052 | `.cache/ci/clean/7f557aaf7334-transit-ci-5sge7uwg/` |
+| `sdks` | `54833c06e` | 16/16 | 6,400.376 | `.cache/ci/clean/54833c06e0f0-transit-ci-ug3227ey/` |
+| `browser` | `7f557aaf7` | 9/9 | 3,278.219 | `.cache/ci/clean/7f557aaf7334-transit-ci-2jlv1yjo/` |
+
+The `sdks` aggregate executes all four registered SDK families: conformance,
+scripting, systems and managed. The full wire gateway includes the scalar-type
+matrix; the core lane runs `test::sql-wire-contracts`, and `installation-ui`
+runs `test::server-sql-types` in the pinned experience environment.
+
+The real examples pass at runtime revision `7f557aaf7`; the console latency gate
+passes at packaging revision `54833c06e`, with identical runtime sources:
+
+```sh
+nix develop --command just test::work-items
+nix develop --command just test::serving
+nix develop .#ci-experience --command just test console-latency-gate
+```
+
+The real example records are in `.cache/source-capture/runs/qualification-2ea_6fcw/`.
+The console gate runs after the heavy qualification workers finish, with its
+original budgets, and records its result in
+`.cache/source-capture/runs/qualification-_hrn1zqp/`. An earlier console
+binary build is preparation only. The final documentation-only account/roadmap
+commit receives fresh fast, locked-install and complete handbook gates before
+publication; it does not change the runtime source qualified here.
+
+The browser lane uses `--browser-system-deps preinstalled` on this provisioned
+host. It still installs the pinned Chromium and executes every registered browser
+proof; the flag only avoids privileged OS package installation. The default CI
+preparation remains unchanged. Exact commands, toolchain/source identities,
+terminal outcomes and complete log hashes are retained with the lane records.
+Dependency installation alone is not a passed proof. These affected lanes do not
+claim full integration/release qualification.
+
+### Regressions found during qualification
+
+The larger typed response union exposed two stack-copy defects. The initial
+native Catalog run at `a35fabf6f` passed 26 of 29 cases, then aborted in
+`LocalEndpoint.clone` during log/branch reads. Its Debug specialization had an
+8,550,960-byte compiler frame. Copying only the selected union value and owning
+nested slices in place reduces that frame to 262,000 bytes. A 16-variant
+regression on a 128 KiB worker stack checks active tags and retained nested
+values after the original input changes; restoring the original clone makes it
+abort, and restoring the fix passes.
+
+The next clean storage run at `521618874` passed all native Catalog cases, then
+aborted in the Table recovery caller's 65,725,384-byte ReleaseSafe frame. The
+parser's by-value cleanup copied the entire response across deferred error exits.
+The shared `DirectTableClient.OwnedResponse` adopts the same existing arena and
+uses reference cleanup; the unchanged recovery fixture's frame falls to
+4,386,568 bytes. The lifecycle frame falls from 16,189,992 to 2,778,952 bytes.
+These are compiler frames, not whole-thread peak measurements. No production
+stack, existing test budget or deadline was increased.
+
+A bounded-unwind regression retains 32 independent response arenas, tests every
+injected failure depth and ordinary completion, and checks exact cleanup on a
+1 MiB worker stack. Restoring by-value cleanup makes it crash. A second control
+places the owner inside its own arena and exposes a read-after-free during
+cleanup; retaining the arena pointer before release fixes it. Both controls pass
+with the final implementation. An initial 128 KiB unwind test could not create
+its worker because the linked binary has approximately 512 KiB of thread-local
+storage; that attempt is not a pass. The later isolated public Zig SDK check
+found old response return annotations in the real Work Items example. Those
+annotations and the serving/Station example transports now share the same owner.
+
+At runtime revision `7f557aaf7`, the complete native Catalog and unchanged direct
+Table/Queue recovery fixtures both pass. Their complete log SHA-256 values are
+`b38eed2bed004c1545170a24eff40adb54f578d35d0b5585fc99eaceadb12b27` and
+`5fcbccc03f6747e2f12c4dbfd2387340482704b2d260b58f7220cce644bcaec3`, respectively;
+the storage lane retains the fresh caller/node identities with these results.
+
+| Original failed evidence | Source | Complete log SHA-256 |
+| --- | --- | --- |
+| Native Catalog clone stack | `a35fabf6f` | `d1a789a5a7337fb2251a99d24446258031d14e6b5181e443c14238ac33add202` |
+| Direct Table recovery stack | `521618874` | `6ca57d5f9995bd76b8de4d8ccda8ccdd6c8c5d5c88a20822e08c5ae172f2901e` |
+| Owner inside its parsed arena | `d532f6484` plus the negative control | `1515fe3630730209aac1b15a449ee1cf40008fbb82049373529dc5ff9bdb3852` |
+| Isolated public SDK example annotation | `d532f6484` | `990befe4a9e0c5ddaa8aa0d54944d3f5dc9fdfa7d3ce9aaf0a44c1bc9ce5bd9c` |
+
+Original failed checkouts, private recovery state, binaries and negative-control
+logs remain retained locally under `.cache/source-capture/` and their recorded
+clean-checkout locations. Earlier interrupted rebase/focused runs and the
+`d532f6484` storage prefix are incomplete, not lane passes. Diagnostic fixture
+experiments and a mixed-build recovery run identified the stack defect; their
+changes are absent from the final fixture and their results do not substitute
+for the final committed-source gates above.
+
+### Repeated Java packaging prerequisite
+
+The SDK aggregate at `7f557aaf7` passes its first 13 tasks, then the Java task
+fails before compilation while replacing the copied Gson license. The earlier
+interoperability build retained the pinned Nix input's read-only mode. The JAR
+already removes its old generated copy before copying; the license did not.
+The failed task log has SHA-256
+`28451a41a5a2d640d54a4d1ff2e1e64ce1a87c8ac7f4e1cec7f9a755a9b33fa6`;
+its clean checkout remains at `/var/tmp/transit-ci-p1mduhy7/`. This aggregate is
+failed, not a complete SDK pass; .NET and BEAM were not reached in that attempt.
+
+Commit `54833c06e` gives the license the same replacement behavior. A control
+using the actual pinned read-only inputs reproduces the original second-build
+`PermissionError`, then passes three corrected rebuilds with unchanged source
+hashes and preserved artifact modes. No dependency version, license content or
+runtime source changes. The full SDK aggregate is rerun at the packaging revision,
+with its separate completed evidence in the table above. Earlier successful
+runtime lanes remain attributed to their exact `7f557aaf7` source.
+
 ## Durable CONNECTION and SOURCE declarations — 2026-11-06
 
 This experiment checks whether an application can publish connector declarations,

@@ -39,7 +39,7 @@ const Resolver = struct {
     fn revision(self: *Resolver, value: u64) !void {
         if (value != self.policy_revision) return error.StaleAuthorizationRevision;
     }
-    fn call(self: *Resolver, action: w.Action) !std.json.Parsed(w.Response) {
+    fn call(self: *Resolver, action: w.Action) !c.DirectTableClient.OwnedResponse {
         try self.consume();
         const response = try self.client.call(action);
         errdefer response.deinit();

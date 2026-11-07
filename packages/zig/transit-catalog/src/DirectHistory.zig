@@ -323,7 +323,7 @@ pub const Request = union(enum) {
 pub const Result = union(enum) { selection: Selection, status: ?Status, object: ?u64, namespace: ?c.TableAuthority.Schema, listing: Listing, source: Source, page: Page, definitions: struct { snapshot: d.Snapshot, source: d.SourceCut, evidence: P.ProjectionEvidence }, locations: struct { snapshot: d.Snapshot, source: d.SourceCut, evidence: P.ProjectionLocations } };
 
 /// Response owns schema/row bytes. Keep it alive through their bounded use.
-pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
+pub fn call(client: c.DirectTableClient, request: Request) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .historical_catalog = request }) catch |err| {
         // The shared transport preserves the native rejection separately from
         // its HTTP category. Interpret it only within this owning operation.
@@ -356,7 +356,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             };
             try status.receipt.validate();
             try status.revision.validate();
-            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null, .source = null };
+            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null, .source = null, .capture = null };
             try progress.validate();
             try status.state.validate(progress);
             const intent = status.receipt.binding.intent.history;
@@ -446,7 +446,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
 
 /// Resolve within the selected catalog before decoding or compiling a schema.
 /// The returned response owns the source bytes; no current-name fallback.
-pub fn resolve(client: c.DirectTableClient, snapshot: d.Snapshot, namespace_id: u64, name: []const u8, rows: bool) !std.json.Parsed(w.Response) {
+pub fn resolve(client: c.DirectTableClient, snapshot: d.Snapshot, namespace_id: u64, name: []const u8, rows: bool) !c.DirectTableClient.OwnedResponse {
     const lookup = try call(client, .{ .lookup = .{ .snapshot = snapshot, .namespace = namespace_id, .name = try .init(name) } });
     defer lookup.deinit();
     const object = lookup.value.result.historical_catalog.object orelse return error.HistoricalObjectNotSelected;

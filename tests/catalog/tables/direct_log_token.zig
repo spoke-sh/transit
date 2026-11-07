@@ -127,7 +127,7 @@ pub fn prepareWorkloads(init: std.process.Init, client: c.DirectTableClient, rol
     try t.expectError(error.InvalidTableResponse, c.DirectClientToken.bind(client, saved.bindings[1]));
 }
 
-fn workloadOperation(reference: c.DirectIntent.Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(c.DirectTableProtocol.Action, "operation"), "command")) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn workloadOperation(reference: c.DirectIntent.Reference, client: c.DirectTableClient, command: @FieldType(@FieldType(c.DirectTableProtocol.Action, "operation"), "command")) !c.DirectTableClient.OwnedResponse {
     // A recovering response accepts no new work. The same frozen request is
     // retained across every bounded owner step, never regenerated from a name.
     for (0..4) |_| {
@@ -286,7 +286,7 @@ pub fn prepareResults(init: std.process.Init, client: c.DirectTableClient, role:
     try t.expectError(error.InvalidTableResponse, workloadOperation(saved.bindings[3].intent, client, .execute));
 }
 
-fn resultCall(client: c.DirectTableClient, request: c.DirectWorkloadResultProtocol.Request) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn resultCall(client: c.DirectTableClient, request: c.DirectWorkloadResultProtocol.Request) !c.DirectTableClient.OwnedResponse {
     for (0..4) |_| {
         return client.call(.{ .workload_result = request }) catch |err| {
             if (err == error.Conflict) continue;

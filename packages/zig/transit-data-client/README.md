@@ -170,3 +170,20 @@ continuation. CONNECTION/SOURCE are metadata objects, not query relations.
 See [SOURCE declarations](../../../contracts/SOURCE_V1.md) for authority,
 destination binding, retirement and restricted DROP. No action in this profile
 executes HTTP or produces capture rows.
+
+`Catalog.callCapture` and `CaptureReader` consume accepted destination-owned raw
+SOURCE captures. Save the reader's exact `Saved` open/release operations before
+dispatch. Open acquires an original Stream read pin; next returns at most 64 KiB
+of independently owned bytes. Prefixes remain provisional until an explicit
+terminal page and whole-body SHA-256 agree. Empty completion is explicit. A
+failed reader cannot resume a prefix after permissions are restored. `close`
+observes/cancels uncertain acquisition and releases its original pin; `deinit`
+only frees local memory. Preserve saved originals when close is unresolved.
+
+Readers require current destination READ, database CONNECT and schema USAGE,
+including repeated and empty terminal calls. They need no connector credentials.
+The server binds continuations to the exact publication, caller, effective role
+and live pin. Explicit Stream expiry rejects new reads below the retained
+boundary; existing pins retain body storage until release. Permanent publication
+receipts remain inspectable after collection. These reader operations do not
+install capture mutation or SOURCE activation.

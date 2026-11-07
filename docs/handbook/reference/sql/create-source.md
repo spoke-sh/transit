@@ -62,8 +62,11 @@ independently of physical order. Binding freezes their stable column IDs and
 rejects additional columns, defaults, partition routing and compaction. The
 initial profile requires HTTP GET, branch one, the same Catalog and one Stream
 partition. SOURCE neither creates the destination nor changes its schema,
-retention or grants. `body_ref` is a future retained capture descriptor, not an
-inline response body, URL or bearer capability.
+retention or grants. `body_ref` is an opaque retained capture descriptor, not an
+inline response body, URL or bearer capability. The
+[capture storage and reader](../streams.md#owned-source-captures) are implemented
+for an explicitly trusted sealed-input host; these declarations do not yet
+activate ingestion.
 
 ## Inspection, retirement and DROP
 

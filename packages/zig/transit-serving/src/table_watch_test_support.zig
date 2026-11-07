@@ -153,7 +153,7 @@ pub const Reader = struct {
     pub fn finish(self: *Reader) !void {
         try self.check(self.caller orelse return error.CatalogDenied, .{ .database = 4, .schema = 5, .table = 1100 });
     }
-    pub fn observe(self: *Reader, source: root.ReactiveModel.Source, limits: ?P.ReadLimits) !std.json.Parsed(w.Response) {
+    pub fn observe(self: *Reader, source: root.ReactiveModel.Source, limits: ?P.ReadLimits) !c.DirectTableClient.OwnedResponse {
         var current = self.store.catalog.observe(t.allocator, source.namespace, source.interpretation(), limits, self.store.policy()) catch |err| return if (err == error.TableDefinitionChanged) error.ReactiveResetRequired else err;
         defer current.deinit();
         var arena: std.heap.ArenaAllocator = .init(t.allocator);
@@ -166,6 +166,6 @@ pub const Reader = struct {
             break :blk .{ .rows = rows, .encoded_bytes = found.encoded_bytes, .more = found.more };
         } else null;
         const response: w.Response = .{ .definition = p.Growth.current_definition, .context = @splat(1), .policy_revision = 1, .subject = .{ .principal = principal, .login_role = principal, .role = principal, .credential_epoch = 1, .audience = connection.audience, .context = @splat(1) }, .result = .{ .observation = .{ .definition = try metadata(allocator, &current.view), .authority = current.authority, .page = page } } };
-        return p.Json.parseFromSliceOwned(w.Response, t.allocator, try p.Json.valueAlloc(allocator, response));
+        return c.DirectTableClient.OwnedResponse.init(try p.Json.parseFromSliceOwned(w.Response, t.allocator, try p.Json.valueAlloc(allocator, response)));
     }
 };

@@ -95,13 +95,15 @@ pub fn reference(scope: Scope, format: u32, bytes: []const u8) !Reference {
 }
 pub fn key(value: Reference, output: *[96]u8) ![]const u8 {
     try value.validate();
+    if (value.format == c.DirectSourceCapture.manifest_format)
+        return c.DirectSourceCapture.Manifest.key(value.content, output);
     var bytes: [2048]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&bytes);
     var encoder: std.json.Stringify = .{ .writer = &writer };
     try p.Json.write(value, &encoder);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(writer.buffered(), &digest, .{});
-    return std.fmt.bufPrint(output, "{s}/{x}.data", .{ if (value.format == c.DirectTransactionRecord.format) "transaction-records" else if (value.format == c.DirectProgressRecord.format) "progress-records" else if (value.format == c.DirectOwnedRecord.format) "owned-records" else "direct-records", &digest });
+    return std.fmt.bufPrint(output, "{s}/{x}.data", .{ if (value.format == c.DirectSourceCapture.manifest_format) "source-capture-manifests" else if (value.format == c.DirectTransactionRecord.format) "transaction-records" else if (value.format == c.DirectProgressRecord.format) "progress-records" else if (value.format == c.DirectOwnedRecord.format) "owned-records" else "direct-records", &digest });
 }
 pub fn store(objects: Objects.ObjectStore, scope: Scope, format: u32, bytes: []const u8) !Reference {
     const value = try reference(scope, format, bytes);

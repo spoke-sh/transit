@@ -9,7 +9,7 @@ const f = c.fuze;
 pub const Cursor = struct { publication: b.Store.Revision, definition: c.protocol.DataLifecycle.Definition, watermark: u64 };
 pub const Snapshot = struct { bytes: []u8, cursor: Cursor };
 
-fn current(request: Request, publication: b.Publication, reader: c.DirectTableClient) !std.json.Parsed(c.DirectTableProtocol.Response) {
+fn current(request: Request, publication: b.Publication, reader: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
     return reader.call(.{ .observe = .{ .namespace = request.host.config.namespace, .interpretation = publication.source, .rows = null } }) catch |err| {
         if (request.wire.last_rejection == .TableDefinitionChanged) return error.TableDefinitionChanged;
         return err;

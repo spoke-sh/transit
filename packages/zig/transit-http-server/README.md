@@ -24,6 +24,13 @@ The adapter checks expiry before submitting I/O even when a socket is ready;
 a zero-duration readiness poll alone does not enforce this boundary.
 Body reads and response writes share the original total request deadline;
 header parsing cannot renew or round that budget into another request interval.
+`readBody` collects a complete body under the consumer's byte limit into
+caller-owned memory. Malformed/truncated framing and excess bytes return
+`InvalidBody`; allocation failures remain allocation failures. An underlying
+read failure, including cancellation, returns `HttpBodyReadFailed`. The native
+authority propagates that error to close and join the connection instead of
+reporting malformed input. This preserves uncertainty about any preceding
+attempt with the same durable operation identity.
 The shared `respond` helper ends reuse even when a handler has consumed the body;
 buffered successor requests are not dispatched after that closing response.
 The growing node and local gateway use 64 exchanges per connection. Other

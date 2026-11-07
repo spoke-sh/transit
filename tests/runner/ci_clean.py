@@ -18,14 +18,19 @@ def run(*args, cwd=ROOT, **kwargs):
     return subprocess.run(args, cwd=cwd, check=True, **kwargs)
 
 
-def profile(suite, selection):
+def profile(suite, selection, browser_system_deps="install"):
     if selection in suite["lanes"]:
-        return suite["environments"][selection]
+        environment = suite["environments"][selection]
+        return {**environment, "prepare": [
+            [arg for arg in command if arg != "--with-deps"]
+            if browser_system_deps == "preinstalled" and "playwright" in command
+            else list(command) for command in environment["prepare"]]}
     # The complete sequential inventory still needs every language and frontend.
     # A single lane uses its hosted environment, with no unrelated preparation.
     prepare = [["just", "ci::dependencies"], ["just", "transit-board::install"]]
     if selection in {"all", "complete"}:
-        prepare.append(["vp", "exec", "--filter", "@transit/board-web", "playwright", "install", "--with-deps", "chromium"])
+        prepare.append(["vp", "exec", "--filter", "@transit/board-web", "playwright", "install",
+                        *(["--with-deps"] if browser_system_deps == "install" else []), "chromium"])
     return {"shell": "bindings", "prepare": prepare}
 
 
@@ -54,9 +59,13 @@ def main():
                            help="run one check module scope in a clean checkout; not the CI suite")
     parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),
                         help="persistent short-path checkout parent (default: /var/tmp)")
+    parser.add_argument("--browser-system-deps", choices=("install", "preinstalled"), default="install",
+                        help="use existing host libraries without sudo; still install Chromium and execute every browser proof")
     args = parser.parse_args()
     selected = f"check::{args.check}" if args.check else args.lane or ("complete" if args.complete else "all")
-    environment = check_profile(args.check) if args.check else profile(suite, selected)
+    if args.browser_system_deps == "preinstalled" and (args.check or selected not in ("browser", "all", "complete")):
+        parser.error("--browser-system-deps applies only to browser, all or complete")
+    environment = check_profile(args.check) if args.check else profile(suite, selected, args.browser_system_deps)
     if run("git", "status", "--porcelain", capture_output=True, text=True).stdout:
         raise SystemExit("ci clean checks committed HEAD; commit or stash source changes first.")
     revision = run("git", "rev-parse", "HEAD", capture_output=True, text=True).stdout.strip()
@@ -75,6 +84,7 @@ def main():
     logs = Path(directory) / "preparation"
     logs.mkdir()
     metadata = {"version": 1, **provenance(ROOT), "selection": selected,
+                "browser_system_deps": args.browser_system_deps,
                 "shell": environment["shell"], "completed": False, "phases": []}
 
     def checkpoint():

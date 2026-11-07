@@ -159,6 +159,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     if (!std.mem.eql(u8, &response.context, &try w.Request.context(request.input(), allocator))) return error.InvalidTableResponse;
     const expected: std.meta.Tag(w.Result) = switch (request.action) {
         .stream => .stream,
+        .capture_read => .capture_read,
         .queue => .queue,
         .workload_result => .workload_result,
         .branch => .branch,
@@ -233,6 +234,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
     if (std.meta.activeTag(response.result) != expected) return error.InvalidTableResponse;
     switch (response.result) {
         .stream => |value| try c.DirectStreamResponse.validate(allocator, request.connection, request.action.stream, value),
+        .capture_read => |value| {
+            try c.DirectSourceRead.validateResult(allocator, request.connection, request.action.capture_read, value);
+            if (value == .opened and value.opened.handle.role != subject.role) return error.InvalidTableResponse;
+        },
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .workload_result => |value| try c.DirectWorkloadResultProtocol.validate(allocator, request.connection, request.action.workload_result, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),

@@ -190,9 +190,81 @@ unretained provider bytes can implement it.
 
 ## Disclosure, lifetime and qualification
 
-Every raw record access and buffered, repeated or terminal reader response must
-check current destination Stream and capture-disclosure rights. Generic record
-reads cannot bypass them. Source-control rights alone disclose no raw body.
+### Owned capture representation
+
+`SourceCapture.Evidence` binds a captured original poll, exact CONNECTION and
+destination definitions, the seven stable column IDs, original effect attempt,
+sealed exchange commitment, terminal coverage commitment and verifier definition.
+It distinguishes the whole-body digest from the manifest digest. Empty bodies
+have zero bytes and SHA-256 of the empty sequence. Shape validation establishes
+neither HTTP completeness nor execution authority. Admission requires a trusted
+host verifier of that exact original and current source-disclosure/destination
+append rights; an executor field or caller-supplied captured state is insufficient.
+
+`SourceCapture.Reference` identifies the candidate by its original token digest,
+exact destination definition and retained manifest commitment. Its canonical JSON
+encoding is bounded to 4 KiB. It contains no body, page inventory, credentials or
+provider URL. A copy continues to identify the original publication; appending a
+lookalike BINARY value does not create an attachment. Resolution must establish
+the authoritative common decision and exact Stream position before disclosure.
+
+The storage integration uses sequential 64 KiB chunks and a paged ordered
+inventory, retaining offsets, lengths and SHA-256 commitments. Reserve before
+creation; seal only after verifying complete ordered coverage. A missing page is
+an error, including for an expected empty body. Metadata and transport encoding
+are charged separately from raw bytes; the 16 KiB Catalog WAL limit is unchanged.
+These types are the representation contract; they do not install capture mutation
+or reader routes by themselves.
+
+### Protected capture publication
+
+The component owner saves `DirectSourcePublication` (SCP1) in the candidate before
+admitting its original transaction. It freezes the candidate reference, exact
+destination, transaction token, begin, append and settlement operations, and
+budgets. `capturePublish` registers it; `captureAdvance` performs bounded original
+transaction steps. The host serializes database publication and collection and
+supplies the original verifier and current disclosure policy. Neither operation
+is an installed mutation route.
+
+The `source_capture` transaction purpose prevents generic begin, statement,
+savepoint and settlement calls from operating that transaction. The owner encodes
+the seven columns from the verified evidence and accepts exactly one append.
+Every transaction publication rechecks source disclosure and destination append
+rights. Internal source pins require append authority for this protected purpose;
+they do not grant the importer destination READ. Existing transaction common-cut,
+preparation, decision and cleanup rules still apply.
+
+`StreamQueue.Append.capture` binds the original capture reference and transaction
+identity. Ordinary Stream mutation routes reject a non-null attachment. The
+accepted Stream batch directory supplies its exact offset; permanent operation
+and producer receipts retain attribution but do not independently retain the body.
+Current batches, retained read bases and unresolved transaction roots retain the
+manifest and chunk inventory. Candidate ownership ends only after a verified
+decision and complete participant cleanup: commit transfers it to the Stream;
+abort permits collection. Lost replies resolve the saved original, never a new
+transaction or offset. Generic record routes reject SCC1, SCM1 and SCP1.
+
+Published capture reads require current destination Stream READ, database CONNECT
+and schema USAGE. Private candidates additionally require their original owner.
+SOURCE inspection/control, CONNECTION use and Stream metadata inspection grant no
+body access. The importer independently needs source disclosure and destination
+append rights. Buffered, repeated, empty and terminal responses recheck policy.
+Retention protects availability, never grants permission.
+
+The handoff holds the already sealed original exchange, verifies it once to
+freeze body metadata, reserves the destination, then replays it again in bounded
+chunks. Both passes and recovery are charged. It releases the original hold only
+after the destination decision is authoritative. An uncertain hold, commit or
+release remains attached to the same original identity. The common decision must
+attach the graph and exactly one envelope; receipt metadata survives later
+authorized payload release. Unrelated committed transaction records retain their
+existing lifetime. Activation remains gated by the execution proofs below.
+
+Every published raw read and buffered, repeated or terminal reader response checks
+current destination Stream READ with database CONNECT and schema USAGE. Private
+candidate work additionally checks the importing owner and upstream disclosure
+authority. Generic record reads cannot bypass these checks. Source-control rights
+alone disclose no raw body.
 Inspection reports definitions, desired state, observed blocking reason, epoch,
 pending original attempt, last settlement and last complete publication separately.
 It performs no dispatch, cleanup or implicit read of response bodies.
@@ -209,3 +281,67 @@ closure; common output/checkpoint decisions; restart/lost replies at all handoff
 steps; control/publication races; bounded memory and retention; and the installed
 SQL journey. Parser, schema and deterministic-model tests establish only their
 own boundaries.
+
+## Published capture reader
+
+The native `capture_read` action resolves an accepted protected publication before
+serving bytes. `inspect` returns provenance independently of payload availability.
+`open` acquires an original Stream pin over the exact envelope offset;
+`inspect_open` observes that original, and `cancel_open` irreversibly closes an
+unaccepted original or returns its accepted pin. `close` releases only that pin
+using a separately saved operation. Lost replies never authorize another identity.
+
+Continuations bind the current definition, connection, effective role, publication,
+read receipt and aligned body offset with the installed Stream authority's private
+HMAC key. Each `next` returns at most 65,536 raw bytes, encoded for transport, and
+an explicit completion flag. The last data page is terminal when its coverage is
+known; empty captures and repeated terminal reads return empty terminal pages.
+The shared reader verifies the whole-body SHA-256 before reporting completion.
+Output bytes are owned independently of subsequent scratch reuse.
+
+Current destination READ, database CONNECT and schema USAGE are checked after
+buffering, including repeated and empty terminal requests. Producer or connector
+credentials are unnecessary. A failed shared reader cannot splice a resumed prefix.
+Its saved originals remain available for explicit close even after a read failure.
+Explicit Stream age expiry rejects new pins below the retained boundary with
+`LogRangeExpired`; existing pins retain the attachment graph. Releasing the final
+pin permits collection only after other recovery roots release it. SOURCE or
+CONNECTION retirement/drop does not remove destination-owned bytes. Original
+publication metadata remains attributable after payload collection.
+
+## Sealed HTTP handoff component
+
+`transit-source-import` composes above HTTP/Exchange and the data client. It accepts
+only an explicitly host-verified complete finite original, never live network
+work. SHI1 freezes the exact declarations, poll/attempt, Exchange descriptor and
+reference, consumer token/holder, verifier, candidate, output transaction originals
+and budgets. SOR1 reserves that input before acquiring a consumer hold. SHP1
+progress uses the reserved CPR1 owner and the paged original-token directory.
+The original caller hold is independent and is never disposed by this adapter.
+
+The first replay uses HTTP's current-authorized coverage validator to derive
+status, body length/digest and the HTC1 terminal commitment. A second complete
+replay copies sequential 64 KiB chunks and must reproduce that exact evidence.
+The exchange commitment is SHA-256 of the canonical EXD1 descriptor, retained
+with its exact reference in SHI1. The trusted host checks the original authenticated
+effect/attempt and terminal outcome separately; a complete descriptor alone is
+insufficient. Neither replay can dispatch or resolve credentials.
+
+Each step advances one durable phase or at most 256 Exchange parts. The transcript
+limit is 8 MiB/65,536 members, body limit 4 MiB, and adapter scratch limit 2 MiB.
+Each importer reserves 16 MiB of the shared 64 MiB capture admission budget,
+including nested candidate/verifier headroom, before accepting active work.
+Every pass, including a restarted pass, charges its entire transcript byte/part
+bound before reading. Source-candidate verification separately charges its own
+work. Exhaustion preserves the original and control capacity for observation and
+closure. No accepted identity or charged work is reset by restart.
+
+The protected Stream transaction supplies the authoritative destination outcome.
+Only after the journal retains that outcome may the adapter release its original
+Exchange dependency; an uncertain release is retried with the same token/holder.
+Cancellation closes private storage or settles the original transaction. A frozen
+plan with no transaction reservation may be permanently fenced closed under the
+serialized owner; it retains the plan without inventing a transaction decision.
+A saved transaction binding requires ordinary recovery. Revocation, missing
+observations and timeouts never establish an abort. This component supplies no
+installed mutation route, SQL import verb or SOURCE activation.

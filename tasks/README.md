@@ -101,6 +101,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci all` inventory without existing workspace outputs |
 | `just ci clean --lane NAME` | Runs one inventory lane in its own clean checkout with its declared shell/preparation; complete ordinary qualification needs all ten lane reports at the same committed revision |
+| `just ci clean --lane browser --browser-system-deps preinstalled` | Use already provisioned host libraries without sudo; still install Chromium and execute the complete browser lane, recording this preparation choice |
 | `just ci clean --check fast`, `just ci clean --check contracts` | Run a check-module scope from committed HEAD and retain preparation and validation reports; `--check core` and `--check all` select the broader repository scopes |
 | `just test::authorization`, `just test::authorization-cli` | Exercise native policy staging/recovery and shared caller/ABI/host administration against disk-backed authority |
 | `just test::table-build-memory` | Verify candidate allocation ceilings, admitted work-limit outcomes and parent-allocation failure distinctions |

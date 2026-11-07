@@ -24,7 +24,7 @@ pub const Snapshot = struct {
     more: bool = false,
 };
 const Definition = struct {
-    response: std.json.Parsed(c.DirectTableProtocol.Response),
+    response: c.DirectTableClient.OwnedResponse,
     schema: q.fuze.TableSchema.Owned,
     fn deinit(self: *Definition) void {
         self.schema.deinit();

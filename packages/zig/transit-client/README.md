@@ -302,5 +302,7 @@ returning and never retains that pointer in its response or resident state.
 variable data is bounded by `response_bytes`; request domain limits are checked
 by the owning service, while encoded HTTP byte limits apply to remote transport.
 Scratch must not escape and a deadline joins dispatch before freeing output.
+Local cloning copies the selected value once, then owns nested slices in place;
+its stack storage does not multiply by the number of envelope union variants.
 An incomplete local response, including exhausted output capacity, retains the
 same uncertainty as incomplete remote I/O.

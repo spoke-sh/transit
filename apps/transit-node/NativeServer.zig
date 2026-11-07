@@ -235,7 +235,8 @@ pub fn Host(comptime Provider: type) type {
                     if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
                     if (try http.header(request, "x-transit-wait") != null or try http.header(request, "x-transit-control") != null)
                         return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
+                    const bytes = http.readBody(self.allocator, request, wire.max_body) catch |err|
+                        return if (err == error.InvalidBody) self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }) else self.failure(request, err);
                     defer self.allocator.free(bytes);
                     const parsed = std.json.parseFromSlice(w.Request, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                     defer parsed.deinit();
@@ -271,7 +272,7 @@ pub fn Host(comptime Provider: type) type {
                     defer std.debug.assert(budget.used == 0);
                     const response = self.tableWork(request, owner, control, budget.allocator()) catch |err| {
                         self.work_failure = @errorName(err);
-                        if (err == error.Canceled) return err;
+                        if (err == error.Canceled or err == error.HttpBodyReadFailed) return err;
                         const cause = if (err == error.OutOfMemory and budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
                         const refusal = @import("ServiceFailure.zig").table(cause);
                         return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
@@ -294,10 +295,7 @@ pub fn Host(comptime Provider: type) type {
                 // Header views belong to the head parser and end when the
                 // body reader starts. Retain only the parsed scalar hint.
                 const wait: ?wire.WaitHint = if (try http.header(request, "x-transit-wait")) |hint| try wire.WaitHint.parse(hint) else null;
-                const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(w.max_request_bytes)) catch |err| return switch (err) {
-                    error.OutOfMemory => err,
-                    else => error.InvalidBody,
-                };
+                const bytes = try http.readBody(allocator, request, w.max_request_bytes);
                 const parsed = w.Request.parse(allocator, bytes) catch |err| return if (err == error.OutOfMemory) err else error.InvalidRequest;
                 if (control and parsed.value.transport().control == null) return error.InvalidRequest;
                 if (!std.meta.eql(wait, parsed.value.transport().wait) or (wait != null and control)) return error.InvalidWaitHint;
@@ -328,7 +326,7 @@ pub fn Host(comptime Provider: type) type {
             fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
                 // The HTTP deadline owns cancellation and joins this handler
                 // before closing its socket. Do not turn it into a new reply.
-                if (err == error.Canceled or err == error.Cancelled) return err;
+                if (err == error.Canceled or err == error.Cancelled or err == error.HttpBodyReadFailed) return err;
                 self.work_failure = @errorName(err);
                 const refusal = @import("ServiceFailure.zig").native(err);
                 return self.json(request, refusal.status, wire.protocol.ErrorResponse{ .err = refusal.code });
@@ -425,7 +423,8 @@ pub fn Host(comptime Provider: type) type {
                 const bulk = std.mem.eql(u8, route, "/v1/blocks");
                 if (hint != null and (mutation or control)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                 if (request.head.method != .POST or (!mutation and !bulk and !std.mem.eql(u8, route, "/v1/query"))) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
-                const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
+                const bytes = http.readBody(self.allocator, request, wire.max_body) catch |err|
+                    return if (err == error.InvalidBody) self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }) else self.failure(request, err);
                 defer self.allocator.free(bytes);
                 if (mutation) {
                     const parsed = std.json.parseFromSlice(g.CommandEnvelope, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });

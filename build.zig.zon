@@ -20,6 +20,7 @@
         .transit_tls = .{ .path = "packages/zig/transit-tls" },
         .transit_exchange = .{ .path = "packages/zig/transit-exchange" },
         .transit_station_http = .{ .path = "packages/zig/transit-station-http" },
+        .transit_source_import = .{ .path = "packages/zig/transit-source-import" },
         .transit_query = .{ .path = "packages/zig/transit-query" },
         .transit_data_client = .{ .path = "packages/zig/transit-data-client" },
         .transit_catalog = .{ .path = "packages/zig/transit-catalog" },

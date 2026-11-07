@@ -302,6 +302,12 @@ grpc-worker:
 http-transport:
     zig build test-http-transport
 
+# Already sealed finite HTTP handoff, owned captures and guarded raw readers.
+source-capture:
+    cd packages/zig/transit-source-import && zig build test
+    cd packages/zig/transit-source-import && zig build process-fixture
+    python3 -B tests/runner/launch.py tests/catalog/source_capture_process.py packages/zig/transit-source-import/zig-out/bin/transit-source-capture-fixture
+
 # Actual finite worker with disk capture, lost receipts and killed executor.
 http-worker:
     zig build test-http-worker
@@ -456,6 +462,7 @@ packages:
     cd packages/zig/transit-station-bindings && zig build test
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
+    cd packages/zig/transit-source-import && zig build test
     cd packages/zig/transit-query-direct && zig build test
     cd packages/zig/transit-query && zig build test
     cd packages/zig/transit-catalog && zig build test

@@ -165,6 +165,7 @@
       "test::named-relational"
     ],
     "interfaces-connectors": [
+      "test::source-capture",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",

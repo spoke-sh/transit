@@ -73,6 +73,25 @@ pub fn validateHead(request: *std.http.Server.Request) !void {
     for ([_][]const u8{ "origin", "authorization", "content-type", "upgrade", "x-transit-control", "x-transit-wait" }) |name| _ = try header(request, name);
 }
 
+/// Collects a bounded, complete body into caller-owned memory. Transport failure
+/// cannot establish malformed input: propagate HttpBodyReadFailed to the listener
+/// so it closes and joins the connection without fabricating a rejection.
+pub fn readBody(allocator: std.mem.Allocator, request: *std.http.Server.Request, max_bytes: usize) (std.mem.Allocator.Error || error{ InvalidBody, HttpBodyReadFailed })![]u8 {
+    const bytes = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(max_bytes)) catch |err| return switch (err) {
+        error.OutOfMemory => error.OutOfMemory,
+        error.ReadFailed => if (request.server.reader.body_err != null) error.InvalidBody else error.HttpBodyReadFailed,
+        error.StreamTooLong => error.InvalidBody,
+    };
+    errdefer allocator.free(bytes);
+    // A content-length stream can end because its transport reaches EOF before
+    // the declared body is complete. Do not admit a valid-looking JSON prefix.
+    switch (request.server.reader.state) {
+        .body_remaining_content_length, .body_remaining_chunk_len => return error.InvalidBody,
+        else => {},
+    }
+    return bytes;
+}
+
 pub fn respond(request: *std.http.Server.Request, status: std.http.Status, body: []const u8) !void {
     // std.http does not mark an already consumed request body as closing.
     // Keep our sequential listener's lifetime in sync with this response's
@@ -259,6 +278,58 @@ test "closing response ends reuse even after consuming the request body" {
     try std.testing.expect(std.mem.indexOf(u8, writer.buffered(), "connection: close\r\n") != null);
     // A buffered successor must not be dispatched after advertising closure.
     try std.testing.expect(!request.head.keep_alive);
+}
+
+test "HTTP body I/O failure preserves uncertainty after a buffered prefix" {
+    const FailedInput = struct {
+        fn stream(_: *Io.Reader, _: *Io.Writer, _: Io.Limit) Io.Reader.StreamError!usize {
+            return error.ReadFailed;
+        }
+    };
+    var input = "POST /api HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\nbo".*;
+    var reader: Io.Reader = .{ .buffer = &input, .seek = 0, .end = input.len, .vtable = &.{ .stream = FailedInput.stream } };
+    var output: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&output);
+    var server = std.http.Server.init(&reader, &writer);
+    var request = try server.receiveHead();
+    try validateHead(&request);
+    try std.testing.expectError(error.HttpBodyReadFailed, readBody(std.testing.allocator, &request, 4));
+    try std.testing.expect(server.reader.body_err == null);
+    try std.testing.expectEqual(@as(usize, 0), writer.buffered().len);
+}
+
+test "HTTP body collection preserves limits complete framing and allocation failures" {
+    const cases = [_]struct { input: []const u8, expected: ?[]const u8 }{
+        .{ .input = "Content-Length: 4\r\n\r\nbody", .expected = "body" },
+        .{ .input = "Content-Length: 0\r\n\r\n", .expected = "" },
+        .{ .input = "Content-Length: 5\r\n\r\nextra", .expected = null },
+        .{ .input = "Content-Length: 4\r\n\r\nbo", .expected = null },
+        .{ .input = "Transfer-Encoding: chunked\r\n\r\n2\r\nbo\r\n2\r\ndy\r\n0\r\n\r\n", .expected = "body" },
+        .{ .input = "Transfer-Encoding: chunked\r\n\r\nz\r\nbody\r\n0\r\n\r\n", .expected = null },
+        .{ .input = "Transfer-Encoding: chunked\r\n\r\n4\r\nbo", .expected = null },
+    };
+    for (cases) |case| {
+        var input: [256]u8 = undefined;
+        var reader: Io.Reader = .fixed(try std.fmt.bufPrint(&input, "POST /api HTTP/1.1\r\nHost: example.test\r\n{s}", .{case.input}));
+        var output: [128]u8 = undefined;
+        var writer: Io.Writer = .fixed(&output);
+        var server = std.http.Server.init(&reader, &writer);
+        var request = try server.receiveHead();
+        try validateHead(&request);
+        if (case.expected) |expected| {
+            const bytes = try readBody(std.testing.allocator, &request, 4);
+            defer std.testing.allocator.free(bytes);
+            try std.testing.expectEqualStrings(expected, bytes);
+        } else try std.testing.expectError(error.InvalidBody, readBody(std.testing.allocator, &request, 4));
+        try std.testing.expectEqual(@as(usize, 0), writer.buffered().len);
+    }
+    var reader: Io.Reader = .fixed("POST /api HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\nbody");
+    var output: [128]u8 = undefined;
+    var writer: Io.Writer = .fixed(&output);
+    var server = std.http.Server.init(&reader, &writer);
+    var request = try server.receiveHead();
+    var failing: std.testing.FailingAllocator = .init(std.testing.allocator, .{ .fail_index = 0 });
+    try std.testing.expectError(error.OutOfMemory, readBody(failing.allocator(), &request, 4));
 }
 
 test "framing validates host, duplicate identity headers and unambiguous bodies" {

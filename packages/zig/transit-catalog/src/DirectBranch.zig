@@ -221,7 +221,7 @@ pub const Result = union(enum) { status: ?Status, source: Source, page: Page, li
 
 /// Returned variable bytes belong to the parsed response. Retain it until all
 /// rows/schema have been consumed, then deinit; a page is not a whole result.
-pub fn call(client: c.DirectTableClient, request: Request) !std.json.Parsed(w.Response) {
+pub fn call(client: c.DirectTableClient, request: Request) !c.DirectTableClient.OwnedResponse {
     return client.call(.{ .branch = request }) catch |err| {
         if ((request == .source or request == .scan or (request == .create and request.create.intent.parent != null)) and err == error.Conflict and client.service.last_rejection == .QueryExpired) return error.BranchRetired;
         return err;
@@ -239,7 +239,7 @@ pub fn validateResult(allocator: std.mem.Allocator, connection: w.Connection, re
             };
             try status.receipt.validate();
             try status.revision.validate();
-            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null, .source = null };
+            const progress: c.DirectClientToken.Progress = .{ .receipt = status.receipt, .revision = status.revision, .pending = status.state.pending(), .cancel = status.state.cancelled(), .record = null, .staged = null, .original = null, .source = null, .capture = null };
             try progress.validate();
             try status.state.validate(progress);
             const intent = status.receipt.binding.intent.branch;
