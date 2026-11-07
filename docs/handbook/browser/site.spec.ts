@@ -362,15 +362,22 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   expect(await planes.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(1280);
   await page.getByRole("button", { name: "Toggle navigation bar" }).click();
   await page.getByRole("button", { name: "← Back to main menu", exact: true }).click();
+  await expect(
+    page.locator(".navbar-sidebar").getByRole("link", { name: "Data model", exact: true }),
+  ).toHaveCount(0);
+  await page.locator(".navbar-sidebar").getByRole("link", { name: "SQL", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
+  await expect(page.locator(".navbar-sidebar")).not.toBeInViewport();
+  await expect(page.locator(".navbar-sidebar__backdrop")).not.toBeVisible();
+  // Data model now lives behind the homepage CTA rather than a duplicate navbar link.
+  await page.goto(baseURL!);
+  await page.getByRole("link", { name: "Explore the data model", exact: true }).click();
   await page
-    .locator(".navbar-sidebar")
-    .getByRole("link", { name: "Data model", exact: true })
+    .getByRole("link", { name: "Versioned data, computation and policies", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Data, computation and policies", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".navbar-sidebar")).not.toBeInViewport();
-  await expect(page.locator(".navbar-sidebar__backdrop")).not.toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -597,6 +604,7 @@ test("homepage content and navigation work without JavaScript", async ({ browser
   try {
     await page.goto(baseURL!);
     await expect(page.getByRole("heading", { name: "Give structure to change." })).toBeVisible();
+    await expect(page.locator(".hero-score-button")).toHaveCount(0);
     await expect(page.locator(".refraction-visual")).toHaveCSS("position", "static");
     const contextScene = page.getByRole("img", { name: /^The graphite fabric straightens/ });
     await contextScene.scrollIntoViewIfNeeded();

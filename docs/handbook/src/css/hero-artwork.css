@@ -1,0 +1,195 @@
+.transit-hero-art {
+  position: relative;
+  isolation: isolate;
+  --beacon-energy: 0;
+  --prism-energy: 0;
+  --light-shift: 0px;
+  --light-travel: 0px;
+  --score-active: 0;
+}
+.transit-hero-art[data-playing="true"] {
+  --score-active: 1;
+}
+.hero-light-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+[data-theme="dark"] .hero-light-scene {
+  display: none;
+}
+.hero-prismatic-planes {
+  mix-blend-mode: multiply;
+  opacity: max(calc(var(--prism-energy) * 0.4), calc(var(--score-active) * 0.23));
+  transform: translateY(var(--light-shift));
+  transition:
+    opacity 1400ms ease,
+    transform 1200ms ease;
+}
+.hero-channel-edges {
+  opacity: max(calc(var(--prism-energy) * 0.5), calc(var(--score-active) * 0.3));
+  transition: opacity 1400ms ease;
+}
+.hero-channel-glints {
+  stroke-dasharray: 90 240;
+  stroke-dashoffset: var(--light-travel);
+  opacity: calc(var(--prism-energy) * 0.7);
+  transition:
+    stroke-dashoffset 1200ms ease,
+    opacity 1400ms ease;
+}
+/* The lookout and its window light emerge together, leaving the original art at rest. */
+.hero-beacon {
+  opacity: max(var(--beacon-energy), calc(var(--score-active) * 0.65));
+  transition: opacity 1000ms ease;
+}
+.hero-beacon-aura {
+  transform-origin: 91.94% 4.4%;
+  transform: scale(calc(0.8 + var(--beacon-energy) * 0.2));
+  transition: transform 1200ms ease;
+}
+.hero-lookout {
+  opacity: 0.95;
+  mix-blend-mode: multiply;
+}
+.hero-music-light {
+  opacity: var(--score-active);
+  transition: opacity 1400ms ease;
+}
+.hero-music-current {
+  stroke-dasharray: 65 365;
+  opacity: 0.65;
+  filter: blur(0.5px);
+}
+.hero-music-current path {
+  animation: hero-score-current var(--score-cycle) linear infinite paused;
+}
+.hero-music-current path:nth-child(2) {
+  animation-delay: calc(var(--score-cycle) / -3);
+}
+.hero-music-current path:nth-child(3) {
+  animation-delay: calc(var(--score-cycle) / -1.5);
+}
+.hero-beacon-breath {
+  transform-origin: 91.94% 4.4%;
+  animation: hero-score-breath var(--score-cycle) ease-in-out infinite paused;
+}
+:root:not([data-theme="dark"])
+  [data-playing="true"][data-art-visible="true"]
+  .hero-music-current
+  path,
+:root:not([data-theme="dark"]) [data-playing="true"][data-art-visible="true"] .hero-beacon-breath {
+  animation-play-state: running;
+}
+@keyframes hero-score-current {
+  to {
+    stroke-dashoffset: -430;
+  }
+}
+@keyframes hero-score-breath {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.4;
+  }
+}
+.hero-score-zone {
+  position: absolute;
+  left: 0;
+  top: 33%;
+  width: 25%;
+  height: 30%;
+  display: grid;
+  place-items: center;
+}
+.hero-score-button {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #51472e;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 350ms ease,
+    transform 350ms ease,
+    color 350ms ease;
+}
+.hero-score-button svg {
+  width: 40px;
+  height: 40px;
+  fill: currentColor;
+  filter: drop-shadow(0 0 6px #fff9e9);
+}
+.hero-score-zone:hover .hero-score-button,
+.hero-score-zone:focus-within .hero-score-button,
+[data-playing="true"] .hero-score-button {
+  opacity: 1;
+  transform: none;
+}
+.hero-score-button:hover {
+  color: #9a6a26;
+}
+.hero-score-button:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+[data-theme="dark"] .hero-score-button {
+  color: #ebd5a5;
+}
+[data-theme="dark"] .hero-score-button svg {
+  filter: drop-shadow(0 0 6px #1e2324);
+}
+.hero-audio-status {
+  position: absolute;
+  bottom: 4%;
+  left: 3%;
+  max-width: 90%;
+  color: var(--ifm-font-color-base);
+  background: var(--ifm-background-color);
+  font-size: 0.75rem;
+}
+@media (hover: none), (pointer: coarse) {
+  .hero-score-button {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 640px) {
+  .hero-score-button {
+    width: 52px;
+    height: 52px;
+  }
+  .hero-score-button svg {
+    width: 36px;
+    height: 36px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-prismatic-planes,
+  .hero-channel-edges,
+  .hero-channel-glints,
+  .hero-beacon,
+  .hero-beacon-aura,
+  .hero-music-light,
+  .hero-score-button {
+    transition: none;
+    transform: none;
+  }
+  .hero-music-current path,
+  .hero-beacon-breath {
+    animation: none;
+  }
+}
