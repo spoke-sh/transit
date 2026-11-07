@@ -267,3 +267,11 @@ carry a bounded `projections` vector, whose source definitions must appear in
 `definitions`. Every target belongs to the same stable object and has an equal
 or later revision. This evidence remains immutable through result completion;
 it neither grants current access nor retains source rows.
+
+## Connector command completion
+
+`create_connection`, `create_source`, `retire_source`, `drop_connection` and
+`drop_source` identify declaration commands. Their original operation has kind
+`connector`; matched/changed row counts are absent. Only the owning Catalog's
+applied, rejected or cancelled terminal receipt establishes completion. SOURCE
+publication establishes a declaration, not HTTP execution or captured rows.

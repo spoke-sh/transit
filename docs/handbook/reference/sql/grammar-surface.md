@@ -106,11 +106,13 @@ other administrative SQL families retain their own stated support boundaries.
 
 | Form or family | Support | Semantic target and boundary |
 | --- | --- | --- |
-| `CREATE CONNECTION`, `CREATE SINK` | **Checked grammar; limited HTTP CONNECTION typed parsing** | Connector options and secret references in the reference grammar; the typed HTTP-origin profile accepts only `endpoint`. Execution is not installed |
-| `CREATE SOURCE ... INTO STREAM`, SOURCE controls/inspection | **Typed parser — execution not installed** | HTTP GET options, explicit destination and neutral lifecycle contract; durable binding, capture publication and activation remain unimplemented |
+| `CREATE CONNECTION`, restricted DROP | **Implemented — native cohosted declarations** | HTTP origin publication and inspection; only `endpoint` is accepted. Secret-bearing and other connector profiles remain reference grammar |
+| `CREATE SINK` | **Checked grammar** | Sink publication and execution are not installed |
+| `CREATE SOURCE ... INTO STREAM`, RETIRE, restricted DROP | **Implemented — native cohosted declarations** | Durable binding to an existing Stream with an explicit executor; pure EXPLAIN and original-operation recovery. Activation and capture publication remain unimplemented |
 | `CREATE SCHEMA`, `ALTER SCHEMA ... RENAME`, `DROP SCHEMA RESTRICT` | **Implemented — native SQL execution** | Exact direct-catalog bindings, current ownership, durable outcomes and bounded dependency checks; PostgreSQL/MySQL and query-only interfaces exclude these forms |
 | Role administration, ownership transfer, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy operations; console and query-only interfaces reject administrative execution |
-| `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
+| `SHOW SOURCES`, `SHOW CONNECTIONS`, singular SHOW/DESCRIBE | **Implemented — native cohosted metadata** | Bounded current-policy Catalog inspection; no connector execution or capture reads |
+| `SHOW SINKS` | **Planned — checked grammar** | No installed Sink catalog |
 | Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |

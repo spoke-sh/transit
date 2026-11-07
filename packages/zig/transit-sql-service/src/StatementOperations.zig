@@ -19,13 +19,14 @@ pub fn admitReviewed(host: *g.Session, prepared: *g.Session.Prepared, values: []
             host.fresh_prepared = null;
             return host.runtime.submitPrepared(host.allocator, &host.observer, &host.table, &prepared.native, values, token, fingerprint, host.deadline, &host.operation, acceptance_possible, fresh, true);
         },
-        .transaction, .probe, .settings, .inspection, .source, .captured, .workload => return error.SqlDurableStatementRequired,
+        .transaction, .probe, .settings, .inspection, .source, .captured, .workload, .connector => return error.SqlDurableStatementRequired,
     }
 }
 
 pub fn status(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
         .table, .transaction, .workload => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .connector => try g.SourceOperations.status(host, ref.id),
         .dataflow => try g.ManagedOperations.status(host, ref.id),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
         .captured => try g.CapturedOperations.status(host, ref.id),
@@ -35,6 +36,7 @@ pub fn status(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operati
 pub fn resumeOperation(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     switch (ref.kind) {
         .table, .transaction, .workload => try host.runtime.resumeOperation(&host.observer, ref.id),
+        .connector => return g.SourceOperations.resumeOperation(host, ref.id),
         .dataflow => return g.ManagedOperations.resumeOperation(host, ref.id),
         .configuration => return g.ConfigurationOperations.resumeOperation(host, ref.id),
         .captured => {
@@ -57,6 +59,6 @@ pub fn prepareResult(host: *g.Session, ref: g.SessionOperations.Reference) !g.Se
             break :blk .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, original) };
         },
         .captured => .{ .captured = try g.CapturedOperations.prepareResult(host, ref.id) },
-        .table, .transaction, .dataflow, .configuration => error.InvalidSqlOperationReference,
+        .table, .transaction, .dataflow, .configuration, .connector => error.InvalidSqlOperationReference,
     };
 }

@@ -34,8 +34,10 @@ bytes. Runtime authorization and storage publication remain separate from parsin
 with typed GET/path/duration/byte options, connection origins, lifecycle controls
 and inspection/EXPLAIN forms. The reference grammar requires the explicit Stream
 destination. The previous adapter declaration without INTO is removed. Neither
-parser installs a source or dispatches HTTP; the [source contract](../SOURCE_V1.md)
-defines the pending binding, storage and activation gates.
+parser performs publication or dispatches HTTP. The native cohosted SQL service
+uses the shared Catalog owner for durable CONNECTION/SOURCE declarations,
+inspection, retirement and restricted DROP. The [source contract](../SOURCE_V1.md)
+distinguishes that installed profile from future activation and capture gates.
 
 `LogDdl` owns dedicated Stream/Queue CREATE, policy ALTER, RENAME and DROP
 compilation, sharing the logical column grammar with `TableDdl`. The independent
@@ -409,9 +411,9 @@ and catalog owners perform explicit preparation/publication. The
 [authorization reference](../../docs/handbook/reference/sql/authorization.md) identifies
 executable interfaces and limits. Query-only roots do not apply policy changes.
 
-`CREATE CONNECTION`/`SOURCE`/`SINK`, connector listing forms,
-and KV/Document publication remain grammar-only. No offline declaration resolves
-credentials, provisions resources or authorizes external effects.
+`CREATE SINK` and connector forms beyond the selected HTTP declaration profile
+remain grammar-only. No offline declaration resolves credentials, provisions
+resources or authorizes external effects.
 
 ## Lean scope
 

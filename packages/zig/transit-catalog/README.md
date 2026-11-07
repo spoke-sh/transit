@@ -565,3 +565,19 @@ current grants and verify retained completion metadata through the original
 transaction decision owner. Generic caller-token, record and transaction
 ownership remain unchanged. See [DATAFLOW_V1](../../../contracts/DATAFLOW_V1.md#independent-reader-metadata-inspection)
 for disclosure and work bounds.
+
+## Connector declarations
+
+`DirectSource` and `SourceDeclaration` publish dedicated CONNECTION/SOURCE
+objects through the existing Catalog, name, operation and dependency owners.
+`SourceAuthority` separates inspection, CONNECTION use and ownership. Source
+creation freezes an explicitly supplied executor and an existing Stream's exact
+seven-column capture binding. It reserves a stable destination writer but does
+not affect ordinary append permissions or run HTTP.
+
+`DirectSourceClient.Saved` preserves the complete original typed request.
+`DirectSourceClient.apply` returns response data owned by the output arena.
+Pure proposals, bounded live metadata pages, original recovery, retirement and
+restricted DROP share the [direct contract](../../../contracts/DIRECT_TABLE_V1.md#connection-and-source-declarations).
+The [SOURCE contract](../../../contracts/SOURCE_V1.md) owns bounds, current
+capabilities and the future activation boundary.

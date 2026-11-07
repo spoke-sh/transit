@@ -1136,3 +1136,7 @@ declarative-browser:
 managed-tables:
     zig build test-direct-table-service -Doptimize=ReleaseSafe -- managed
     zig build test-server-managed-tables -Doptimize=ReleaseSafe
+
+# Installed native SOURCE publication and inspection with no connector execution.
+source-declarations:
+    zig build test-server-sources -Doptimize=ReleaseSafe

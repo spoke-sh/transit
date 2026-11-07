@@ -9,6 +9,92 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Durable CONNECTION and SOURCE declarations — 2026-11-06
+
+This experiment checks whether an application can publish connector declarations,
+inspect their exact dependencies under current rights, and recover the original
+outcome without starting ingestion. The implementation is based on `9b544406e`;
+the installed proof passes at pre-rebase source `f524b7fa1` with then-current-v1 definition
+`9c67f065f6ee429a3688ee424fefc7c6665cb1b94dccef5ebd1d84c833507e96`.
+Current semantics belong to [CREATE SOURCE](../../handbook/reference/sql/create-source.md),
+[CREATE CONNECTION](../../handbook/reference/sql/create-connection.md) and
+[SOURCE_V1](../../../contracts/SOURCE_V1.md).
+
+These results precede the rebase onto `aa1328f2d`, which adds shared migration
+execution and changes the contract definition. They do not qualify that combined
+source. The pre-rebase commits and raw evidence remain in the local qualification
+archive; final combined qualification must use the new definition.
+
+`nix develop --command just test source-declarations` builds and runs the copied
+ReleaseSafe installation through
+[`server_sources.py`](../../../tests/interfaces/installation/server_sources.py).
+The fixture uses branch one, one Catalog, the seven-column capture Stream, an
+explicit executor principal `99` without dispatch credentials, and a controlled
+HTTP peer. CREATE CONNECTION, pure EXPLAIN, CREATE SOURCE, singular/list metadata,
+RETIRE and restricted DROP pass. The original SQL token, operation and immutable
+definition survive a lost response, server restart, DROP and name reuse. RETIRE
+advances the control epoch from one to two without changing the definition;
+reusing the name creates another object. Dependency DROP and a competing SOURCE
+writer are refused. All execution controls and explicit transactions reject
+before admission. The peer counts every parsed HTTP method and observes **zero
+requests**; the Stream's next and retained-from offsets remain zero.
+
+An independently authenticated reader at principal `9007199254740990` exercises
+the native 53-bit counter range. Its SOURCE inspection grant discloses the exact
+source definition without disclosing the CONNECTION endpoint. Revocation filters
+the native listing and refuses direct inspection. A separate SQL case revokes
+permission after buffering a complete result: repeating its terminal batch
+discloses no rows, and restoring permission cannot revive the invalidated result.
+Omitting the executor rejects both CREATE SOURCE and EXPLAIN before admission.
+Malformed legacy `capture_stream` syntax remains SQLSTATE `42601`, with no
+operation identity.
+
+The focused Catalog SOURCE tests cover disk reopen, lost reservation/staging/
+publication/cancellation replies, canonical intent corruption, dependency changes,
+USE/APPEND revocation after reservation, retained original receipts and collection.
+Forty declarations exceed a one-page resident cache; sparse scans preserve their
+last examined key, four-row output bound and 32-entry scan bound. Changed cursor
+principal, role or selection is rejected. A 42-operation quota refuses new work
+while preserving closure of both pending originals. Maximum escaped records stay
+within the unchanged 16 KiB WAL bound; immutable requests and declarations have
+their separate 64 KiB limit. Accepted missing artifacts fail closed, while an
+unpublished cancelled artifact can be collected.
+
+The focused native SOURCE registration schedule in
+[`local_catalog_policy_test.zig`](../../../apps/transit-node/local_catalog_policy_test.zig)
+passes against disk-backed Ursula. It loses the registration-begin observation,
+reconstructs the Catalog owner, recovers the identical native change and object,
+and loses the attachment reply before completing the original. Revoking schema
+CREATE after native preparation prevents registration; restoring the grant
+allows the same reserved request to finish. These are injected boundaries and
+owner reconstruction, not physical power-loss experiments.
+
+Earlier installed runs exposed borrowed saved-request text, a collision between
+SQL token bookkeeping and the native operation identity, and an authorization
+denial spelling omitted from list filtering. The final implementations own the
+saved text, use separate operation identities and filter all three native denial
+forms while propagating unavailable authority. Their regression cases and the
+complete installed journey pass. A stripped Debug investigation exceeded the
+normal binary/stack profile and is not qualification evidence.
+
+The clean systems SDK lane also found a C/C++ decoder migration error: its
+authority-domain array contained the new CONNECTION/SOURCE domains, but its
+uniqueness loop still examined only the first six entries. The decoder now uses
+the array's length. The installed boundary fixture checks missing domains and
+every pair of duplicate domains, as well as the decoded connector domain values.
+At `c149ade4c`, `nix develop .#ci-bindings --command just bindings::direct-catalog-c`
+passes 115 boundary cases and 142 public requests through the installed C and
+C++ consumers, including uncertain receipts and caller/node replacement.
+
+The executed SOURCE log and its command/source digest are retained locally under
+`.cache/source-publication/`. This proof does not qualify HTTP polling, captures,
+connector credentials, multi-partition publication, replication or power loss.
+Publication reports `execution_supported=false` and `never_run`. A SQL reservation
+whose original bytes never became ready remains unresolved; the native owned-record
+closure can fence it, but SQL recovery does not invent or reparse a replacement.
+The wider earthquake workload in [#398](https://github.com/spoke-sh/transit/issues/398)
+remains open.
+
 ## Native historical obligations through disk collection — 2026-11-03
 
 This experiment checks whether uncertain historical acquisition and closure keep

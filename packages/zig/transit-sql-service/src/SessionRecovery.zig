@@ -110,6 +110,7 @@ fn advanceOperation(self: *Self, registry: *g.Registry, index: usize, source: *g
     try host.begin();
     defer host.end();
     switch (reference.kind) {
+        .connector => _ = try g.SourceOperations.resumeOperation(host, reference.id),
         .dataflow => _ = try g.ManagedOperations.resumeOperation(host, reference.id),
         .configuration => _ = try g.ConfigurationOperations.resumeOperation(host, reference.id),
         .captured => {

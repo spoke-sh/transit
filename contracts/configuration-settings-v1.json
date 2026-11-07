@@ -1,5 +1,5 @@
 {
-  "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+  "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
   "settings": [
     {
       "name": "version",
@@ -728,7 +728,23 @@
       "minimum": 0,
       "maximum": 32,
       "values": [],
-      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"sources_file\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\",\"peer\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"sources_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"sources_file\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+      "items_schema": "{\"type\":\"object\",\"additionalProperties\":false,\"x-transit-field-order\":[\"name\",\"role\",\"authentication\",\"password_file\",\"sources_file\",\"source_executor\",\"bootstrap_owner\",\"enabled\",\"database\",\"schema\"],\"properties\":{\"name\":{\"type\":\"string\",\"maxLength\":63},\"role\":{\"type\":\"string\",\"maxLength\":63},\"authentication\":{\"type\":\"string\",\"enum\":[\"password\",\"trust\",\"peer\"]},\"password_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"sources_file\":{\"anyOf\":[{\"type\":\"string\",\"maxLength\":4096},{\"type\":\"null\"}]},\"source_executor\":{\"anyOf\":[{\"type\":\"integer\",\"minimum\":0,\"maximum\":18446744073709551615,\"x-transit-bits\":64,\"x-transit-signed\":false},{\"type\":\"null\"}]},\"bootstrap_owner\":{\"type\":\"boolean\"},\"enabled\":{\"type\":\"boolean\"},\"database\":{\"type\":\"string\",\"maxLength\":63},\"schema\":{\"type\":\"string\",\"maxLength\":63}},\"required\":[\"name\",\"role\"],\"x-transit-defaults\":{\"authentication\":\"password\",\"password_file\":null,\"sources_file\":null,\"source_executor\":null,\"bootstrap_owner\":false,\"enabled\":true,\"database\":\"transit\",\"schema\":\"public\"}}"
+    },
+    {
+      "name": "sql.native.source_executor",
+      "description": "Explicit executor principal bound to local SOURCE declarations; omission disables CREATE SOURCE",
+      "owner": "sql",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
     },
     {
       "name": "sql.native.sources_file",
@@ -2171,6 +2187,18 @@
                 "x-transit-change": "restart",
                 "default": null
               },
+              "source_executor": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 9007199254740991,
+                "description": "Explicit executor principal bound to local SOURCE declarations; omission disables CREATE SOURCE",
+                "x-transit-owner": "sql",
+                "x-transit-change": "restart",
+                "default": null
+              },
               "sources_file": {
                 "type": [
                   "string",
@@ -2254,6 +2282,7 @@
                 "authentication",
                 "password_file",
                 "sources_file",
+                "source_executor",
                 "bootstrap_owner",
                 "enabled",
                 "database",
@@ -2298,6 +2327,20 @@
                     }
                   ]
                 },
+                "source_executor": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "bootstrap_owner": {
                   "type": "boolean"
                 },
@@ -2321,6 +2364,7 @@
                 "authentication": "password",
                 "password_file": null,
                 "sources_file": null,
+                "source_executor": null,
                 "bootstrap_owner": false,
                 "enabled": true,
                 "database": "transit",

@@ -1,50 +1,48 @@
 # CREATE CONNECTION
 
-**Reference grammar and a limited typed parser; execution is not installed.**
-This statement describes a named connector configuration.
-The console, Board query workspace and Flight SQL do not execute it, resolve
-credentials or open a connection.
+**Native cohosted SQL supports durable HTTP connection declarations.** A
+CONNECTION names an HTTP origin. Publication stores metadata and grants no
+credentials, network access or effect authority. It does not contact the origin.
 
 ## Syntax
 
-```text
-CREATE CONNECTION name TO connector_kind (option = option_value [, ...]);
-option_value := 'text' | SECRET('credential_reference')
-```
-
-`name`, `connector_kind` and option names are identifiers. The option list is
-required and nonempty. The grammar accepts any connector-kind identifier, such
-as `HTTP` or `GRPC`; it does not establish support for an arbitrary connector.
-Values are strings or secret references, never bare numbers or booleans.
-
-## Example
-
-This example illustrates syntax only:
-
 ```sql
-CREATE CONNECTION remote_api TO HTTP (
-  endpoint = 'https://api.example.test',
-  token = SECRET('service_token')
-);
+CREATE CONNECTION usgs TO HTTP (endpoint = 'https://earthquake.usgs.gov');
+SHOW CONNECTIONS;
+SHOW CONNECTION usgs;
+DESCRIBE CONNECTION usgs;
+DROP CONNECTION usgs RESTRICT;
 ```
 
-The example above illustrates the broader reference grammar. The separate
-`SourceSql` typed parser accepts only HTTP with one `endpoint` origin option;
-it rejects credentials, a query/fragment and a non-root path in that origin.
-It does not support the illustrated token option. Neither parser publishes a
-connection or validates dispatch authority.
+The installed profile accepts exactly one `endpoint` option. The origin has at
+most 2,048 ASCII bytes and excludes user credentials, a query, fragment and a
+non-root path. Names share the current schema namespace with other Catalog
+objects. Reusing an occupied name is a conflict. Bare DROP has the same RESTRICT
+behavior; a connection referenced by a SOURCE cannot be dropped.
 
-## Meaning and current interface
+Creation requires schema CREATE and selection of the declaration's owner through
+native authorization. Metadata requires CONNECTION inspection; binding a SOURCE
+requires CONNECTION use. These rights remain separate. Inspecting a SOURCE's
+reference does not disclose the connection's endpoint or confer its permissions.
 
-A connection declaration represents reusable connector configuration, separate
-from an authorized effect attempt. `SECRET` names a credential binding and must
-not contain a resolved credential. Recording configuration cannot grant dispatch
-authority or make a remote retry safe.
+SHOW and DESCRIBE return ordinary SQL result sets containing exact definition
+identity, the original name and owner, and the current Catalog observation.
+Listings are bounded, current-policy pages; they are not an atomic data snapshot.
+The original creation receipt remains attributable after DROP and name reuse.
 
-Use the existing [connector APIs](../connectors.md) and their owning HTTP/gRPC
-configuration instead. [Security](../security.md#effects-and-secrets) defines
-credential resolution and capture rules. [CREATE SOURCE](create-source.md) and
-[CREATE SINK](create-sink.md) reference connection names in the grammar, but do
-not execute those APIs.
+## Scope
 
-Source: [`createConnection`, `connectionOptions`, `secretRef`](../../../../contracts/sql/TransitExtensions.g4).
+The native console uses the same Catalog owner as typed callers. Migration files
+reject connector declarations before admission. Explicit transactions,
+PostgreSQL/MySQL, Flight SQL, standalone services and query-source sessions do not
+execute these declarations. Board remains read-only.
+
+The broader reference grammar permits other connector identifiers, options and
+`SECRET('credential_reference')`. Those forms are not installed connection
+configuration. HTTP polling, secret resolution and transport/TLS routing require
+the separate execution integration. Existing [connector APIs](../connectors.md)
+retain their own recorded-intent and authorization contracts.
+
+Source: [`createConnection`, `sourceCommand`](../../../../contracts/sql/TransitExtensions.g4)
+and [SOURCE_V1](../../../../contracts/SOURCE_V1.md).
+See [CREATE SOURCE](create-source.md) for binding an existing Stream.

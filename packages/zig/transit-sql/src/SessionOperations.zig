@@ -10,6 +10,7 @@ pub const Kind = enum(u8) {
     transaction = 4,
     dataflow = 5,
     workload = 6,
+    connector = 7,
     pub fn database(self: Kind) bool {
         return self == .table or self == .transaction or self == .workload;
     }
@@ -44,6 +45,7 @@ pub const External = struct {
     namespace: u64,
     role: u64,
     role_present: u8,
+    source_executor: ?u64 = null,
     original: [16]u8,
     source: [32]u8,
     expected_generation: u64,
@@ -53,17 +55,21 @@ pub const External = struct {
     reservation: u64,
     summary: enum(u8) { none = 0, applied = 1, rejected = 2, cancelled = 3, partial = 4 } = .none,
     pub fn binding(self: External) g.DatabaseAccount.Binding {
-        return .{ .resource = self.resource, .catalog = self.catalog, .owner = self.owner, .namespace = self.namespace, .role = if (self.role_present == 1) self.role else null };
+        return .{ .resource = self.resource, .catalog = self.catalog, .owner = self.owner, .namespace = self.namespace, .role = if (self.role_present == 1) self.role else null, .source_executor = self.source_executor };
     }
     pub fn validate(self: External) !void {
         if (self.id == 0 or self.id > p.max_counter or self.kind.database() or self.resource == 0 or self.catalog == 0 or self.owner == 0 or self.namespace == 0 or self.role_present > 1 or self.role > p.max_counter or (self.role_present == 0 and self.role != 0) or self.expected_generation == 0) return error.InvalidSqlOperationReference;
+        if (self.source_executor) |executor| if (executor == 0 or executor > p.max_counter) return error.InvalidSqlOperationReference;
         if ((self.phase == .terminal) != (self.summary != .none) or (self.phase == .terminal and self.reservation != 0) or (self.phase != .terminal and self.reservation < 512)) return error.InvalidSqlOperationReference;
     }
 };
 
 pub const initial_format: u32 = 0x53514f31;
 pub const progress_format: u32 = 0x53515031;
-pub const Initial = struct { begin: Begin, body: ?c.DirectRecord.Reference };
+pub const Initial = struct { begin: Begin, body: ?c.DirectRecord.Reference, inline_body: ?c.DirectTableProtocol.Binary = null };
+pub fn isInitial(format_value: u32) bool {
+    return format_value == initial_format or format_value == c.DirectOwnedRecord.format;
+}
 pub const Capture = struct {
     records: u64 = 1,
     staging: u64 = 0,
@@ -85,8 +91,27 @@ pub fn decode(comptime T: type, source: *g.Client.Source, reference_value: c.Dir
     return parsed.value;
 }
 pub fn readInitial(source: *g.Client.Source, state: c.DirectClientToken.Progress) !Initial {
-    if (state.receipt.binding.intent != .external or state.receipt.binding.intent.external.record.format != initial_format) return error.InvalidSqlOperationReference;
-    const value = try decode(Initial, source, state.receipt.binding.intent.external.record);
+    if (state.receipt.binding.intent != .external or !isInitial(state.receipt.binding.intent.external.record.format)) return error.InvalidSqlOperationReference;
+    const record = state.receipt.binding.intent.external.record;
+    const value = if (record.format == initial_format) try decode(Initial, source, record) else blk: {
+        const caller = source.direct(state);
+        const bytes = try c.DirectRecord.read(caller.allocator, caller, record);
+        defer caller.allocator.free(bytes);
+        const envelope = try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, caller.allocator, bytes);
+        defer envelope.deinit();
+        try envelope.value.validate(record);
+        try envelope.value.key.requireSame(state.receipt.binding.key);
+        if (envelope.value.format != initial_format) return error.InvalidSqlOperationReference;
+        const payload = try envelope.value.bytes.decode(caller.allocator, c.DirectRecord.max_bytes);
+        defer caller.allocator.free(payload);
+        const parsed = try p.Json.parseFromSlice(Initial, caller.allocator, payload);
+        defer parsed.deinit();
+        // Initial is otherwise fixed-width. The inline bytes are separately
+        // returned by readInline, so no borrowed text escapes this parse.
+        var initial = parsed.value;
+        initial.inline_body = null;
+        break :blk initial;
+    };
     if (!std.mem.eql(u8, &value.begin.nonce, &state.receipt.binding.key.token) or !std.mem.eql(u8, &value.begin.fingerprint, &state.receipt.binding.fingerprint)) return error.GatewayIdentityConflict;
     const connection = state.receipt.binding.key.connection;
     const selected = value.begin.binding;
@@ -103,6 +128,21 @@ pub fn progress(source: *g.Client.Source, state: c.DirectClientToken.Progress) !
         const initial = try readInitial(source, state);
         return .{ .capture = .{ .stored = if (initial.body) |body| body.content.bytes else 0 } };
     };
+    if (reference_value.format == c.DirectProgressRecord.format) {
+        const caller = source.direct(state);
+        const bytes = try c.DirectRecord.read(caller.allocator, caller, reference_value);
+        defer caller.allocator.free(bytes);
+        const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, caller.allocator, bytes);
+        defer envelope.deinit();
+        try envelope.value.validate(reference_value);
+        try envelope.value.advance.key.requireSame(state.receipt.binding.key);
+        if (envelope.value.advance.format != progress_format) return error.InvalidSqlOperationReference;
+        const payload = try envelope.value.advance.bytes.decode(caller.allocator, c.DirectRecord.max_bytes);
+        defer caller.allocator.free(payload);
+        const parsed = try p.Json.parseFromSlice(Progress, caller.allocator, payload);
+        defer parsed.deinit();
+        return parsed.value;
+    }
     if (reference_value.format != progress_format) return error.InvalidSqlOperationReference;
     return decode(Progress, source, reference_value);
 }
@@ -110,6 +150,11 @@ pub fn save(source: *g.Client.Source, state: c.DirectClientToken.Progress, value
     const bytes = try p.Json.valueAlloc(source.client.transport.http.allocator, value);
     defer source.client.transport.http.allocator.free(bytes);
     const caller = source.direct(state);
+    if (state.original != null) {
+        const binary = try c.DirectTableProtocol.Binary.encode(caller.allocator, bytes);
+        defer caller.allocator.free(binary.base64);
+        return c.DirectProgressRecord.advance(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = pending, .cancel = cancel, .format = progress_format, .bytes = binary });
+    }
     const record = try c.DirectRecord.stage(caller, state.receipt.binding.key.account, progress_format, bytes);
     return c.DirectClientToken.update(caller, .{ .key = state.receipt.binding.key, .expected = state.revision, .pending = pending, .cancel = cancel, .record = record });
 }
@@ -132,7 +177,7 @@ pub fn external(execution: g.DatabaseAccount, source: *g.Client.Source, id: u64)
     const value = initial.begin;
     const current = try progress(source, state);
     try execution.admittedBinding(value.binding);
-    return .{ .id = id, .nonce = value.nonce, .kind = value.kind, .resource = value.binding.resource, .catalog = value.binding.catalog, .owner = value.binding.owner, .namespace = value.binding.namespace, .role = value.binding.role orelse 0, .role_present = @intFromBool(value.binding.role != null), .original = value.original, .source = value.source, .expected_generation = value.expected_generation, .phase = if (state.pending) .ready else .terminal, .length = if (initial.body) |body| @intCast(body.content.bytes) else 0, .digest = if (initial.body) |body| body.content.sha256 else @splat(0), .reservation = if (state.pending) value.reservation else 0, .summary = current.summary };
+    return .{ .id = id, .nonce = value.nonce, .kind = value.kind, .resource = value.binding.resource, .catalog = value.binding.catalog, .owner = value.binding.owner, .namespace = value.binding.namespace, .role = value.binding.role orelse 0, .role_present = @intFromBool(value.binding.role != null), .source_executor = value.binding.source_executor, .original = value.original, .source = value.source, .expected_generation = value.expected_generation, .phase = if (state.pending) .ready else .terminal, .length = if (initial.body) |body| @intCast(body.content.bytes) else 0, .digest = if (initial.body) |body| body.content.sha256 else @splat(0), .reservation = if (state.pending) value.reservation else 0, .summary = current.summary };
 }
 pub fn begin(source: *g.Client.Source, input: Begin, body: ?c.DirectRecord.Reference) !Reference {
     if (try lookup(source.client.execution, source, input.nonce, input.fingerprint)) |existing| return existing;
@@ -173,7 +218,7 @@ pub fn list(execution: g.DatabaseAccount, source: *g.Client.Source, after_id: u6
         for (page.entries) |slot| if (slot) |state| {
             if (state.receipt.binding.intent == .branch or state.receipt.binding.intent == .history) continue;
             if (state.receipt.binding.intent == .workload and !g.WorkloadOperations.supported(state.receipt.binding.intent.workload)) continue;
-            if (state.receipt.binding.intent == .external and state.receipt.binding.intent.external.record.format != initial_format) continue;
+            if (state.receipt.binding.intent == .external and !isInitial(state.receipt.binding.intent.external.record.format)) continue;
             for (states[0..count]) |other| if (other.?.id() == state.id()) break else continue else {
                 states[count] = state;
                 count += 1;
@@ -217,4 +262,62 @@ test "SQL recovery pagination crosses excluded branch pages without skipping ano
     const bounded = pageWindow(&.{ 1, 2, 3, 4, 5, 6, 7, 8, 9 }, null);
     try t.expectEqual(8, bounded.count);
     try t.expectEqual(@as(?u64, 8), bounded.next);
+}
+
+/// Reserve the original SQL token and complete saved typed request before any
+/// retained payload is written. A failure preserves the same token commitment.
+pub fn beginOwned(source: *g.Client.Source, input: Begin, payload: []const u8) !Reference {
+    if (try lookup(source.client.execution, source, input.nonce, input.fingerprint)) |existing| return existing;
+    try source.client.execution.admittedBinding(input.binding);
+    if (input.kind != .connector) return error.InvalidSqlOperationReference;
+    const caller = source.client.table(input.binding);
+    const binary = try c.DirectTableProtocol.Binary.encode(caller.allocator, payload);
+    defer caller.allocator.free(binary.base64);
+    const bytes = try p.Json.valueAllocBounded(caller.allocator, Initial{ .begin = input, .body = null, .inline_body = binary }, c.DirectRecord.max_bytes);
+    defer caller.allocator.free(bytes);
+    const id = connectorTokenOperation(input.original);
+    const state = try c.DirectOwnedRecord.stage(caller, .{ .definition = p.Growth.current_definition, .connection = caller.connection, .account = source.client.execution.configuration.account, .token = input.nonce }, input.binding.namespace, id, input.fingerprint, source.client.execution.configuration.budget(input.reservation), initial_format, bytes);
+    return projection(source, state);
+}
+pub fn readInline(source: *g.Client.Source, state: c.DirectClientToken.Progress, allocator: std.mem.Allocator) ![]const u8 {
+    const record = state.receipt.binding.intent.external.record;
+    if (record.format != c.DirectOwnedRecord.format) return error.InvalidSqlOperationReference;
+    const caller = source.direct(state);
+    const bytes = try c.DirectRecord.read(allocator, caller, record);
+    defer allocator.free(bytes);
+    const envelope = try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, allocator, bytes);
+    defer envelope.deinit();
+    try envelope.value.validate(record);
+    try envelope.value.key.requireSame(state.receipt.binding.key);
+    if (envelope.value.format != initial_format) return error.InvalidSqlOperationReference;
+    const payload = try envelope.value.bytes.decode(allocator, c.DirectRecord.max_bytes);
+    defer allocator.free(payload);
+    const initial = try p.Json.parseFromSlice(Initial, allocator, payload);
+    defer initial.deinit();
+    if (initial.value.body != null or initial.value.begin.kind != .connector) return error.InvalidSqlOperationReference;
+    return (initial.value.inline_body orelse return error.InvalidSqlOperationReference).decode(allocator, c.SourceDeclaration.max_bytes);
+}
+pub fn retain(source: *g.Client.Source, id: u64) !void {
+    const state = try source.operation(id);
+    if (state.original) |owned| {
+        if (owned.phase == .retained) return;
+        _ = try c.DirectOwnedRecord.call(source.direct(state), .{ .retain_original = .{ .key = state.receipt.binding.key, .expected = state.revision } });
+    }
+}
+
+// SQL token bookkeeping and its connector operation share the Catalog's global
+// caller-operation namespace. Reserve a distinct ID even before either exists.
+fn connectorTokenOperation(original: [16]u8) u64 {
+    const connector = (std.mem.readInt(u64, original[8..16], .big) % p.max_counter) + 1;
+    return if (connector == p.max_counter) 1 else connector + 1;
+}
+test "SOURCE SQL token and native publication use distinct operation identities" {
+    for ([_]u64{ 0, 1, 9007199254741011, p.max_counter - 1, p.max_counter }) |suffix| {
+        var original: [16]u8 = @splat(0);
+        std.mem.writeInt(u64, original[8..16], suffix, .big);
+        const native = (suffix % p.max_counter) + 1;
+        const bookkeeping = connectorTokenOperation(original);
+        try std.testing.expect(bookkeeping > 0 and bookkeeping <= p.max_counter);
+        try std.testing.expect(bookkeeping != native);
+    }
 }

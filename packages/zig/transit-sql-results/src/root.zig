@@ -44,6 +44,11 @@ pub const Command = enum {
     rollback_to_savepoint,
     create_dataflow,
     control_dataflow,
+    create_connection,
+    create_source,
+    retire_source,
+    drop_connection,
+    drop_source,
     produce,
     consume,
     commit_offset,
@@ -52,6 +57,12 @@ pub const Command = enum {
     ack,
     nack,
     extend_lease,
+    pub fn connector(self: Command) bool {
+        return switch (self) {
+            .create_connection, .create_source, .retire_source, .drop_connection, .drop_source => true,
+            else => false,
+        };
+    }
     pub fn workload(self: Command) bool {
         return switch (self) {
             .produce, .consume, .commit_offset, .enqueue, .claim, .ack, .nack, .extend_lease => true,
@@ -60,7 +71,7 @@ pub const Command = enum {
     }
 };
 pub const Outcome = enum { provisional, applied, unchanged, rejected, cancelled, partial };
-pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow, workload } = .table };
+pub const Operation = struct { account: [32]u8, id: u64, kind: enum { table, configuration, captured, transaction, dataflow, workload, connector } = .table };
 pub const Counts = struct {
     matched: u64,
     changed: u64,
@@ -102,9 +113,9 @@ pub const CommandCompletion = struct {
         };
         if (self.operation) |operation| {
             if (operation.id == 0) return error.InvalidCommandCompletion;
-            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (self.kind.workload()) .workload else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
+            const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (self.kind.workload()) .workload else if (self.kind.connector()) .connector else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
             if (operation.kind != expected) return error.InvalidCommandCompletion;
-        } else if (self.transaction != null or counted or self.kind.workload() or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow) return error.InvalidCommandCompletion;
+        } else if (self.transaction != null or counted or self.kind.workload() or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow or self.kind.connector()) return error.InvalidCommandCompletion;
         if (self.kind.workload()) {
             if (self.transaction != null) return error.InvalidCommandCompletion;
             const evidence = self.workload orelse return error.MissingWorkloadEvidence;

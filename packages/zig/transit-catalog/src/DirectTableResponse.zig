@@ -164,6 +164,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .branch => .branch,
         .historical_catalog => .historical_catalog,
         .descriptor => .descriptor,
+        .source => .source,
         .schema_projection => .schema_projection,
         .kv => .kv,
         .kv_declaration => .kv_declaration,
@@ -232,6 +233,10 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .queue => |value| try c.DirectQueueResponse.validate(allocator, request.connection, request.action.queue, value),
         .workload_result => |value| try c.DirectWorkloadResultProtocol.validate(allocator, request.connection, request.action.workload_result, value),
         .branch => |value| try c.DirectBranch.validateResult(allocator, request.connection, request.action.branch, value),
+        .source => |value| {
+            try c.DirectSource.validateResult(allocator, request.connection, request.action.source, value);
+            if (value == .page) if (value.page.next) |cursor| if (cursor.role != subject.role) return error.InvalidTableResponse;
+        },
         .descriptor => |value| try c.DirectDefinition.validateResult(allocator, request.connection, request.action.descriptor, value),
         .historical_catalog => |value| try c.DirectHistory.validateResult(allocator, request.connection, request.action.historical_catalog, value),
         .schema_projection => |value| try c.DirectSchemaProjection.validateResult(allocator, request.connection, request.action.schema_projection, value),

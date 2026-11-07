@@ -141,3 +141,12 @@ status and recovery cannot dispatch waited work. PostgreSQL exposes pending
 waits as SQLSTATE 57014; MySQL uses error 1317 / SQLSTATE 70100. Both include the
 original operation ID. See the
 [wait contract](../../../contracts/SQL_SESSION_V1.md#queue-wait-attempts).
+
+
+Native cohosted CONNECTION/SOURCE publication uses `SourceOperations` over the
+shared Catalog owner. SQL saves an owned typed request before publication and
+settles its original `connector` operation through shared statement results.
+The selected database binding must supply `source_executor` to create a SOURCE;
+there is no implicit executor or grant. Metadata, pure EXPLAIN, RETIRE and
+restricted DROP are supported; activation and HTTP capture remain unavailable.
+See the [session contract](../../../contracts/SQL_SESSION_V1.md#native-connector-declarations).

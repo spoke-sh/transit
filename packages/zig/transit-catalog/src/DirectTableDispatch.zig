@@ -21,6 +21,7 @@ pub const Execution = struct {
     ddl: *const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!D.Observation,
     namespace: *const fn (*anyopaque, *D, c.DirectNamespace.Binding, D.Policy, u16) anyerror!c.DirectNamespace.Observation,
     resource: ?*const fn (*anyopaque, *D, c.DirectResource.Binding, D.Policy, c.DirectResource.Command, u16, ?c.DirectResource.SignedAllocation) anyerror!c.DirectResource.Observation = null,
+    source: ?*const fn (*anyopaque, *D, c.DirectSource.Request, D.Policy, u16) anyerror!c.DirectSource.Observation = null,
     descriptor: ?*const fn (*anyopaque, *D, c.DirectDefinition.Request, D.Policy, u16) anyerror!c.DirectDefinition.Observation = null,
     log: ?*const fn (*anyopaque, *D, d.Binding, D.Policy, u16) anyerror!c.DirectLog.Observation = null,
     stream: ?*const fn (*anyopaque, std.mem.Allocator, *D, D.Policy, c.DirectStream.Request) anyerror!c.DirectStream.Result = null,
@@ -90,15 +91,24 @@ fn historySource(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, de
     } };
 }
 pub fn apply(allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
-    // Isolate each action's frame. A runtime switch reserves debug-build
-    // temporaries for every unrelated arm, including large page results.
-    switch (std.meta.activeTag(action)) {
-        inline else => |tag| return applySelected(tag, allocator, catalog, policy, &action, delegation, execution),
-    }
+    // Select a function before calling it. Returning a large Result from each
+    // switch arm reserves a separate temporary for every arm even though only
+    // one executes. One call site keeps the dispatch frame independent of the
+    // number of actions, including in Debug builds.
+    const Handler = *const fn (std.mem.Allocator, *D, D.Policy, *const w.Action, ?c.DirectReadDelegation, Execution) anyerror!w.Result;
+    const selected: Handler = switch (std.meta.activeTag(action)) {
+        inline else => |tag| struct {
+            fn call(a: std.mem.Allocator, owner: *D, rights: D.Policy, input: *const w.Action, grant: ?c.DirectReadDelegation, runner: Execution) anyerror!w.Result {
+                return applySelected(tag, a, owner, rights, input, grant, runner);
+            }
+        }.call,
+    };
+    return selected(allocator, catalog, policy, &action, delegation, execution);
 }
 
 fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem.Allocator, catalog: *D, policy: D.Policy, action: *const w.Action, delegation: ?c.DirectReadDelegation, execution: Execution) anyerror!w.Result {
     switch (action_tag) {
+        .source => return .{ .source = try c.DirectSource.dispatch(allocator, catalog, policy, action.source, execution) },
         .descriptor => return .{ .descriptor = try c.DirectDefinition.dispatch(allocator, catalog, policy, action.descriptor, execution) },
         .branch => return .{ .branch = try branch(allocator, catalog, policy, action.branch) },
         .schema_projection => return .{ .schema_projection = try c.DirectSchemaProjection.dispatch(allocator, catalog, policy, action.schema_projection) },

@@ -252,3 +252,42 @@ pub fn runDefinition(self: *Self, catalog: *D, request: c.DirectDefinition.Reque
     }
     return .registration_pending;
 }
+
+pub fn runSource(self: *Self, catalog: *D, request: c.DirectSource.Request, policy: D.Policy, step_limit: u16) !c.DirectSource.Observation {
+    if (step_limit == 0 or step_limit > 256) return error.InvalidCatalogStepBudget;
+    var transport: Transport = .{ .engine = self.engine };
+    const registrar: client.AuthorizationClientWithTransport(Transport) = .{ .transport = &transport, .realm = self.engine.genesis.realm, .principal = self.principal, .key = self.key, .role = self.role };
+    for (0..step_limit) |_| {
+        const observed = try catalog.sourceOperation(request, .inspect, policy);
+        if (observed == .not_observed) return error.SourceReservationRequired;
+        if (!observed.operation.pending()) return observed;
+        const plan = try catalog.sourceRegistration(request, policy);
+        if (plan == null) {
+            const progress = try catalog.sourceOperation(request, .execute, policy);
+            if (!progress.operation.pending()) return progress;
+            continue;
+        }
+        const next = registrar.registrationAt(plan.?.action, plan.?.authorization_revision) catch |err| {
+            if (err == error.StaleAuthorizationRevision) return catalog.sourceOperation(request, .inspect, policy);
+            return err;
+        };
+        switch (next) {
+            .ready => continue,
+            .submit => |signed| {
+                const prepared = self.engine.prepare(signed) catch |err| {
+                    if (err == error.AlreadyCommitted or err == error.StaleAuthorizationRevision) continue;
+                    return err;
+                };
+                if (self.after_prepare) |inject| try inject.run(inject.context, self.engine);
+                const checked = try catalog.sourceRegistration(request, policy) orelse continue;
+                if (!std.meta.eql(checked.action, plan.?.action)) return error.CatalogIdentityConflict;
+                if (checked.authorization_revision != plan.?.authorization_revision) continue;
+                _ = self.engine.commit(prepared) catch |err| {
+                    if (err == error.Conflict) continue;
+                    return err;
+                };
+            },
+        }
+    }
+    return catalog.sourceOperation(request, .inspect, policy);
+}

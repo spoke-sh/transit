@@ -145,10 +145,18 @@ test("production navigation, search, generated references and exact downloads", 
   await sidebar.getByRole("link", { name: "CREATE CONNECTION", exact: true }).click();
   await expect(page.getByRole("heading", { name: "CREATE CONNECTION", exact: true })).toBeVisible();
   await expect(
-    page.getByText("Reference grammar and a limited typed parser; execution is not installed.", {
+    page.getByText("Native cohosted SQL supports durable HTTP connection declarations.", {
       exact: true,
     }),
   ).toBeVisible();
+  await sidebar.getByRole("link", { name: "CREATE SOURCE", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "CREATE SOURCE", exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Native cohosted SQL supports durable SOURCE declarations and inspection.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(/Polling and capture execution are not installed\./)).toBeVisible();
   await sidebar
     .getByRole("link", { name: "Grammar surface: implemented and planned", exact: true })
     .click();

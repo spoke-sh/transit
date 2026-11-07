@@ -10,8 +10,8 @@ pub const Statement = union(enum) {
     connection: struct { name: Name, endpoint: []const u8 },
     create: Create,
     control: struct { name: Name, command: s.Command },
-    drop: struct { name: Name, kind: enum { source, connection } },
-    inspect: struct { name: ?Name, describe: bool },
+    drop: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind },
+    inspect: struct { name: ?Name, describe: bool, kind: g.catalog.SourceDeclaration.Kind },
     explain: Create,
 };
 pub const Prepared = struct {
@@ -77,15 +77,19 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
             if (try parser.takeWord("CONNECTION")) break :blk .{ .drop = .{ .name = try Name.init(try parser.name()), .kind = .connection } };
         } else if (try parser.takeWord("SHOW")) {
             if (explain) return error.UnsupportedSourceStatement;
-            if (try parser.takeWord("SOURCES")) break :blk .{ .inspect = .{ .name = null, .describe = false } };
-            if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false } };
+            if (try parser.takeWord("CONNECTIONS")) break :blk .{ .inspect = .{ .name = null, .describe = false, .kind = .connection } };
+            if (try parser.takeWord("CONNECTION")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false, .kind = .connection } };
+            if (try parser.takeWord("SOURCES")) break :blk .{ .inspect = .{ .name = null, .describe = false, .kind = .source } };
+            if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false, .kind = .source } };
         } else if (try parser.takeWord("DESCRIBE")) {
             if (explain) return error.UnsupportedSourceStatement;
-            if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true } };
+            if (try parser.takeWord("CONNECTION")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true, .kind = .connection } };
+            if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true, .kind = .source } };
         }
         arena.deinit();
         return null;
     };
+    if (result == .drop) _ = try parser.takeWord("RESTRICT");
     try parser.finish();
     return .{ .arena = arena, .statement = result };
 }
@@ -185,4 +189,19 @@ test "source rejects old destination options and malformed budgets before bindin
     try t.expectError(error.InvalidSourceBudget, parse(t.allocator, prefix ++ "method='GET', path='/feed', poll_interval='1s', request_timeout='1s', response_max_bytes=0)", .transit));
     try t.expectError(error.InvalidSourcePath, parse(t.allocator, prefix ++ "method='GET', path='//other/feed', poll_interval='1s', request_timeout='1s', response_max_bytes=1)", .transit));
     try t.expectError(error.InvalidSqlSyntax, parse(t.allocator, "CREATE CONNECTION api TO HTTP (endpoint='https://example.test', endpoint='https://other.test')", .transit));
+}
+
+test "source metadata includes connections and DROP accepts only RESTRICT" {
+    const t = std.testing;
+    for ([_][]const u8{ "SHOW CONNECTIONS", "SHOW CONNECTION upstream", "DESCRIBE CONNECTION upstream" }) |sql| {
+        var prepared = (try parse(t.allocator, sql, .transit)).?;
+        defer prepared.deinit();
+        try t.expectEqual(.connection, prepared.statement.inspect.kind);
+    }
+    for ([_][]const u8{ "DROP SOURCE feed RESTRICT", "DROP CONNECTION upstream RESTRICT", "DROP SOURCE feed" }) |sql| {
+        var prepared = (try parse(t.allocator, sql, .transit)).?;
+        defer prepared.deinit();
+        try t.expectEqual(.drop, std.meta.activeTag(prepared.statement));
+    }
+    try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "DROP SOURCE feed CASCADE", .transit));
 }

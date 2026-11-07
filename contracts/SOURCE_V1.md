@@ -1,8 +1,11 @@
 # HTTP source ingestion v1
 
-Status: neutral contract and typed SQL parser. Installed SQL does not yet publish
-CONNECTION/SOURCE objects or execute their lifecycle. The storage, authority,
-effect and recovery gates below must execute before activation is exposed.
+Status: durable CONNECTION/SOURCE declarations, bounded inspection, retirement
+and restricted DROP through the typed Catalog and native cohosted SQL service.
+HTTP scheduling, capture and activation remain uninstalled; their execution gates
+below are requirements for a later slice.
+Migration files reject connector declarations before admission; reviewed
+dependency plans and migration step recovery for these objects are not installed.
 
 The public [CREATE SOURCE reference](../docs/handbook/reference/sql/create-source.md)
 owns syntax and capability labels. [`Source.zig`](../packages/zig/transit-protocol/src/Source.zig)
@@ -26,7 +29,8 @@ the connection and destination definitions, an explicitly provisioned executor,
 the five HTTP options and seven stable destination column IDs. Definitions use
 the shared current-v1 identifier with no missing-field defaults or fallback.
 Incompatible persisted integration follows the repository's current-v1 cutover.
-These new, uninstalled types do not reinterpret an existing persisted format.
+The mandatory CONNECTION/SOURCE authority domains and Catalog root changes use
+the current-v1 hard cutover; old installations and requests reject before use.
 
 Resolve names only during declaration binding. Reject replaced definitions,
 different scopes, duplicate/zero column IDs, a non-Stream target, partition
@@ -57,6 +61,34 @@ integers with `ms`, `s`, `m`, `h` or `d`, converted to milliseconds with checked
 arithmetic. Byte budgets are positive integer literals. Deployment limits apply
 in addition to declaration budgets; declaration validation grants no capacity.
 
+## Immutable declaration artifacts
+
+[`SourceDeclaration`](../packages/zig/transit-catalog/src/SourceDeclaration.zig)
+defines a dedicated connector artifact, separate from relational view schemas.
+Canonical bytes have an eight-byte `TSOURCE1` prefix, the 32-byte current contract
+definition, and canonical JSON. The payload contains object/revision, original
+namespace/name, native authorization reference, owner and either an HTTP origin
+or the exact source binding. Its own digest is excluded. SHA-256 of the complete
+canonical bytes supplies both the immutable content commitment and definition
+digest. Artifact and saved request encodings are each bounded to 64 KiB.
+
+[`DirectSource`](../packages/zig/transit-catalog/src/DirectSource.zig) separates
+that immutable declaration from control epoch and dropped state. A saved request
+binds the original operation, exact expected definition, namespace/name, payload
+commitment and, for control or source DROP, expected epoch. RETIRE increments the
+control epoch without changing definition identity. DROP retains the immutable
+identity and original receipt. Reusing a name cannot reinterpret that receipt.
+The declaration-only typed profile rejects AUTHORIZE, ACTIVATE, SUSPEND and
+RESUME before admission at both the Catalog and SQL boundaries.
+
+A reservation commits the saved request's content reference before staging its
+bytes. Only an applied operation can carry a resulting declaration. Source
+publication and DROP carry their two dependency changes in the same control
+record. The destination writer key is its stable object identity; the value
+retains its exact definition and original source operation. Control metadata
+reports unsupported execution, `never_run` and absent poll/publication positions.
+It must not synthesize an authorization or executor failure.
+
 ## Publication, controls and authority
 
 CREATE is a recoverable original operation. Reserve ownership before staging
@@ -66,7 +98,9 @@ creates its destination nor grants control, append, secret or disclosure rights.
 Ordinary Stream append rights remain separate; applications restrict them when
 exclusive ingestion is required.
 
-The control transition table is closed. Each accepted transition increments an
+The neutral execution transition table below remains the future activation
+contract. The installed declaration profile implements only published-to-retired.
+Each accepted transition increments an
 overflow-checked epoch, fencing earlier execution ownership:
 
 | Current state | Permitted command | Next state |

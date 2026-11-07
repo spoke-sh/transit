@@ -18,9 +18,14 @@ authentications: u8 = 4,
 operation_quota: u64 = 1000000,
 byte_quota: u64 = 1073741824,
 pending_quota: u32 = 16,
-pub const Native = struct { session_lease_ms: u32 = 30000, local: bool = true, sources_file: ?[]const u8 = null, http: ?Http = null };
+pub const Native = struct { source_executor: ?u64 = null, session_lease_ms: u32 = 30000, local: bool = true, sources_file: ?[]const u8 = null, http: ?Http = null };
 pub const Http = struct { address: []const u8 = "127.0.0.1", port: u16 = 19109, tls: bool = true, certificate_file: ?[]const u8 = null, key_file: ?[]const u8 = null };
 pub const local_account: Account = .{ .name = "local", .role = "local_owner", .authentication = .peer, .bootstrap_owner = true };
+pub fn localAccount(self: Self) Account {
+    var account = local_account;
+    account.source_executor = self.native.source_executor;
+    return account;
+}
 pub const PostgresListener = struct { port: u16 = 15432 };
 pub const MysqlListener = struct { port: u16 = 13306 };
 pub const Tls = struct { mode: Gateway.TlsMode = .required, certificate_file: ?[]const u8 = null, key_file: ?[]const u8 = null, ca_file: ?[]const u8 = null };
@@ -30,6 +35,7 @@ pub const Account = struct {
     authentication: Gateway.Authentication = .password,
     password_file: ?[]const u8 = null,
     sources_file: ?[]const u8 = null,
+    source_executor: ?u64 = null,
     bootstrap_owner: bool = false,
     enabled: bool = true,
     database: []const u8 = "transit",
@@ -44,6 +50,7 @@ pub fn wireListening(self: Self) bool {
     return self.postgres != null or self.mysql != null;
 }
 pub fn resolve(self: *Self, allocator: std.mem.Allocator, base: []const u8, diagnostic: anytype) !void {
+    if (self.native.source_executor) |executor| if (executor == 0 or executor > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("sql.native.source_executor", "requires an explicit positive executor principal", null);
     if (self.native.sources_file) |file| self.native.sources_file = try resolvePath(allocator, base, file, "sql.native.sources_file", diagnostic);
     if (self.connections_per_account > self.connections or self.authentications > self.connections) return diagnostic.invalidField("sql.connections", "must admit the configured per-account and authentication bounds", null);
     const supplied = @intFromBool(self.tls.certificate_file != null) + @as(u8, @intFromBool(self.tls.key_file != null)) + @intFromBool(self.tls.ca_file != null);
@@ -65,6 +72,7 @@ pub fn resolve(self: *Self, allocator: std.mem.Allocator, base: []const u8, diag
     for (accounts, 0..) |*account, i| {
         if (account.authentication == .peer or (self.native.local and std.mem.eql(u8, account.name, "local"))) return diagnostic.invalidField("sql.accounts", "local is the managed peer account; configure other accounts for network access", null);
         if (account.enabled) enabled += 1;
+        if (account.source_executor) |executor| if (executor == 0 or executor > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("sql.accounts.source_executor", "requires an explicit positive executor principal", null);
         if (!safeName(account.name) or account.role.len == 0 or account.role.len > 63 or !std.unicode.utf8ValidateSlice(account.role) or std.mem.indexOfScalar(u8, account.role, 0) != null) return diagnostic.invalidField("sql.accounts", "requires unique account names and valid role names of at most 63 bytes", null);
         for (accounts[0..i]) |other| if (std.mem.eql(u8, account.name, other.name)) return diagnostic.invalidField("sql.accounts", "contains a duplicate account name", null);
         if (!std.mem.eql(u8, account.database, "transit") or !std.mem.eql(u8, account.schema, "public")) return diagnostic.invalidField("sql.accounts", "uses the local transit database and public schema", null);

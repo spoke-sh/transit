@@ -38,6 +38,7 @@ pub const Attempt = struct {
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
             .identity = switch (request.action) {
+                .source => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .descriptor => |value| if (value == .declaration) value.declaration.request.binding.identity else null,
                 .stream => |value| value.identity(),
                 .queue => |value| value.identity(),

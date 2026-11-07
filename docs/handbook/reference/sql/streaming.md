@@ -19,7 +19,7 @@ several batches does not make that query continuous.
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
 | Read an explicit state projection | Fuze over declared KV, Table or accepted Document state | Finite `SELECT` |
 | Configure an external connector | HTTP/gRPC connector configuration and credential references | `CREATE CONNECTION` is grammar only |
-| Read captured observations | Connector capture and application decoding | `CREATE SOURCE` has typed parsing; ingestion execution is not installed |
+| Read captured observations | Connector capture and application decoding | `CREATE SOURCE` publishes and inspects declarations in native cohosted SQL; HTTP capture is not installed |
 | Maintain application state from messages | Application freezes input identity and publishes complete Table changes with durable progress | No `CREATE MATERIALIZED VIEW` |
 | Maintain a supported relational result | Typed Zig owner publishes complete revisions and deltas from Table history, with explicit host activation and wakeups | No SQL view, materialized-view or subscription adapter |
 | Refresh a displayed query | Int64 Table watch invalidation and finite snapshot refresh | No `SUBSCRIBE` or continuous `SELECT` |

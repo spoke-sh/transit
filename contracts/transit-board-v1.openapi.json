@@ -5100,7 +5100,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+                        "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
                       ]
                     },
                     "code": {
@@ -7181,7 +7181,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+                      "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
                     ]
                   },
                   "code": {
@@ -16185,7 +16185,7 @@
           "T60": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T61": {
@@ -21511,7 +21511,7 @@
           "T5": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T6": {
@@ -21911,7 +21911,7 @@
           "T25": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T26": {
@@ -22327,7 +22327,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -22340,7 +22340,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T4": {
@@ -22555,6 +22555,8 @@
               "stream_domain",
               "queue_domain",
               "kv_domain",
+              "connection_domain",
+              "source_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -22578,6 +22580,12 @@
               "kv_domain": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
+              "connection_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
+              "source_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
               "database": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
@@ -22595,6 +22603,8 @@
               "stream_domain",
               "queue_domain",
               "kv_domain",
+              "connection_domain",
+              "source_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -22806,7 +22816,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
               "executed": false
             }
           },
@@ -22882,7 +22892,7 @@
           "T29": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T30": {
@@ -25919,7 +25929,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T2": {
@@ -27261,7 +27271,7 @@
             ],
             "x-transit-defaults": {
               "version": 1,
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
               "max_columns": 128,
               "max_rows": 1024,
               "max_sql_bytes": 4096,
@@ -27281,7 +27291,7 @@
           "T4": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T5": {
@@ -27417,6 +27427,8 @@
               "stream_domain",
               "queue_domain",
               "kv_domain",
+              "connection_domain",
+              "source_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -27440,6 +27452,12 @@
               "kv_domain": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
+              "connection_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
+              "source_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
               "database": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
@@ -27457,6 +27475,8 @@
               "stream_domain",
               "queue_domain",
               "kv_domain",
+              "connection_domain",
+              "source_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -31611,7 +31631,7 @@
           "T158": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T159": {
@@ -32967,7 +32987,7 @@
           "T215": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T216": {
@@ -34153,7 +34173,8 @@
               "view",
               "property_graph",
               "foreign",
-              "managed"
+              "managed",
+              "source"
             ]
           },
           "T268": {
@@ -34317,7 +34338,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T2": {
@@ -34483,7 +34504,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T2": {
@@ -35024,7 +35045,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T2": {
@@ -35248,7 +35269,7 @@
               "lifetime_ms"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
               "readers": 4,
               "window_rows": 100,
               "window_bytes": 2097152,
@@ -35258,7 +35279,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T3": {
@@ -35377,7 +35398,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             }
           },
           "T10": {
@@ -37092,7 +37113,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T2": {
@@ -37473,7 +37494,7 @@
               "namespace"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
               "cells": 4,
               "rows": 10000,
               "value_bytes": 16777216,
@@ -37485,7 +37506,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "T3": {
@@ -37870,7 +37891,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             }
           },
           "T23": {
@@ -39571,7 +39592,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d"
+              "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4"
             ]
           },
           "profile": {
@@ -39636,7 +39657,7 @@
           "features"
         ],
         "x-transit-defaults": {
-          "definition": "17425febb13407f41846fdfca0d253a2c0d22402112aa7fa0d0c90c663ac577d",
+          "definition": "65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4",
           "profile": "native_v1"
         }
       },

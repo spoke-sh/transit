@@ -16,6 +16,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | gRPC and Arrow Flight | [grpc/](grpc/), [Flight guide](flight/README.md) |
 | Installed server lifecycle and configuration | [installation/](installation/), [server schedule](installation/server.py), [filesystem publication and EFS acceptance](installation/filesystems.md), [data workbench](installation/board_workbench.py), [retained-history recovery controls](installation/board_history_test.py), [shared process/setup mechanics](../harness/local_installation.py) |
 | Installed scalar parity | [Console/psql/mysql smoke](installation/server_sql_types.py), [shared corpus and deeper driver loop](sql_wire/README.md) |
+| Installed SOURCE declarations | [Native publication, scoped inspection, original recovery, retirement and zero-dispatch proof](installation/server_sources.py) |
 | Installed webhook/Dataflow/HTTP journey | [Application adapter](installation/webhook.py), [scenario runner and limits](../performance/load/scenarios.md) |
 | Launchers and reference deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just) |
 

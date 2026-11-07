@@ -15,9 +15,11 @@ pub fn profile(comptime c: type, admin: anytype, scope: c.Model.Scope, registrar
     const stream_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.actions(.stream) } })).?;
     const queue_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.actions(.queue) } })).?;
     const kv_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.actions(.kv) } })).?;
+    const connection_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.actions(.connection) } })).?;
+    const source_domain = (try admin.authorization(.{ .register_domain = .{ .lifetime_resource = scope.resource, .registrar = registrar, .actions = a.actions(.source) } })).?;
     const database = (try admin.authorization(.{ .register_object = .{ .domain = database_domain, .owner = owner, .binding = try a.binding(scope, .database, 0) } })).?;
     const schema = (try admin.authorization(.{ .register_object = .{ .domain = schema_domain, .owner = owner, .schema = a.reference(database), .binding = try a.binding(scope, .schema, 1) } })).?;
-    return .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema };
+    return .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .connection_domain = connection_domain, .source_domain = source_domain, .database = database, .initial_schema = 1, .initial_schema_authority = schema };
 }
 pub fn loginRole(comptime c: type, wire: *c.client.Client, realm: u64, principal: u64, key: c.protocol.Ed25519.KeyPair) !u64 {
     const client: c.client.AuthorizationClient = .{ .transport = wire, .realm = realm, .principal = principal, .key = key };

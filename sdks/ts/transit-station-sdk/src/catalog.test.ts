@@ -604,6 +604,8 @@ test("catalog descriptions require all current policy domains without aliases", 
     stream_domain: 31,
     queue_domain: 32,
     kv_domain: 33,
+    connection_domain: 34,
+    source_domain: 35,
     database: 20,
     initial_schema: 1,
     initial_schema_authority: 21,
@@ -634,7 +636,13 @@ test("catalog descriptions require all current policy domains without aliases", 
     assert.equal(profile.queueDomain, 32);
     assert.equal(profile.kvDomain, 33);
   });
-  for (const field of ["stream_domain", "queue_domain", "kv_domain"] as const) {
+  for (const field of [
+    "stream_domain",
+    "queue_domain",
+    "kv_domain",
+    "connection_domain",
+    "source_domain",
+  ] as const) {
     for (const missing of [true, false]) {
       const bad = structuredClone(description);
       if (missing) Reflect.deleteProperty(bad.configuration.authority, field);

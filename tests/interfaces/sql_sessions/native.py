@@ -203,6 +203,13 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
     rejected = first.call(dict(execute=dict(sql="SET unknown_setting = '1'", token=list(os.urandom(16)))), error='UnsupportedGatewayStatement')['err']
     assert rejected['retry'] == 'never', rejected
     assert first.session != second.session and first.account == second.account
+    for statement in (
+        "CREATE CONNECTION standalone_upstream TO HTTP (endpoint='http://127.0.0.1:1')",
+        'SHOW SOURCES',
+        'RETIRE SOURCE unavailable',
+    ):
+        refused = first.call(dict(execute=dict(sql=statement, token=list(os.urandom(16)))), error='SourceRequiresCohostedService')['err']
+        assert refused['operation'] is None, refused
     token = list(os.urandom(16))
     created = first.execute('CREATE TABLE native_sessions (id INT64 PRIMARY KEY, value INT128)', token)['operation']
     first.terminal(created)
@@ -367,6 +374,8 @@ def run(root, port, postgres, restart, console, authorize, select_source, source
         print(json.dumps(dict(profile='native_sql_source', source=name, phase='interactive')), flush=True)
         select_source(name)
         selected = Client(root, port).open(name)
+        refused = selected.call(dict(execute=dict(sql="CREATE CONNECTION source_session_upstream TO HTTP (endpoint='http://127.0.0.1:1')", token=list(os.urandom(16)))), error='UnsupportedSourceStatement')['err']
+        assert refused['operation'] is None, refused
         metadata_fault = None
         if faults is not None and name == 'kv' and sources is None:
             # Fail another binding's first authority read inside context, not

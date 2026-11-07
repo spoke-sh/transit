@@ -5,6 +5,13 @@ records intent; a trusted worker obtains authorization for one attempt, performs
 the I/O and captures its observations. Recovery reads those records. Replay must
 not dial, send, resolve secrets or repeat the effect.
 
+Declarative [CREATE CONNECTION](sql/create-connection.md) and
+[CREATE SOURCE](sql/create-source.md) currently publish and inspect HTTP ingestion
+definitions in native cohosted SQL. They bind an existing Stream and explicit
+executor, support retirement and restricted DROP, and report `never_run`.
+They do not yet schedule HTTP requests or capture bodies. The recorded effect
+profiles below have their own execution contracts.
+
 ## Intent, attempt and outcome
 
 An intent binds destination, operation, request content, credential references,

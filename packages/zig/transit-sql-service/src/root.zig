@@ -30,6 +30,7 @@ pub const BatchDisclosure = @import("BatchDisclosure.zig");
 pub const CapturedOperations = @import("CapturedOperations.zig");
 pub const CapturedRecovery = @import("CapturedRecovery.zig");
 pub const Configuration = @import("Configuration.zig");
+pub const SourceOperations = @import("SourceOperations.zig");
 pub const ManagedOperations = @import("ManagedOperations.zig");
 pub const ConfigurationOperations = @import("ConfigurationOperations.zig");
 pub const OperatorConfiguration = @import("OperatorConfiguration.zig");

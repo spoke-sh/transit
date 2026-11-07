@@ -147,7 +147,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
         if (catalog.recoveryState()) |known| prior.* = known else |_| {}
     };
     if (request.lease) |lease| try catalog.requireClientLease(lease, policy.policy());
-    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .descriptor = executeDescriptor, .stream = executeStream, .queue = executeQueue };
+    const execution: c.DirectTableDispatch.Execution = .{ .context = self, .ddl = executeDdl, .namespace = executeNamespace, .resource = executeResource, .log = executeLog, .descriptor = executeDescriptor, .source = executeSource, .stream = executeStream, .queue = executeQueue };
     const result = if (request.transaction) |selected|
         try c.DirectTransactionRead.apply(allocator, catalog, policy.policy(), selected, request.action, execution)
     else
@@ -250,4 +250,10 @@ fn executeDescriptor(raw: *anyopaque, catalog: *D, request: c.DirectDefinition.R
     const self: *Self = @ptrCast(@alignCast(raw));
     var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
     return runner.runDefinition(catalog, request, policy, steps);
+}
+
+fn executeSource(raw: *anyopaque, catalog: *D, request: c.DirectSource.Request, policy: D.Policy, steps: u16) !c.DirectSource.Observation {
+    const self: *Self = @ptrCast(@alignCast(raw));
+    var runner: Runner = .{ .engine = self.engine, .principal = self.registrar.principal, .key = self.registrar.key, .role = self.registrar.role };
+    return runner.runSource(catalog, request, policy, steps);
 }

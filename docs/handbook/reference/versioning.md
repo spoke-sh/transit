@@ -108,7 +108,13 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`4a79430a0f740284cda72df8341f0af87a87a63a599d7a81c62a934778875e1a`.
+`65287f89db5a4ee587cb90ddcec6d819f1974613e89ee14c410ebff01c342ab4`.
+It binds dedicated CONNECTION/SOURCE declarations, mandatory distinct native
+authority domains, Catalog connector entries and paged writer ownership,
+immutable source artifacts, original control receipts and typed SQL connector
+completion. SQL database bindings also commit the explicitly configured source
+executor. Earlier installations and saved requests reject before interpretation;
+new fields never acquire inferred defaults in stored Catalog records.
 It binds typed relational scalar programs, grouping and ordering keys, checked
 decimal aggregation, post-aggregation sort progress and ascending DATAFLOW
 revision page links. Earlier plans, checkpoints and result records require a

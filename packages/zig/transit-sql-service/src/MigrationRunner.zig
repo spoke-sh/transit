@@ -1272,6 +1272,7 @@ fn executeStepStatement(
     const ref = reference.?;
     step.operation_id = ref.id;
     step.operation_kind = switch (ref.kind) {
+        .connector => return error.MigrationSessionControlUnsupported,
         inline else => |kind| @field(p.Migration.OperationKind, @tagName(kind)),
     };
     // Every error after accepted identity discovery preserves uncertainty. A
@@ -1327,6 +1328,7 @@ fn consumeOperationResult(host: *g.Session, reference: g.SessionOperations.Refer
 fn recordEvidence(allocator: std.mem.Allocator, context: Context, step: anytype, reference: g.SessionOperations.Reference) !void {
     const host = context.session;
     step.operation_kind = switch (reference.kind) {
+        .connector => return error.MigrationSessionControlUnsupported,
         inline else => |kind| @field(p.Migration.OperationKind, @tagName(kind)),
     };
     if (reference.kind == .dataflow) {

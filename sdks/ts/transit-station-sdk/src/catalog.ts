@@ -1792,6 +1792,8 @@ export interface AuthorityProfile {
   readonly streamDomain: number;
   readonly queueDomain: number;
   readonly kvDomain: number;
+  readonly connectionDomain: number;
+  readonly sourceDomain: number;
   readonly database: number;
   readonly initialSchema: number;
   readonly initialSchemaAuthority: number;
@@ -1961,6 +1963,8 @@ export class Client {
       authority.stream_domain,
       authority.queue_domain,
       authority.kv_domain,
+      authority.connection_domain,
+      authority.source_domain,
     ];
     if (
       new Set(domains).size !== domains.length ||
@@ -1984,6 +1988,8 @@ export class Client {
           streamDomain: authority.stream_domain,
           queueDomain: authority.queue_domain,
           kvDomain: authority.kv_domain,
+          connectionDomain: authority.connection_domain,
+          sourceDomain: authority.source_domain,
           database: authority.database,
           initialSchema: authority.initial_schema,
           initialSchemaAuthority: authority.initial_schema_authority,

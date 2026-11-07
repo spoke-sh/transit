@@ -12,6 +12,7 @@ engine: *backend.DataAuthority.Engine,
 configuration: c.DirectCatalog.Configuration,
 proof: p.Authorization.Proof,
 executor: ?p.Authorization.Proof,
+effective_role: u64 = 0,
 observed: ?p.Authorization.Guard = null,
 /// Paged transaction checks retain one epoch rather than an unbounded union.
 paged: bool = false,
@@ -32,11 +33,12 @@ pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalo
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
     result.observed = initial.request;
+    result.effective_role = initial.verified.?.role;
     return result;
 }
 
 pub fn policy(self: *Self) c.DirectCatalog.Policy {
-    return .{ .context = self, .subject = .{ .signed = self.proof }, .make_guard = makeGuard, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareResource, .allocation = resourceAllocation, .make_guard = resourceGuard } };
+    return .{ .context = self, .subject = .{ .signed = self.proof }, .effective_role = self.effective_role, .make_guard = makeGuard, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareResource, .allocation = resourceAllocation, .make_guard = resourceGuard } };
 }
 
 fn allocationLocked(self: *Self, binding: c.DirectResource.Binding, allocation: c.DirectResource.Allocation) !?u64 {

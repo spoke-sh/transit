@@ -2603,7 +2603,11 @@ all gates above; general R8 and #398 remain open for their other workloads.
 
 ## Next SOURCE slice: durable declarations and inspection — 2026-11-06
 
-**Status: Planned.** Start from `origin/main` at
+**Status: In Progress.** The durable declaration and native SQL implementation
+is under qualification. Current behavior is described in
+[CREATE SOURCE](../handbook/reference/sql/create-source.md) and
+[CREATE CONNECTION](../handbook/reference/sql/create-connection.md); HTTP
+execution remains future work. The planning baseline was `origin/main` at
 `39a1ef64059576a041025be64a60c8b051ba5385`, after
 [PR #400](https://github.com/spoke-sh/transit/pull/400) and
 [PR #401](https://github.com/spoke-sh/transit/pull/401). This slice delivers S1 and
@@ -2854,10 +2858,10 @@ dependent binding consumers. Preserve explicit adapter rejection tests without
 claiming those adapters now execute SOURCE. Record commands, revision, budgets,
 raw evidence and terminal results in the qualification owner.
 
-This planning change runs the documentation source-link/fence and whitespace
-checks plus all repository pre-PR baselines. It executes no SOURCE lifecycle
-proof and changes no current capability claim. Keep M12 `In Progress`, this
-slice `Planned` until implementation starts, and #398 open.
+Implementation qualification includes the registered `source-declarations`
+installed journey and the Catalog's publication, fault, growth and collection
+controls. Keep M12 and this slice `In Progress` until the complete required
+qualification is recorded, and keep #398 open for the remaining workload.
 
 After C1–C6, S2 implements owned paged captures and Stream-scoped disclosure;
 S3 implements the fenced original HTTP attempt and retained handoff. S4 joins

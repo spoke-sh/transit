@@ -111,7 +111,7 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
     acquisition = dict(owner=owner, expected=position)
     snapshot = dict(owner=owner, content=dict(bytes='500', sha256='44'*32))
     retained = dict(snapshot=snapshot, interpretation=stored, accepted=position, changed_lsn='3', row_count='9', schema=schema, authority=dict(database=31, schema=32, table=33))
-    authority = dict(database_domain=1, schema_domain=2, table_domain=3, stream_domain=31, queue_domain=32, kv_domain=33, database=4, initial_schema_authority=5, initial_schema=1)
+    authority = dict(database_domain=1, schema_domain=2, table_domain=3, stream_domain=31, queue_domain=32, kv_domain=33, connection_domain=34, source_domain=35, database=4, initial_schema_authority=5, initial_schema=1)
     description = dict(configuration=dict(scope=scope, branch='1', partition=maximum, audience=3, authority=authority, database_name='fixture', initial_schema_name='public'), subject=dict(principal=17, login_role=23, role=23, credential_epoch=1, audience=3, context=[171]*32), policy_revision=9)
     for name, value in [('basis', basis), ('reference', reference), ('cursor', cursor), ('acquisition', acquisition), ('snapshot', snapshot)]:
         (target / (name + '.json')).write_text(json.dumps(value))
@@ -132,11 +132,13 @@ static std::string read(const char *name) { std::ifstream f(name); return {std::
         check('describe', dict(catalog=dict(description=description)))
         for change in [lambda v: v['subject'].update(principal=18), lambda v: v['subject'].update(role=24), lambda v: v['subject'].update(audience=4), lambda v: v['subject'].update(credential_epoch=0), lambda v: v['subject'].update(context=[171]*31), lambda v: v['configuration']['authority'].update(table_domain=2), lambda v: v['configuration'].pop('authority')]:
             bad = copy.deepcopy(description); change(bad); check('describe', dict(catalog=dict(description=bad)), 4)
-        for field in ('stream_domain', 'queue_domain', 'kv_domain'):
-            for missing in (True, False):
+        domains = ('database_domain', 'schema_domain', 'table_domain', 'stream_domain', 'queue_domain', 'kv_domain', 'connection_domain', 'source_domain')
+        for index, field in enumerate(domains):
+            bad = copy.deepcopy(description); del bad['configuration']['authority'][field]
+            check('describe', dict(catalog=dict(description=bad)), 4)
+            for duplicate in domains[:index]:
                 bad = copy.deepcopy(description); profile = bad['configuration']['authority']
-                if missing: del profile[field]
-                else: profile[field] = profile['table_domain']
+                profile[field] = profile[duplicate]
                 check('describe', dict(catalog=dict(description=bad)), 4)
         check('lookup', dict(metadata=metadata)); check('cpp_lookup', dict(metadata=metadata)); check('wrong_name', dict(metadata=metadata), 4); check('lookup', dict(metadata=None))
         for retired in (False, True):

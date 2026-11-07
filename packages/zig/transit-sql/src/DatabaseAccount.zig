@@ -11,6 +11,8 @@ pub const Binding = struct {
     owner: u64,
     namespace: u64 = 1,
     role: ?u64 = null,
+    /// Explicit declaration executor; absence disables CREATE SOURCE.
+    source_executor: ?u64 = null,
 };
 pub const Configuration = struct {
     realm: u64,
@@ -30,6 +32,7 @@ pub const Configuration = struct {
         for (self.bindings, 0..) |binding, i| {
             // SQL operation IDs are positions in one Catalog. Namespace/role
             // routes share that identity domain; independent catalogs do not.
+            if (binding.source_executor) |executor| if (executor == 0 or executor > p.max_counter) return error.InvalidGatewayConfiguration;
             const first = self.bindings[0];
             if (binding.resource != first.resource or binding.catalog != first.catalog or binding.owner != first.owner) return error.InvalidGatewayConfiguration;
             if (binding.resource == 0 or binding.resource > p.max_counter or binding.owner == 0 or binding.owner > p.max_counter or binding.catalog == 0 or binding.namespace == 0 or binding.namespace > p.max_counter or (binding.role != null and binding.role.? > p.max_counter)) return error.InvalidGatewayConfiguration;
@@ -59,7 +62,7 @@ pub const Configuration = struct {
             std.mem.writeInt(u64, &number, limit, .little);
             hash.update(&number);
         }
-        for (self.bindings) |binding| inline for (.{ binding.resource, binding.catalog, binding.owner, binding.namespace, @as(u64, @intFromBool(binding.role != null)), binding.role orelse 0 }) |id| {
+        for (self.bindings) |binding| inline for (.{ binding.resource, binding.catalog, binding.owner, binding.namespace, @as(u64, @intFromBool(binding.role != null)), binding.role orelse 0, @as(u64, @intFromBool(binding.source_executor != null)), binding.source_executor orelse 0 }) |id| {
             std.mem.writeInt(u64, &number, id, .little);
             hash.update(&number);
         };
@@ -78,7 +81,23 @@ pub fn operationFromState(self: Self, state: c.DirectClientToken.Progress) !g.Op
     const reference = state.receipt.binding.intent;
     if (reference == .external) return error.InvalidSqlOperationReference;
     const connection = reference.connection();
-    const binding: Binding = .{ .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .namespace = reference.namespace(), .role = connection.role };
+    const binding: Binding = for (self.configuration.bindings) |candidate| {
+        if (candidate.resource == connection.scope.resource and candidate.catalog == connection.scope.catalog and candidate.owner == connection.audience and candidate.namespace == reference.namespace() and candidate.role == connection.role) break candidate;
+    } else return error.GatewayCatalogDenied;
     try self.admittedBinding(binding);
     return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .resource = binding.resource, .catalog = binding.catalog, .owner = binding.owner, .namespace = binding.namespace, .role_present = @intFromBool(binding.role != null), .role = binding.role orelse 0, .phase = if (state.pending) .ready else .terminal, .cancel = @intFromBool(state.cancel) };
+}
+
+test "SOURCE executor binding is explicit and participates in account identity" {
+    const t = std.testing;
+    var bindings = [_]Binding{.{ .resource = 1, .catalog = 1, .owner = 2 }};
+    const config: Configuration = .{ .realm = 1, .table_principal = 3, .account = @splat(1), .bindings = &bindings, .operation_quota = 100, .byte_quota = 1024 * 1024 };
+    try config.validate();
+    try t.expect(bindings[0].source_executor == null);
+    const no_executor = try config.digest();
+    bindings[0].source_executor = 4;
+    const explicit_executor = try config.digest();
+    try t.expect(!std.mem.eql(u8, &no_executor, &explicit_executor));
+    bindings[0].source_executor = 0;
+    try t.expectError(error.InvalidGatewayConfiguration, config.validate());
 }
