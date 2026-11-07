@@ -110,6 +110,9 @@ available to the embedding caller; it cannot report its own permanent failure to
 that same sink. Abrupt termination can lose queued records or a trailing record.
 File/pipe retention is the launcher's/operator's responsibility. Diagnostic loss
 does not authorize mailbox loss, retries, or different protocol decisions.
+In-flight loss and metric report writes participate in the same shutdown flush
+bound as queued events; success, sink failure and cancellation clear their busy
+state.
 
 ## Verification
 
@@ -119,6 +122,7 @@ independent metrics, loss and bounded exit while stdout stays parseable. Both fo
 cover reserved queue capacity, context validation/parentage, escaped JSON and
 text control-character escaping.
 Report tests cover text/JSON severity filtering, named histogram ranges and
-continued metric collection at every log level.
+continued metric collection at every log level, plus writer state during report
+writes and after success, sink failure or cancellation.
 The current proof qualifies the pinned Linux I/O runtime and pipes; arbitrary
 custom I/O implementations must supply cancelable writes before using this sink.

@@ -336,6 +336,9 @@ pub const Runtime = struct {
             try Text.fields(&writer, "", value);
         } else try std.json.Stringify.value(.{ .schema_version = @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
         try writer.writeByte('\n');
+        // Reports bypass pop(), but can block on the same sink as queued events.
+        self.busy.store(true, .release);
+        defer self.busy.store(false, .release);
         try self.sink.writeStreamingAll(self.io, writer.buffered());
     }
 
@@ -503,6 +506,59 @@ test "terminal service record retains filtering and oversized record bounds" {
     runtime.terminalEvent(.{ .name = "service.failed", .message = &message, .level = .err });
     try std.testing.expect(!runtime.terminal_ready.load(.acquire));
     try std.testing.expectEqual(1, runtime.dropped.load(.monotonic));
+}
+
+test "loss and metric reports stay busy through sink writes and clear on every outcome" {
+    const Probe = struct {
+        var runtime: *Runtime = undefined;
+        var outcome: enum { success, failed, canceled } = .success;
+        var writes: usize = 0;
+        var idle_writes: usize = 0;
+
+        fn operate(context: ?*anyopaque, operation: std.Io.Operation) std.Io.Cancelable!std.Io.Operation.Result {
+            if (operation == .file_write_streaming) {
+                writes += 1;
+                if (!runtime.busy.load(.acquire)) idle_writes += 1;
+                switch (outcome) {
+                    .success => {},
+                    .failed => return .{ .file_write_streaming = error.InputOutput },
+                    .canceled => return error.Canceled,
+                }
+            }
+            return std.testing.io.vtable.operate(context, operation);
+        }
+    };
+    var vtable = std.testing.io.vtable.*;
+    vtable.operate = Probe.operate;
+    var io = std.testing.io;
+    io.vtable = &vtable;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    const file = try temporary.dir.createFile(io, "reports.log", .{});
+    defer file.close(io);
+    for ([_]Format{ .text, .json }) |format| {
+        for (std.meta.tags(@TypeOf(Probe.outcome))) |outcome| {
+            for ([_]bool{ false, true }) |metrics| {
+                var runtime = Runtime.init(io, "test", .{ .format = format, .level = .debug });
+                runtime.sink = file;
+                var span = runtime.begin(.server, null);
+                span.finish(.{ .name = "http.request" });
+                Probe.runtime = &runtime;
+                Probe.outcome = outcome;
+                Probe.writes = 0;
+                Probe.idle_writes = 0;
+                const result = if (metrics) runtime.reportMetrics() else runtime.report(.warn, "telemetry.loss", .{ .dropped = 1, .suppressed = 2 });
+                switch (outcome) {
+                    .success => try result,
+                    .failed => try std.testing.expectError(error.InputOutput, result),
+                    .canceled => try std.testing.expectError(error.Canceled, result),
+                }
+                try std.testing.expect(Probe.writes > 0);
+                try std.testing.expectEqual(0, Probe.idle_writes);
+                try std.testing.expect(!runtime.busy.load(.acquire));
+            }
+        }
+    }
 }
 
 test "periodic metrics honor log level while measurement continues" {
