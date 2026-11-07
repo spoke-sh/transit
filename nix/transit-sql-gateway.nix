@@ -18,11 +18,10 @@ stdenv.mkDerivation {
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
   buildInputs = [ openssl ] ++ lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
-  configurePhase = ''
-    export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-cache"
-  '';
+  configurePhase = "true";
   buildPhase = ''
-    zig build transit-sql-gateway --system ${transit.zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    mkdir -p "$out/bin"
+    cp "${transit}/bin/transit" "$out/bin/transit-sql-gateway"
   '';
   dontInstall = true;
   doInstallCheck = true;

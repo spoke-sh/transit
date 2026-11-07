@@ -266,6 +266,7 @@ sql-transactions:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- transactions
 
 sql-wire-gateway:
+    zig build test-sql-wire-encoding -Doptimize=ReleaseSafe
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe
 
 # Typed metadata and exact scalar values through independent prepared drivers.
@@ -781,21 +782,21 @@ diagnostic-grammar:
 
 # Measure local empty or seeded finite results with consistently optimized executables.
 console-latency *args:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit {{args}}
 
 # Enforce startup, statement and resource regression budgets for the local console.
 [positional-arguments]
 console-latency-gate *args:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host "$@"
+    zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit --host .cache/transit-latency/release/bin/transit "$@"
 
 # Installed Catalog/Query SDK costs; enter nix develop .#bindings first.
 # Packages and optimized native clients must already be prepared before timing.
 [positional-arguments]
 sdk-performance *args:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway sdk-performance-client -Doptimize=ReleaseSafe --prefix .cache/transit-sdk-performance/release 1>&2
-    python3 -B tests/runner/launch.py tests/performance/sdk/run.py --cli .cache/transit-sdk-performance/release/bin/transit --node .cache/transit-sdk-performance/release/bin/transit-node --host .cache/transit-sdk-performance/release/bin/transit-query-host --zig .cache/transit-sdk-performance/release/bin/transit-sdk-performance --wheels .cache/bindings/ReleaseSafe/wheels --node-packages .cache/bindings/ReleaseSafe/node "$@"
+    zig build transit sdk-performance-client -Doptimize=ReleaseSafe --prefix .cache/transit-sdk-performance/release 1>&2
+    python3 -B tests/runner/launch.py tests/performance/sdk/run.py --cli .cache/transit-sdk-performance/release/bin/transit --node .cache/transit-sdk-performance/release/bin/transit --host .cache/transit-sdk-performance/release/bin/transit --zig .cache/transit-sdk-performance/release/bin/transit-sdk-performance --wheels .cache/bindings/ReleaseSafe/wheels --node-packages .cache/bindings/ReleaseSafe/node "$@"
 
 # Fresh-process module imports from actual installed SDK packages.
 [positional-arguments]
@@ -805,8 +806,8 @@ sdk-import-cost packages *args:
 # Finite installed managed-work and wire pressure with verified outcomes.
 [positional-arguments]
 installed-performance profile *args:
-    nix develop .#sql-wire --command zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-installed-performance/release 1>&2
-    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/performance/load/installed.py --cli .cache/transit-installed-performance/release/bin/transit --node .cache/transit-installed-performance/release/bin/transit-node --host .cache/transit-installed-performance/release/bin/transit-query-host --binary-revision "$(git rev-parse HEAD)" --profile {{quote(profile)}} "${@:2}"
+    nix develop .#sql-wire --command zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-installed-performance/release 1>&2
+    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/performance/load/installed.py --cli .cache/transit-installed-performance/release/bin/transit --node .cache/transit-installed-performance/release/bin/transit --host .cache/transit-installed-performance/release/bin/transit --binary-revision "$(git rev-parse HEAD)" --profile {{quote(profile)}} "${@:2}"
 
 # Frozen published nightly image; this task never builds a server from the checkout.
 [positional-arguments]
@@ -820,8 +821,8 @@ console-latency-tls repeat="5" *args:
 
 # Owned durable writes; requires --output, supports independent history/row controls.
 mutation-latency *args:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+    zig build transit mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit {{args}}
 
 # Native-session snapshot execution, typed values and retained source basis.
 interactive-query:
@@ -893,8 +894,8 @@ release-board prefix:
 
 # Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
 server-capacity:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host
+    zig build transit -Doptimize=ReleaseSafe
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit
 
 # Current grant changes/cancellation after a durable segment staging decision.
 unified-lifecycle source="kv":
@@ -995,9 +996,9 @@ work-items-placement profile="compose":
 
 # Separately compiled consumer, scoped installation and disk-backed replacement.
 server-applications:
-    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_applications.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Named temporary publication without RENAME_NOREPLACE; actual embedded runtime.
 server-filesystem:
@@ -1007,21 +1008,21 @@ server-filesystem:
 
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
-    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_application_faults.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
-    zig build test-operation-fixture transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build test-operation-fixture transit -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_capacity.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Default embedded Board, retained inspection grants and local UI recovery.
 server-board:
-    zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe
+    zig build transit -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Ordinary server/console and Board from one copied executable with unavailable PATH.
 server-single-executable:

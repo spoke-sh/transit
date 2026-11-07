@@ -21,6 +21,9 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
     const runtime = @import("RuntimeRole.zig");
+    if (args.len > 0) {
+        if (runtime.fromExecutableName(args[0])) |role| return runtime.run(init, role);
+    }
     if (args.len >= 3 and std.mem.eql(u8, args[1], runtime.argument)) {
         return runtime.run(init, std.meta.stringToEnum(runtime.Role, args[2]) orelse return error.InvalidInvocation);
     }

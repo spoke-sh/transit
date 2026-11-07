@@ -43,6 +43,7 @@ pub const Context = struct {
     station_controller: *std.Build.Step.Compile,
     station_host: *std.Build.Step.Compile,
     client_host: *std.Build.Step.Compile,
+    serving_client: *std.Build.Step.Compile,
     query_host: *std.Build.Step.Compile,
     document_worker: *std.Build.Step.Compile,
     grpc_worker: *std.Build.Step.Compile,
@@ -125,13 +126,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     } }) });
     const install_board = b.addInstallArtifact(board, .{});
     b.step("transit-board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
-    b.getInstallStep().dependOn(&install_board.step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
     var node_artifact: *std.Build.Step.Compile = undefined;
     var cli_artifact: *std.Build.Step.Compile = undefined;
     var delivery_artifact: *std.Build.Step.Compile = undefined;
     var controller_artifact: *std.Build.Step.Compile = undefined;
     const apps_step = b.step("apps", "Install platform executables");
+    apps_step.dependOn(&install_board.step);
     const kubectl_transit = b.addExecutable(.{ .name = "kubectl-transit", .root_module = b.createModule(.{
         .root_source_file = b.path("apps/kubectl-transit/main.zig"),
         .target = target,
@@ -139,11 +140,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }) });
     const install_plugin = b.addInstallArtifact(kubectl_transit, .{});
     apps_step.dependOn(&install_plugin.step);
-    b.getInstallStep().dependOn(&install_plugin.step);
     b.step("kubectl-transit", "Install the Kubernetes inspection plugin").dependOn(&install_plugin.step);
     var station_controller: *std.Build.Step.Compile = undefined;
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
+    var serving_client: *std.Build.Step.Compile = undefined;
     for ([_][]const u8{ "transit-node", "transit-admin", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
@@ -170,7 +171,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
-        b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
         b.step(name, b.fmt("Install {s}", .{name})).dependOn(&install.step);
         if (std.mem.eql(u8, name, "transit-runtime-controller")) app.root_module.addImport("transit_runtime_substrate", runtime.module("transit_runtime_substrate"));
@@ -188,7 +188,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             client_host = app;
             app.root_module.addImport("client_abi", client.module("client_abi"));
         }
-        if (std.mem.eql(u8, name, "transit-serving-client")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
+        if (std.mem.eql(u8, name, "transit-serving-client")) {
+            serving_client = app;
+            app.root_module.addImport("transit_serving", serving.module("transit_serving"));
+        }
         if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
             const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
             app.root_module.addImport("clock_c", clock_c.createModule());
@@ -197,22 +200,19 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var query_host: *std.Build.Step.Compile = undefined;
     const document_worker = b.addExecutable(.{ .name = "transit-station-document-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-document-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_document", .module = document.module("transit_station_document") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_document_worker = b.addInstallArtifact(document_worker, .{});
-    b.getInstallStep().dependOn(&install_document_worker.step);
     apps_step.dependOn(&install_document_worker.step);
     b.step("transit-station-document-worker", "Install the growing Document writer").dependOn(&install_document_worker.step);
     const grpc_worker = b.addExecutable(.{ .name = "transit-station-grpc-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-grpc-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_grpc_worker = b.addInstallArtifact(grpc_worker, .{});
-    b.getInstallStep().dependOn(&install_grpc_worker.step);
     apps_step.dependOn(&install_grpc_worker.step);
     b.step("transit-station-grpc-worker", "Install the finite growing RPC worker").dependOn(&install_grpc_worker.step);
     const http_worker = b.addExecutable(.{ .name = "transit-station-http-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-http-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_http_worker = b.addInstallArtifact(http_worker, .{});
-    b.getInstallStep().dependOn(&install_http_worker.step);
     apps_step.dependOn(&install_http_worker.step);
     b.step("transit-station-http-worker", "Install the finite growing HTTP worker").dependOn(&install_http_worker.step);
     const grpc_bindings = b.addExecutable(.{ .name = "transit-grpc-bindings", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-station-grpc/src/generate.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }} }) });
     const install_grpc_bindings = b.addInstallArtifact(grpc_bindings, .{});
-    b.getInstallStep().dependOn(&install_grpc_bindings.step);
+    apps_step.dependOn(&install_grpc_bindings.step);
     b.step("grpc-bindings", "Install offline RPC request helper generator").dependOn(&install_grpc_bindings.step);
     var transit_cli: *std.Build.Step.Compile = undefined;
     inline for (.{ .{ "transit-query-host", "transit-query-host" }, .{ "transit", "transit-cli" } }) |entry| {
@@ -243,7 +243,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         }
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else transit_cli = app;
         const install = b.addInstallArtifact(app, .{});
-        b.getInstallStep().dependOn(&install.step);
+        if (comptime std.mem.eql(u8, entry[0], "transit")) b.getInstallStep().dependOn(&install.step);
         apps_step.dependOn(&install.step);
 
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
@@ -262,7 +262,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     const install_sql_gateway = b.addInstallArtifact(sql_gateway_app, .{});
     b.step("transit-sql-gateway", "Install the database wire gateway").dependOn(&install_sql_gateway.step);
-    b.getInstallStep().dependOn(&install_sql_gateway.step);
     apps_step.dependOn(&install_sql_gateway.step);
     return .{
         .http_server = http_server,
@@ -306,6 +305,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .station_controller = station_controller,
         .station_host = station_host,
         .client_host = client_host,
+        .serving_client = serving_client,
         .query_host = query_host,
         .document_worker = document_worker,
         .grpc_worker = grpc_worker,

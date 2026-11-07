@@ -131,10 +131,10 @@ jobs:
         run: nix develop .#ci-experience --command just ci::dependencies
       - name: Build optimized console latency executables
         timeout-minutes: 40
-        run: nix develop .#ci-experience --command zig build transit transit-node transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+        run: nix develop .#ci-experience --command zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
       - name: Qualify console startup and statement latency budgets
         timeout-minutes: 10
-        run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit-node --host .cache/transit-latency/release/bin/transit-query-host
+        run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/performance/console/gate.py --cli .cache/transit-latency/release/bin/transit --node .cache/transit-latency/release/bin/transit --host .cache/transit-latency/release/bin/transit
       - name: Qualify installed SQL scalar interfaces
         timeout-minutes: 5
         run: nix develop .#ci-experience --command python3 -B tests/runner/launch.py tests/interfaces/installation/server_sql_types.py --cli .cache/transit-latency/release/bin/transit
@@ -152,7 +152,7 @@ jobs:
           retention-days: 14
   native:
     name: native-${{ matrix.family }}-${{ matrix.optimize }}
-    needs: [plan, console-latency]
+    needs: plan
     if: needs.plan.outputs.sdks == 'true'
     strategy:
       fail-fast: false
@@ -170,7 +170,7 @@ jobs:
       native_optimize: ${{ matrix.optimize }}
   checks:
     name: ${{ matrix.lane }}
-    needs: [plan, console-latency]
+    needs: plan
     if: needs.plan.outputs.runtime_checks == 'true'
     strategy:
       fail-fast: false
@@ -187,7 +187,7 @@ jobs:
       cache_mode: ${{ inputs.cache_mode || 'reuse' }}
   sdks:
     name: ${{ matrix.lane }}
-    needs: [plan, console-latency, native]
+    needs: [plan, native]
     if: needs.plan.outputs.sdks == 'true'
     strategy:
       fail-fast: false

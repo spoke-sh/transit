@@ -17,27 +17,52 @@ def freeze_executables(fixture):
     """Keep a source-built fixture independent of later workspace builds."""
     directory = fixture.root / 'bin'
     directory.mkdir(mode=0o700)
+    cli_path = Path(fixture.cli)
     for key, name in [('node', 'transit-node'), ('query_host', 'transit-query-host'),
                       ('board', 'transit-board'), ('sql_gateway', 'transit-sql-gateway')]:
+        source = Path(fixture.config['executables'][key])
         destination = directory / name
-        shutil.copy2(fixture.config['executables'][key], destination)
+        if source.exists() and cli_path.exists() and os.path.samefile(source, cli_path):
+            os.link(cli_path, destination)
+        else:
+            shutil.copy2(source, destination)
         fixture.config['executables'][key] = str(destination)
 
 
 class LocalInstallation:
-    def __init__(self, cli, node, host, parent="/var/tmp"):
+    def __init__(self, cli, node=None, host=None, parent="/var/tmp"):
         self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir=parent))
         # Keep retained artifact identity stable if another build updates zig-out.
         self.cli = str(self.root / "transit")
-        shutil.copy2(Path(cli).resolve(), self.cli)
+        cli_resolved = Path(cli).resolve()
+        shutil.copy2(cli_resolved, self.cli)
+        node_resolved = cli_resolved if node is None else Path(node).resolve()
+        host_resolved = cli_resolved if host is None else Path(host).resolve()
+        default_gateway = cli_resolved.parent / "transit-sql-gateway"
+        default_board = cli_resolved.parent / "transit-board"
+        gateway_resolved = Path(os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY",
+            str(default_gateway if default_gateway.exists() or host_resolved != cli_resolved else cli_resolved))).resolve()
+        board_resolved = Path(os.environ.get("TEST_TRANSIT_BOARD_BINARY",
+            str(default_board if default_board.exists() or host_resolved != cli_resolved else cli_resolved))).resolve()
+        executables = {}
+        for key, name, resolved in (
+            ("node", "transit-node", node_resolved),
+            ("query_host", "transit-query-host", host_resolved),
+            ("sql_gateway", "transit-sql-gateway", gateway_resolved),
+            ("board", "transit-board", board_resolved),
+        ):
+            if resolved == cli_resolved:
+                role_path = self.root / name
+                os.link(self.cli, role_path)
+                executables[key] = str(role_path)
+            else:
+                executables[key] = str(resolved)
         self.reserved_ports = set()
         ports = [self.reserve_port() for _ in range(3)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
             "ports": dict(zip(("node", "gateway"), ports[:2])),
             "sql": {"health_port": ports[2]},
-            "executables": {"node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
-                "sql_gateway": os.environ.get("TEST_TRANSIT_SQL_GATEWAY_BINARY", str(Path(cli).resolve().parent / "transit-sql-gateway")),
-                "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
+            "executables": executables}
         self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
         self.no_ui = True

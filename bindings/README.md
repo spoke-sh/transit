@@ -140,7 +140,7 @@ just bindings::go-sdk-test
 ```
 
 The task builds the Go module and explicit native installation archives under
-`.cache/bindings/Debug/go/`, checks formatting, runs `go vet` and race tests with
+`.cache/bindings/ReleaseSafe/go/`, checks formatting, runs `go vet` and race tests with
 `GOEXPERIMENT=cgocheck2`, and runs the real-authority recovery schedule from an
 installed consumer outside the checkout. It also builds and runs the actual
 [Go example](../examples/go-client/README.md). A foreign-definition build and a

@@ -30,10 +30,7 @@ def matrix(tasks, suite=SUITE):
 
 def native_matrix(tasks, suite=SUITE):
     selected = set(tasks) & {task for lane in suite['tiers']['sdks'] for task in suite['lanes'][lane]}
-    # Go's raw-client proof has no ReleaseSafe or Station consumer. Do not put
-    # two unused optimized builds on its otherwise short dependency path.
-    profiles = ('Debug',) if selected <= {'bindings::check', 'bindings::go-sdk-test'} else ('Debug', 'ReleaseSafe')
-    return {'include': [dict(family=family, optimize=profile) for profile in profiles
+    return {'include': [dict(family=family, optimize='ReleaseSafe')
                         for family in ('clients', 'authority')]} if selected else {'include': []}
 
 

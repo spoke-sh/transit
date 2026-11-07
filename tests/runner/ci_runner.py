@@ -120,14 +120,13 @@ def console_latency_workflow(job):
     measure = next(step for step in steps if step.get('name') == 'Qualify console startup and statement latency budgets')
     scalars = next(step for step in steps if step.get('name') == 'Qualify installed SQL scalar interfaces')
     assert steps.index(build) < steps.index(measure) < steps.index(scalars)
-    assert build['run'] == ('nix develop .#ci-experience --command zig build transit transit-node '
-                            'transit-query-host transit-board transit-sql-gateway -Doptimize=ReleaseSafe '
-                            '--prefix .cache/transit-latency/release')
+    assert build['run'] == ('nix develop .#ci-experience --command zig build transit '
+                            '-Doptimize=ReleaseSafe --prefix .cache/transit-latency/release')
     assert measure['run'] == ('nix develop .#ci-experience --command python3 -B tests/runner/launch.py '
                               'tests/performance/console/gate.py '
                               '--cli .cache/transit-latency/release/bin/transit '
-                              '--node .cache/transit-latency/release/bin/transit-node '
-                              '--host .cache/transit-latency/release/bin/transit-query-host')
+                              '--node .cache/transit-latency/release/bin/transit '
+                              '--host .cache/transit-latency/release/bin/transit')
     assert build['timeout-minutes'] == 40 and measure['timeout-minutes'] == 10
     assert scalars['run'] == ('nix develop .#ci-experience --command python3 -B tests/runner/launch.py '
                               'tests/interfaces/installation/server_sql_types.py '
@@ -162,18 +161,20 @@ def release_workflow():
         return set(needs).union(*(ancestors(parent) for parent in needs))
 
     # Packaging failures must not hide independent installed-consumer evidence.
-    for job in ('sdk-build', 'sdk-consumers', 'sdk-zig', 'installed', 'board'):
+    for job in ('sdk-consumers', 'sdk-zig', 'installed', 'board'):
         assert 'build' in ancestors(job) and 'images' not in ancestors(job)
         assert any(step.get('with', {}).get('name') == 'runtime-${{ matrix.artifact }}'
                    for step in jobs[job]['steps'])
-    for job in ('installed', 'board', 'published'):
+    for job in ('sdk-zig', 'installed', 'board', 'homebrew', 'published'):
         assert any(step.get('with', {}).get('name') == 'operation-fixture-${{ matrix.artifact }}'
                    for step in jobs[job]['steps'])
         assert any(step.get('env', {}).get('TEST_TRANSIT_OPERATIONS') ==
                    '${{ github.workspace }}/.cache/operation-fixture/operation-fixture'
                    for step in jobs[job]['steps'])
     assert 'sdk-build' not in ancestors('installed')
-    assert 'console-latency' in ancestors('qualification') and 'console-latency' in ancestors('build')
+    assert 'build' not in ancestors('sdk-build')
+    for job in ('qualification', 'build', 'sdk-build'):
+        assert 'prepare' in ancestors(job) and 'console-latency' not in ancestors(job)
     # Independence during diagnosis must never weaken the publication gate.
     required = {'console-latency', 'qualification', 'build', 'images', 'installed', 'board', 'sdk-build',
                 'sdk-consumers', 'sdk-zig', 'sdk-loaders', 'handbook', 'assemble', 'homebrew'}
@@ -230,12 +231,12 @@ def main():
     steps = execution['steps']
     assert workflow['jobs']['console-latency']['needs'] == 'plan'
     assert workflow['jobs']['console-latency']['if'] == "needs.plan.outputs.checks == 'true'"
-    assert workflow['jobs']['native']['needs'] == ['plan', 'console-latency']
-    assert workflow['jobs']['sdks']['needs'] == ['plan', 'console-latency', 'native']
-    assert workflow['jobs']['checks']['needs'] == ['plan', 'console-latency']
+    assert workflow['jobs']['native']['needs'] == 'plan'
+    assert workflow['jobs']['sdks']['needs'] == ['plan', 'native']
+    assert workflow['jobs']['checks']['needs'] == 'plan'
     assert workflow['jobs']['sdks']['with']['native_bundle'] is True
     assert workflow['jobs']['native']['strategy']['matrix'] == '${{ fromJSON(needs.plan.outputs.native_matrix) }}'
-    assert len(select([], 'push')['native_matrix']['include']) == 4
+    assert len(select([], 'push')['native_matrix']['include']) == 2
     assert next(step for step in steps if step.get('name') == 'Download immutable native publications')['if'] == 'inputs.native_bundle'
     assert next(step for step in steps if step.get('name') == 'Run ${{ inputs.lane }} checks')['if'] == "inputs.native_family == ''"
     assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"

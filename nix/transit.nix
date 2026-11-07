@@ -101,6 +101,16 @@ let
     '';
     dontInstall = true;
   };
+  notices =
+    runCommand "transit-release-notices"
+      {
+        inherit src;
+        nativeBuildInputs = [ python3 ];
+      }
+      ''
+        cd "$src"
+        python3 -B tasks/release_notices.py "$out" ${zigDependencies} ${openssl.src} ${stdenv.cc.libc.src}
+      '';
 in
 stdenv.mkDerivation {
   pname = "transit";
@@ -120,9 +130,14 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host transit-board ${lib.optionalString releaseBuild "transit-admin transit-delivery transit-station-controller -Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Drelease-version=${lib.escapeShellArg version} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit ${lib.optionalString releaseBuild "transit-admin transit-delivery transit-station-controller -Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Drelease-version=${lib.escapeShellArg version} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    for role in transit-node transit-query-host transit-board; do
+      cp "$out/bin/transit" "$out/bin/$role"
+    done
     ${lib.optionalString releaseBuild ''
-      python3 -B tasks/release_notices.py "$out/share/transit/notices" ${zigDependencies} ${openssl.src} ${stdenv.cc.libc.src}
+      mkdir -p "$out/share/transit"
+      cp -r ${notices} "$out/share/transit/notices"
+      chmod -R u+w "$out/share/transit/notices"
     ''}
     runHook postBuild
   '';
@@ -136,7 +151,14 @@ stdenv.mkDerivation {
     runHook postInstallCheck
   '';
   dontInstall = true;
-  passthru = { inherit zigDependencies boardAssets frontendDeps; };
+  passthru = {
+    inherit
+      zigDependencies
+      boardAssets
+      frontendDeps
+      notices
+      ;
+  };
   meta = {
     description = "Transit CLI and matching native runtime artifacts";
     mainProgram = "transit";
