@@ -486,6 +486,13 @@ pub fn clientIndices(self: *Self, next: *r.Root, state: c.DirectClientToken.Prog
 }
 fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
     const accepted = record.action.client_token;
+    if (accepted.receipt.binding.intent == .transaction and accepted.receipt.binding.intent.transaction.purpose == .source_capture) {
+        const plan = try c.DirectSourcePublication.load(self.allocator, self.objects, accepted.receipt.binding.intent.transaction.purpose.source_capture);
+        try plan.requireProgress(self.allocator, self.objects, accepted);
+        const candidate = (try self.clientTokenAt(before, plan.candidate)) orelse return error.InvalidSourcePublication;
+        const capture = candidate.capture orelse return error.InvalidSourcePublication;
+        if (capture.phase != .publishing or capture.publication == null or !std.meta.eql(capture.publication.?, plan)) return error.InvalidSourcePublication;
+    }
     const key = accepted.receipt.binding.key;
     const prior = try self.clientTokenAt(before, key);
     if (prior) |old| {
@@ -529,7 +536,7 @@ fn clientTokenTransition(self: *Self, before: r.Root, record: r.Record) !void {
             if (transaction.begin.catalog.next_lsn != before.next_lsn) {
                 // Only an exact, already durable protected reservation can
                 // retain an earlier selection after unrelated publication.
-                if (transaction.purpose != .queue_transfer) return error.InvalidDirectCatalogTransition;
+                if (transaction.purpose == .interactive) return error.InvalidDirectCatalogTransition;
                 const saved = try c.OperationBinding.lookupTransaction(self.allocator, self.objects, transaction.identity()) orelse return error.InvalidDirectCatalogTransition;
                 if (!std.meta.eql(saved.reference, transaction) or !std.mem.eql(u8, &saved.token, &try key.digest())) return error.InvalidDirectCatalogTransition;
             }

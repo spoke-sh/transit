@@ -78,7 +78,7 @@ pub const Reference = struct {
     begin: p.Transaction.Begin,
     /// Mandatory on saved work. Protected purposes use the same transaction
     /// decision and workspace; generic callers cannot choose or replace them.
-    purpose: union(enum) { interactive, queue_transfer: c.DirectRecord.Reference },
+    purpose: union(enum) { interactive, queue_transfer: c.DirectRecord.Reference, source_capture: c.DirectRecord.Reference },
 
     pub fn validate(self: Reference) !void {
         try self.connection.validate();
@@ -89,6 +89,12 @@ pub const Reference = struct {
             try plan.validate();
             if (plan.format != c.DirectQueueTransferPlan.format or plan.content.bytes > c.DirectQueueTransferPlan.max_bytes or
                 !std.meta.eql(plan.scope.connection, self.connection)) return error.InvalidTransactionTransfer;
+        }
+        if (self.purpose == .source_capture) {
+            const plan = self.purpose.source_capture;
+            try plan.validate();
+            if (plan.format != c.DirectSourcePublication.format or plan.content.bytes > c.DirectSourcePublication.max_bytes or
+                !std.meta.eql(plan.scope.connection, self.connection)) return error.InvalidSourcePublication;
         }
         if (!std.meta.eql(self.connection.scope, self.begin.identity.begin.scope) or
             self.connection.principal != self.begin.identity.begin.principal or self.connection.branch != self.begin.identity.branch)

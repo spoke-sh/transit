@@ -97,8 +97,10 @@ pub const Work = union(enum) {
     historical_walk: struct { root: c.DirectHistoryDirectory.Root, walk: c.DirectCatalogWalk, descriptors: bool = false },
     transaction: struct { root: r.Root, progress: c.DirectClientToken.Progress, slot: u8 = 0 },
     queue_transfer_plan: c.DirectClientToken.Progress,
+    capture_plan: c.DirectClientToken.Progress,
     document_source: struct { walk: c.DirectCatalogWalk, owner: [32]u8, source_bytes: u64, ready_bytes: u64, next_offset: u64 = 0 },
     capture_source: struct { walk: c.DirectCatalogWalk, owner: [32]u8, source_bytes: u64, ready_bytes: u64, next_offset: u64 = 0 },
+    capture_manifest: c.protocol.SourceCapture.Reference,
     workload_intent: c.DirectWorkloadIntent.Reference,
     transaction_walk: struct { walk: c.DirectCatalogWalk, head: W.Head, scope: c.DirectRecord.Scope, tables: bool },
     transaction_intent: W.Request,
@@ -280,6 +282,7 @@ fn logEntry(allocator: std.mem.Allocator, index: *s.TreeStore, workspace: anytyp
                 .batches => {
                     if (evidence.outcome != .append) return error.InvalidLogStorageGraph;
                     const receipt = evidence.outcome.append;
+                    if (receipt.append.capture) |capture| try workspace.enqueue(.{ .capture_manifest = capture.reference });
                     if (receipt.next > context.next_offset or !std.meta.eql(entry.key, try s.LogPartitionRecord.integerKey(receipt.next))) return error.InvalidLogStorageGraph;
                     const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = index };
                     if (try tree.get(context.segments, entry.key)) |value| {
@@ -449,24 +452,33 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 const latest = try tree.get(walk.cut.root.client_tokens, try s.TreeStore.pages.Key.init(&try progress.receipt.binding.key.digest())) orelse return error.InvalidClientToken;
                 if (latest.len != 8) return error.InvalidClientToken;
                 if (std.mem.readInt(u64, latest.data[0..8], .little) + 1 == progress.revision.next_lsn) {
-                    if (progress.capture) |source| if (source.phase != .closed) {
-                        const owner = try progress.receipt.binding.key.digest();
-                        if (source.root) |reference| try workspace.enqueue(.{ .capture_source = .{
-                            .walk = try .init(walk.cut.root, .{ .reference = reference, .kind = .values }),
-                            .owner = owner,
-                            .source_bytes = source.descriptor.evidence.body.bytes,
-                            .ready_bytes = source.ready_bytes,
-                        } });
-                        if (source.staged) |chunk| {
-                            const path = try s.CaptureChunks.key(owner, chunk, &key_buffer);
-                            if (try index.store.head(path) != null) try markContent(workspace, path, chunk.content);
-                        }
-                        if (source.manifest) |manifest| {
-                            const reference: c.DirectRecord.Reference = .{ .scope = progress.receipt.binding.key.scope(), .format = c.DirectSourceCapture.manifest_format, .content = manifest };
+                    if (progress.capture) |source| {
+                        if (source.publication) |publication| {
+                            const reference = try publication.stored();
                             const path = try c.DirectRecord.key(reference, &key_buffer);
-                            if (source.phase != .sealing or try index.store.head(path) != null) try markContent(workspace, path, manifest);
+                            // Registration precedes the put; the saved plan is
+                            // sufficient to retry an unaccepted transaction.
+                            if (try index.store.head(path) != null) try markContent(workspace, path, reference.content);
                         }
-                    };
+                        if (source.phase != .closed and source.phase != .published and source.phase != .aborted) {
+                            const owner = try progress.receipt.binding.key.digest();
+                            if (source.root) |reference| try workspace.enqueue(.{ .capture_source = .{
+                                .walk = try .init(walk.cut.root, .{ .reference = reference, .kind = .values }),
+                                .owner = owner,
+                                .source_bytes = source.descriptor.evidence.body.bytes,
+                                .ready_bytes = source.ready_bytes,
+                            } });
+                            if (source.staged) |chunk| {
+                                const path = try s.CaptureChunks.key(owner, chunk, &key_buffer);
+                                if (try index.store.head(path) != null) try markContent(workspace, path, chunk.content);
+                            }
+                            if (source.manifest) |manifest| {
+                                const reference: c.DirectRecord.Reference = .{ .scope = progress.receipt.binding.key.scope(), .format = c.DirectSourceCapture.manifest_format, .content = manifest };
+                                const path = try c.DirectRecord.key(reference, &key_buffer);
+                                if (source.phase != .sealing or try index.store.head(path) != null) try markContent(workspace, path, manifest);
+                            }
+                        }
+                    }
                     if (progress.source) |source| if (source.phase != .closed) {
                         const owner = try progress.receipt.binding.key.digest();
                         if (source.root) |reference| try workspace.enqueue(.{ .document_source = .{
@@ -590,6 +602,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const begin = progress.receipt.binding.intent.transaction.begin;
             if (value.slot == 0) {
                 if (progress.receipt.binding.intent.transaction.purpose == .queue_transfer) try workspace.enqueue(.{ .queue_transfer_plan = progress });
+                if (progress.receipt.binding.intent.transaction.purpose == .source_capture) try workspace.enqueue(.{ .capture_plan = progress });
                 var selected = try s.TransactionDirectory.init(allocator, index.store, begin.identity, .participants, begin.limits.participants, 0, 1);
                 defer selected.deinit();
                 try selected.restore(begin.objects);
@@ -673,6 +686,29 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 const content = plan.transfer.destination.payload;
                 try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
             }
+        },
+        .capture_plan => |progress| {
+            const plan = try c.DirectSourcePublication.load(allocator, index.store, progress.receipt.binding.intent.transaction.purpose.source_capture);
+            try plan.requireReceipt(progress.receipt);
+            if (progress.pending) {
+                const manifest = try c.DirectSourceCapture.Manifest.load(allocator, index.store, plan.reference);
+                var declaration = try s.LogDeclaration.resolve(allocator, index.store, plan.reference.destination);
+                defer declaration.deinit();
+                var buffer: [c.fuze.TableRow.max_bytes]u8 = undefined;
+                const payload = try plan.envelope(allocator, manifest.evidence, &declaration, &buffer);
+                const content = s.LogBatch.content(payload);
+                try markContent(workspace, try s.LogTransactionActions.payloadKey(content, &key_buffer), content);
+            }
+        },
+        .capture_manifest => |reference| {
+            const manifest = try c.DirectSourceCapture.Manifest.load(allocator, index.store, reference);
+            try markContent(workspace, try c.DirectSourceCapture.Manifest.key(reference.manifest, &key_buffer), reference.manifest);
+            if (manifest.inventory) |inventory| try workspace.enqueue(.{ .capture_source = .{
+                .walk = .initValues(inventory),
+                .owner = manifest.candidate,
+                .source_bytes = manifest.evidence.body.bytes,
+                .ready_bytes = manifest.evidence.body.bytes,
+            } });
         },
         .capture_source => |*value| {
             const edge = try value.walk.next(allocator, index) orelse {
@@ -918,7 +954,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 .value => |entry| {
                     const stored = try r.fromValue(c.CatalogDefinition.Stored, allocator, entry.value);
                     try stored.validate();
-                    if (!std.meta.eql(entry.key, try c.DirectDefinition.definitionKey(stored.interpretation)) or !std.meta.eql(stored.interpretation.object.scope, walk.configuration.scope) or stored.interpretation.object.branch != walk.configuration.branch) return error.InvalidTableStorageGraph;
+                    if (!std.meta.eql(entry.key, try c.DirectDefinition.definitionKey(stored.interpretation)) or !std.meta.eql(stored.interpretation.object.scope, walk.configuration.?.scope) or stored.interpretation.object.branch != walk.configuration.?.branch) return error.InvalidTableStorageGraph;
                     try workspace.enqueue(.{ .descriptor = stored });
                 },
                 .page => |root| {

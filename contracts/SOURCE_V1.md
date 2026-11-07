@@ -216,6 +216,34 @@ are charged separately from raw bytes; the 16 KiB Catalog WAL limit is unchanged
 These types are the representation contract; they do not install capture mutation
 or reader routes by themselves.
 
+### Protected capture publication
+
+The component owner saves `DirectSourcePublication` (SCP1) in the candidate before
+admitting its original transaction. It freezes the candidate reference, exact
+destination, transaction token, begin, append and settlement operations, and
+budgets. `capturePublish` registers it; `captureAdvance` performs bounded original
+transaction steps. The host serializes database publication and collection and
+supplies the original verifier and current disclosure policy. Neither operation
+is an installed mutation route.
+
+The `source_capture` transaction purpose prevents generic begin, statement,
+savepoint and settlement calls from operating that transaction. The owner encodes
+the seven columns from the verified evidence and accepts exactly one append.
+Every transaction publication rechecks source disclosure and destination append
+rights. Internal source pins require append authority for this protected purpose;
+they do not grant the importer destination READ. Existing transaction common-cut,
+preparation, decision and cleanup rules still apply.
+
+`StreamQueue.Append.capture` binds the original capture reference and transaction
+identity. Ordinary Stream mutation routes reject a non-null attachment. The
+accepted Stream batch directory supplies its exact offset; permanent operation
+and producer receipts retain attribution but do not independently retain the body.
+Current batches, retained read bases and unresolved transaction roots retain the
+manifest and chunk inventory. Candidate ownership ends only after a verified
+decision and complete participant cleanup: commit transfers it to the Stream;
+abort permits collection. Lost replies resolve the saved original, never a new
+transaction or offset. Generic record routes reject SCC1, SCM1 and SCP1.
+
 Published capture reads require current destination Stream READ, database CONNECT
 and schema USAGE. Private candidates additionally require their original owner.
 SOURCE inspection/control, CONNECTION use and Stream metadata inspection grant no

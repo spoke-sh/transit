@@ -251,7 +251,7 @@ def generated():
             digest=[29]*32), partition=0)
         append = dict(target=log_target,
                       operation=dict(scope=log_scope, principal=17, operation=2**64-4),
-                      kind='stream', producer=dict(id=[13]*16, epoch=5, sequence=2**64-1),
+                      kind='stream', producer=dict(id=[13]*16, epoch=5, sequence=2**64-1), capture=None,
                       rows=4, payload=dict(bytes=1024, sha256=[31]*32))
         coverage = dict(cut=dict(target=log_target, accepted=dict(partition=91, next_lsn=12),
                                 retained_from=2**64-9, next=2**64-1),

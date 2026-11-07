@@ -1906,6 +1906,7 @@
           "epoch": 5,
           "sequence": 18446744073709551615
         },
+        "capture": null,
         "rows": 4,
         "payload": {
           "bytes": 1024,

@@ -12,7 +12,7 @@ pub const Edge = union(enum) { page: Root, declaration: c.storage.TableDeclarati
 const Frame = struct { reference: pages.Reference, height: ?u8 = null, child: u8 = 0, disclosed: bool = false };
 pub const max_depth = pages.max_height + 1;
 
-configuration: r.Configuration,
+configuration: ?r.Configuration,
 next_lsn: u64,
 next_partition: u64,
 root: Root,
@@ -24,6 +24,13 @@ pub fn init(basis: r.Root, root: Root) !Self {
     if (basis.next_lsn == 0) return error.InvalidDirectCatalogHistory;
     var result: Self = .{ .configuration = basis.configuration, .next_lsn = basis.next_lsn, .next_partition = basis.next_partition, .root = root };
     result.stack[0] = .{ .reference = root.reference };
+    return result;
+}
+
+/// Content-only indexes have no catalog entry/partition interpretation.
+pub fn initValues(reference: pages.Reference) Self {
+    var result: Self = .{ .configuration = null, .next_lsn = 0, .next_partition = 0, .root = .{ .reference = reference, .kind = .values } };
+    result.stack[0] = .{ .reference = reference };
     return result;
 }
 
@@ -60,7 +67,7 @@ pub fn next(self: *Self, allocator: std.mem.Allocator, store: anytype) !?Edge {
                 if (self.root.kind == .pages_only) continue;
                 if (self.root.kind == .values) return .{ .value = .{ .key = entry.key, .value = entry.value } };
                 const object = try r.fromValue(r.Entry, allocator, entry.value);
-                try object.validate(self.configuration);
+                try object.validate(self.configuration orelse return error.InvalidDirectCatalogHistory);
                 if (!std.meta.eql(entry.key, try r.idKey(object.object))) return error.InvalidDirectCatalogEntry;
                 if (object.resource == null and object.partition >= self.next_partition) return error.InvalidDirectCatalogEntry;
                 if (object.resource) |at| if (at >= self.next_lsn) return error.InvalidDirectCatalogEntry;

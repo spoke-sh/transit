@@ -77,21 +77,45 @@ pub const Manifest = struct {
         try self.validate();
         return p.Json.valueAllocBounded(allocator, self, 16 * 1024);
     }
+    pub fn key(content: d.Content, output: *[96]u8) ![]const u8 {
+        try content.validate();
+        if (content.bytes > 16 * 1024) return error.InvalidSourceCapture;
+        return std.fmt.bufPrint(output, "source-capture-manifests/{x}.data", .{&content.sha256});
+    }
+    pub fn load(allocator: std.mem.Allocator, objects: c.storage.TransitObjectStore.ObjectStore, reference: p.SourceCapture.Reference) !Manifest {
+        try reference.validate();
+        var name: [96]u8 = undefined;
+        const path = try key(reference.manifest, &name);
+        const meta = try objects.head(path) orelse return error.SourceCaptureMissing;
+        if (meta.size != reference.manifest.bytes or !std.mem.eql(u8, &meta.sha256, &reference.manifest.sha256)) return error.InvalidSourceCapture;
+        var buffer: [16 * 1024]u8 = undefined;
+        const bytes = try objects.getRange(path, 0, @intCast(reference.manifest.bytes), &buffer);
+        if (!std.meta.eql(c.storage.LogBatch.content(bytes), reference.manifest)) return error.InvalidSourceCapture;
+        const parsed = try p.Json.parseFromSlice(Manifest, allocator, bytes);
+        defer parsed.deinit();
+        const canonical = try parsed.value.encode(allocator);
+        defer allocator.free(canonical);
+        if (!std.mem.eql(u8, bytes, canonical) or !std.mem.eql(u8, &parsed.value.candidate, &reference.candidate) or
+            !std.meta.eql(parsed.value.evidence.destination, reference.destination)) return error.InvalidSourceCapture;
+        return parsed.value;
+    }
 };
 pub const State = struct {
     descriptor: Descriptor,
     root: ?storage.pages.Reference,
     ready_bytes: u64,
     staged: ?storage.Chunk,
-    phase: enum { uploading, sealing, verified, failed, closed },
+    phase: enum { uploading, sealing, verified, publishing, published, aborted, failed, closed },
     manifest: ?d.Content,
+    publication: ?c.DirectSourcePublication,
+    outcome: ?struct { decision: p.Transaction.Decision, append: ?p.StreamQueue.AppendReceipt },
     observed: ?[32]u8,
     charged_bytes: u64,
     work_bytes: u64,
     work_pages: u64,
 
     pub fn initial(descriptor: Descriptor) State {
-        return .{ .descriptor = descriptor, .root = null, .ready_bytes = 0, .staged = null, .phase = .uploading, .manifest = null, .observed = null, .charged_bytes = initial_bytes, .work_bytes = initial_bytes, .work_pages = 0 };
+        return .{ .descriptor = descriptor, .root = null, .ready_bytes = 0, .staged = null, .phase = .uploading, .manifest = null, .publication = null, .outcome = null, .observed = null, .charged_bytes = initial_bytes, .work_bytes = initial_bytes, .work_pages = 0 };
     }
     pub fn validate(self: State) !void {
         try self.descriptor.validate();
@@ -104,12 +128,31 @@ pub const State = struct {
             try chunk.validate(self.descriptor.evidence.body.bytes);
             if (self.phase != .uploading or chunk.offset != self.ready_bytes) return error.InvalidSourceCaptureState;
         }
-        if (self.phase == .sealing or self.phase == .verified or self.phase == .failed) {
+        const sealed = self.phase == .sealing or self.phase == .verified or self.phase == .publishing or self.phase == .published or self.phase == .aborted;
+        if (sealed or self.phase == .failed) {
             if (self.ready_bytes != self.descriptor.evidence.body.bytes or self.staged != null or self.observed == null or
                 (self.phase != .failed) != std.mem.eql(u8, &self.observed.?, &self.descriptor.evidence.body.sha256)) return error.InvalidSourceCaptureState;
         } else if (self.phase == .uploading and self.observed != null) return error.InvalidSourceCaptureState;
-        if ((self.phase == .sealing or self.phase == .verified) != (self.manifest != null) and self.phase != .closed) return error.InvalidSourceCaptureState;
+        if (sealed != (self.manifest != null) and self.phase != .closed) return error.InvalidSourceCaptureState;
         if (self.manifest) |manifest| try manifest.validate();
+        if ((self.phase == .publishing or self.phase == .published or self.phase == .aborted) != (self.publication != null) and self.phase != .closed) return error.InvalidSourceCaptureState;
+        if (self.publication) |publication| try publication.requireCandidate(self);
+        const settled = self.phase == .published or self.phase == .aborted or (self.phase == .closed and self.publication != null);
+        if (settled != (self.outcome != null)) return error.InvalidSourceCaptureState;
+        if (self.outcome) |outcome| {
+            try outcome.decision.validate();
+            const publication = self.publication orelse return error.InvalidSourceCaptureState;
+            if (!std.meta.eql(outcome.decision.attempt.transaction.begin, publication.operation) or
+                !std.meta.eql(outcome.decision.attempt.operation, publication.settlement) or
+                (outcome.decision.outcome == .committed) != (self.phase == .published) or
+                (outcome.append != null) != (self.phase == .published)) return error.InvalidSourceCaptureState;
+            if (outcome.append) |receipt| {
+                try receipt.validate();
+                if (!std.meta.eql(receipt.append.operation, publication.append) or receipt.append.capture == null or
+                    !std.meta.eql(receipt.append.capture.?.reference, publication.reference) or
+                    !std.meta.eql(receipt.append.capture.?.transaction, outcome.decision.attempt.transaction)) return error.InvalidSourceCaptureState;
+            }
+        }
     }
     pub fn charge(self: *State, bytes: u64, pages: u64, retained: u64) !void {
         var next = self.*;
@@ -127,9 +170,27 @@ pub const State = struct {
             after.ready_bytes < before.ready_bytes or after.charged_bytes < before.charged_bytes or
             after.work_bytes < before.work_bytes or after.work_pages < before.work_pages) return error.InvalidSourceCaptureTransition;
         if (after.phase == .closed) {
+            if (before.phase == .publishing or before.phase == .published) return error.InvalidSourceCaptureTransition;
             var expected = before;
             expected.phase = .closed;
             expected.staged = null;
+            if (!std.meta.eql(expected, after)) return error.InvalidSourceCaptureTransition;
+            return;
+        }
+        if (before.phase == .verified and after.phase == .publishing) {
+            var expected = before;
+            expected.phase = .publishing;
+            expected.publication = after.publication;
+            expected.charged_bytes = after.charged_bytes;
+            expected.work_bytes = after.work_bytes;
+            expected.work_pages = after.work_pages;
+            if (!std.meta.eql(expected, after)) return error.InvalidSourceCaptureTransition;
+            return;
+        }
+        if (before.phase == .publishing and (after.phase == .published or after.phase == .aborted)) {
+            var expected = before;
+            expected.phase = after.phase;
+            expected.outcome = after.outcome;
             if (!std.meta.eql(expected, after)) return error.InvalidSourceCaptureTransition;
             return;
         }
