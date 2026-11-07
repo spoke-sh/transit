@@ -94,10 +94,10 @@ def main():
             execute(['just', 'bindings::python-build', 'bindings::node-build'])
             prepare = [sys.executable, '-B', 'tests/runner/launch.py',
                        'tests/harness/native_artifacts.py', 'prepare']
-            clients = Path(execute([*prepare, 'clients', '--optimize', 'Debug'], capture=True)).resolve(strict=True)
-            authority = Path(execute([*prepare, 'authority', '--optimize', 'Debug'], capture=True)).resolve(strict=True)
+            clients = Path(execute([*prepare, 'clients', '--optimize', 'ReleaseSafe'], capture=True)).resolve(strict=True)
+            authority = Path(execute([*prepare, 'authority', '--optimize', 'ReleaseSafe'], capture=True)).resolve(strict=True)
             native = [authority / 'bin/transit-node', clients / 'bin/transit-admin', clients / 'lib/libtransit_client.so']
-            packages = ROOT / '.cache/bindings/Debug'
+            packages = ROOT / '.cache/bindings/ReleaseSafe'
             profiles['sdk'] = [
                 [sys.executable, '-B', 'tests/runner/launch.py', 'tests/sdk/consumers/python/python_client_sdk.py',
                  *native, packages / 'wheels', destination / 'python.json'],

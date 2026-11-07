@@ -128,7 +128,6 @@ def busy_observation(fixture, log):
 
 
 def run(cli, node, host, board, gateway):
-    service_failures([node, host, board, gateway])
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(board)
     os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(gateway)
@@ -141,6 +140,7 @@ def run(cli, node, host, board, gateway):
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     try:
+        service_failures([fixture.config['executables'][role] for role in ('node', 'query_host', 'board', 'sql_gateway')])
         # No logging config: defaults are readable even with unrelated ambient LOG_*.
         text_path = start(fixture, True, {'LOG_FORMAT': 'json'})
         # Native-only bootstrap defers all Table maintenance. After the owner

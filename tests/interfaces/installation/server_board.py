@@ -28,7 +28,8 @@ class Board(Applications):
         while port in [*self.config['ports'].values(), self.config['applications']['port']]:
             port = free_port()
         self.config.update(version=1, board={'port': port})
-        self.config['executables']['board'] = str(Path(board).resolve())
+        if Path(board).resolve() != Path(cli).resolve():
+            self.config['executables']['board'] = str(Path(board).resolve())
         self.path.write_text(json.dumps(self.config))
         self.no_ui = False
         self.board_url = f'http://127.0.0.1:{port}'

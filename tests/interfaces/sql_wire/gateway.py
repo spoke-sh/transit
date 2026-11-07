@@ -71,6 +71,18 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                               probe_scope='SQL gateway upstream only' if instrumented else None,
                               limits='TLS component control; not the default installed server. Small sequential samples; no isolated load or tail SLO.')), flush=True)
     with directory(binaries) as root:
+        def role_binary(path, name):
+            if Path(path).name != 'transit':
+                return path
+            target = root / name
+            try:
+                os.link(path, target)
+            except OSError:
+                shutil.copy2(path, target)
+            return str(target)
+        node = role_binary(node, 'transit-node')
+        host = role_binary(host, 'transit-query-host')
+        gateway = role_binary(gateway, 'transit-sql-gateway')
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         session_port, native_port, sql_port, mysql_port, health_port, settings_port = free_ports(6)
         url = f'http://127.0.0.1:{native_port}'

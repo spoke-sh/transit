@@ -148,11 +148,11 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
         url = f'http://127.0.0.1:{proxy.server_port}'
         children, worker_configs = [], {}
         recovered_events, repeated_reads = 0, 0
-        def provision(role='service', finite=False, lifetime_ms=240000):
+        def provision(role='service', finite=False, lifetime_ms=240000, settle_window_ms=30000):
             nonlocal principal
             principal += 1
             now = time.time_ns() // 1_000_000
-            pid = command({'spawn': {'work_before_ms': now+lifetime_ms, 'settle_before_ms': now+lifetime_ms+30000} if finite else {}})
+            pid = command({'spawn': {'work_before_ms': now+lifetime_ms, 'settle_before_ms': now+lifetime_ms+settle_window_ms} if finite else {}})
             seed, public = system.key(f'public-{principal}')
             command({'grant': {'subject': principal, 'public_key': public, 'permissions': 88, 'pid': pid}})
             resource = command({'create_resource': {'writer': pid}})
@@ -166,7 +166,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                 'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(codec_fixture), 'http_fixtures': str(http_fixture), 'http_release_fixtures': str(http_release_fixture),
                 'table_fixtures': str(table_fixture),
                 'query_results': role in ('table', 'query'), 'work_before_ms': now+lifetime_ms if finite else None,
-                'settle_before_ms': now+lifetime_ms+30000 if finite else None}
+                'settle_before_ms': now+lifetime_ms+settle_window_ms if finite else None}
             return cfg
         def config_file(cfg):
             path = target / f"config-{cfg['pid']}.json"
@@ -437,7 +437,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # activation before its work cutoff, including this fixture's 10s
             # admitted clock uncertainty. The later check waits past the exact
             # recorded cutoff; no accepted deadline is renewed or rewritten.
-            expired = provision(finite=True, lifetime_ms=30000)
+            expired = provision(finite=True, lifetime_ms=20000, settle_window_ms=1000)
             table, query_cfg = provision('table'), provision('query')
             table['peer'], query_cfg['peer'] = query_cfg['pid'], table['pid']
             service, caller = worker(table), worker(query_cfg)

@@ -71,15 +71,21 @@ class Artifacts:
             helper_names.append("transit-admin")
         if self.installation.profile != "local" and ("tools/transit-node" not in candidates or "node" in roles):
             helper_names.append("transit-node")
-        helpers = self.native(helper_names) if helper_names else {}
-        candidates.update({"tools/" + name: value for name, value in helpers.items()})
         target = None
+        architecture = None
         if self.installation.profile != "local":
             architecture = run(["docker", "info", "--format", "{{.Architecture}}"], capture=True).strip()
             target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}.get(architecture)
             if target is None:
                 raise RuntimeError("Application images require a Linux x86_64 or aarch64 Docker engine")
-        built = self.native(names, target)
+        if target is None or (os.uname().sysname == "Linux" and os.uname().machine == architecture):
+            combined = self.native(sorted(set(names) | set(helper_names)), target)
+            helpers = {name: dict(combined[name]) for name in helper_names}
+            built = {name: dict(combined[name]) for name in names}
+        else:
+            helpers = self.native(helper_names) if helper_names else {}
+            built = self.native(names, target)
+        candidates.update({"tools/" + name: value for name, value in helpers.items()})
         for name, artifact in built.items():
             if target:
                 context = self.path / "images" / name

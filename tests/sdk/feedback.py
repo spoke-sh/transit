@@ -23,9 +23,9 @@ def execute(language, scope):
             task(f'bindings::direct-catalog-{language}')
         else:
             task(f'bindings::{language}-build')
-            clients, _ = prepare('clients', 'Debug')
-            authority, _ = prepare('authority', 'Debug' if language == 'go' else 'ReleaseSafe')
-            artifacts = ROOT / '.cache/bindings/Debug' / ('wheels' if language == 'python' else language)
+            clients, _ = prepare('clients', 'ReleaseSafe')
+            authority, _ = prepare('authority', 'ReleaseSafe')
+            artifacts = ROOT / '.cache/bindings/ReleaseSafe' / ('wheels' if language == 'python' else language)
             inputs = (str(authority / 'bin/transit-node'), str(clients / 'bin/transit-admin'),
                       str(clients / 'lib/libtransit_client.so'), artifacts)
             if scope == 'raw':

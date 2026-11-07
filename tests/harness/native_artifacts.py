@@ -189,6 +189,23 @@ def prepare(family, optimize, root=ROOT, *, portable=False, imported=True):
         record.update(**provenance(root), phase_directory=str(attempt.directory),
                       preparation="import", phases={"import_seconds": time.monotonic() - started})
         return retain(record, family, optimize, root)
+    if not bundle and not portable and (root / ".cache/native-artifacts").is_dir():
+        compiler_version = subprocess.check_output([compiler, "version"], text=True).strip()
+        for candidate in sorted((root / ".cache/native-artifacts").glob(f"{family}-{optimize}-*/record.json"), reverse=True):
+            try:
+                cached = json.loads(candidate.read_text())
+                if cached.get("build", {}).get("compiler") != compiler_version:
+                    continue
+                if cached.get("build", {}).get("runtime_library_path") is not None:
+                    continue
+                validate(cached, source=source, optimize=optimize, family=family, definition=definition)
+                assert source_identity(root, family) == source, "Native inputs changed during cache verification"
+            except Exception:
+                continue
+            cached.update(**provenance(root), phase_directory=str(attempt.directory),
+                          preparation="cache-reuse", phases={"input_identity_seconds": inputs_done - started,
+                                                             "output_verification_seconds": time.monotonic() - inputs_done})
+            return retain(cached, family, optimize, root)
     build_root = root / "bindings" if family == "c-sdk" else root
     target = ["prefix"] if family == "c-sdk" else [f"fixture-{family}", "-Dsdk-examples=false"]
     command = [compiler, "build", *target, f"-Doptimize={optimize}"]

@@ -21,7 +21,7 @@ from interfaces.cli.table_console import TableConsole, atom, records, results as
 
 
 class Fixture(LocalInstallation):
-    def __init__(self, cli, node, host, parent="/var/tmp"):
+    def __init__(self, cli, node=None, host=None, parent="/var/tmp"):
         super().__init__(cli, node, host, parent=parent)
         self.activation = None
         self.markers = set()

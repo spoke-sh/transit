@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--native-prefix', type=Path, required=True)
     parser.add_argument('--node', type=Path, required=True)
-    parser.add_argument('--artifacts', type=Path, default=Path('.cache/bindings/Debug'))
+    parser.add_argument('--artifacts', type=Path, default=Path('.cache/bindings/ReleaseSafe'))
     parser.add_argument('--family', choices=FAMILIES, action='append')
     args = parser.parse_args()
     native = args.native_prefix.resolve()

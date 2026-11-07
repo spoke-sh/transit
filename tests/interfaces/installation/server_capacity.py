@@ -103,10 +103,22 @@ def run(cli, node, host, *application):
     assert interpreter.startswith('/nix/store/') and Path(interpreter).is_file()
     binaries = root / 'bin'
     binaries.mkdir()
-    sources = [Path(path).resolve() for path in (cli, node, host, *application)]
-    sources += [Path(cli).resolve().parent / name for name in ('transit-board', 'transit-sql-gateway')]
-    for source in sources:
-        destination = binaries / source.name
+    cli_path = Path(cli).resolve()
+    node_path = Path(node).resolve()
+    host_path = Path(host).resolve()
+    pairs = [
+        ('transit', cli_path),
+        (node_path.name if node_path != cli_path else 'transit-node', node_path),
+        (host_path.name if host_path != cli_path else 'transit-query-host', host_path),
+    ]
+    for name in ('transit-board', 'transit-sql-gateway'):
+        sibling = cli_path.parent / name
+        pairs.append((name, sibling if sibling.exists() else cli_path))
+    for path in application:
+        resolved = Path(path).resolve()
+        pairs.append((resolved.name, resolved))
+    for name, source in pairs:
+        destination = binaries / name
         assert not destination.exists(), destination
         shutil.copy2(source, destination)
         subprocess.run([tools['patchelf'], '--set-interpreter', interpreter, str(destination)], check=True)
@@ -116,7 +128,8 @@ def run(cli, node, host, *application):
     subprocess.run([tools["mkfs.ext4"], "-q", "-F", "-m", "0", str(root / "disk.img")], check=True, timeout=30)
     q = shlex.quote
     command = [python, "-B", str(repo / "tests/runner/launch.py"), str(repo / "tests/interfaces/installation/server_capacity.py"), "--inside-application" if application else "--inside", "/proof/mount",
-               *['/proof/bin/' + Path(path).name for path in (cli, node, host, *application)]]
+               '/proof/bin/transit', '/proof/bin/' + pairs[1][0], '/proof/bin/' + pairs[2][0],
+               *['/proof/bin/' + Path(path).name for path in application]]
     script = f'''set -euo pipefail
 {q(tools['mount'])} -o loop /proof/disk.img /proof/mount
 trap '{q(tools['umount'])} /proof/mount' EXIT

@@ -17,13 +17,24 @@ pub fn arguments(allocator: std.mem.Allocator, executable: []const u8, external:
     return result;
 }
 
+pub fn fromExecutableName(path: []const u8) ?Role {
+    const invoked = std.fs.path.basename(path);
+    if (std.mem.eql(u8, invoked, "transit-node")) return .node;
+    if (std.mem.eql(u8, invoked, "transit-query-host")) return .query_host;
+    if (std.mem.eql(u8, invoked, "transit-sql-gateway")) return .sql_gateway;
+    if (std.mem.eql(u8, invoked, "transit-board")) return .board;
+    return null;
+}
+
 pub fn run(init: std.process.Init, role: Role) !void {
     // The local supervisor already requires Linux process groups/PDEATHSIG.
     // Give the reused role entry point its ordinary argv, with the role name in
     // argv[0]. No role implementation or executable blob is copied or extracted.
     if (@import("builtin").os.tag != .linux) return error.UnsupportedLocalPlatform;
     var selected = init;
-    selected.minimal.args.vector = init.minimal.args.vector[2..];
+    if (fromExecutableName(std.mem.span(init.minimal.args.vector[0])) == null) {
+        selected.minimal.args.vector = init.minimal.args.vector[2..];
+    }
     return switch (role) {
         .node => @import("transit_node_role").main(selected),
         .query_host => @import("transit_query_host_role").main(selected),

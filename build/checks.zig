@@ -5,7 +5,7 @@ const Runtime = @import("runtime.zig").Context;
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, context: Runtime) void {
     @import("native_fixtures.zig").register(b, target, optimize, context);
     const sdk_authority = b.option([]const u8, "sdk-authority", "Explicit verified node executable for installed SDK catalog checks");
-    const sdk_packages = b.option([]const u8, "sdk-packages", "Installed SDK package directory") orelse ".cache/bindings/Debug";
+    const sdk_packages = b.option([]const u8, "sdk-packages", "Installed SDK package directory") orelse ".cache/bindings/ReleaseSafe";
     const http_server = context.http_server;
     const serving_http = context.serving_http;
     const application = context.application;
@@ -908,14 +908,12 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     build_test_step.dependOn(&document_worker.step);
     const document_caller = b.addExecutable(.{ .name = "example-station-document", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-document/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_document", .module = exampleModule(b, sdk, "transit_station_document", target, optimize) }} }) });
     const install_document_caller = b.addInstallArtifact(document_caller, .{});
-    b.getInstallStep().dependOn(&install_document_caller.step);
     build_test_step.dependOn(&document_caller.step);
     b.step("example-station-document", "Install the collaborative Document caller").dependOn(&install_document_caller.step);
     build_test_step.dependOn(&grpc_worker.step);
     build_test_step.dependOn(&http_worker.step);
     const http_caller = b.addExecutable(.{ .name = "example-station-http", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-http/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = exampleModule(b, sdk, "transit_station_http", target, optimize) }} }) });
     const install_http_caller = b.addInstallArtifact(http_caller, .{});
-    b.getInstallStep().dependOn(&install_http_caller.step);
     build_test_step.dependOn(&http_caller.step);
     b.step("example-station-http", "Install the finite HTTP caller example").dependOn(&install_http_caller.step);
     build_test_step.dependOn(&grpc_bindings.step);
@@ -931,7 +929,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-grpc-codegen", "Qualify offline descriptor-generated RPC requests").dependOn(&grpc_codegen_test.step);
     const grpc_caller = b.addExecutable(.{ .name = "example-station-grpc", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-grpc/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_grpc", .module = exampleModule(b, sdk, "transit_station_grpc", target, optimize) }} }) });
     const install_grpc_caller = b.addInstallArtifact(grpc_caller, .{});
-    b.getInstallStep().dependOn(&install_grpc_caller.step);
     build_test_step.dependOn(&grpc_caller.step);
     b.step("example-station-grpc", "Install the finite RPC caller example").dependOn(&install_grpc_caller.step);
     const grpc_provision = b.addExecutable(.{ .name = "transit-grpc-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/runtime/effects/grpc_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "fixture_growing_support", .module = test_modules.get(.growing_support) } } }) });
@@ -1172,21 +1169,21 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_server_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_server_test.addFileArg(b.path("tests/interfaces/installation/server_direct_tables.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| direct_server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| direct_server_test.addArtifactArg(artifact);
     direct_server_test.has_side_effects = true;
     direct_server_test.stdio = .inherit;
     b.step("test-server-direct-tables", "Prove installed SQL uses the direct Table owner and exact bootstrap recovery").dependOn(&direct_server_test.step);
     const managed_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     managed_server_test.addFileArg(b.path("tests/runner/launch.py"));
     managed_server_test.addFileArg(b.path("tests/interfaces/installation/server_managed_tables.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| managed_server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| managed_server_test.addArtifactArg(artifact);
     managed_server_test.has_side_effects = true;
     managed_server_test.stdio = .inherit;
     b.step("test-server-managed-tables", "Prove installed managed Table lifecycle, WAL wakeups and replacement").dependOn(&managed_server_test.step);
     const source_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     source_server_test.addFileArg(b.path("tests/runner/launch.py"));
     source_server_test.addFileArg(b.path("tests/interfaces/installation/server_sources.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| source_server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| source_server_test.addArtifactArg(artifact);
     source_server_test.has_side_effects = true;
     source_server_test.stdio = .inherit;
     b.step("test-server-sources", "Prove installed SOURCE declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
@@ -1263,19 +1260,19 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const fault_node = b.addExecutable(.{ .name = "transit-node-fault-fixture", .root_module = fault_node_module });
     // The lifecycle proof also withholds accepted direct execution to exercise
     // native-session reply loss; co-hosted calls bypass its HTTP proxy.
-    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| server_test.addArtifactArg(artifact);
     if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| direct_fault_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| direct_fault_test.addArtifactArg(artifact);
     direct_fault_test.has_side_effects = true;
     direct_fault_test.stdio = .inherit;
     b.step("test-server-direct-faults", "Prove installed direct Table recovery and control during data-owner failures").dependOn(&direct_fault_test.step);
     const logging_test = b.addSystemCommand(&.{ "python3", "-B" });
     logging_test.addFileArg(b.path("tests/runner/launch.py"));
     logging_test.addFileArg(b.path("tests/interfaces/installation/server_logging.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| logging_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| logging_test.addArtifactArg(artifact);
     logging_test.step.dependOn(&operation_install.step);
     logging_test.has_side_effects = true;
     logging_test.stdio = .inherit;
@@ -1283,7 +1280,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const lifetime_test = b.addSystemCommand(&.{ "python3", "-B" });
     lifetime_test.addFileArg(b.path("tests/runner/launch.py"));
     lifetime_test.addFileArg(b.path("tests/interfaces/installation/server_sql_lifetimes.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, node_artifact, query_host, board, sql_gateway_app }) |artifact| lifetime_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| lifetime_test.addArtifactArg(artifact);
     lifetime_test.step.dependOn(&operation_install.step);
     lifetime_test.has_side_effects = true;
     lifetime_test.stdio = .inherit;
@@ -1299,7 +1296,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
         } else {
-            for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, query_host, board, sql_gateway_app }) |artifact| run.addArtifactArg(artifact);
+            for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| run.addArtifactArg(artifact);
         }
         run.step.dependOn(&operation_install.step);
         run.has_side_effects = true;
@@ -1962,11 +1959,12 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     configuration_probe.root_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
-    sql_wire_gateway.step.dependOn(&encoding_cost.step);
     sql_wire_gateway.addFileArg(b.path("tests/runner/launch.py"));
     sql_wire_gateway.addFileArg(b.path("tests/interfaces/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, query_host, sql_gateway_app, configuration_probe, transit_cli }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ transit_cli, sql_catalog_proof, sql_gateway_proof, transit_cli, transit_cli, configuration_probe, transit_cli }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
+    }
+    for ([_]*std.Build.Step.Compile{ sql_catalog_proof, sql_gateway_proof, configuration_probe, transit_cli }) |artifact| {
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }
     sql_wire_gateway.addPassthruArgs();
@@ -2082,6 +2080,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     examples_step.dependOn(&install_query_example.step);
     examples_step.dependOn(&install_document_caller.step);
     examples_step.dependOn(&install_http_caller.step);
+    examples_step.dependOn(&install_grpc_caller.step);
     const station_ledger = b.addExecutable(.{ .name = "example-station-ledger", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/station-ledger/main.zig"),
         .target = target,
@@ -2091,7 +2090,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const install_ledger = b.addInstallArtifact(station_ledger, .{});
     b.step("example-station-ledger", "Install the Station ledger example").dependOn(&install_ledger.step);
     examples_step.dependOn(&install_ledger.step);
-    b.getInstallStep().dependOn(&install_ledger.step);
     const station_test = b.addSystemCommand(&.{ "python3", "-B" });
     station_test.addFileArg(b.path("tests/runner/launch.py"));
     station_test.addFileArg(b.path("tests/runtime/station/station.py"));
