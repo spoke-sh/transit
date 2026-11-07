@@ -46,7 +46,7 @@ pub const Transport = struct {
     principal: u64,
     role: ?u64 = null,
     select_owner: bool = false,
-    exchange: *const fn (*anyopaque, w.Connection, w.Action) anyerror!std.json.Parsed(w.Response),
+    exchange: *const fn (*anyopaque, w.Connection, w.Action) anyerror!c.DirectTableClient.OwnedResponse,
     pub fn bind(self: Transport, binding: Binding) !Client {
         return .{ .transport = self, .connection = try binding.connection(self.principal, if (self.select_owner) binding.owner_role else self.role) };
     }
@@ -67,7 +67,7 @@ pub const Http = struct {
         const authority: s.client.AuthorizationClient = .{ .transport = self.resources.wire, .realm = self.resources.realm, .principal = self.resources.principal, .key = self.resources.key, .role = client.connection.role };
         return .{ .client = authority, .subject = try authority.proof(binding.audience, try c.TableAuthority.binding(binding.scope, .database, 0)) };
     }
-    fn exchange(context: *anyopaque, connection: w.Connection, action: w.Action) !std.json.Parsed(w.Response) {
+    fn exchange(context: *anyopaque, connection: w.Connection, action: w.Action) !c.DirectTableClient.OwnedResponse {
         const self: *Http = @ptrCast(@alignCast(context));
         if (connection.scope.realm != self.resources.realm or connection.principal != self.resources.principal or (!self.select_owner and connection.role != self.role)) return error.WorkItemDenied;
         const client: c.DirectTableClient = .{ .allocator = self.allocator, .authority = self.resources.wire, .service = self.resources.wire, .connection = connection, .key = self.resources.key };
@@ -77,7 +77,7 @@ pub const Http = struct {
 pub const Client = struct {
     transport: Transport,
     connection: w.Connection,
-    pub fn call(self: Client, action: w.Action) !std.json.Parsed(w.Response) {
+    pub fn call(self: Client, action: w.Action) !c.DirectTableClient.OwnedResponse {
         return self.transport.exchange(self.transport.context, self.connection, action);
     }
     pub fn stage(self: Client, intent: *const c.DirectTableIntent, namespace: u64) !c.DirectTableIntent.Reference {
