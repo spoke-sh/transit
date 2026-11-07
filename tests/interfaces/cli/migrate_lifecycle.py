@@ -233,15 +233,15 @@ def dataflow_lifecycle(root, env, cli, ports, migrations, restart):
     assert head()['observation']['head']['control'] == current['control']
 
     # Existing dependency identities, not just matching column shapes, bind review.
-    external = run_cli(root, env, cli, 'flow-review-tables', 'console', '--no-rc', '-c',
-        'CREATE TABLE reviewed_input (id BIGINT PRIMARY KEY); CREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);')
+    external = run_cli(root, env, cli, 'flow-review-tables', 'console', '--no-rc',
+        input_text='CREATE TABLE reviewed_input (id BIGINT PRIMARY KEY);\nCREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);\n')
     assert external.returncode == 0, external.stderr
     review_source = migrations / '0006-review.sql'
     review_source.write_text('CREATE TABLE IF NOT EXISTS reviewed_output (id BIGINT PRIMARY KEY);\nCREATE DATAFLOW reviewed_projection INTO reviewed_output AS SELECT id FROM reviewed_input;\n')
     reviewed_file = root / 'reviewed-dataflow.json'
     migrate('flow-review-plan', 'plan', out=reviewed_file)
-    replaced = run_cli(root, env, cli, 'flow-replace-dependency', 'console', '--no-rc', '-c',
-        'DROP TABLE reviewed_output; CREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);')
+    replaced = run_cli(root, env, cli, 'flow-replace-dependency', 'console', '--no-rc',
+        input_text='DROP TABLE reviewed_output;\nCREATE TABLE reviewed_output (id BIGINT PRIMARY KEY);\n')
     assert replaced.returncode == 0, replaced.stderr
     mismatch = migrate('flow-review-drift', 'apply', plan=reviewed_file, expected=3)
     assert mismatch['diagnostic_code'] == 'migration.plan_digest_mismatch', mismatch

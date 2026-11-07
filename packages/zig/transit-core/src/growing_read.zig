@@ -116,10 +116,21 @@ pub fn withSnapshots(engine: anytype, signed: g.SignedQuery, hooks: anytype) any
 }
 fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hooks: anytype) anyerror!g.Response {
     if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
+    // Keep each read's bounded scratch in its own frame. A runtime switch
+    // reserves Debug temporaries for every variant, even for metadata reads
+    // nested inside catalog registration. Write into one caller-owned result
+    // so the dispatch frame does not accumulate a response copy per variant.
+    var result: g.Response = undefined;
+    switch (std.meta.activeTag(query.kind)) {
+        inline else => |kind| try authorizedSelected(kind, engine, principal, query, hooks, &result),
+    }
+    return result;
+}
+fn authorizedSelected(comptime kind: std.meta.Tag(@FieldType(g.Query, "kind")), engine: anytype, principal: growth.Principal, query: g.Query, hooks: anytype, output: *g.Response) anyerror!void {
     const position = engine.head.position;
     var current = try engine.state();
-    const body: @FieldType(g.Response, "body") = switch (query.kind) {
-        .authorization => |q| .{ .authorization = try @import("growing_authorization.zig").read(engine, principal, q) },
+    const body: @FieldType(g.Response, "body") = switch (kind) {
+        .authorization => .{ .authorization = try @import("growing_authorization.zig").read(engine, principal, query.kind.authorization) },
         .snapshot_read => unreachable,
         .delivery => blk: {
             const scoped = principal.grant.pid;
@@ -127,7 +138,7 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             const next: ?u64 = if (batch.records[0]) |r| if (scoped != null) r.value else std.mem.readInt(u64, r.key.data[1..9], .big) else null;
             break :blk .{ .delivery = .{ .next = next } };
         },
-        .inspection => |q| .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, q) },
+        .inspection => .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, query.kind.inspection) },
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
         .storage => blk: {
             // Node-wide paths and totals require realm-wide inspection. A
@@ -141,7 +152,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             break :blk .{ .storage = p.Storage.Observation.unavailable };
         },
         .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .immutable_blocks = @hasDecl(@TypeOf(engine.page_store.*), "stageBlock") and @hasDecl(@TypeOf(engine.page_store.*), "loadBlock"), .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .declarative_authorization = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
-        .open_snapshot => |q| blk: {
+        .open_snapshot => blk: {
+            const q = query.kind.open_snapshot;
             const now = try snapshotTime(engine);
             try snapshotAccess(engine, principal, q.resource, now);
             sweepSnapshots(engine, now);
@@ -171,7 +183,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             free.?.* = .{ .meta = meta, .snapshot = basis, .principal = query.principal, .principal_epoch = principal.epoch, .nonce = q.nonce };
             break :blk .{ .open_snapshot = meta };
         },
-        .snapshot_entries => |q| blk: {
+        .snapshot_entries => blk: {
+            const q = query.kind.snapshot_entries;
             const now = try snapshotTime(engine);
             const slot = (try snapshotSlot(engine, q.id, principal, now)) orelse return error.QueryExpired;
             const stored = slot.*.?;
@@ -183,12 +196,14 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             slot.*.?.meta.deadline_ms = @min(stored.meta.hard_deadline_ms, try std.math.add(u64, after.lower(), g.view_lifetime_ms));
             break :blk .{ .snapshot_entries = .{ .snapshot = slot.*.?.meta, .page = result } };
         },
-        .close_snapshot => |id| blk: {
+        .close_snapshot => blk: {
+            const id = query.kind.close_snapshot;
             const now = try snapshotTime(engine);
             if (try snapshotSlot(engine, id, principal, now)) |slot| slot.* = null;
             break :blk .{ .close_snapshot = id };
         },
-        .process => |pid| blk: {
+        .process => blk: {
+            const pid = query.kind.process;
             try scope(principal, pid);
             const process = try engine.process(pid);
             var input: ?g.Input = null;
@@ -198,19 +213,22 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             }
             break :blk .{ .process = .{ .process = process, .input = input } };
         },
-        .resource => |id| blk: {
+        .resource => blk: {
+            const id = query.kind.resource;
             try resourceScope(engine, principal, id);
             try state.allowed(engine, id, query.principal, p.State.permission(.inspect));
             break :blk .{ .resource = try state.resource(engine, id) };
         },
-        .read_access => |id| blk: {
+        .read_access => blk: {
+            const id = query.kind.read_access;
             try resourceScope(engine, principal, id);
             try state.allowed(engine, id, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
             const resource = try state.resource(engine, id);
             try state.usable(engine, resource, try sample(engine));
             break :blk .{ .read_access = resource };
         },
-        .read_entries => |q| blk: {
+        .read_entries => blk: {
+            const q = query.kind.read_entries;
             const now = try sample(engine);
             var captured: ?g.View = null;
             var basis = current;
@@ -247,7 +265,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (captured) |view| _ = try state.captured(engine, query.principal, try engine.process(view.pid), view.id, view.input, try sample(engine)) else try state.usable(engine, resource, try sample(engine));
             break :blk .{ .read_entries = .{ .resource = resource, .view = captured, .entries = result } };
         },
-        .block_entries => |q| blk: {
+        .block_entries => blk: {
+            const q = query.kind.block_entries;
             const now = try sample(engine);
             var basis = current;
             var result: g.BlockRead.Result = .{ .resource = undefined, .entries = undefined };
@@ -298,19 +317,22 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             }
             break :blk .{ .block_entries = result };
         },
-        .view => |id| blk: {
+        .view => blk: {
+            const id = query.kind.view;
             const value = try state.view(engine, id);
             try scope(principal, value.meta.pid);
             try state.allowed(engine, value.meta.resource, query.principal, p.State.permission(.inspect));
             break :blk .{ .view = value.meta };
         },
-        .read_version => |id| blk: {
+        .read_version => blk: {
+            const id = query.kind.read_version;
             try scope(principal, id.pid);
             const value = try state.readVersion(engine, id);
             try state.allowed(engine, value.meta.resource, query.principal, p.State.permission(.inspect));
             break :blk .{ .read_version = value.meta };
         },
-        .version_entries => |q| blk: {
+        .version_entries => blk: {
+            const q = query.kind.version_entries;
             try scope(principal, q.id.pid);
             const stored = try state.retained(engine, query.principal, q.id, q.generation, try sample(engine));
             var basis = try @TypeOf(current).open(engine.page_store, stored.snapshot);
@@ -320,7 +342,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             _ = try state.retained(engine, query.principal, q.id, q.generation, try sample(engine));
             break :blk .{ .version_entries = .{ .version = stored.meta, .generation = q.generation, .resource = resource, .page = result } };
         },
-        .read_versions => |q| blk: {
+        .read_versions => blk: {
+            const q = query.kind.read_versions;
             try scope(principal, q.pid);
             _ = try engine.process(q.pid);
             try at(q.position, position);
@@ -339,7 +362,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (batch.next) |key| result.next = try state.versionId(key);
             break :blk .{ .read_versions = result };
         },
-        .association => |q| blk: {
+        .association => blk: {
+            const q = query.kind.association;
             try scope(principal, q.pid);
             _ = try engine.process(q.pid);
             const value = (try current.get(g.Association, try c.key(.association, q.pid, 0, q.name.slice()))) orelse break :blk .{ .association = null };
@@ -351,7 +375,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             };
             break :blk .{ .association = value };
         },
-        .entries => |q| blk: {
+        .entries => blk: {
+            const q = query.kind.entries;
             const now = try sample(engine);
             var captured: ?g.View = null;
             var basis = current;
@@ -381,7 +406,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (captured) |view| _ = try state.captured(engine, query.principal, try engine.process(view.pid), view.id, view.input, try sample(engine)) else try state.usable(engine, resource, try sample(engine));
             break :blk .{ .entries = .{ .view = captured, .resource = resource, .page = result } };
         },
-        .processes => |q| blk: {
+        .processes => blk: {
+            const q = query.kind.processes;
             try at(q.position, position);
             if (principal.grant.pid) |pid| {
                 var result: g.Batch(g.Process, u64) = .{};
@@ -396,7 +422,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[1..9], .big);
             break :blk .{ .processes = result };
         },
-        .resources => |q| blk: {
+        .resources => blk: {
+            const q = query.kind.resources;
             try at(q.position, position);
             const batch = try current.scan(g.Resource, .{ .namespace = .resource }, if (q.after) |id| address(.resource, id) else null);
             var result: g.Batch(g.Resource, u64) = .{};
@@ -416,7 +443,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[1..9], .big);
             break :blk .{ .resources = result };
         },
-        .associations => |q| blk: {
+        .associations => blk: {
+            const q = query.kind.associations;
             try scope(principal, q.pid);
             _ = try engine.process(q.pid);
             try at(q.position, position);
@@ -436,7 +464,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[9..17], .big);
             break :blk .{ .associations = result };
         },
-        .outputs => |q| blk: {
+        .outputs => blk: {
+            const q = query.kind.outputs;
             if (principal.grant.pid != null) return error.Forbidden;
             try at(q.position, position);
             const batch = try current.scan(g.Outbox, .{ .namespace = .output }, if (q.after) |id| address(.output, id) else null);
@@ -447,7 +476,8 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
             if (batch.next) |cursor| result.next = std.mem.readInt(u64, cursor.data[1..9], .big);
             break :blk .{ .outputs = result };
         },
-        .effects => |q| blk: {
+        .effects => blk: {
+            const q = query.kind.effects;
             try scope(principal, q.pid);
             _ = try engine.process(q.pid);
             try at(q.position, position);
@@ -465,7 +495,7 @@ fn authorized(engine: anytype, principal: growth.Principal, query: g.Query, hook
     // Linearize permission/cut validation against the same authority tail. A
     // concurrent revocation or publication never yields a success-shaped mixed cut.
     if (try engine.journal.tail() != position) return error.Conflict;
-    return .{ .realm = query.realm, .position = position, .definition = g.current_definition, .principal_sequence = principal.sequence, .body = body };
+    output.* = .{ .realm = query.realm, .position = position, .definition = g.current_definition, .principal_sequence = principal.sequence, .body = body };
 }
 
 fn entries(basis: anytype, resource: u64, point: ?p.Value, continuation: ?p.Value) !g.Batch(g.Entry, p.Value) {

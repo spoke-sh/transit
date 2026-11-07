@@ -77,6 +77,7 @@ class Client:
             if failure.get('code') == 'AuthorityUnavailable' and failure.get('sqlstate') == list(b'53000'):
                 return None
         if error:
+            assert isinstance(result, dict) and 'err' in result, result
             assert result['err']['code'] in ((error,) if isinstance(error, str) else error), result
         else:
             assert not isinstance(result, dict) or 'err' not in result, result

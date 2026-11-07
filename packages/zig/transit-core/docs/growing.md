@@ -11,7 +11,11 @@ resource creation/grants/associations, captured view open/close, bounded state
 turns, turn permits and resource retirement/expiry; ordered outbox delivery,
 effect dispatch/observation/closure and process expiry.
 Signed bounded reads cover capabilities, process/resource/view metadata, current
-or captured entries, associations and outboxes. They use the
+or captured entries, associations and outboxes. Each read variant executes in a
+separate stack frame and writes into one caller-owned response. Debug builds
+therefore reserve scratch for the selected read instead of all query variants;
+nested catalog authorization retains the same signature, scope and final
+authority-tail checks. They use the
 [typed immutable catalog](pages.md#typed-catalog). Principal sequence,
 exact-retry receipt, process metadata and accepted mailbox entry become visible
 through one conditional journal append of a new root. A prepared candidate can
