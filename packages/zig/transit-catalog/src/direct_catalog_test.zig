@@ -10734,3 +10734,259 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
         try t.expect(encoded.len + 40 <= 16 * 1024);
     }
 }
+
+const Capture = c.DirectSourceCapture;
+const CaptureHost = struct {
+    access: *Access,
+    admission: Capture.Admission = .{},
+    expected: ?p.SourceCapture.Evidence = null,
+    fn verify(context: *anyopaque, evidence: p.SourceCapture.Evidence) !void {
+        const self: *CaptureHost = @ptrCast(@alignCast(context));
+        if (self.expected == null or !std.meta.eql(self.expected.?, evidence)) return error.CaptureOriginalUnverified;
+    }
+    fn guard(context: *anyopaque, allocator: std.mem.Allocator, required: p.Authorization.Guard, _: p.SourceCapture.Evidence) !P.Guard {
+        const self: *CaptureHost = @ptrCast(@alignCast(context));
+        var additional: p.Authorization.Guard = .{ .subject = required.subject, .requirements = @splat(null) };
+        additional.requirements[0] = .{ .object = a.reference(9500), .privileges = c.LogAuthority.read };
+        return Access.make(self.access, allocator, try required.merge(additional), null);
+    }
+    fn authority(self: *CaptureHost) Capture.Authority {
+        return .{ .context = self, .admission = &self.admission, .verify_original = verify, .make_guard = guard };
+    }
+};
+
+fn captureSetup(catalog: *D, access: *Access) !p.Source.Definition {
+    var ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
+    defer ddl.deinit();
+    var request = try logCreation(.stream, 50, 50, "captures", 1);
+    request.intent.action.create.schema = try ddl.statement.action.create.bind(50);
+    request.binding.intent = try request.intent.digest(t.allocator);
+    _ = try catalog.admitLog(request, access.policy());
+    const log = (try catalog.logOperation(request.binding, .execute, access.policy())).operation.resulting.?;
+    const connection = (try connectorExecute(catalog, access, try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "http://127.0.0.1:1" } }))).resulting.?;
+    const source = try connectorCreation(78, 101, "source", .{ .source = .{ .connection = connection.declaration.interpretation, .destination = log.stored.declaration.interpretation, .executor = 99, .http = .{ .method = .GET, .path = "/feed", .poll_interval_ms = 1000, .request_timeout_ms = 500, .response_max_bytes = 4 * 1024 * 1024 }, .columns = .{ 1, 2, 3, 4, 5, 6, 7 } } });
+    const accepted = (try connectorExecute(catalog, access, source)).resulting.?;
+    return source.intent.action.create.payload.source.definition(accepted.declaration.interpretation);
+}
+
+fn captureDescriptor(source: p.Source.Definition, ordinal: u8, bytes: u64, digest: [32]u8) Capture.Descriptor {
+    const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 90000 + @as(u64, ordinal) };
+    return .{
+        .key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(98), .token = @splat(ordinal) },
+        .operation = operation,
+        .namespace = 1,
+        .evidence = .{
+            .definition = p.Growth.current_definition,
+            .poll = .{ .definition = p.Growth.current_definition, .source = source.interpretation, .operation = operation, .capture_id = @splat(ordinal), .sequence = ordinal, .control_epoch = 1, .due_ms = 100, .state = .captured },
+            .connection = source.connection,
+            .destination = source.destination,
+            .columns = source.columns,
+            .attempt = .{ .scope = scope, .principal = 99, .operation = operation.operation + 2000 },
+            .exchange = .{ .bytes = 200, .sha256 = @splat(ordinal) },
+            .terminal = .{ .bytes = 100, .sha256 = @splat(ordinal + 1) },
+            .verifier = .{ .object = .{ .scope = scope, .branch = 1, .object = 1000 }, .revision = 1, .digest = @splat(65) },
+            .observed_at_ms = 200,
+            .http_status = if (bytes == 0) 204 else 200,
+            .body = .{ .bytes = bytes, .sha256 = digest },
+        },
+        .budget = .{ .bytes = 32 * 1024 * 1024 },
+        .limits = .{ .work_bytes = 128 * 1024 * 1024, .work_pages = 100_000 },
+    };
+}
+
+fn capturePattern(output: []u8, offset: usize) void {
+    for (output, 0..) |*byte, i| byte.* = @truncate((offset + i) *% 73 +% 19);
+}
+
+test "SOURCE capture disk candidates retain empty and four MiB bodies with original recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    var buffer: [Capture.storage.chunk_bytes]u8 = undefined;
+    for ([_]usize{ 0, 1, 65535, 65536, 65537, 4 * 1024 * 1024 }, 1..) |length, ordinal| {
+        var hash: std.crypto.hash.sha2.Sha256 = .init(.{});
+        var offset: usize = 0;
+        while (offset < length) {
+            const n = @min(buffer.len, length - offset);
+            capturePattern(buffer[0..n], offset);
+            hash.update(buffer[0..n]);
+            offset += n;
+        }
+        const descriptor = captureDescriptor(source, @intCast(ordinal), length, hash.finalResult());
+        const puts = objects.puts;
+        try t.expectError(error.CaptureOriginalUnverified, catalog.captureReserve(descriptor, access.policy(), host.authority()));
+        try t.expectEqual(puts, objects.puts);
+        host.expected = descriptor.evidence;
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.captureReserve(descriptor, access.policy(), host.authority()));
+        catalog.store.lose_reply = false;
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
+        var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+        try t.expectError(error.SourceCaptureOperationRequired, catalog.clientProgress(.{ .inspect = descriptor.key }, access.policy()));
+        try t.expectError(error.SourceCaptureOperationRequired, catalog.clientToken(.{ .lookup = descriptor.key }, access.policy()));
+        offset = 0;
+        while (offset < length) {
+            const n = @min(buffer.len, length - offset);
+            capturePattern(buffer[0..n], offset);
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(buffer[0..n], &digest, .{});
+            const request: Capture.Upload = .{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = offset, .content = .{ .bytes = n, .sha256 = digest } }, .bytes = buffer[0..n] };
+            if (offset == 0) {
+                catalog.store.lose_reply = true;
+                try t.expectError(error.LostAcknowledgement, catalog.captureUpload(request, access.policy(), host.authority()));
+                catalog.store.lose_reply = false;
+            }
+            observed = try catalog.captureUpload(request, access.policy(), host.authority());
+            offset += n;
+        }
+        catalog.deinit();
+        catalog = try owner(&wal, &objects);
+        var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
+        defer verifier.deinit();
+        while (!verifier.done) observed = try catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, access.policy(), host.authority());
+        try t.expectEqual(.verified, observed.state.phase);
+        try t.expectEqualDeep(descriptor.evidence.body.sha256, observed.state.observed.?);
+        try t.expect(observed.state.manifest != null);
+        hash = .init(.{});
+        offset = 0;
+        while (offset < length) {
+            const bytes = try catalog.captureRead(descriptor.key, offset, &buffer, access.policy(), host.authority());
+            for (bytes, 0..) |byte, i| try t.expectEqual(@as(u8, @truncate((offset + i) *% 73 +% 19)), byte);
+            hash.update(bytes);
+            offset += bytes.len;
+        }
+        try t.expectEqualDeep(descriptor.evidence.body.sha256, hash.finalResult());
+        observed = (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?;
+        _ = try catalog.captureClose(.{ .key = descriptor.key, .expected = observed.revision }, access.policy(), host.authority());
+        try t.expectError(error.OwnedRecordClosed, catalog.captureRead(descriptor.key, 0, &buffer, access.policy(), host.authority()));
+        for (buffer) |byte| try t.expectEqual(0, byte);
+    }
+}
+
+test "SOURCE capture rejects forged originals missing ready bytes revoked access and over budget work" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    const body = "captured original bytes";
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(body, &digest, .{});
+    var descriptor = captureDescriptor(source, 11, body.len, digest);
+    host.expected = descriptor.evidence;
+    var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+    var duplicate = descriptor;
+    duplicate.key.token[0] ^= 1;
+    try t.expectError(error.DataIdentityConflict, catalog.captureReserve(duplicate, access.policy(), host.authority()));
+    var upload: Capture.Upload = .{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = .{ .offset = 0, .content = .{ .bytes = body.len, .sha256 = digest } }, .bytes = body };
+    var wrong = upload;
+    wrong.chunk.offset = Capture.storage.chunk_bytes;
+    try t.expectError(error.InvalidSourceCaptureChunk, catalog.captureUpload(wrong, access.policy(), host.authority()));
+    wrong = upload;
+    wrong.chunk.content.sha256[0] ^= 1;
+    try t.expectError(error.InvalidSourceCaptureChunk, catalog.captureUpload(wrong, access.policy(), host.authority()));
+    access.denied_privileges = .{ .id = 9500, .mask = c.LogAuthority.read };
+    try t.expectError(error.CatalogDenied, catalog.captureUpload(upload, access.policy(), host.authority()));
+    access.denied_privileges = null;
+    observed = try catalog.captureUpload(upload, access.policy(), host.authority());
+    var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
+    defer verifier.deinit();
+    observed = try catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, access.policy(), host.authority());
+    try t.expectEqual(.verified, observed.state.phase);
+    const manifest: c.DirectRecord.Reference = .{ .scope = descriptor.key.scope(), .format = Capture.manifest_format, .content = observed.state.manifest.? };
+    var record_scratch: std.heap.ArenaAllocator = .init(t.allocator);
+    defer record_scratch.deinit();
+    try t.expectError(error.SourceCaptureOperationRequired, catalog.directRecord(record_scratch.allocator(), .{ .read = manifest }, access.policy()));
+    var output: [64]u8 = @splat(255);
+    access.deny_at = access.calls + 5;
+    try t.expectError(error.CatalogDenied, catalog.captureRead(descriptor.key, 0, &output, access.policy(), host.authority()));
+    for (output) |byte| try t.expectEqual(0, byte);
+    access.deny_at = std.math.maxInt(usize);
+    // A ready retry may validate an object but may never silently recreate it.
+    var path: [96]u8 = undefined;
+    try objects.objectStore().delete(try Capture.storage.key(try descriptor.key.digest(), upload.chunk, &path));
+    try t.expectError(error.SourceCaptureMissing, catalog.captureUpload(upload, access.policy(), host.authority()));
+    try t.expectError(error.SourceCaptureMissing, catalog.captureRead(descriptor.key, 0, &output, access.policy(), host.authority()));
+    descriptor = captureDescriptor(source, 12, body.len, digest);
+    descriptor.budget.bytes = Capture.initial_bytes + 2 * Capture.publication_bytes + body.len - 1;
+    host.expected = descriptor.evidence;
+    observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+    upload.control = .{ .key = descriptor.key, .expected = observed.revision };
+    try t.expectError(error.ClientTokenBudget, catalog.captureUpload(upload, access.policy(), host.authority()));
+    try t.expectEqual(0, (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?.state.ready_bytes);
+    host.admission.limit = 0;
+    _ = try catalog.captureClose(.{ .key = descriptor.key, .expected = observed.revision }, access.policy(), host.authority());
+    descriptor = captureDescriptor(source, 13, 4 * 1024 * 1024 + 1, digest);
+    host.expected = descriptor.evidence;
+    try t.expectError(error.InvalidSourceCapture, catalog.captureReserve(descriptor, access.policy(), host.authority()));
+}
+
+test "SOURCE capture graph retains pending and verified chunks and collects closed candidates" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const source = try captureSetup(&catalog, &access);
+    var host: CaptureHost = .{ .access = &access };
+    const bytes = "retained";
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    // Retained cardinality exceeds the one-page cache; no resident candidate list.
+    for (1..33) |id| {
+        const descriptor = captureDescriptor(source, @intCast(id), bytes.len, digest);
+        host.expected = descriptor.evidence;
+        var observed = try catalog.captureReserve(descriptor, access.policy(), host.authority());
+        const chunk: Capture.storage.Chunk = .{ .offset = 0, .content = .{ .bytes = bytes.len, .sha256 = digest } };
+        observed = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = observed.revision }, .chunk = chunk, .bytes = bytes }, access.policy(), host.authority());
+        var verifier = try Capture.Verifier.init(descriptor.key, &host.admission);
+        defer verifier.deinit();
+        observed = try catalog.captureVerify(&verifier, .{ .bytes = 64, .pages = 64 }, access.policy(), host.authority());
+        try t.expectEqual(.verified, observed.state.phase);
+    }
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    var cursor: ?Capture.Cursor = null;
+    var discovered: usize = 0;
+    while (true) {
+        const page = try catalog.captureList(.{ .scope = captureDescriptor(source, 1, bytes.len, digest).key.scope(), .pending = true }, cursor, access.policy(), host.authority());
+        for (page.entries) |slot| if (slot) |_| {
+            discovered += 1;
+        };
+        cursor = page.next orelse break;
+    }
+    try t.expectEqual(32, discovered);
+    for (1..33) |id| {
+        const descriptor = captureDescriptor(source, @intCast(id), bytes.len, digest);
+        var output: [64]u8 = undefined;
+        try t.expectEqualStrings(bytes, try catalog.captureRead(descriptor.key, 0, &output, access.policy(), host.authority()));
+        const observed = (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?;
+        _ = try catalog.captureClose(.{ .key = descriptor.key, .expected = observed.revision }, access.policy(), host.authority());
+    }
+    try collectHistoricalFixture(&catalog, &wal, &objects, &access, &.{});
+    for (objects.objects.items) |item| {
+        try t.expect(!std.mem.startsWith(u8, item.key, "source-captures/"));
+        try t.expect(!std.mem.startsWith(u8, item.key, "source-capture-manifests/"));
+    }
+    const descriptor = captureDescriptor(source, 1, bytes.len, digest);
+    try t.expectEqual(.closed, (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?.state.phase);
+}

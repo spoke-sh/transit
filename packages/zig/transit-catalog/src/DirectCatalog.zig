@@ -1015,7 +1015,7 @@ pub fn logDefinition(self: *Self, allocator: std.mem.Allocator, definition: L.De
     return result;
 }
 
-pub const LogAuthorization = struct { definition: L.Definition, guard: P.Guard };
+pub const LogAuthorization = struct { definition: L.Definition, guard: P.Guard, requirements: p.Authorization.Guard };
 /// Resolve stable identity under current native rights, independently of the
 /// original request's definition. Storage checks that frozen definition for new
 /// acceptance; old outcomes and retained reads remain observable after ALTER
@@ -1039,7 +1039,7 @@ pub fn logAuthorization(self: *Self, scratch: std.mem.Allocator, kind: p.StreamQ
     const required = try c.LogAuthority.requirements(self.config().authority, policy.subject, namespace, definition.properties.target(target.interpretation.object.object), access);
     const current = try policy.make_guard(policy.context, scratch, required, null);
     try check(current);
-    return .{ .definition = definition, .guard = current };
+    return .{ .definition = definition, .guard = current, .requirements = required };
 }
 
 fn resourceRequirements(self: *Self, policy: Policy, binding: Resource.Binding, value: ?Resource.Definition, write: bool) !p.Authorization.Guard {
@@ -1694,6 +1694,7 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
     };
     // The cut is server-owned evidence. Generic caller records only check
     // CONNECT and cannot bypass its complete current Table disclosure checks.
+    if (format == c.DirectSourceCapture.format or format == c.DirectSourceCapture.manifest_format) return error.SourceCaptureOperationRequired;
     if (format == c.DirectDocumentSource.format) return error.DocumentSourceOperationRequired;
     if (format == c.DirectHistory.format) return error.HistoricalOperationRequired;
     if (format == c.DirectBranch.format) return error.BranchOperationRequired;
@@ -1941,7 +1942,7 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
 pub fn clientToken(self: *Self, request: c.DirectClientToken.Request, policy: Policy) !?c.DirectClientToken.Receipt {
     return self.clientTokenSelected(request, policy, false, .none);
 }
-fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool, reservation: union(enum) { none, original, source: struct { descriptor: c.DirectDocumentSource.Descriptor, guard: P.Guard } }) !?c.DirectClientToken.Receipt {
+fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy: Policy, server_selection: bool, reservation: union(enum) { none, original, capture: struct { descriptor: c.DirectSourceCapture.Descriptor, guard: P.Guard }, source: struct { descriptor: c.DirectDocumentSource.Descriptor, guard: P.Guard } }) !?c.DirectClientToken.Receipt {
     try self.requireInitialized();
     try request.validate();
     const key = request.key();
@@ -1951,6 +1952,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const database = try self.guard(arena.allocator(), policy, null, null, .database);
     try check(database);
     if (try self.store.clientToken(key)) |receipt| {
+        if ((try self.store.clientTokenState(key)).?.capture != null and reservation != .capture) return error.SourceCaptureOperationRequired;
         if ((try self.store.clientTokenState(key)).?.source != null and reservation != .source) return error.DocumentSourceOperationRequired;
         if (request == .bind) try self.requireTransactionMutation(receipt);
         const reference = receipt.binding.intent;
@@ -1970,7 +1972,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
         const owner_value = self.queue_transfer_owner orelse return error.TransactionOperationRequired;
         if (!std.mem.eql(u8, &owner_value.key, &try key.digest()) or !std.meta.eql(owner_value.plan, reference.transaction.purpose.queue_transfer)) return error.TransactionOperationRequired;
     }
-    const current = if (reservation == .source) reservation.source.guard else if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
+    const current = if (reservation == .capture) reservation.capture.guard else if (reservation == .source) reservation.source.guard else if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
     const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage.initial(binding.budget.limits);
@@ -1980,7 +1982,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const reserved = try usage.transition(null, c.DirectClientToken.Progress.initial(receipt));
     if (reference == .transaction) try reserved.transactions.requireWithin(self.options.transaction_account_limits);
     var index_batch: s.TreeStore.Batch = .{};
-    try self.store.index.beginBatch(if (reservation == .source) c.DirectDocumentSource.index_bytes else self.options.index_work_bytes, &index_batch);
+    try self.store.index.beginBatch(if (reservation == .capture) c.DirectSourceCapture.index_bytes else if (reservation == .source) c.DirectDocumentSource.index_bytes else self.options.index_work_bytes, &index_batch);
     defer self.store.index.end();
     // A token claims the complete original identity before accepting its
     // reference; this is independent of data admission and execution.
@@ -2085,6 +2087,7 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     next.client_token_count = try std.math.add(u64, next.client_token_count, 1);
     if (coordination != null) next.next_partition = try std.math.add(u64, next.next_partition, 1);
     var state = c.DirectClientToken.Progress.initial(receipt);
+    if (reservation == .capture) state.capture = c.DirectSourceCapture.State.initial(reservation.capture.descriptor);
     if (reservation == .source) state.source = c.DirectDocumentSource.State.initial(reservation.source.descriptor);
     try state.validate();
     try self.store.clientIndices(&next, state);
@@ -2114,6 +2117,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
     if (request == .list) {
         const page = try self.store.clientPage(request.list);
         for (page.entries) |slot| if (slot) |state| {
+            if (state.capture != null) return error.SourceCaptureOperationRequired;
             if (state.source != null) return error.DocumentSourceOperationRequired;
             try check(try self.intentGuard(arena.allocator(), state.receipt.binding.intent, policy));
         };
@@ -2130,6 +2134,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
         try check(database);
         return .{ .state = null };
     };
+    if (state.capture != null) return error.SourceCaptureOperationRequired;
     if (state.source != null) return error.DocumentSourceOperationRequired;
     var observed_row_state: ?P.OperationState = null;
     const current = try self.intentGuardWithRowState(arena.allocator(), state.receipt.binding.intent, policy, if (request == .update and !request.update.pending) &observed_row_state else null);
@@ -2170,6 +2175,7 @@ pub fn clientProgressWithWorkloads(self: *Self, request: c.DirectClientToken.Pro
 }
 
 fn stageOriginal(self: *Self, allocator: std.mem.Allocator, request: c.DirectOwnedRecord.Stage, policy: Policy) anyerror!c.DirectClientToken.Progress {
+    if (request.format == c.DirectSourceCapture.format or request.format == c.DirectSourceCapture.manifest_format) return error.SourceCaptureOperationRequired;
     if (request.format == c.DirectDocumentSource.format) return error.DocumentSourceOperationRequired;
     const bytes = try request.encode(allocator);
     defer allocator.free(bytes);
@@ -2312,6 +2318,296 @@ fn sourceGuard(self: *Self, allocator: std.mem.Allocator, scope: c.DirectRecord.
     const current = try authority.make_guard(authority.context, allocator, try self.requirements(policy, null, null, .database), target, access);
     try check(current);
     return current;
+}
+
+const Capture = c.DirectSourceCapture;
+
+fn captureGuard(self: *Self, allocator: std.mem.Allocator, scope: c.DirectRecord.Scope, evidence: ?p.SourceCapture.Evidence, policy: Policy, authority: Capture.Authority) !P.Guard {
+    try self.requireInitialized();
+    try scope.validate();
+    if (!scope.connection.matches(self.config()) or scope.connection.principal != policy.subject.principal()) return error.CatalogDenied;
+    if (evidence) |value| {
+        try value.validate();
+        const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = value.destination, .partition = 0 };
+        const destination = try self.logAuthorization(allocator, .stream, target, .append, policy);
+        const guard_value = try authority.make_guard(authority.context, allocator, destination.requirements, value);
+        try check(guard_value);
+        return guard_value;
+    }
+    return self.guard(allocator, policy, null, null, .database);
+}
+
+fn finishCaptureSeal(self: *Self, prior: c.DirectClientToken.Progress, current: P.Guard) !Capture.Observation {
+    const capture = prior.capture.?;
+    if (capture.phase != .sealing) return error.InvalidSourceCaptureState;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const manifest: Capture.Manifest = .{ .definition = p.Growth.current_definition, .candidate = try capture.descriptor.key.digest(), .evidence = capture.descriptor.evidence, .inventory = capture.root };
+    const bytes = try manifest.encode(scratch.allocator());
+    const reference: c.DirectRecord.Reference = .{ .scope = capture.descriptor.key.scope(), .format = Capture.manifest_format, .content = capture.manifest.? };
+    try reference.requireSame(try c.DirectRecord.reference(reference.scope, reference.format, bytes));
+    {
+        _ = try current.acquire(current.context);
+        defer current.release(current.context);
+        try reference.requireSame(try c.DirectRecord.store(self.data_objects, reference.scope, reference.format, bytes));
+    }
+    var state = prior;
+    state.capture.?.phase = .verified;
+    return Capture.Observation.from(try self.publishCapture(state, current, null));
+}
+
+/// Publication is serialized with original reservation, chunk put and closure.
+/// Existing allocation epochs protect private pages from earlier collector cuts.
+fn publishCapture(self: *Self, value: c.DirectClientToken.Progress, current: P.Guard, chunk: ?Capture.storage.Chunk) !c.DirectClientToken.Progress {
+    var batch: s.TreeStore.Batch = .{};
+    try self.store.index.beginBatch(Capture.index_bytes, &batch);
+    defer self.store.index.end();
+    var state = value;
+    if (chunk) |ready| {
+        const source = if (state.capture) |*source| source else return error.InvalidSourceCapture;
+        source.root = try self.store.tree().put(source.root, try ready.indexKey(), try ready.value());
+        source.ready_bytes = try std.math.add(u64, ready.offset, ready.content.bytes);
+        source.staged = null;
+    }
+    var next = self.store.root;
+    next.next_lsn = try std.math.add(u64, next.next_lsn, 1);
+    state.revision = .{ .partition = self.config().partition, .next_lsn = next.next_lsn };
+    try state.validate();
+    try self.store.clientIndices(&next, state);
+    try self.store.publish(next, .{ .client_token = state }, current);
+    try check(current);
+    return state;
+}
+
+pub fn captureReserve(self: *Self, descriptor: Capture.Descriptor, policy: Policy, authority: Capture.Authority) !Capture.Observation {
+    try descriptor.validate();
+    try authority.verify_original(authority.context, descriptor.evidence);
+    const declaration = try self.connectorCurrent(descriptor.evidence.poll.source.object.object) orelse return error.InvalidSourceCapture;
+    if (declaration.dropped or declaration.declaration.kind != .source or !std.meta.eql(declaration.declaration.interpretation, descriptor.evidence.poll.source)) return error.InvalidSourceCapture;
+    const declaration_bytes = try c.SourceDeclaration.load(self.allocator, self.data_objects, declaration.declaration);
+    defer declaration_bytes.deinit();
+    try descriptor.evidence.requireSource(declaration_bytes.value.payload.source.definition(declaration.declaration.interpretation));
+    const destination = (try self.logRecord(descriptor.evidence.destination.object.object)) orelse return error.LogDeclarationConflict;
+    if (destination.phase != .complete or destination.resulting.?.stored.retired or
+        destination.resulting.?.properties.namespace != descriptor.namespace or
+        !std.meta.eql(destination.resulting.?.stored.declaration.interpretation, descriptor.evidence.destination)) return error.LogDeclarationConflict;
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const allocator = scratch.allocator();
+    const current = try self.captureGuard(allocator, descriptor.key.scope(), descriptor.evidence, policy, authority);
+    const binding = try descriptor.binding(allocator);
+    const receipt = (try self.clientTokenSelected(.{ .bind = binding }, policy, false, .{ .capture = .{ .descriptor = descriptor, .guard = current } })).?;
+    if (!std.meta.eql(receipt.binding, binding)) return error.ClientTokenConflict;
+    var state = (try self.store.clientTokenState(descriptor.key)).?;
+    const source = state.capture orelse return error.SourceCaptureOperationRequired;
+    if (!std.meta.eql(source.descriptor, descriptor)) return error.ClientTokenConflict;
+    try check(current);
+    if (source.phase == .closed) return Capture.Observation.from(state);
+    const reference = receipt.binding.intent.external.record;
+    if (state.original.?.phase == .reserved) {
+        const bytes = try descriptor.encode(allocator);
+        const fence = try current.acquire(current.context);
+        _ = fence;
+        defer current.release(current.context);
+        try reference.requireSame(try c.DirectRecord.store(self.data_objects, reference.scope, reference.format, bytes));
+    } else {
+        const bytes = try c.DirectRecord.load(allocator, self.data_objects, reference);
+        allocator.free(bytes);
+        try check(current);
+        return Capture.Observation.from(state);
+    }
+    state.original.?.phase = .ready;
+    state = try self.publishCapture(state, current, null);
+    return Capture.Observation.from(state);
+}
+
+fn captureState(self: *Self, key: c.DirectClientToken.Key) !c.DirectClientToken.Progress {
+    const state = (try self.store.clientTokenState(key)) orelse return error.ClientOperationMissing;
+    if (state.capture == null) return error.SourceCaptureOperationRequired;
+    return state;
+}
+
+pub fn captureInspect(self: *Self, lookup: Capture.Lookup, policy: Policy, authority: Capture.Authority) !?Capture.Observation {
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.captureGuard(scratch.allocator(), lookup.scope(), null, policy, authority);
+    const state = (switch (lookup) {
+        .key => |key| try self.store.clientTokenState(key),
+        .operation => |value| blk: {
+            if (value.id < 2) return error.InvalidClientToken;
+            break :blk try self.store.clientOperation(value.scope, value.id);
+        },
+    }) orelse {
+        try check(current);
+        return null;
+    };
+    const source = state.capture orelse return error.SourceCaptureOperationRequired;
+    const target = try self.captureGuard(scratch.allocator(), lookup.scope(), source.descriptor.evidence, policy, authority);
+    const result = try Capture.Observation.from(state);
+    try check(target);
+    try check(current);
+    return result;
+}
+
+pub fn captureUpload(self: *Self, request: Capture.Upload, policy: Policy, authority: Capture.Authority) !Capture.Observation {
+    try request.control.validate();
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.captureGuard(scratch.allocator(), request.control.key.scope(), null, policy, authority);
+    var state = try self.captureState(request.control.key);
+    const current = try self.captureGuard(scratch.allocator(), request.control.key.scope(), state.capture.?.descriptor.evidence, policy, authority);
+    if (state.capture.?.phase == .closed) return error.OwnedRecordClosed;
+    if (state.original.?.phase != .ready) return error.OwnedRecordPending;
+    const chunk = request.chunk;
+    try chunk.validate(state.capture.?.descriptor.evidence.body.bytes);
+    if (request.bytes.len != chunk.content.bytes) return error.InvalidSourceCaptureChunk;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(request.bytes, &digest, .{});
+    if (!std.mem.eql(u8, &digest, &chunk.content.sha256)) return error.InvalidSourceCaptureChunk;
+    const owner = try request.control.key.digest();
+    if (chunk.offset < state.capture.?.ready_bytes) {
+        try state.capture.?.charge(chunk.content.bytes + Capture.publication_bytes, pages.max_height + 1, Capture.publication_bytes);
+        state = try self.publishCapture(state, current, null);
+        const ready = try Capture.storage.lookup(&self.store.index, state.capture.?.root, chunk.offset, state.capture.?.descriptor.evidence.body.bytes);
+        if (!std.meta.eql(ready, chunk)) return error.ClientOperationConflict;
+        var buffer: [Capture.storage.chunk_bytes]u8 = undefined;
+        _ = try Capture.storage.read(self.data_objects, owner, chunk, &buffer);
+        try check(current);
+        return Capture.Observation.from(state);
+    }
+    if (state.capture.?.phase != .uploading or chunk.offset != state.capture.?.ready_bytes) return error.InvalidSourceCaptureChunk;
+    if (state.capture.?.staged) |pending_chunk| {
+        if (!std.meta.eql(pending_chunk, chunk)) return error.ClientOperationConflict;
+        // Retrying an interrupted physical write spends work again, while the
+        // original reservation continues to cover the chunk and readiness.
+        try state.capture.?.charge(chunk.content.bytes + Capture.publication_bytes, pages.max_height + 1, Capture.publication_bytes);
+        state = try self.publishCapture(state, current, null);
+    } else {
+        if (!std.meta.eql(request.control.expected, state.revision)) return error.ClientOperationConflict;
+        try state.capture.?.charge(chunk.content.bytes + 2 * Capture.publication_bytes, 2 * (pages.max_height + 1), chunk.content.bytes + 2 * Capture.publication_bytes);
+        state.capture.?.staged = chunk;
+        state = try self.publishCapture(state, current, null);
+    }
+    {
+        _ = try current.acquire(current.context);
+        defer current.release(current.context);
+        try Capture.storage.put(self.data_objects, owner, chunk, request.bytes);
+    }
+    state = try self.publishCapture(state, current, chunk);
+    return Capture.Observation.from(state);
+}
+
+/// Complete chunks are copied into caller-owned memory. On error no buffered
+/// bytes may escape the current-authority disclosure check.
+pub fn captureRead(self: *Self, key: c.DirectClientToken.Key, offset: u64, output: []u8, policy: Policy, authority: Capture.Authority) ![]const u8 {
+    errdefer @memset(output, 0);
+    try authority.admission.acquire();
+    defer authority.admission.release();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.captureGuard(scratch.allocator(), key.scope(), null, policy, authority);
+    var state = try self.captureState(key);
+    const source = state.capture.?;
+    const current = try self.captureGuard(scratch.allocator(), key.scope(), source.descriptor.evidence, policy, authority);
+    if (source.phase == .closed) return error.OwnedRecordClosed;
+    if (offset >= source.ready_bytes or offset % Capture.storage.chunk_bytes != 0) return error.SourceCaptureMissing;
+    const bytes: u64 = @min(Capture.storage.chunk_bytes, source.ready_bytes - offset);
+    if (output.len < bytes) return error.BufferTooSmall;
+    try state.capture.?.charge(bytes + Capture.publication_bytes, pages.max_height + 1, Capture.publication_bytes);
+    state = try self.publishCapture(state, current, null);
+    const chunk = try Capture.storage.lookup(&self.store.index, state.capture.?.root, offset, source.descriptor.evidence.body.bytes);
+    const result = try Capture.storage.read(self.data_objects, try key.digest(), chunk, output);
+    try check(current);
+    return result;
+}
+
+pub fn captureVerify(self: *Self, verifier: *Capture.Verifier, budget: Capture.StepBudget, policy: Policy, authority: Capture.Authority) !Capture.Observation {
+    try budget.validate();
+    if (!verifier.held or verifier.admission != authority.admission) return error.InvalidSourceCapture;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.captureGuard(scratch.allocator(), verifier.key.scope(), null, policy, authority);
+    var state = try self.captureState(verifier.key);
+    const source = state.capture.?;
+    const current = try self.captureGuard(scratch.allocator(), verifier.key.scope(), source.descriptor.evidence, policy, authority);
+    if (source.phase == .closed) return error.OwnedRecordClosed;
+    if (source.phase == .sealing) {
+        try authority.verify_original(authority.context, source.descriptor.evidence);
+        const result = try self.finishCaptureSeal(state, current);
+        verifier.done = true;
+        return result;
+    }
+    if (source.phase != .uploading) {
+        verifier.done = true;
+        return Capture.Observation.from(state);
+    }
+    if (source.ready_bytes != source.descriptor.evidence.body.bytes or source.staged != null) return error.OwnedRecordPending;
+    if (verifier.offset > source.ready_bytes or (verifier.root != null and !std.meta.eql(verifier.root, source.root))) return error.InvalidSourceCapture;
+    const max_chunks = budget.pages / (pages.max_height + 1);
+    var count: u64 = 0;
+    var byte_count: u64 = 0;
+    while (count < max_chunks and verifier.offset + byte_count < source.ready_bytes) : (count += 1) {
+        const next = @min(Capture.storage.chunk_bytes, source.ready_bytes - verifier.offset - byte_count);
+        if (next > budget.bytes - byte_count) break;
+        byte_count += next;
+    }
+    if (count == 0 and source.descriptor.evidence.body.bytes != 0) return error.SourceCaptureWorkLimit;
+    try state.capture.?.charge(byte_count + 2 * Capture.publication_bytes, count * (pages.max_height + 1), 2 * Capture.publication_bytes);
+    state = try self.publishCapture(state, current, null);
+    var hash = verifier.hash;
+    var offset = verifier.offset;
+    const owner = try verifier.key.digest();
+    for (0..@intCast(count)) |_| {
+        const chunk = try Capture.storage.lookup(&self.store.index, source.root, offset, source.descriptor.evidence.body.bytes);
+        hash.update(try Capture.storage.read(self.data_objects, owner, chunk, &verifier.buffer));
+        offset += chunk.content.bytes;
+    }
+    try check(current);
+    if (offset == source.ready_bytes) {
+        const observed = hash.finalResult();
+        state.capture.?.observed = observed;
+        if (std.mem.eql(u8, &observed, &source.descriptor.evidence.body.sha256)) {
+            try authority.verify_original(authority.context, source.descriptor.evidence);
+            const manifest: Capture.Manifest = .{ .definition = p.Growth.current_definition, .candidate = owner, .evidence = source.descriptor.evidence, .inventory = source.root };
+            const bytes = try manifest.encode(scratch.allocator());
+            const reference = try c.DirectRecord.reference(verifier.key.scope(), Capture.manifest_format, bytes);
+            state.capture.?.manifest = reference.content;
+            state.capture.?.phase = .sealing;
+            state = try self.publishCapture(state, current, null);
+            const result = try self.finishCaptureSeal(state, current);
+            verifier.done = true;
+            return result;
+        }
+        state.capture.?.phase = .failed;
+        state = try self.publishCapture(state, current, null);
+        verifier.done = true;
+    }
+    verifier.hash = hash;
+    verifier.offset = offset;
+    verifier.root = source.root;
+    return Capture.Observation.from(state);
+}
+
+pub fn captureClose(self: *Self, control: Capture.Control, policy: Policy, authority: Capture.Authority) !Capture.Observation {
+    try control.validate();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    _ = try self.captureGuard(scratch.allocator(), control.key.scope(), null, policy, authority);
+    var state = try self.captureState(control.key);
+    const current = try self.captureGuard(scratch.allocator(), control.key.scope(), state.capture.?.descriptor.evidence, policy, authority);
+    if (state.capture.?.phase == .closed) return Capture.Observation.from(state);
+    if (!std.meta.eql(control.expected, state.revision)) return error.ClientOperationConflict;
+    state.capture.?.phase = .closed;
+    state.capture.?.staged = null;
+    state.original.?.phase = .closed;
+    state.pending = false;
+    state.cancel = true;
+    state = try self.publishCapture(state, current, null);
+    return Capture.Observation.from(state);
 }
 
 /// Publication is serialized with original reservation, chunk put and closure.
@@ -2538,6 +2834,43 @@ pub fn documentSourceClose(self: *Self, control: Source.Control, policy: Policy,
     state.cancel = true;
     state = try self.publishSource(state, current, null);
     return Source.Observation.from(state);
+}
+
+pub fn captureList(self: *Self, selection: Capture.Selection, cursor: ?Capture.Cursor, policy: Policy, authority: Capture.Authority) !Capture.Page {
+    try selection.validate();
+    if (cursor) |value| if (!std.meta.eql(selection, value.selection) or value.after < 2) return error.InvalidSourceCaptureCursor;
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const current = try self.captureGuard(scratch.allocator(), selection.scope, null, policy, authority);
+    var result: Capture.Page = .{};
+    var after = if (cursor) |value| @as(?u64, value.after) else null;
+    var count: usize = 0;
+    var guards: [8]?P.Guard = @splat(null);
+    while (result.examined < 32) {
+        const page = try self.store.clientPage(.{ .scope = selection.scope, .after = after, .pending = selection.pending });
+        for (page.entries, 0..) |slot, i| {
+            const state = slot orelse break;
+            result.examined += 1;
+            after = state.id();
+            if (state.capture) |source| {
+                {
+                    guards[count] = try self.captureGuard(scratch.allocator(), selection.scope, source.descriptor.evidence, policy, authority);
+                    result.entries[count] = try Capture.Observation.from(state);
+                    count += 1;
+                }
+            }
+            if (count == result.entries.len or result.examined == 32) {
+                if ((i + 1 < page.entries.len and page.entries[i + 1] != null) or page.next != null)
+                    result.next = .{ .selection = selection, .after = after.? };
+                break;
+            }
+        }
+        if (count == result.entries.len or result.examined == 32 or page.next == null) break;
+        after = page.next;
+    }
+    for (guards) |guard_value| if (guard_value) |value| try check(value);
+    try check(current);
+    return result;
 }
 
 pub fn documentSourceList(self: *Self, selection: Source.Selection, cursor: ?Source.Cursor, policy: Policy, authority: Source.Authority) !Source.Page {

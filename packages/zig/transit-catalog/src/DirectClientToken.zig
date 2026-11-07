@@ -203,8 +203,10 @@ pub const Progress = struct {
     original: ?c.DirectOwnedRecord.State,
     /// Mandatory typed source owner; generic progress cannot replace this state.
     source: ?c.DirectDocumentSource.State,
+    /// Mandatory capture owner; generic progress cannot replace it.
+    capture: ?c.DirectSourceCapture.State,
     pub fn initial(receipt: Receipt) Progress {
-        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null, .staged = null, .source = null, .original = if (receipt.binding.intent == .external and receipt.binding.intent.external.record.format == c.DirectOwnedRecord.format) .initial() else null };
+        return .{ .receipt = receipt, .revision = receipt.position, .pending = true, .cancel = false, .record = null, .staged = null, .source = null, .capture = null, .original = if (receipt.binding.intent == .external and receipt.binding.intent.external.record.format == c.DirectOwnedRecord.format) .initial() else null };
     }
     pub fn validate(self: Progress) !void {
         try self.receipt.validate();
@@ -239,6 +241,15 @@ pub const Progress = struct {
                 (original.phase != .reserved and original.phase != .ready and original.phase != .closed) or
                 (original.phase == .closed) != (source.phase == .closed) or
                 (original.phase == .reserved and !std.meta.eql(source, c.DirectDocumentSource.State.initial(source.descriptor)))) return error.InvalidDocumentSourceState;
+        }
+        if (self.capture) |capture| {
+            try capture.validate();
+            try capture.descriptor.requireBinding(self.receipt.binding);
+            const original = self.original orelse return error.InvalidSourceCaptureState;
+            if (self.source != null or self.record != null or self.staged != null or original.attachment != null or
+                (original.phase != .reserved and original.phase != .ready and original.phase != .closed) or
+                (original.phase == .closed) != (capture.phase == .closed) or
+                (original.phase == .reserved and !std.meta.eql(capture, c.DirectSourceCapture.State.initial(capture.descriptor)))) return error.InvalidSourceCaptureState;
         }
         const original_bytes = if (self.original) |original| (if (original.phase == .closed) 0 else self.receipt.binding.intent.external.record.content.bytes) else 0;
         const current_bytes = if (self.record) |value| (if (value.format == c.DirectProgressRecord.format) value.content.bytes else 0) else 0;
