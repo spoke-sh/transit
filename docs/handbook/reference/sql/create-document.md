@@ -32,11 +32,15 @@ and unlimited retention.
 
 ```sql
 CREATE DOCUMENT notebook;
-CREATE DOCUMENT docs (id INT64 NOT NULL PRIMARY KEY, value INT64 NOT NULL)
-  WITH (profile = 'versioned');
-
 INSERT INTO docs (id, value) VALUES (1, 10);
 SELECT id, value FROM docs WHERE id = 1;
+```
+
+Direct catalog sessions also accept typed schema, profile and inspection forms:
+
+```text
+CREATE DOCUMENT docs (id INT64 NOT NULL PRIMARY KEY, value INT64 NOT NULL)
+  WITH (profile = 'versioned');
 SHOW DOCUMENTS;
 SHOW DOCUMENT docs;
 DESCRIBE DOCUMENT docs;

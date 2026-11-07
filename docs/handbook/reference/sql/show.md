@@ -12,12 +12,12 @@ SHOW DATABASES;
 SHOW SCHEMAS;
 SHOW TABLES;
 SHOW DOCUMENTS;
-SHOW DOCUMENT docs;
 SHOW KVS;
-SHOW KV counters;
 SHOW STORAGE;
 SHOW STORAGE FOR items;
 ```
+
+Direct catalog sessions also accept `SHOW DOCUMENT docs;` and `SHOW KV counters;` for single-object metadata inspection.
 
 `SHOW ALL` returns setting name, value and description; an exact dotted key
 returns one value, and an unknown key fails. [Settings SQL](settings.md) exposes

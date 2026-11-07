@@ -59,7 +59,8 @@ fn emitLog(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize
 }
 pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
-    const args = try init.minimal.args.toSlice(allocator);
+    const raw_args = try init.minimal.args.toSlice(allocator);
+    const args = if (raw_args.len == 3) raw_args[1..] else raw_args;
     if (args.len != 2) return error.Usage;
     const cases = try std.json.parseFromSlice([]const Case, allocator, try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], allocator, .limited(4 * 1024 * 1024)), .{});
     var buffer: [8192]u8 = undefined;

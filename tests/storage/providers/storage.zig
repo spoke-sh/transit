@@ -79,7 +79,23 @@ fn proveLive(init: std.process.Init, url: []const u8, reader: *ursula.Client) !v
 }
 
 pub fn main(init: std.process.Init) !void {
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (raw_args.len == 4 and !std.mem.eql(u8, raw_args[1], "storage")) {
+        inline for (.{
+            .{ "kernel", @import("proof_kernel") },
+            .{ "effects", @import("proof_effects") },
+            .{ "lifetime", @import("proof_lifetime") },
+            .{ "outbox", @import("proof_outbox") },
+            .{ "runtime", @import("proof_runtime") },
+            .{ "deletion", @import("proof_deletion") },
+            .{ "state", @import("proof_state") },
+            .{ "readiness", @import("proof_readiness") },
+        }) |entry| {
+            if (std.mem.eql(u8, raw_args[1], entry[0])) return entry[1].main(init);
+        }
+        return error.UnknownProof;
+    }
+    const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     var client = try ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1] });
     defer client.deinit();

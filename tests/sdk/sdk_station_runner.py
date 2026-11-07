@@ -437,7 +437,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # activation before its work cutoff, including this fixture's 10s
             # admitted clock uncertainty. The later check waits past the exact
             # recorded cutoff; no accepted deadline is renewed or rewritten.
-            expired = provision(finite=True, lifetime_ms=20000, settle_window_ms=1000)
+            expired = provision(finite=True, lifetime_ms=11000, settle_window_ms=500)
             table, query_cfg = provision('table'), provision('query')
             table['peer'], query_cfg['peer'] = query_cfg['pid'], table['pid']
             service, caller = worker(table), worker(query_cfg)

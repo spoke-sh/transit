@@ -182,7 +182,7 @@ def prepare(family, optimize, root=ROOT, *, portable=False, imported=True):
     assert compiler, "Enter the pinned Nix development environment"
     bundle = os.getenv("CI_NATIVE_BUNDLE_DIR") if imported else None
     definition = json.loads((root / "packages/zig/transit-client/abi-v1.json").read_text())["definition"]
-    if bundle and family != "c-sdk":
+    if bundle:
         with attempt.phase("artifact-import", family):
             record = publication(Path(bundle), family, optimize, source, compiler, definition)
             assert source_identity(root, family) == source, "Native inputs changed during import"

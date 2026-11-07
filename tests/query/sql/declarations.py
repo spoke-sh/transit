@@ -86,7 +86,7 @@ def check(binary):
     ]
     cases += [dict(sql='DROP TABLE people RESTRICT',basis=BASIS),dict(sql='DROP TABLE IF EXISTS absent'),dict(sql='DROP TABLE absent',error='TableNotFound')]
     path=CACHE/'declaration-cases.json'; path.write_text(json.dumps([{k:v for k,v in c.items() if k in ('sql','basis')} for c in cases]))
-    result=subprocess.run([binary,str(path)],capture_output=True,text=True,check=True)
+    result=subprocess.run([binary,'declaration',str(path)],capture_output=True,text=True,check=True)
     (CACHE/'declaration-results.jsonl').write_text(result.stdout)
     responses=[json.loads(line) for line in result.stdout.splitlines()]; assert len(responses)==len(cases)
     successful=0

@@ -148,7 +148,7 @@ def check(binary):
               dict(basis=rich,sql="UPDATE items SET amount=DEFAULT,payload=STRUCT(X'',LIST()) WHERE id>=1 AND NOT (amount<0 OR amount IS NULL)"),
               dict(basis=rich,sql="DELETE FROM items WHERE amount IS NOT NULL AND id<>9")]
     path=CACHE/'mutation-cases.json';path.write_text(json.dumps([{k:v for k,v in c.items() if k in ('sql','basis')} for c in cases]))
-    result=subprocess.run([binary,str(path)],capture_output=True,text=True,check=True)
+    result=subprocess.run([binary,'mutation',str(path)],capture_output=True,text=True,check=True)
     (CACHE/'mutation-results.jsonl').write_text(result.stdout)
     actual=[json.loads(line) for line in result.stdout.splitlines()];assert len(actual)==len(cases)
     agreed=pg_cases=0
@@ -232,7 +232,7 @@ def check_log_appends(binary):
     cases = [dict(case, basis=case.get('basis', corpus['basis'])) for case in corpus['cases']]
     path = CACHE / 'log-append-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis=c['basis'], workload=True) for c in cases]))
-    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, 'mutation', str(path)], capture_output=True, text=True, check=True)
     (CACHE / 'log-append-results.jsonl').write_text(result.stdout)
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(actual) == len(cases)
@@ -265,7 +265,7 @@ def check_log_consumes(binary):
             case['sql'] = case['sql'].replace('{group}', stream_handle(envelope).hex())
     path = CACHE / 'log-consume-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis=corpus['basis'], consume=True) for c in cases]))
-    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, 'mutation', str(path)], capture_output=True, text=True, check=True)
     (CACHE / 'log-consume-results.jsonl').write_text(result.stdout)
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(actual) == len(cases)
@@ -289,7 +289,7 @@ def check_log_claims(binary):
     cases = corpus['cases']
     path = CACHE / 'log-claim-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis=corpus['basis'], claim=True) for c in cases]))
-    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, 'mutation', str(path)], capture_output=True, text=True, check=True)
     (CACHE / 'log-claim-results.jsonl').write_text(result.stdout)
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(actual) == len(cases)
@@ -323,7 +323,7 @@ def check_log_offsets(binary):
         cases.append(case)
     path = CACHE / 'log-offset-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis='', offset=True) for c in cases]))
-    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, 'mutation', str(path)], capture_output=True, text=True, check=True)
     (CACHE / 'log-offset-results.jsonl').write_text(result.stdout)
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(actual) == len(cases)
@@ -356,7 +356,7 @@ def check_log_settlements(binary):
         cases.append(case)
     path = CACHE / 'log-settlement-cases.json'
     path.write_text(json.dumps([dict(sql=c['sql'], basis='', settlement=True) for c in cases]))
-    result = subprocess.run([binary, str(path)], capture_output=True, text=True, check=True)
+    result = subprocess.run([binary, 'mutation', str(path)], capture_output=True, text=True, check=True)
     (CACHE / 'log-settlement-results.jsonl').write_text(result.stdout)
     actual = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(actual) == len(cases)

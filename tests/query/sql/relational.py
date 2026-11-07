@@ -268,7 +268,7 @@ def main(binary):
     data = reference_check()
     path = CACHE / 'relational-cases.json'
     path.write_text(json.dumps(data['accept'] + data['reject']))
-    rows = [json.loads(line) for line in subprocess.check_output([binary, str(path)], text=True).splitlines()]
+    rows = [json.loads(line) for line in subprocess.check_output([binary, 'relational', str(path)], text=True).splitlines()]
     assert len(rows) == len(data['accept']) + len(data['reject'])
     for sql, actual in zip(data['accept'], rows):
         assert actual == antlr(sql), (sql, actual, antlr(sql))

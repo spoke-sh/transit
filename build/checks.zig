@@ -50,7 +50,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const station_host = context.station_host;
     const client_host = context.client_host;
     const query_host = context.query_host;
-    const document_worker = context.document_worker;
     const grpc_worker = context.grpc_worker;
     const http_worker = context.http_worker;
     const grpc_bindings = context.grpc_bindings;
@@ -244,60 +243,60 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/query/sql/sql_driver.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
+        .imports = &.{
+            .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") },
+            .{ .name = "transit_query", .module = query.module("transit_query") },
+            .{ .name = "proof_unified", .module = b.createModule(.{
+                .root_source_file = b.path("tests/query/unified/unified_sql.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+            }) },
+            .{ .name = "proof_mutation", .module = b.createModule(.{
+                .root_source_file = b.path("tests/interfaces/sql/sql_mutation.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+            }) },
+            .{ .name = "proof_declaration", .module = b.createModule(.{
+                .root_source_file = b.path("tests/interfaces/sql/sql_declaration.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+            }) },
+            .{ .name = "proof_relational", .module = b.createModule(.{
+                .root_source_file = b.path("tests/query/execution/relational_sql.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+            }) },
+        },
     }) });
     const sql_test = b.addSystemCommand(&.{ "python3", "-B" });
     sql_test.addFileArg(b.path("tests/runner/launch.py"));
     sql_test.addFileArg(b.path("tests/query/sql/compiler.py"));
     sql_test.addArtifactArg(sql_driver);
-    const unified_sql = b.addExecutable(.{ .name = "transit-unified-sql-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/query/unified/unified_sql.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
-    }) });
-    sql_test.addArtifactArg(unified_sql);
-    const mutation_sql = b.addExecutable(.{ .name = "transit-mutation-sql-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/interfaces/sql/sql_mutation.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
-    }) });
-    sql_test.addArtifactArg(mutation_sql);
     const table_dml_sql = b.addSystemCommand(&.{ "python3", "-B" });
     table_dml_sql.addFileArg(b.path("tests/runner/launch.py"));
     table_dml_sql.addFileArg(b.path("tests/query/sql/mutations.py"));
-    table_dml_sql.addArtifactArg(mutation_sql);
+    table_dml_sql.addArtifactArg(sql_driver);
     table_dml_sql.has_side_effects = true;
     table_dml_sql.stdio = .inherit;
     b.step("test-table-dml-sql", "Compare general Table DML with independent typed plan semantics").dependOn(&table_dml_sql.step);
-    const declaration_sql = b.addExecutable(.{ .name = "transit-declaration-sql-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/interfaces/sql/sql_declaration.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
-    }) });
-    sql_test.addArtifactArg(declaration_sql);
     const table_ddl_sql = b.addSystemCommand(&.{ "python3", "-B" });
     table_ddl_sql.addFileArg(b.path("tests/runner/launch.py"));
     table_ddl_sql.addFileArg(b.path("tests/query/sql/declarations.py"));
-    table_ddl_sql.addArtifactArg(declaration_sql);
+    table_ddl_sql.addArtifactArg(sql_driver);
     table_ddl_sql.has_side_effects = true;
     table_ddl_sql.stdio = .inherit;
     b.step("test-table-ddl-sql", "Compare general Table DDL with independent grammar/schema semantics").dependOn(&table_ddl_sql.step);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
-    const relational_sql = b.addExecutable(.{ .name = "transit-relational-sql-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/query/execution/relational_sql.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
-    }) });
     const relational_sql_test = b.addSystemCommand(&.{ "python3", "-B" });
     relational_sql_test.addFileArg(b.path("tests/runner/launch.py"));
     relational_sql_test.addFileArg(b.path("tests/query/sql/relational.py"));
-    relational_sql_test.addArtifactArg(relational_sql);
+    relational_sql_test.addArtifactArg(sql_driver);
     relational_sql_test.has_side_effects = true;
     relational_sql_test.stdio = .inherit;
     b.step("test-relational-sql", "Compare relational syntax across Zig, ANTLR and PostgreSQL").dependOn(&relational_sql_test.step);
@@ -570,7 +569,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exchange_failure_test.stdio = .inherit;
     fixtures_step.dependOn(&exchange_failure_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
-    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, controller_artifact, delivery_artifact, station_controller, station_host, client_host, query_host, transit_cli }) |app| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, station_host, client_host, transit_cli }) |app| {
         build_test_step.dependOn(&app.step);
     }
     build_test_step.dependOn(&work_items.step);
@@ -905,7 +904,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     unified_codec_test.stdio = .inherit;
     b.step("test-unified-codec", "Qualify unified source and Arrow values through native and port boundaries").dependOn(&unified_codec_test.step);
     fixtures_step.dependOn(&unified_codec_test.step);
-    build_test_step.dependOn(&document_worker.step);
     const document_caller = b.addExecutable(.{ .name = "example-station-document", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-document/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_document", .module = exampleModule(b, sdk, "transit_station_document", target, optimize) }} }) });
     const install_document_caller = b.addInstallArtifact(document_caller, .{});
     build_test_step.dependOn(&document_caller.step);
@@ -1333,8 +1331,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }) });
     b.step("public-query-proof", "Install the public query provisioning proof").dependOn(&b.addInstallArtifact(public_query, .{}).step);
     build_test_step.dependOn(&public_query.step);
-    build_test_step.dependOn(&flight_gateway.step);
-    build_test_step.dependOn(&sql_gateway_app.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = node_artifact.root_module.import_table.get("transit_sql_host").? })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
@@ -2144,7 +2140,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     integration.addFileArg(b.path("tests/storage/providers/storage.py"));
     const proofs_step = b.step("proofs", "Install disk conformance proof executables");
     const disk_proofs = [_]struct { name: []const u8, path: []const u8 }{
-        .{ .name = "storage", .path = "tests/storage/providers/storage.zig" },
         .{ .name = "kernel", .path = "tests/runtime/core/kernel.zig" },
         .{ .name = "effects", .path = "tests/runtime/effects/effects.zig" },
         .{ .name = "lifetime", .path = "tests/storage/retention/lifetime.zig" },
@@ -2154,25 +2149,33 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "state", .path = "tests/runtime/core/state.zig" },
         .{ .name = "readiness", .path = "tests/storage/retention/readiness.zig" },
     };
-    for (disk_proofs) |entry| {
-        const name = entry.name;
-        const proof = b.addExecutable(.{
-            .name = b.fmt("transit-{s}-proof", .{name}),
-            .root_module = b.createModule(.{
-                .root_source_file = b.path(entry.path),
-                .target = target,
-                .optimize = optimize,
-                .imports = &.{
-                    .{ .name = "transit_core", .module = core.module("transit_core") },
-                    .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
-                },
-            }),
-        });
-        if (!std.mem.eql(u8, name, "storage")) proof.root_module.addImport("fixture_native_disk", test_modules.get(.native_disk));
-        proofs_step.dependOn(&b.addInstallArtifact(proof, .{}).step);
-        integration.addArtifactArg(proof);
-        if (std.mem.eql(u8, name, "deletion")) services.addArtifactArg(proof);
+    const disk_proof = b.addExecutable(.{
+        .name = "transit-disk-proof",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/storage/providers/storage.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "transit_core", .module = core.module("transit_core") },
+                .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+            },
+        }),
+    });
+    inline for (disk_proofs) |entry| {
+        disk_proof.root_module.addImport("proof_" ++ entry.name, b.createModule(.{
+            .root_source_file = b.path(entry.path),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "transit_core", .module = core.module("transit_core") },
+                .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+                .{ .name = "fixture_native_disk", .module = test_modules.get(.native_disk) },
+            },
+        }));
     }
+    proofs_step.dependOn(&b.addInstallArtifact(disk_proof, .{}).step);
+    integration.addArtifactArg(disk_proof);
+    services.addArtifactArg(disk_proof);
     integration.has_side_effects = true;
     integration.stdio = .inherit;
     b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);

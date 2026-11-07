@@ -37,7 +37,8 @@ fn turn(e: *Engine, view_id: u64, value: ?p.Value) !p.Command {
     return .{ .turn = .{ .pid = 1, .generation = view.generation, .input = view.input, .expected_revision = view.process_revision, .views = .{ view_id, null, null, null }, .write_view = view_id, .mutations = .{ .{ .key = try p.Value.init("count"), .value = value }, null, null, null } } };
 }
 pub fn main(init: std.process.Init) !void {
-    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
+    const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const worker = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));

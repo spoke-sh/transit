@@ -11,9 +11,9 @@ to describe the query source.
 
 ```sql
 DESCRIBE items;
-DESCRIBE DOCUMENT docs;
-DESCRIBE KV counters;
 ```
+
+In direct catalog sessions, `DESCRIBE` also accepts an optional object-kind keyword (`DESCRIBE DOCUMENT docs;`, `DESCRIBE KV counters;`).
 
 The object name is a single identifier, with an optional `TABLE`, `DOCUMENT`,
 `KV`, `STREAM` or `QUEUE` object-kind keyword in direct catalog sessions. The

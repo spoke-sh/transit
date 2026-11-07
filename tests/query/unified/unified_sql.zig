@@ -5,7 +5,8 @@ const m = f.Unified;
 const Case = struct { sql: []const u8, expected_error: ?[]const u8 = null };
 pub fn main(init: std.process.Init) !void {
     const a = init.arena.allocator();
-    const args = try init.minimal.args.toSlice(a);
+    const raw_args = try init.minimal.args.toSlice(a);
+    const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
     const cases = try std.json.parseFromSlice([]const Case, a, try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], a, .limited(65536)), .{});
     var columns: [8]m.Column = undefined;
     const types = [_]m.Type{ .int64, .uint64, .float64, .boolean, .utf8, .binary, .utf8, .utf8 };

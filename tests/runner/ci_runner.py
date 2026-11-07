@@ -236,7 +236,7 @@ def main():
     assert workflow['jobs']['checks']['needs'] == 'plan'
     assert workflow['jobs']['sdks']['with']['native_bundle'] is True
     assert workflow['jobs']['native']['strategy']['matrix'] == '${{ fromJSON(needs.plan.outputs.native_matrix) }}'
-    assert len(select([], 'push')['native_matrix']['include']) == 2
+    assert len(select([], 'push')['native_matrix']['include']) == 3
     assert next(step for step in steps if step.get('name') == 'Download immutable native publications')['if'] == 'inputs.native_bundle'
     assert next(step for step in steps if step.get('name') == 'Run ${{ inputs.lane }} checks')['if'] == "inputs.native_family == ''"
     assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
