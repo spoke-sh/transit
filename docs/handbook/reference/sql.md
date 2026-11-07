@@ -170,7 +170,9 @@ State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
 catalog callers and the [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 also publish general typed Tables, selected ALTER actions and DROP. Native SQL,
 console, PostgreSQL and MySQL sessions also publish
-[Stream and Queue declarations](sql/streaming.md#stream-and-queue-declarations).
+[Stream and Queue declarations](sql/streaming.md#stream-and-queue-declarations),
+[direct KV declarations and point operations](sql/create-kv.md), and
+[direct Document collection declarations, queries and mutations](sql/create-document.md).
 Other SQL administrative
 routes, grants and connector catalog listings remain unavailable;
 their examples describe syntax and do not execute in the query console. Unsupported command entries
@@ -212,8 +214,8 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
 | `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |
 | `CREATE STREAM/QUEUE`, `ALTER STREAM/QUEUE`, `DROP STREAM/QUEUE` | Shared Catalog lifecycle through native SQL, console, PostgreSQL and MySQL | [Declarations, policies and named inspection](sql/streaming.md#stream-and-queue-declarations) |
-| `CREATE DOCUMENT`                                          | Offline compiler; executable naming uses separate typed resource operations             | [Document declaration](sql/create-document.md)                            |
-| `CREATE KV`                                                | Offline compiler; executable naming uses separate typed resource operations             | [Typed KV declaration](sql/create-kv.md)                                  |
+| `CREATE DOCUMENT`, `ALTER DOCUMENT`, `DROP DOCUMENT`       | Shared Catalog lifecycle and Direct Data Plane SQL/console; offline compiler also available | [Document declaration](sql/create-document.md)                            |
+| `CREATE KV`, `ALTER KV`, `DROP KV`, `PUT`, `GET`           | Shared Catalog lifecycle and Direct Data Plane point operations in SQL/console | [Typed KV declaration and workload verbs](sql/create-kv.md)               |
 | `GRANT`                                                    | Grammar only                                                                            | [Privilege declaration](sql/grant.md)                                     |
 | `REVOKE`                                                   | Grammar only                                                                            | [Privilege revocation](sql/revoke.md)                                     |
 | `SHOW`                                                     | Settings, configured database/schema/Table names and direct Table storage progress execute; connectors are grammar only | [Settings, catalogs and storage](sql/show.md) |

@@ -1,45 +1,63 @@
 # CREATE DOCUMENT
 
-**Offline compiler; no publication.** Fuze's Zig `Declaration.compile` validates
-this statement as a named Document definition and formats it for review. It does
-not create a resource, initialize a replica or accept a change. SQL query
-interfaces reject it; CLI, Board and language SDKs have no administrative route
-for it.
+Direct Data Plane SQL sessions (`transit console`, native SQL sessions, PostgreSQL
+and MySQL wire adapters) execute `CREATE DOCUMENT`, `ALTER DOCUMENT`,
+`DROP DOCUMENT`, `SHOW DOCUMENTS`, `SHOW DOCUMENT`, `DESCRIBE DOCUMENT`, and
+ordinary `INSERT INTO`, `UPDATE`, `DELETE FROM` and `SELECT ... FROM` over the
+shared direct Catalog without Station actor turns. Fuze's Zig `Declaration.compile`
+also validates the minimal `CREATE DOCUMENT name` form as an offline definition.
 
 ## Syntax
 
 ```text
-CREATE DOCUMENT name;
+CREATE DOCUMENT [IF NOT EXISTS] name [(column_definitions)]
+  [WITH (profile = 'versioned' | 'causal_crdt', retention = 'duration' | 'unlimited')];
+ALTER DOCUMENT name ADD [COLUMN] column_definition;
+ALTER DOCUMENT name DROP [COLUMN] column_name [RESTRICT];
+ALTER DOCUMENT name RENAME [COLUMN] column_name TO new_column_name;
+ALTER DOCUMENT name RENAME TO new_name;
+ALTER DOCUMENT name SET (retention = 'duration' | 'unlimited');
+DROP DOCUMENT [IF EXISTS] name [RESTRICT];
+
+SHOW DOCUMENTS;
+SHOW DOCUMENT name;
+DESCRIBE [DOCUMENT] name;
 ```
 
-`name` is an identifier. There are no fields, options, initial JSON value,
-schema, replica configuration or `IF NOT EXISTS` clause in this rule.
+When the column list is omitted, `CREATE DOCUMENT name;` defaults to
+`(id UTF8 NOT NULL PRIMARY KEY, doc UTF8 NOT NULL)` with `profile = 'versioned'`
+and unlimited retention.
 
 ## Example
 
-This example compiles as an offline definition:
-
 ```sql
 CREATE DOCUMENT notebook;
+CREATE DOCUMENT docs (id INT64 NOT NULL PRIMARY KEY, value INT64 NOT NULL)
+  WITH (profile = 'versioned');
+
+INSERT INTO docs (id, value) VALUES (1, 10);
+SELECT id, value FROM docs WHERE id = 1;
+SHOW DOCUMENTS;
+SHOW DOCUMENT docs;
+DESCRIBE DOCUMENT docs;
 ```
 
 ## Meaning and current interface
 
-The declaration refers to Station's [Document model](../documents.md), whose
-structured values and collaborative text live in an explicitly provisioned
-resource. Document identity, replica identity, accepted revision and merge epoch
-remain distinct. Tentative edits are not accepted state.
+Direct Document collections store structured rows and documents on the Direct Data
+Plane with an explicit Document profile (`versioned` or `causal_crdt`) and
+optional retention policy, while sharing typed schema validation, snapshot reads
+and atomic partition mutations with the direct Catalog owner.
 
-The typed [named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
-allocate, initialize and publish named Document resources with explicit identity,
-writer and current permissions. They are separate from this offline SQL form.
-Use the [Document service](../../../../packages/zig/transit-station-document/docs/service.md)
+Station's collaborative [Document model](../documents.md) and typed
+[named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
+remain separate for actor-bound replica resources. Use the
+[Document service](../../../../packages/zig/transit-station-document/docs/service.md)
 and [caller interface](../../../../packages/zig/transit-station-document/docs/remote.md)
-for initialization, changes and reads. Current authorization and writer fencing
-still apply. Querying requires an explicit accepted Document projection; this
-grammar form neither creates one nor makes arbitrary Document paths valid SQL.
-The [offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)
-defines owned names, complete-input validation, canonical formatting and bounds.
+for replica-assigned collaborative resources. The
+[offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)
+defines owned names, complete-input validation, canonical formatting and bounds
+for `Declaration.compile`.
 
 Source: [`createDocument`](../../../../contracts/sql/TransitExtensions.g4). See also
 [SELECT](select.md) and [state resources](../state.md).

@@ -11,12 +11,15 @@ to describe the query source.
 
 ```sql
 DESCRIBE items;
+DESCRIBE DOCUMENT docs;
+DESCRIBE KV counters;
 ```
 
-The object name is a single identifier. The rule has no object-kind keyword,
-qualified name, query argument, `EXTENDED` modifier or `DESC` shorthand. Quoting
-follows the [shared syntax](syntax.md#names). Unquoted names fold to lowercase;
-quoted names resolve exactly against the configured source name.
+The object name is a single identifier, with an optional `TABLE`, `DOCUMENT`,
+`KV`, `STREAM` or `QUEUE` object-kind keyword in direct catalog sessions. The
+rule has no qualified name, query argument, `EXTENDED` modifier or `DESC`
+shorthand. Quoting follows the [shared syntax](syntax.md#names). Unquoted names
+fold to lowercase; quoted names resolve exactly against the configured source name.
 
 ## Result and access
 

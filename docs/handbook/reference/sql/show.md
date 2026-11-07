@@ -11,6 +11,10 @@ SHOW query.statement_timeout;
 SHOW DATABASES;
 SHOW SCHEMAS;
 SHOW TABLES;
+SHOW DOCUMENTS;
+SHOW DOCUMENT docs;
+SHOW KVS;
+SHOW KV counters;
 SHOW STORAGE;
 SHOW STORAGE FOR items;
 ```
@@ -100,8 +104,10 @@ SHOW CONNECTIONS;
 ```
 
 There are no SHOW filters, namespace arguments, LIKE, WHERE or pagination clauses.
-Use the settings relation for filters. SHOW DOCUMENTS, SHOW KV and SHOW GRANTS
-have no implemented listing. Flight SQL retains its separate Table metadata and
-SELECT interfaces and does not accept these inspection statements.
+Use the settings relation for filters. `SHOW DOCUMENTS`, `SHOW DOCUMENT name`,
+`SHOW KVS` and `SHOW KV name` inspect Direct Data Plane Document and KV catalog
+definitions. `SHOW GRANTS` has no implemented listing. Flight SQL retains its
+separate Table metadata and SELECT interfaces and does not accept these inspection
+statements.
 
 Source: [`showStatement`, `catalogKind`, `settingKey`](../../../../contracts/sql/TransitExtensions.g4).
