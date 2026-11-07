@@ -2503,6 +2503,42 @@ pub fn captureUpload(self: *Self, request: Capture.Upload, policy: Policy, autho
 
 /// Complete chunks are copied into caller-owned memory. On error no buffered
 /// bytes may escape the current-authority disclosure check.
+/// Published provenance survives payload expiry and requires only current
+/// destination disclosure rights. A copied descriptor keeps its original row.
+pub fn capturePublication(self: *Self, reference: p.SourceCapture.Reference, policy: Policy) !c.DirectSourceRead.Publication {
+    try reference.validate();
+    var scratch: std.heap.ArenaAllocator = .init(self.allocator);
+    defer scratch.deinit();
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = reference.destination, .partition = 0 };
+    const current = try self.logAuthorization(scratch.allocator(), .stream, target, .read, policy);
+    const state = (try self.store.clientTokenDigest(reference.candidate)) orelse return error.SourceCaptureNotPublished;
+    const capture = state.capture orelse return error.SourceCaptureNotPublished;
+    const plan = capture.publication orelse return error.SourceCaptureNotPublished;
+    if (!std.meta.eql(plan.reference, reference)) return error.SourceCaptureNotPublished;
+    const result: c.DirectSourceRead.Publication = if (capture.phase == .published) .{
+        .reference = reference,
+        .evidence = capture.descriptor.evidence,
+        .decision = capture.outcome.?.decision,
+        .append = capture.outcome.?.append.?,
+    } else blk: {
+        if (capture.phase != .publishing) return error.SourceCaptureNotPublished;
+        const progress = (try self.store.clientTokenIdentity(plan.key)) orelse return error.SourceCapturePublicationPending;
+        try plan.requireReceipt(progress.receipt);
+        if (progress.record == null or progress.record.?.format != c.DirectTransactionControl.format) return error.SourceCapturePublicationPending;
+        const control = try c.DirectTransactionControl.load(scratch.allocator(), self.data_objects, progress);
+        const decision = control.decision orelse return error.SourceCapturePublicationPending;
+        if (decision.outcome != .committed) return error.SourceCaptureNotPublished;
+        var view = try self.transactionLogView(current.definition, 0, current.guard);
+        defer view.deinit();
+        const accepted = (try view.owner.stream.operation(plan.append, current.guard)) orelse return error.SourceCapturePublicationPending;
+        if (accepted.outcome != .append) return error.InvalidSourcePublication;
+        break :blk .{ .reference = reference, .evidence = capture.descriptor.evidence, .decision = decision, .append = accepted.outcome.append };
+    };
+    try result.validate();
+    try check(current.guard);
+    return result;
+}
+
 pub fn captureRead(self: *Self, key: c.DirectClientToken.Key, offset: u64, output: []u8, policy: Policy, authority: Capture.Authority) ![]const u8 {
     errdefer @memset(output, 0);
     try authority.admission.acquire();

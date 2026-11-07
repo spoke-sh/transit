@@ -375,6 +375,7 @@ pub const Action = union(enum) {
     key_range: struct { snapshot: Snapshot, interval: KeyInterval, after: ?KeyCursor, limits: P.ReadLimits },
     release: Snapshot,
     stream: c.DirectStream.Request,
+    capture_read: c.DirectSourceRead.Request,
     queue: c.DirectQueue.Request,
     kv: c.DirectKV.Request,
     kv_declaration: c.DirectKV.DeclarationRequest,
@@ -410,7 +411,7 @@ pub const Request = struct {
     /// even a refused publication attempt may wake an authorized recheck.
     pub fn publicationHint(self: Request) bool {
         return switch (self.action) {
-            .record, .stage, .client_token, .pin, .retain_history, .release => false,
+            .record, .stage, .client_token, .pin, .retain_history, .release, .capture_read => false,
             .client_progress => |value| value.mutation() and !(value == .update and value.update.record != null and value.update.record.?.format == c.DirectRecord.read_cache_format),
             else => self.transport().mutation,
         };
@@ -421,6 +422,7 @@ pub const Request = struct {
     pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8, wait: ?c.client.WaitHint } {
         const mutation = switch (self.action) {
             .stream => |value| value.mutation(),
+            .capture_read => |value| value.mutation(),
             .queue => |value| value.mutation(),
             .branch => |value| value.mutation(),
             .historical_catalog => |value| value.mutation(),
@@ -441,7 +443,7 @@ pub const Request = struct {
             .log_operation => |value| value.command != .inspect,
             else => false,
         };
-        const control = (self.action == .client_progress and self.action.client_progress == .close_original) or (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .document_declaration and self.action.document_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
+        const control = (self.action == .capture_read and self.action.capture_read.control()) or (self.action == .client_progress and self.action.client_progress == .close_original) or (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .document_declaration and self.action.document_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
@@ -477,6 +479,7 @@ pub const Request = struct {
         if (claim.realm != connection.scope.realm or claim.principal != principal or claim.role != role or claim.audience != connection.audience or
             !std.mem.eql(u8, &claim.context, &try context(self.input(), allocator))) return error.InvalidAuthorizationCredential;
         switch (self.action) {
+            .capture_read => |value| try value.validate(connection),
             .kv => |value| {
                 try connection.object(value.target());
                 try value.validate(allocator, connection.principal, connection.scope);
@@ -904,6 +907,7 @@ pub const Result = union(enum) {
     key_range: KeyRangePage,
     released,
     stream: c.DirectStream.Result,
+    capture_read: c.DirectSourceRead.Result,
     queue: c.DirectQueue.Result,
     kv: c.DirectKV.Result,
     kv_declaration: c.DirectKV.DeclarationResult,

@@ -1,6 +1,7 @@
 //! Shared data callers over public operations, independent of Station bindings.
 pub const catalog = @import("transit_catalog");
 pub const Catalog = @import("Catalog.zig");
+pub const CaptureReader = @import("CaptureReader.zig");
 pub const Context = @import("Context.zig");
 pub const Admission = @import("Admission.zig");
 pub const LocalRecoveryStore = @import("LocalRecoveryStore.zig");
@@ -11,6 +12,7 @@ pub const DirectMigration = catalog.DirectMigration;
 
 test {
     _ = Catalog;
+    _ = CaptureReader;
     _ = Context;
     _ = Admission;
     _ = LocalRecoveryStore;
@@ -18,5 +20,6 @@ test {
     _ = KVRecovery;
     _ = DirectMigration;
     _ = @import("catalog_test.zig");
+    _ = @import("capture_reader_test.zig");
     _ = @import("sql_recovery_test.zig");
 }
