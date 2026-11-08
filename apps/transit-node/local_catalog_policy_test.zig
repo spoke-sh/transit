@@ -292,7 +292,16 @@ fn dispatchWithoutOutput(service: *@import("LocalTableService.zig"), action: c.D
         service: *@import("LocalTableService.zig"),
         engine: *Engine,
         configuration: D.Configuration,
+        quota: bool = false,
         fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, _: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            if (self.quota) {
+                var quota: c.fuze.memory.Quota = .{ .limit = 0 };
+                var output: c.fuze.memory.Quota.Allocator = .{ .parent = t.allocator, .quota = &quota };
+                const result = self.service.execute(arena, output.allocator(), request);
+                try t.expect(quota.refusals.load(.acquire) > 0);
+                try t.expectEqual(0, quota.used.load(.acquire));
+                return result;
+            }
             var failure = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
             const result = self.service.execute(arena, failure.allocator(), request);
             try t.expect(failure.has_induced_failure);
@@ -300,6 +309,10 @@ fn dispatchWithoutOutput(service: *@import("LocalTableService.zig"), action: c.D
         }
     };
     var adapter: Adapter = .{ .service = service, .engine = service.engine, .configuration = service.configuration };
+    try t.expectError(error.OutOfMemory, dispatch(&adapter, action));
+    // Resolve the same signed operation, never a replacement identity. Losing
+    // its response to shared admission must preserve the original outcome too.
+    adapter.quota = true;
     try t.expectError(error.OutOfMemory, dispatch(&adapter, action));
 }
 

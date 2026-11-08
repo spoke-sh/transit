@@ -118,7 +118,7 @@ owners and their private work use a separate 256 MiB ordinary pool and 64 MiB
 control pool, with per-owner limits of 128 MiB and 64 MiB respectively. A memory refusal
 does not undo accepted work; recovery uses the original operation identity and
 current rights. Engine/provider caches and the independently bounded maintenance
-executor retain their own memory owners. These child budgets also participate in
+executor retain their own memory owners. Request, retained-owner and maintenance budgets participate in
 the [shared admission envelope](#direct-storage-allocation-admission). The node
 limits distinguish these allocation bounds from whole-process resident memory.
 
