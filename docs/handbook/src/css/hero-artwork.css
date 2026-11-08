@@ -10,13 +10,20 @@
 .transit-hero-art[data-playing="true"] {
   --score-active: 1;
 }
-.hero-light-scene {
+.hero-light-scene,
+.hero-dark-scene {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
   pointer-events: none;
+}
+.hero-dark-scene {
+  display: none;
+}
+[data-theme="dark"] .hero-dark-scene {
+  display: block;
 }
 [data-theme="dark"] .hero-light-scene {
   display: none;
@@ -100,6 +107,37 @@
     opacity: 0.4;
   }
 }
+.hero-cavern-beacon {
+  opacity: max(var(--beacon-energy), calc(var(--score-active) * 0.85));
+  transition: opacity 1000ms ease;
+}
+.hero-cavern-pulse {
+  transform-origin: 71.815% 51.184%;
+}
+[data-theme="dark"] [data-playing="true"] .hero-cavern-pulse {
+  animation: hero-heartbeat var(--heartbeat-cycle) ease-out infinite paused;
+}
+[data-theme="dark"] [data-playing="true"][data-art-visible="true"] .hero-cavern-pulse {
+  animation-play-state: running;
+}
+/* Two small blooms follow the sound's paired beats, then settle into the cavern. */
+@keyframes hero-heartbeat {
+  0%,
+  22%,
+  48%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.55;
+  }
+  4% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  29% {
+    transform: scale(1.06);
+    opacity: 0.85;
+  }
+}
 .hero-score-zone {
   position: absolute;
   left: 0;
@@ -146,11 +184,18 @@
   outline: 2px solid var(--ifm-color-primary);
   outline-offset: 2px;
 }
+[data-theme="dark"] .hero-score-zone {
+  /* The red thread crosses x=12.5%, y=31.3% in the radiograph. */
+  top: 16.3%;
+}
 [data-theme="dark"] .hero-score-button {
-  color: #ebd5a5;
+  color: #e0e8eb;
+}
+[data-theme="dark"] .hero-score-button:hover {
+  color: #fff;
 }
 [data-theme="dark"] .hero-score-button svg {
-  filter: drop-shadow(0 0 6px #1e2324);
+  filter: drop-shadow(0 1px 3px #11181c) drop-shadow(0 0 8px #e0e8eb40);
 }
 .hero-audio-status {
   position: absolute;
@@ -183,13 +228,15 @@
   .hero-channel-glints,
   .hero-beacon,
   .hero-beacon-aura,
+  .hero-cavern-beacon,
   .hero-music-light,
   .hero-score-button {
     transition: none;
     transform: none;
   }
   .hero-music-current path,
-  .hero-beacon-breath {
+  .hero-beacon-breath,
+  [data-theme="dark"] [data-playing="true"] .hero-cavern-pulse {
     animation: none;
   }
 }

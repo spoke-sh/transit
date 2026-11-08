@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactElement } fr
 import refraction from "../../../design/transit-artwork/images/d1-refraction-graphite.jpg";
 import radiograph from "../../../design/handbook-theme/images/d6-radiograph.jpg";
 import lookout from "../assets/hero-fire-lookout.webp";
-import { createHeroScore, HERO_SCORE_CHORD_SECONDS } from "./hero-score";
+import { createHeroScore, HERO_SCORE_CHORD_SECONDS, HERO_HEARTBEAT_SECONDS } from "./hero-score";
 import "../css/hero-artwork.css";
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -13,6 +13,7 @@ export default function HeroArtwork(): ReactElement {
   const [supported, setSupported] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
     setSupported(typeof window.AudioContext === "function");
@@ -24,9 +25,24 @@ export default function HeroArtwork(): ReactElement {
     const visibility = () => {
       if (document.hidden) stop();
     };
+    // Follow Docusaurus's stored/system choice, including its pre-hydration theme.
+    const root = document.documentElement;
+    let theme = root.dataset.theme;
+    const updateTheme = () => {
+      if (theme !== root.dataset.theme) {
+        stop();
+        setAudioError(false);
+      }
+      theme = root.dataset.theme;
+      setDark(theme === "dark");
+    };
+    const themeObserver = new MutationObserver(updateTheme);
+    themeObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    updateTheme();
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pagehide", stop);
     return () => {
+      themeObserver.disconnect();
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pagehide", stop);
       score.current?.stop();
@@ -39,6 +55,7 @@ export default function HeroArtwork(): ReactElement {
     if (!element) return;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const touch = window.matchMedia("(hover: none), (pointer: coarse)");
+    const destination = dark ? { x: 1274 / 1774, y: 454 / 887 } : { x: 0.917, y: 0.08 };
     let visible = false;
     let frame = 0;
     let pointer: { x: number; y: number } | null = null;
@@ -59,11 +76,11 @@ export default function HeroArtwork(): ReactElement {
       const y = pointer ? (pointer.y - bounds.top) / bounds.height : 0.5;
       const approach = touch.matches
         ? clamp(
-            (window.innerHeight * 0.85 - (bounds.top + bounds.height * 0.1)) /
+            (window.innerHeight * 0.85 - (bounds.top + bounds.height * destination.y)) /
               (window.innerHeight * 0.55),
           )
         : pointer
-          ? clamp(1 - Math.hypot((x - 0.917) * 2, y - 0.08) / 0.65)
+          ? clamp(1 - Math.hypot((x - destination.x) * 2, y - destination.y) / 0.65)
           : 0;
       const light = touch.matches
         ? approach
@@ -128,7 +145,7 @@ export default function HeroArtwork(): ReactElement {
       reset();
       delete element.dataset.artVisible;
     };
-  }, []);
+  }, [dark]);
 
   const toggleScore = async () => {
     if (score.current) {
@@ -140,7 +157,7 @@ export default function HeroArtwork(): ReactElement {
     setAudioError(false);
     let next: ReturnType<typeof createHeroScore> | null = null;
     try {
-      next = createHeroScore();
+      next = createHeroScore(dark ? "dark" : "light");
       score.current = next;
       await next.play();
       if (score.current !== next) return;
@@ -167,7 +184,12 @@ export default function HeroArtwork(): ReactElement {
       ref={artwork}
       className="transit-hero-art"
       data-playing={playing}
-      style={{ "--score-cycle": `${HERO_SCORE_CHORD_SECONDS}s` } as CSSProperties}
+      style={
+        {
+          "--score-cycle": `${HERO_SCORE_CHORD_SECONDS}s`,
+          "--heartbeat-cycle": `${HERO_HEARTBEAT_SECONDS}s`,
+        } as CSSProperties
+      }
     >
       <img
         className="transit-hero-light"
@@ -280,13 +302,56 @@ export default function HeroArtwork(): ReactElement {
           </g>
         </g>
       </svg>
+      <svg className="hero-dark-scene" viewBox="0 0 1774 887" aria-hidden="true" focusable="false">
+        <defs>
+          <radialGradient id="hero-ember-glow">
+            <stop stopColor="#ffe5df" stopOpacity="0.65" />
+            <stop offset="0.15" stopColor="#f6aba1" stopOpacity="0.45" />
+            <stop offset="0.4" stopColor="#e75d51" stopOpacity="0.2" />
+            <stop offset="1" stopColor="#d94b43" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="hero-ember-core">
+            <stop stopColor="#fff0ec" />
+            <stop offset="0.35" stopColor="#f5b6ac" />
+            <stop offset="1" stopColor="#d4574f" stopOpacity="0.25" />
+          </radialGradient>
+        </defs>
+        <g className="hero-cavern-beacon">
+          <g className="hero-cavern-pulse">
+            <ellipse cx="1274" cy="454" rx="48" ry="36" fill="url(#hero-ember-glow)" />
+            <path
+              d="M1254 468 C1242 456 1254 434 1273 432 M1291 441 C1303 454 1291 473 1277 476"
+              fill="none"
+              stroke="#d4dfe1"
+              strokeWidth="0.8"
+              opacity="0.25"
+            />
+            <ellipse
+              cx="1274"
+              cy="454"
+              rx="3.5"
+              ry="5.5"
+              transform="rotate(28 1274 454)"
+              fill="url(#hero-ember-core)"
+            />
+          </g>
+        </g>
+      </svg>
       {supported && (
         <div className="hero-score-zone">
           <button
             className="hero-score-button"
             type="button"
             onClick={() => void toggleScore()}
-            aria-label={playing ? "Stop music" : "Play warm ambient music"}
+            aria-label={
+              playing
+                ? dark
+                  ? "Stop heartbeat"
+                  : "Stop music"
+                : dark
+                  ? "Play quiet heartbeat"
+                  : "Play warm ambient music"
+            }
             aria-pressed={playing}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">

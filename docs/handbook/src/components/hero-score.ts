@@ -1,21 +1,23 @@
-// A quiet, original four-chord miniature. Everything is synthesized locally;
+// A quiet four-chord miniature or a cavern's double heartbeat. Both are synthesized locally;
 // the context is constructed only by the listener's play gesture.
 export const HERO_SCORE_CHORD_SECONDS = (60 / 76 / 2) * 16;
+export const HERO_HEARTBEAT_SECONDS = 60 / 68;
 
-export function createHeroScore() {
+export function createHeroScore(theme: "light" | "dark") {
+  const heartbeat = theme === "dark";
   const context = new AudioContext();
   const master = context.createGain();
   master.gain.value = 0;
   master.connect(context.destination);
   const filter = context.createBiquadFilter();
   filter.type = "lowpass";
-  filter.frequency.value = 1800;
+  filter.frequency.value = heartbeat ? 280 : 1800;
   filter.Q.value = 0.4;
   filter.connect(master);
   const delay = context.createDelay(1);
-  delay.delayTime.value = 0.42;
+  delay.delayTime.value = heartbeat ? 0.13 : 0.42;
   const echo = context.createGain();
-  echo.gain.value = 0.22;
+  echo.gain.value = heartbeat ? 0.08 : 0.22;
   filter.connect(delay);
   delay.connect(echo);
   echo.connect(delay);
@@ -56,15 +58,43 @@ export function createHeroScore() {
     oscillator.start(when);
     oscillator.stop(when + duration + 0.05);
   };
+  const pulse = (when: number, frequency: number, level: number) => {
+    // Rounded low thuds with a faint overtone that remains audible on small speakers.
+    for (const harmonic of [1, 2]) {
+      const oscillator = context.createOscillator();
+      const envelope = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(frequency * harmonic, when);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * harmonic * 0.58, when + 0.12);
+      envelope.gain.setValueAtTime(0, when);
+      envelope.gain.linearRampToValueAtTime(level / harmonic ** 2, when + 0.014);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, when + 0.16);
+      oscillator.connect(envelope);
+      envelope.connect(filter);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        envelope.disconnect();
+      };
+      oscillator.start(when);
+      oscillator.stop(when + 0.18);
+    }
+  };
   const schedule = () => {
     if (stopped || context.state !== "running") return;
     // Never catch up a suspended tab with a burst of old notes.
     next = Math.max(next, context.currentTime);
     while (next < context.currentTime + 0.2) {
-      const chord = chords[Math.floor(beat / 16) % chords.length]!;
-      if (beat % 16 === 0) note(chord[0]!, next, step * 15, 0.18);
-      note(chord[pattern[beat % pattern.length]!]!, next, 2.8, beat % 4 === 0 ? 0.12 : 0.085);
-      next += step;
+      if (heartbeat) {
+        // Lub-dub, then room to breathe. The second beat is softer and slightly higher.
+        pulse(next, 84, 0.32);
+        pulse(next + HERO_HEARTBEAT_SECONDS * 0.25, 98, 0.23);
+        next += HERO_HEARTBEAT_SECONDS;
+      } else {
+        const chord = chords[Math.floor(beat / 16) % chords.length]!;
+        if (beat % 16 === 0) note(chord[0]!, next, step * 15, 0.18);
+        note(chord[pattern[beat % pattern.length]!]!, next, 2.8, beat % 4 === 0 ? 0.12 : 0.085);
+        next += step;
+      }
       beat++;
     }
   };
