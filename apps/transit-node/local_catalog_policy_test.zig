@@ -2809,10 +2809,10 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = source.stored.declaration.interpretation, .partition = 1 };
     var buffer: [8192]u8 = undefined;
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 77 } } }};
-    const payload = try c.storage.LogBatch.encode(Fixture.schema(301), Fixture.operation(config, 90000), .queue, &.{.{ .cells = &cells, .visible_ms = 75 }}, &buffer);
+    const payload = try c.storage.LogBatch.encode(Fixture.schema(301), Fixture.operation(config, 90000), .queue, &.{ .{ .cells = &cells, .visible_ms = 75 }, .{ .cells = &cells, .visible_ms = 75 } }, &buffer);
     const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
     defer t.allocator.free(binary.base64);
-    (try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = Fixture.operation(config, 90000), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = binary } } })).deinit();
+    (try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = Fixture.operation(config, 90000), .kind = .queue, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(payload) } }, .payload = binary } } })).deinit();
     const claimed = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = Fixture.operation(config, 90001), .maximum = 1, .lease_ms = 100 } }, .payload = null } } });
     defer claimed.deinit();
     const claim = claimed.value.result.queue.operation.?.claim;
@@ -2846,6 +2846,12 @@ test "automatic Queue maintenance requires its database signer and resumes the o
         }
     }
     const receipt = original orelse return error.FixtureBudget;
+    // Admission must fit the existing 32 MiB ceiling without retaining a second
+    // Queue owner. The unexamined row keeps this finite discovery sweep open.
+    try t.expect(worker.workspace == null);
+    try t.expectEqual(@as(usize, 0), memory.used);
+    try t.expectEqual(@as(u64, 1), worker.cursor.?.next);
+    try t.expectEqual(@as(u64, 2), worker.cursor.?.until);
     const plan = try c.DirectQueueTransferPlan.fromReceipt(t.allocator, catalog.data_objects, receipt);
     try t.expectEqual(@as(u32, 1), plan.transfer.destination.target.partition);
     try t.expectEqualDeep(destination.stored.declaration.interpretation, plan.transfer.destination.target.interpretation);
