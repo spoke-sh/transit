@@ -259,6 +259,31 @@ this sequence; retain original diagnoses, delivered evidence and incomplete
 checks. #123 corrects current documentation as implementation changes, and #124
 owns traceable installed acceptance. No planning edit changes their runtime status.
 
+## Unified LSM, `.tseg` format, branching and provider-cost review — 2026-11-08
+
+A cross-workload review of Transit's six declarative data and computation
+primitives (**`TABLE`**, **`KV`**, **`DOCUMENT`**, **`STREAM`**, **`QUEUE`**,
+and **`DATAFLOW`**) alongside **zero-copy branching/merging**
+([Milestone 20](20-branches-merges-and-restore.md)) and **storage provider unit
+economics** across local NVMe, shared POSIX filesystems (AWS EFS / NFSv4), and
+disaggregated cloud object stores (S3, S3 Express One Zone, GCS, Cloudflare R2,
+Azure Blob in [Milestone 23](23-storage-providers-and-concurrency.md)) confirms
+that **no new milestone number is required**. Instead, the unified LSM +
+`.tseg` storage evolution is diffused across the existing numbered owners while
+preserving [Milestone 3 Decision D1](03-live-storage-and-sql-cutover.md) so the
+local cutover closes cleanly:
+
+| Owner | Diffused storage, format, branching and provider-cost scope |
+| --- | --- |
+| [Milestone 3](03-live-storage-and-sql-cutover.md) | Keep Decision D1 intact to close M3; bound **P4** maintenance/GC and foreground contention across all active direct owners in `DirectStorageGraph` (`TablePartition`, `KVPartition`, `StreamPartition`, `QueuePartition`, `DocumentPartition`, and `DATAFLOW` `TXR1`/`CPR1`/`SOR1`/`DFR1`); isolate high-frequency runtime progress/token updates from cold `DirectCatalog` Partition 0 definition contention in **P5**; and project a unified physical storage inspection schema (`SHOW STORAGE` / Board) across all six workloads in **P6**. |
+| [Milestone 6](06-streams-queues-and-durable-runtime.md) | Fold `STREAM` delivery/compaction metadata (`_offset`, `_timestamp` / `visibility_time`, `_tombstone`) into native `.tseg` system columns with monotonic zone maps and `.tdel` Roaring key-compaction vectors (retiring separate `LBMETA01` and `LOGVIEW1` sidecars under the coordinated `.tseg` v1 cutover); coalesce `QUEUE` `.tack` (`TACK0001`) and `QueueIndex` `TDIX` checkpoints behind append-only `TWAL1` delta frames and in-memory timing wheels/lease heaps so individual `CLAIM`/`ACK`/`NACK` turns never trigger small-object `PUT` storms. |
+| [Milestone 7](07-document-storage-and-station-decoupling.md) | Flush `DocumentPartition` revisions into native `.tseg` structural column groups—persisted $2N$-bit `BP` topology with two-level $O(1)$ `rank`/`select`/`excess` directory blocks, `DocumentShredder` promoted 5-state subcolumns with zone maps, residual `VARIANT`, and piece-table text spans—paired with WiscKey-style $> 4\text{ KiB}$ immutable raw-part/blob separation. |
+| [Milestone 11](11-indexing-and-access-paths.md) | Replace the eager flat full-key `Footer.pk_index` array and 64-bit `bloom_mask: u64` in [`TSeg.zig`](../../packages/zig/transit-fuze/src/TSeg.zig) with a **$\le 64\text{ KiB}$ suffix-range-readable footer** containing per-row-group **Sparse Fence Pointers (`min_key`, `max_key`, `page_offset`)**, **Split-Block Bloom Filters** (~10 bits/key), and optional minimal-perfect-hash equality directories so cold segments open in 1 suffix range read (`Range: bytes=-65536`) and point lookups require at most 1 page read. |
+| [Milestone 12](12-sql-and-dataflows.md) | Replace custom `DFP1` (64-row / 128 KiB) dataflow result page blobs with standard `.tseg` segments carrying a native `@weight: i64` multiplicity system column, unifying `ManagedTable` materialized revisions (`DFR1`) and `FuzeDelta` DBSP operator arrangements under the same LSM `.tseg` writer, zone maps and net-zero (`@weight == 0`) compaction engine. |
+| [Milestone 13](13-data-structures-and-performance.md) | Cut `KVPartition` and `TablePartition` over from per-turn global Copy-on-Write `TreeStore` (`TDIX`) B-tree page rewrites (`rows`, `scan_rows`, `identities`, `ordered_rows`) to a **true LSM-tree (`TWAL1` + bounded Memtable + leveled `.tseg` manifest + `.tdel` deletion vectors)**; eliminate mandatory read-before-write on blind `KV` `put`/`remove` via first-class LSM tombstone tags in `.tseg`; and add **WiscKey-style out-of-line value blob segments** for values $> 4\text{ KiB}$ so compaction merges only compact `(key, lsn, 57B_locator)` entries. |
+| [Milestone 20](20-branches-merges-and-restore.md) | Execute $O(1)$ branch creation and sublinear 3-way `DIFF`/`MERGE` directly over LSM `.tseg` manifests, branch-scoped `.tdel` overlays, shared WiscKey value blobs and pinned unflushed `TWAL1` tails; splice disjoint `.tseg` segments/row-groups via sparse fence pointers and Split-Block Bloom filters; record **authenticated compaction lineage** ($\{S_1, S_2\} \xrightarrow{\text{compact}} S_{12}$) and **branch-aware compaction watermarks** ($\tau_{\text{del}}$ vs. pinned branch retention cost); and incrementally activate/merge branch `DATAFLOW`s by feeding branch delta `.tseg` Z-set runs (`@weight = +1/-1`) into shared base arrangements. |
+| [Milestone 23](23-storage-providers-and-concurrency.md) | Enforce the six provider latency and cloud-cost invariants across **Local NVMe/EBS**, **Shared POSIX (AWS EFS / NFSv4)**, and **Disaggregated Cloud Object Storage (S3, S3 Express, GCS, R2, Azure Blob)**: `fallocate` pre-allocated `64 MiB` `TWAL1` segments (1 `fdatasync`, 0 directory syncs per turn), zero foreground object `PUT`s, coalesced `.tdel`/`.tack` flushes, 1-RTT `64 KiB` suffix-range footer `GET`s, `64 KiB` SHA-256-verified `NvmeCache` page alignment (shielding EFS `$0.03/GiB` and S3 `GET` fees), and WiscKey compaction bandwidth bounds. |
+
 ## Deductive Datalog rules, equivalence graphs and Verilog/EDA hardware verification review — 2026-11-01
 
 A review of how Datalog deductive reasoning and Verilog/EDA hardware design

@@ -669,15 +669,23 @@ and the backend's native/direct/payload maintenance owners.
   projection dependencies, catalog history, pending operations, original
   receipts, snapshots, captures and standalone payload ownership.
 - [ ] P4.4 Bound CPU, bytes, allocations, outstanding I/O and total concurrent
-  maintenance memory. Test aggregate budgets across many Tables and foreground
-  readers, not just each component's allocator. Back off failures without a busy
-  retry loop or permission bypass; retain enough control reserve to recover.
-  Qualify compaction eligibility and total bytes rewritten for packed segments,
-  sparse updates and deletes. Select useful compaction work through bounded
-  metadata inspection before relocating rows, preserve restartable progress
-  over skipped candidates, and measure foreground latency and segment/write
-  amplification. This is local
-  storage maintenance scope; broader indexes and group commit remain deferred.
+  maintenance memory across **all active direct owners in `DirectStorageGraph`**
+  (`TablePartition`, `KVPartition`, `StreamPartition`, `QueuePartition`—including
+  `.tack` and `QueueTimeRun` merges—`DocumentPartition`, and catalog/dataflow
+  `TXR1`/`CPR1`/`SOR1`/`DFR1` records), not only `TablePartition`. Test aggregate
+  budgets across many multi-workload partitions and foreground readers, not just
+  each component's allocator. Back off failures without a busy retry loop or
+  permission bypass; retain enough control reserve to recover. Qualify compaction
+  eligibility and total bytes rewritten for packed segments, sparse updates and
+  deletes. Select useful compaction work through bounded metadata inspection
+  before relocating rows, preserve restartable progress over skipped candidates,
+  and measure foreground latency and segment/write amplification. Keep Decision
+  D1's WAL-published `TablePartitionRecord.Root` and paged `TreeStore` indexes
+  intact to close Milestone 3; the cutover from per-turn global `TreeStore`
+  (`TDIX`) B-tree row indexes to a leveled LSM `.tseg` manifest with sparse
+  fence footers, Split-Block Bloom filters and WiscKey value separation is owned
+  by [Milestone 11](11-indexing-and-access-paths.md) and
+  [Milestone 13](13-data-structures-and-performance.md).
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
@@ -892,8 +900,13 @@ Owners: local Table service/catalog, direct query readers, shared SQL service,
 - [ ] P5.2 Reuse verified immutable data and validated owner/recovery state where
   measurements justify it, under a bounded resident owner/cache pool. Bind every
   entry to its exact root/definition/epoch and invalidate on uncertainty or
-  replacement. Eviction closes only volatile state; it cannot release a durable
-  pin or lose pending work. Current permission checks remain per disclosure.
+  replacement. Isolate high-frequency catalog runtime token and progress updates
+  (`DirectClientToken`, consumer `CPR1`, connector `SOR1`, transaction `TXR1`, and
+  computation `DFR1` pointers) so they do not force cold `DirectCatalog`
+  Partition 0 definition recovery or contend with `LocalTableHost` resident
+  owner caches on every turn. Eviction closes only volatile state; it cannot
+  release a durable pin or lose pending work. Current permission checks remain
+  per disclosure.
 - [ ] P5.3 Qualify live point/range/projected/filter/relational reads across WAL,
   flushed and compacted data with small caches and spill limits. Replace per-row
   `OwnedRow` arena initialization on hot read pages with page- or batch-scoped
@@ -1164,10 +1177,15 @@ Owners: shared protocol/catalog/client operations, server settings, CLI/SQL
 inspection adapters, Board API and its existing inspection UI.
 
 - [ ] P6.1 Complete the shared inspection from P2: selected backend, resolved
-  data root for authorized operators, exact Table/definition/cut, flush backlog,
+  data root for authorized operators, exact object/definition/cut, flush backlog,
   archive/checkpoint/retention coverage, maintenance state/failure and measured
-  quota use. Distinguish live observations, durable facts and unavailable data;
-  use paginated inspection instead of traversing the whole installation.
+  quota use. Structure the physical storage projection (`wal_backlog_bytes`,
+  `sealed_segments`, `archive_frontier`, `checkpoint_lsn`, `live_bytes`,
+  `reclaimable_bytes`, `retention_floor`) so it extends uniformly across all six
+  direct-data workload owners (`TABLE`, `KV`, `DOCUMENT`, `STREAM`, `QUEUE`, and
+  `DATAFLOW`) as their respective milestones land. Distinguish live observations,
+  durable facts and unavailable data; use paginated inspection instead of
+  traversing the whole installation.
 - [ ] P6.2 Define privilege-filtered disclosure of paths, aggregate statistics
   and object details. Current read/inspection authority applies to repeated,
   empty and terminal responses. Exclude credentials, payloads and unbounded

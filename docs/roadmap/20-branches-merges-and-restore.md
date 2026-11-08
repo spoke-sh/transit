@@ -86,13 +86,23 @@ authority/process evidence separate from branchable application state.
      preserved) and lazy default projections from drop-and-recreate mutations,
      and reporting affected `CHECK`/`FOREIGN KEY` constraints and downstream
      dataflows.
-   - **Reviewed three-way merge publication:** physical compaction can replace
-     segment IDs without changing data; use logical lineage/change evidence to
-     avoid inventing merge changes or conflicts from that rewrite. Freeze
-     `base`/`source`/`target`, align schemas, validate constraints, surface
-     row/cell conflicts explicitly, and commit the merged Manifest via
-     conditional CAS (`Multi-Writer OCC`), rejecting stale target heads.
-     Schema-only promotion preserves target rows unless explicitly migrated.
+   - **Reviewed three-way merge publication, disjoint `.tseg` splicing and compaction lineage:**
+     physical compaction can replace segment IDs without changing data; record
+     authenticated compaction lineage ($\{S_1, S_2\} \xrightarrow{\text{compact}}
+     S_{12}$) in the manifest so the three-way merge planner recognizes logically
+     unchanged compacted segments without inventing merge changes or conflicts
+     from that rewrite. Use `.tseg` sparse row-group fence pointers
+     (`[min_key, max_key]`) and Split-Block Bloom filters
+     ([Milestone 11](11-indexing-and-access-paths.md) /
+     [Milestone 13](13-data-structures-and-performance.md)) to splice disjoint
+     branch-added `.tseg` segments and WiscKey out-of-line value blobs directly
+     into the merged manifest without rewriting data pages, while streaming
+     overlapping key ranges through a forward $K$-way merge cursor under declared
+     collations ($\kappa$). Freeze `base`/`source`/`target`, align schemas,
+     validate constraints, surface row/cell conflicts explicitly, and commit the
+     merged Manifest via conditional CAS (`Multi-Writer OCC`), rejecting stale
+     target heads. Schema-only promotion preserves target rows unless explicitly
+     migrated.
 4. **Extend diff and merge to compatible Documents ([Milestone 7](07-document-storage-and-station-decoupling.md) and [Milestone 16](16-document-profiles-and-gateway-exchange-lifecycle.md)), 2D/3D geospatial & volumetric models ([Milestone 17](17-geospatial-and-spatio-temporal-computing.md)), interactive 3D worlds & game asset pipelines ([Milestone 19](19-game-asset-pipelines-and-simulation-streaming.md)) and qualified graph mappings:**
    support both `versioned` structural three-way diff/merge and `causal_crdt`
    replica state-vector convergence, use `.tseg` 2D/3D bounding-box (`BBOX2D`/`BBOX3D`) and `S2`/`OCT_CELL` Hilbert
@@ -430,7 +440,7 @@ constant-time branch claim.
 | Documents | Preserve revisions, causal predecessors, tombstones, profiles and raw provenance. Allocate fresh replica namespaces durably; gate mutation and merge on M7 participation and exact compatible histories. |
 | Streams | Retained payload history may be exposed as explicitly historical slices. New writes use fresh branch-qualified partitions/epochs; consumer progress is not a live consumer assignment. |
 | Queues and Station inboxes | Payloads may be historical evidence; copied leases, ACK eligibility, timers and claims never become active work. Re-enqueue requires an explicit new authorized operation. Unsupported inclusion or merge must reject or be explicitly excluded in the manifest. |
-| Indexes, views and dataflows | Copy definitions inactive. Reuse derived bytes only with exact coverage; otherwise invalidate and rebuild/recompute through the owner. Retained prior results keep their original basis and cannot masquerade as current. |
+| Indexes, views and dataflows | Copy definitions inactive. Reuse derived bytes and [Milestone 12](12-sql-and-dataflows.md) `@weight`-bearing `.tseg` DBSP Z-set arrangements in $O(1)$ at the base cut; when a branch activates a dataflow or merges back into `main`, feed the branch's delta `.tseg` Z-set runs (`@weight = +1 / -1`) incrementally into the shared base arrangement where coverage and definition semantics match, or otherwise invalidate and rebuild/recompute through the owner. Retained prior results keep their original basis and cannot masquerade as current. |
 | Foreign data and captured exchanges | Bind immutable content and profile/decoder commitments with explicit availability. A URL is not a snapshot. Missing dependencies fail visibly; replay cannot fetch a live replacement as equivalent evidence. |
 | Grants, credentials, PIDs, operation receipts, retirement and effect control | Remain current authority/recovery evidence outside branchable application data. Do not rewind them. Historical effect intents/outcomes may be inspected but cannot redispatch or be relabeled successful/cancelled. |
 

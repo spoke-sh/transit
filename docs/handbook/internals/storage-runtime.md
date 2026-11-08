@@ -851,18 +851,40 @@ flowchart TB
    enterprise/mainframe codecs (**`COMP-3`**, **`ZONED`**, **`COMP`/`COMP-4`**,
    **`IBM_HFP`**, **`EBCDIC`**) with explicit **Collation (`COLLATE`)** sort-key
    bindings (detailed in [Query planning, snapshots and results](query-engine.md#logical-types-and-physical-codecs-and-collation-semantics)).
-4. **$O(\log N)$ point lookups and $O(1)$ row-group pruning:** Rows within a
-   `.tseg` file are sorted by primary key (or clustering key). The footer embeds
-   both **Collation-Aware Zone Maps (`min` / `max`)** for analytical scan
-   pruning and a compact **Primary-Key Prefix B-Tree Index** over order-preserving
-   sort keys so point queries (`WHERE pk = $1`) require at most two range reads
-   (footer index $\to$ target row-group slice).
-5. **Fast point deletes and updates via `.tdel` Deletion Vectors:** `DELETE` and
-   `UPDATE` statements never rewrite an immutable `.tseg` file in the foreground.
-   Instead, the mutation appends to `TransitLog` + Tier 0 Memtable, and on flush
-   writes a compact `.tdel` bitmap marking superseded row offsets in the old
-   `.tseg` segment while writing updated rows into a new delta `.tseg` segment.
-   Background compaction later merges `.tseg` + `.tdel` files asynchronously.
+4. **$O(\log N)$ point lookups, $O(1)$ row-group pruning and single-RTT suffix footer reads:**
+   Rows within a `.tseg` file are sorted by primary key (or clustering key). In
+   the target [Milestone 11](../../roadmap/11-indexing-and-access-paths.md) /
+   [Milestone 13](../../roadmap/13-data-structures-and-performance.md) layout,
+   the footer is bounded ($\le 64\text{ KiB}$ for a single `Range: bytes=-65536`
+   suffix read on EFS or cloud object storage) and embeds **Collation-Aware Zone
+   Maps (`min` / `max`)**, cache-line-aligned **Split-Block Bloom Filters** (~10
+   bits/key), and **Sparse Row-Group Fence Pointers (`min_key`, `max_key`,
+   `page_offset`)** (replacing the eager full-key `Footer.pk_index` array and
+   64-bit `bloom_mask` in the initial component baseline) so negative point
+   lookups resolve in RAM with zero disk/object reads and positive point queries
+   (`WHERE pk = $1`) require at most one targeted page read after the footer is
+   cached. Values exceeding $4\text{ KiB}$ in `KV`, `DOCUMENT` and variable-length
+   `TABLE` columns separate into immutable WiscKey-style blob `.tseg` segments so
+   LSM compaction and [branch merges](state-model.md#branch-creation-and-shared-storage)
+   share large payloads in $O(1)$ without compaction write amplification.
+5. **Fast point deletes, queue settlements and unified workload columns via `.tdel` / `.tack` and `.tseg` system columns:**
+   `DELETE` and `UPDATE` statements on `TABLE`s (and blind `put`/`remove` on
+   `KV`) never rewrite an immutable `.tseg` file or stage per-turn `TDIX` B-tree
+   object files on the foreground path. Instead, the mutation appends to
+   `TransitLog` (`TWAL1`) + Tier 0 Memtable, and on batched flush writes a
+   compact `.tdel` Roaring bitmap (for `TABLE` row offsets) or native LSM
+   tombstone tag (for `KV` key runs) alongside the new delta `.tseg` segment.
+   Across the remaining declarative workloads, `STREAM` folds `_offset`,
+   `_timestamp` and `_tombstone` into native `.tseg` system columns + `.tdel`
+   compaction vectors (retiring separate `LBMETA01`/`LOGVIEW1` sidecars),
+   `QUEUE` coalesces `.tack` (`TACK0001`) Roaring-bitmap checkpoints behind
+   `TWAL1` frames, `DOCUMENT` persists $2N$-bit `BP` `rank`/`select` directories
+   and shredded subcolumns in `.tseg`, and `DATAFLOW` stores materialized
+   revisions and DBSP operator arrangements as `.tseg` Z-set runs carrying a
+   native `@weight: i64` multiplicity column (retiring separate `DFP1` page
+   blobs). Background compaction later merges `.tseg` + `.tdel` files
+   asynchronously while recording authenticated compaction lineage for
+   branch-safe three-way merges.
 
 The implemented `.tdel` codec uses the shared `transit-bitmap` array, bitmap and
 run containers. Its sparse prefix directory and mutation workspace are bounded

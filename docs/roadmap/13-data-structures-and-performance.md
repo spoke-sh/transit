@@ -107,18 +107,38 @@ component, failure or allocation gates below.
    fallibility, multiplicity and any specified result ordering. `EXPLAIN` remains
    non-executing; observed execution counters come from a separately authorized,
    explicit execution.
-4. **Enforce LSM/segment compaction invariants, shared `TablePartition`/`StreamPartition`/`QueuePartition` `.tseg` + Roaring-bitmap structures, LeanStore/Umbra-inspired zero-copy buffer management, scan-resistant caching and fine-grained resource metering.**
-   Specify and qualify leveled/size-tiered `.tseg` compaction policies that bound
-   the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$),
-   trigger segment rewrite/merge when `.tdel` deletion-vector ratios exceed
-   configured thresholds, and reclaim sealed `QueuePartition` `.tseg` segments in
-   $O(1)$ once their `.tack` Roaring-bitmap state vectors mark all offsets
-   acknowledged ([Milestone 6](06-streams-queues-and-durable-runtime.md)),
-   preventing point and range lookups from degrading to
-   $O(K \log N)$ across fragmented segments or accumulating unbounded tombstone
-   overhead under update-heavy workloads. Coordinate with
-   [branches](20-branches-merges-and-restore.md) so compaction accounts for
-   branch-shared segments and pinned snapshots. Upgrade [`NvmeCache`](../../packages/zig/transit-storage/src/NvmeCache.zig)
+4. **Enforce LSM/segment compaction invariants, true LSM cutover for `TablePartition`/`KVPartition`, WiscKey value-blob separation, shared `StreamPartition`/`QueuePartition`/`Dataflow` `.tseg` + Roaring-bitmap structures, LeanStore/Umbra-inspired zero-copy buffer management, scan-resistant caching and fine-grained resource metering.**
+   Retire per-turn global Copy-on-Write `TreeStore` (`TDIX`) B-tree page rewrites
+   (`rows`, `scan_rows`, `identities`, `ordered_rows`) from the hot write path of
+   [`TablePartition`](../../packages/zig/transit-storage/src/TablePartition.zig)
+   and [`KVPartition`](../../packages/zig/transit-storage/src/KVPartition.zig) in
+   favor of a **true LSM-tree (`TWAL1` + bounded Memtable + leveled `.tseg`
+   manifest + `.tdel` deletion vectors)**:
+   - Eliminate mandatory read-before-write on unconditional `KV` `put` (`expect =
+     .any`) and `remove` by appending directly to `TWAL1` + Memtable with a
+     first-class **LSM tombstone tag** in `.tseg` (while resolving conditional
+     `expect = .present/.absent` checks via [Milestone 11's](11-indexing-and-access-paths.md)
+     in-memory Split-Block Bloom filters and sparse row-group fence pointers).
+   - Introduce **WiscKey-style out-of-line value-blob `.tseg` segments** for
+     `KV` values, `DOCUMENT` raw parts and large variable-length cells exceeding
+     $4\text{ KiB}$ so LSM key compaction only merges compact
+     `(key_sort_bytes, lsn, 57B_blob_locator)` entries instead of repeatedly
+     rewriting up to $1\text{ MiB}$ values across $L_0 \to L_k$.
+   - Specify and qualify leveled/size-tiered `.tseg` compaction policies that bound
+     the maximum number of overlapping `.tseg` runs per key range ($K_{\max}$),
+     trigger segment rewrite/merge when `.tdel` deletion-vector ratios exceed
+     configured thresholds, sum `@weight: i64` multiplicities and drop net-zero
+     (`@weight == 0`) tuples when compacting [Milestone 12](12-sql-and-dataflows.md)
+     DBSP Z-set arrangement `.tseg` segments, and reclaim sealed `QueuePartition`
+     `.tseg` segments in $O(1)$ once their `.tack` Roaring-bitmap state vectors
+     mark all offsets acknowledged ([Milestone 6](06-streams-queues-and-durable-runtime.md)),
+     preventing point and range lookups from degrading to $O(K \log N)$ across
+     fragmented segments or accumulating unbounded tombstone overhead under
+     update-heavy workloads. Coordinate with
+     [branches](20-branches-merges-and-restore.md) so compaction records
+     authenticated compaction lineage ($\{S_1, S_2\} \xrightarrow{\text{compact}}
+     S_{12}$) and respects branch-shared segment watermarks and pinned snapshots.
+   Upgrade [`NvmeCache`](../../packages/zig/transit-storage/src/NvmeCache.zig)
    and the in-memory page/chunk buffer pool using **LeanStore and Umbra buffer-management
    principles**: verify SHA-256 cryptographic integrity **once on chunk admission/load**
    from Tier 3/disk into the immutable slab rather than re-hashing and

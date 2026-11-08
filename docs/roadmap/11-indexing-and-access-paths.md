@@ -73,13 +73,21 @@ does not supply a portable cross-vendor indexing grammar.
    access, nonunique entries and constraint-backed unique indexes in the
    supported local transaction domain. Bind entries to stable row/version
    identities, including keyless Tables, and qualify MVCC visibility and
-   deletion handling. Evaluate mutable ordered structures separately from paged
-   immutable layouts, and evaluate per-segment or per-row-group minimal perfect
-   hash / compact association-table equality directories sealed at `.tseg` flush
-   time alongside sorted primary-key directories and column dictionaries so
-   point lookups and dictionary ID resolution avoid binary-search branch
-   mispredictions. Support separately published secondary-index objects where
-   appropriate so adding an index need not rewrite base data. Specify manifest references and compaction
+   deletion handling. Replace the eager flat per-row `Footer.pk_index` array and
+   64-bit `bloom_mask: u64` in [`TSeg.zig`](../../packages/zig/transit-fuze/src/TSeg.zig)
+   with a **bounded ($\le 64\text{ KiB}$) suffix-range-readable `.tseg` footer**
+   embedding per-row-group **Sparse Fence Pointers (`min_key`, `max_key`,
+   `page_offset`)** and cache-line-aligned **Split-Block Bloom Filters** (~10
+   bits/key) so opening a cold `.tseg` segment on NVMe, EFS or cloud object
+   storage requires at most one `64 KiB` suffix range read (`Range: bytes=-65536`)
+   and point lookups fetch only the single matching key/data page. Evaluate
+   mutable ordered structures separately from paged immutable layouts, and
+   evaluate per-segment or per-row-group minimal perfect hash / compact
+   association-table equality directories sealed at `.tseg` flush time alongside
+   sorted primary-key directories and column dictionaries so point lookups and
+   dictionary ID resolution avoid binary-search branch mispredictions. Support
+   separately published secondary-index objects where appropriate so adding an
+   index need not rewrite base data. Specify manifest references and compaction
    remapping; do not freeze a `.tidx` format or BBTree node layout by name alone.
    Bound candidate-segment discovery, index pages, row fetches, batches and
    resident memory. Report overlapping-segment costs and cold/warm I/O; a fast

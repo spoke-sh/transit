@@ -145,13 +145,16 @@ The completion packages below sequence implementation against the current source
      `type_error`), dictionary-coded field/tag symbol IDs, causal operation
      dots (when `causal_crdt` is active), and `(page_id, byte_start, byte_end)`
      span coordinates as bitpacked `.tseg` streams.
-   - **Verified Raw-Frame & Multi-Part Container Storage:** Retain immutable
-     staged raw byte/text frames and multi-part container directories (such as
-     `MIME` multipart bodies, `OPC`/`ZIP` package parts for `DOCX`/`XLSX`/`ODF`,
-     and `PDF` `xref`/stream objects, verified by SHA-256 chunk coverage
-     commitments and bounded by explicit decompression quotas) in `.tseg` blob
-     pages so slices borrow directly from swizzled LeanStore/Umbra RAM/NVMe
-     buffer slabs.
+   - **Verified Raw-Frame, Multi-Part Container & WiscKey Out-of-Line Blob Storage:** Retain immutable
+     staged raw byte/text frames, $> 4\text{ KiB}$ large scalar/attachment payloads
+     (using WiscKey-style out-of-line blob `.tseg` segments so document tree
+     compaction and [Milestone 20](20-branches-merges-and-restore.md) branch
+     merges share large payloads in $O(1)$ without rewriting them), and
+     multi-part container directories (such as `MIME` multipart bodies,
+     `OPC`/`ZIP` package parts for `DOCX`/`XLSX`/`ODF`, and `PDF` `xref`/stream
+     objects, verified by SHA-256 chunk coverage commitments and bounded by
+     explicit decompression quotas) in `.tseg` blob pages so slices borrow
+     directly from swizzled LeanStore/Umbra RAM/NVMe buffer slabs.
 
 4. **Implement adaptive columnar path shredding (Dremel / ClickHouse style) into `.tseg` subcolumns.**
    Bridge semi-structured Document flexibility with columnar analytical scan
