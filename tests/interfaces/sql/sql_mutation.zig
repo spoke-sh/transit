@@ -89,7 +89,6 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
             .limit = bound.plan.plan.limit,
             .maximum = bound.maximum,
             .lease_ms = bound.lease_ms,
-            .predicate = null,
             .wait_ms = bound.wait_ms,
             .matched = try matchedRows(bound.fields, bound.plan.plan),
         }, .{}, out);
