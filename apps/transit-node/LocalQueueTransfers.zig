@@ -74,10 +74,13 @@ pub fn deinit(self: *Self) void {
     self.* = .{};
 }
 fn clear(self: *Self) void {
-    if (self.workspace) |workspace| workspace.destroy();
-    self.workspace = null;
+    self.releaseWorkspace();
     self.target = null;
     self.cursor = null;
+}
+fn releaseWorkspace(self: *Self) void {
+    if (self.workspace) |workspace| workspace.destroy();
+    self.workspace = null;
 }
 
 pub fn step(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, signed: p.Growth.SignedRequest) !bool {
@@ -184,44 +187,48 @@ fn discoverOne(self: *Self, allocator: std.mem.Allocator, catalog: *c.DirectCata
         self.clear();
         return false;
     }
-    var scratch = std.heap.ArenaAllocator.init(allocator);
-    defer scratch.deinit();
-    const source: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = target.ordinal };
-    const access = try catalog.logAuthorization(scratch.allocator(), .queue, source, .administer, policy.policy());
-    const initial = try definition.genesis(target.ordinal);
-    if (self.workspace) |workspace| {
-        if (workspace.data.backend != engine.journal.backend) return error.InvalidTableOwner;
-        try workspace.queue.owner.root.initialization.requireSame(initial);
-    } else self.workspace = try Workspace.create(allocator, engine.journal.backend, initial, access.guard);
-    const queue = &self.workspace.?.queue;
-    if (!(try queue.recoverStep(access.guard, 16)).complete) return true;
-    // A prepared participant belongs to the common decision owner. Discovery
-    // skips it; the alternating pending-work pass advances that original.
-    if (queue.owner.root.transaction != null) {
-        self.clear();
-        return false;
-    }
-    // Retain one finite per-partition sweep until exhausted. Evicting one of a
-    // fixed number of cursor hints cannot starve a large Queue population.
-    const page = try queue.deadLetterNext(definition.stored, self.cursor, @intCast(@min(256, definition.stored.declaration.limits.timer_steps)), access.guard);
-    self.cursor = page.cursor;
-    self.last_rows = page.scanned;
-    defer if (page.cursor.complete()) self.clear();
-    const candidate = page.candidate orelse return !page.cursor.complete();
-    if (try catalog.store.queueTransferSource(Plan.sourceDigest(candidate.source)) != null) return true;
-    const ids = try identities(identity.connection(host), identity.account, candidate.source);
-    if (try c.OperationBinding.lookupTransaction(catalog.allocator, catalog.store.objects, ids.begin)) |reserved| {
-        if (reserved.reference.purpose != .queue_transfer or !std.mem.eql(u8, &reserved.token, &try ids.key.digest())) return error.TransactionIdentityConflict;
-        const frozen = try Plan.load(catalog.allocator, catalog.data_objects, reserved.reference.purpose.queue_transfer);
-        try frozen.key.requireSame(ids.key);
-        if (!std.mem.eql(u8, &try frozen.sourceKey(), &Plan.sourceDigest(candidate.source))) return error.TransactionIdentityConflict;
-        _ = try catalog.admitQueueTransfer(frozen, policy.policy());
-        return true;
-    }
-    const bytes = try scratch.allocator().alloc(u8, c.storage.LogTransactionActions.max_payload_bytes);
-    const read = try catalog.logAuthorization(scratch.allocator(), .queue, source, .read, policy.policy());
-    const materialized = try queue.deadLetterRoutedWork(definition.stored, candidate, ids.source, ids.destination, bytes, read.guard);
-    const plan: Plan = .{ .definition = p.Growth.current_definition, .key = ids.key, .namespace = definition.properties.namespace, .operation = ids.begin, .transfer = materialized.request, .limits = identity.limits, .budget = identity.budget, .settlement = ids.settlement };
+    const plan: Plan = discover: {
+        var scratch = std.heap.ArenaAllocator.init(allocator);
+        defer scratch.deinit();
+        const source: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = target.ordinal };
+        const access = try catalog.logAuthorization(scratch.allocator(), .queue, source, .administer, policy.policy());
+        const initial = try definition.genesis(target.ordinal);
+        if (self.workspace) |workspace| {
+            if (workspace.data.backend != engine.journal.backend) return error.InvalidTableOwner;
+            try workspace.queue.owner.root.initialization.requireSame(initial);
+        } else self.workspace = try Workspace.create(allocator, engine.journal.backend, initial, access.guard);
+        const queue = &self.workspace.?.queue;
+        if (!(try queue.recoverStep(access.guard, 16)).complete) return true;
+        // A prepared participant belongs to the common decision owner. Discovery
+        // skips it; the alternating pending-work pass advances that original.
+        if (queue.owner.root.transaction != null) {
+            self.clear();
+            return false;
+        }
+        // Retain one finite per-partition sweep until exhausted. Evicting one of a
+        // fixed number of cursor hints cannot starve a large Queue population.
+        const page = try queue.deadLetterNext(definition.stored, self.cursor, @intCast(@min(256, definition.stored.declaration.limits.timer_steps)), access.guard);
+        self.cursor = page.cursor;
+        self.last_rows = page.scanned;
+        defer if (page.cursor.complete()) self.clear();
+        const candidate = page.candidate orelse return !page.cursor.complete();
+        if (try catalog.store.queueTransferSource(Plan.sourceDigest(candidate.source)) != null) return true;
+        const ids = try identities(identity.connection(host), identity.account, candidate.source);
+        if (try c.OperationBinding.lookupTransaction(catalog.allocator, catalog.store.objects, ids.begin)) |reserved| {
+            if (reserved.reference.purpose != .queue_transfer or !std.mem.eql(u8, &reserved.token, &try ids.key.digest())) return error.TransactionIdentityConflict;
+            const frozen = try Plan.load(catalog.allocator, catalog.data_objects, reserved.reference.purpose.queue_transfer);
+            try frozen.key.requireSame(ids.key);
+            if (!std.mem.eql(u8, &try frozen.sourceKey(), &Plan.sourceDigest(candidate.source))) return error.TransactionIdentityConflict;
+            break :discover frozen;
+        }
+        const bytes = try scratch.allocator().alloc(u8, c.storage.LogTransactionActions.max_payload_bytes);
+        const read = try catalog.logAuthorization(scratch.allocator(), .queue, source, .read, policy.policy());
+        const materialized = try queue.deadLetterRoutedWork(definition.stored, candidate, ids.source, ids.destination, bytes, read.guard);
+        break :discover .{ .definition = p.Growth.current_definition, .key = ids.key, .namespace = definition.properties.namespace, .operation = ids.begin, .transfer = materialized.request, .limits = identity.limits, .budget = identity.budget, .settlement = ids.settlement };
+    };
+    // The plan owns its fields. Drop discovery buffers before admission opens
+    // its own metered participants, retaining only the finite sweep cursor.
+    self.releaseWorkspace();
     // Only catalog acceptance binds this source. A lost reply is recovered by
     // the global pending index before another attempt could be dispatched.
     _ = try catalog.admitQueueTransfer(plan, policy.policy());

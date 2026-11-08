@@ -81,6 +81,9 @@ The token budget charges at least 8 KiB plus the canonical row payload; its
 account limits and normal transaction reservations also apply. A smaller byte
 charge refuses a candidate before admission. The executor shares
 `storage.maintenance.resident_bytes` and the unchanged maintenance deadline.
+Discovery releases its Queue workspace and temporary payload before transfer
+admission opens its own participants. An unfinished finite scan retains its
+cursor across that handoff; admission rechecks the exact source and current rights.
 Missing clock, denied or changed destinations, storage quota and pending-work
 capacity leave the source blocked. Accepted attempts remain inspectable through
 their original client-token and transaction status. Only verified transaction
