@@ -11,6 +11,7 @@ from unittest.mock import patch
 import pyarrow as pa
 from performance.console.console_latency import representation_sample, local_trace
 from performance.console import gate, resources
+from performance.mutations.mutation_latency import distribution
 from performance.console.startup import timings as startup_timings, run as startup_run
 
 
@@ -223,6 +224,14 @@ class Representations(unittest.TestCase):
 
 
 class ConsoleLatencyGate(unittest.TestCase):
+    def summarize(self, records):
+        summary = next(row for row in records if row.get('phase') == 'statement_summary')
+        summary['distributions'] = {
+            case: distribution([row['timer_ms'] * 1_000_000 for row in records
+                                if row.get('phase') == 'statement' and row.get('case') == case])
+            for case in gate.STATEMENT_CASES
+        }
+
     def sample_transcripts(self, budgets):
         workload = budgets['workload']
         startup_records = [
@@ -251,8 +260,6 @@ class ConsoleLatencyGate(unittest.TestCase):
                  overrides=dict(worker_interval_ms=workload['worker_interval_ms'])),
             dict(phase='idle'),
         ]
-        counts = gate.expected_statement_samples(workload)
-        distributions = {}
         class_by_case = {
             case: class_name
             for class_name, cases in gate.STATEMENT_CLASSES.items()
@@ -278,11 +285,9 @@ class ConsoleLatencyGate(unittest.TestCase):
                         threads=budgets['resources']['threads_max'],
                         pss_bytes=budgets['resources']['pss_bytes_max'],
                     ))
-        for case, samples in counts.items():
-            ms = float(int(budgets['statement_classes'][class_by_case[case]]))
-            distributions[case] = dict(samples=samples, min_ms=ms, p50_ms=ms, p95_ms=ms, max_ms=ms)
-        statement_records.append(dict(phase='statement_summary', distributions=distributions))
+        statement_records.append(dict(phase='statement_summary'))
         statement_records.append(dict(phase='idle_after_statements'))
+        self.summarize(statement_records)
         return startup_records, statement_records
 
     def test_checked_in_budgets_and_threshold_math(self):
@@ -293,6 +298,8 @@ class ConsoleLatencyGate(unittest.TestCase):
         self.assertEqual(budgets['fast_read_threshold_ms'], 50.0)
         self.assertEqual(budgets['fast_read_noise_floor_ms'], 15.0)
         self.assertEqual(budgets['workload'], gate.DEFAULT_WORKLOAD)
+        self.assertEqual(budgets['workload']['cycles'], 15)
+        self.assertEqual(budgets['calibration_workload']['cycles'], 5)
         self.assertEqual(set(budgets['statement_classes']), set(gate.STATEMENT_CLASSES))
         self.assertEqual(set(budgets['statements']), set(gate.STATEMENT_CASES))
         self.assertEqual(gate.limit_ms(30.0, budgets), 51.0)
@@ -306,21 +313,66 @@ class ConsoleLatencyGate(unittest.TestCase):
         self.assertEqual(evaluation['violations'], [])
         frozen = gate.freeze_budgets([(startup_records, statement_records)], workload=budgets['workload'])
         self.assertEqual(frozen['calibrated_revision'], 'rev-1')
+        self.assertEqual(frozen['calibration_workload'], budgets['workload'])
         self.assertEqual(gate.assess(startup_records, statement_records, frozen)['status'], 'passed')
+
+    def test_fixed_window_retains_spikes_and_detects_sustained_regression(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup, statements = self.sample_transcripts(budgets)
+        samples = [row for row in statements if row.get('phase') == 'statement'
+                   and row.get('case') == 'document_select_after_delete']
+        # The failing nightly's five measurements, followed by ten ordinary
+        # measurements. This is a synthetic oracle, not a reclassified CI run.
+        values = [137, 34, 61, 130, 166] + [43] * 10
+        for row, value in zip(samples, values, strict=True):
+            row['timer_ms'] = value
+        self.summarize(statements)
+        result = gate.assess(startup, statements, budgets)
+        self.assertEqual(result['status'], 'passed')
+        self.assertEqual(result['metrics']['statements']['document_select_after_delete'], 43)
+        self.assertEqual(statements[-2]['distributions']['document_select_after_delete']['max_ms'], 166)
+        # A regression in the majority of the fixed window still fails the
+        # original limit; sampling does not permit retries or a best-of result.
+        for row in samples[:8]:
+            row['timer_ms'] = 130
+        self.summarize(statements)
+        result = gate.assess(startup, statements, budgets)
+        self.assertIn(('statements', 'document_select_after_delete'),
+                      {(row['category'], row['metric']) for row in result['violations']})
+
+    def test_incomplete_duplicate_and_misreported_windows_fail(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        for invalid in ('short', 'missing', 'duplicate', 'resource', 'summary'):
+            startup, statements = self.sample_transcripts(budgets)
+            samples = [row for row in statements if row.get('phase') == 'statement'
+                       and row.get('case') == 'document_select_after_delete']
+            if invalid == 'short':
+                statements = [row for row in statements if row.get('cycle', 0) < 5]
+            elif invalid == 'missing':
+                statements.remove(samples[-1])
+            elif invalid == 'duplicate':
+                samples[-1]['cycle'] = 0
+            elif invalid == 'resource':
+                row = next(row for row in statements if row.get('phase') == 'client_resources')
+                row['cycle'] = 1
+            else:
+                statements[-2]['distributions']['document_select_after_delete']['p50_ms'] = 1
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                gate.assess(startup, statements, budgets)
 
     def test_regressions_and_incomplete_runs_fail(self):
         budgets = json.loads(gate.BUDGETS.read_text())
         startup_records, statement_records = self.sample_transcripts(budgets)
         startup_records[1]['ready_ns'] = int(gate.limit_ms(budgets['startup']['fresh_ready_ms'], budgets) * 1_000_000) + 10_000_000
-        statement_records[-2]['distributions']['select_empty_warm']['p50_ms'] = (
-            gate.limit_ms(budgets['statements']['select_empty_warm'], budgets) + 1.0
-        )
         for row in statement_records[1:]:
+            if row.get('phase') == 'statement' and row.get('case') == 'select_empty_warm':
+                row['timer_ms'] = int(gate.limit_ms(budgets['statements']['select_empty_warm'], budgets)) + 1
             if row.get('phase') == 'statement' and row.get('case') == 'insert':
                 row['timer_ms'] = int(gate.limit_ms(budgets['statement_classes']['dml_write'], budgets)) + 50
-            if row.get('phase') == 'client_resources' and row.get('cycle') == 4:
+            if row.get('phase') == 'client_resources' and row.get('cycle') == budgets['workload']['cycles'] - 1:
                 row['threads'] = budgets['resources']['threads_max'] * 2
                 row['pss_bytes'] = int(budgets['resources']['pss_bytes_max'] * 1.3)
+        self.summarize(statement_records)
         evaluation = gate.assess(startup_records, statement_records, budgets)
         self.assertEqual(evaluation['status'], 'failed')
         violated = {(row['category'], row['metric']) for row in evaluation['violations']}

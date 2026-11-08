@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Early-detection console latency and resource regression gate."""
 import argparse
+from collections import Counter
 import json
 import math
 import os
@@ -19,7 +20,7 @@ DEFAULT_WORKLOAD = {
     'startup_restarts': 2,
     'startup_default': True,
     'repeat': 1,
-    'cycles': 5,
+    'cycles': 15,
     'warm_reads': 2,
     'worker_interval_ms': 10,
     'cpus': 4,
@@ -237,21 +238,34 @@ def extract_metrics(startup_records, statement_records, workload=None):
     expected_counts = expected_statement_samples(workload)
     require(set(distributions) == set(STATEMENT_CASES), 'Statement case coverage mismatch')
 
+    statements = [row for row in statement_records[1:] if row.get('phase') == 'statement']
+    resources = [row for row in statement_records[1:] if row.get('phase') == 'client_resources']
+    expected_windows = Counter()
+    for cycle in range(workload['cycles']):
+        for case, count in expected_counts.items():
+            if case in ('select_cold', 'document_select_cold'):
+                samples = int(cycle == 0)
+            elif case in ('select_empty', 'document_select_empty'):
+                samples = int(cycle != 0)
+            else:
+                samples = count // workload['cycles']
+            if samples:
+                expected_windows[cycle, case] = samples
+    for phase, records in (('statement', statements), ('client_resources', resources)):
+        actual_windows = Counter((row.get('cycle'), row.get('case')) for row in records)
+        require(actual_windows == expected_windows, f'Incomplete or duplicate {phase} sample windows')
+
     statement_metrics = {}
     for case in STATEMENT_CASES:
-        dist = distributions[case]
-        require(dist.get('samples') == expected_counts[case],
-                f'Unexpected sample count for {case}: {dist.get("samples")} != {expected_counts[case]}')
+        values = [row.get('timer_ms') for row in statements if row.get('case') == case]
+        require(all(type(value) is int and value > 0 for value in values),
+                f'Invalid statement timings for {case}')
+        dist = distribution([value * 1_000_000 for value in values])
+        require(distributions[case] == dist, f'Statement summary does not match raw samples for {case}')
         metric = dist['min_ms'] if case in ('select_cold', 'document_select_cold') else dist['p50_ms']
         require(isinstance(metric, (int, float)) and math.isfinite(metric) and metric > 0,
                 f'Invalid latency metric for {case}')
         statement_metrics[case] = round(float(metric), 3)
-
-    statements = [row for row in statement_records[1:] if row.get('phase') == 'statement']
-    resources = [row for row in statement_records[1:] if row.get('phase') == 'client_resources']
-    total_expected = sum(expected_counts.values())
-    require(len(statements) == total_expected and len(resources) == total_expected,
-            'Incomplete statement or client_resources records')
 
     class_metrics = {}
     for class_name, cases in STATEMENT_CLASSES.items():
@@ -304,7 +318,7 @@ def freeze_budgets(runs, *, max_regression_pct=20.0, fast_read_threshold_ms=50.0
     }
     require(len(revisions) == 1 and next(iter(revisions)), 'Calibration runs must share one source_revision')
     # Periodic 1-second supervisor/maintenance ticks can overlap any individual
-    # 5-sample refresh_read or dml_write case depending on cycle phase. Pool the
+    # refresh_read or dml_write case depending on cycle phase. Pool the
     # per-case envelope within refresh_read and dml_write while keeping exact
     # per-case warm_read baselines and pooled class medians.
     class_envelope = {
@@ -323,6 +337,7 @@ def freeze_budgets(runs, *, max_regression_pct=20.0, fast_read_threshold_ms=50.0
         'definition': DEFINITION,
         'calibrated_revision': next(iter(revisions)),
         'calibration_runs': len(extracted),
+        'calibration_workload': workload,
         'max_regression_pct': max_regression_pct,
         'fast_read_threshold_ms': fast_read_threshold_ms,
         'fast_read_noise_floor_ms': fast_read_noise_floor_ms,
