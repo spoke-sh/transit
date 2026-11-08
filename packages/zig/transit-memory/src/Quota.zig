@@ -6,23 +6,133 @@ limit: usize,
 parent: ?*Self = null,
 used: std.atomic.Value(usize) = .init(0),
 peak: std.atomic.Value(usize) = .init(0),
+refusals: std.atomic.Value(usize) = .init(0),
 
 pub fn reserve(self: *Self, bytes: usize) error{MemoryBudgetExceeded}!void {
     var previous = self.used.load(.acquire);
     while (true) {
-        if (bytes > self.limit - previous) return error.MemoryBudgetExceeded;
+        if (bytes > self.limit - previous) {
+            _ = self.refusals.fetchAdd(1, .monotonic);
+            return error.MemoryBudgetExceeded;
+        }
         previous = self.used.cmpxchgWeak(previous, previous + bytes, .acq_rel, .acquire) orelse break;
     }
     if (self.parent) |parent| parent.reserve(bytes) catch |err| {
         _ = self.used.fetchSub(bytes, .acq_rel);
+        _ = self.refusals.fetchAdd(1, .monotonic);
         return err;
     };
     _ = self.peak.fetchMax(previous + bytes, .monotonic);
+}
+
+/// A stable, concurrent backing allocator for independently lived borrowers.
+/// It retains no allocation-local state. The adapter, quota and parent must
+/// outlive every allocation, including arenas returned by a completed call.
+pub const Allocator = struct {
+    parent: std.mem.Allocator,
+    quota: *Self,
+
+    pub fn allocator(self: *Allocator) std.mem.Allocator {
+        return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
+    }
+    fn alloc(raw: *anyopaque, len: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8 {
+        const self: *Allocator = @ptrCast(@alignCast(raw));
+        self.quota.reserve(len) catch return null;
+        return self.parent.rawAlloc(len, alignment, ra) orelse {
+            self.quota.release(len);
+            return null;
+        };
+    }
+    fn grow(self: *Allocator, before: usize, after: usize) bool {
+        if (after > before) self.quota.reserve(after - before) catch return false;
+        return true;
+    }
+    fn rollback(self: *Allocator, before: usize, after: usize) void {
+        if (after > before) self.quota.release(after - before);
+    }
+    fn shrink(self: *Allocator, before: usize, after: usize) void {
+        if (before > after) self.quota.release(before - after);
+    }
+    fn resize(raw: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, len: usize, ra: usize) bool {
+        const self: *Allocator = @ptrCast(@alignCast(raw));
+        if (!self.grow(bytes.len, len)) return false;
+        if (!self.parent.rawResize(bytes, alignment, len, ra)) {
+            self.rollback(bytes.len, len);
+            return false;
+        }
+        self.shrink(bytes.len, len);
+        return true;
+    }
+    fn remap(raw: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, len: usize, ra: usize) ?[*]u8 {
+        const self: *Allocator = @ptrCast(@alignCast(raw));
+        if (!self.grow(bytes.len, len)) return null;
+        const result = self.parent.rawRemap(bytes, alignment, len, ra) orelse {
+            self.rollback(bytes.len, len);
+            return null;
+        };
+        self.shrink(bytes.len, len);
+        return result;
+    }
+    fn free(raw: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, ra: usize) void {
+        const self: *Allocator = @ptrCast(@alignCast(raw));
+        self.parent.rawFree(bytes, alignment, ra);
+        self.quota.release(bytes.len);
+    }
+};
+
+test "quota allocator retains independent arenas and rolls back backing failure" {
+    const t = std.testing;
+    var quota: Self = .{ .limit = 4096 };
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var adapter: Allocator = .{ .parent = failing.allocator(), .quota = &quota };
+    try t.expectError(error.OutOfMemory, adapter.allocator().alloc(u8, 1));
+    try t.expectEqual(0, quota.used.load(.acquire));
+    try t.expectEqual(0, quota.refusals.load(.acquire));
+    adapter.parent = t.allocator;
+    var first: std.heap.ArenaAllocator = .init(adapter.allocator());
+    var second: std.heap.ArenaAllocator = .init(adapter.allocator());
+    const retained = try first.allocator().dupe(u8, "original result");
+    _ = try second.allocator().alloc(u8, 1024);
+    try t.expectError(error.OutOfMemory, adapter.allocator().alloc(u8, 4096));
+    try t.expectEqual(1, quota.refusals.load(.acquire));
+    second.deinit();
+    try t.expectEqualStrings("original result", retained);
+    try t.expect(quota.used.load(.acquire) != 0);
+    first.deinit();
+    try t.expectEqual(0, quota.used.load(.acquire));
 }
 pub fn release(self: *Self, bytes: usize) void {
     const previous = self.used.fetchSub(bytes, .acq_rel);
     std.debug.assert(bytes <= previous);
     if (self.parent) |parent| parent.release(bytes);
+}
+
+test "quota allocator growth rollback and shrink preserve the exact backing charge" {
+    const t = std.testing;
+    var quota: Self = .{ .limit = 64 };
+    var buffer: [128]u8 = undefined;
+    var fixed: std.heap.FixedBufferAllocator = .init(&buffer);
+    var adapter: Allocator = .{ .parent = fixed.allocator(), .quota = &quota };
+    const a = adapter.allocator();
+    var bytes = try a.alloc(u8, 32);
+    @memset(bytes, 17);
+    try t.expect(!a.resize(bytes, 65));
+    try t.expectEqual(32, quota.used.load(.acquire));
+    bytes = a.remap(bytes, 48).?;
+    try t.expectEqual(48, quota.used.load(.acquire));
+    try t.expect(std.mem.allEqual(u8, bytes[0..32], 17));
+    // A backing failure rolls back a permitted growth without classifying it
+    // as quota exhaustion. The original bytes remain owned and charged.
+    const blocker = try fixed.allocator().alloc(u8, 80);
+    try t.expect(a.remap(bytes, 64) == null);
+    try t.expectEqual(48, quota.used.load(.acquire));
+    try t.expectEqual(1, quota.refusals.load(.acquire));
+    fixed.allocator().free(blocker);
+    try t.expect(a.resize(bytes, 16));
+    bytes = bytes[0..16];
+    try t.expectEqual(16, quota.used.load(.acquire));
+    a.free(bytes);
+    try t.expectEqual(0, quota.used.load(.acquire));
 }
 
 test "hierarchical refusal rolls back only the attempted reservation" {

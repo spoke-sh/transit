@@ -241,9 +241,11 @@ pub const Client = struct {
     fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, budget: Deadline) anyerror!ResponseType(T, owned) {
         if (self.local) |endpoint| if (endpoint.handles(path)) {
             if (owned) {
-                const arena = try self.http.allocator.create(std.heap.ArenaAllocator);
-                errdefer self.http.allocator.destroy(arena);
-                arena.* = .init(self.http.allocator);
+                const control = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().control != null else false;
+                const backing = if (endpoint.response_allocator) |select| select(endpoint.context, path, control, self.http.allocator) else self.http.allocator;
+                const arena = try backing.create(std.heap.ArenaAllocator);
+                errdefer backing.destroy(arena);
+                arena.* = .init(backing);
                 errdefer arena.deinit();
                 // Bound materialized variable data without serializing it. The
                 // budget lives only during dispatch; the retained arena frees
