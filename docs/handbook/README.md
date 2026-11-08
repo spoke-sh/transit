@@ -175,8 +175,10 @@ the raised cabin, and moving away fades the tower and light completely out;
 touch layouts use the summit's viewport position while scrolling. Light shifts
 are bounded and event-driven, with one pending frame while visible, rather than
 an idle animation loop. Channel colors ease in and out over 1.4 seconds, returning
-to the original grayscale at rest. Reduced motion retains a static composition. The dark
-radiograph keeps its own composition without the light image's aligned overlays.
+to the original grayscale at rest. Reduced motion retains a static composition.
+The dark radiograph has a separate overlay: a small vermilion ember at the cavern's
+vanishing point emerges with pointer proximity or touch scrolling. Its pale halo
+rests inside the folds, where the red thread ends.
 [`src/css/hero-artwork.css`](src/css/hero-artwork.css) owns these layers and controls.
 The transparent [fire lookout asset](src/assets/hero-fire-lookout.webp) was
 generated with the built-in image-generation tool using this
@@ -185,16 +187,20 @@ WebP with its alpha preserved. Its graphite shading blends into the summit
 without replacing or editing the original landscape.
 
 The sequence's arrow-only play button fades in on hover or keyboard focus and remains visible
-on touch screens and during playback. [`hero-score.ts`](src/components/hero-score.ts)
-synthesizes a quiet original four-chord score with the browser's Web Audio API;
+on touch screens and during playback. In dark mode, the silver control sits on the
+red thread at the left of the cavern. [`hero-score.ts`](src/components/hero-score.ts)
+synthesizes a quiet original four-chord score in light mode and a soft, low double
+heartbeat at 68 beats per minute in dark mode with the browser's Web Audio API;
 it downloads no audio and creates no audio context until a click, tap or keyboard
 activation. Stop fades out and releases the context; another play starts the score
-again. Navigation, a hidden tab or an audio interruption stops playback, without
+again. A theme change, navigation, a hidden tab or an audio interruption stops playback, without
 automatic resumption. Unsupported browsers and no-JavaScript pages omit the play
 control. While music plays, the window's small amber glow gently breathes,
 and staggered highlights travel through the channels. These animations share the
-score's chord duration and are separate from the proximity lighting; they pause
-offscreen and in dark mode. Stopping music fades its lighting away, leaving any
+score's chord duration and are separate from the proximity lighting. The dark
+ember blooms twice at the heartbeat's cadence, then settles between pairs.
+Each theme's animation pauses offscreen and only runs in its own scene.
+Stopping playback fades its lighting away, leaving any
 current proximity lighting. Reduced motion uses steady illumination during
 explicitly requested music, with no pulses or traveling highlights.
 
@@ -335,7 +341,8 @@ It checks light-mode scroll motion, dark-mode perspective and exact reversal,
 pause/resume, native theme changes, static fallbacks and no-JavaScript navigation,
 and the introduction’s vector architecture figure.
 Hero checks exercise cursor/scroll lighting, reduced motion, keyboard/touch play,
-native audio generation and cleanup, and missing or rejected audio support.
+thread-aligned dark controls, the cavern ember, native audio generation (including
+the heartbeat's paired output pulses), cleanup on theme changes, and missing or rejected audio support.
 It follows the homepage into the data model and dataset tutorial, and finds the
 shared data/computation/policy model through search.
 It also follows statement stories into their reference owners, checks expected

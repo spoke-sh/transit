@@ -41,6 +41,133 @@ const audioStates = (page: Page) =>
     (window as unknown as AudioWindow).heroAudio.map(({ context }) => context.state),
   );
 
+async function expectThreadControl(page: Page) {
+  const art = (await page.locator(".transit-hero-art").boundingBox())!;
+  const button = (await page.locator(".hero-score-button").boundingBox())!;
+  expect((button.x + button.width / 2 - art.x) / art.width).toBeCloseTo(0.125, 2);
+  expect((button.y + button.height / 2 - art.y) / art.height).toBeCloseTo(0.313, 2);
+  expect(button.width).toBeGreaterThanOrEqual(44);
+  expect(button.height).toBeGreaterThanOrEqual(44);
+}
+
+test("dark hero follows the thread to a cavern ember and plays a double heartbeat", async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  await observeAudio(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "no-preference" });
+  await page.goto(baseURL!);
+  const art = page.locator(".transit-hero-art");
+  await art.scrollIntoViewIfNeeded();
+  const play = page.getByRole("button", { name: "Play quiet heartbeat" });
+  await expect(play).toBeAttached();
+  expect(await audioStates(page)).toEqual([]);
+  await expect(page.locator(".hero-light-scene")).toBeHidden();
+  await expect(page.locator(".hero-dark-scene")).toBeVisible();
+  const ember = page.locator(".hero-cavern-beacon");
+  await expect(ember).toHaveCSS("opacity", "0");
+  const bounds = (await art.boundingBox())!;
+  await page.mouse.move(bounds.x + bounds.width * 0.718, bounds.y + bounds.height * 0.512);
+  await expect
+    .poll(() => ember.evaluate((e) => Number(getComputedStyle(e).opacity)))
+    .toBeGreaterThan(0.98);
+  await page.screenshot({ path: testInfo.outputPath("cavern-ember.png") });
+  await play.focus();
+  await expect(play).toHaveCSS("opacity", "1");
+  await expect(play).toHaveCSS("color", "rgb(224, 232, 235)");
+  await expectThreadControl(page);
+  await page.screenshot({ path: testInfo.outputPath("dark-thread-control.png") });
+  await page.keyboard.press("Enter");
+  await expect.poll(() => audioStates(page)).toEqual(["running"]);
+
+  // Measure the actual output: short spacing within each pair, then a longer rest.
+  const pulses = await page.evaluate(async () => {
+    const { context, analyser } = (window as unknown as AudioWindow).heroAudio[0]!;
+    const samples = new Float32Array(analyser.fftSize);
+    const start = context.currentTime;
+    const pulses: number[] = [];
+    let quiet = true;
+    while (context.currentTime - start < 3.2) {
+      analyser.getFloatTimeDomainData(samples);
+      const rms = Math.sqrt(
+        samples.reduce((sum, sample) => sum + sample * sample, 0) / samples.length,
+      );
+      if (quiet && rms > 0.01) {
+        pulses.push(context.currentTime);
+        quiet = false;
+      }
+      if (rms < 0.004) quiet = true;
+      await new Promise((resolve) => window.setTimeout(resolve, 10));
+    }
+    return pulses;
+  });
+  const gaps = pulses.slice(1).map((time, index) => time - pulses[index]!);
+  expect(gaps.filter((gap) => gap > 0.16 && gap < 0.29).length).toBeGreaterThanOrEqual(2);
+  expect(gaps.filter((gap) => gap > 0.58 && gap < 0.75).length).toBeGreaterThanOrEqual(2);
+  const pulse = page.locator(".hero-cavern-pulse");
+  await expect(pulse).toHaveCSS("animation-play-state", "running");
+  await page.mouse.move(0, 0);
+  await expect(ember).toHaveCSS("opacity", "0.85");
+  await page.screenshot({ path: testInfo.outputPath("dark-heartbeat.png") });
+  await page.locator("#handbook").scrollIntoViewIfNeeded();
+  await expect(pulse).toHaveCSS("animation-play-state", "paused");
+  await art.scrollIntoViewIfNeeded();
+  await expect(pulse).toHaveCSS("animation-play-state", "running");
+  await page.getByRole("button", { name: "Stop heartbeat" }).click();
+  await expect.poll(() => audioStates(page)).toEqual(["closed"]);
+  await page.mouse.move(0, 0);
+  await expect(ember).toHaveCSS("opacity", "0");
+
+  await play.click();
+  const theme = page.getByRole("button", { name: /Switch between dark and light mode/ });
+  await theme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() => audioStates(page)).toEqual(["closed", "closed"]);
+  await page.getByRole("button", { name: "Play warm ambient music" }).click();
+  await expect.poll(() => audioStates(page)).toEqual(["closed", "closed", "running"]);
+  await theme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect.poll(() => audioStates(page)).toEqual(["closed", "closed", "closed"]);
+  await expect(play).toHaveAttribute("aria-pressed", "false");
+});
+
+test("dark touch hero keeps the control on the thread and reduced motion keeps the ember steady", async ({
+  browser,
+  baseURL,
+}, testInfo) => {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: "dark",
+  });
+  const page = await context.newPage();
+  await observeAudio(page);
+  await page.goto(baseURL!);
+  const art = page.locator(".transit-hero-art");
+  const energy = () => art.evaluate((e) => Number(e.style.getPropertyValue("--beacon-energy")));
+  await expect(art).toHaveAttribute("data-art-visible", "true");
+  const before = await energy();
+  await page.evaluate(() => window.scrollBy(0, 230));
+  await expect.poll(energy).toBeGreaterThan(before + 0.3);
+  const play = page.getByRole("button", { name: "Play quiet heartbeat" });
+  await expect(play).toHaveCSS("opacity", "1");
+  await expectThreadControl(page);
+  await page.screenshot({ path: testInfo.outputPath("mobile-dark.png") });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect.poll(energy).toBe(0);
+  await play.tap();
+  await expect.poll(() => audioStates(page)).toEqual(["running"]);
+  await expect(page.locator(".hero-cavern-beacon")).toHaveCSS("opacity", "0.85");
+  await expect(page.locator(".hero-cavern-pulse")).toHaveCSS("animation-name", "none");
+  await page.getByRole("button", { name: "Stop heartbeat" }).tap();
+  await expect.poll(() => audioStates(page)).toEqual(["closed"]);
+  await expect(page.locator(".hero-cavern-beacon")).toHaveCSS("opacity", "0");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await context.close();
+});
+
 test("hero keeps its artwork, reacts to proximity, and respects reduced motion", async ({
   page,
   baseURL,
