@@ -38,6 +38,90 @@ mixed SQL transactions, Station/service/effect migration, the Document participa
 or integration and performance qualification. The November 7 source assessment
 below remains a dated baseline, not a description of this later implementation.
 
+## Roadmap reconciliation after #427 — 2026-11-08
+
+**Updated source basis:** rebased onto `origin/main` at
+`d9ac6ea30e2c84e596dad7a7efae27bd00abdc90`. The
+[unified storage review](README.md#unified-lsm-tseg-format-branching-and-provider-cost-review--2026-11-08)
+adds explicit M6 storage work and cross-milestone format dependencies. This
+addendum extends the November 7 delivery plan; the predicate slice above does
+not implement these storage changes or establish their performance guarantees.
+
+Source inspection still finds `LBMETA01` metadata in
+[`LogSegment`](../../packages/zig/transit-storage/src/LogSegment.zig),
+`LOGVIEW1` sparse payloads in
+[`LogView`](../../packages/zig/transit-storage/src/LogView.zig), and
+[`LogPartition`](../../packages/zig/transit-storage/src/LogPartition.zig)
+persisting the selected Queue candidate objects before publishing the operation
+record. [`QueueCandidateObjects`](../../packages/zig/transit-storage/src/QueueCandidateObjects.zig)
+already excludes unreachable private derivations; that is not deferred
+checkpointing or a zero-foreground-object-write path. Preserve those current
+publication dependencies until their replacement can recover accepted state.
+
+### Additional storage review units and sequencing
+
+1. **Freeze the shared format and recovery contracts.** With
+   [M11](11-indexing-and-access-paths.md) and
+   [M13](13-data-structures-and-performance.md), define native `.tseg` system
+   columns for Stream `_offset`, `_timestamp` / `visibility_time` and
+   `_tombstone`, monotonic zone maps and `.tdel` key-compaction vectors. Bind
+   column interpretation, exact partitions and offset coverage to the retained
+   manifest. Coordinate the current-v1 definition replacement, dependent
+   readers/writers, fixtures and rejection of incompatible stored formats;
+   retire `LBMETA01` and `LOGVIEW1` together with their consumers. Predicate
+   semantics and original claim identity remain independent of physical layout.
+2. **Replace Stream sealing and retained readers.** Extend `LogSegment`,
+   `LogPartition` and their Fuze adapters so a sealed batch uses one native
+   `.tseg` object and bounded vector reads. Qualify hot, sealed, compacted and
+   reopened coverage, sparse offsets, tombstones, timestamps, collations and
+   zero-copy buffer lifetimes. This format contract and reader cutover precede
+   Batch 4c's physical `STREAM_SLICE` adapter; its finite SQL contract and
+   query-owned pin lifecycle can be designed independently. Do not build a new
+   permanent sidecar path for that adapter or change stateful `CONSUME` into a
+   relational scan.
+3. **Move Queue metadata persistence to bounded checkpoints.** Replace
+   per-operation `.tack` (`TACK0001`) and `QueueIndex` `TDIX` staging with
+   append-only `TWAL1` transitions plus bounded resident lease, timing-wheel,
+   affinity and Roaring state. Specify the authenticated checkpoint LSN, delta
+   replay, flush admission, overflow/backpressure and owner-replacement rules
+   before changing publication order. Recovery must reconstruct accepted
+   claims, original empty/nonempty selections, renewal handles, settlement,
+   attempts and scheduling without dispatching or accepting work again. Keep
+   transaction preparation, DLQ transfer, original receipts and claim-result
+   payload roots protected across checkpoint publication and log trimming.
+   Queue checkpointing can proceed alongside the Stream format work; qualify
+   it before claiming the new write-path guarantees for migrated Station turns.
+4. **Qualify maintenance and provider costs at the owning boundaries.** Extend
+   M3 P4's aggregate memory/I/O and foreground-contention checks across the
+   active `DirectStorageGraph` owners, including Queue time runs, retained
+   predicates/results, captures and transaction/dataflow records. Prove process
+   death and lost replies before/after WAL acceptance, checkpoint persistence,
+   root publication and trimming, with the original policy and lease fences.
+   Measure foreground object `PUT`s and checkpoint writes separately from WAL
+   syncs; a local correctness pass cannot establish EFS or cloud request costs.
+   [M23](23-storage-providers-and-concurrency.md) owns provider qualification of
+   preallocated WAL syncs, zero foreground object `PUT`s, coalesced sidecars,
+   suffix-range footers and verified cache alignment. Do not weaken durability,
+   retention or resident quotas to meet those targets.
+
+These units extend R1/R3/R4 and Batches 1/3/4c/8/9 below. M3 Decision D1 stays
+intact: completing its local storage cutover does not require replacing all
+Table/KV `TreeStore` indexes. M11/M13 own sparse fence/Bloom footers, the broader
+Table/KV LSM transition and WiscKey value separation. Their shared format
+contracts are dependencies for affected M6 readers, not a requirement to finish
+every optimization before independent Queue semantics can ship. M3 P5's
+runtime-token/progress isolation and P6's common storage inspection also remain
+explicit handoffs for the eventual Station write path.
+
+Carry the same retained-root and format decisions into
+[M7](07-document-storage-and-station-decoupling.md)'s structural columns and
+out-of-line raw parts, [M12](12-sql-and-dataflows.md)'s `@weight: i64` `.tseg`
+arrangements, and [M20](20-branches-merges-and-restore.md)'s authenticated
+compaction lineage and branch retention watermarks. Branch-shared payloads and
+checkpoint retention cannot reactivate copied Queue leases, timers or ACK
+authority. The existing Document participant and Station migration gates remain;
+the unified layout does not supply their missing execution contracts.
+
 ## Implementation plan — 2026-11-07
 
 **Source basis:** fetched `origin/main` at
