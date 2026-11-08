@@ -59,6 +59,7 @@ pub const TableDmlPrepared = @import("TableDmlPrepared.zig");
 pub const TableSchemaJson = @import("TableSchemaJson.zig");
 pub const TableIntegrityJson = @import("TableIntegrityJson.zig");
 pub const TableSelect = @import("TableSelect.zig");
+pub const QueuePredicate = @import("QueuePredicate.zig");
 pub const WorkloadProjection = @import("WorkloadProjection.zig");
 pub const LogAppendSql = @import("LogAppendSql.zig");
 pub const LogConsumeSql = @import("LogConsumeSql.zig");
@@ -131,6 +132,7 @@ test {
     _ = TableSchemaJson;
     _ = TableSelect;
     _ = WorkloadProjection;
+    _ = QueuePredicate;
     _ = LogAppendSql;
     _ = LogConsumeSql;
     _ = LogClaimSql;

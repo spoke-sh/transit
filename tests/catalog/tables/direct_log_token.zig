@@ -96,7 +96,7 @@ pub fn prepareWorkloads(init: std.process.Init, client: c.DirectTableClient, rol
         const work: c.DirectWorkloadIntent.Work = if (kind == .stream)
             .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
         else
-            .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 30000 } }, .payload = null } };
+            .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 30000, .predicate = null } }, .payload = null } };
         var frozen = try c.DirectWorkloadIntent.create(init.gpa, client.connection, metadata.value.result.log_lookup.?, work);
         defer frozen.deinit();
         const reference: c.DirectIntent.Reference = .{ .workload = try frozen.stage(client, @splat(0x56)) };
@@ -262,7 +262,7 @@ pub fn prepareResults(init: std.process.Init, client: c.DirectTableClient, role:
         var selection: c.DirectWorkloadIntent.Work = if (kind == .stream)
             .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
         else
-            .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 1000 } }, .payload = null } };
+            .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 1000, .predicate = null } }, .payload = null } };
         saved.bindings[i * 2 + 1] = try saveWorkload(init, client, source, selection, i * 2 + 1);
         if (kind == .stream) selection.stream.work.consume.operation.operation = 647010 + i else selection.queue.work.claim.operation.operation = 647010 + i;
         saved.bindings[4 + i] = try saveWorkload(init, client, source, selection, 4 + i);

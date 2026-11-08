@@ -5,6 +5,7 @@ const r = @import("LogPartitionRecord.zig");
 // Conservative schema bound for the ordinary reflected JSON writer. Refuse
 // variable-length or custom representations rather than guessing their size.
 fn maximum(comptime T: type) usize {
+    if (T == @import("transit_protocol").QueuePredicate) return 2 + 2 * T.max_bytes;
     return switch (@typeInfo(T)) {
         .void => 2,
         .bool => 5,
@@ -59,4 +60,13 @@ test "queue record full width fields and two complete merge states fit the metad
     };
     try t.expect(bytes <= r.max_metadata_bytes);
     std.debug.print("Queue WAL metadata: conservative full-width bound {d}/{d} bytes.\n", .{ bytes, r.max_metadata_bytes });
+}
+
+test "queue selection metadata includes the maximum owned predicate within its existing bound" {
+    const Selection = @import("QueueSelection.zig");
+    const bytes = comptime blk: {
+        @setEvalBranchQuota(100000);
+        break :blk maximum(Selection.Metadata);
+    };
+    try t.expect(bytes <= Selection.max_metadata_bytes);
 }

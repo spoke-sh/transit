@@ -373,8 +373,10 @@ pub const Claim = struct {
     operation: d.Operation,
     maximum: u32,
     lease_ms: u64,
+    predicate: ?@import("QueuePredicate.zig"),
     pub fn validate(self: Claim) !void {
         try self.target.requireOperation(self.operation);
+        if (self.predicate) |predicate| try predicate.validate();
         if (self.maximum == 0 or self.lease_ms == 0) return error.InvalidQueueClaim;
     }
     pub fn requireSame(self: Claim, other: Claim) !void {

@@ -45,20 +45,14 @@ pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.D
     return self.freeze(allocator, operation, values, diagnostic);
 }
 
-/// Admit only an unfiltered Queue acquisition on one exact partition. The
-/// native owner retains eligibility, FIFO, capacity, time and lease authority.
-/// Payload predicates remain outside the acquisition profile.
+/// Conservative Boolean routing never supplies payload selection authority.
 fn partition(bound: *const f.LogClaimSql.Bound, count: u32) !u32 {
     if (count == 0) return error.InvalidLogPartitioning;
-    const predicate = bound.plan.plan.predicate;
-    if (predicate == .all) return if (count == 1) 0 else error.LogPartitionRequired;
-    // A single equality is routing, not payload selection. Never discard an
-    // arbitrary conjunction or turn a row filter into post-acquisition hiding.
-    if (predicate != .compare) return error.UnsupportedConstruct;
-    const comparison = predicate.compare;
-    if (bound.fields[comparison.column] != .partition or comparison.op != .eq) return error.UnsupportedConstruct;
-    if (comparison.value != .unsigned or comparison.value.unsigned >= count) return error.InvalidLogPartitioning;
-    return @intCast(comparison.value.unsigned);
+    const selected = try c.DirectLogPreparedConsume.bounds(bound);
+    const span = selected.partition.intersect(.{ .last = count - 1 });
+    if (span.empty) return error.InvalidLogPartitioning;
+    if (span.first != span.last) return error.LogPartitionRequired;
+    return @intCast(span.first);
 }
 
 pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, values: []const ?f.Types.Values.Atom, diagnostic: ?*f.Sql.Binding) !c.DirectWorkloadIntent {
@@ -73,11 +67,16 @@ pub fn freeze(self: *const Self, allocator: std.mem.Allocator, operation: u64, v
     // Check declared duration policy before reserving an operation. The native
     // owner independently checks the deadline against its trusted admission time.
     _ = try self.definition.stored.declaration.configuration.policy.queue.deadline(0, bound.lease_ms);
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = self.definition.stored.declaration.interpretation, .partition = selected };
+    const condition = bound.plan.plan.predicate;
+    const routing_only = condition == .all or (condition == .compare and condition.compare.op == .eq and bound.fields[condition.compare.column] == .partition);
+    const predicate = if (routing_only) null else try f.QueuePredicate.encode(allocator, target, self.compiled.schema.schema, bound.fields, bound.plan.plan);
     const work: c.DirectWorkloadIntent.Work = .{ .queue = .{ .work = .{ .claim = .{
-        .target = .{ .definition = p.Growth.current_definition, .interpretation = self.definition.stored.declaration.interpretation, .partition = selected },
+        .target = target,
         .operation = identity,
         .maximum = maximum,
         .lease_ms = bound.lease_ms,
+        .predicate = predicate,
     } }, .payload = null } };
     // Routing has been discharged into the exact native target. The frozen
     // result plan must expose every originally acquired row without filtering.
@@ -133,17 +132,19 @@ const TestFixture = struct {
 
 fn testOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definition) !void {
     const t = std.testing;
-    var prepared = try init(allocator, TestFixture.connection, 1, "CLAIM payload AS body, _partition, _offset, _lease_epoch, _attempt FROM tasks WHERE _partition = $1 LIMIT $2 WITH LEASE $3 WAIT $4", metadata, .transit, null);
+    var prepared = try init(allocator, TestFixture.connection, 1, "CLAIM payload AS body, _partition, _offset, _lease_epoch, _attempt FROM tasks WHERE _partition = $1 AND (payload = $5 OR id IS NULL) LIMIT $2 WITH LEASE $3 WAIT $4", metadata, .transit, null);
     var live = true;
     defer if (live) prepared.deinit();
     var lease = "30s".*;
     var wait = "100ms".*;
-    var intent = try prepared.freeze(allocator, 99, &.{ .{ .unsigned = 2 }, .{ .unsigned = 3 }, .{ .bytes = &lease }, .{ .bytes = &wait } }, null);
+    var payload = "AlPhA".*;
+    var intent = try prepared.freeze(allocator, 99, &.{ .{ .unsigned = 2 }, .{ .unsigned = 3 }, .{ .bytes = &lease }, .{ .bytes = &wait }, .{ .bytes = &payload } }, null);
     defer intent.deinit();
     prepared.deinit();
     live = false;
     @memset(&lease, 'z');
     @memset(&wait, 'z');
+    @memset(&payload, 'z');
     var restored = try c.DirectWorkloadIntent.restore(allocator, intent.bytes);
     defer restored.deinit();
     try t.expectEqualDeep(try intent.reference(@splat(17)), try restored.reference(@splat(17)));
@@ -164,6 +165,20 @@ fn testOwned(allocator: std.mem.Allocator, metadata: c.DirectLogProtocol.Definit
     try t.expectEqualStrings("body", plan.plan.output_names[0].?);
     var projector = try f.WorkloadProjection.Projector.init(allocator, source, projection.fields, plan.plan);
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = 42 } } }, .{ .value = .{ .atom = .{ .bytes = "alpha" } } } };
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    var predicate = try f.QueuePredicate.Evaluator.init(arena.allocator(), request.target, schema.definition.schema, request.predicate.?);
+    try t.expect(try predicate.matches(&cells, 11));
+    var other = cells;
+    other[1] = .{ .value = .{ .atom = .{ .bytes = "beta" } } };
+    try t.expect(!try predicate.matches(&other, 11));
+    other[1] = .null;
+    try t.expect(!try predicate.matches(&other, 11));
+    other[0] = .null;
+    try t.expect(try predicate.matches(&other, 11));
+    // Boolean truth does not hide an error in another traversed atom.
+    other[1] = .{ .type_error = .utf8 };
+    try t.expectError(error.QueryTypeError, predicate.matches(&other, 11));
     const row = (try projector.row(&cells, .{ .offset = 11, .lease = .{ .target = request.target, .claim = request.operation, .offset = 11, .epoch = 7, .attempt = 2, .expires_ms = 40000 } })).?;
     try t.expectEqualStrings("alpha", row[0].value.atom.bytes);
     try t.expectEqual(@as(u128, 2), row[1].value.atom.unsigned);
@@ -180,6 +195,25 @@ test "log claim Catalog binding owns routed acquisition and unfiltered original 
     try std.testing.checkAllAllocationFailures(no_resize.allocator(), testOwned, .{fixture.metadata});
 }
 
+test "log claim Catalog predicate refuses changed source and malformed encoding" {
+    const t = std.testing;
+    var fixture = try TestFixture.init(3);
+    defer fixture.deinit();
+    var prepared = try init(t.allocator, TestFixture.connection, 1, "CLAIM payload FROM tasks WHERE _partition = 2 AND payload = 'alpha' WITH LEASE '1s'", fixture.metadata, .transit, null);
+    defer prepared.deinit();
+    var intent = try prepared.freeze(t.allocator, 99, &.{}, null);
+    defer intent.deinit();
+    const request = intent.parsed.value.work.queue.work.claim;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    var changed_target = request.target;
+    changed_target.partition -= 1;
+    try t.expectError(error.SourceChanged, f.QueuePredicate.Evaluator.init(arena.allocator(), changed_target, fixture.declaration.definition.schema, request.predicate.?));
+    var damaged = request.predicate.?;
+    damaged.data[0] = 'X';
+    try t.expectError(error.InvalidQueuePredicate, f.QueuePredicate.Evaluator.init(arena.allocator(), request.target, fixture.declaration.definition.schema, damaged));
+}
+
 test "log claim Catalog binding refuses unsupported selection before admission" {
     const t = std.testing;
     var fixture = try TestFixture.init(3);
@@ -187,9 +221,8 @@ test "log claim Catalog binding refuses unsupported selection before admission" 
     for ([_]struct { suffix: []const u8, expected: anyerror }{
         .{ .suffix = "WITH LEASE '1s'", .expected = error.LogPartitionRequired },
         .{ .suffix = "WHERE _partition = 3 WITH LEASE '1s'", .expected = error.InvalidLogPartitioning },
-        .{ .suffix = "WHERE id = 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
-        .{ .suffix = "WHERE _offset >= 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
-        .{ .suffix = "WHERE _partition = 1 AND id = 1 WITH LEASE '1s'", .expected = error.UnsupportedConstruct },
+        .{ .suffix = "WHERE id = 1 WITH LEASE '1s'", .expected = error.LogPartitionRequired },
+        .{ .suffix = "WHERE _offset >= 1 WITH LEASE '1s'", .expected = error.LogPartitionRequired },
         .{ .suffix = "WHERE _partition = 1 WITH LEASE '1s' WAIT '1001ms'", .expected = error.InvalidQueueWait },
         .{ .suffix = "WHERE _partition = 1 LIMIT 4294967295 WITH LEASE '1s'", .expected = error.QueueClaimLimitExceeded },
         .{ .suffix = "WHERE _partition = 1 WITH LEASE '31s'", .expected = error.InvalidQueueLeaseDuration },

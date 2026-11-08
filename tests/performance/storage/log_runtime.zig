@@ -263,7 +263,7 @@ fn Runner(comptime kind: Kind) type {
                 } else {
                     var remaining = self.config.batch;
                     while (remaining != 0) {
-                        const claim = (try self.mutate(.{ .claim = .{ .target = declared.target, .operation = self.operation(), .maximum = @min(remaining, self.config.claim), .lease_ms = 60000 } }, null)).claim;
+                        const claim = (try self.mutate(.{ .claim = .{ .target = declared.target, .operation = self.operation(), .maximum = @min(remaining, self.config.claim), .lease_ms = 60000, .predicate = null } }, null)).claim;
                         try t.expect(claim.rows > 0 and claim.rows <= remaining);
                         try self.queueRead(claim, true);
                         remaining -= claim.rows;

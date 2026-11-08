@@ -43,6 +43,8 @@ def workload(kind, root, port, postgres, mysql_options, restart, authorize, cons
     def read(name, wait=None, receipt=False, limit=None):
         projection = 'value, _receipt_handle' if receipt and kind == 'queue' else 'value, _offset' if receipt else 'value'
         text = f'{"CLAIM" if kind == "queue" else "CONSUME"} {projection} FROM wait_{kind}_{name}'
+        if kind == 'queue' and name == 'original':
+            text += ' WHERE value = 41'
         if limit is not None:
             text += f' LIMIT {limit}'
         if kind == 'queue':
@@ -88,6 +90,9 @@ def workload(kind, root, port, postgres, mysql_options, restart, authorize, cons
         client.call(dict(resume=identity), error='AccessDenied')
     finally:
         authorize(True)
+    if kind == 'queue':
+        append('original', 0)
+        pending(client.call(dict(resume=identity))['operation'], timeout=True)
     append('original', 41)
     # Repeated status and same-token execute are observations. Even with newly
     # eligible work, neither they nor the recovery worker may acquire it.

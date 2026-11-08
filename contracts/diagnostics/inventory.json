@@ -7087,8 +7087,8 @@
         "InvalidLogPartitioning": 2,
         "InvalidWorkloadIntent": 4,
         "LogPartitionRequired": 1,
+        "QueryTypeError": 1,
         "QueueClaimLimitExceeded": 1,
-        "UnsupportedConstruct": 2,
         "WorkloadProjectionUnavailable": 1
       },
       "outcomes": {},
@@ -7106,7 +7106,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 86,
         "catch": 0
       },
       "imports": [
@@ -17830,6 +17830,36 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-fuze/src/QueuePredicate.zig": {
+      "errors": {
+        "InvalidQueuePredicate": 6,
+        "QueuePredicateLeaseField": 1,
+        "QueuePredicateTooLarge": 1,
+        "SourceChanged": 1,
+        "UnknownColumn": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Evaluator.init()": "<inferred>",
+        "Evaluator.matches()": "<inferred>",
+        "basis()": "<inferred>",
+        "encode()": "<inferred>",
+        "requireAtom()": "<inferred>",
+        "requirePlan()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/Range.zig": {
       "errors": {
         "MultiRangeBufferTooSmall": 1,
@@ -22183,6 +22213,7 @@
         "Prepared.zig",
         "QueryCollations.zig",
         "QueryValues.zig",
+        "QueuePredicate.zig",
         "Range.zig",
         "Relational.zig",
         "RelationalCheckpoint.zig",
@@ -24735,7 +24766,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7\""
+          "@\"972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8\""
         ],
         "Effect.phase": [
           "pending",
@@ -25328,6 +25359,34 @@
         "std"
       ]
     },
+    "packages/zig/transit-protocol/src/QueuePredicate.zig": {
+      "errors": {
+        "InvalidCharacter": 3,
+        "InvalidQueuePredicate": 2,
+        "QueuePredicateTooLarge": 1,
+        "UnexpectedToken": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "fromText()": "<inferred>",
+        "init()": "<inferred>",
+        "jsonParse()": "<inferred>",
+        "jsonParseFromValue()": "<inferred>",
+        "jsonSchema()": "std . Io . Writer . Error",
+        "jsonStringify()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 3,
+        "catch": 2
+      },
+      "imports": [
+        "std"
+      ]
+    },
     "packages/zig/transit-protocol/src/QueueRead.zig": {
       "errors": {
         "InvalidQueueCursor": 1,
@@ -25827,10 +25886,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 75,
+        "try": 76,
         "catch": 2
       },
       "imports": [
+        "QueuePredicate.zig",
         "root.zig",
         "std"
       ]
@@ -26323,6 +26383,7 @@
         "Migration.zig",
         "NativePayload.zig",
         "QueueLeaseHandle.zig",
+        "QueuePredicate.zig",
         "QueueRead.zig",
         "Runtime.zig",
         "Schema.zig",
@@ -41690,9 +41751,10 @@
         "PrivateLogWorkspace": 8,
         "QueueClaimMissing": 2,
         "QueueDestinationSchemaMismatch": 1,
-        "QueueItemMissing": 6,
+        "QueueItemMissing": 8,
         "QueueLeaseExpired": 2,
         "QueueNotEligible": 1,
+        "QueuePredicateBudgetExceeded": 2,
         "QueueReadBudgetExceeded": 1,
         "QueueReadReleased": 3,
         "QueueStateConflict": 3,
@@ -41725,6 +41787,7 @@
       "error_sets": {},
       "error_returns": {
         "Owner().<return>.BorrowedBatch.iterator()": "<inferred>",
+        "Owner().<return>.ClaimFilter.matches()": "<inferred>",
         "Owner().<return>.activePin()": "<inferred>",
         "Owner().<return>.advanceGroup()": "<inferred>",
         "Owner().<return>.append()": "<inferred>",
@@ -41826,6 +41889,7 @@
         "Owner().<return>.rewriteWithinBudget()": "<inferred>",
         "Owner().<return>.scheduleQueueUnit()": "<inferred>",
         "Owner().<return>.selectCheckpoint()": "<inferred>",
+        "Owner().<return>.selectClaims()": "<inferred>",
         "Owner().<return>.settle()": "<inferred>",
         "Owner().<return>.skipTimestamp()": "<inferred>",
         "Owner().<return>.skipTimestampWithinBudget()": "<inferred>",
@@ -41851,7 +41915,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 895,
+        "try": 902,
         "catch": 20
       },
       "imports": [
@@ -42527,6 +42591,7 @@
     },
     "packages/zig/transit-storage/src/QueueClaims.zig": {
       "errors": {
+        "InvalidQueuePredicate": 1,
         "InvalidQueueRoot": 1,
         "InvalidQueueSelection": 1,
         "LogPartitionConflict": 1,
@@ -42536,13 +42601,14 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Predicate.matches()": "anyerror",
         "metadata()": "<inferred>",
         "receipt()": "<inferred>",
         "select()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 0
       },
       "imports": [

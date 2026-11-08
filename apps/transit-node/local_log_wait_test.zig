@@ -184,7 +184,7 @@ pub fn exerciseQueue(service: *Service, declaration: c.DirectLog.Definition, sch
     defer host.deinit();
     var endpoint: Endpoint = .{ .host = &host, .engine = service.engine };
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declaration.stored.declaration.interpretation, .partition = 0 };
-    var claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 650 }, .maximum = 1, .lease_ms = 1000 };
+    var claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 650 }, .maximum = 1, .lease_ms = 1000, .predicate = null };
     const timeout = try endpoint.queue(.{ .wait = .{ .claim = claim, .milliseconds = 1 } });
     try t.expectEqual(@as(u64, 0), timeout.timed_out.next);
     try t.expect((try endpoint.queue(.{ .operation = .{ .claim = claim } })).operation == null);

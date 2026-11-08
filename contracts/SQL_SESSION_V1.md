@@ -160,7 +160,11 @@ Partition-routed `CLAIM` also requires a client token and retains its exact
 original lease selection. Its positive LIMIT is an acquisition maximum; result
 delivery has no filtering or limit. The frozen duration must satisfy the declared
 lease policy before admission; native time, FIFO and capacity checks remain.
-A multi-partition Queue requires one exact `_partition` equality. CLAIM may
+A multi-partition Queue requires a predicate that establishes one exact partition.
+The saved claim also owns its typed payload/metadata predicate. Native readiness,
+selection and replay evaluate it before acquisition; original-result delivery
+exposes every selected lease. Predicate scan limits and refusal semantics belong
+to [Queue acquisition](QUEUE_V1.md#predicate-aware-acquisition). CLAIM may
 project the exact original binary `_receipt_handle`. `ACK ON QUEUE ... RECEIPT`
 and `NACK ON QUEUE ... RECEIPT` each require a new client token, freezes that lease and completes as a command with
 verified native settlement evidence and no relational counts. Its current
@@ -179,8 +183,7 @@ additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP binds an explicit
 native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
 read receipt and authenticated completion progress, using the same workload
-token and command-result lifecycle. Queue payload predicates and
-attached-transaction workloads remain outside the SQL execution profile.
+token and command-result lifecycle. Attached-transaction workloads remain outside the SQL execution profile.
 
 ### Queue wait attempts
 

@@ -72,7 +72,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{ .{ .cells = &a }, .{ .cells = &a }, .{ .cells = &b } }, &buffer);
     const enqueue: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = .{ .id = @splat(13), .epoch = 1, .sequence = 1 }, .rows = 3, .payload = c.storage.LogBatch.content(payload) } };
     operation.operation = 633002;
-    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 5000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
+    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 5000, .predicate = null }, .claimed = null, .ack = null, .acked = null, .successor = null };
     try save(init, path, state);
     const timed_out = try call(&caller, &output, .{ .wait = .{ .claim = state.claim, .milliseconds = 1 } });
     try t.expectEqual(@as(u64, 0), timed_out.timed_out.next);
@@ -256,7 +256,7 @@ pub fn terminalPrepare(init: std.process.Init, client: c.DirectTableClient, role
     const payload = try c.storage.LogBatch.encode(schema, operation, .queue, &.{.{ .cells = &cells }}, &buffer);
     const enqueue: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } };
     operation.operation = 633012;
-    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 1, .lease_ms = 60000 }, .claimed = null, .ack = null, .acked = null, .successor = null };
+    var state: State = .{ .definition = p.Growth.current_definition, .enqueue = try c.DirectQueueClient.save(init.arena.allocator(), client.connection, .{ .work = enqueue, .payload = payload }), .claim = .{ .target = target, .operation = operation, .maximum = 1, .lease_ms = 60000, .predicate = null }, .claimed = null, .ack = null, .acked = null, .successor = null };
     try save(init, path, state);
     _ = try call(&caller, &output, .{ .mutate = .{ .work = enqueue, .payload = payload } });
     state.claimed = (try call(&caller, &output, .{ .mutate = .{ .work = .{ .claim = state.claim } } })).operation.?.claim;

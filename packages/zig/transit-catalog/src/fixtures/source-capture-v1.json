@@ -1,7 +1,7 @@
 {
   "descriptor": {
     "key": {
-      "definition": "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7",
+      "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
       "connection": {
         "scope": {
           "realm": 42,
@@ -77,9 +77,9 @@
     },
     "namespace": 1,
     "evidence": {
-      "definition": "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7",
+      "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
       "poll": {
-        "definition": "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7",
+        "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
         "source": {
           "object": {
             "scope": {
@@ -443,7 +443,7 @@
   },
   "binding": {
     "key": {
-      "definition": "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7",
+      "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
       "connection": {
         "scope": {
           "realm": 42,
@@ -509,38 +509,38 @@
       ]
     },
     "fingerprint": [
-      16,
-      177,
-      93,
-      214,
-      213,
-      63,
-      101,
-      187,
-      184,
-      235,
-      11,
-      252,
-      229,
-      125,
-      202,
-      26,
-      214,
-      162,
-      179,
-      87,
-      110,
-      35,
-      63,
-      52,
-      137,
-      2,
-      175,
-      108,
-      40,
-      206,
+      164,
+      192,
       17,
-      123
+      94,
+      105,
+      212,
+      157,
+      139,
+      79,
+      88,
+      147,
+      14,
+      147,
+      85,
+      77,
+      237,
+      248,
+      51,
+      218,
+      108,
+      5,
+      171,
+      144,
+      252,
+      254,
+      203,
+      112,
+      215,
+      126,
+      129,
+      207,
+      176
     ],
     "intent": {
       "external": {
@@ -559,7 +559,7 @@
         "operation": 18446744073709551615,
         "record": {
           "scope": {
-            "definition": "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7",
+            "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
             "connection": {
               "scope": {
                 "realm": 42,
@@ -610,38 +610,38 @@
           "content": {
             "bytes": 4039,
             "sha256": [
-              16,
-              177,
-              93,
-              214,
-              213,
-              63,
-              101,
-              187,
-              184,
-              235,
-              11,
-              252,
-              229,
-              125,
-              202,
-              26,
-              214,
-              162,
-              179,
-              87,
-              110,
-              35,
-              63,
-              52,
-              137,
-              2,
-              175,
-              108,
-              40,
-              206,
+              164,
+              192,
               17,
-              123
+              94,
+              105,
+              212,
+              157,
+              139,
+              79,
+              88,
+              147,
+              14,
+              147,
+              85,
+              77,
+              237,
+              248,
+              51,
+              218,
+              108,
+              5,
+              171,
+              144,
+              252,
+              254,
+              203,
+              112,
+              215,
+              126,
+              129,
+              207,
+              176
             ]
           }
         }
@@ -656,5 +656,5 @@
       "bytes": 33554432
     }
   },
-  "chunk_key": "source-captures/f680a5a94b796ea7af910b578d263a69fb765447361e2af3e0ea02d3ce1fcc26.data"
+  "chunk_key": "source-captures/5ec67d9819568e0b6acecc1f44c2fd6578c705cbfff4f1227e2668c3cfcc5802.data"
 }

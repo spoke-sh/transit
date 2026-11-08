@@ -131,12 +131,13 @@ and authenticated progress. Native admission verifies the live pin, cursor MACs,
 generation/checkpoint and current rights. SQL `CONSUME` admission
 uses this adapter and the same durable workload runtime as append operations.
 
-`DirectLogPreparedClaim` binds an unfiltered acquisition to one Queue partition.
-A missing selector requires a single partition; otherwise only exact `_partition`
-equality is admitted. It freezes the declared claim maximum (or a smaller LIMIT),
-checked lease duration and complete original-row projection. Routing becomes the
-native target, so the result plan has neither a predicate nor an output limit.
-Other selection predicates refuse before admission. WAIT freezes a 1–1000 ms
+`DirectLogPreparedClaim` binds a typed acquisition predicate to one Queue partition.
+Conservative Boolean routing must establish one partition; a single-partition
+Queue needs no routing condition. It freezes the declared claim maximum (or a
+smaller LIMIT), checked lease duration, owned predicate and complete original-row
+projection. Native selection evaluates the target/schema-bound predicate before
+acquiring eligible candidates. The result plan has neither a predicate nor an
+output limit. WAIT freezes a 1–1000 ms
 policy for the original native claim; timeout creates no claim receipt. The native owner
 still checks eligibility, FIFO, capacity, current rights and trusted time.
 SQL sessions reuse the same workload token and original-result runtime.

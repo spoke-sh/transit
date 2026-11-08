@@ -50,7 +50,7 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
             const result = try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .mutate = .{ .work = work, .payload = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), payload) } }, policy);
             try t.expectEqual(@as(u64, i + 1), result.operation.?.enqueue.next);
         }
-        const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 20040 }, .maximum = 2, .lease_ms = 100 };
+        const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 20040 }, .maximum = 2, .lease_ms = 100, .predicate = null };
         claimed = (try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .mutate = .{ .work = .{ .claim = claim }, .payload = null } }, policy)).operation.?.claim;
         try t.expectEqual(@as(u32, 2), claimed.rows);
         try t.expectEqual(@as(u64, 2105), claimed.expires_ms);
@@ -124,7 +124,7 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         while (remaining != 0) {
             _ = scratch.reset(.retain_capacity);
             _ = output.reset(.retain_capacity);
-            const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = operation }, .maximum = 16, .lease_ms = 100 };
+            const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = operation }, .maximum = 16, .lease_ms = 100, .predicate = null };
             operation += 1;
             const receipt = (try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, .{}, environment, .{ .mutate = .{ .work = .{ .claim = claim }, .payload = null } }, policy)).operation.?.claim;
             try t.expectEqual(@min(remaining, 16), receipt.rows);

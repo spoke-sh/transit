@@ -868,7 +868,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const now = try self.queueTime(self.root.clock_ms);
             var bitmap: Bitmap = undefined;
             const index = self.queueIndex(&bitmap);
-            const leases = try QueueClaims.select(index, self.root, declared, request, now, self.queue_leases);
+            const leases = try self.selectClaims(index, declared, request, now, guard);
             const next = if (leases.len == 0) try index.nextVisibleMs(self.root.queue.?) else null;
             try authorize(guard);
             return .{ .available = leases.len != 0, .wake_after_ms = if (next) |at| @max(1, at -| now.earliest_ms) else null };
@@ -893,7 +893,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             }
             const now = try self.queueTime(self.root.clock_ms);
             var bitmap: Bitmap = undefined;
-            const leases = try QueueClaims.select(self.queueIndex(&bitmap), self.root, declared, request, now, self.queue_leases);
+            const leases = try self.selectClaims(self.queueIndex(&bitmap), declared, request, now, guard);
             // A wider trusted-time interval between readiness and acceptance
             // can withdraw eligibility. Never turn that into an empty claim.
             if (!accept_empty and leases.len == 0) return error.QueueNotEligible;
@@ -906,11 +906,58 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try self.publish(.{ .declared = declared, .outcome = .{ .claim = .{ .receipt = receipt, .observed = now } } }, &.{}, guard);
             return receipt;
         }
-        fn candidateClaim(self: *Self, evidence: Evidence.Record) !QueueIndex.Root {
+        const ClaimFilter = struct {
+            owner: *Self,
+            evaluator: f.QueuePredicate.Evaluator,
+            schema: f.TableSchema.Schema,
+            cut: q.Cut,
+            guard: Guard,
+            remaining_rows: u32,
+            remaining_bytes: u32,
+            fn matches(context: *anyopaque, offset: u64) !bool {
+                const self: *ClaimFilter = @ptrCast(@alignCast(context));
+                if (self.remaining_rows == 0) return error.QueuePredicateBudgetExceeded;
+                self.remaining_rows -= 1;
+                const owner = self.owner;
+                var borrowed = try owner.borrowAt(self.cut, owner.root.batches, owner.root.segments, .empty, offset, self.guard) orelse return error.QueueItemMissing;
+                defer borrowed.deinit();
+                var rows = try borrowed.iterator(self.schema);
+                while (try rows.next()) |row| {
+                    if (row.ordinal != offset - borrowed.receipt.first) continue;
+                    if (row.bytes.len > self.remaining_bytes) return error.QueuePredicateBudgetExceeded;
+                    self.remaining_bytes -= @intCast(row.bytes.len);
+                    defer _ = owner.scratch.reset(.retain_capacity);
+                    const decoded = try row.decode(owner.scratch.allocator(), self.schema, borrowed.receipt.append.operation);
+                    return self.evaluator.matches(decoded.cells, offset);
+                }
+                return error.QueueItemMissing;
+            }
+        };
+        fn selectClaims(self: *Self, index: QueueIndex, declared: Declaration.Stored, request: q.Claim, observed: Time.Sample, guard: Guard) ![]q.Lease {
+            if (request.predicate) |predicate| {
+                var arena: std.heap.ArenaAllocator = .init(self.allocator);
+                defer arena.deinit();
+                var declaration = try self.loadDeclaration(self.allocator, declared);
+                defer declaration.deinit();
+                const schema = declaration.declaration.definition.schema;
+                var filter: ClaimFilter = .{
+                    .owner = self,
+                    .evaluator = try f.QueuePredicate.Evaluator.init(arena.allocator(), request.target, schema, predicate),
+                    .schema = schema,
+                    .cut = try self.root.cut(declared),
+                    .guard = guard,
+                    .remaining_rows = @min(declared.declaration.limits.read_rows, f.QueuePredicate.max_examined_rows),
+                    .remaining_bytes = @min(declared.declaration.limits.read_bytes, f.QueuePredicate.max_examined_bytes),
+                };
+                return QueueClaims.select(index, self.root, declared, request, observed, self.queue_leases, .{ .context = &filter, .matches = ClaimFilter.matches });
+            }
+            return QueueClaims.select(index, self.root, declared, request, observed, self.queue_leases, null);
+        }
+        fn candidateClaim(self: *Self, evidence: Evidence.Record, guard: Guard) !QueueIndex.Root {
             const value = evidence.outcome.claim;
             var bitmap: Bitmap = undefined;
             const index = self.queueIndex(&bitmap);
-            const leases = try QueueClaims.select(index, self.root, evidence.declared, value.receipt.claim, value.observed, self.queue_leases);
+            const leases = try self.selectClaims(index, evidence.declared, value.receipt.claim, value.observed, guard);
             const meta = try QueueClaims.metadata(self.root, evidence.declared, value.receipt.claim, value.observed, @intCast(leases.len));
             if (!std.meta.eql(try QueueClaims.receipt(meta, leases, self.queue_selection), value.receipt)) return error.InvalidLogHistory;
             if (value.receipt.leases) |content| {
@@ -1500,7 +1547,7 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 } else return error.InvalidLogHistory,
                 .claim => |value| if (kind == .queue) {
                     result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);
-                    result.queue = try self.candidateClaim(evidence);
+                    result.queue = try self.candidateClaim(evidence, guard);
                 } else return error.InvalidLogHistory,
                 .settlement => |value| if (kind == .queue) {
                     result.clock_ms = try Time.advance(self.root.clock_ms, value.observed.latest_ms);

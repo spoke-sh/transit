@@ -87,7 +87,7 @@ fn prepareInputs(init: std.process.Init, client: c.DirectTableClient, output: *s
     try t.expectEqual(@as(u64, 2), page.cursor.coverage.until);
     const progress = try p.StreamRead.Progress.between(cursor, page.cursor);
     try t.expect(progress == .interval);
-    const claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue, .operation = operation(client, 642009), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
+    const claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue, .operation = operation(client, 642009), .maximum = 1, .lease_ms = 300000, .predicate = null } } } })).operation.?.claim;
     const claimed = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), claimed.rows.len);
     return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = try progress.coverage(), .expected_next = 0, .next = 1 }, .progress = progress } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
@@ -150,7 +150,7 @@ fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, lo
         try t.expectEqual(@as(usize, 1), page.rows.len);
         try t.expectEqual(@as(u64, 2), page.rows[0].offset);
         try t.expectEqual(@as(i64, 42), page.rows[0].value.cells[0].value.atom.signed);
-        const next_claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = logs.queue, .operation = operation(client, 642018), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
+        const next_claim = (try Queue.apply(output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = logs.queue, .operation = operation(client, 642018), .maximum = 1, .lease_ms = 300000, .predicate = null } } } })).operation.?.claim;
         const next_page = (try Queue.apply(output, client, .{ .page = .{ .cursor = .{ .receipt = next_claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
         try t.expectEqual(@as(usize, 1), next_page.rows.len);
         try t.expectEqual(@as(u64, 1), next_page.rows[0].lease.original.offset);

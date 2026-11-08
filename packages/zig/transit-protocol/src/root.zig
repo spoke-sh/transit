@@ -23,6 +23,7 @@ pub const SourceCapture = @import("SourceCapture.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const Branch = @import("Branch.zig");
 pub const IndexLifecycle = @import("IndexLifecycle.zig");
+pub const QueuePredicate = @import("QueuePredicate.zig");
 pub const StreamQueue = @import("StreamQueue.zig");
 pub const LogWorkload = @import("LogWorkload.zig");
 pub const LogWorkloadResult = @import("LogWorkloadResult.zig");
@@ -77,6 +78,7 @@ test {
     _ = Schema;
     _ = Growth;
     _ = Value;
+    _ = QueuePredicate;
     _ = Blocks;
     _ = NativePayload;
     _ = Diagnostic;

@@ -226,7 +226,7 @@ fn stageWorkloads(init: std.process.Init, caller: *gateway.Client, config: Confi
             work = if (kind == .stream) .{ .stream = .{ .work = .{ .append = append }, .payload = binary } } else .{ .queue = .{ .work = .{ .enqueue = append }, .payload = binary } };
         } else if (index == 1) {
             work = .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } };
-        } else work = .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 1000 } }, .payload = null } };
+        } else work = .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = operation, .maximum = 3, .lease_ms = 1000, .predicate = null } }, .payload = null } };
         const source: c.fuze.WorkloadProjection.Source = .{ .binding = try work.binding(init.gpa), .schema = declared.definition.schema };
         const layout = [_]c.fuze.WorkloadProjection.Field{ .{ .column = 1 }, .offset, .lease_epoch, .attempt };
         const fields = layout[0..if (index == 2 or index == 4) @as(usize, 4) else 2];
