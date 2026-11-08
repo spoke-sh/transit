@@ -37,10 +37,40 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    current authorization and ordering of revocation, append, publication and
    disclosure. A signed lease or cached epoch alone cannot fence a disconnected
    writer. Reuse #125/#111's commit authority; no independent manifest acceptance.
-2. **Deliver real reference storage, envelope encryption at rest and bounded disk caching.**
-   Implement and qualify `UrsulaWal` on disk-backed Ursula and real `S3ObjectStore`
-   conditions, immutable writes and range reads. Keep credential handling inside
-   the backend. Deliver authenticated **encryption at rest and envelope encryption
+2. **Deliver real reference storage, envelope encryption at rest, bounded disk caching and provider cost/latency invariants.**
+   Implement and qualify `UrsulaWal` on disk-backed Ursula, shared POSIX
+   filesystems (such as AWS EFS / NFSv4) and real `S3ObjectStore` / S3 Express
+   One Zone / GCS / Cloudflare R2 / Azure Blob conditions, immutable writes and
+   range reads. Enforce the six provider latency and cloud-cost invariants
+   established with [Milestone 11](11-indexing-and-access-paths.md) and
+   [Milestone 13](13-data-structures-and-performance.md):
+   - **Zero foreground object `PUT`s per turn:** Foreground commits across all
+     six workloads (`TABLE`, `KV`, `DOCUMENT`, `STREAM`, `QUEUE`, `DATAFLOW`)
+     append only to `TransitLog` (`TWAL1`); `.tseg` segments and manifests are
+     uploaded to `TransitObjectStore` only on batched Memtable flush and
+     compaction boundaries.
+   - **Pre-allocated rolling `TWAL1` segments on POSIX/EFS (`fallocate`):**
+     Eliminate per-turn directory metadata syncs and small-file creations on
+     networked filesystems so a foreground commit executes a single
+     `fdatasync(wal_fd)`.
+   - **Coalesced `.tdel` and `.tack` checkpointing:** Buffer point deletes
+     (`TABLE`) and queue settlements (`QUEUE` `CLAIM`/`ACK`/`NACK`) in `TWAL1` +
+     in-memory Roaring bitmaps and stage immutable `.tdel`/`.tack` objects only
+     on bounded flush/checkpoint intervals, preventing small-object `PUT` storms
+     on EFS and S3.
+   - **Single-RTT $\le 64\text{ KiB}$ suffix-range `.tseg` footer reads:** Keep
+     `.tseg` footers compact (sparse row-group fence pointers, zone maps and
+     Split-Block Bloom filters) so cold segments open in one HTTP suffix range
+     request (`Range: bytes=-65536`) and ~99% of negative point lookups resolve in
+     RAM with zero object-store `GET`s.
+   - **WiscKey $> 4\text{ KiB}$ value-blob separation and branch-aware compaction watermarks:**
+     Avoid rewriting large `KV`/`DOCUMENT`/`TABLE` blobs during LSM compaction or
+     multiplying cloud object storage footprint across pinned
+     [Milestone 20](20-branches-merges-and-restore.md) branches.
+   - **`64 KiB` SHA-256-verified `NvmeCache` alignment:** Map cloud byte-range
+     `GET`s and EFS reads 1:1 into local NVMe cache frames to shield read-heavy
+     workloads from EFS per-GiB read charges and object-store `GET` fees.
+   Keep credential handling inside the backend. Deliver authenticated **encryption at rest and envelope encryption
    (KMS / BYOK)** across `TransitLog` (`TWAL1`) segments, immutable `.tseg`/`.tdel`
    objects and local NVMe cache/spill files, binding Data Encryption Keys (DEKs)
    to realm, tenant or subject-group Key Encryption Keys (KEKs) so key rotation

@@ -394,21 +394,32 @@ state and [Milestone 5 atomic transactions](05-transactions-and-atomic-compositi
      - **`TablePartition`:** `TWAL1` + `.tseg` + `.tdel` (Roaring bitmap of deleted
        row IDs) + primary-key index.
      - **`StreamPartition`:** `TWAL1` + `.tseg` indexed by monotonic `_offset` and
-       `_timestamp` zone maps. Active tail pages stay resident in the LeanStore/Umbra
-       RAM buffer pool so live `CONSUME` readers stream zero-copy slices directly
-       from memory while catch-up consumers and `STREAM_SLICE(...)` scans read
-       sealed `.tseg` segments in `TransitObjectStore` without disturbing tail
-       writers.
+       `_timestamp` zone maps. Fold delivery and key-compaction metadata
+       (`_offset`, `_timestamp` / `visibility_time`, `_tombstone`) directly into
+       native `.tseg` system columns and `.tdel` Roaring compaction vectors under
+       the coordinated `.tseg` v1 cutover (retiring separate `LBMETA01` and
+       row-oriented `LOGVIEW1` sidecars so sealing a stream batch writes a single
+       `.tseg` object and enables direct zero-copy vectorized `Fuze` scans for
+       both `CONSUME` and `STREAM_SLICE(...)`). Active tail pages stay resident in
+       the LeanStore/Umbra RAM buffer pool so live `CONSUME` readers stream
+       zero-copy slices directly from memory while catch-up consumers and
+       `STREAM_SLICE(...)` scans read sealed `.tseg` segments in
+       `TransitObjectStore` without disturbing tail writers.
      - **`QueuePartition`:** Composes `StreamPartition`'s `TWAL1` + `.tseg`
        append-only payload storage with a **`.tack` Roaring-bitmap state vector**
        (sharing the Roaring bitmap foundation introduced for `.tdel` in R1
        to track per-offset `Available`, `Acquired`, `Acked` and `Archived/DLQ`
-       states as compact `TWAL1` delta frames and sealed sidecars). Instead of
-       mutating and vacuuming B-tree heap pages on every queue claim or
-       acknowledgement, payloads are written once and never rewritten; when all
-       offsets in a sealed `.tseg` queue segment are marked `Acked` in `.tack`
-       and retention allows, the entire segment is reclaimed in $O(1)$ without
-       per-row deletes.
+       states as compact `TWAL1` delta frames and sealed sidecars). Keep
+       foreground `CLAIM`, `ACK`, `NACK` and lease-renewal transitions in
+       append-only `TWAL1` frames plus in-memory `QueueLeaseHeap`,
+       `QueueTimingWheel`, `QueueAffinity` and Roaring bitmap state, coalescing
+       `.tack` (`TACK0001`) and `QueueIndex` `TDIX` metadata staging onto bounded
+       flush/checkpoint intervals rather than issuing per-ACK object `PUT`s on EFS
+       or cloud object storage. Instead of mutating and vacuuming B-tree heap
+       pages on every queue claim or acknowledgement, payloads are written once
+       and never rewritten; when all offsets in a sealed `.tseg` queue segment
+       are marked `Acked` in `.tack` and retention allows, the entire segment is
+       reclaimed in $O(1)$ without per-row deletes.
    - **Lock-free `key_fifo` key-affinity table:** For `mode = 'key_fifo'` queues,
      each `QueuePartition` tracks active leases by `entity_key` hash alongside an
      in-memory fenced `_lease_epoch` min-heap ordered by `lease_expiry_ns`. While

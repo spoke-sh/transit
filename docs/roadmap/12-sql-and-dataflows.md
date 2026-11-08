@@ -188,8 +188,15 @@ cannot defer this milestone's bounded execution or activation/recovery gates.
   providing the Z-set arrangement and operator foundation extended by
   [Milestone 17](17-geospatial-and-spatio-temporal-computing.md) for algebraic
   half-edge `ST_Union` and `INTERIOR`/`BOUNDARY` cell-covering spatial joins.
-  Event-time windows and bitemporal views require explicit timestamps, watermarks,
-  allowed-lateness bounds and retraction rules.
+  Unify `ManagedTable` materialized result revisions (`DFR1`) and `FuzeDelta`
+  indexed DBSP operator arrangements on standard `.tseg` segments carrying a
+  native **`@weight: i64` multiplicity system column** (retiring bespoke `DFP1`
+  64-row result page blobs under the coordinated `.tseg` v1 cutover) so dataflow
+  state shares the exact same LSM `.tseg` writer, sparse fence index, Split-Block
+  Bloom filters, net-zero (`@weight == 0`) compaction pass ([Milestone 13](13-data-structures-and-performance.md))
+  and zero-copy incremental branch view maintenance ([Milestone 20](20-branches-merges-and-restore.md))
+  as `TABLE` and `KV`. Event-time windows and bitemporal views require explicit
+  timestamps, watermarks, allowed-lateness bounds and retraction rules.
 - Bind outputs to recorded connector effects through independently authorized
   activation. Compiling, explaining, reading and replaying never dispatch a
   dataflow.
