@@ -50,6 +50,9 @@ resolved_root: ?core.protocol.Storage.Path = null,
 /// Volatile executor observations, protected by mutex and reset on reopen.
 maintenance_activity: core.protocol.Storage.Activity = .{ .enabled = false, .state = .disabled, .completed_steps = 0, .failed_steps = 0, .last_failure = null, .interval_ms = 0, .operation_timeout_ms = 0 },
 maintenance_settings: ?core.protocol.Storage.Maintenance = null,
+/// The embedding owner may charge transient collector allocations to its
+/// independent reserve. This quota outlives every collector invocation.
+collection_quota: ?*@import("transit_fuze").memory.Quota = null,
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8, limits: core.protocol.Storage.Limits) !Self {
     try limits.validate();

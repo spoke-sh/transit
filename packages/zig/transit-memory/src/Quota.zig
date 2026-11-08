@@ -32,6 +32,16 @@ pub const Allocator = struct {
     parent: std.mem.Allocator,
     quota: *Self,
 
+    /// Typed construction can preserve configured refusal separately from a
+    /// backing allocation failure. Free with allocator().destroy as usual.
+    pub fn create(self: *Allocator, comptime T: type) !*T {
+        try self.quota.reserve(@sizeOf(T));
+        return self.parent.create(T) catch |err| {
+            self.quota.release(@sizeOf(T));
+            return err;
+        };
+    }
+
     pub fn allocator(self: *Allocator) std.mem.Allocator {
         return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
     }
@@ -132,6 +142,22 @@ test "quota allocator growth rollback and shrink preserve the exact backing char
     bytes = bytes[0..16];
     try t.expectEqual(16, quota.used.load(.acquire));
     a.free(bytes);
+    try t.expectEqual(0, quota.used.load(.acquire));
+}
+
+test "typed quota allocation distinguishes refusal from backing failure" {
+    const t = std.testing;
+    var quota: Self = .{ .limit = 32 };
+    var failing = t.FailingAllocator.init(t.allocator, .{ .fail_index = 0 });
+    var adapter: Allocator = .{ .parent = failing.allocator(), .quota = &quota };
+    try t.expectError(error.MemoryBudgetExceeded, adapter.create([33]u8));
+    try t.expectError(error.OutOfMemory, adapter.create([32]u8));
+    try t.expectEqual(0, quota.used.load(.acquire));
+    try t.expectEqual(1, quota.refusals.load(.acquire));
+    adapter.parent = t.allocator;
+    const value = try adapter.create([32]u8);
+    try t.expectEqual(32, quota.used.load(.acquire));
+    adapter.allocator().destroy(value);
     try t.expectEqual(0, quota.used.load(.acquire));
 }
 

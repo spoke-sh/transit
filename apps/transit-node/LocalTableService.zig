@@ -36,11 +36,14 @@ pub const Resident = struct {
     stream: ?c.DirectStream.Cached = null,
     queue: ?c.DirectQueue.Cached = null,
 
-    pub fn create(allocator: std.mem.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
-        const self = try allocator.create(Resident);
+    pub fn create(parent: std.mem.Allocator, admission: ?*@import("transit_memory").Quota.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
+        const allocator = if (admission) |adapter| adapter.allocator() else parent;
+        const self = if (admission) |adapter| adapter.create(Resident) catch |err| return if (err == error.MemoryBudgetExceeded) error.TableResidentCapacity else err else try parent.create(Resident);
         errdefer allocator.destroy(self);
-        self.* = .{ .allocator = allocator, .memory = memory, .probe = .{ .parent = allocator }, .control = .{ .backend = owner, .control = true }, .data = .{ .backend = owner }, .catalog = undefined };
+        self.* = .{ .allocator = allocator, .memory = memory, .probe = .{ .parent = memory.parent }, .control = .{ .backend = owner, .control = true }, .data = .{ .backend = owner }, .catalog = undefined };
         self.memory.parent = self.probe.allocator();
+        self.control.scratch_allocator = self.memory.allocator();
+        self.data.scratch_allocator = self.memory.allocator();
         var cached_options = options;
         cached_options.table_owner = &self.table;
         cached_options.table_owners = &self.extra_tables;

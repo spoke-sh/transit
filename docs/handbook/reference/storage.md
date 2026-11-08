@@ -118,8 +118,9 @@ owners and their private work use a separate 256 MiB ordinary pool and 64 MiB
 control pool, with per-owner limits of 128 MiB and 64 MiB respectively. A memory refusal
 does not undo accepted work; recovery uses the original operation identity and
 current rights. Engine/provider caches and the independently bounded maintenance
-executor retain their own memory owners. The node limits distinguish these
-allocation bounds from whole-process resident memory.
+executor retain their own memory owners. These child budgets also participate in
+the [shared admission envelope](#direct-storage-allocation-admission). The node
+limits distinguish these allocation bounds from whole-process resident memory.
 
 For direct-data staging, the local backend reserves encoded object bytes under
 the journal mutex, then publishes immutable objects outside it using per-key disk
@@ -282,11 +283,52 @@ scratch and retained responses share these budgets until response delivery is
 joined. Exhaustion refuses ordinary work with `StorageQuota`, or reserved work
 with `ControlCapacity`. Inspect the original operation after an uncertain write.
 
-`SHOW STORAGE` reports the node's resolved root, configured limits, live charged
-bytes and maintenance activity under realm-wide inspection authority. Null means
-unavailable. These independent counters exclude process stacks, sockets and
-filesystem caches. Request counters also exclude the separately bounded retained
-catalog/Table workspaces; optional node `owner_memory` diagnostics report those
-workspace allocations. Lowering `storage.requests` settings changes the request
-pool, while retained-owner limits remain fixed. These observations are not a
-total resident-memory measurement.
+### Direct storage allocation admission
+
+The exclusive local owner also bounds requests, retained responses, resident
+catalog/data owners and their metadata together. `storage.admission.data_bytes`
+defaults to 512 MiB (valid 1–512 MiB); `storage.admission.control_bytes` defaults
+to 128 MiB (valid 1–128 MiB). Both are restart settings. Existing request and
+resident limits remain child ceilings. A child may fit its own limit and still
+refuse because another owner holds shared capacity. Very small settings can
+prevent startup; failure does not reset the installation.
+
+Scheduled Table, Stream, Queue and transfer work uses the independent
+`storage.maintenance.resident_bytes` reservation (default 128 MiB, valid
+32–512 MiB), including log recovery state retained between turns. Physical
+collection has a separate fixed 64 MiB reservation for graph traversal and
+checkpoint decoding. Ordinary work cannot borrow either reservation or the
+control reservation. The default total is therefore **832 MiB**; no slab of that
+size is allocated in advance. Capacity exhaustion does not expire data, release
+pins or replace an accepted maintenance target.
+
+Cohosted typed `/table/v1` responses participate in request and aggregate quotas
+until their returned arena is destroyed, including after dispatch and client
+close. Local scratch retains its request limit; typed output also has the shared
+client's separate materialization limit. HTTP charges scratch and encoded output
+through joined delivery. These are backing-allocation boundaries, not identical
+wire and typed byte counts. After an uncertain response failure, recover the
+original operation. An allocation error alone does not establish rejection.
+
+`SHOW STORAGE` and the signed native storage read report the resolved root,
+configured limits, request counters, maintenance activity and aggregate admission
+under current realm-wide inspection authority. The `admission` observation has
+`total`, `data`, `control`, `maintenance` and `collection` pools. Each contains
+`memory.limit`, `memory.used`, `memory.peak` and `refusals`. SQL projects them as
+`admission_<pool>_limit_bytes`, `admission_<pool>_used_bytes`,
+`admission_<pool>_peak_bytes` and `admission_<pool>_refusals`. Null means unavailable.
+Refusals count failed quota reservation attempts, including failed growth and
+ancestor refusals; backing allocator failures and successful operations do not
+have a one-to-one relationship with this counter. Counters reset on owner reopen.
+They are independent live samples: neither live values nor peaks must sum to a
+single simultaneous sample.
+
+Request counters exclude resident workspaces; aggregate counters include both
+without adding their historical peaks. Reservations remain charged during
+backing acquisition and release on failed acquisition or free. The boundary
+excludes native engine/provider caches, native request buffers, SQL session and
+operator buffers beyond returned direct responses, connection buffers, worker
+stacks, allocator overhead and kernel caches. Fixed error replies after request
+cleanup also remain outside the exhausted pool. These observations do not bound
+process RSS. The [allocation ledger](../internals/storage-runtime.md#local-direct-storage-allocation-ledger)
+identifies the owners and cleanup lifetimes.

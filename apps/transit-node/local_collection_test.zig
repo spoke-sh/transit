@@ -10,6 +10,8 @@ const Direct = backend.DataCollection.Collector(catalog.DirectStorageGraph);
 const Local = @import("Local.zig");
 
 const Fixture = struct {
+    admission: @import("DirectStorageMemory.zig") = undefined,
+    pressure: []u8 = undefined,
     owner: backend.Backend = undefined,
     pages: backend.PageStore = undefined,
     journal: backend.Store = undefined,
@@ -26,7 +28,10 @@ const Fixture = struct {
         return .{ .unix_ms = self.now };
     }
     fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
+        try self.admission.init(t.allocator, .{ .admission = .{ .data_bytes = 1024 * 1024, .control_bytes = 1024 * 1024 } });
+        self.pressure = try self.admission.allocator(false).alloc(u8, 1024 * 1024);
         self.owner = try backend.Backend.open(t.allocator, t.io, directory, "native", .{});
+        self.owner.collection_quota = &self.admission.collection;
         self.pages = try backend.PageStore.init(&self.owner, 1);
         self.journal = .{ .backend = &self.owner };
         const genesis: core.growing.Genesis = .{ .realm = 42, .root_key = (try key(17)).public_key.toBytes(), .max_clock_error_ms = 5 };
@@ -39,6 +44,8 @@ const Fixture = struct {
     fn close(self: *Fixture) void {
         self.pages.deinit();
         self.owner.deinit();
+        self.admission.allocator(false).free(self.pressure);
+        self.admission.deinit();
     }
     fn root(self: *Fixture, command: g.Command) !void {
         _ = try self.engine.submit(try g.sign(.{ .realm = 42, .principal = 0, .sequence = (try self.engine.principal(0)).sequence + 1, .command = command }, try key(17)));
@@ -115,6 +122,7 @@ test "automatic local collection resumes both owners, rechecks privilege and clo
     const config: Maintenance.Config = .{ .principal = 10, .seed_file = "unused-by-step", .storage = .{ .collection_every_records = 1 } };
     var cursor: Work.Cursor = .{};
     var restarted = false;
+    var exhausted = false;
     var units: usize = 0;
     while (true) : (units += 1) {
         try t.expect(units < 4096);
@@ -122,6 +130,18 @@ test "automatic local collection resumes both owners, rechecks privilege and clo
         const n = try native.current();
         const d = try direct.current();
         if (n == null or d == null) continue;
+        if (!exhausted and d.?.phase == .mark) {
+            // Exhaustion must preserve the persisted mark cursor, not publish
+            // partial coverage. The ordinary pool is already fully occupied.
+            const held = try f.admission.collection_allocator.allocator().alloc(u8, f.admission.collection.limit);
+            try t.expectError(error.StorageMaintenanceBudget, direct.step(&f.engine, .{ .unix_ms = f.now }));
+            try t.expectError(error.StorageMaintenanceBudget, native.current());
+            f.admission.collection_allocator.allocator().free(held);
+            try t.expectEqualDeep(d.?, (try direct.current()).?);
+            try t.expectEqualDeep(n.?, (try native.current()).?);
+            try t.expectEqual(0, f.admission.collection.used.load(.acquire));
+            exhausted = true;
+        }
         if (!restarted and n.?.phase == .wait and d.?.phase == .wait) {
             // The same saved targets survive loss of volatile scheduling state.
             // A revoked maintenance principal cannot advance either owner.
@@ -160,6 +180,8 @@ test "automatic local collection resumes both owners, rechecks privilege and clo
         if (restarted and !worked and n.?.phase == .complete and d.?.phase == .complete) break;
     }
     try t.expect(restarted);
+    try t.expect(exhausted);
+    try t.expect(f.admission.collection.peak.load(.acquire) > 0);
     try t.expect(try f.owner.objects.objectStore().head(native_key) == null);
     try t.expect(try f.owner.objects.objectStore().head(direct_key) == null);
     const settled_native = (try native.current()).?;

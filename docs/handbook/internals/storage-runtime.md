@@ -10,6 +10,91 @@ The [storage](../reference/storage.md), [deployment](../reference/deployment.md)
 and [observability](../reference/observability.md) references own configuration
 and operational behavior.
 
+## Local direct-storage allocation ledger
+
+The exclusive local owner composes concurrent foreground, retained and physical
+maintenance allocations under [`DirectStorageMemory`](../../../apps/transit-node/DirectStorageMemory.zig).
+This answers whether simultaneous direct-storage borrowers fit their configured
+reservations. It does not bound whole-process RSS or imply that every declared
+resource has an automatic maintenance executor. The
+[storage reference](../reference/storage.md#direct-storage-allocation-admission)
+owns the settings and observed counters.
+
+| Allocator path | Existing child ceiling | Concurrency and lifetime | Cleanup owner |
+| --- | --- | --- | --- |
+| General allocator → request `Budget` → ordinary/control request quota → admission parent | Ordinary 128 MiB per HTTP request, 256 MiB concurrent; control 64 MiB concurrent | Four ordinary, two control and four waiting HTTP lanes; local dispatch uses the same authority lanes. Scratch ends before HTTP delivery; output survives a blocked write | Joined handler success, disconnect or deadline |
+| General allocator → stable `Quota.Allocator` → request quota → admission parent | Shared request ceiling; typed output also has the client's materialization ceiling | Every cohosted owned direct response retains its arena and descriptor independently of dispatch/client close | `Parsed.deinit`; hosting services release all results before their context joins |
+| General allocator → resident `Budget`/probe → resident quota → admission parent | Ordinary 128 MiB each/256 MiB shared; control 64 MiB each/shared | Ten ordinary slots and two controls; catalog, Table, Stream and Queue caches survive idle intervals | Eviction, uncertainty disposal or host destruction |
+| General allocator → admission adapter | Ordinary/control aggregate ceiling | Resident structs, catalog startup validation and the retained bounded wait-registration owner; metadata is charged once outside resident child counters | Partial construction cleanup or host destruction |
+| General allocator → maintenance `Budget` → maintenance quota → total | 128 MiB default, configurable 32–512 MiB | One executor rotates Table, Stream, Queue and transfer work; log replay workspaces and hints survive turns | Workspace replacement, settings reset or joined executor destruction |
+| General allocator → collector `Budget` → collection quota → total | Fixed 64 MiB | Serialized native/direct collection checkpoint decoding, direct graph/index/batch work and source-cut WAL decoding; coexist with retained maintenance work | Each collector invocation; durable cursor publication occurs only after successful marking |
+| Caller budget → `DataStore.scratch_allocator` | Owning resident or maintenance budget | Latest-frame and archive-coverage decoding during physical trim | Synchronous trim completion or failure |
+
+The default parents are 512 MiB ordinary, 128 MiB control, 128 MiB maintenance
+and 64 MiB collection: 832 MiB total. The ordinary/control defaults preserve the
+sum of previous request and resident ceilings while now including metadata.
+Metadata can therefore make simultaneous maxima refuse earlier. Child ceilings
+remain separate; an otherwise valid child allocation can fail at its parent.
+The collector reserve is independent because a retained log workspace can remain
+live while collection runs. Combining it with the same fully occupied maintenance
+pool could prevent the collector from making progress.
+
+Quotas reserve before invoking the backing allocator, roll back failed growth,
+and release on shrink/free. They never wait for capacity, including when the
+caller owns a catalog/partition lock. Thus memory admission adds no lock wait or
+unbounded pending queue. Parent chains are immutable after initialization; every
+borrower joins before the exclusive owner destroys them. The shared allocator
+has no per-borrower mutable accounting. A returned arena cannot reference a
+stack-local budget. Quota peaks include transient backing-acquisition reservations,
+including a reservation whose backing allocation later fails. They count bytes
+requested at this boundary, including arena backing blocks, rather than the
+parent allocator's hidden rounding or OS page residency.
+
+Excluded allocations retain their existing owners: native page caches (configured
+`resident_pages`, at most 4096 per owner, plus the shared cache), provider/WAL
+metadata, native request envelopes, bounded connection pools, SQL session and
+operator workspaces beyond direct response arenas, worker stacks, fixed error
+replies and kernel caches. Stack buffers used by collection are also excluded.
+[`Local`](../../../apps/transit-node/Local.zig),
+[`NativeServer`](../../../apps/transit-node/NativeServer.zig) and the
+[node limits](../../../apps/transit-node/docs/growing.md#public-surface-and-limits)
+identify their concurrency and cache owners. Summing independent high-water
+marks does not establish simultaneous process memory.
+
+### Retained graph obligations
+
+[`DirectStorageGraph.Work`](../../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+is the exhaustive traversal owner. Its current work variants fall into these
+families; all graph scratch uses the collector reservation irrespective of which
+foreground operation created the retained root.
+
+| Work variants | Retained obligation and active work owner |
+| --- | --- |
+| `catalog_history`, `catalog_root`, `catalog_walk`, `catalog_intent` | Historical/current catalogs and pending declaration publication; foreground catalog operations |
+| `branch`, `historical`, `historical_directory`, `historical_walk` | Independent immutable branch/fork and historical read pins; foreground acquisition/release |
+| `transaction_record_directories`, `transaction_records`, `transaction`, `transaction_walk`, `transaction_intent`, `transaction_log_intent`, `transaction_controls`, `transaction_savepoints`, `transaction_journal`, `transaction_directory`, `private_index`, `table_preparation` | Pending/committed decisions, private candidates, savepoints and `TXR1`/`CPR1`/`SOR1`/`DFR1` records; transaction and computation owners |
+| `queue_transfer_plan`, `workload_intent` | Original paired transfer plans and original workload results; foreground operations and scheduled DLQ transfer |
+| `capture_plan`, `capture_source`, `capture_manifest`, `document_source` | Protected source upload prefixes, immutable capture chunks/manifests and explicit closure; foreground source owners |
+| `connector_operation`, `connector`, `descriptor_operation`, `descriptor`, `descriptor_sources`, `foreign_input` | Exact source/definition versions and retained foreign input; foreground publication |
+| `log_operation`, `log_declaration`, `queue_destination`, `log_partitions`, `log_initialization`, `log_history`, `log_root`, `log_index` | Stream/Queue declarations, partitions, producer/consumer progress, receipts and retained roots; foreground operations and automatic log maintenance |
+| `log_compaction`, `queue_sidecar`, `queue_schedule`, `queue_timer_index`, `queue_timer_run`, `queue_selection` | Compaction targets, `.tack` state, timing runs and original predicate-aware claim selections; Queue/Stream maintenance and claims |
+| `log_preparation`, `log_actions`, `log_transaction_source`, `log_read`, `log_segment`, `log_wal`, `log_archive_range` | Prepared log actions, read/transaction pins, payloads and exact archived coverage; foreground operations and log maintenance |
+| `document_declaration`, `document_initialization`, `document_history`, `document_root`, `document_index`, `document_read`, `document_collection`, `document_wal` | Document revisions, ordered trees and retained reads; direct Document owners, without assuming automatic Document maintenance |
+| `table_history`, `table_root`, `table_walk`, `declaration`, `evidence`, `intent`, `snapshot`, `snapshot_copy`, `wal`, `segment` | Table/KV roots, lazy schema interpretations, pending operations, retained snapshots and segments; foreground Table/KV owners and the qualified Table maintenance executor |
+
+Capacity refusal preserves the saved cursor and original operation identities.
+It authorizes neither expiry nor complete graph coverage. Collection still needs
+current authority, epoch/reuse fencing, trusted time and the full reader grace.
+The [node collection test](../../../apps/transit-node/local_collection_test.zig),
+[physical graph schedules](../../../tests/storage/local/direct_collection.zig)
+and [installed maintenance fixture](../../../tests/storage/tables/maintenance.md)
+provide executable controls for exhaustion, resume, protected roots and a known
+orphan. Their reproduction commands and workload limits remain with those test
+owners; the [qualification ledger](../../history/qualification/storage.md) records
+executed results. This mechanism alone establishes no latency improvement,
+whole-owner CPU/I/O bound or general maintenance implementation for every graph
+variant.
+
 ## Persistence model
 
 The local server supplies conditional native durability through its exclusive

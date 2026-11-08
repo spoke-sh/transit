@@ -47,6 +47,11 @@ pub fn Host(comptime Provider: type) type {
                 .shared_access = engine.page_store.access,
                 .table_memory = try DirectRequestMemory.init(config.storage.requests),
             };
+            if (comptime @hasDecl(Provider, "TableHost")) {
+                if (lanes[0].table) |host| if (host.admission) |admission| context.table_memory.attach(admission);
+            }
+            context.local_output_data = .{ .parent = init.gpa, .quota = &context.table_memory.data };
+            context.local_output_control = .{ .parent = init.gpa, .quota = &context.table_memory.control };
             var browser: ?@import("transit_serving_http").BrowserRuntime.Running = null;
             if (comptime @hasField(@TypeOf(config), "browser")) {
                 if (config.browser) |browser_config| browser = try @import("transit_serving_http").BrowserRuntime.Running.open(init, browser_config, context.endpoint());
@@ -379,6 +384,11 @@ pub fn Host(comptime Provider: type) type {
                     result.data_requests = .{ .limit = data.limit, .used = data_used, .peak = @max(data_used, data.peak.load(.acquire)) };
                     result.control_requests = .{ .limit = control.limit, .used = control_used, .peak = @max(control_used, control.peak.load(.acquire)) };
                     result.request_limit_bytes = self.context.table_memory.request_bytes;
+                    if (comptime @hasDecl(Provider, "TableHost")) {
+                        if (self.context.lanes[0].table) |host| if (host.admission) |admission| {
+                            result.admission = admission.observation();
+                        };
+                    }
                     return result;
                 }
                 return wire.protocol.Storage.Observation.unavailable;
@@ -496,9 +506,17 @@ pub fn Host(comptime Provider: type) type {
             shared_pages_epoch: u64 = 1,
             shared_access: u64 = 0,
             table_memory: DirectRequestMemory = .{},
+            local_output_data: ?@import("transit_memory").Quota.Allocator = null,
+            local_output_control: ?@import("transit_memory").Quota.Allocator = null,
 
             pub fn endpoint(self: *Context) wire.LocalEndpoint {
-                return .{ .context = self, .invoke = invokeLocal, .changes = &self.database_changes };
+                return .{ .context = self, .invoke = invokeLocal, .changes = &self.database_changes, .response_allocator = responseAllocator };
+            }
+            fn responseAllocator(raw: *anyopaque, path: []const u8, control: bool, fallback: std.mem.Allocator) std.mem.Allocator {
+                const self: *Context = @ptrCast(@alignCast(raw));
+                if (!std.mem.eql(u8, path, "/table/v1")) return fallback;
+                const selected = if (control) &self.local_output_control else &self.local_output_data;
+                return if (selected.*) |*adapter| adapter.allocator() else fallback;
             }
             fn invokeLocal(raw: *anyopaque, invocation: *wire.LocalEndpoint.Invocation) !void {
                 const self: *Context = @ptrCast(@alignCast(raw));
@@ -568,7 +586,10 @@ pub fn Host(comptime Provider: type) type {
                         defer std.debug.assert(budget.used == 0);
                         var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
                         defer scratch.deinit();
-                        request.validate(scratch.allocator()) catch |err| return if (err == error.OutOfMemory) err else error.InvalidLocalRequest;
+                        request.validate(scratch.allocator()) catch |err| {
+                            if (err == error.OutOfMemory) return if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+                            return error.InvalidLocalRequest;
+                        };
                         const before = lane.engine.head.position;
                         defer if (lane.engine.head.position != before) {
                             self.mutex.lockUncancelable(io);

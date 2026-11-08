@@ -43,6 +43,14 @@ fn collectDirectBeforeSweep(engine: *Engine, catalog: *D, after_mark: ?Collectio
     defer engine.clock = previous_clock;
     engine.clock = .{ .context = &clock, .read = Clock.read };
     const owner = engine.journal.backend;
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(t.allocator, .{ .admission = .{ .data_bytes = 1024 * 1024, .control_bytes = 1024 * 1024 } });
+    defer admission.deinit();
+    const held = try admission.allocator(false).alloc(u8, admission.data.limit);
+    defer admission.allocator(false).free(held);
+    const previous_quota = owner.collection_quota;
+    owner.collection_quota = &admission.collection;
+    defer owner.collection_quota = previous_quota;
     // An unreferenced managed object and an independently retained namespace
     // distinguish real collection from a pass that merely preserves everything.
     const orphan = "table-segments/unpublished.tseg";
@@ -71,6 +79,8 @@ fn collectDirectBeforeSweep(engine: *Engine, catalog: *D, after_mark: ?Collectio
     // Catalog recovery must traverse its old control roots after physical
     // reclamation; a latest-root-only collector fails this check.
     try catalog.recover();
+    try t.expect(admission.collection.peak.load(.acquire) > 0);
+    try t.expectEqual(admission.data.limit, admission.total.used.load(.acquire));
     std.debug.print("Direct graph collection: {d} steps, {d} confirmed allocations reclaimed.\n", .{ steps, completed.reclaimed_objects });
 }
 fn finish(engine: *Engine, id: u64) !?u64 {
@@ -200,7 +210,11 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     };
     var options = service.options;
     options.table_recovery = null;
-    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.* };
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(t.allocator, .{ .admission = .{ .data_bytes = 16 * 1024 * 1024 } });
+    defer admission.deinit();
+    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.*, .admission = &admission };
+    host.resident_memory.attach(&admission);
     defer host.deinit();
     var adapter: Adapter = .{ .host = &host, .engine = service.engine, .configuration = service.configuration };
     const action: c.DirectTableProtocol.Action = .{ .lookup = .{ .namespace = 1, .name = name } };
@@ -226,6 +240,20 @@ fn hostLookup(service: *@import("LocalTableService.zig"), name: []const u8, nati
     const metadata = cold.value.result.lookup.?;
     const pinned = try dispatch(service, .{ .pin = .{ .object = metadata.interpretation.interpretation.object, .owner = .{ .scope = service.configuration.scope, .principal = 101, .operation = 90001 }, .expected = metadata.position } });
     defer pinned.deinit();
+    {
+        const retained = admission.data.used.load(.acquire);
+        try t.expect(retained > host.resident_memory.data.used.load(.acquire)); // Metadata is included once.
+        const held_response = try admission.allocator(false).alloc(u8, admission.data.limit - retained);
+        defer admission.allocator(false).free(held_response);
+        try t.expectError(error.StorageQuota, dispatch(&adapter, action));
+        try t.expect(admission.data.refusals.load(.acquire) > 0);
+        adapter.control = true;
+        defer adapter.control = false;
+        const original = try dispatch(&adapter, .{ .pin_status = .{ .object = metadata.interpretation.interpretation.object, .owner = pinned.value.result.pin.owner } });
+        defer original.deinit();
+        try t.expectEqualDeep(pinned.value.result.pin, original.value.result.pin_state.handle.?);
+        try t.expect(admission.control.used.load(.acquire) > 0);
+    }
     {
         var bounded: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = options, .recovery = service.recovery_state.?.* };
         defer bounded.deinit();

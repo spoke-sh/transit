@@ -124,6 +124,12 @@ def exercise(library, board, root, authority, service, profile, restart, policy,
         assert node_storage['backend'] == 'local'
         assert node_storage['root'] == str((root / 'native').resolve())
         assert node_storage['allocated_bytes'] > 0
+        admission = node_storage['admission']
+        for pool, mib in (('total', 832), ('data', 512), ('control', 128), ('maintenance', 128), ('collection', 64)):
+            memory = admission[pool]['memory']
+            assert 0 <= memory['used'] <= memory['peak'] <= memory['limit'] == mib * 1024 * 1024
+            assert admission[pool]['refusals'] >= 0
+        assert admission['data']['memory']['used'] > 0, 'Resident owners are missing from shared admission'
         assert node_storage['request_limit_bytes'] == 128 * 1024 * 1024
         for field in ('data_requests', 'control_requests'):
             memory = node_storage[field]

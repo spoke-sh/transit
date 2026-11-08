@@ -103,8 +103,14 @@ test "local refusal preserves public conflict evidence without remote fallback" 
 
 test "local deadline joins its producer and frees partial owned output" {
     const t = std.testing;
+    const m = @import("transit_memory");
     const Host = struct {
+        backing: m.Quota.Allocator,
         joined: std.atomic.Value(bool) = .init(false),
+        fn select(raw: *anyopaque, _: []const u8, _: bool, _: std.mem.Allocator) std.mem.Allocator {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return self.backing.allocator();
+        }
         fn run(raw: *anyopaque, invocation: *Invocation) !void {
             const self: *@This() = @ptrCast(@alignCast(raw));
             defer self.joined.store(true, .release);
@@ -112,13 +118,16 @@ test "local deadline joins its producer and frees partial owned output" {
             try invocation.client.http.io.sleep(.fromSeconds(60), .awake);
         }
     };
-    var host: Host = .{};
+    var quota: m.Quota = .{ .limit = 16384 };
+    var host: Host = .{ .backing = .{ .parent = t.allocator, .quota = &quota } };
     var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer client.deinit();
     client.deadline = .init(t.io, 50, null);
-    client.local = .{ .context = &host, .invoke = Host.run };
+    client.local = .{ .context = &host, .invoke = Host.run, .response_allocator = Host.select };
     try t.expectError(error.AuthorityTimeout, client.callOwned(u64, "/local", .{}, .{}));
     try t.expect(host.joined.load(.acquire));
+    try t.expect(quota.peak.load(.acquire) > 4096);
+    try t.expectEqual(0, quota.used.load(.acquire));
 }
 
 test "hosted response backing remains charged after dispatch and client close" {
