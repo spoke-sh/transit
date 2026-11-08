@@ -75,7 +75,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     var buffer: [8192]u8 = undefined;
     const input = try c.storage.LogBatch.encode(schema(source.interpretation.object.object), operation(client, 643004), .queue, &.{ .{ .cells = &cells }, .{ .cells = &cells } }, &buffer);
     _ = try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source, .operation = operation(client, 643004), .kind = .queue, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(input) } }, .payload = input } });
-    const claim = (try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = source, .operation = operation(client, 643005), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
+    const claim = (try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = source, .operation = operation(client, 643005), .maximum = 1, .lease_ms = 300000, .predicate = null } } } })).operation.?.claim;
     const claimed = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), claimed.rows.len);
     const lease = claimed.rows[0].lease.original;
@@ -116,7 +116,7 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     defer output.deinit();
     try visible(client, &output, saved, true);
     for ([_]p.StreamQueue.Partition{ saved.source, saved.destination }, 0..) |target, i| {
-        const claimed = (try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = operation(client, 643008 + i), .maximum = 1, .lease_ms = 300000 } } } })).operation.?.claim;
+        const claimed = (try Queue.apply(&output, client, .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = operation(client, 643008 + i), .maximum = 1, .lease_ms = 300000, .predicate = null } } } })).operation.?.claim;
         const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = claimed, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
         try t.expectEqual(@as(usize, 1), page.rows.len);
         try t.expectEqual(@as(u64, if (i == 0) 1 else 0), page.rows[0].lease.original.offset);
@@ -169,7 +169,7 @@ pub fn automaticPrepare(init: std.process.Init, client: c.DirectTableClient, rol
     var buffer: [8192]u8 = undefined;
     const input = try c.storage.LogBatch.encode(schema(source.interpretation.object.object), operation(client, 644004), .queue, &.{.{ .cells = &cells }}, &buffer);
     _ = try savedMutation(init, client, &output, path, .{ .work = .{ .enqueue = .{ .target = source, .operation = operation(client, 644004), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(input) } }, .payload = input });
-    const claim = (try savedMutation(init, client, &output, path, .{ .work = .{ .claim = .{ .target = source, .operation = operation(client, 644005), .maximum = 1, .lease_ms = 300000 } } })).operation.?.claim;
+    const claim = (try savedMutation(init, client, &output, path, .{ .work = .{ .claim = .{ .target = source, .operation = operation(client, 644005), .maximum = 1, .lease_ms = 300000, .predicate = null } } })).operation.?.claim;
     const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), page.rows.len);
     try t.expectEqual(@as(u64, 0), page.rows[0].lease.original.offset);
@@ -213,7 +213,7 @@ pub fn automaticVerify(init: std.process.Init, client: c.DirectTableClient, path
     const source = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = saved.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
     try t.expectEqual(@as(usize, 1), source.rows.len);
     try t.expectEqual(p.QueueRead.State.archived, source.rows[0].lease.state);
-    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = saved.destination, .operation = operation(client, 644007), .maximum = 1, .lease_ms = 300000 } };
+    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = saved.destination, .operation = operation(client, 644007), .maximum = 1, .lease_ms = 300000, .predicate = null } };
     const receipt = if (reopen)
         (try Queue.apply(&output, client, .{ .operation = claim })).operation.?.claim
     else

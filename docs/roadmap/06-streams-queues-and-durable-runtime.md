@@ -22,6 +22,22 @@ records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
 
+## Predicate-aware Queue acquisition — 2026-11-08
+
+The first feature review in the plan below implements typed native acquisition
+predicates and SQL lowering. The current-v1 cutover gives claims an explicit
+nullable owned predicate, bound to the exact target, schema and collation.
+Readiness, acquisition and replay share the evaluator; the original result plan
+still exposes every lease. FIFO heads remain blocking when they do not match.
+Candidate and encoded-byte scan limits refuse incomplete search without accepting
+an empty or partial selection. See the [Queue contract](../../contracts/QUEUE_V1.md#predicate-aware-acquisition)
+and [SQL usage](../handbook/reference/sql/streaming.md#acquire-queue-work).
+
+M6 remains **In Progress**. This slice does not complete retained `STREAM_SLICE`,
+mixed SQL transactions, Station/service/effect migration, the Document participant,
+or integration and performance qualification. The November 7 source assessment
+below remains a dated baseline, not a description of this later implementation.
+
 ## Implementation plan — 2026-11-07
 
 **Source basis:** fetched `origin/main` at

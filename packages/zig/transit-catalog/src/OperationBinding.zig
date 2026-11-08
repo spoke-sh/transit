@@ -407,12 +407,7 @@ test "Queue reservations freeze lease intent and exclude other catalog operation
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 9 };
-    const claim_work: c.DirectQueueMutation.Request = .{ .claim = .{
-        .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 2 },
-        .operation = .{ .scope = scope, .principal = 0, .operation = std.math.maxInt(u64) },
-        .maximum = 2,
-        .lease_ms = 100,
-    } };
+    const claim_work: c.DirectQueueMutation.Request = .{ .claim = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 2 }, .operation = .{ .scope = scope, .principal = 0, .operation = std.math.maxInt(u64) }, .maximum = 2, .lease_ms = 100, .predicate = null } };
     const binding = try claim_work.binding(t.allocator);
     {
         var objects = try c.storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");

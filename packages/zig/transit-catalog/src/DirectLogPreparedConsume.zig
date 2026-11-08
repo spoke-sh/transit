@@ -51,7 +51,7 @@ const Interval = struct {
     first: u64 = 0,
     last: u64 = std.math.maxInt(u64),
     empty: bool = false,
-    fn intersect(a: Interval, b: Interval) Interval {
+    pub fn intersect(a: Interval, b: Interval) Interval {
         const first = @max(a.first, b.first);
         const last = @min(a.last, b.last);
         return .{ .first = first, .last = last, .empty = a.empty or b.empty or first > last };
@@ -98,7 +98,7 @@ const Bounds = struct {
         };
     }
 };
-fn bounds(bound: *const f.LogConsumeSql.Bound) !Bounds {
+pub fn bounds(bound: anytype) !Bounds {
     const plan = bound.plan.plan;
     try plan.validate();
     if (plan.schema.structure.len != bound.fields.len) return error.InvalidWorkloadProjection;

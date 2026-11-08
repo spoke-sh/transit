@@ -275,7 +275,7 @@ def generated():
             producer=dict(target=log_target, principal=17, producer=append['producer'],
                           discarded_through=2**64-7),
             claim=dict(claim=dict(target=log_target, operation=lease['claim'],
-                                  maximum=16, lease_ms=500),
+                                  maximum=16, lease_ms=500, predicate=None),
                        accepted=dict(partition=91, next_lsn=12),
                        observed_ms=500, expires_ms=1000, rows=2,
                        leases=dict(bytes=512, sha256=[41]*32)),

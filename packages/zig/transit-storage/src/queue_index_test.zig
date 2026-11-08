@@ -54,7 +54,7 @@ test "queue index terminal transfer candidates retain blocked evidence and advan
     const policy = definition.configuration.policy.queue;
     try store.begin(8 * 1024 * 1024);
     const appended = try enqueue(index, .empty, &declaration, 1, 2, &.{ "Alpha", "aLPHa" }, &.{ 0, 0 });
-    const acquired = try index.acquire(appended.root, 0, .{ .target = appended.target, .operation = operation(2), .maximum = 1, .lease_ms = 100 }, policy, .exact(10), .{ .partition = 91, .next_lsn = 3 });
+    const acquired = try index.acquire(appended.root, 0, .{ .target = appended.target, .operation = operation(2), .maximum = 1, .lease_ms = 100, .predicate = null }, policy, .exact(10), .{ .partition = 91, .next_lsn = 3 });
     store.end();
     const lease = (try index.item(acquired, 0)).lease.?;
     var request: p.Transaction.TerminalTransfer = .{ .operation = operation(3), .source = .{ .nack = lease }, .destination = .{
@@ -131,7 +131,7 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     try t.expectEqual(@as(u64, 3), second.root.scheduled);
     try t.expectEqual(@as(u64, 1), (try index.firstEligible(second.root, 0)).?.offset);
     var root = second.root;
-    const claim: p.StreamQueue.Claim = .{ .target = second.target, .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    const claim: p.StreamQueue.Claim = .{ .target = second.target, .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     try store.begin(8 * 1024 * 1024);
     var foreign = claim;
     foreign.target.interpretation.object.object += 1;
@@ -198,14 +198,14 @@ test "queue index paged FIFO heads survive reopen delays and unrelated key claim
     try t.expect(try reopened_filter.keep(Index.timerBasis(root), .visible, .{ .at_ms = 111, .offset = 4, .epoch = 1 }));
     try t.expectEqual(@as(u64, 4), (try index.firstEligible(root, 500)).?.offset);
     try store.begin(8 * 1024 * 1024);
-    root = try index.acquire(root, 0, .{ .target = second.target, .operation = operation(5), .maximum = 1, .lease_ms = 100 }, policy, .exact(1000), .{ .partition = 91, .next_lsn = 7 });
+    root = try index.acquire(root, 0, .{ .target = second.target, .operation = operation(5), .maximum = 1, .lease_ms = 100, .predicate = null }, policy, .exact(1000), .{ .partition = 91, .next_lsn = 7 });
     const alpha_lease = (try index.item(root, 0)).lease.?;
     root = try index.settle(root, .{ .operation = operation(6), .lease = alpha_lease, .action = .ack }, policy, .exact(1001), .{ .partition = 91, .next_lsn = 8 }, try key(&declaration, "alpha", &canonical));
     store.end();
     try t.expectEqualDeep(Index.Head{ .first = 2, .last = 3 }, (try index.head(root, try key(&declaration, "ALPHA", &canonical))).?);
     try t.expectEqual(@as(u64, 2), (try index.firstEligible(root, 1001)).?.offset);
     try store.begin(8 * 1024 * 1024);
-    root = try index.acquire(root, 2, .{ .target = second.target, .operation = operation(7), .maximum = 1, .lease_ms = 100 }, policy, .exact(1001), .{ .partition = 91, .next_lsn = 9 });
+    root = try index.acquire(root, 2, .{ .target = second.target, .operation = operation(7), .maximum = 1, .lease_ms = 100, .predicate = null }, policy, .exact(1001), .{ .partition = 91, .next_lsn = 9 });
     const successor_lease = (try index.item(root, 2)).lease.?;
     try t.expectError(error.QueueNotEligible, index.acquire(root, 3, claim, policy, .exact(1001), .{ .partition = 91, .next_lsn = 10 }));
     root = try index.settle(root, .{ .operation = operation(8), .lease = successor_lease, .action = .ack }, policy, .exact(1002), .{ .partition = 91, .next_lsn = 10 }, try key(&declaration, "aLPHa", &canonical));
@@ -254,7 +254,7 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     try t.expect(root.keys == null and root.scheduled == 40);
     try index.prepareVisibility(root, 10, 64);
     try t.expectEqual(@as(usize, 8), visibility.wheel.len);
-    const claim: p.StreamQueue.Claim = .{ .target = appended.target, .operation = operation(2), .maximum = 4, .lease_ms = 100 };
+    const claim: p.StreamQueue.Claim = .{ .target = appended.target, .operation = operation(2), .maximum = 4, .lease_ms = 100, .predicate = null };
     try store.begin(8 * 1024 * 1024);
     for (0..4) |offset| root = try index.acquire(root, offset, claim, definition.configuration.policy.queue, .exact(10), .{ .partition = 91, .next_lsn = 3 });
     store.end();

@@ -16,8 +16,8 @@ result delivery and binary `_receipt_handle` projection. SQL
 [`ACK ON QUEUE ... RECEIPT` and `NACK ON QUEUE ... RECEIPT`](../docs/handbook/reference/sql/streaming.md#acknowledge-queue-work)
 freezes that exact lease in an independently identified native settlement.
 SQL EXTEND LEASE returns one renewed binary descriptor through the original
-settlement result. Other acquisition predicates and WAIT remain outside the SQL
-execution profile.
+settlement result. Typed acquisition predicates and bounded WAIT use the same
+native selector as standalone claims.
 Native [transactional log work](DIRECT_TABLE_V1.md#transactional-stream-and-queue-work)
 composes enqueue, fenced ACK and paired dead-letter transfer with Table/KV state.
 
@@ -150,6 +150,43 @@ settle rights and the same claimant, without payload READ privileges. Reopening
 never consults a newer lease to replace the original result and never renews
 again. The returned descriptor does not establish current liveness. Renewal is
 outside attached SQL transactions and carries no relational command counts.
+
+## Predicate-aware acquisition
+
+`Claim.predicate` is required and nullable. Null selects all eligible candidates;
+a non-null value owns at most 2048 bytes, encoded as canonical lowercase hex in
+JSON. Missing fields do not default to unfiltered acquisition. The current-v1
+definition changes with this wire and persisted-history cutover.
+
+Fuze encodes `QPR1`, an ordered stable-column/metadata layout, and a canonical
+logical plan bound to the exact target, schema, collations and current definition.
+Only payload columns, `_partition` and `_offset` can occur in predicate atoms.
+Comparisons, state tests, NOT, AND and OR use Fuze's typed, eager, three-valued
+semantics: unknown does not match; traversed type errors/conflicts refuse.
+Lease epoch, attempt and handle are unavailable until acquisition and cannot
+participate. SQL text and caller callbacks never establish selection authority.
+
+`QueuePartition` decodes once per selection, uses reusable per-row scratch and
+evaluates eligible FIFO heads or unordered candidates before any acquisition.
+Nonmatching heads continue blocking their keys. Selection order remains native
+visibility/offset order; returned leases are ordered by offset. LIMIT bounds
+acquired rows, independently of the search and result delivery budgets.
+
+Each attempt examines at most `min(declaration.read_rows, 4096)` candidates and
+`min(declaration.read_bytes, 4 MiB)` encoded row bytes. These declaration-bound
+limits are replayed with the original declaration, independent of resident cache
+capacity. `QueuePredicateBudgetExceeded` or a predicate error accepts no partial
+selection and establishes no empty outcome. Reaching the acquisition maximum
+completes selection without further lookahead. A complete search with zero matches
+may accept an empty non-waiting claim. WAIT uses the identical evaluator, and no
+match remains pending until readiness or its bounded timeout.
+
+The complete predicate belongs to claim equality, operation binding, accepted
+receipt and selection artifact. Original empty/nonempty results never reselect;
+changed predicates conflict with the original operation. Recovery recomputes
+selection from the accepted source root and recorded trusted time. Current
+rights remain mandatory for readiness, publication and original-result disclosure.
+The separate result plan cannot filter or limit acquired rows.
 
 ## Lease identity and time
 

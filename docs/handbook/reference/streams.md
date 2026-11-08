@@ -131,6 +131,14 @@ response requires inspection of that original work; retrying an accepted claim
 never selects different messages. An accepted empty claim remains empty even
 after more messages become eligible.
 
+Claims may carry an owned typed predicate over payload columns, partition and
+offset. The native owner evaluates eligible candidates before acquiring leases;
+a nonmatching FIFO head still blocks its key. Search budgets are independent of
+the acquisition maximum, and exhaustion accepts no partial selection. See
+[predicate-aware acquisition](../../../contracts/QUEUE_V1.md#predicate-aware-acquisition)
+for exact fields, encoding and limits, and [SQL CLAIM](sql/streaming.md#acquire-queue-work)
+for named and parameterized use.
+
 Use Queue `wait` with the same complete claim to wait up to 1000 milliseconds
 for eligible work. The service rechecks FIFO order, leases, trusted visibility
 time and current rights after a notification or delayed-item deadline. A timeout

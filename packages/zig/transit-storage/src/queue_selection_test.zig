@@ -9,7 +9,7 @@ fn metadata(declared: s.LogDeclaration.Stored) Selection.Metadata {
     return .{
         .definition = p.Growth.current_definition,
         .declared = declared,
-        .claim = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = .{ .scope = declared.declaration.interpretation.object.scope, .principal = 3, .operation = 9 }, .maximum = 4, .lease_ms = 100 },
+        .claim = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = .{ .scope = declared.declaration.interpretation.object.scope, .principal = 3, .operation = 9 }, .maximum = 4, .lease_ms = 100, .predicate = null },
         .accepted = .{ .partition = 91, .next_lsn = 6 },
         .observed = .{ .earliest_ms = 90, .latest_ms = 110 },
         .expires_ms = 210,

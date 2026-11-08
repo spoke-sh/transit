@@ -8,7 +8,7 @@ const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 
 const target: q.Partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 4 }, .revision = 1, .digest = @splat(7) }, .partition = 0 };
 const policy: p.StreamQueueDeclaration.Queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 200, .maximum_attempts = 2, .backoff = .{ .initial_ms = 20, .maximum_ms = 100, .multiplier = 2 }, .dead_letter = null };
 fn claim(operation: u64) q.Claim {
-    return .{ .target = target, .operation = .{ .scope = scope, .principal = 8, .operation = operation }, .maximum = 4, .lease_ms = 100 };
+    return .{ .target = target, .operation = .{ .scope = scope, .principal = 8, .operation = operation }, .maximum = 4, .lease_ms = 100, .predicate = null };
 }
 fn settlement(lease: q.Lease, operation: u64, action: @FieldType(q.Settlement, "action")) q.Settlement {
     return .{ .operation = .{ .scope = scope, .principal = 8, .operation = operation }, .lease = lease, .action = action };

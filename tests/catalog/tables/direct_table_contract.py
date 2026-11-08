@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7"
+definition = "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -238,7 +238,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     wait_fixture = {"request": wait_request, "public_key": public_key, "intent_digest": list(stream_digest)}
     queue_work = {"claim": {
         "target": stream_work["consume"]["target"], "operation": log_binding["identity"],
-        "maximum": 16, "lease_ms": 1000,
+        "maximum": 16, "lease_ms": 1000, "predicate": None,
     }}
     queue_input = {**request_input, "action": {"queue": {"mutate": {"work": queue_work, "payload": None}}}}
     queue_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(queue_input)).digest())}
@@ -490,7 +490,7 @@ for field in ("operation", "claim"):
     invalid = copy.deepcopy(queue_release_request)
     del invalid["action"]["queue"]["mutate"]["work"]["release"][field]
     assert not validator.is_valid(invalid), field
-for field in ("target", "operation", "maximum", "lease_ms"):
+for field in ("target", "operation", "maximum", "lease_ms", "predicate"):
     invalid = copy.deepcopy(queue_request)
     del invalid["action"]["queue"]["mutate"]["work"]["claim"][field]
     assert not validator.is_valid(invalid), field

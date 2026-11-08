@@ -45,7 +45,7 @@ test "pending waits reject foreign identity policy terminal evidence and complet
 
 fn selection() p.StreamQueue.ClaimReceipt {
     const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
-    return .{ .claim = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 4 }, .revision = 1, .digest = @splat(5) }, .partition = 0 }, .operation = .{ .scope = scope, .principal = 6, .operation = 7 }, .maximum = 2, .lease_ms = 1000 }, .accepted = .{ .partition = 8, .next_lsn = 9 }, .observed_ms = 100, .expires_ms = 1100, .rows = 0, .leases = null };
+    return .{ .claim = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 4 }, .revision = 1, .digest = @splat(5) }, .partition = 0 }, .operation = .{ .scope = scope, .principal = 6, .operation = 7 }, .maximum = 2, .lease_ms = 1000, .predicate = null }, .accepted = .{ .partition = 8, .next_lsn = 9 }, .observed_ms = 100, .expires_ms = 1100, .rows = 0, .leases = null };
 }
 fn consumed() p.StreamRead.Receipt {
     const claim = selection();

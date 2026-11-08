@@ -60,7 +60,7 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, schema: 
     const accepted = (try caller.call(.{ .queue = .{ .mutate = original.value.work } }));
     defer accepted.deinit();
     try t.expectEqual(@as(u64, 2), accepted.value.result.queue.operation.?.enqueue.next);
-    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = .{ .scope = connection.scope, .principal = 101, .operation = 502 }, .maximum = 2, .lease_ms = 100 } };
+    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = .{ .scope = connection.scope, .principal = 101, .operation = 502 }, .maximum = 2, .lease_ms = 100, .predicate = null } };
     endpoint.lose = true;
     try t.expectError(error.LostAcknowledgement, c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = claim } }));
     try t.expectEqualDeep(claim.identity(), attempt.mutation.?.identity.?);

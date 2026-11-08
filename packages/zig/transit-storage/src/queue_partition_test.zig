@@ -138,7 +138,7 @@ test "queue candidate persistence retains long FIFO key children and earlier roo
     const payload = try encoder.finish();
     _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(2), .kind = .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
     const appended = owner.owner.root;
-    const receipt = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 3, .lease_ms = 100 }, policy.guard());
+    const receipt = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 3, .lease_ms = 100, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 2), receipt.rows);
     const lease = try selectedLease(objects.objectStore(), receipt, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
@@ -208,7 +208,7 @@ test "queue partition resumes accepted timer merges through reply loss retiremen
     var claimed: [2]q.ClaimReceipt = undefined;
     for (&claimed, 4..) |*receipt, id| {
         const prior_puts = objects.puts;
-        receipt.* = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(id), .maximum = 256, .lease_ms = 100 }, policy.guard());
+        receipt.* = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(id), .maximum = 256, .lease_ms = 100, .predicate = null }, policy.guard());
         try t.expectEqual(@as(u32, 256), receipt.rows);
         // Immutable derivation preserves replay roots, but superseded private
         // pages and bitmap containers need not reach the provider.
@@ -567,7 +567,7 @@ test "queue partition original claim selections and empty outcomes survive expir
     const first_due = (try visibility_index.firstEligible(owner.owner.root.queue.?, 1000)).?;
     try t.expectEqual(@as(u64, 1), first_due.offset);
     try t.expectEqual(@as(u64, 0), (try visibility_index.eligibleAfter(owner.owner.root.queue.?, try s.QueueIndex.timedKey(first_due.visible_ms, first_due.offset), 1000)).?.offset);
-    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     fault.lose_reply = true;
     try t.expectError(error.LogAppendUncertain, owner.claim(initial.declared, claim, policy.guard()));
     try t.expectError(error.LogRecoveryRequired, owner.claim(initial.declared, claim, policy.guard()));
@@ -659,7 +659,7 @@ test "queue partition claim time and capacity refusals cannot publish empty succ
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     const before = owner.owner.root;
-    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 };
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100, .predicate = null };
     clock.change = true;
     try t.expectError(error.QueueTimeUnavailable, owner.claim(initial.declared, claim, policy.guard()));
     try t.expectEqualDeep(before, owner.owner.root);
@@ -711,7 +711,7 @@ test "queue partition wait readiness cannot publish an empty claim when clock un
     const cells = [_]f.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "entity" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } };
     const payload = try s.LogBatch.encode(declared.definition.schema, operation(2), .queue, &.{.{ .cells = &cells, .visible_ms = 200 }}, &bytes);
     _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(2), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
-    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 };
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100, .predicate = null };
     const before = owner.owner.root;
     clock.value = .exact(200);
     try t.expect((try owner.claimReadiness(initial.declared, claim, policy.guard())).available);
@@ -748,7 +748,7 @@ test "queue partition replay refuses a canonical claim selecting an ineligible F
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const receipt = try owner.claim(initial.declared, claim, policy.guard());
     var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
     const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), receipt.leases.?, &selection_buffer);
@@ -796,7 +796,7 @@ test "queue partition fenced ACK NACK and renewal recover original outcomes afte
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const claimed = try owner.claim(initial.declared, claim, policy.guard());
     const old_alpha = try selectedLease(objects.objectStore(), claimed, 0);
     const beta = try selectedLease(objects.objectStore(), claimed, 1);
@@ -901,7 +901,7 @@ test "queue partition settlement rechecks time at publication and keeps exhauste
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
     const alpha = try selectedLease(objects.objectStore(), claimed, 0);
     const nack: q.Settlement = .{ .operation = operation(4), .lease = alpha, .action = .{ .nack = .{ .visible_ms = 0 } } };
     const before = owner.owner.root;
@@ -962,7 +962,7 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
     const lease = try selectedLease(objects.objectStore(), claim, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
     _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .{ .nack = .{ .visible_ms = 0 } } }, policy.guard());
@@ -1104,7 +1104,7 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const original = try owner.claim(initial.declared, claim, policy.guard());
     const alpha = try selectedLease(objects.objectStore(), original, 0);
     // Warm the earliest prefix, then renew its lease. The old wakeup must not
@@ -1238,8 +1238,8 @@ test "queue partition payload read release preserves leases and recovers its ori
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 }, policy.guard());
-    const empty = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 2, .lease_ms = 100 }, policy.guard());
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
+    const empty = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 0), empty.rows);
     const lease = try selectedLease(objects.objectStore(), claimed, 0);
     const before = owner.owner.root;
@@ -1331,7 +1331,7 @@ test "queue partition controls verify immutable declaration bytes before accepta
     var invented = initial.declared;
     invented.declaration.interpretation.revision = 2;
     try invented.validate();
-    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     claim.target.interpretation = invented.declaration.interpretation;
     const enqueued = owner.owner.root;
     try t.expectError(error.InvalidLogDeclaration, owner.claim(invented, claim, policy.guard()));
@@ -1368,7 +1368,7 @@ test "queue partition claim pages retain original payloads with bounded current 
     var bytes: [8192]u8 = undefined;
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
-    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100 };
+    var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const accepted = try owner.claim(initial.declared, claim, policy.guard());
     const start: p.QueueRead.Cursor = .{ .receipt = accepted, .next = 0 };
     var first = try owner.readClaimPage(initial.declared, start, .{ .rows = 1 }, t.allocator, policy.guard());
@@ -1462,7 +1462,7 @@ test "queue partition claim page crosses original batches with one tail slot" {
         const appended = try request(&declared, id, &bytes);
         _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     }
-    const accepted = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 6, .lease_ms = 100 }, policy.guard());
+    const accepted = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 6, .lease_ms = 100, .predicate = null }, policy.guard());
     var page = try owner.readClaimPage(initial.declared, .{ .receipt = accepted, .next = 0 }, .{}, t.allocator, policy.guard());
     defer page.deinit();
     try t.expect(page.cursor.complete() and page.rows().len == 6);
@@ -1509,7 +1509,7 @@ test "queue partition terminal retention preserves original reads and replays ex
     const cut = owner.owner.root.position();
     try t.expectEqual(Queue.ExpirationStatus.unsealed, (try owner.expireTerminalHistory(initial.declared, cut, policy.guard())).status);
     while (!(try owner.flush(cut, policy.guard())).complete) {}
-    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 3, .lease_ms = 1000 }, policy.guard());
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 3, .lease_ms = 1000, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 3), claimed.rows);
     var acked: [3]q.SettlementReceipt = undefined;
     for (0..2) |i| acked[i] = try owner.settle(initial.declared, .{ .operation = operation(5 + i), .lease = try selectedLease(objects.objectStore(), claimed, @intCast(i)), .action = .ack }, policy.guard());
@@ -1554,7 +1554,7 @@ test "queue partition terminal retention preserves original reads and replays ex
         try t.expectEqual(p.QueueRead.State.acked, row.lease.state);
         try t.expectEqualDeep(acked[i], try owner.settle(initial.declared, acked[i].settlement, policy.guard()));
     }
-    const later = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(8), .maximum = 3, .lease_ms = 1000 }, policy.guard());
+    const later = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(8), .maximum = 3, .lease_ms = 1000, .predicate = null }, policy.guard());
     var selection_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
     const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), later.leases.?, &selection_bytes);
     try t.expectEqual(@as(u64, 3), selection.metadata.source.retained_from);
@@ -1623,7 +1623,7 @@ test "queue partition terminal retention replay refuses removal of another live 
         const payload = try s.LogBatch.encode(declared.definition.schema, operation(id), .queue, &.{.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = "key" } } }, .{ .value = .{ .atom = .{ .bytes = "value" } } } } }}, &bytes);
         _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(id), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
     }
-    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(5), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(5), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
     const lease = try selectedLease(objects.objectStore(), claimed, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
     _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = lease, .action = .ack }, policy.guard());
@@ -1684,7 +1684,7 @@ test "log transaction queue cuts retain prior claims and distinguish physical fr
     var bytes: [8192]u8 = undefined;
     const batch = try request(&declared, 2, &bytes);
     _ = try queue.enqueue(initial.declared, batch.append, batch.payload, policy.guard());
-    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
     const basis = queue.owner.root;
     try t.expectEqual(basis.next_lsn, basis.changed_lsn);
     const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
@@ -1725,7 +1725,7 @@ test "log transaction private Queue evaluation composes enqueue and fenced ACK w
     var bytes: [8192]u8 = undefined;
     const first = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
-    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
     const lease = try selectedLease(objects.objectStore(), claim, 0);
     const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
     const basis = owner.owner.root;
@@ -1789,7 +1789,7 @@ test "log transaction terminal candidates reject standalone replay before recons
     var bytes: [8192]u8 = undefined;
     const input = try request(&source, 2, &bytes);
     _ = try owner.enqueue(initial.declared, input.append, input.payload, policy.guard());
-    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+    const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
     const lease = try selectedLease(objects.objectStore(), claim, 0);
     try t.expectEqual(@as(u64, 1), lease.offset);
     _ = try owner.flush(owner.owner.root.position(), policy.guard());
@@ -1874,7 +1874,7 @@ test "log transaction Queue decision rechecks live leases and recovers accepted 
         var bytes: [8192]u8 = undefined;
         const first = try request(&declared, 2, &bytes);
         _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
-        const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100 }, policy.guard());
+        const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
         const lease = try selectedLease(objects.objectStore(), claim, 0);
         const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
         const basis = owner.owner.root;
@@ -2007,4 +2007,108 @@ test "queue partition cancellation fences late admission and preserves original 
     const current = try s.LogDeclaration.stage(objects.objectStore(), &retired);
     try t.expectEqualDeep(closed, try owner.cancel(current, work, policy.guard()));
     try t.expectEqualDeep(accepted_root, owner.owner.root);
+}
+
+fn predicateClaim(declared: *const s.LogDeclaration.Owned, target: q.Partition, id: u64, text: []const u8) !q.Claim {
+    var prepared = try f.LogClaimSql.Prepared.init(t.allocator, text, declared.definition.schema, .transit, null);
+    defer prepared.deinit();
+    var bound = try prepared.bind(t.allocator, &.{}, null);
+    defer bound.deinit();
+    return .{ .target = target, .operation = operation(id), .maximum = 16, .lease_ms = 100, .predicate = try f.QueuePredicate.encode(t.allocator, target, declared.definition.schema, bound.fields, bound.plan.plan) };
+}
+
+test "queue predicate selection preserves FIFO original empty and lost replies across disk recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    configured.queue_visibility_rows = 1;
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var fault: Fault = .{ .underlying = wal.log() };
+    var owner = try Queue.open(t.allocator, fault.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    // Offset 2 matches but cannot pass its nonmatching Alpha head at offset 0.
+    const blocked = try predicateClaim(&declared, initial.target(), 3, "CLAIM * FROM tasks WHERE key <> 'Beta' AND _offset > 0 WITH LEASE '100ms'");
+    try t.expect(!(try owner.claimReadiness(initial.declared, blocked, policy.guard())).available);
+    const empty = try owner.claim(initial.declared, blocked, policy.guard());
+    try t.expectEqual(@as(u32, 0), empty.rows);
+    try t.expectEqual(@as(u64, 0), owner.owner.root.queue.?.active);
+    const beta = try predicateClaim(&declared, initial.target(), 4, "CLAIM key, _receipt_handle FROM tasks WHERE key = 'bETA' OR _offset > 1 WITH LEASE '100ms'");
+    try t.expect((try owner.claimReadiness(initial.declared, beta, policy.guard())).available);
+    fault.lose_reply = true;
+    try t.expectError(error.LogAppendUncertain, owner.claim(initial.declared, beta, policy.guard()));
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    const receipt = try owner.claim(initial.declared, beta, policy.guard());
+    try t.expectEqual(@as(u32, 1), receipt.rows);
+    try t.expectEqual(@as(u64, 1), (try selectedLease(objects.objectStore(), receipt, 0)).offset);
+    var changed = beta;
+    changed.predicate = blocked.predicate;
+    try t.expectError(error.QueueClaimConflict, owner.claim(initial.declared, changed, policy.guard()));
+    // A new matching append cannot change an already accepted empty selection.
+    var encoder = try s.LogBatch.Encoder.init(declared.definition.schema, operation(5), .queue, 1, &bytes);
+    try encoder.append(.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = "Gamma" } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } } });
+    const payload = try encoder.finish();
+    _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(5), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
+    const root = owner.owner.root;
+    try owner.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    policy.epoch = 2;
+    clock.value = null;
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
+    try t.expectEqualDeep(root, owner.owner.root);
+    try t.expectEqualDeep(receipt, try owner.claim(initial.declared, beta, policy.guard()));
+    try t.expectEqualDeep(empty, try owner.claim(initial.declared, blocked, policy.guard()));
+}
+
+test "queue predicate budget and authorization refusals publish no partial selection" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var base = try declaration();
+    defer base.deinit();
+    var definition = base.definition;
+    definition.limits.read_rows = 1;
+    var declared = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const claim = try predicateClaim(&declared, initial.target(), 3, "CLAIM * FROM tasks WHERE _offset >= 0 WITH LEASE '100ms'");
+    const root = owner.owner.root;
+    try t.expectError(error.QueuePredicateBudgetExceeded, owner.claimReadiness(initial.declared, claim, policy.guard()));
+    try t.expectError(error.QueuePredicateBudgetExceeded, owner.claim(initial.declared, claim, policy.guard()));
+    try t.expectEqualDeep(root, owner.owner.root);
+    var one = claim;
+    one.maximum = 1;
+    policy.deny_at = policy.calls + 2;
+    try t.expectError(error.PermissionDenied, owner.claim(initial.declared, one, policy.guard()));
+    try t.expectEqualDeep(root, owner.owner.root);
+    policy.deny_at = std.math.maxInt(usize);
+    const accepted = try owner.claim(initial.declared, one, policy.guard());
+    try t.expectEqual(@as(u32, 1), accepted.rows);
 }

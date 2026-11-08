@@ -601,7 +601,7 @@ test "direct Queue collection requires terminal expiry claim closure and replay 
     _ = try queue.flush(queue.owner.root.position(), fixture.guard());
     const tree: s.TreeStore.pages.Tree(s.TreeStore) = .{ .store = &queue.owner.store };
     const sealed = try s.LogSegment.Descriptor.decode((try tree.get(queue.owner.root.segments, try s.LogPartitionRecord.integerKey(1))).?);
-    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .maximum = 1, .lease_ms = 1000 }, fixture.guard());
+    const claimed = try queue.claim(initial.declared, .{ .target = initial.target(), .operation = .{ .scope = object.scope, .principal = 0, .operation = 102 }, .maximum = 1, .lease_ms = 1000, .predicate = null }, fixture.guard());
     var selection_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
     const selection = try s.QueueSelection.load(t.allocator, fixture.data.objects(), claimed.leases.?, &selection_bytes);
     const acked = try queue.settle(initial.declared, .{ .operation = .{ .scope = object.scope, .principal = 0, .operation = 103 }, .lease = try selection.lease(0), .action = .ack }, fixture.guard());

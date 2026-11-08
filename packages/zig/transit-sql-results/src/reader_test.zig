@@ -48,7 +48,7 @@ test "workload completion validates original claim coverage before publishing se
     const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(3) }, .partition = 0 };
     for ([_]u32{ 0, 2 }) |count| {
-        const receipt: p.StreamQueue.ClaimReceipt = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 5, .operation = 11 }, .maximum = 2, .lease_ms = 100 }, .accepted = .{ .partition = 13, .next_lsn = 7 }, .observed_ms = 100, .expires_ms = 200, .rows = count, .leases = if (count == 0) null else .{ .bytes = 256, .sha256 = @splat(9) } };
+        const receipt: p.StreamQueue.ClaimReceipt = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 5, .operation = 11 }, .maximum = 2, .lease_ms = 100, .predicate = null }, .accepted = .{ .partition = 13, .next_lsn = 7 }, .observed_ms = 100, .expires_ms = 200, .rows = count, .leases = if (count == 0) null else .{ .bytes = 256, .sha256 = @splat(9) } };
         const basis: r.Observation.Value = .{ .data = .{ .workload = .{ .intent = .{ .bytes = 512, .sha256 = @splat(5) }, .schema = @splat(7), .projection = @splat(11), .limit = null, .selection = .{ .claim = receipt } } } };
         const cells = [_]r.Types.Values.Cell{.{ .value = .{ .atom = .{ .unsigned = 42 } } }};
         const rows = [_]r.Row{ &cells, &cells };

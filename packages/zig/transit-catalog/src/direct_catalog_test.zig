@@ -5111,7 +5111,7 @@ test "transaction log statements atomically enqueue and ACK with lost decision r
                 const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
                 defer t.allocator.free(encoded.base64);
                 _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
-                claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+                claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
                 const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
                 defer page.deinit(t.allocator);
                 const key = receipt.binding.key;
@@ -5229,7 +5229,7 @@ fn terminalTransferCases(allocator: std.mem.Allocator) !void {
                 const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, original_payload);
                 defer t.allocator.free(encoded.base64);
                 _ = try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 2, .payload = s.LogBatch.content(original_payload) } }, .payload = encoded } }, 256);
-                claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+                claim = (try queueCall(&catalog, &access, &cached, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
                 const page = try queueCall(&catalog, &access, &cached, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
                 defer page.deinit(t.allocator);
                 var transfer_source: @FieldType(p.Transaction.TerminalTransfer, "source") = .{ .nack = page.page.rows[0].lease.original };
@@ -5796,7 +5796,7 @@ test "direct Queue waits preserve timeout absence delayed eligibility and origin
     _ = try catalog.logOperation(create.binding, .execute, access.policy());
     const declared = (try catalog.logOperation(create.binding, .execute, access.policy())).operation.resulting.?;
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.stored.declaration.interpretation, .partition = 0 };
-    const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 100 }, .maximum = 1, .lease_ms = 100 };
+    const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 100 }, .maximum = 1, .lease_ms = 100, .predicate = null };
     var request: c.DirectQueue.Request = .{ .wait = .{ .claim = claim, .milliseconds = 1000 } };
     var wake_after_ms: ?u64 = null;
     const active: c.DirectLog.Waiting = .{ .expired = false, .registrations = 1, .wake_after_ms = &wake_after_ms };
@@ -5912,7 +5912,7 @@ test "direct Queue composition preserves original claims current rights and sett
     var stream_cache: ?c.DirectStream.Cached = null;
     defer if (stream_cache) |*value| value.deinit();
     try t.expectError(error.CatalogKindMismatch, streamCall(&catalog, &access, &stream_cache, .{ .observe = target }, 256));
-    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .maximum = 2, .lease_ms = 100 } };
+    const claim: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .maximum = 2, .lease_ms = 100, .predicate = null } };
     const claim_request: c.DirectQueue.Request = .{ .mutate = .{ .work = claim, .payload = null } };
     for ([_]u64{ c.LogAuthority.read, c.LogAuthority.acquire }) |mask| {
         access.denied_privileges = .{ .id = declaration.properties.authorization, .mask = mask };
@@ -6880,7 +6880,7 @@ const MixedDecisionFixture = struct {
         defer coverage.deinit(t.allocator);
         const initial_queue = try s.LogBatch.encode(queue_schema, operation(610), .queue, &.{.{ .cells = &cells }}, &bytes);
         _ = try queueCall(catalog, access, &queue_cache, clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = self.queue, .operation = operation(610), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(initial_queue) } }, .payload = try c.DirectTableProtocol.Binary.encode(alloc, initial_queue) } }, 256);
-        self.claim = (try queueCall(catalog, access, &queue_cache, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(611), .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+        self.claim = (try queueCall(catalog, access, &queue_cache, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(611), .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
         const claimed = try queueCall(catalog, access, &queue_cache, clock, .{ .page = .{ .cursor = .{ .receipt = self.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
         defer claimed.deinit(t.allocator);
         _ = try catalog.acquireTransaction(key, access.policy());
@@ -6967,7 +6967,7 @@ const MixedDecisionFixture = struct {
             // A fresh authorized claim is used only by the independent oracle,
             // after the original ACK and enqueue outcomes have been checked.
             clock.now = .exact(100);
-            const output = (try queueCall(catalog, access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(8001), .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+            const output = (try queueCall(catalog, access, &queue_cache, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = self.queue, .operation = operation(8001), .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
             try t.expectEqual(@as(u32, 1), output.rows);
             const payload = try queueCall(catalog, access, &queue_cache, &clock, .{ .page = .{ .cursor = .{ .receipt = output, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
             defer payload.deinit(t.allocator);
@@ -7333,7 +7333,7 @@ fn prepareAutomaticQueueTransfer(catalog: *D, access: *Access, clock: *QueueCloc
     const encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
     defer t.allocator.free(encoded.base64);
     _ = try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = source_target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = encoded } }, 256);
-    const claim = (try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } }, 256)).operation.?.claim;
+    const claim = (try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = source_target, .operation = .{ .scope = scope, .principal = 1, .operation = 601 }, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
     const page = try queueCall(catalog, access, &cached, clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
     defer page.deinit(t.allocator);
     _ = try queueCall(catalog, access, &cached, clock, .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 604 }, .lease = page.page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } }, .payload = null } }, 256);
@@ -7770,7 +7770,7 @@ test "direct Queue cancellation retains one terminal identity through waits muta
     const definition = (try catalog.logOperation(declaration_request.binding, .execute, access.policy())).operation.resulting.?;
     const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
     const identity: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 100 };
-    const work: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100 } };
+    const work: c.DirectQueueMutation.Request = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100, .predicate = null } };
     const cancel: c.DirectQueue.Request = .{ .cancel = work };
     const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
     access.denied_privileges = .{ .id = definition.properties.authorization, .mask = c.LogAuthority.read };
@@ -7901,7 +7901,7 @@ test "workload intent freezes complete schema payload and operation without admi
         const selection: c.DirectWorkloadIntent.Work = if (kind == .stream)
             .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
         else
-            .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = identity, .maximum = 1, .lease_ms = 100 } }, .payload = null } };
+            .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = identity, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } };
         var saved_selection = try c.DirectWorkloadIntent.create(t.allocator, connection, source, selection);
         defer saved_selection.deinit();
         const selected = try saved_selection.reference(@splat(7));
@@ -8015,7 +8015,7 @@ test "workload renewal returns the original descriptor across later renewal rest
             const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
             defer t.allocator.free(binary.base64);
             (try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = operation, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) } }, .payload = binary } })).deinit(t.allocator);
-            const claim = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .maximum = 1, .lease_ms = 100 } }, .payload = null } });
+            const claim = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 101 }, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } });
             defer claim.deinit(t.allocator);
             const page = try native.queue(native.context, t.allocator, &catalog, access.policy(), .{ .page = .{ .cursor = .{ .receipt = claim.operation.?.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } });
             defer page.deinit(t.allocator);
@@ -8113,7 +8113,7 @@ test "workload token settlement requires original native evidence across lost di
                     const work: c.DirectWorkloadIntent.Work = if (kind == .stream)
                         .{ .stream = .{ .work = .{ .consume = .{ .target = target, .operation = identity, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
                     else
-                        .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100 } }, .payload = null } };
+                        .{ .queue = .{ .work = .{ .claim = .{ .target = target, .operation = identity, .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } };
                     var intent = try c.DirectWorkloadIntent.create(t.allocator, connection, .{ .declaration = definition, .schema = schema }, work);
                     defer intent.deinit();
                     const reference = try intent.reference(@splat(7));
@@ -8290,7 +8290,7 @@ test "workload results reopen original payload and selections without mutation a
                 const empty_work: c.DirectWorkloadIntent.Work = if (kind == .stream)
                     .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = empty_operation, .group = null, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
                 else
-                    .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = empty_operation, .maximum = 3, .lease_ms = 100 } }, .payload = null } };
+                    .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = empty_operation, .maximum = 3, .lease_ms = 100, .predicate = null } }, .payload = null } };
                 var empty_intent = try c.DirectWorkloadIntent.create(t.allocator, connection, source, empty_work);
                 defer empty_intent.deinit();
                 const frozen_empty = try empty_intent.reference(@splat(7));
@@ -8308,7 +8308,7 @@ test "workload results reopen original payload and selections without mutation a
                     if (kind == .stream)
                         .{ .stream = .{ .work = .{ .consume = .{ .target = append.target, .operation = selected_operation, .group = .{ .id = 1, .generation = 1, .principal = 1 }, .from = 0, .until = null, .timestamp = null } }, .payload = null } }
                     else
-                        .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = selected_operation, .maximum = 3, .lease_ms = 100 } }, .payload = null } },
+                        .{ .queue = .{ .work = .{ .claim = .{ .target = append.target, .operation = selected_operation, .maximum = 3, .lease_ms = 100, .predicate = null } }, .payload = null } },
                 };
                 for (works, &references) |work, *reference| {
                     if (work == .stream and work.stream.work == .consume) {

@@ -10,8 +10,14 @@ const Declaration = @import("LogDeclaration.zig");
 const Time = @import("LogTime.zig");
 const pages = @import("TreeStore.zig").pages;
 
-pub fn select(index: Index, root: Root, declared: Declaration.Stored, claim: q.Claim, observed: Time.Sample, work: []q.Lease) ![]q.Lease {
+pub const Predicate = struct {
+    context: *anyopaque,
+    matches: *const fn (*anyopaque, u64) anyerror!bool,
+};
+
+pub fn select(index: Index, root: Root, declared: Declaration.Stored, claim: q.Claim, observed: Time.Sample, work: []q.Lease, predicate: ?Predicate) ![]q.Lease {
     try claim.validate();
+    if ((claim.predicate != null) != (predicate != null)) return error.InvalidQueuePredicate;
     try observed.validate();
     try root.requireDeclaration(declared);
     try claim.target.requireSame((try root.cut(declared)).target);
@@ -31,9 +37,10 @@ pub fn select(index: Index, root: Root, declared: Declaration.Stored, claim: q.C
             if (count == 0) return error.QueueLeaseCapacityExceeded;
             break;
         }
+        after = try Index.timedKey(item.visible_ms, item.offset);
+        if (predicate) |filter| if (!try filter.matches(filter.context, item.offset)) continue;
         work[count] = (try item.acquire(try index.state(before, item), claim, policy, observed)).lease.?;
         count += 1;
-        after = try Index.timedKey(item.visible_ms, item.offset);
     }
     const leases = work[0..count];
     std.mem.sort(q.Lease, leases, {}, struct {

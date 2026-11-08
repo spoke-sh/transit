@@ -60,8 +60,9 @@ for its original outcome. `DirectLogPreparedConsume` freezes positional
 `CONSUME` requests, retaining a native upper cut at acceptance and applying the
 original typed predicate and logical LIMIT during bounded result delivery. A
 multi-partition Stream requires a predicate that selects exactly one partition.
-`DirectLogPreparedClaim` admits an unfiltered `CLAIM ... WITH LEASE` on one
-Queue partition. Exact `_partition` equality routes multi-partition declarations;
+`DirectLogPreparedClaim` freezes a typed acquisition predicate for `CLAIM ...
+WITH LEASE` on one Queue partition. Conservative Boolean routing must establish
+one partition. The native owner evaluates eligible candidates before acquisition;
 LIMIT bounds acquisition and never hides accepted result rows. Native FIFO,
 capacity and lease checks remain authoritative. Group consumption binds an
 explicit native assignment/checkpoint descriptor, and COMMIT OFFSET freezes

@@ -44,14 +44,29 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     for sql, error in (
         ("CLAIM value FROM claim_work WITH LEASE '1s'", 'SqlAdmissionTokenRequired'),
         ("CLAIM value FROM claim_manual WITH LEASE '1s'", 'LogPartitionRequired'),
-        ("CLAIM value FROM claim_work WHERE value = 7 WITH LEASE '1s'", 'UnsupportedConstruct'),
-        ("CLAIM value FROM claim_work WHERE _offset >= 7 WITH LEASE '1s'", 'UnsupportedConstruct'),
         ("CLAIM value FROM claim_work WITH LEASE '1s' WAIT '1001ms'", 'InvalidQueueWait'),
         ("CLAIM value FROM claim_work LIMIT 66 WITH LEASE '1s'", 'QueueClaimLimitExceeded'),
         ("CLAIM value FROM claim_work WITH LEASE '31s'", 'InvalidQueueLeaseDuration'),
     ):
         token = None if error == 'SqlAdmissionTokenRequired' else list(os.urandom(16))
         client.call(dict(execute=dict(sql=sql, token=token)), error=error)
+
+    # Selection happens before acquisition. A nonmatching FIFO head retains its
+    # key; the unrelated matching head is delivered with its original receipt.
+    submit("CREATE QUEUE predicate_work (entity BIGINT NOT NULL, value BIGINT) WITH (mode='key_fifo', key_column='entity')")
+    submit('ENQUEUE INTO predicate_work VALUES (1, 0), (1, 7), (2, 7), (3, NULL)')
+    filtered_sql = "CLAIM value, _offset, _receipt_handle FROM predicate_work WHERE value = 7 OR value IS NULL WITH LEASE '30s'"
+    filtered_token = list(os.urandom(16))
+    filtered = submit(filtered_sql, filtered_token)
+    filtered_rows = rows(filtered['identity'])
+    assert [unsigned(row[1]) for row in filtered_rows[0]] == [2, 3]
+    assert unsigned(filtered_rows[0][0][0]) == 7 and filtered_rows[0][1][0] == '01'
+    assert filtered_rows[2]['data']['workload']['selection']['claim']['claim']['predicate'] is not None
+    client.call(dict(execute=dict(sql=filtered_sql.replace('= 7', '= 8'), token=filtered_token)), error='SqlTokenConflict')
+    filtered_empty = submit("CLAIM value FROM predicate_work WHERE value = 7 WITH LEASE '30s'")
+    assert rows(filtered_empty['identity'])[0] == []
+    remaining = rows(submit("CLAIM value, _offset FROM predicate_work WITH LEASE '30s'")['identity'])
+    assert [list(map(unsigned, row)) for row in remaining[0]] == [[0, 0]]
 
     sql = "CLAIM value, _partition, _offset, _lease_epoch, _attempt, _receipt_handle FROM claim_work LIMIT 65 WITH LEASE '1s'"
     original = dict(definition=client.definition, sql=sql, token=list(os.urandom(16)))
@@ -93,6 +108,9 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     assert client.terminal(client.call(dict(status=dict(operation=original['identity'])))['operation']) == operation
     assert submit(original['sql'], original['token']) == operation
     assert rows(original['identity']) == result
+    assert rows(filtered['identity']) == filtered_rows
+    assert submit(filtered_sql, filtered_token) == filtered
+    assert rows(filtered_empty['identity'])[0] == []
     client.call(dict(execute=dict(sql=sql + ' ', token=original['token'])), error='SqlTokenConflict')
 
     uint = descriptor('uint64')
@@ -102,7 +120,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
         body = b'\x03' + struct.pack('<Q', value) if kind == uint else b'\x03' + struct.pack('<I', len(value)) + value.encode()
         return (b'FVL1' + struct.pack('<H', len(kind)) + kind + b'\x01' + body).hex()
 
-    typed = 'CLAIM value, _partition, _offset FROM claim_manual WHERE _partition = $1 LIMIT $2 WITH LEASE $3'
+    typed = 'CLAIM value, _partition, _offset FROM claim_manual WHERE _partition = $1 AND value = 19 LIMIT $2 WITH LEASE $3'
     described = client.call(dict(prepare=dict(sql=typed)))['described']
     assert described['mutation'] and described['schema'] is not None
     assert described['parameters'] == [uint.hex(), uint.hex(), text.hex()]
@@ -305,7 +323,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
     client.close()
     with psycopg.connect(**postgres) as wire:
         with wire.cursor() as cursor:
-            cursor.execute('CLAIM value, _offset, _receipt_handle FROM claim_pg LIMIT %s WITH LEASE %s', (2, '10s'), prepare=True)
+            cursor.execute('CLAIM value, _offset, _receipt_handle FROM claim_pg WHERE value >= %s LIMIT %s WITH LEASE %s', (7, 2, '10s'), prepare=True)
             acquired = cursor.fetchall()
             assert [row[:2] for row in acquired] == [(7, 0), (8, 1)]
             assert cursor.statusmessage == 'CLAIM 2'
@@ -324,7 +342,7 @@ def run(root, port, postgres, mysql_options, restart, authorize, console, config
             assert cursor.fetchall() == [] and cursor.statusmessage == 'CLAIM 0'
     with mysql.connector.connect(**mysql_options) as wire:
         with wire.cursor(prepared=True) as cursor:
-            cursor.execute('CLAIM value, _receipt_handle FROM claim_mysql LIMIT %s WITH LEASE %s', (2, '10s'))
+            cursor.execute('CLAIM value, _receipt_handle FROM claim_mysql WHERE value >= %s LIMIT %s WITH LEASE %s', (7, 2, '10s'))
             acquired = cursor.fetchall()
             assert [row[0] for row in acquired] == [7, 8]
             renewed_mysql = []

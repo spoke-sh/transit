@@ -108,7 +108,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const request: c.protocol.StreamQueue.Append = .{ .target = initial.target(), .operation = operation, .kind = .queue, .producer = null, .rows = 24, .payload = s.LogBatch.content(payload) };
     const receipt = try owner.enqueue(declared, request, payload, guard);
     const frozen_batches = owner.owner.root.batches.?;
-    const claim: c.protocol.StreamQueue.Claim = .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 16, .lease_ms = 100 };
+    const claim: c.protocol.StreamQueue.Claim = .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 16, .lease_ms = 100, .predicate = null };
     const claimed = try owner.claim(declared, claim, guard);
     try t.expectEqual(@as(u32, 16), claimed.rows);
     var original_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
@@ -150,7 +150,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     try t.expect(merged);
     // Current time still precedes this later claim's deadline. A NACK changes
     // the current basis after the timer merge froze it, without completing it.
-    const next_claim = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 13 }, .maximum = 1, .lease_ms = 100 }, guard);
+    const next_claim = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 13 }, .maximum = 1, .lease_ms = 100, .predicate = null }, guard);
     var next_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
     const next_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), next_claim.leases.?, &next_bytes);
     _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 14 }, .lease = try next_selection.lease(0), .action = .{ .nack = .{ .visible_ms = 1000 } } }, guard);

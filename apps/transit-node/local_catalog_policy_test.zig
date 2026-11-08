@@ -2813,7 +2813,7 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     const binary = try c.DirectTableProtocol.Binary.encode(t.allocator, payload);
     defer t.allocator.free(binary.base64);
     (try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = Fixture.operation(config, 90000), .kind = .queue, .producer = null, .rows = 2, .payload = c.storage.LogBatch.content(payload) } }, .payload = binary } } })).deinit();
-    const claimed = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = Fixture.operation(config, 90001), .maximum = 1, .lease_ms = 100 } }, .payload = null } } });
+    const claimed = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = target, .operation = Fixture.operation(config, 90001), .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } } });
     defer claimed.deinit();
     const claim = claimed.value.result.queue.operation.?.claim;
     const input = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
@@ -2897,7 +2897,7 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     const after = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
     defer after.deinit();
     try t.expectEqual(p.QueueRead.State.archived, after.value.result.queue.page.rows[0].lease.state);
-    const delivery = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = plan.transfer.destination.target, .operation = Fixture.operation(config, 90003), .maximum = 2, .lease_ms = 100 } }, .payload = null } } });
+    const delivery = try dispatch(&service, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = plan.transfer.destination.target, .operation = Fixture.operation(config, 90003), .maximum = 2, .lease_ms = 100, .predicate = null } }, .payload = null } } });
     defer delivery.deinit();
     try t.expectEqual(@as(u32, 1), delivery.value.result.queue.operation.?.claim.rows);
     const output = try dispatch(&service, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = delivery.value.result.queue.operation.?.claim, .next = 0 }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } } });

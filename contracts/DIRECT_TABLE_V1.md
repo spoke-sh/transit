@@ -1066,7 +1066,7 @@ extension, or explicit original payload-read `release`. Stream partitions reject
 this action. Each operation reserves its
 full immutable intent in the same catalog namespace as Tables, Streams and
 declarations before Queue WAL acceptance. The reservation alone is not acceptance.
-Changing kind, partition, definition, payload, claim limits or lease intent under
+Changing kind, partition, definition, payload, claim predicate/limits or lease intent under
 that identity conflicts, including after a lost response.
 
 Every action requires current database CONNECT and schema USAGE. `observe`
@@ -1085,7 +1085,12 @@ by the requested count, declaration limits and active lease capacity. Exhaustion
 refuses rather than recording a false empty result. An accepted empty claim stays
 empty on retry. Nonempty selections, per-message epochs, deadlines and attempts
 are accepted atomically; original inspection and open payload reads survive expiry,
-compatible declaration changes, DROP and unavailable time.
+compatible declaration changes, DROP and unavailable time. Claims carry an explicit
+nullable owned predicate; the native selector evaluates payload/metadata conditions
+before acquisition, including during readiness and recovery. The
+[Queue predicate contract](QUEUE_V1.md#predicate-aware-acquisition) owns its exact
+binding, FIFO behavior and independent scan budgets. Result projection cannot
+filter acquired work.
 
 `wait` carries the complete `Claim` and a 1–1000 millisecond scheduling bound.
 Its durable intent is the underlying claim; changing the duration does not

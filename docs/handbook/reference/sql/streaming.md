@@ -285,19 +285,27 @@ and cannot exceed that budget. WITH LEASE is required and accepts positive whole
 `ms`, `s` or `m` units within the Queue's maximum lease policy. Native eligibility,
 FIFO ordering, active-lease capacity and trusted-time checks remain authoritative.
 A genuinely empty accepted claim is a complete empty result; capacity or budget
-refusal is not an empty claim.
+refusal is not an empty claim. A predicate's owned encoding is limited to 2048
+bytes. Each selection examines at most the smaller of `read_rows` and 4096
+eligible candidates, and the smaller of `read_bytes` and 4 MiB of their encoded
+rows. These scan limits are separate from LIMIT and delivery batches. Exhaustion
+before finding the requested selection or completing the search returns
+`QueuePredicateBudgetExceeded`, accepting no partial lease set. WAIT uses the
+same predicate and limits; a nonmatching arrival does not establish readiness.
 
-A one-partition Queue needs no WHERE clause. For multiple partitions, use exactly
-`WHERE _partition = <unsigned value or parameter>`. Other predicates
-are refused before admission in this profile. Payload predicates require native
-selection before acquisition; SQL never leases unrelated rows and hides them
-with a result filter. Star includes application columns only. `_partition`,
+A one-partition Queue needs no routing predicate. For multiple partitions, the
+WHERE expression must establish one exact partition, for example
+`WHERE _partition = 1 AND value >= 7`. Payload and `_offset` predicates use typed
+Fuze comparisons, Boolean operators and null tests before lease acquisition.
+Only eligible candidates are examined: a nonmatching FIFO head continues to
+block its key while unrelated keys can progress. Lease epoch, attempt and receipt
+handle fields cannot participate in predicates. Star includes application columns only. `_partition`,
 `_offset`, `_lease_epoch`, `_attempt` and binary `_receipt_handle` can be projected
 explicitly and aliased. The handle is the exact original lease descriptor; it is
 not a credential or a current liveness check.
 
 Native SQL requires a client token. Admission freezes the exact target, maximum,
-duration and projection. Delivery returns every originally acquired row, across
+duration, predicate and projection. Delivery returns every originally acquired row, across
 bounded batches, without another output LIMIT. PostgreSQL emits `CLAIM n` after
 verified exhaustion; MySQL uses its ordinary row-result completion. Repeating,
 closing or reopening delivery neither acquires again nor ACKs or renews a lease.

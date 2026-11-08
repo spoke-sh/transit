@@ -165,13 +165,14 @@ WITH LEASE is required. Lease and optional WAIT accept positive whole ms/s/m
 text, within unsigned 64-bit milliseconds for leases and unsigned 32-bit
 milliseconds for waits. Native policy enforcement is still required. NULL operands, invalid budgets and unsafe statement shapes are refused.
 
-The predicate must run before lease acquisition, preserving Queue ordering and
-the exact accepted selection. This compiler is not a native selector or a
-post-filter for original claim results. The shared SQL service admits a narrower
-partition-routed profile: no predicate for one partition, or a single exact
-`_partition` equality. Catalog discharges that routing into the native target and
-freezes an unfiltered original-result projection. Other predicates
-refuse before admission. Receipt handles, ACK/NACK and lease extension use the
+The predicate runs before lease acquisition, preserving Queue ordering and
+original selection. The shared SQL service requires conservative routing to one
+exact partition and freezes Fuze's owned, schema/collation-bound predicate in the
+native claim. Payload, `_partition` and `_offset` conditions use the same typed
+Boolean semantics; lease fields remain projection-only. Catalog freezes an
+unfiltered original-result projection. Native readiness, selection and replay
+share the same bounded evaluator; scan exhaustion is a refusal, never an empty
+or partially acquired result. Receipt handles, ACK/NACK and lease extension use the
 Catalog settlement adapter and shared original-result lifecycle. The
 [claim corpus](corpus/log-claims.json) independently checks
 five-row predicates, projections, lease metadata and acquisition budgets through
