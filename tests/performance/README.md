@@ -185,14 +185,22 @@ snapshot is evidence only when the entire workload's value/count checks pass.
 
 `just test::console-latency-gate` runs the installed default startup/restart
 sequence (`--startup-restarts 2 --startup-default`) and the persistent console
-statement and resource workload (`--statements --repeat 1 --cycles 5 --warm-reads 2
+statement and resource workload (`--statements --repeat 1 --cycles 15 --warm-reads 2
 --resources --worker-interval-ms 10`) pinned to 4 CPUs, then enforces the
 active regression budgets in [`console/budgets.json`](console/budgets.json). The
 gate checks startup readiness and first-verified-result medians, pooled
 `warm_read`/`refresh_read`/`dml_write` class medians, per-case statement medians
 (with a 20% regression budget and a 15-ms noise floor for `<50 ms` warm reads),
-and owned process/thread/PSS footprints. Pass `--freeze` to recalibrate the
-checked-in baseline after an intentional architectural change.
+and owned process/thread/PSS footprints. Fifteen fixed cycles give regular
+mutation and refresh cases fifteen samples, later-cycle empty reads fourteen,
+and repeated warm reads thirty. Three isolated durable-I/O stalls can no longer
+form a majority of a recurring case's samples. Every cycle is included; there
+are no retries, discarded slow samples or early success exits.
+Cold reads remain single samples, and startup still includes two retained restarts.
+The latency and resource limits are unchanged. `calibration_workload` preserves
+the original five-cycle baseline's provenance separately from the longer gate
+workload; this is not a new calibration or a runtime speedup claim. Pass `--freeze`
+to recalibrate the checked-in baseline after an intentional architectural change.
 
 `just test::console-latency-tls 5` runs the same value/count workload through the
 existing matching TLS SQL fixture without a proxy. This separate component
