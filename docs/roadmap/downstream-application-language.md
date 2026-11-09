@@ -1,8 +1,10 @@
 # Downstream declarative application language
 
-**Status: Planned — implementation proposal for review, 2026-11-08.**
+**Status: Implementation in progress, 2026-11-08.**
 
 Tracking issue: [Transit #430](https://github.com/spoke-sh/transit/issues/430).
+The [ordered program contract](../../contracts/APPLICATION_PROGRAM_V1.md)
+records the compiler boundary and required execution semantics.
 
 Let a downstream consumer build and run its server application as an ordered
 SQL migration history: declare data and policy, install named computations,
@@ -10,10 +12,12 @@ authorize effects and publish browser operations. Requests invoke the installed
 program; they do not rerun migrations. Platform's GitHub sign-in and surface
 publication are the first complete acceptance journey.
 
-This supporting plan coordinates existing milestones; it adds no milestone,
-changes no completion status and establishes no new executable syntax. The
-deliverable here is a source assessment and implementation sequence. Runtime
-implementation and qualification remain pending.
+This supporting plan coordinates existing milestones; it adds no milestone or
+completion claim. Implementation is proceeding in logical commits toward one
+PR for the complete application runtime. The initial compiler work adds bounded
+source framing, ordered program trees and static schema/protected-value checks.
+Those local compiler interfaces do not establish installed Queue execution.
+The remaining runtime and qualification gates below still apply.
 
 ## Reviewed inputs and desired experience
 

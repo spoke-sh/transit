@@ -36,6 +36,8 @@ pub const ParsedStep = struct {
 pub fn splitStatements(allocator: std.mem.Allocator, sql_text: []const u8) ![]ParsedStep {
     var source = try f.SqlScript.init(sql_text);
     var steps: std.ArrayList(ParsedStep) = .empty;
+    var scratch: std.heap.ArenaAllocator = .init(allocator);
+    defer scratch.deinit();
     errdefer {
         for (steps.items) |step| {
             allocator.free(step.object_name);
@@ -45,8 +47,9 @@ pub fn splitStatements(allocator: std.mem.Allocator, sql_text: []const u8) ![]Pa
     }
     while (try source.next()) |statement| {
         if (steps.items.len >= M.max_steps_per_version) return error.InvalidMigrationStepCount;
-        const step = try classifyStatement(
-            allocator,
+        _ = scratch.reset(.retain_capacity);
+        var step = try classifyStatement(
+            scratch.allocator(),
             sql_text,
             statement.start,
             sql_text[statement.start..statement.end],
@@ -55,10 +58,10 @@ pub fn splitStatements(allocator: std.mem.Allocator, sql_text: []const u8) ![]Pa
             statement.first[1],
             statement.first[2],
         );
-        errdefer {
-            allocator.free(step.object_name);
-            allocator.free(step.sql);
-        }
+        step.object_name = try allocator.dupe(u8, step.object_name);
+        errdefer allocator.free(step.object_name);
+        step.sql = try allocator.dupe(u8, step.sql);
+        errdefer allocator.free(step.sql);
         try steps.append(allocator, step);
     }
     if (steps.items.len == 0) return error.InvalidMigrationStepCount;
@@ -99,7 +102,10 @@ fn classifyStatement(
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(stmt_sql, &digest, .{});
 
-    if (g.database.ManagedSql.parse(allocator, stmt_sql, .transit) catch null) |value| {
+    if (g.database.ManagedSql.parse(allocator, stmt_sql, .transit) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => null,
+    }) |value| {
         var managed = value;
         defer managed.deinit();
         return .{
@@ -1928,4 +1934,17 @@ test "migration framing retains whole procedural bodies and source coordinates" 
     try t.expectEqual(.service, steps[0].owner);
     try t.expectEqual(.computation, steps[1].owner);
     try t.expectError(error.UnterminatedSqlToken, splitStatements(arena.allocator(), "SELECT 1; /* missing end"));
+}
+
+fn allocationFailureFraming(allocator: std.mem.Allocator) !void {
+    const steps = try splitStatements(allocator, "CREATE TABLE items (id BIGINT PRIMARY KEY); INSERT INTO items VALUES (1); SELECT 1;");
+    defer allocator.free(steps);
+    defer for (steps) |step| {
+        allocator.free(step.object_name);
+        allocator.free(step.sql);
+    };
+    try std.testing.expectEqual(3, steps.len);
+}
+test "migration framing releases partial output on every allocation failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationFailureFraming, .{});
 }

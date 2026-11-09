@@ -8,6 +8,24 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`SqlScript` frames bounded migration source files, including compound Queue
+program declarations, independently of finite SQL's statement limit.
+`ApplicationProgram` parses their ordered instructions into an owned tree with
+stable node identities and source spans. `ApplicationProgram.Types.bind` checks
+lexical scopes, record fields, resource kinds, function operands and permitted
+protected-value boundaries against supplied schema descriptions. Its returned
+value metadata owns its schema fields and names. Read, write, dispatch and guard
+dependencies remain distinct. Neither operation performs a catalog lookup,
+publishes a computation, executes an effect or grants native authority.
+
+The compiler bounds source at 64 KiB, nodes at 4,096, nesting at 32 and argument
+lists at 64. It rejects effects within atomic blocks and mutations outside them.
+Missing reads retain nullable record types; the eventual execution owner must
+enforce required field values and TRUE-only guards at the mutation/disclosure
+boundary. The schema oracle in [application program fixtures](../../../tests/fixtures/application-programs/README.md)
+checks the intended downstream inputs. Installed Queue execution and its recovery
+contracts remain separate integration work.
+
 `QueryValues` supplies neutral columns, scalar/cell projections, predicates and
 plans over the same `Types`, `LogicalJson` and `LogicalQuery` model. It requires
 no Station, transport or source acquisition. Exact integer strings, float bits,

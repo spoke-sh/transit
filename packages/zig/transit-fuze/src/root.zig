@@ -42,6 +42,7 @@ pub const Prepared = @import("Prepared.zig");
 pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
 pub const SqlScript = @import("SqlScript.zig");
+pub const ApplicationProgram = @import("ApplicationProgram.zig");
 pub const TableSchema = @import("TableSchema.zig");
 pub const TableWitness = @import("TableWitness.zig");
 pub const TableRow = @import("TableRow.zig");
@@ -188,6 +189,7 @@ test {
     _ = @import("logical_kind_test.zig");
     _ = SqlInput;
     _ = SqlScript;
+    _ = ApplicationProgram;
     _ = SqlDiagnostic;
     _ = FileQuery;
     _ = FileSource;

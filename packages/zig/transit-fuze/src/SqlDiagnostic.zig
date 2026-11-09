@@ -270,6 +270,47 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 
 /// Consume context captured by the failing compiler operation, never by a
 /// later catalog read or a guess at similarly spelled source text.
+/// A program has a source-file budget, independently of finite SQL's byte limit.
+/// Keep the original parser location; do not reroute through finite SQL parsing.
+pub fn applicationProgram(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result: Self = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .route = .declaration,
+        .cause = cause,
+        .summary = "Application program cannot be compiled",
+        .hint = "Inspect the program instruction and its bound resource types.",
+    };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    result.source(text, location);
+    return result;
+}
+
+test "program diagnostics preserve source offsets beyond the finite SQL limit" {
+    const t = std.testing;
+    const prefix: [5000]u8 = @splat(' ');
+    const text = prefix ++ "LET invalid = SECRET('never-disclose');";
+    const offset = prefix.len;
+    const detail = applicationProgram(text, error.ProtectedProgramValue, .{ .offset = offset }).?;
+    const result = try detail.structured();
+    try t.expectEqualStrings("sql.protected_program_value", result.code.slice());
+    try t.expectEqual(offset, try result.location.?.offset.value());
+    try t.expectEqual(.not_submitted, result.outcome);
+    try t.expectEqual(0, detail.context_len);
+    try t.expect(applicationProgram(text, error.OutOfMemory, .{}) == null);
+}
+
 pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
     const kind = category(cause) orelse return null;
     var result: Self = .{

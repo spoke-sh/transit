@@ -3,7 +3,7 @@
   "boundaries": [
     {
       "id": "sql-compilation",
-      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation, standalone Stream consumption preparation",
+      "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation, standalone Stream consumption preparation, bounded ordered Queue program parsing and typed resource binding",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
@@ -20,7 +20,8 @@
         "packages/zig/transit-fuze/src/LogConsumeSql.zig",
         "packages/zig/transit-fuze/src/LogClaimSql.zig",
         "packages/zig/transit-fuze/src/LogReadSql.zig",
-        "packages/zig/transit-fuze/src/LogSettlementSql.zig"
+        "packages/zig/transit-fuze/src/LogSettlementSql.zig",
+        "packages/zig/transit-fuze/src/ApplicationProgram*.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -67,6 +68,18 @@
         {
           "source": "packages/zig/transit-fuze/src/companion_values_test.zig",
           "name": "companion declaration failures retain structured binding diagnostics"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/ApplicationProgram.zig",
+          "name": "application program rejects unsafe boundaries and incomplete effects"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+          "name": "application program types reject protected disclosure and invalid bindings"
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/SqlScript.zig",
+          "name": "script framing keeps transaction controls separate and rejects incomplete tails"
         }
       ],
       "exceptions": [
@@ -1081,6 +1094,114 @@
         "InvalidStreamProgress": {
           "code": "sql.invalid_stream_progress",
           "category": "binding"
+        },
+        "SqlNestingTooDeep": {
+          "code": "sql.source_nesting_limit",
+          "category": "limit"
+        },
+        "UnbalancedSqlBlock": {
+          "code": "sql.unbalanced_block",
+          "category": "syntax"
+        },
+        "UnbalancedSqlParentheses": {
+          "code": "sql.unbalanced_parentheses",
+          "category": "syntax"
+        },
+        "UnterminatedSqlToken": {
+          "code": "sql.unterminated_token",
+          "category": "syntax"
+        },
+        "ProgramTooComplex": {
+          "code": "sql.program_complexity_limit",
+          "category": "limit"
+        },
+        "ProgramTooDeep": {
+          "code": "sql.program_depth_limit",
+          "category": "limit"
+        },
+        "UnknownProgramFunction": {
+          "code": "sql.unknown_program_function",
+          "category": "binding"
+        },
+        "DuplicateProgramField": {
+          "code": "sql.duplicate_program_field",
+          "category": "binding"
+        },
+        "EffectInsideAtomic": {
+          "code": "sql.effect_inside_atomic",
+          "category": "constraint"
+        },
+        "NestedAtomicProgram": {
+          "code": "sql.nested_atomic_program",
+          "category": "unsupported"
+        },
+        "MutationOutsideAtomic": {
+          "code": "sql.mutation_outside_atomic",
+          "category": "constraint"
+        },
+        "InvalidProgramCookie": {
+          "code": "sql.invalid_program_cookie",
+          "category": "binding"
+        },
+        "InvalidProgramPage": {
+          "code": "sql.invalid_program_page",
+          "category": "limit"
+        },
+        "InvalidProgramStatus": {
+          "code": "sql.invalid_program_status",
+          "category": "binding"
+        },
+        "UnsupportedProgramInstruction": {
+          "code": "sql.unsupported_program_instruction",
+          "category": "unsupported"
+        },
+        "DuplicateProgramResource": {
+          "code": "sql.duplicate_program_resource",
+          "category": "binding"
+        },
+        "DuplicateProgramVariable": {
+          "code": "sql.duplicate_program_variable",
+          "category": "binding"
+        },
+        "ProgramResourceKindMismatch": {
+          "code": "sql.program_resource_kind_mismatch",
+          "category": "binding"
+        },
+        "UnknownProgramResource": {
+          "code": "sql.unknown_program_resource",
+          "category": "binding"
+        },
+        "UnknownProgramVariable": {
+          "code": "sql.unknown_program_variable",
+          "category": "binding"
+        },
+        "UnknownProgramField": {
+          "code": "sql.unknown_program_field",
+          "category": "binding"
+        },
+        "ProgramTypeMismatch": {
+          "code": "sql.program_type_mismatch",
+          "category": "binding"
+        },
+        "ProgramNullabilityMismatch": {
+          "code": "sql.program_nullability_mismatch",
+          "category": "binding"
+        },
+        "ProtectedProgramValue": {
+          "code": "sql.protected_program_value",
+          "category": "binding"
+        },
+        "ProgramArgumentMismatch": {
+          "code": "sql.program_argument_mismatch",
+          "category": "binding"
+        },
+        "InvalidProgramNode": {
+          "code": "sql.invalid_program_node",
+          "category": "binding"
+        },
+        "UnsupportedProgramProfile": {
+          "code": "sql.unsupported_program_profile",
+          "category": "unsupported"
         }
       }
     },

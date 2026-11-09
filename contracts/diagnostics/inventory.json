@@ -15027,6 +15027,259 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationProgram.zig": {
+      "errors": {},
+      "outcomes": {
+        "Binary": [
+          "equal",
+          "not_equal",
+          "less",
+          "less_equal",
+          "greater",
+          "greater_equal",
+          "and_",
+          "or_",
+          "add",
+          "subtract",
+          "concatenate"
+        ],
+        "Binding.value": [
+          "expression",
+          "get",
+          "select",
+          "effect"
+        ],
+        "Effect.request": [
+          "form",
+          "headers"
+        ],
+        "Expression.value": [
+          "null",
+          "boolean",
+          "integer",
+          "text",
+          "name",
+          "field",
+          "call",
+          "unary",
+          "binary",
+          "case",
+          "text_cast",
+          "row"
+        ],
+        "Function": [
+          "secret",
+          "random_token",
+          "random_secret",
+          "derive_secret",
+          "digest",
+          "commitment",
+          "now",
+          "seconds",
+          "current_revision",
+          "secret_current",
+          "url",
+          "json_object",
+          "s256",
+          "http_query",
+          "http_query_unique",
+          "http_secret_query_unique",
+          "http_secret_cookie_unique",
+          "length",
+          "secure_equal",
+          "operation_id",
+          "json_value",
+          "secret_json_value",
+          "bearer",
+          "json_integer",
+          "identity_digest",
+          "native_identity_allowed",
+          "native_session_current",
+          "native_binding_active"
+        ],
+        "Instruction.value": [
+          "let",
+          "require",
+          "atomic",
+          "conditional",
+          "put",
+          "insert",
+          "append",
+          "handoff",
+          "respond",
+          "respond_error"
+        ],
+        "Instruction.value.append.kind": [
+          "stream",
+          "queue"
+        ],
+        "Instruction.value.put.expected": [
+          "absent",
+          "revision"
+        ],
+        "Program.body": [
+          "instructions",
+          "page"
+        ],
+        "Response.body": [
+          "empty",
+          "json",
+          "location"
+        ],
+        "Unary": [
+          "not_",
+          "negate",
+          "is_null",
+          "is_not_null"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgramParser.zig",
+        "ApplicationProgramTypes.zig",
+        "SqlInput.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationProgramParser.zig": {
+      "errors": {
+        "DuplicateProgramField": 5,
+        "EffectInsideAtomic": 1,
+        "InvalidColumnName": 2,
+        "InvalidProgramCookie": 1,
+        "InvalidProgramPage": 3,
+        "InvalidProgramStatus": 3,
+        "InvalidSqlSyntax": 9,
+        "LiteralOutOfRange": 1,
+        "MutationOutsideAtomic": 4,
+        "NestedAtomicProgram": 1,
+        "ProgramTooComplex": 6,
+        "ProgramTooDeep": 1,
+        "UnbalancedSqlBlock": 1,
+        "UnknownProgramFunction": 1,
+        "UnsupportedConstruct": 1,
+        "UnsupportedProgramInstruction": 1,
+        "UnterminatedSqlToken": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "arguments()": "<inferred>",
+        "binary()": "anyerror",
+        "binding()": "<inferred>",
+        "block()": "anyerror",
+        "effect()": "<inferred>",
+        "enter()": "<inferred>",
+        "expression()": "anyerror",
+        "fields()": "<inferred>",
+        "id()": "<inferred>",
+        "instruction()": "anyerror",
+        "name()": "<inferred>",
+        "names()": "<inferred>",
+        "node()": "<inferred>",
+        "parse()": "<inferred>",
+        "primary()": "anyerror",
+        "program()": "<inferred>",
+        "quoted()": "<inferred>",
+        "require()": "<inferred>",
+        "requireWord()": "<inferred>",
+        "response()": "<inferred>",
+        "select()": "<inferred>",
+        "take()": "<inferred>",
+        "takeWord()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 252,
+        "catch": 3
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "Sql.zig",
+        "SqlInput.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig": {
+      "errors": {
+        "DuplicateProgramField": 1,
+        "DuplicateProgramResource": 1,
+        "DuplicateProgramVariable": 1,
+        "InvalidColumnName": 1,
+        "InvalidProgramNode": 1,
+        "ProgramArgumentMismatch": 7,
+        "ProgramNullabilityMismatch": 1,
+        "ProgramResourceKindMismatch": 2,
+        "ProgramTooComplex": 2,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 16,
+        "ProtectedProgramValue": 4,
+        "UnknownProgramField": 2,
+        "UnknownProgramResource": 1,
+        "UnknownProgramVariable": 2,
+        "UnsupportedProgramProfile": 2
+      },
+      "outcomes": {
+        "Kind": [
+          "null",
+          "boolean",
+          "integer",
+          "text",
+          "binary",
+          "uuid",
+          "timestamp",
+          "duration",
+          "json",
+          "record",
+          "secret",
+          "protected_json",
+          "capability",
+          "failure"
+        ],
+        "Resource.kind": [
+          "table",
+          "document",
+          "kv",
+          "stream",
+          "queue",
+          "sink"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "bind()": "<inferred>",
+        "block()": "anyerror",
+        "call()": "<inferred>",
+        "cloneFields()": "<inferred>",
+        "compatible()": "anyerror",
+        "define()": "<inferred>",
+        "expression()": "anyerror",
+        "field()": "<inferred>",
+        "public()": "<inferred>",
+        "record()": "<inferred>",
+        "requireKind()": "<inferred>",
+        "resource()": "<inferred>",
+        "select()": "<inferred>",
+        "stored()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 138,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "Sql.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/AuthorizationSql.zig": {
       "errors": {
         "DuplicateRoleOption": 3,
@@ -19128,12 +19381,16 @@
         "DuplicateForeignKeyColumn": 1,
         "DuplicateMapKey": 1,
         "DuplicatePrimaryKeyColumn": 1,
+        "DuplicateProgramField": 1,
+        "DuplicateProgramResource": 1,
+        "DuplicateProgramVariable": 1,
         "DuplicateProjection": 1,
         "DuplicateRelationalAlias": 1,
         "DuplicateRelationalGroup": 1,
         "DuplicateRelationalOutput": 1,
         "DuplicateRoleOption": 1,
         "DuplicateSqlPrivilege": 1,
+        "EffectInsideAtomic": 1,
         "ForeignKeyIndexEnforcementUnavailable": 1,
         "ForeignKeyResolutionRequired": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,
@@ -19194,6 +19451,10 @@
         "InvalidPredicate": 1,
         "InvalidPredicateProgram": 1,
         "InvalidPrimaryKey": 1,
+        "InvalidProgramCookie": 1,
+        "InvalidProgramNode": 1,
+        "InvalidProgramPage": 1,
+        "InvalidProgramStatus": 1,
         "InvalidProjection": 1,
         "InvalidQueryInteger": 1,
         "InvalidQueryScalar": 1,
@@ -19247,6 +19508,8 @@
         "MissingRequiredField": 1,
         "MultiplePrimaryKeys": 1,
         "MutationBatchTooLarge": 1,
+        "MutationOutsideAtomic": 1,
+        "NestedAtomicProgram": 1,
         "NoPrimaryKey": 1,
         "NonCanonicalMultiRange": 1,
         "NonCanonicalRange": 1,
@@ -19267,6 +19530,13 @@
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
+        "ProgramArgumentMismatch": 1,
+        "ProgramNullabilityMismatch": 1,
+        "ProgramResourceKindMismatch": 1,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 1,
+        "ProtectedProgramValue": 1,
         "QuerySourceChanged": 1,
         "RangeBoundOverflow": 1,
         "RelationalPlanTooLarge": 1,
@@ -19275,6 +19545,7 @@
         "RowBufferTooSmall": 1,
         "ScalarProgramBudget": 1,
         "SourceChanged": 1,
+        "SqlNestingTooDeep": 1,
         "StatementTooLarge": 1,
         "SyntaxError": 1,
         "TableConflict": 1,
@@ -19288,10 +19559,16 @@
         "TimezoneDefinitionMismatch": 1,
         "TypeBudgetExceeded": 1,
         "TypeMismatch": 1,
+        "UnbalancedSqlBlock": 1,
+        "UnbalancedSqlParentheses": 1,
         "UnboundParameters": 1,
         "UnexpectedEndOfInput": 1,
         "UngroupedRelationalColumn": 1,
         "UnknownColumn": 1,
+        "UnknownProgramField": 1,
+        "UnknownProgramFunction": 1,
+        "UnknownProgramResource": 1,
+        "UnknownProgramVariable": 1,
         "UnknownQualifier": 1,
         "UnknownRelationalSource": 1,
         "UnknownSource": 1,
@@ -19322,6 +19599,8 @@
         "UnsupportedNestedCharacterLimit": 1,
         "UnsupportedNullComparison": 1,
         "UnsupportedPrimaryKeyType": 1,
+        "UnsupportedProgramInstruction": 1,
+        "UnsupportedProgramProfile": 1,
         "UnsupportedRangeSubtype": 1,
         "UnsupportedRelationalPredicate": 1,
         "UnsupportedRelationalType": 1,
@@ -19334,6 +19613,7 @@
         "UnsupportedTemporalPrecision": 1,
         "UnsupportedTimeZoneType": 1,
         "UnsupportedTimezoneFormat": 1,
+        "UnterminatedSqlToken": 1,
         "ValueBudgetExceeded": 1,
         "VectorDimensionMismatch": 1,
         "ZeroMagnitudeCosineVector": 1
@@ -19442,7 +19722,7 @@
         "structured()": "<inferred>",
         "validateTableSyntax()": "<inferred>"
       },
-      "open_error_set_uses": 14,
+      "open_error_set_uses": 15,
       "propagation": {
         "try": 60,
         "catch": 35
@@ -22197,6 +22477,7 @@
       },
       "imports": [
         "AnalyticalSql.zig",
+        "ApplicationProgram.zig",
         "AuthorizationSql.zig",
         "Batch.zig",
         "BatchExecution.zig",
@@ -34199,6 +34480,7 @@
         "MigrationOutcomeUnknown": 2,
         "MigrationSessionControlUnsupported": 5,
         "MissingGatewayTerminal": 1,
+        "OutOfMemory": 1,
         "TableNotFound": 2,
         "UnsupportedMigrationStatement": 1
       },
@@ -34208,6 +34490,7 @@
         "WorkingSchemas.get()": "<inferred>",
         "WorkingSchemas.getLive()": "<inferred>",
         "WorkingSchemas.put()": "<inferred>",
+        "allocationFailureFraming()": "<inferred>",
         "applyMigrations()": "<inferred>",
         "buildPlanReport()": "<inferred>",
         "classifyStatement()": "<inferred>",
@@ -34231,7 +34514,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 176,
+        "try": 180,
         "catch": 22
       },
       "imports": [

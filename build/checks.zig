@@ -1217,6 +1217,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scenario_test.stdio = .inherit;
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
     const migrate_lifecycle_test = b.addSystemCommand(&.{ "python3", "-B" });
+    const application_program = b.addExecutable(.{ .name = "transit-application-program-oracle", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/cli/application_program.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") } },
+    }) });
+    const application_program_test = b.addRunArtifact(application_program);
+    application_program_test.addFileArg(b.path("tests/fixtures/application-programs/inputs.json"));
+    application_program_test.addFileArg(b.path("tests/fixtures/application-programs/bindings.json"));
+    inline for (.{ "0001-identity.sql", "0002-github-signin.sql", "0003-publication.sql" }) |file|
+        application_program_test.addFileArg(b.path("tests/fixtures/application-programs/" ++ file));
+    application_program_test.has_side_effects = true;
+    b.step("test-application-programs", "Verify exact consumer migration framing and program compilation").dependOn(&application_program_test.step);
+    migrate_lifecycle_test.step.dependOn(&application_program_test.step);
     migrate_lifecycle_test.addFileArg(b.path("tests/runner/launch.py"));
     migrate_lifecycle_test.addFileArg(b.path("tests/interfaces/cli/migrate_lifecycle.py"));
     migrate_lifecycle_test.addArtifactArg(transit_cli);
