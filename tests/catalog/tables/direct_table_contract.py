@@ -1068,6 +1068,7 @@ transaction_begin = {
     "catalog": {"partition": 1, "next_lsn": 19},
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
+    "deadline": {"floor_ms": 100, "expires_ms": 200},
 }
 transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
@@ -1098,7 +1099,9 @@ selected_begin = {
         {"object": target_object, "kind": "queue", "partition": 0},
         {"object": target_object, "kind": "queue", "partition": 2**32 - 1},
     ]},
-    "limits": transaction_begin["limits"], "budget": token_binding["budget"],
+    "limits": transaction_begin["limits"],
+    "deadline": {"floor_ms": 100, "expires_ms": 200},
+    "budget": token_binding["budget"],
 }
 selected_input = {**request_input, "action": {"transaction": {"begin": selected_begin}}}
 selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(selected_input)).digest())}
@@ -1107,6 +1110,9 @@ with tempfile.TemporaryDirectory(prefix="transit-transaction-selection-contract-
     selected_request = {**selected_input, "proof": {"claim": selected_claim,
         "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
 validator.validate(selected_request)
+missing_deadline = copy.deepcopy(selected_request)
+del missing_deadline["action"]["transaction"]["begin"]["deadline"]
+assert not validator.is_valid(missing_deadline), 'transaction deadline is mandatory'
 for field in ("object", "kind", "partition"):
     invalid = copy.deepcopy(selected_request)
     del invalid["action"]["transaction"]["begin"]["selection"]["explicit_objects"][0][field]

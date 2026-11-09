@@ -169,7 +169,7 @@ pub fn begin(self: Self, targets: *[2]x.Target) !c.DirectTransactionRequest.Begi
         .{ .object = self.transfer.destination.target.interpretation.object, .kind = .queue, .partition = self.transfer.destination.target.partition },
     };
     if (targets[0].order(targets[1]) == .gt) std.mem.swap(x.Target, &targets[0], &targets[1]);
-    const result: c.DirectTransactionRequest.Begin = .{ .key = self.key, .fingerprint = try self.digest(), .operation = self.operation, .namespace = self.namespace, .mode = .serializable, .selection = .{ .explicit_objects = targets }, .limits = self.limits, .budget = self.budget };
+    const result: c.DirectTransactionRequest.Begin = .{ .key = self.key, .fingerprint = try self.digest(), .operation = self.operation, .namespace = self.namespace, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = targets }, .limits = self.limits, .budget = self.budget };
     try result.validate();
     return result;
 }

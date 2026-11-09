@@ -897,6 +897,7 @@ test "Document policy revision guards the original common decision across data a
             .operation = template.intent.transaction.begin.identity.begin,
             .namespace = 1,
             .mode = .serializable,
+            .deadline = null,
             .selection = .{ .explicit_objects = &.{ .{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .kind = .table, .partition = null }, try revision.target() } },
             .limits = c.DirectTransaction.default_limits,
             .budget = template.budget,
@@ -1001,6 +1002,7 @@ test "native secret reference rotation disable and revoked reads fence the commo
             .operation = template.intent.transaction.begin.identity.begin,
             .namespace = 1,
             .mode = .serializable,
+            .deadline = null,
             .selection = .{ .explicit_objects = &.{ .{ .object = result.binding.target, .kind = .table, .partition = null }, .{ .object = base.binding.target, .kind = .kv, .partition = null } } },
             .limits = c.DirectTransaction.default_limits,
             .budget = template.budget,
@@ -3720,6 +3722,7 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
         .definition = p.Growth.current_definition,
         .identity = identity,
         .mode = .serializable,
+        .deadline = null,
         .selection = .explicit_objects,
         .objects = try directory.seal(),
         .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn },
@@ -3886,7 +3889,11 @@ fn selectedTransaction(catalog: *D, access: *Access, count: usize) !c.DirectClie
     return selectedTransactionIntegrity(catalog, access, count, false);
 }
 fn selectedTransactionIntegrity(catalog: *D, access: *Access, count: usize, integrity: bool) !c.DirectClientToken.Binding {
+    return selectedTransactionDeadline(catalog, access, count, integrity, null);
+}
+fn selectedTransactionDeadline(catalog: *D, access: *Access, count: usize, integrity: bool, deadline: ?p.Transaction.Deadline) !c.DirectClientToken.Binding {
     var binding = try transactionToken(catalog, 9000, 1, 0);
+    binding.intent.transaction.begin.deadline = deadline;
     binding.intent.transaction.begin.limits.resident_bytes = 16 * 1024 * 1024;
     const identity = binding.intent.transaction.begin.identity;
     var selected = try s.TransactionDirectory.init(t.allocator, catalog.data_objects, identity, .participants, 100, 1, 1024 * 1024);
@@ -4690,6 +4697,57 @@ test "transaction coordinator validates read dependencies and current policy bef
     }
 }
 
+test "transaction deadline checks native time for Table-only decisions and permits original cleanup" {
+    for ([_]enum { current, expired, uncertain, missing, regressed, absent }{ .current, .expired, .uncertain, .missing, .regressed, .absent }) |scenario| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{ .exclusive = true };
+        try catalog.initialize(access.policy());
+        const binding = try selectedTransactionDeadline(&catalog, &access, 1, false, .{ .floor_ms = 100, .expires_ms = 200 });
+        _ = try catalog.acquireTransaction(binding.key, access.policy());
+        _ = try catalog.executeTransactionStatement(binding.key, try workspaceRequest(&catalog, &access, binding.key, 10, 1, 500), access.policy());
+        var clock: QueueClock = .{ .now = switch (scenario) {
+            .current => .exact(199),
+            .expired => .exact(200),
+            .uncertain => .{ .earliest_ms = 199, .latest_ms = 201 },
+            .missing, .absent => null,
+            .regressed => .exact(99),
+        } };
+        const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+        if (scenario != .absent) catalog.log_environment = &environment;
+        defer catalog.log_environment = null;
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        if (scenario == .current) {
+            const terminal = try catalog.settleTransaction(binding.key, commit, .commit, 16, access.policy());
+            try t.expect(terminal.cleanup_complete and terminal.observation.decided.outcome == .committed);
+            // Expiry or clock loss cannot replace a known original commit.
+            clock.now = null;
+            try t.expectEqualDeep(terminal, try catalog.settleTransaction(binding.key, commit, .commit, 16, access.policy()));
+            try t.expectEqualDeep(terminal, try catalog.settleTransaction(binding.key, commit, .abort, 16, access.policy()));
+        } else {
+            const expected: anyerror = switch (scenario) {
+                .expired, .uncertain => error.TransactionDeadlineElapsed,
+                .missing, .absent => error.LogTimeUnavailable,
+                .regressed => error.LogTimeRegression,
+                .current => unreachable,
+            };
+            try t.expectError(expected, catalog.settleTransaction(binding.key, commit, .commit, 16, access.policy()));
+            try t.expect((try catalog.inspectTransaction(binding.key, access.policy())).observation == .preparing);
+            // Native abort needs current authority, but not a renewed deadline.
+            clock.now = null;
+            const terminal = try catalog.settleTransaction(binding.key, commit, .abort, 16, access.policy());
+            try t.expect(terminal.cleanup_complete and terminal.observation.decided.outcome == .aborted);
+        }
+        var rows = (try resolve(&catalog, &access, "selected_0")).?;
+        defer rows.deinit();
+        try t.expectEqual(@as(u64, if (scenario == .current) 1 else 0), rows.table.root.live_rows);
+    }
+}
+
 test "transaction coordinator refuses unavailable prepared data and abort can reclaim its private graph" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -4771,6 +4829,7 @@ test "transaction server selection freezes authorized catalog and preserves orig
         .operation = template.intent.transaction.begin.identity.begin,
         .namespace = 1,
         .mode = .read_only,
+        .deadline = null,
         .selection = .authorized_catalog_tables,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -4793,6 +4852,9 @@ test "transaction server selection freezes authorized catalog and preserves orig
     try t.expect(status.cleanup_complete);
     try t.expect(status.observation.decided.outcome == .committed);
     try c.DirectTransactionRequest.validateResult(.{ .settle = .{ .key = request.key, .operation = operation, .command = .commit, .steps = 32 } }, .{ .status = status });
+    request.deadline = .{ .floor_ms = 100, .expires_ms = 200 };
+    try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(request, access.policy()));
+    request.deadline = null;
     request.fingerprint[0] ^= 1;
     try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(request, access.policy()));
     request.key.token = @splat(3);
@@ -5491,6 +5553,7 @@ fn selectTransactionKinds(catalog: *D, access: *Access, mode: p.Transaction.Mode
         .operation = template.intent.transaction.begin.identity.begin,
         .namespace = 1,
         .mode = mode,
+        .deadline = null,
         .selection = .{ .explicit_objects = targets[if (include_kv) 0 else 1..] },
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -5782,7 +5845,7 @@ fn terminalTransferCases(allocator: std.mem.Allocator) !void {
                     .{ .object = source_target.interpretation.object, .kind = .queue, .partition = 0 },
                     .{ .object = destination_target.interpretation.object, .kind = .queue, .partition = 0 },
                 };
-                receipt = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+                receipt = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
                 const key = receipt.binding.key;
                 phase = "common cut";
                 _ = try catalog.acquireTransaction(key, access.policy());
@@ -7331,7 +7394,7 @@ test "mixed Table KV transaction preserves private reads rights and one decision
                     .{ .object = kv_object, .kind = .kv, .partition = null },
                     .{ .object = table.binding.target, .kind = .table, .partition = null },
                 };
-                const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+                const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
                 _ = try catalog.beginTransaction(begin, access.policy());
                 _ = try catalog.acquireTransaction(token, access.policy());
                 // Ordinary SQL selection remains Table-only even when a KV
@@ -9901,6 +9964,7 @@ test "historical common transaction cut transfers retention through cleanup lost
         .operation = template.intent.transaction.identity(),
         .namespace = 1,
         .mode = .read_only,
+        .deadline = null,
         .selection = .authorized_catalog_tables,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -10043,7 +10107,7 @@ test "historical common transaction collection and abandonment preserve independ
         _ = try selectedTransaction(&catalog, &access, 2);
         _ = try insertSelectedTable(&catalog, &access, "selected_0", 600);
         const template = try transactionToken(&catalog, 9500, 2, 0);
-        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
         const acquired = try catalog.acquireTransaction(template.key, access.policy());
         for ([_]u64{ 10, 11 }, 1..) |object, sequence| {
             const statement = try workspaceRequest(&catalog, &access, template.key, object, sequence, 700 + sequence);
@@ -10561,6 +10625,7 @@ fn ownedRecordTransaction(catalog: *D, access: *Access, operation: u64, token: u
         .operation = template.intent.transaction.identity(),
         .namespace = 1,
         .mode = mode,
+        .deadline = null,
         .selection = .authorized_catalog_tables,
         .limits = limits,
         .budget = template.budget,

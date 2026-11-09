@@ -15,12 +15,14 @@ pub const Begin = struct {
         authorized_catalog_tables,
     },
     limits: x.Limits,
+    deadline: ?x.Deadline,
     budget: c.DirectClientToken.Budget,
     pub fn validate(self: Begin) !void {
         try self.key.validate();
         try self.key.connection.owner(self.operation);
         try c.Model.nativeId(self.namespace);
         try self.limits.validate();
+        if (self.deadline) |deadline| try deadline.validate();
         try self.budget.validate();
         if (std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
         if (self.selection == .explicit_objects) {
@@ -146,6 +148,7 @@ pub fn validateResult(request: Request, result: Result) !void {
             try receipt.validate();
             try request.key().requireSame(receipt.binding.key);
             if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &request.begin.fingerprint, &receipt.binding.fingerprint)) return error.InvalidTableResponse;
+            if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.begin.deadline)) return error.InvalidTableResponse;
         },
         .acquired => |value| {
             try value.cut.validate();

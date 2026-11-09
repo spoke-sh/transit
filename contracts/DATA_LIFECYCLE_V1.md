@@ -40,6 +40,23 @@ filtered authorized directory makes no claim about inaccessible Tables. The
 directory is immutable and paged, with an explicit count and content commitment;
 that count is not a resident array capacity. A later statement cannot extend it.
 
+`Begin.deadline` is a required nullable field. Null means no additional transaction
+commit deadline; a value freezes an authoritative UTC `floor_ms` and exclusive
+`expires_ms`, with `expires_ms > floor_ms`. The same caller token cannot replace
+or remove that constraint. Missing stored fields reject rather than defaulting
+to an unconstrained transaction. Immediately before a fresh common commit,
+under its publication guard and after preparation verification, the catalog
+requires trusted time whose upper bound has not regressed below the accepted
+floor and is strictly below expiry. Missing, regressing or expiry-overlapping
+time refuses the decision, including for Table-only and read-only transactions.
+This check composes with each Queue lease and log retention deadline.
+
+Elapsed time alone does not publish an abort or roll back accepted work. Current
+authority is still required to inspect and settle the original. Abort and cleanup
+do not need a renewed deadline, and observing an already decided original never
+rechecks its former commit deadline or substitutes another outcome. The deadline
+is a commit constraint, not an automatic wall-clock cancellation of client work.
+
 `Limits` separates resident bytes, private workspace bytes, participant count,
 statement count and savepoint count from result/disclosure budgets. Each is
 nonzero. `Cut` binds the complete acquired source directory to `Begin` and its

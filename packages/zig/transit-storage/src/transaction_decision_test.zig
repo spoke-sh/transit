@@ -16,6 +16,8 @@ const Access = struct {
     missing: bool = false,
     checked: usize = 0,
     verified: usize = 0,
+    deadline_current: bool = true,
+    deadline_checks: usize = 0,
 
     fn acquire(raw: *anyopaque) !J.Guard.Fence {
         const self: *@This() = @ptrCast(@alignCast(raw));
@@ -49,8 +51,51 @@ const Access = struct {
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         try t.expect(self.locked);
+        self.deadline_checks += 1;
+        if (!self.deadline_current) return error.TransactionDeadlineElapsed;
     }
 };
+
+test "transaction BEGIN deadlines require final verification without log writes and preserve committed recovery" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var frozen = try binding(objects.objectStore());
+    frozen.begin.deadline = .{ .floor_ms = 100, .expires_ms = 200 };
+    const prepared = try preparations(objects.objectStore(), frozen, 3);
+    var owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, frozen);
+    var access: Access = .{};
+    try owner.recover();
+    try owner.freeze(access.guard());
+    try t.expectError(error.MissingTransactionVerification, owner.commit(prepared, access.verification(), access.guard()));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(4));
+    var verification = access.verification();
+    verification.before_decision = Access.beforeDecision;
+    access.deadline_current = false;
+    try t.expectError(error.TransactionDeadlineElapsed, owner.commit(prepared, verification, access.guard()));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(4));
+    try t.expect(!access.locked);
+    access.deadline_current = true;
+    owner.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, owner.commit(prepared, verification, access.guard()));
+    const accepted = (try owner.observe(access.guard())).decided;
+    try t.expectEqual(.committed, accepted.outcome);
+    const checks = access.deadline_checks;
+    wal.deinit();
+    objects.deinit();
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, frozen);
+    try owner.recover();
+    access.deadline_current = false;
+    try t.expectEqualDeep(accepted, try owner.commit(prepared, verification, access.guard()));
+    try t.expectEqualDeep(accepted, try owner.abort(access.guard()));
+    try t.expectEqual(checks, access.deadline_checks);
+    try t.expectEqual(@as(u64, 2), try wal.log().tail(4));
+}
 
 fn binding(objects: s.TransitObjectStore.ObjectStore) !J.Binding {
     var selected = try D.init(t.allocator, objects, f.identity, .participants, 1000, 1, 1024 * 1024);

@@ -201,7 +201,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
         targets[2] = .{ .object = logs.stream.interpretation.object, .kind = .stream, .partition = 0 };
         targets[3] = .{ .object = logs.queue.interpretation.object, .kind = .queue, .partition = 0 };
     }
-    _ = try tx.begin(.{ .key = key, .fingerprint = @splat(7), .operation = operation(client, 642100), .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = targets[0..@as(usize, if (with_logs) 4 else 2)] }, .limits = c.DirectTransaction.default_limits, .budget = .{} });
+    _ = try tx.begin(.{ .key = key, .fingerprint = @splat(7), .operation = operation(client, 642100), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = targets[0..@as(usize, if (with_logs) 4 else 2)] }, .limits = c.DirectTransaction.default_limits, .budget = .{} });
     _ = try tx.acquire(key);
     var insert = try c.DirectTablePreparedDml.prepare(init.gpa, client, 1, "INSERT INTO atomic_rows (id) VALUES ($1)", .transit, null);
     defer insert.deinit();

@@ -675,7 +675,7 @@ fn stepInner(self: Self, token: c.DirectClientToken.Key, io: std.Io, directory: 
             limits.savepoints = 1;
             limits.statements = try std.math.add(u64, value.options.budgets.output_rows, 2);
             limits.workspace_bytes = @max(limits.workspace_bytes, value.options.budgets.result_bytes);
-            _ = try tx.begin(.{ .key = work.transaction, .fingerprint = work.declaration.content.sha256, .operation = self.operation(value, "begin", work.lease.epoch), .namespace = value.namespace, .mode = .serializable, .selection = .{ .explicit_objects = &targets }, .limits = limits, .budget = .{} });
+            _ = try tx.begin(.{ .key = work.transaction, .fingerprint = work.declaration.content.sha256, .operation = self.operation(value, "begin", work.lease.epoch), .namespace = value.namespace, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &targets }, .limits = limits, .budget = .{} });
             _ = try tx.acquire(work.transaction);
             work.phase = .evaluating;
         },

@@ -189,6 +189,12 @@ test "transaction admission signature binds the complete independent begin fixtu
     try fixture.request.proof.verify(fixture.public_key);
     try t.expect(fixture.request.transport().mutation);
     var changed = fixture.request;
+    changed.action.client_token.bind.intent.transaction.begin.deadline.?.expires_ms += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = fixture.request;
+    changed.action.client_token.bind.intent.transaction.begin.deadline = null;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = fixture.request;
     changed.action.client_token.bind.intent.transaction.begin.limits.workspace_bytes += 1;
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
     changed = fixture.request;
@@ -210,6 +216,12 @@ test "transaction selection signature binds partition ordinals and rejects ambig
     try t.expectEqual(std.math.maxInt(u32), selected[1].partition.?);
     var targets = [2]p.Transaction.Target{ selected[0], selected[1] };
     var changed = original;
+    changed.action.transaction.begin.deadline.?.expires_ms += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.begin.deadline = null;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
     changed.action.transaction.begin.selection = .{ .explicit_objects = &targets };
     targets[0].partition = 1;
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));

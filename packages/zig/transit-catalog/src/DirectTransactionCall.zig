@@ -53,7 +53,7 @@ pub fn beginRequest(self: Self) !c.DirectTransactionRequest.Begin {
     try self.validate();
     if (self.work != .begin) return error.TransactionOperationRequired;
     const value = self.work.begin;
-    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_tables, .limits = value.limits, .budget = value.budget };
+    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_tables, .limits = value.limits, .deadline = null, .budget = value.budget };
 }
 pub const reservation_bytes = c.DirectTransactionWorkspace.max_bytes + c.DirectIntent.max_bytes + 512;
 pub const format: u32 = 0x54584931;

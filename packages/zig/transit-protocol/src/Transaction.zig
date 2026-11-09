@@ -84,6 +84,18 @@ pub const Limits = struct {
     }
 };
 
+/// A caller's immutable latest-commit constraint. Native verification uses its
+/// trusted clock under the common publication guard, never a caller timestamp.
+/// Expiry cannot reinterpret an already accepted decision or prevent abort.
+pub const Deadline = struct {
+    floor_ms: u64,
+    expires_ms: u64,
+
+    pub fn validate(self: Deadline) !void {
+        if (self.expires_ms <= self.floor_ms) return error.InvalidTransactionDeadline;
+    }
+};
+
 pub const Begin = struct {
     definition: p.Growth.Definition,
     identity: Identity,
@@ -94,12 +106,14 @@ pub const Begin = struct {
     /// Name/definition directory observation; never a data commit position.
     catalog: d.Position,
     limits: Limits,
+    deadline: ?Deadline,
 
     pub fn validate(self: Begin) !void {
         try self.identity.validate();
         try self.objects.validate();
         try self.catalog.validate();
         try self.limits.validate();
+        if (self.deadline) |deadline| try deadline.validate();
         if (self.catalog.next_lsn == 0 or self.objects.count > self.limits.participants)
             return error.InvalidTransactionBegin;
     }

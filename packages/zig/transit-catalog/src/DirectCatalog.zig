@@ -3442,6 +3442,7 @@ pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, 
     if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
         try self.requireTransactionMutation(receipt);
         if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
+        if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.deadline)) return error.ClientTokenConflict;
         return receipt;
     }
     try c.DirectTransaction.requireLimits(request.limits, self.options.transaction_limits);
@@ -3505,7 +3506,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
             }
         },
     }
-    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else if (self.capture_owner) |value| .{ .source_capture = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, .none)).?;
 }
@@ -5014,9 +5015,12 @@ const TransactionVerification = struct {
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
-        if (!self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
+        const deadline = self.binding.begin.deadline;
+        if (deadline == null and !self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
         const environment = self.catalog.log_environment orelse return error.LogTimeUnavailable;
-        const now = (try s.LogTime.bounds(environment.clock, self.floor_ms, true)).?;
+        const floor = if (deadline) |limit| @max(self.floor_ms orelse 0, limit.floor_ms) else self.floor_ms;
+        const now = (try s.LogTime.bounds(environment.clock, floor, true)).?;
+        if (deadline) |limit| if (now.latest_ms >= limit.expires_ms) return error.TransactionDeadlineElapsed;
         if (self.lease_expires_ms) |expires| {
             if (now.earliest_ms >= expires) return error.QueueLeaseExpired;
             if (now.latest_ms >= expires) return error.QueueTimeUnavailable;

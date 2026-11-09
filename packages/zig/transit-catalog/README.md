@@ -245,8 +245,13 @@ both phases within the transaction's resident memory limit. `DirectTransactionCl
 exposes staging, admission, evaluation and original outcome inspection. Prepared
 data verification traverses the owning graph with a metered depth-first stack;
 the final lease/retention check uses trusted host time immediately before the
-decision. Ordinary mutation cannot reuse a private operation reservation, while
-read-only operation lookup can disclose its actual receipt after commit.
+decision. An optional frozen `Begin.deadline` adds a final trusted-time check
+under the same publication guard, including transactions with no log writes.
+Missing or regressing time and an upper time bound at or beyond expiry refuse a
+fresh commit. Abort cleanup and inspection of an already committed original do
+not renew or recheck that deadline; they still require current authority. Ordinary
+mutation cannot reuse a private operation reservation, while read-only operation
+lookup can disclose its actual receipt after commit.
 
 `DirectDocument.Revision` guards reads of the current SQL versioned row Document
 profile through that profile's existing shared row partition. It binds the exact

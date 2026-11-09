@@ -9,6 +9,15 @@ owners under an embedding host's exclusive database publication fence. The
 [SQL service](../../../../docs/handbook/reference/sql/transactions.md) compose these
 operations into the public transaction lifecycle.
 
+The journal requires `Verification.before_decision` for log writes or a non-null
+`Begin.deadline`. The callback runs after all participant and preparation checks,
+under the held publication guard, immediately before a fresh commit append. The
+catalog supplies the trusted clock and enforces the frozen UTC interval; the
+storage journal does not read a clock itself. A failed check appends no decision.
+An already recorded commit or abort is observed before this callback, so expiry
+or clock loss cannot replace an original outcome. Abort cleanup does not require
+a deadline check.
+
 ## Private directories
 
 Construct a directory with an explicit transaction identity, kind, entry quota,
