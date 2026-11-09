@@ -154,6 +154,22 @@ and creates status/count/digest metadata only from a complete transport result;
 the protected body must be sealed separately in the original reservation.
 This adapter supplies neither dispatch authority nor a service worker.
 
+`ApplicationEffectTasks` bounds local active work and private scratch separately
+from the native backlog. A full pool leaves the original waiting. Each task
+keeps its creating I/O runtime through join and requires independent clients;
+coordinator calls may use another runtime. Withdrawal signals the task, which
+joins its child I/O before reporting completion. A replaced fence cannot start
+another task in the occupied slot, and changed operands for the same original
+are rejected. Failed work remains abandoned until native recovery releases it.
+
+Known responses survive join, repeated polls and shutdown. Shutdown stops new
+tasks and joins physical work while keeping completion metadata; the coordinator
+must settle and release those originals before destroying the pool. Its resident
+budget covers owned slots and scratch, with I/O scheduling and thread-stack
+budgets owned by the deployment runtime. An executor callback still supplies the
+actual native reopening, authority checks and HTTP exchange. The pool does not
+make effect programs ready by itself.
+
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native

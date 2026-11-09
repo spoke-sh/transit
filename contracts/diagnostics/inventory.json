@@ -31629,6 +31629,40 @@
         "transit_station_http"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationEffectTasks.zig": {
+      "errors": {
+        "ApplicationEffectCapacity": 2,
+        "ApplicationEffectPending": 2,
+        "ClientOperationConflict": 1,
+        "InvalidApplicationEffect": 2
+      },
+      "outcomes": {
+        "run().Choice": [
+          "work",
+          "withdrawal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Executor.run()": "anyerror",
+        "Task.complete()": "<inferred>",
+        "deinit()": "<inferred>",
+        "execute()": "<inferred>",
+        "init()": "<inferred>",
+        "join()": "<inferred>",
+        "poll()": "<inferred>",
+        "withdrawn()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 17,
+        "catch": 4
+      },
+      "imports": [
+        "std",
+        "transit_query_direct"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationProtectedHost.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -32229,6 +32263,7 @@
       "imports": [
         "ApplicationAuthority.zig",
         "ApplicationEffectHttp.zig",
+        "ApplicationEffectTasks.zig",
         "ApplicationProtectedHost.zig",
         "ApplicationRequestHost.zig",
         "ApplicationRequests.zig",
