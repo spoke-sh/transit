@@ -981,6 +981,7 @@ const ApplicationHost = struct {
     native: ?q.ApplicationHost = null,
     bindings: usize = 0,
     finishes: usize = 0,
+    authority_checked: [2]bool = .{ false, false },
     const a = q.fuze.ApplicationProgram;
     fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
         return error.UnknownProgramVariable;
@@ -1016,6 +1017,26 @@ const ApplicationHost = struct {
         invalid = scope;
         invalid.invocation.token[0] ^= 1;
         try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
+        const authority_index: usize = if (scope.client.transaction == null) 0 else 1;
+        if (!self.authority_checked[authority_index]) {
+            const http = @import("transit_serving_http");
+            const Reservation = http.ApplicationReservation;
+            var authority: http.ApplicationAuthority = .{ .scope = scope, .secrets = null };
+            var memory: [1024]u8 = undefined;
+            var slots: [2]Reservation.Slot = undefined;
+            var reservation = try Reservation.init(scope.client.service.http.io, &memory, &slots, @splat(1), scope.input.source, 1, 100, authority.authority());
+            defer reservation.deinit();
+            const access: Reservation.Access = .{ .owner = scope.invocation, .input = scope.input.source, .now_ms = 2 };
+            try reservation.request(access, .{ .capability = reservation.reference });
+            const material = try reservation.retain(scope.client.service.http.io, access, .{ .step = scope.step, .node = 1, .arguments = @splat(1) }, .{ .secret = .{ .bytes = "private-proof-value", .revision = "original-observation", .origin = .random, .revision_kind = .transient } });
+            try t.expectEqualStrings("private-proof-value", (try reservation.read(access, material, .cookie)).secret.bytes);
+            var copied = access;
+            copied.input.ordinal += 1;
+            try t.expectError(error.ApplicationRequestOwnerMismatch, reservation.request(copied, .{ .capability = reservation.reference }));
+            const native_secret = try reservation.retain(scope.client.service.http.io, access, .{ .step = scope.step, .node = 2, .arguments = @splat(2) }, .{ .secret = .{ .bytes = "unbound-proof-value", .revision = "unbound-native-revision", .origin = .named, .revision_kind = .native } });
+            try t.expectError(error.MissingProgramNativeBinding, reservation.read(access, native_secret, .commitment));
+            self.authority_checked[authority_index] = true;
+        }
         self.native = .{ .scratch = scope.scratch, .io = scope.client.service.http.io, .scope = scope };
         self.bindings += 1;
         return self.host();
@@ -1221,6 +1242,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     try t.expect(host.bindings > 0);
     try t.expectEqual(host.bindings, host.finishes);
     try t.expect(host.native == null);
+    try t.expectEqualDeep([_]bool{ true, true }, host.authority_checked);
     const result = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } });
     defer result.deinit();
     const rows = result.value.result.lookup.?;

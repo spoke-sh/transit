@@ -31359,6 +31359,34 @@
         "transit_query"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationAuthority.zig": {
+      "errors": {
+        "ApplicationRequestOwnerMismatch": 1,
+        "DataflowLeaseFenced": 1,
+        "MissingProgramNativeBinding": 2,
+        "ProtectedProgramValue": 1,
+        "SecretRevisionChanged": 1,
+        "TableDefinitionChanged": 1,
+        "UnverifiedApplicationHandoff": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "access()": "<inferred>",
+        "check()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationReservation.zig",
+        "ApplicationSecrets.zig",
+        "std",
+        "transit_query_direct"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationProtectedHost.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -31869,6 +31897,7 @@
         "catch": 2
       },
       "imports": [
+        "ApplicationAuthority.zig",
         "ApplicationProtectedHost.zig",
         "ApplicationReservation.zig",
         "ApplicationSecrets.zig",

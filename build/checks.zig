@@ -2284,6 +2284,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_core", .module = core.module("transit_core") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_serving", .module = serving.module("transit_serving") },
+        .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
         .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") },
         .{ .name = "transit_station", .module = station.module("transit_station") },
         .{ .name = "transit_station_app", .module = application.module("transit_station_app") },

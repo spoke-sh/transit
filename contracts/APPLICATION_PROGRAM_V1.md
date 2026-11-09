@@ -309,6 +309,12 @@ commitment and erases a failed private read. Current checks reject foreign
 bindings and use the current transaction client. Wiring these components into
 the live request registry and executor remains separate work.
 
+`ApplicationAuthority` implements the reservation's access and redemption
+checks over the shared execution context. It rejects copied input/owner
+identities and requires a native secret's exact declared binding and current
+client fence/transaction. Handoff evidence currently remains unqualified and
+is rejected; local access checks cannot establish a committed ownership move.
+
 Protected scalar operators reuse the public evaluator's arithmetic, comparison
 and NULL rules inside the private host and seal the result again. Request fields
 retain duplicate rejection and exact original-record ownership. A cached secret

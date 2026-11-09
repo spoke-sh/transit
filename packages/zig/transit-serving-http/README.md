@@ -103,6 +103,14 @@ random/request/provider material carries a transient observation identity.
 The reservation supplies that distinction to the authority verifier from its
 retained slot, so a public handle cannot alter it.
 
+`ApplicationAuthority` connects reservation access to the shared execution
+context's current invocation, control and dependency checks. Native secret
+redemption additionally requires the program's exact declared secret binding
+and the same client fence/transaction view. Rotation can produce a false
+`SECRET_CURRENT` result; other uses reject the stale revision. The adapter
+currently rejects all handoffs until the native common-commit proof owner is
+connected. It does not enable live ingress or effect dispatch by itself.
+
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native
