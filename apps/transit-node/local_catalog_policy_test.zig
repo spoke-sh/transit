@@ -2048,6 +2048,8 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(std.http.Status.unprocessable_entity, failure.native(error.AccessDenied).status);
     try t.expectEqual(std.http.Status.forbidden, failure.native(error.Forbidden).status);
     try t.expectEqual(std.http.Status.forbidden, failure.table(error.CatalogDenied).status);
+    try t.expectEqual(std.http.Status.conflict, failure.table(error.CatalogDefinitionChanged).status);
+    try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.CatalogDefinitionChanged).code);
     // Missing data inside an admitted operation remains a rejection. A missing
     // ingress route has its separate 404 path before operation execution.
     try t.expectEqual(std.http.Status.unprocessable_entity, failure.table(error.NotFound).status);

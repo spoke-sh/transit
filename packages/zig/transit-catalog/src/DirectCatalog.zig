@@ -6192,7 +6192,7 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
         return known.phase == .complete and !value.stored.retired and
             (dependent.kind == .queue) == (value.kind() == .queue) and std.meta.eql(dependent.interpretation, value.stored.declaration.interpretation);
     }
-    if (dependent.kind == .kv or dependent.kind == .managed) {
+    if (dependent.kind == .kv or dependent.kind == .managed or dependent.kind == .application) {
         const target = try self.entry(object.object) orelse return false;
         if (target.seed == null or target.seed.?.kind != .kv) return false;
         var view = try self.open(self.allocator, target, false);
@@ -6302,6 +6302,23 @@ pub fn dependencyState(self: *Self, edge: Dependency.Edge, policy: Policy) !Depe
     return result;
 }
 
+/// Recheck a registered dependency's exact live definitions and current action
+/// privileges without creating an operation receipt or changing the graph.
+/// The authenticated caller also rechecks the combined guard before disclosure.
+pub fn checkDependency(self: *Self, edge: Dependency.Edge, policy: Policy) !void {
+    try self.requireInitialized();
+    try edge.validate();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const source = try self.dependencySource(edge.source.object, policy, edge.privileges);
+    const requested = try source.requirements.merge(try self.dependentRequirements(policy, edge.dependent.interpretation.object, false));
+    const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
+    try check(current);
+    if (!source.live or !std.meta.eql(source.interpretation, edge.source) or
+        !try self.dependentDefinition(edge.dependent) or try self.dependencyEdge(edge) == null) return error.CatalogDefinitionChanged;
+    try check(current);
+}
+
 /// The initial managed profile excludes output chaining and multiple writers.
 /// Checking under the catalog publication CAS makes this also a cycle guard:
 /// no managed output can be another computation's input in either order.
@@ -6320,7 +6337,7 @@ fn managedDependencyAllowed(self: *Self, edge: Dependency.Edge) !bool {
             if (bytes > self.options.index_work_bytes) return error.StorageBudgetExceeded;
             const other = try r.fromValue(Dependency.Edge, self.allocator, item.value);
             try other.validate();
-            if (other.dependent.kind == .managed and !std.meta.eql(other, edge) and
+            if ((other.dependent.kind == .managed or (edge.dependent.kind == .managed and other.dependent.kind == .application)) and !std.meta.eql(other, edge) and
                 ((other.privileges | edge.privileges) & (a.insert | a.delete) != 0)) return false;
             after = item.key;
             found = true;
@@ -6372,7 +6389,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
         if (!value.live or !std.meta.eql(value.interpretation, binding.edge.source) or !try self.dependentDefinition(binding.edge.dependent)) {
             outcome.phase = .rejected;
             outcome.reason = .stale_definition;
-        } else if (binding.edge.dependent.kind == .managed and !try self.managedDependencyAllowed(binding.edge)) {
+        } else if ((binding.edge.dependent.kind == .managed or binding.edge.dependent.kind == .application) and !try self.managedDependencyAllowed(binding.edge)) {
             outcome.phase = .rejected;
             outcome.reason = .source_busy;
         } else if (try self.pending(binding.edge.source.object.object, current)) {

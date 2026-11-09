@@ -1368,9 +1368,16 @@ registers an edge nor starts work. A missing edge is distinct from an immutable
 successful registration receipt whose edge was subsequently removed. This bounded
 point observation does not certify data availability or a cross-catalog snapshot.
 
+An `application` dependency uses the same native graph and a named KV control
+object for an ordered Queue program. Multiple applications may register their
+transactional read/write requirements on the same resource. The finite managed
+Table profile still excludes shared writers and output chaining, including an
+application writer registered before or after that finite computation.
+
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
-Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7), dependent definition, and a big-endian
+Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7, view=8,
+property_graph=9, foreign=10, managed=11, source=12, application=13), dependent definition, and a big-endian
 unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
 unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
 digest. Foreign-key digests append a big-endian u32 constraint ID and u64
@@ -2123,9 +2130,15 @@ transaction replays from its beginning. Local closure/destruction performs no
 remote release; the caller explicitly closes its original acquisition when its
 durable history requirement ends.
 
-`check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
+`check_set` accepts 1–16 tagged `access`, `snapshot`, `historical` or `dependency`
+checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify
-the original live pin. The local owner excludes Table mutations during the set
+the original live pin. Historical checks use the exact historical catalog owner.
+Dependency checks require the registered edge, exact live source/dependent
+definitions and every current source action in its privilege mask, plus dependent
+metadata access. They create no receipt and do not register or repair a missing
+edge. A retained read delegation cannot perform a dependency check.
+The local owner excludes Table mutations during the set
 and rechecks the union of successful requirements under one current native
 policy revision after response buffering. Native guard capacity still bounds
 the union. The `checked` result carries no rows or common source cut.

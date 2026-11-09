@@ -28,6 +28,14 @@ policies now belong to immutable definitions, with a native revision adapter for
 the common transaction's retained read guards. Managed Queue execution and the
 remaining integration below are still required to qualify the consumer.
 
+Retained program environments and native data-operation adapters now preserve
+instruction identity, lexical scope, exact KV revisions and single-record read
+coverage. Typed application declarations publish through the catalog's owned
+records, with an immutable executor role, native dependency readiness checks and
+fenced controls. Input predicates compile to the existing Queue acquisition
+format. These are implementation foundations: the service does not yet schedule
+ordered invocations or install the complete three-file application.
+
 ## Reviewed inputs and desired experience
 
 Transit baseline: `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`.
@@ -330,13 +338,11 @@ owning storage/query, interface, connector and caller lanes) before pushing.
 Board/browser changes require their checks/proofs. Record exact commands,
 revision, bounds and outcomes; a missing or skipped proof is not a pass.
 
-This planning change requires documentation link/fence and whitespace checks.
-It adds no runtime implementation, test result, release or deployment claim.
-
-Review validation: `nix develop --command python3 -B tests/runner/docs.py`
+Initial planning validation: `nix develop --command python3 -B tests/runner/docs.py`
 passed (11,888 local links across 737 files); whitespace checks passed. Runtime
 suites and the pre-PR fast/handbook gates were not run for this local planning
-deliverable. Those gates remain required before opening or updating a PR.
+deliverable. Implementation validation is recorded separately; the final PR must
+still qualify the complete changes against committed HEAD.
 
 ## Roadmap and tracking boundaries
 

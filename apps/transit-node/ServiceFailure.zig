@@ -27,6 +27,7 @@ pub fn table(err: anyerror) Refusal {
         error.QueueWaitCapacity, error.StreamWaitCapacity, error.NotificationCapacityExceeded => .ControlCapacity,
         error.CatalogDenied, error.TableDelegationDenied, error.InvalidAuthorizationCredential, error.AuthorizationChanged, error.TransactionAuthorityChanged => .AccessDenied,
         error.TableDefinitionChanged => .TableDefinitionChanged,
+        error.CatalogDefinitionChanged => .Conflict,
         error.LogDeclarationConflict, error.LogOperationConflict, error.LogAppendConflict, error.LogPayloadConflict, error.LogPartitionConflict, error.LogProducerConflict, error.LogProducerFenced, error.LogProducerSequenceGap, error.LogProducerReceiptExpired, error.LogGroupAssignmentConflict, error.LogGroupFenced, error.LogGroupRequired, error.LogOffsetConflict, error.LogRetentionWindowElapsed, error.StreamReadConflict => .Conflict,
         error.StreamReadReleased, error.StreamReadMissing, error.QueueReadReleased => .QueryExpired,
         error.LogRangeExpired => .HistoryReclaimed,

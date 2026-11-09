@@ -282,7 +282,7 @@ pub fn allow(self: Self, action: w.Action) !void {
         },
         .check_set => |values| for (values) |value| switch (value) {
             .snapshot => |snapshot| try self.requirePin(snapshot.object, snapshot.handle.owner),
-            .access, .historical => return error.TableDelegationDenied,
+            .access, .historical, .dependency => return error.TableDelegationDenied,
         },
         else => return error.TableDelegationDenied,
     }
@@ -334,6 +334,11 @@ test "direct read delegation binds one caller role, executor, definition, pin an
     try t.expectEqualDeep(copy, try decode(t.allocator, &try copy.encode(t.allocator)));
     try copy.proof.verify(key.public_key.toBytes());
     try copy.allow(.{ .pin = .{ .object = binding.interpretation.object, .owner = binding.owner, .expected = binding.expected, .selection = .exact } });
+    try t.expectError(error.TableDelegationDenied, copy.allow(.{ .check_set = &.{.{ .dependency = .{
+        .source = binding.interpretation,
+        .dependent = .{ .kind = .application, .interpretation = binding.interpretation },
+        .privileges = c.TableAuthority.select,
+    } }} }));
     try t.expectError(error.TableDelegationDenied, copy.allow(.{ .release = .{ .object = binding.interpretation.object, .handle = copy.binding.copied_from.? } }));
     const source_declaration: c.storage.TableDeclaration.Stored = .{ .kind = .table, .interpretation = binding.interpretation, .content = .{ .bytes = 200, .sha256 = binding.interpretation.digest }, .schema_fingerprint = @splat(30), .retired = false };
     try copy.allow(.{ .schema_projection = .{ .prepare = .{ .source = source_declaration, .target = source_declaration } } });

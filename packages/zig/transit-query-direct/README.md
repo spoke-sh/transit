@@ -17,6 +17,15 @@ operation and use the existing common transaction API. These adapters do not
 install, schedule or recover an application. Managed Queue integration remains
 tracked by [#430](https://github.com/spoke-sh/transit/issues/430).
 
+`ApplicationBinding` reconstructs immutable native resource definitions, keeping
+row positions and current grants out of the compiled identity.
+`ApplicationDeclaration` retains the typed instruction tree, exact dependencies,
+executor role and per-invocation budgets. `ManagedApplication` publishes that
+definition through owned records and the shared catalog/KV lifecycle. Its saved
+controls separate publication, explicit role authorization and activation;
+readiness rechecks current dependency actions through the native owner. These
+typed operations do not yet supply installed SQL execution or invocation recovery.
+
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded
 rows, bytes and source requests. `DirectRelationalCompilation` and

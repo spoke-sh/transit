@@ -26,6 +26,13 @@ bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
 `transit-storage` owns Table acceptance and retained data. Native authorization
 owns roles, grants, current credentials and resource lifetime.
 
+Ordered application programs use explicit `application` dependency edges over
+the existing graph. They permit shared transactional state writers while finite
+managed Tables retain their writer-exclusion rule. A `check_set` dependency entry
+rechecks the registered edge, exact live definitions and all current action
+privileges without creating work. Ordinary graph inspection remains a metadata
+operation and does not establish readiness to execute.
+
 `DirectRecord` high-bit formats carry immutable read envelopes with one to 14
 Table/KV/Document/Stream/Queue object requirements, bounded by the existing native
 authorization budget. The list has no null slots. Staging validates caller-provided bytes and grants

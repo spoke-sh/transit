@@ -43,7 +43,7 @@ pub const Properties = struct {
         try jws.objectField("authorization");
         try jws.write(self.authorization);
         try jws.objectField("name");
-        try jws.write(self.name);
+        try p.Json.write(self.name, jws);
         if (self.native_binding) |binding| {
             try jws.objectField("native_binding");
             try jws.write(binding);

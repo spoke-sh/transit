@@ -11,8 +11,9 @@ instruction encoding and local schema binding are implemented in Fuze's
 scoped continuation codec and typed instruction operands.
 `transit-query-direct.ApplicationData` supplies native data conversion and
 read/mutation preparation for these operands.
-Catalog binding,
-publication, activation, execution and recovery remain integration work tracked
+Native resource binding and typed publication/control are implemented in
+`ApplicationBinding`, `ApplicationDeclaration` and `ManagedApplication`.
+SQL publication, service execution and invocation recovery remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
 
@@ -23,6 +24,40 @@ resource definitions, executor principal/role, input Queue and acquisition
 predicate, budgets and native contract definition. Node identities belong to
 that frozen definition. A later declaration cannot reinterpret an accepted
 invocation or its continuation.
+
+The typed declaration reconstructs each resource's native definition from its
+schema and immutable properties. Data positions, row counts and transient read
+views do not enter its identity. It binds exactly the used resources, with a
+maximum of 13 per program so their values and the control object fit the existing
+native authorization budget. Queue acquisition/settlement and append are distinct
+required actions. Row Document policy and native browser bindings remain part of
+the resource definition. This binder currently admits native Table, row Document,
+typed KV, Stream and Queue definitions; sink/capability storage integration remains
+required for the complete browser application.
+
+The input predicate lowers from the retained instruction tree into the native
+`QueuePredicate`, bound to the exact schema and selected partition. The current
+acquisition profile accepts literal comparisons, Boolean combinations, Boolean
+columns and null tests, with the column's declared comparison semantics. Host
+functions and lease metadata are excluded. Unsupported predicates reject before
+publication. Preparing a claim selects at most one input under its frozen
+operation identity and declared lease policy; it performs no acquisition.
+
+`ManagedApplication.publish` retains the canonical declaration through the owned
+original-record protocol before initializing its named KV control and dependency
+edges. Repeating publication uses the same original identity and does not reset
+the lifecycle. An application dependency permits shared transactional writers;
+finite Table recomputation retains its writer-exclusion rule. The native
+`check_set` dependency check verifies registered edges, exact live definitions
+and current action privileges without admitting work. Metadata inspection alone
+does not establish readiness, and successful checks confer no future authority.
+
+The declaration freezes the executor role before publication. Authorization names
+that same role explicitly; activation and resume recheck it through native policy.
+Saved control mutations preserve original operation identity and fence the control
+row's observed position. A control row cannot select a different role from the
+immutable declaration. These typed lifecycle operations do not yet install a SQL
+service worker or prove an invocation has run.
 
 The compiler accepts one `CREATE DATAFLOW name FROM QUEUE name AS input`
 declaration. A block contains immutable `LET` bindings, TRUE-only `REQUIRE`,

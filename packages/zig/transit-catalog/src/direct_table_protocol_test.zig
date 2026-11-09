@@ -766,6 +766,23 @@ test "dependency membership binds exact edges and keeps receipts separate from c
     const incomplete = try p.Json.valueAlloc(t.allocator, .{ .edge = edge, .position = response.result.dependency_state.position });
     defer t.allocator.free(incomplete);
     try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectDependency.State, t.allocator, incomplete));
+
+    var application = edge;
+    application.dependent.kind = .application;
+    application.dependent.interpretation.object.scope = request.connection.scope;
+    application.dependent.interpretation.object.branch = request.connection.branch;
+    var checks = [_]w.ReadCheck{.{ .dependency = application }};
+    request.action = .{ .check_set = &checks };
+    request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    try request.validate(t.allocator);
+    try t.expect(!request.transport().mutation);
+    response.context = request.proof.claim.context;
+    response.subject.context = request.proof.claim.context;
+    response.result = .checked;
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    checks[0].dependency.privileges ^= c.TableAuthority.insert;
+    try t.expectError(error.InvalidAuthorizationCredential, request.validate(t.allocator));
 }
 
 test "current observations reject wrong definitions invented coverage and altered row pages" {

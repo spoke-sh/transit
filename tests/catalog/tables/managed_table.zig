@@ -478,6 +478,105 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     try drain(manager, grouped, init.io, .cwd());
     try retained(manager, grouped, 1, &.{ 4, 3 });
     try control(manager, grouped, .retire, 652043);
+    try applicationPublication(client, admin, role);
+}
+
+fn applicationPublication(client: c.DirectTableClient, admin: anytype, role: u64) !void {
+    const A = q.ManagedApplication;
+    const p = c.protocol;
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_input (id BIGINT NOT NULL)", .transit, null);
+    defer queue.deinit();
+    const schema = try queue.statement.action.create.bind(730010);
+    const configured = try queue.statement.configure(null, schema);
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("application_input"), .action = .{ .create = .{
+        .owner = role,
+        .schema = schema,
+        .configuration = configured.configuration,
+        .limits = configured.limits,
+    } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{
+        .definition = p.Growth.current_definition,
+        .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 730001 },
+        .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 730010 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(client.allocator),
+    } };
+    _ = try c.DirectLogClient.apply(&output, client, .{ .admit = request });
+    const created = (try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation;
+    try t.expectEqual(.complete, created.phase);
+    const metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_input" } });
+    defer metadata.deinit();
+    const resources = [_]q.ApplicationBinding{.{ .value = .{ .log = metadata.value.result.log_lookup.? } }};
+    const source = "CREATE DATAFLOW application_example FROM QUEUE application_input AS event AS BEGIN REQUIRE event.id > 0 ELSE 'InvalidInput'; END;";
+    var program = try q.fuze.ApplicationProgram.parse(client.allocator, source, null);
+    defer program.deinit();
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(source, &digest, .{});
+    const value: A.Declaration = .{
+        .definition = p.Growth.current_definition,
+        .connection = client.connection,
+        .executor_role = role,
+        .namespace = 1,
+        .name = try .init("application_example"),
+        .object = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 730020 },
+        .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 730002 },
+        .source_digest = digest,
+        .program = program.program,
+        .resources = &resources,
+        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536 },
+    };
+    const manager: A = .{ .client = client };
+    const original = try manager.publish(value);
+    try t.expectEqual(.published, original.head.control.state);
+    try t.expectEqualDeep(original, try manager.publish(value));
+    const restored = (try manager.find(1, value.name)).?;
+    defer restored.deinit();
+    try t.expectEqualDeep(try value.interpretation(client.allocator), try restored.value.interpretation(client.allocator));
+    var conflicting = value;
+    conflicting.limits.scan_rows += 1;
+    try t.expectError(error.DataflowIdentityConflict, manager.publish(conflicting));
+    var attempt: p.Dataflow.ControlAttempt = .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 730003 }, .target = try value.interpretation(client.allocator), .expected = original.head.control, .command = .authorize };
+    try t.expectError(error.InvalidDataflowTransition, manager.prepareControl(value, attempt, null));
+    const authorized = try manager.prepareControl(value, attempt, role);
+    defer client.allocator.free(authorized);
+    const accepted = try manager.applyControl(authorized);
+    try t.expectEqualDeep(accepted, try manager.applyControl(authorized));
+    const observed = try manager.inspect(value);
+    try t.expectEqual(.authorized, observed.head.control.state);
+    try t.expectEqual(role, observed.head.executor_role.?);
+    try manager.requireDependencies(value, observed);
+    const authority = c.TableAuthority.reference(created.resulting.?.properties.authorization);
+    _ = try admin.change(.{ .grant = .{ .object = authority, .grantee = role, .privileges = c.LogAuthority.inspect | c.LogAuthority.read } });
+    _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = 0 } });
+    // Metadata/read grants are insufficient to acquire and settle program input.
+    try t.expectError(error.AccessDenied, manager.requireDependencies(value, observed));
+    attempt.operation.operation = 730004;
+    attempt.expected = observed.head.control;
+    attempt.command = .activate;
+    try t.expectError(error.AccessDenied, manager.prepareControl(value, attempt, null));
+    try t.expectEqual(.authorized, (try manager.inspect(value)).head.control.state);
+    _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = role } });
+    const activated = try manager.prepareControl(value, attempt, null);
+    defer client.allocator.free(activated);
+    _ = try manager.applyControl(activated);
+    try t.expectEqualDeep(accepted, try manager.applyControl(authorized));
+    try t.expectEqual(.active, (try manager.inspect(value)).head.control.state);
+    try t.expect(!try manager.cleanup(value));
+    attempt.operation.operation = 730005;
+    attempt.expected = (try manager.inspect(value)).head.control;
+    attempt.command = .retire;
+    const retired = try manager.prepareControl(value, attempt, null);
+    defer client.allocator.free(retired);
+    _ = try manager.applyControl(retired);
+    try t.expect(try manager.cleanup(value));
+    try t.expect(try manager.cleanup(value));
+    try t.expectError(error.Conflict, manager.requireDependencies(value, try manager.inspect(value)));
+    _ = try manager.applyControl(activated);
+    try t.expectEqual(.retired, (try manager.inspect(value)).head.control.state);
 }
 
 pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {

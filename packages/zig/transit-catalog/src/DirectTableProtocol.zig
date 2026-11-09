@@ -257,7 +257,14 @@ pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
 pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact, interpretation: ?d.Definition = null };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
-pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot, historical: @FieldType(c.DirectHistory.Request, "source") };
+pub const ReadCheck = union(enum) {
+    access: D.AccessRequest,
+    snapshot: Snapshot,
+    historical: @FieldType(c.DirectHistory.Request, "source"),
+    /// Recheck the exact registered dependency and all of its current actions.
+    /// This is a read-only readiness observation, never an authorization lease.
+    dependency: c.DirectDependency.Edge,
+};
 /// Read current data only while this exact definition and original logical
 /// basis remain valid. The seek key does not retain data or prove prior reads.
 pub const CurrentRead = struct {
@@ -591,6 +598,11 @@ pub const Request = struct {
                     .access => |access| try access.validate(connection.scope, connection.branch),
                     .historical => |historical| try (c.DirectHistory.Request{ .source = historical }).validate(connection),
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
+                    .dependency => |edge| {
+                        try edge.validate();
+                        try connection.object(edge.source.object);
+                        try connection.object(edge.dependent.interpretation.object);
+                    },
                 };
             },
             inline .list, .resource_list, .log_list, .log_pending => |value| {

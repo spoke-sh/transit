@@ -1665,6 +1665,87 @@ fn dependencyBinding(source: p.DataLifecycle.Definition, operation: u64, depende
     };
 }
 
+test "application dependency readiness checks current actions and preserves finite writer exclusion across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    var access: Access = .{};
+    var bindings: [3]c.DirectDependency.Binding = undefined;
+    var source_authority: u64 = undefined;
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const source = try creation(7, 1, "application_state");
+        _ = try catalog.admit(source, access.policy());
+        _ = try catalog.perform(source.binding, access.policy());
+        var source_view = (try resolve(&catalog, &access, "application_state")).?;
+        defer source_view.deinit();
+        source_authority = source_view.properties.authorization;
+        for (&bindings, [_][]const u8{ "application_one", "application_two", "finite_output" }, 0..) |*binding, name, index| {
+            const id = 8 + @as(u64, index);
+            var control_columns: [2]c.fuze.TableSchema.Column = undefined;
+            var control = try creation(id, id, name);
+            control.intent.kind = .kv;
+            control.intent.action.create.schema = (s.KVDeclaration.Spec{ .value_type = .binary, .nullable = false }).schema(id, &control_columns);
+            control.binding.intent = try control.intent.digest(t.allocator);
+            _ = try catalog.admit(control, access.policy());
+            _ = try catalog.perform(control.binding, access.policy());
+            const stored = (try c.DirectKV.apply(output.allocator(), output.allocator(), &catalog, .{ .observe = control.binding.target }, access.policy())).definition;
+            binding.* = dependencyBinding(source_view.table.root.interpretation, 20 + id, id);
+            binding.edge.dependent = .{ .kind = if (index == 2) .managed else .application, .interpretation = stored.interpretation.interpretation };
+            binding.edge.privileges = a.select | a.insert;
+        }
+        try t.expectEqual(.applied, (try catalog.dependencyOperation(bindings[0], .accept, access.policy())).outcome.phase);
+        catalog.store.lose_reply = true;
+        try t.expectError(error.LostAcknowledgement, catalog.dependencyOperation(bindings[1], .accept, access.policy()));
+    }
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    try t.expectEqual(.applied, (try catalog.dependencyOperation(bindings[1], .accept, access.policy())).outcome.phase);
+    const root = catalog.store.root;
+    for (bindings[0..2]) |binding| try catalog.checkDependency(binding.edge, access.policy());
+    try t.expectEqualDeep(root, catalog.store.root);
+    access.denied_privileges = .{ .id = source_authority, .mask = a.insert };
+    access.visible_despite_denied_privileges = true;
+    try t.expect((try catalog.dependencyState(bindings[0].edge, access.policy())).present);
+    try t.expectError(error.CatalogDenied, catalog.checkDependency(bindings[0].edge, access.policy()));
+    access.denied_privileges = null;
+    access.visible_despite_denied_privileges = false;
+    const before = access.calls;
+    try catalog.checkDependency(bindings[0].edge, access.policy());
+    access.deny_at = access.calls + (access.calls - before);
+    try t.expectError(error.CatalogDenied, catalog.checkDependency(bindings[0].edge, access.policy()));
+    access.deny_at = std.math.maxInt(usize);
+    try t.expectEqualDeep(root, catalog.store.root);
+    var stale = bindings[0].edge;
+    stale.source.digest[0] ^= 1;
+    try t.expectError(error.CatalogDefinitionChanged, catalog.checkDependency(stale, access.policy()));
+    try t.expectEqual(.source_busy, (try catalog.dependencyOperation(bindings[2], .accept, access.policy())).outcome.reason);
+    for (bindings[0..2]) |binding| {
+        var remove = binding;
+        remove.operation += 100;
+        remove.action = .remove;
+        try t.expectEqual(.applied, (try catalog.dependencyOperation(remove, .accept, access.policy())).outcome.phase);
+        try t.expectError(error.CatalogDefinitionChanged, catalog.checkDependency(binding.edge, access.policy()));
+    }
+    var finite = bindings[2];
+    finite.operation += 100;
+    try t.expectEqual(.applied, (try catalog.dependencyOperation(finite, .accept, access.policy())).outcome.phase);
+    var application = bindings[0];
+    application.operation += 200;
+    try t.expectEqual(.source_busy, (try catalog.dependencyOperation(application, .accept, access.policy())).outcome.reason);
+}
+
 test "direct dependency lost replies retain exact DROP protection across restart and name replacement" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -11714,4 +11795,17 @@ test "SOURCE capture graph retains pending and verified chunks and collects clos
     }
     const descriptor = captureDescriptor(source, 1, bytes.len, digest);
     try t.expectEqual(.closed, (try catalog.captureInspect(.{ .key = descriptor.key }, access.policy(), host.authority())).?.state.phase);
+}
+
+test "catalog properties preserve public fixed array shape and canonical storage bytes" {
+    const value: D.Properties = .{ .namespace = 1, .authorization = 2, .name = try .init("application_input") };
+    const bytes = try p.Json.valueAlloc(t.allocator, value);
+    defer t.allocator.free(bytes);
+    const decoded = try p.Json.parseFromSliceOwned(D.Properties, t.allocator, bytes);
+    defer decoded.deinit();
+    try t.expectEqualDeep(value, decoded.value);
+    var buffer: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
+    try t.expectEqualStrings(bytes, try value.encode(&buffer));
+    try t.expectEqualDeep(value, try D.Properties.decode(t.allocator, bytes));
+    try t.expectError(error.InvalidJsonShape, p.Json.parseFromSliceOwned(D.Properties, t.allocator, "{\"namespace\":1,\"authorization\":2,\"name\":{\"len\":2,\"bytes\":\"xx\"}}"));
 }

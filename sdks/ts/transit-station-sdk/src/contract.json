@@ -10957,7 +10957,8 @@
             "property_graph",
             "foreign",
             "managed",
-            "source"
+            "source",
+            "application"
           ]
         },
         "T266": {
@@ -68430,7 +68431,8 @@
             "property_graph",
             "foreign",
             "managed",
-            "source"
+            "source",
+            "application"
           ]
         },
         "T67": {
@@ -83367,7 +83369,8 @@
             "property_graph",
             "foreign",
             "managed",
-            "source"
+            "source",
+            "application"
           ]
         },
         "T87": {

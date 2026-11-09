@@ -22,6 +22,7 @@
         "packages/zig/transit-fuze/src/LogReadSql.zig",
         "packages/zig/transit-fuze/src/LogSettlementSql.zig",
         "packages/zig/transit-fuze/src/ApplicationProgram*.zig",
+        "packages/zig/transit-fuze/src/ApplicationPredicate.zig",
         "packages/zig/transit-fuze/src/NativeBinding.zig"
       ],
       "exclude": [
@@ -1231,6 +1232,14 @@
         "ProgramRowAssertionFailed": {
           "code": "sql.program_row_assertion_failed",
           "category": "conflict"
+        },
+        "InvalidQueuePredicate": {
+          "code": "sql.invalid_queue_predicate",
+          "category": "unsupported"
+        },
+        "PredicateTooLarge": {
+          "code": "sql.predicate_instruction_limit",
+          "category": "limit"
         }
       }
     },

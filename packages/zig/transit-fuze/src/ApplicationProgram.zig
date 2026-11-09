@@ -11,6 +11,7 @@ pub const Evaluation = @import("ApplicationExpression.zig");
 pub const Cursor = @import("ApplicationCursor.zig");
 pub const Environment = @import("ApplicationEnvironment.zig");
 pub const Step = @import("ApplicationStep.zig");
+pub const Predicate = @import("ApplicationPredicate.zig");
 pub const max_source_bytes = @import("SqlInput.zig").max_source_bytes;
 pub const max_nodes = 4096;
 pub const max_depth = 32;
@@ -151,6 +152,7 @@ test {
     _ = Cursor;
     _ = Environment;
     _ = Step;
+    _ = Predicate;
 }
 
 test "application program preserves guarded effects and atomic control flow" {

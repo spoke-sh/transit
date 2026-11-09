@@ -4673,6 +4673,7 @@
         "BranchRetired": 1,
         "BranchSourceChanged": 3,
         "BufferTooSmall": 2,
+        "CatalogDefinitionChanged": 1,
         "CatalogDenied": 93,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
@@ -4978,6 +4979,7 @@
         "captureVerify()": "<inferred>",
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
+        "checkDependency()": "<inferred>",
         "checkOperation()": "<inferred>",
         "claimDataBinding()": "<inferred>",
         "claimQueueBinding()": "<inferred>",
@@ -5267,7 +5269,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2878,
+        "try": 2888,
         "catch": 31
       },
       "imports": [
@@ -6221,7 +6223,8 @@
           "property_graph",
           "foreign",
           "managed",
-          "source"
+          "source",
+          "application"
         ],
         "Observation": [
           "not_observed",
@@ -6778,13 +6781,14 @@
         "Saved.validate()": "<inferred>",
         "apply()": "<inferred>",
         "load()": "<inferred>",
+        "localRowCloneSchedule()": "<inferred>",
         "prepareDeclaration()": "<inferred>",
         "prepareMutation()": "<inferred>",
         "save()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -8744,7 +8748,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 263,
+        "try": 264,
         "catch": 0
       },
       "imports": [
@@ -9038,7 +9042,8 @@
         "ReadCheck": [
           "access",
           "snapshot",
-          "historical"
+          "historical",
+          "dependency"
         ],
         "Result": [
           "branch",
@@ -9153,7 +9158,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 181,
+        "try": 184,
         "catch": 6
       },
       "imports": [
@@ -12002,11 +12007,11 @@
         "call()": "<inferred>",
         "clone()": "<inferred>",
         "invoke()": "anyerror",
-        "ownSlices()": "std . mem . Allocator . Error"
+        "ownSlices()": "anyerror"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 14,
+        "try": 15,
         "catch": 0
       },
       "imports": [
@@ -15205,6 +15210,37 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationPredicate.zig": {
+      "errors": {
+        "InvalidQueuePredicate": 6,
+        "PredicateTooLarge": 1,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 2,
+        "SourceChanged": 1,
+        "UnknownColumn": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "column()": "<inferred>",
+        "compile()": "<inferred>",
+        "emit()": "<inferred>",
+        "integer()": "<inferred>",
+        "literal()": "<inferred>",
+        "lower()": "anyerror"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 23,
+        "catch": 0
+      },
+      "imports": [
+        "Finite.zig",
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/ApplicationProgram.zig": {
       "errors": {},
       "outcomes": {
@@ -15322,6 +15358,7 @@
         "ApplicationCursor.zig",
         "ApplicationEnvironment.zig",
         "ApplicationExpression.zig",
+        "ApplicationPredicate.zig",
         "ApplicationProgramCodec.zig",
         "ApplicationProgramParser.zig",
         "ApplicationProgramTypes.zig",
@@ -19829,6 +19866,7 @@
         "InvalidQueryScalar": 1,
         "InvalidQuerySchema": 1,
         "InvalidQueueLeaseHandle": 1,
+        "InvalidQueuePredicate": 1,
         "InvalidRangeLiteral": 1,
         "InvalidRangeValue": 1,
         "InvalidRelationalBudgets": 1,
@@ -19899,6 +19937,7 @@
         "PlanTooLarge": 1,
         "PredicateTooComplex": 1,
         "PredicateTooDeep": 1,
+        "PredicateTooLarge": 1,
         "PrimaryKeyColumnRequired": 1,
         "ProgramArgumentMismatch": 1,
         "ProgramCardinalityMismatch": 1,
@@ -27092,6 +27131,38 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationBinding.zig": {
+      "errors": {
+        "InvalidTableResponse": 1,
+        "ProgramResourceKindMismatch": 1,
+        "ProgramTooComplex": 1,
+        "ProgramTypeMismatch": 1,
+        "TableDefinitionChanged": 10
+      },
+      "outcomes": {
+        "value": [
+          "table",
+          "kv",
+          "log"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "privileges()": "<inferred>",
+        "requireCurrent()": "<inferred>",
+        "resource()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 24,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ApplicationData.zig": {
       "errors": {
         "DuplicateProgramField": 1,
@@ -27141,6 +27212,40 @@
       },
       "imports": [
         "DirectTableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationDeclaration.zig": {
+      "errors": {
+        "DataflowIdentityConflict": 3,
+        "DuplicateProgramResource": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidAuthorizationRole": 1,
+        "InvalidProgramNode": 1,
+        "InvalidQueryBudget": 1,
+        "ProgramResourceKindMismatch": 2,
+        "UnknownProgramResource": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Limits.validate()": "<inferred>",
+        "bind()": "<inferred>",
+        "decode()": "<inferred>",
+        "digest()": "<inferred>",
+        "encode()": "<inferred>",
+        "inputClaim()": "<inferred>",
+        "interpretation()": "<inferred>",
+        "prepare()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 29,
+        "catch": 0
+      },
+      "imports": [
         "root.zig",
         "std"
       ]
@@ -27398,6 +27503,49 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ManagedApplication.zig": {
+      "errors": {
+        "ClientOperationMissing": 1,
+        "DataflowIdentityConflict": 8,
+        "DataflowLeaseFenced": 1,
+        "DataflowSourceChanged": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDataflowControl": 2,
+        "InvalidDataflowTransition": 4,
+        "InvalidDirectRecord": 4,
+        "InvalidKVResponse": 1,
+        "ManagedTableCleanupPending": 1,
+        "ManagedTableInitializationPending": 2,
+        "OwnedRecordClosed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Head.validate()": "<inferred>",
+        "applyControl()": "<inferred>",
+        "cleanup()": "<inferred>",
+        "edge()": "<inferred>",
+        "executor()": "<inferred>",
+        "find()": "<inferred>",
+        "initialize()": "<inferred>",
+        "inspect()": "<inferred>",
+        "load()": "<inferred>",
+        "mutation()": "<inferred>",
+        "prepareControl()": "<inferred>",
+        "publish()": "<inferred>",
+        "requireCaller()": "<inferred>",
+        "requireDependencies()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 66,
         "catch": 0
       },
       "imports": [
@@ -27715,13 +27863,16 @@
         "catch": 0
       },
       "imports": [
+        "ApplicationBinding.zig",
         "ApplicationData.zig",
+        "ApplicationDeclaration.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
         "DirectRelationalQuery.zig",
         "DirectRelationalTables.zig",
         "DirectTablePrepared.zig",
         "DirectTableQuery.zig",
+        "ManagedApplication.zig",
         "ManagedInspection.zig",
         "ManagedRevision.zig",
         "ManagedTable.zig",

@@ -25,6 +25,7 @@ pub const Use = struct {
     resource: u16,
     read: bool = false,
     write: bool = false,
+    consume: bool = false,
     dispatch: bool = false,
     guard: bool = false,
 };
@@ -66,7 +67,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     for (resources, 0..) |candidate, index| for (resources[0..index]) |prior| {
         if (std.mem.eql(u8, candidate.name, prior.name)) return error.DuplicateProgramResource;
     };
-    const queue = try self.resource(program.queue, .queue, .{ .resource = 0, .read = true, .write = true });
+    const queue = try self.resource(program.queue, .queue, .{ .resource = 0, .read = true, .consume = true });
     try self.define(program.input, .{ .kind = .record, .fields = queue.fields });
     if (program.predicate) |predicate| {
         self.columns = queue.fields;
@@ -108,6 +109,7 @@ fn resource(self: *Self, name: []const u8, kind: ?@FieldType(Resource, "kind"), 
         for (self.uses.items) |*prior| if (prior.resource == index) {
             prior.read = prior.read or usage.read;
             prior.write = prior.write or usage.write;
+            prior.consume = prior.consume or usage.consume;
             prior.dispatch = prior.dispatch or usage.dispatch;
             prior.guard = prior.guard or usage.guard;
             return candidate;
@@ -539,7 +541,7 @@ test "application program types keep commits and approved secret uses explicit" 
     var bound = try bind(t.allocator, parsed.program, &test_resources, null);
     defer bound.deinit();
     try t.expectEqual(3, bound.uses.len);
-    try t.expect(bound.uses[0].read and bound.uses[0].write);
+    try t.expect(bound.uses[0].read and bound.uses[0].consume and !bound.uses[0].write);
     try t.expect(bound.uses[1].dispatch);
     try t.expect(bound.uses[2].write);
     const token_expression = parsed.program.body.instructions[3].value.let.value.expression;

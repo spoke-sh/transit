@@ -7,6 +7,8 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidQueuePredicate, .code = "sql.invalid_queue_predicate", .category = .unsupported, .summary = "The Queue acquisition predicate is outside the native profile", .hint = "Use application columns with literal comparisons, Boolean combinations and null tests; exclude host functions and lease metadata." },
+    .{ .cause = error.PredicateTooLarge, .code = "sql.predicate_instruction_limit", .category = .limit, .summary = "The Queue predicate exceeds its instruction budget", .hint = "Keep the native predicate within 64 Boolean and comparison instructions." },
     .{ .cause = error.ProgramRowAssertionFailed, .code = "sql.program_row_assertion_failed", .category = .conflict, .summary = "An existing row differs from the program's asserted row", .hint = "Inspect the original transaction and row; a matching key does not authorize replacing different values." },
     .{ .cause = error.ProgramCardinalityMismatch, .code = "sql.program_cardinality_mismatch", .category = .constraint, .summary = "The program's single-record SELECT matched more than one row", .hint = "Use a predicate that selects at most one record for this LET binding." },
     .{ .cause = error.NativeBindingConflict, .code = "sql.native_binding_conflict", .category = .conflict, .summary = "The native binding already names a different resource", .hint = "Inspect the canonical binding before changing the declaration." },
