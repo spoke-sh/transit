@@ -1,4 +1,4 @@
-//! Durable CONNECTION/SOURCE commands over the shared Catalog owner. Recovery
+//! Durable CONNECTION/SOURCE/SINK commands over the shared Catalog owner. Recovery
 //! reads the original typed request; it never reparses SQL or dispatches HTTP.
 const std = @import("std");
 const g = @import("root.zig");
@@ -26,6 +26,10 @@ pub fn proposal(host: *g.Session, arena: *std.heap.ArenaAllocator, statement: g.
     const owner = response.value.subject.role;
     return switch (statement) {
         .connection => |value| .{ .namespace = host.namespace, .name = value.name, .owner = owner, .payload = .{ .connection = .{ .endpoint = value.endpoint } } },
+        .sink, .explain_sink => |value| blk: {
+            const upstream = try lookup(host, arena, .connection, value.connection);
+            break :blk .{ .namespace = host.namespace, .name = value.name, .owner = owner, .payload = .{ .sink = .{ .connection = upstream.state.declaration.interpretation, .http = value.http } } };
+        },
         .create, .explain => |value| blk: {
             const executor = (try host.account.database(host.database)).source_executor orelse return error.SourceExecutorNotConfigured;
             const upstream = try lookup(host, arena, .connection, value.connection);
@@ -47,12 +51,12 @@ pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     defer arena.deinit();
     switch (prepared.statement) {
-        .connection, .create => {
+        .connection, .create, .sink => {
             const value = try proposal(host, &arena, prepared.statement);
             const preview = (try c.DirectSourceClient.apply(&arena, host.table, .{ .prepare = value })).preview;
             if (preview.reason != .none) return error.SourceDeclarationConflict;
         },
-        .control => |value| _ = try lookup(host, &arena, .source, value.name),
+        .control => |value| _ = try lookup(host, &arena, value.kind, value.name),
         .drop => |value| _ = try lookup(host, &arena, value.kind, value.name),
         else => return error.UnsupportedSourceStatement,
     }
@@ -62,14 +66,14 @@ fn prepareRequest(host: *g.Session, arena: *std.heap.ArenaAllocator, prepared: *
     const operation = (std.mem.readInt(u64, original[8..16], .big) % p.max_counter) + 1;
     var expected: ?p.DataLifecycle.Definition = null;
     const intent: S.Intent = switch (prepared.statement) {
-        .connection, .create => blk: {
+        .connection, .create, .sink => blk: {
             const value = try proposal(host, arena, prepared.statement);
             break :blk .{ .kind = std.meta.activeTag(value.payload), .namespace = host.namespace, .name = value.name, .action = .{ .create = .{ .owner = value.owner, .payload = value.payload } } };
         },
         .control => |value| blk: {
-            const current = try lookup(host, arena, .source, value.name);
+            const current = try lookup(host, arena, value.kind, value.name);
             expected = current.state.declaration.interpretation;
-            break :blk .{ .kind = .source, .namespace = host.namespace, .name = value.name, .action = .{ .control = .{ .expected_epoch = current.state.control.?.epoch, .command = value.command } } };
+            break :blk .{ .kind = value.kind, .namespace = host.namespace, .name = value.name, .action = .{ .control = .{ .expected_epoch = current.state.control.?.epoch, .command = value.command } } };
         },
         .drop => |value| blk: {
             const current = try lookup(host, arena, value.kind, value.name);
@@ -128,9 +132,17 @@ pub fn admit(host: *g.Session, prepared: *const Prepared, token: api.Token, fing
 }
 fn command(intent: S.Intent) g.results.Command {
     return switch (intent.action) {
-        .create => if (intent.kind == .source) .create_source else .create_connection,
-        .control => .retire_source,
-        .drop => if (intent.kind == .source) .drop_source else .drop_connection,
+        .create => switch (intent.kind) {
+            .source => .create_source,
+            .connection => .create_connection,
+            .sink => .create_sink,
+        },
+        .control => if (intent.kind == .sink) .retire_sink else .retire_source,
+        .drop => switch (intent.kind) {
+            .source => .drop_source,
+            .connection => .drop_connection,
+            .sink => .drop_sink,
+        },
     };
 }
 pub fn status(host: *g.Session, id: u64) !api.Operation {

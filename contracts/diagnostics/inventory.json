@@ -27293,17 +27293,18 @@
     },
     "packages/zig/transit-query-direct/src/ApplicationBinding.zig": {
       "errors": {
-        "InvalidTableResponse": 1,
-        "ProgramResourceKindMismatch": 1,
+        "InvalidTableResponse": 2,
+        "ProgramResourceKindMismatch": 2,
         "ProgramTooComplex": 1,
         "ProgramTypeMismatch": 1,
-        "TableDefinitionChanged": 10
+        "TableDefinitionChanged": 13
       },
       "outcomes": {
         "value": [
           "table",
           "kv",
-          "log"
+          "log",
+          "sink"
         ]
       },
       "error_sets": {},
@@ -27315,7 +27316,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 28,
         "catch": 0
       },
       "imports": [
@@ -35367,6 +35368,9 @@
           "retire_source",
           "drop_connection",
           "drop_source",
+          "create_sink",
+          "retire_sink",
+          "drop_sink",
           "produce",
           "consume",
           "commit_offset",
@@ -36036,6 +36040,10 @@
         "InvalidSchemaProjection": 1,
         "InvalidSettingUnit": 1,
         "InvalidSettingValue": 1,
+        "InvalidSinkBudget": 1,
+        "InvalidSinkEncoding": 1,
+        "InvalidSinkHeader": 1,
+        "InvalidSinkRetryPolicy": 1,
         "InvalidSqlOperationReference": 3,
         "InvalidSqlSyntax": 1,
         "InvalidStreamPolicy": 1,
@@ -36394,7 +36402,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
+        "try": 46,
         "catch": 0
       },
       "imports": [
@@ -36914,11 +36922,11 @@
     },
     "packages/zig/transit-sql/src/SourceSql.zig": {
       "errors": {
-        "DuplicateSourceOption": 1,
+        "DuplicateSourceOption": 2,
         "InvalidSourceDuration": 4,
-        "InvalidSourceOption": 5,
-        "MissingSourceOption": 1,
-        "UnsupportedSourceConnector": 2,
+        "InvalidSourceOption": 10,
+        "MissingSourceOption": 2,
+        "UnsupportedSourceConnector": 3,
         "UnsupportedSourceMethod": 1,
         "UnsupportedSourceStatement": 5
       },
@@ -36930,26 +36938,45 @@
           "request_timeout",
           "response_max_bytes"
         ],
+        "SinkOption": [
+          "method",
+          "path",
+          "request_encoding",
+          "accept",
+          "user_agent",
+          "response",
+          "capture",
+          "request_timeout",
+          "response_max_bytes",
+          "follow_redirects",
+          "max_attempts",
+          "unknown_outcome"
+        ],
         "Statement": [
           "connection",
           "create",
+          "sink",
           "control",
           "drop",
           "inspect",
-          "explain"
+          "explain",
+          "explain_sink"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "choice()": "<inferred>",
         "duration()": "<inferred>",
         "http()": "<inferred>",
         "parse()": "<inferred>",
-        "string()": "<inferred>"
+        "sink()": "<inferred>",
+        "string()": "<inferred>",
+        "unsigned()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 71,
-        "catch": 3
+        "try": 114,
+        "catch": 4
       },
       "imports": [
         "root.zig",
@@ -46576,7 +46603,7 @@
       "snapshotClause": "AS OF SNAPSHOT STRING ( IN SCHEMA identifier ) ?",
       "projectionClause": "PROJECTING TO ( CURRENT | SNAPSHOT STRING )",
       "managedCommand": "CREATE DATAFLOW identifier INTO identifier AS relationalSelect | ( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE ) DATAFLOW identifier | SHOW DATAFLOW identifier ( REVISION INTEGER ) ? | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect",
-      "sourceCommand": "( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE ) SOURCE identifier | DROP ( SOURCE | CONNECTION ) identifier RESTRICT ? | SHOW ( SOURCE | CONNECTION ) identifier | DESCRIBE ( SOURCE | CONNECTION ) identifier | EXPLAIN createSource",
+      "sourceCommand": "( AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE ) ( SOURCE | SINK ) identifier | DROP ( SOURCE | CONNECTION | SINK ) identifier RESTRICT ? | SHOW ( SOURCE | CONNECTION | SINK ) identifier | DESCRIBE ( SOURCE | CONNECTION | SINK ) identifier | EXPLAIN ( createSource | createSink )",
       "transactionStatement": "( BEGIN ( WORK | TRANSACTION ) ? | START TRANSACTION ) transactionOptions ? | COMMIT ( WORK | TRANSACTION ) ? | ROLLBACK ( WORK | TRANSACTION ) ? ( TO SAVEPOINT ? identifier ) ? | SAVEPOINT identifier | RELEASE SAVEPOINT ? identifier",
       "transactionOptions": "ISOLATION LEVEL SERIALIZABLE transactionAccess ? | transactionAccess ( ISOLATION LEVEL SERIALIZABLE ) ?",
       "transactionAccess": "READ ( ONLY | WRITE )",
@@ -46672,7 +46699,9 @@
       "createSource": "CREATE SOURCE identifier FROM connectorKind CONNECTION identifier INTO STREAM identifier WITH sourceOptions",
       "sourceOptions": "LPAREN sourceOption ( COMMA sourceOption ) * RPAREN",
       "sourceOption": "identifier EQ ( STRING | INTEGER )",
-      "createSink": "CREATE SINK identifier INTO connectorKind CONNECTION identifier ( WITH ? connectionOptions ) ?",
+      "createSink": "CREATE SINK identifier INTO connectorKind CONNECTION identifier WITH sinkOptions",
+      "sinkOptions": "LPAREN sinkOption ( COMMA sinkOption ) * RPAREN",
+      "sinkOption": "identifier EQ ( STRING | INTEGER | TRUE | FALSE )",
       "connectorKind": "identifier",
       "connectionOptions": "LPAREN connectionOption ( COMMA connectionOption ) * RPAREN",
       "connectionOption": "identifier EQ optionValue",

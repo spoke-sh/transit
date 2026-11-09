@@ -41,8 +41,8 @@ typed plans. Explicit administration applies them through the native or catalog
 owner; query-only transports do not acquire administrative mutation semantics.
 
 Diagnostics distinguish malformed executable syntax from syntax unavailable on
-the selected interface. Grammar-only connection, source and sink families
-report that their submitted syntax has not been validated. An incomplete `SHOW`
+the selected interface. Connection, source and sink declarations require native cohosted SQL. Query-only
+interfaces report that their submitted declaration syntax has not been validated. An incomplete `SHOW`
 requires a catalog name; it is not evidence that a named catalog is unsupported.
 
 Cohosted native sessions also support [managed Table computations](queries.md#managed-table-computations):
@@ -210,7 +210,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `DELETE`                                                   | Typed predicates through the configured catalog owner                               | [Row removal and retained history](sql/delete.md)                         |
 | `CREATE CONNECTION` | Native cohosted HTTP-origin declaration and inspection | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Native cohosted declaration, inspection, retirement and DROP; no polling | [HTTP ingestion into an explicit Stream](sql/create-source.md) |
-| `CREATE SINK`                                              | Grammar only                                                                            | [Connector effect target](sql/create-sink.md)                             |
+| `CREATE SINK` | Native cohosted declaration, inspection, retirement and DROP; no dispatch | [Connector effect target](sql/create-sink.md)                             |
 | `CREATE TABLE`                                             | Console with explicit catalog, offline compiler and shared callers; Flight rejects      | [Columns, types and nullability](sql/create-table.md)                     |
 | `ALTER TABLE`, `DROP TABLE` | Configured catalog owner and shared typed callers | [Schema evolution](sql/alter-table.md), [removing live names](sql/drop-table.md) |
 | `CREATE STREAM/QUEUE`, `ALTER STREAM/QUEUE`, `DROP STREAM/QUEUE` | Shared Catalog lifecycle through native SQL, console, PostgreSQL and MySQL | [Declarations, policies and named inspection](sql/streaming.md#stream-and-queue-declarations) |

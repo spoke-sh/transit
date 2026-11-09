@@ -107,12 +107,12 @@ other administrative SQL families retain their own stated support boundaries.
 | Form or family | Support | Semantic target and boundary |
 | --- | --- | --- |
 | `CREATE CONNECTION`, restricted DROP | **Implemented — native cohosted declarations** | HTTP origin publication and inspection; only `endpoint` is accepted. Secret-bearing and other connector profiles remain reference grammar |
-| `CREATE SINK` | **Checked grammar** | Sink publication and execution are not installed |
+| `CREATE SINK`, RETIRE, restricted DROP | **Implemented — native cohosted declarations** | Exact HTTP connection and bounded transport profile; pure EXPLAIN and original-operation recovery. Dispatch and activation remain unimplemented |
 | `CREATE SOURCE ... INTO STREAM`, RETIRE, restricted DROP | **Implemented — native cohosted declarations** | Durable binding to an existing Stream with an explicit executor; pure EXPLAIN and original-operation recovery. Activation and capture publication remain unimplemented |
 | `CREATE SCHEMA`, `ALTER SCHEMA ... RENAME`, `DROP SCHEMA RESTRICT` | **Implemented — native SQL execution** | Exact direct-catalog bindings, current ownership, durable outcomes and bounded dependency checks; PostgreSQL/MySQL and query-only interfaces exclude these forms |
 | Role administration, ownership transfer, `GRANT`, `REVOKE` | **Dedicated authorization compiler and explicit apply** | [Selected forms](authorization.md) lower to native policy operations; console and query-only interfaces reject administrative execution |
 | `SHOW SOURCES`, `SHOW CONNECTIONS`, singular SHOW/DESCRIBE | **Implemented — native cohosted metadata** | Bounded current-policy Catalog inspection; no connector execution or capture reads |
-| `SHOW SINKS` | **Planned — checked grammar** | No installed Sink catalog |
+| `SHOW SINKS`, singular SHOW/DESCRIBE | **Implemented — native cohosted metadata** | Bounded current-policy Catalog inspection; no dispatch |
 | Further expressions and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |

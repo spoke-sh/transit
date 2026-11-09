@@ -28,6 +28,7 @@ pub fn prepareBegin(output: std.mem.Allocator, value: q.ApplicationDeclaration, 
     var count: u64 = 1; // The control KV publishes the continuation.
     for (bound.uses) |use| {
         const resource = value.resources[use.resource];
+        if (resource.value == .sink) continue;
         count = try std.math.add(u64, count, if (resource.value == .log and use.write)
             resource.value.log.declaration.stored.declaration.configuration.partitioning.count
         else
@@ -40,6 +41,7 @@ pub fn prepareBegin(output: std.mem.Allocator, value: q.ApplicationDeclaration, 
     var at: usize = 1;
     for (bound.uses) |use| {
         const resource = value.resources[use.resource];
+        if (resource.value == .sink) continue;
         const object = resource.interpretation().object;
         if (resource.value == .log) {
             const log = resource.value.log.declaration;
@@ -132,8 +134,8 @@ test "application transactions select exact mixed owners and bound partition exp
             return .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .object = id };
         }
     }.get;
-    var bindings: [4]q.ApplicationBinding = undefined;
-    for ([_][]const u8{ "CREATE QUEUE jobs (id BIGINT NOT NULL, payload_key BINARY NOT NULL)", "CREATE STREAM outcomes (id BIGINT NOT NULL)" }, 0..) |source, index| {
+    var bindings: [5]q.ApplicationBinding = undefined;
+    for ([_][]const u8{ "CREATE QUEUE jobs (id BIGINT NOT NULL, payload_key BINARY NOT NULL, request_id UUID NOT NULL)", "CREATE STREAM outcomes (id BIGINT NOT NULL)" }, 0..) |source, index| {
         var parsed = try q.fuze.LogDdl.compile(t.allocator, source, .transit, null);
         defer parsed.deinit();
         const id: u64 = if (index == 0) 7 else 10;
@@ -161,6 +163,28 @@ test "application transactions select exact mixed owners and bound partition exp
     defer native_table.deinit();
     var schema_buffer: [q.fuze.TableSchema.max_bytes]u8 = undefined;
     bindings[3] = .{ .value = .{ .table = .{ .stored = try native_table.stored(), .properties = table_properties, .schema = try c.DirectTableProtocol.Binary.encode(allocator, try table_schema.encode(&schema_buffer)) } } };
+    const sink: c.SourceDeclaration.Definition = .{
+        .definition = p.Growth.current_definition,
+        .object = object(12),
+        .revision = 1,
+        .properties = .{ .namespace = 1, .authorization = 112, .name = try .init("exchange") },
+        .owner = 6,
+        .payload = .{ .sink = .{ .connection = .{ .object = object(13), .revision = 1, .digest = @splat(1) }, .http = .{
+            .method = .POST,
+            .path = "/token",
+            .request_encoding = .form,
+            .accept = "application/json",
+            .user_agent = null,
+            .response = .protected_json,
+            .capture = .redacted_metadata,
+            .request_timeout_ms = 5000,
+            .response_max_bytes = 65536,
+            .follow_redirects = false,
+            .max_attempts = 1,
+            .unknown_outcome = .retain,
+        } } },
+    };
+    bindings[4] = .{ .value = .{ .sink = .{ .stored = try sink.stored(t.allocator), .profile = sink.payload.sink } } };
     const declared = try q.ApplicationDeclaration.prepare(t.allocator, .{
         .connection = connection,
         .executor_role = 6,
@@ -169,6 +193,8 @@ test "application transactions select exact mixed owners and bound partition exp
         .operation = 2000,
         .source =
         \\CREATE DATAFLOW apply_event FROM QUEUE jobs AS event AS BEGIN
+        \\ LET result = EXECUTE SINK exchange EFFECT OPERATION_ID(event.request_id, 'exchange')
+        \\  GUARD TRUE FORM (value = 'test') ON REPLAY OBSERVE ONLY;
         \\ BEGIN ATOMIC
         \\  PUT INTO states KEY event.payload_key VALUE ROW(event.id) IF ABSENT;
         \\  INSERT INTO items VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
@@ -198,6 +224,15 @@ test "application transactions select exact mixed owners and bound partition exp
         .{ .object = object(11), .kind = .kv, .partition = null },
     };
     try t.expectEqualDeep(@as([]const x.Target, &expected), begin.selection.explicit_objects);
+    // Dispatch is a control dependency, never a fictitious Table participant.
+    var bound = try value.bind(t.allocator);
+    defer bound.deinit();
+    var dispatch = false;
+    for (bound.uses) |use| if (use.dispatch) {
+        dispatch = true;
+        try t.expectEqual(c.SourceAuthority.inspect | c.SourceAuthority.use, try value.resources[use.resource].privileges(use));
+    };
+    try t.expect(dispatch);
     try t.expectEqual(.serializable, begin.mode);
     value.limits.transaction.participants = 6;
     try t.expectError(error.TransactionCapacity, prepareBegin(allocator, value, claim, key, operation));

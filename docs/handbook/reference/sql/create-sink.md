@@ -1,47 +1,83 @@
 # CREATE SINK
 
-**Grammar only.** This statement describes a connector effect target. It does
-not create durable row storage, dispatch an effect or enable SQL writes.
+**Native cohosted SQL publishes bounded HTTP sink declarations.** A sink names
+an application effect target with an exact connection dependency and its own
+native authority. Publication, inspection, retirement and restricted DROP are
+implemented. Activation and application HTTP dispatch remain unavailable.
 
 ## Syntax
 
 ```text
-CREATE SINK name INTO connector_kind CONNECTION connection_name
-  [ [WITH] (option = option_value [, ...]) ];
-option_value := 'text' | SECRET('credential_reference')
+CREATE SINK name INTO HTTP CONNECTION connection_name WITH (
+  method = 'POST', path = '/token', request_encoding = 'form',
+  accept = 'application/json', response = 'protected_json',
+  capture = 'redacted_metadata', request_timeout = '5s',
+  response_max_bytes = 65536, follow_redirects = FALSE,
+  max_attempts = 1, unknown_outcome = 'retain'
+);
 ```
 
-Names and connector kinds are identifiers. The option list is optional and, when
-present, nonempty. `WITH` is optional only before a supplied list. The grammar
-does not resolve a connection name or validate option names, duplicates or values
-against a connector implementation.
+All options shown are required except `request_encoding`, which defaults to
+`none` for GET. POST requires `form`; GET requires `none`. An optional
+`user_agent` supplies an ASCII header value. Duplicate and unknown options
+reject before admission. The sink has no polling executor or destination Stream.
+It requires an existing connection and current permission to use it.
+
+Paths retain exact origin-relative bytes and cannot override the connection's
+origin. Accept and User-Agent values contain one through 256 printable ASCII
+bytes. Request timeouts are positive integers with `ms`, `s`, `m`, `h` or `d`,
+with overflow checked. Response budgets range from one byte through 64 KiB.
+Only protected JSON responses, redacted metadata capture, one attempt, no
+redirects and retained unknown outcomes are accepted. These options describe the
+future dispatch boundary; they do not authorize a request or resolve secrets.
 
 ## Examples
 
-These examples illustrate syntax only:
+These statements publish and inspect a declaration without sending HTTP:
 
 ```sql
-CREATE SINK deliveries INTO HTTP CONNECTION remote_api;
-CREATE SINK notices INTO HTTP CONNECTION remote_api WITH (path = '/events');
+CREATE CONNECTION remote_api TO HTTP (endpoint = 'https://example.test');
+CREATE SINK profile INTO HTTP CONNECTION remote_api WITH (
+  method = 'GET', path = '/profile', accept = 'application/json',
+  user_agent = 'Example', response = 'protected_json',
+  capture = 'redacted_metadata', request_timeout = '5s',
+  response_max_bytes = 65536, follow_redirects = FALSE,
+  max_attempts = 1, unknown_outcome = 'retain'
+);
+SHOW SINKS;
+DESCRIBE SINK profile;
 ```
 
-`path` is an illustrative option, not an implemented SQL sink configuration.
-There is no `INSERT INTO sink`, `SELECT INTO` or continuous query-to-sink form
-in the SQL grammar.
+## Inspection, retirement and recovery
+
+`SHOW SINK name` and `DESCRIBE SINK name` expose the immutable definition,
+connection dependency, current control epoch and Catalog position. Listings and
+metadata use the same bounded, current-authority owner as
+[SOURCE inspection](create-source.md#inspection-retirement-and-drop).
+`EXPLAIN CREATE SINK ...` checks the exact proposal without allocating an
+identity, reserving work or sending HTTP. Inspection is separate from `use`.
+
+The declared sink protects its connection from DROP. Retire the sink before
+removing it:
+
+```sql
+RETIRE SINK profile;
+DROP SINK profile RESTRICT;
+DROP CONNECTION remote_api RESTRICT;
+```
+
+SQL recovery retains the original typed request and outcome across lost replies,
+restart and name reuse. Reusing an accepted token cannot create a replacement
+sink. Migration-file installation is not yet supported. `AUTHORIZE`, `ACTIVATE`,
+`SUSPEND` and `RESUME` reject before admission until execution is installed.
 
 ## Meaning and current interface
 
-A sink represents external I/O through a connector, with recorded intent,
-authorization for an attempt and a captured outcome. It is distinct from a Table
-or KV mutation. Replay reads the recorded outcome; it must not redispatch.
-An unknown remote outcome still needs the connector's reconciliation policy.
+Sinks are separate from Table and KV mutations. There is no `INSERT INTO sink`
+or `SELECT INTO` binding. Use the existing [effect APIs](../connectors.md) for
+supported HTTP/gRPC operations. A declaration or `use` grant alone cannot
+permit dispatch, repeat an uncertain effect or promise remote cancellation.
 
-Use the existing [effect APIs](../connectors.md) to perform supported HTTP/gRPC
-operations. Naming a sink would not authorize dispatch, resolve credentials or
-promise cancellation of remote work. See [CREATE CONNECTION](create-connection.md)
-for the configuration syntax and secret references.
-
-See [streaming and effects](streaming.md) for query-to-effect boundaries and
-[INSERT](insert.md) for the absence of SQL writes.
-
-Source: [`createSink`](../../../../contracts/sql/TransitExtensions.g4).
+Source: [typed SQL parser](../../../../packages/zig/transit-sql/src/SourceSql.zig),
+[reference grammar](../../../../contracts/sql/TransitExtensions.g4) and
+[application sink contract](../../../../contracts/SOURCE_V1.md#application-http-sinks).

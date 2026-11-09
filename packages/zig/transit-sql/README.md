@@ -1,10 +1,12 @@
 # transit-sql
 
 `SourceSql` parses explicit `CREATE SOURCE ... INTO STREAM ...` HTTP declarations,
-connection origins and source lifecycle/inspection forms without side effects.
+connection origins, bounded application HTTP sinks and connector
+lifecycle/inspection forms without side effects.
 The native cohosted service composes it with the shared Catalog declaration
 owner for publication, inspection, retirement and restricted DROP. Its database
-binding requires an explicit SOURCE executor. HTTP capture and activation retain
+binding requires an explicit SOURCE executor for polling sources; sink
+declarations have no polling executor or destination Stream. HTTP capture and activation retain
 the gates in the
 [source contract](../../../contracts/SOURCE_V1.md).
 

@@ -20,7 +20,15 @@ pub const KV = struct {
     properties: c.DirectCatalog.Properties,
     spec: c.storage.KVDeclaration.Spec,
 };
-value: union(enum) { table: Table, kv: KV, log: c.DirectLogProtocol.Definition },
+pub const Sink = struct {
+    stored: c.SourceDeclaration.Stored,
+    profile: @FieldType(c.SourceDeclaration.Payload, "sink"),
+
+    pub fn declaration(self: Sink) c.SourceDeclaration.Definition {
+        return .{ .definition = p.Growth.current_definition, .object = self.stored.interpretation.object, .revision = self.stored.interpretation.revision, .properties = self.stored.properties, .owner = self.stored.owner, .payload = .{ .sink = self.profile } };
+    }
+};
+value: union(enum) { table: Table, kv: KV, log: c.DirectLogProtocol.Definition, sink: Sink },
 
 pub fn table(value: w.Definition) Self {
     return .{ .value = .{ .table = .{ .stored = value.interpretation, .schema = value.schema, .properties = .{
@@ -41,7 +49,7 @@ pub fn kv(value: c.DirectKV.Definition) Self {
 }
 pub fn interpretation(self: Self) d.Definition {
     return switch (self.value) {
-        inline .table, .kv => |v| v.stored.interpretation,
+        inline .table, .kv, .sink => |v| v.stored.interpretation,
         .log => |v| v.declaration.stored.declaration.interpretation,
     };
 }
@@ -49,18 +57,20 @@ pub fn name(self: Self) c.TableAuthority.Name {
     return switch (self.value) {
         inline .table, .kv => |v| v.properties.name,
         .log => |v| v.declaration.properties.name,
+        .sink => |v| v.stored.properties.name,
     };
 }
 pub fn namespace(self: Self) u64 {
     return switch (self.value) {
         inline .table, .kv => |v| v.properties.namespace,
         .log => |v| v.declaration.properties.namespace,
+        .sink => |v| v.stored.properties.namespace,
     };
 }
 pub fn nativeBinding(self: Self) ?f.NativeBinding.Kind {
     return switch (self.value) {
         inline .table, .kv => |v| v.properties.native_binding,
-        .log => null,
+        .log, .sink => null,
     };
 }
 pub fn kind(self: Self) @FieldType(a.Types.Resource, "kind") {
@@ -68,12 +78,18 @@ pub fn kind(self: Self) @FieldType(a.Types.Resource, "kind") {
         .table => |v| if (v.properties.document != null) .document else .table,
         .kv => .kv,
         .log => |v| if (v.declaration.kind() == .queue) .queue else .stream,
+        .sink => .sink,
     };
 }
 pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connection) !void {
     try connection.validate();
     try connection.object(self.interpretation().object);
     switch (self.value) {
+        .sink => |v| {
+            try v.stored.validate();
+            if (v.stored.kind != .sink or !std.meta.eql(v.stored, try v.declaration().stored(allocator)))
+                return error.TableDefinitionChanged;
+        },
         .table => |v| {
             if (v.stored.kind != .table or v.stored.retired) return error.TableDefinitionChanged;
             const bytes = try v.schema.decode(allocator, f.TableSchema.max_bytes);
@@ -120,6 +136,10 @@ pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connecti
 pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection) !a.Types.Resource {
     try self.validate(output, connection);
     var result: a.Types.Resource = .{ .name = try output.dupe(u8, self.name().slice()), .kind = self.kind(), .fields = undefined };
+    if (self.value == .sink) {
+        result.fields = &.{};
+        return result;
+    }
     if (self.value == .kv) {
         const spec = self.value.kv.spec;
         if (spec.value_type != .row or spec.nullable) return error.ProgramTypeMismatch;
@@ -129,7 +149,7 @@ pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection)
     const encoded = switch (self.value) {
         .table => |v| v.schema,
         .log => |v| v.schema,
-        .kv => unreachable,
+        .kv, .sink => unreachable,
     };
     const bytes = try encoded.decode(output, f.TableSchema.max_bytes);
     defer output.free(bytes);
@@ -154,7 +174,8 @@ pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection)
 /// The current common transaction owner acquires a read cut for write targets
 /// too; readiness must expose those native requirements before execution.
 pub fn privileges(self: Self, use: a.Types.Use) !u64 {
-    if (use.dispatch or (use.consume and self.kind() != .queue)) return error.ProgramResourceKindMismatch;
+    if ((use.dispatch and self.kind() != .sink) or (use.consume and self.kind() != .queue)) return error.ProgramResourceKindMismatch;
+    if (self.kind() == .sink and (use.read or use.write or use.guard)) return error.ProgramResourceKindMismatch;
     return switch (self.kind()) {
         .table, .document => (if (use.read or use.guard or use.write) @as(u64, c.TableAuthority.select) else 0) |
             (if (use.write) @as(u64, c.TableAuthority.insert) else 0),
@@ -164,7 +185,8 @@ pub fn privileges(self: Self, use: a.Types.Use) !u64 {
         .queue, .stream => (if (use.read or use.write) @as(u64, c.LogAuthority.read) else 0) |
             (if (use.write) @as(u64, c.LogAuthority.append) else 0) |
             (if (use.consume) @as(u64, c.LogAuthority.acquire | c.LogAuthority.settle) else 0),
-        .sink => unreachable,
+        // Retained environments also require current descriptor disclosure.
+        .sink => if (use.dispatch) c.SourceAuthority.inspect | c.SourceAuthority.use else 0,
     };
 }
 
@@ -177,7 +199,7 @@ pub fn requireCurrent(self: Self, client: c.DirectTableClient) !void {
         .document => .{ .document_lookup = .{ .namespace = self.namespace(), .name = self.name().slice() } },
         .kv => .{ .kv_lookup = .{ .namespace = self.namespace(), .name = self.name().slice() } },
         .queue, .stream => .{ .log_lookup = .{ .namespace = self.namespace(), .name = self.name().slice() } },
-        .sink => unreachable,
+        .sink => .{ .source = .{ .lookup = .{ .selection = .{ .namespace = self.namespace(), .kind = .sink }, .name = self.name() } } },
     });
     defer response.deinit();
     const current = switch (response.value.result) {
@@ -185,6 +207,12 @@ pub fn requireCurrent(self: Self, client: c.DirectTableClient) !void {
         .document_lookup => |v| (v orelse return error.TableDefinitionChanged).definition.interpretation.interpretation,
         .kv_lookup => |v| (v orelse return error.TableDefinitionChanged).interpretation.interpretation,
         .log_lookup => |v| (v orelse return error.TableDefinitionChanged).declaration.stored.declaration.interpretation,
+        .source => |v| blk: {
+            if (v != .metadata) return error.InvalidTableResponse;
+            const metadata = v.metadata orelse return error.TableDefinitionChanged;
+            if (metadata.state.dropped or metadata.dependency_state != .current) return error.TableDefinitionChanged;
+            break :blk metadata.state.declaration.interpretation;
+        },
         else => return error.InvalidTableResponse,
     };
     if (!std.meta.eql(current, self.interpretation())) return error.TableDefinitionChanged;
@@ -220,4 +248,39 @@ test "application bindings freeze native definitions independently of changing r
     forged = original;
     forged.value.kv.properties.document = .{ .profile = .versioned };
     try t.expectError(error.TableDefinitionChanged, forged.validate(t.allocator, connection));
+}
+
+test "application sink bindings retain exact transport identity and distinct dispatch rights" {
+    const t = std.testing;
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 7, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 17, .role = 3 };
+    const declaration: c.SourceDeclaration.Definition = .{
+        .definition = p.Growth.current_definition,
+        .object = .{ .scope = connection.scope, .branch = 1, .object = 14 },
+        .revision = 1,
+        .properties = .{ .namespace = 1, .authorization = 12, .name = try .init("exchange") },
+        .owner = 3,
+        .payload = .{ .sink = .{
+            .connection = .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 15 }, .revision = 1, .digest = @splat(1) },
+            .http = .{ .method = .POST, .path = "/token", .request_encoding = .form, .accept = "application/json", .user_agent = null, .response = .protected_json, .capture = .redacted_metadata, .request_timeout_ms = 5000, .response_max_bytes = 65536, .follow_redirects = false, .max_attempts = 1, .unknown_outcome = .retain },
+        } },
+    };
+    const original: Self = .{ .value = .{ .sink = .{ .stored = try declaration.stored(t.allocator), .profile = declaration.payload.sink } } };
+    const resource_ = try original.resource(output.allocator(), connection);
+    try t.expectEqual(.sink, resource_.kind);
+    try t.expectEqual(0, resource_.fields.len);
+    try t.expectEqualStrings("exchange", resource_.name);
+    try t.expectEqual(c.SourceAuthority.inspect | c.SourceAuthority.use, try original.privileges(.{ .resource = 0, .dispatch = true }));
+    for ([_]a.Types.Use{ .{ .resource = 0, .read = true }, .{ .resource = 0, .write = true }, .{ .resource = 0, .guard = true }, .{ .resource = 0, .consume = true } }) |usage|
+        try t.expectError(error.ProgramResourceKindMismatch, original.privileges(usage));
+    var changed = original;
+    changed.value.sink.profile.http.path = "/replacement";
+    try t.expectError(error.TableDefinitionChanged, changed.validate(t.allocator, connection));
+    changed = original;
+    changed.value.sink.profile.connection.revision += 1;
+    try t.expectError(error.TableDefinitionChanged, changed.validate(t.allocator, connection));
+    changed = original;
+    changed.value.sink.stored.properties.name = try .init("renamed");
+    try t.expectError(error.TableDefinitionChanged, changed.validate(t.allocator, connection));
 }

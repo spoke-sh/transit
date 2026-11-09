@@ -712,7 +712,7 @@ fn prepareInner(self: *Self, sql: []const u8) !*Prepared {
         return result;
     }
     if (try g.database.SourceSql.parse(self.allocator, sql, self.dialect)) |parsed| {
-        if (parsed.statement != .inspect and parsed.statement != .explain) {
+        if (parsed.statement != .inspect and parsed.statement != .explain and parsed.statement != .explain_sink) {
             result.* = .{ .connector = parsed };
             errdefer result.connector.deinit();
             try g.SourceOperations.validate(self, &result.connector);
@@ -1060,10 +1060,11 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.InvalidDataflowRevision => .{ "22023".*, "Revision must be a positive unsigned 64-bit integer" },
         error.SourceSchemaMismatch => .{ "42804".*, "SOURCE destination requires the exact seven-column non-null capture envelope" },
         error.UnsupportedSourceDestination => .{ "0A000".*, "SOURCE destination requires one Stream partition without routing or compaction" },
-        error.SourceExecutionUnsupported => .{ "0A000".*, "SOURCE execution is not available; declaration publication does not poll or capture" },
-        error.UnsupportedSourceStatement, error.SourceRequiresCohostedService => .{ "0A000".*, "SOURCE declarations require a native cohosted session outside an explicit transaction" },
+        error.SourceExecutionUnsupported => .{ "0A000".*, "Connector execution is not available; declaration publication does not send HTTP" },
+        error.UnsupportedSourceStatement, error.SourceRequiresCohostedService => .{ "0A000".*, "Connector declarations require a native cohosted session outside an explicit transaction" },
+        error.InvalidSinkEncoding, error.InvalidSinkHeader, error.InvalidSinkBudget, error.InvalidSinkRetryPolicy => .{ "22023".*, "SINK options violate the bounded HTTP transport profile" },
         error.SourceExecutorNotConfigured => .{ "55000".*, "CREATE SOURCE requires an explicit executor in the selected database binding" },
-        error.SourceDeclarationConflict => .{ "55000".*, "SOURCE declaration conflicts with current names, dependencies or writer ownership" },
+        error.SourceDeclarationConflict => .{ "55000".*, "Connector declaration conflicts with current names, dependencies or writer ownership" },
         error.DataflowRevisionNotFound => .{ "42704".*, "The requested dataflow revision has not completed" },
         error.ManagedTableResultBudget => .{ "54000".*, "Retained revision read budget exceeded" },
         error.SettingNotSessionMutable => .{ "0A000".*, "Setting cannot be changed by this session" },

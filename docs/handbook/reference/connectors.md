@@ -16,8 +16,9 @@ The typed connector catalog also publishes application HTTP sinks. Each sink
 binds an exact connection and its own native `inspect`/`use` authority, protects
 the connection from DROP, and supports retirement before removal. Its bounded
 transport profile permits GET or form POST, protected JSON responses, redacted
-metadata capture, one attempt and no redirects. Sink SQL installation,
-activation and application dispatch remain unfinished. See the
+metadata capture, one attempt and no redirects. Native cohosted
+[CREATE SINK](sql/create-sink.md) publishes these declarations; activation and
+application dispatch remain unfinished. See the
 [application sink contract](../../../contracts/SOURCE_V1.md#application-http-sinks).
 
 The [sealed HTTP import component](../../../packages/zig/transit-source-import/README.md)

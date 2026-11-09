@@ -18,11 +18,11 @@ managedCommand
 // Ingestion declarations are distinct from query adapters. Runtime activation
 // requires its own qualified catalog, capture and effect owners.
 sourceCommand
-    : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) SOURCE identifier
-    | DROP (SOURCE | CONNECTION) identifier RESTRICT?
-    | SHOW (SOURCE | CONNECTION) identifier
-    | DESCRIBE (SOURCE | CONNECTION) identifier
-    | EXPLAIN createSource
+    : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) (SOURCE | SINK) identifier
+    | DROP (SOURCE | CONNECTION | SINK) identifier RESTRICT?
+    | SHOW (SOURCE | CONNECTION | SINK) identifier
+    | DESCRIBE (SOURCE | CONNECTION | SINK) identifier
+    | EXPLAIN (createSource | createSink)
     ;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
@@ -244,12 +244,12 @@ createSource
 sourceOptions: LPAREN sourceOption (COMMA sourceOption)* RPAREN;
 sourceOption: identifier EQ (STRING | INTEGER);
 
-// CREATE SINK fills INTO HTTP CONNECTION kafka_conn WITH (path = '/orders');
-// A write target that dispatches a connector effect attempt
-// (docs/handbook/reference/connectors.md), not a durable row store.
+// Application effect target. Publication never dispatches a request.
 createSink
-    : CREATE SINK identifier INTO connectorKind CONNECTION identifier (WITH? connectionOptions)?
+    : CREATE SINK identifier INTO connectorKind CONNECTION identifier WITH sinkOptions
     ;
+sinkOptions: LPAREN sinkOption (COMMA sinkOption)* RPAREN;
+sinkOption: identifier EQ (STRING | INTEGER | TRUE | FALSE);
 
 connectorKind
     : identifier // e.g. HTTP, GRPC: a docs/handbook/reference/connectors.md connector family name

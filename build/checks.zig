@@ -1184,7 +1184,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| source_server_test.addArtifactArg(artifact);
     source_server_test.has_side_effects = true;
     source_server_test.stdio = .inherit;
-    b.step("test-server-sources", "Prove installed SOURCE declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
+    b.step("test-server-sources", "Prove installed SOURCE/SINK declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
     const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     single_server_test.addFileArg(b.path("tests/runner/launch.py"));
     single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));

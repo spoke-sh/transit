@@ -1,4 +1,4 @@
-//! Explicit connector ingestion syntax. Parsing performs no publication or I/O.
+//! Explicit connector declarations. Parsing performs no publication or I/O.
 const std = @import("std");
 const g = @import("root.zig");
 const f = g.fuze;
@@ -6,13 +6,16 @@ const s = g.catalog.protocol.Source;
 const Name = g.catalog.TableAuthority.Name;
 const Parser = f.SqlTyped;
 pub const Create = struct { name: Name, connection: Name, destination: Name, http: s.Http };
+pub const Sink = struct { name: Name, connection: Name, http: s.Sink };
 pub const Statement = union(enum) {
     connection: struct { name: Name, endpoint: []const u8 },
     create: Create,
-    control: struct { name: Name, command: s.Command },
+    sink: Sink,
+    control: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind, command: s.Command },
     drop: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind },
     inspect: struct { name: ?Name, describe: bool, kind: g.catalog.SourceDeclaration.Kind },
     explain: Create,
+    explain_sink: Sink,
 };
 pub const Prepared = struct {
     arena: std.heap.ArenaAllocator,
@@ -66,25 +69,40 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
                 const value: Create = .{ .name = name, .connection = connection, .destination = destination, .http = try http(&parser) };
                 break :blk if (explain) .{ .explain = value } else .{ .create = value };
             }
+            if (try parser.takeWord("SINK")) {
+                const name = try Name.init(try parser.name());
+                try parser.requireWord("INTO");
+                if (!try parser.takeWord("HTTP")) return error.UnsupportedSourceConnector;
+                try parser.requireWord("CONNECTION");
+                const connection = try Name.init(try parser.name());
+                try parser.requireWord("WITH");
+                const value: Sink = .{ .name = name, .connection = connection, .http = try sink(&parser) };
+                break :blk if (explain) .{ .explain_sink = value } else .{ .sink = value };
+            }
         } else if (parser.token.tag == .word and controls.get(parser.token.text) != null) {
             if (explain) return error.UnsupportedSourceStatement;
             const command = controls.get(parser.token.text).?;
             try parser.advance();
-            if (try parser.takeWord("SOURCE")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .command = command } };
+            if (try parser.takeWord("SOURCE")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .kind = .source, .command = command } };
+            if (try parser.takeWord("SINK")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .kind = .sink, .command = command } };
         } else if (try parser.takeWord("DROP")) {
             if (explain) return error.UnsupportedSourceStatement;
             if (try parser.takeWord("SOURCE")) break :blk .{ .drop = .{ .name = try Name.init(try parser.name()), .kind = .source } };
             if (try parser.takeWord("CONNECTION")) break :blk .{ .drop = .{ .name = try Name.init(try parser.name()), .kind = .connection } };
+            if (try parser.takeWord("SINK")) break :blk .{ .drop = .{ .name = try Name.init(try parser.name()), .kind = .sink } };
         } else if (try parser.takeWord("SHOW")) {
             if (explain) return error.UnsupportedSourceStatement;
             if (try parser.takeWord("CONNECTIONS")) break :blk .{ .inspect = .{ .name = null, .describe = false, .kind = .connection } };
             if (try parser.takeWord("CONNECTION")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false, .kind = .connection } };
             if (try parser.takeWord("SOURCES")) break :blk .{ .inspect = .{ .name = null, .describe = false, .kind = .source } };
             if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false, .kind = .source } };
+            if (try parser.takeWord("SINKS")) break :blk .{ .inspect = .{ .name = null, .describe = false, .kind = .sink } };
+            if (try parser.takeWord("SINK")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = false, .kind = .sink } };
         } else if (try parser.takeWord("DESCRIBE")) {
             if (explain) return error.UnsupportedSourceStatement;
             if (try parser.takeWord("CONNECTION")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true, .kind = .connection } };
             if (try parser.takeWord("SOURCE")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true, .kind = .source } };
+            if (try parser.takeWord("SINK")) break :blk .{ .inspect = .{ .name = try Name.init(try parser.name()), .describe = true, .kind = .sink } };
         }
         arena.deinit();
         return null;
@@ -141,7 +159,109 @@ fn http(parser: *Parser) !s.Http {
     return result;
 }
 
+const SinkOption = enum { method, path, request_encoding, accept, user_agent, response, capture, request_timeout, response_max_bytes, follow_redirects, max_attempts, unknown_outcome };
+fn choice(comptime T: type, parser: *Parser) !T {
+    return std.meta.stringToEnum(T, try string(parser)) orelse error.InvalidSourceOption;
+}
+fn unsigned(comptime T: type, parser: *Parser) !T {
+    if (parser.token.tag != .integer) return error.InvalidSourceOption;
+    const value = std.fmt.parseInt(T, parser.token.text, 10) catch return error.InvalidSourceOption;
+    try parser.advance();
+    return value;
+}
+fn sink(parser: *Parser) !s.Sink {
+    try parser.require(.left);
+    var seen: std.EnumSet(SinkOption) = .empty;
+    var result: s.Sink = undefined;
+    result.user_agent = null;
+    result.request_encoding = .none;
+    while (true) {
+        const option = std.meta.stringToEnum(SinkOption, try parser.name()) orelse return error.InvalidSourceOption;
+        if (seen.contains(option)) return error.DuplicateSourceOption;
+        seen.insert(option);
+        try parser.require(.eq);
+        switch (option) {
+            .method => result.method = try choice(@FieldType(s.Sink, "method"), parser),
+            .path => result.path = try string(parser),
+            .request_encoding => result.request_encoding = try choice(@FieldType(s.Sink, "request_encoding"), parser),
+            .accept => result.accept = try string(parser),
+            .user_agent => result.user_agent = try string(parser),
+            .response => result.response = try choice(@FieldType(s.Sink, "response"), parser),
+            .capture => result.capture = try choice(@FieldType(s.Sink, "capture"), parser),
+            .request_timeout => result.request_timeout_ms = try duration(parser),
+            .response_max_bytes => result.response_max_bytes = try unsigned(u64, parser),
+            .follow_redirects => {
+                const literal = try parser.literal(null);
+                if (literal.value != .boolean) return error.InvalidSourceOption;
+                result.follow_redirects = literal.value.boolean;
+            },
+            .max_attempts => result.max_attempts = try unsigned(u8, parser),
+            .unknown_outcome => result.unknown_outcome = try choice(@FieldType(s.Sink, "unknown_outcome"), parser),
+        }
+        if (!try parser.take(.comma)) break;
+    }
+    try parser.require(.right);
+    for (std.enums.values(SinkOption)) |option| {
+        if (option != .user_agent and option != .request_encoding and !seen.contains(option))
+            return error.MissingSourceOption;
+    }
+    try result.validate();
+    return result;
+}
+
 const example = "CREATE SOURCE quake_feed FROM HTTP CONNECTION usgs INTO STREAM quake_captures WITH (method='GET', path='/earthquakes/feed/v1.0/summary/all_day.geojson', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304)";
+const sink_options = "method='POST', path='/login/oauth/access_token', request_encoding='form', accept='application/json', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain'";
+const sink_example = "CREATE SINK github_token INTO HTTP CONNECTION github_oauth WITH (" ++ sink_options ++ ")";
+
+test "source SQL binds exact application sink profiles without source destination or executor" {
+    const t = std.testing;
+    var token = (try parse(t.allocator, sink_example, .transit)).?;
+    defer token.deinit();
+    try t.expectEqualStrings("github_token", token.statement.sink.name.slice());
+    try t.expectEqualStrings("github_oauth", token.statement.sink.connection.slice());
+    try t.expectEqual(.POST, token.statement.sink.http.method);
+    try t.expectEqual(.form, token.statement.sink.http.request_encoding);
+    try t.expectEqual(5000, token.statement.sink.http.request_timeout_ms);
+    try t.expectEqual(65536, token.statement.sink.http.response_max_bytes);
+    try t.expectEqual(null, token.statement.sink.http.user_agent);
+    var profile = (try parse(t.allocator, "CREATE SINK github_profile INTO HTTP CONNECTION github_api WITH (method='GET', path='/user', accept='application/vnd.github+json', user_agent='Spoke', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain')", .transit)).?;
+    defer profile.deinit();
+    try t.expectEqual(.none, profile.statement.sink.http.request_encoding);
+    try t.expectEqualStrings("Spoke", profile.statement.sink.http.user_agent.?);
+    var explain = (try parse(t.allocator, "EXPLAIN " ++ sink_example, .transit)).?;
+    defer explain.deinit();
+    try t.expectEqualDeep(token.statement.sink, explain.statement.explain_sink);
+    for ([_][]const u8{ "SHOW SINKS", "SHOW SINK github_token", "DESCRIBE SINK github_token" }) |sql| {
+        var prepared = (try parse(t.allocator, sql, .transit)).?;
+        defer prepared.deinit();
+        try t.expectEqual(.sink, prepared.statement.inspect.kind);
+    }
+    var retire = (try parse(t.allocator, "RETIRE SINK github_token", .transit)).?;
+    defer retire.deinit();
+    try t.expectEqual(.sink, retire.statement.control.kind);
+    try t.expectEqual(.retire, retire.statement.control.command);
+    var drop = (try parse(t.allocator, "DROP SINK github_token RESTRICT", .transit)).?;
+    defer drop.deinit();
+    try t.expectEqual(.sink, drop.statement.drop.kind);
+}
+
+test "source SQL refuses unsafe or ambiguous application sink options" {
+    const t = std.testing;
+    const prefix = "CREATE SINK token INTO HTTP CONNECTION upstream WITH (";
+    try t.expectError(error.MissingSourceOption, parse(t.allocator, prefix ++ "method='GET')", .transit));
+    try t.expectError(error.DuplicateSourceOption, parse(t.allocator, prefix ++ sink_options ++ ", path='/replacement')", .transit));
+    try t.expectError(error.InvalidSourceOption, parse(t.allocator, prefix ++ "follow_redirects='false')", .transit));
+    try t.expectError(error.InvalidSourceOption, parse(t.allocator, prefix ++ "response='json')", .transit));
+    try t.expectError(error.InvalidSourceOption, parse(t.allocator, prefix ++ "capture='body')", .transit));
+    try t.expectError(error.InvalidSourceOption, parse(t.allocator, prefix ++ "max_attempts=256)", .transit));
+    try t.expectError(error.InvalidSourceOption, parse(t.allocator, prefix ++ "unknown_outcome='retry')", .transit));
+    try t.expectError(error.UnsupportedSourceConnector, parse(t.allocator, "CREATE SINK token INTO GRPC CONNECTION upstream WITH ()", .transit));
+    inline for (.{ .{ "follow_redirects=FALSE", "follow_redirects=TRUE", error.InvalidSinkRetryPolicy }, .{ "max_attempts=1", "max_attempts=2", error.InvalidSinkRetryPolicy }, .{ "request_encoding='form'", "request_encoding='none'", error.InvalidSinkEncoding }, .{ "response_max_bytes=65536", "response_max_bytes=65537", error.InvalidSinkBudget } }) |case| {
+        const sql = try std.mem.replaceOwned(u8, t.allocator, sink_example, case[0], case[1]);
+        defer t.allocator.free(sql);
+        try t.expectError(case[2], parse(t.allocator, sql, .transit));
+    }
+}
 
 test "explicit source parses typed options and retains owned names" {
     const t = std.testing;

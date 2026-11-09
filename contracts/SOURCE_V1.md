@@ -4,8 +4,8 @@ Status: durable CONNECTION/SOURCE/SINK declarations, bounded inspection, retirem
 and restricted DROP through the typed Catalog and native cohosted SQL service.
 HTTP scheduling, capture and activation remain uninstalled; their execution gates
 below are requirements for a later slice.
-SINK publication is available through the typed connector owner. Its SQL
-installation and application dispatch integration are not yet installed.
+SINK publication uses the same typed connector owner through native cohosted SQL.
+Application dispatch integration is not yet installed.
 Migration files reject connector declarations before admission; reviewed
 dependency plans and migration step recovery for these objects are not installed.
 
@@ -89,6 +89,18 @@ The mandatory `sink_domain` is distinct from every other catalog authority
 domain. Bootstrap and SDK authority profiles carry it explicitly; a missing,
 zero or duplicated domain is invalid. This is part of the current-v1 cutover,
 not a defaulted upgrade of an existing installation.
+
+`CREATE SINK ... INTO HTTP CONNECTION ... WITH (...)` binds the exact connection
+and profile without a polling executor or a destination Stream. `SHOW SINKS`,
+`SHOW SINK`, `DESCRIBE SINK` and `EXPLAIN CREATE SINK` use the shared bounded
+connector inspection owner. EXPLAIN allocates no identity and dispatches no I/O.
+`RETIRE SINK` and `DROP SINK ... RESTRICT` retain original SQL operation identity,
+including after restart or name reuse. Activation controls remain unavailable.
+Executable program bindings retain the same immutable sink definition and expose
+its `inspect` and `use` requirements. Retained continuation reads recheck current
+connector inspection privileges, including after buffering, restart or DROP.
+Sink dependencies are excluded from data transaction
+participants; they do not create fictitious Table state.
 
 ## Immutable declaration artifacts
 

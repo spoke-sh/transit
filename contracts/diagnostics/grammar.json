@@ -105,7 +105,7 @@
     "source": {
       "source": "packages/zig/transit-sql/src/SourceSql.zig",
       "contract": "contracts/SOURCE_V1.md",
-      "behavior": "Pure typed HTTP source and connection parsing with explicit Stream destination and lifecycle/inspection forms. No catalog binding, publication, dispatch or execution."
+      "behavior": "Pure typed HTTP source, sink and connection parsing with exact transport options and lifecycle/inspection forms. No catalog binding, publication, dispatch or execution."
     }
   },
   "cases": [
@@ -841,7 +841,7 @@
     },
     {
       "id": "literal-string",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -1435,12 +1435,12 @@
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
-      "reference": true,
+      "reference": false,
       "expected": {
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1452,12 +1452,12 @@
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
-      "reference": true,
+      "reference": false,
       "expected": {
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1474,7 +1474,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -1649,7 +1649,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only"
+        "kind": "interface"
       }
     },
     {
@@ -2436,7 +2436,7 @@
     },
     {
       "id": "literal-string.wrong-source",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "profile": "query",
       "grammar": "sql",
       "root": "statement",
@@ -3247,7 +3247,7 @@
         "accepted": false,
         "code": "sql.unsupported_statement",
         "category": "unsupported",
-        "kind": "grammar_only",
+        "kind": "interface",
         "message_contains": [
           "syntax has not been validated"
         ]
@@ -5963,7 +5963,7 @@
     },
     {
       "id": "ddl-collation-cp037-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_CP037 DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -6590,7 +6590,7 @@
     },
     {
       "id": "log-append-9",
-      "sql": "produce into \"items\" (\"id\", \"value\") values (9, 'é東京') returning \"items\".\"value\" as \"Body\";",
+      "sql": "produce into \"items\" (\"id\", \"value\") values (9, '\u00e9\u6771\u4eac') returning \"items\".\"value\" as \"Body\";",
       "basis": "CREATE TABLE items (id BIGINT NOT NULL DEFAULT 7, value TEXT DEFAULT 'untitled', extra BOOLEAN DEFAULT TRUE)",
       "profile": "log_append",
       "grammar": "sql",
@@ -7770,7 +7770,7 @@
     },
     {
       "id": "ddl-collation-ebcdic_037_pad-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_037_PAD DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -7805,7 +7805,7 @@
     },
     {
       "id": "ddl-collation-ebcdic_1047_nopad-literal",
-      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD DEFAULT '東京')",
+      "sql": "CREATE TABLE items (value UTF8 COLLATE EBCDIC_1047_NOPAD DEFAULT '\u6771\u4eac')",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -9358,7 +9358,7 @@
     },
     {
       "id": "general-row-field-limits",
-      "sql": "CREATE TABLE items (value ROW(a VARCHAR(3), b BOOLEAN NOT NULL) DEFAULT ROW('é', FALSE))",
+      "sql": "CREATE TABLE items (value ROW(a VARCHAR(3), b BOOLEAN NOT NULL) DEFAULT ROW('\u00e9', FALSE))",
       "profile": "table_ddl",
       "grammar": "sql",
       "root": "statement",
@@ -9426,6 +9426,134 @@
         "accepted": false,
         "code": "sql.invalid_sql_syntax",
         "category": "syntax"
+      }
+    },
+    {
+      "id": "sink-typed-0",
+      "sql": "CREATE SINK exchange INTO HTTP CONNECTION upstream WITH (method='POST', path='/token', request_encoding='form', accept='application/json', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain')",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-1",
+      "sql": "EXPLAIN CREATE SINK exchange INTO HTTP CONNECTION upstream WITH (method='POST', path='/token', request_encoding='form', accept='application/json', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain')",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-2",
+      "sql": "SHOW SINKS",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-3",
+      "sql": "SHOW SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-4",
+      "sql": "DESCRIBE SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-5",
+      "sql": "RETIRE SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-typed-6",
+      "sql": "DROP SINK exchange RESTRICT",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "connection-reference-options",
+      "sql": "CREATE CONNECTION x TO HTTP (endpoint='https://example.test', token=SECRET('key'))",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_statement",
+        "category": "unsupported",
+        "kind": "interface",
+        "message_contains": [
+          "syntax has not been validated"
+        ]
+      }
+    },
+    {
+      "id": "sink-reference-single-option",
+      "sql": "CREATE SINK x INTO HTTP CONNECTION c WITH (path='/x')",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_statement",
+        "category": "unsupported",
+        "kind": "interface",
+        "message_contains": [
+          "syntax has not been validated"
+        ]
+      }
+    },
+    {
+      "id": "sink-reference-boolean",
+      "sql": "CREATE SINK x INTO HTTP CONNECTION c WITH (follow_redirects=TRUE)",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_statement",
+        "category": "unsupported",
+        "kind": "interface",
+        "message_contains": [
+          "syntax has not been validated"
+        ]
       }
     }
   ]

@@ -584,7 +584,7 @@ fn prepareConnector(host: *g.Session, statement: g.database.SourceSql.Statement)
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
-    if (statement == .explain) {
+    if (statement == .explain or statement == .explain_sink) {
         // Own parser strings beyond the temporary syntax tree.
         const encoded = try c.protocol.Json.valueAlloc(a, statement);
         const copied = try std.json.parseFromSliceLeaky(g.database.SourceSql.Statement, a, encoded, .{ .allocate = .alloc_always });

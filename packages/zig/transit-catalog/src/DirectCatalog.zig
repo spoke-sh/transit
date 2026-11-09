@@ -1869,7 +1869,7 @@ fn recordReadGuard(self: *Self, allocator: std.mem.Allocator, connection: c.Dire
     var required = try self.requirements(policy, null, null, .database);
     for (parsed.value.objects) |object| {
         const target = try self.entry(object.object) orelse return error.CatalogDenied;
-        const privileges: u64 = if (target.log != null) c.LogAuthority.read else if (target.resource != null) a.select else if (target.seed) |seed| switch (seed.kind) {
+        const privileges: u64 = if (target.connector != null) c.SourceAuthority.inspect else if (target.log != null) c.LogAuthority.read else if (target.resource != null) a.select else if (target.seed) |seed| switch (seed.kind) {
             .table => a.select,
             .kv => c.KVAuthority.read,
         } else return error.CatalogKindMismatch;

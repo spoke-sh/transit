@@ -10752,7 +10752,7 @@ test "guarded continuation originals and progress retain every current read depe
     defer catalog.deinit();
     var access: Access = .{};
     try catalog.initialize(access.policy());
-    var resources: [5]p.DataLifecycle.Object = undefined;
+    var resources: [7]p.DataLifecycle.Object = undefined;
     for ([_][]const u8{ "first", "second", "third", "fourth" }, 0..) |name, index| {
         const create = try creation(10 + index, 100 + index, name);
         _ = try catalog.admit(create, access.policy());
@@ -10763,6 +10763,23 @@ test "guarded continuation originals and progress retain every current read depe
     _ = try catalog.admitLog(queue, access.policy());
     _ = try catalog.logOperation(queue.binding, .execute, access.policy());
     resources[4] = queue.binding.target;
+    const connection = (try connectorExecute(&catalog, &access, try connectorCreation(51, 250, "upstream", .{ .connection = .{ .endpoint = "https://example.com" } }))).resulting.?;
+    const sink = (try connectorExecute(&catalog, &access, try connectorCreation(52, 251, "exchange", .{ .sink = .{ .connection = connection.declaration.interpretation, .http = .{
+        .method = .GET,
+        .path = "/user",
+        .request_encoding = .none,
+        .accept = "application/json",
+        .user_agent = null,
+        .response = .protected_json,
+        .capture = .redacted_metadata,
+        .request_timeout_ms = 5000,
+        .response_max_bytes = 65536,
+        .follow_redirects = false,
+        .max_attempts = 1,
+        .unknown_outcome = .retain,
+    } } }))).resulting.?;
+    resources[5] = connection.declaration.interpretation.object;
+    resources[6] = sink.declaration.interpretation.object;
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -10797,7 +10814,7 @@ test "guarded continuation originals and progress retain every current read depe
         try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
         access.deny_at = std.math.maxInt(usize);
         for (resources, 0..) |resource, index| {
-            access.denied_privileges = .{ .id = 100 + resource.object, .mask = if (index == 4) c.LogAuthority.read else a.select };
+            access.denied_privileges = .{ .id = 100 + resource.object, .mask = if (index >= 5) c.SourceAuthority.inspect else if (index == 4) c.LogAuthority.read else a.select };
             try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
             // Non-payload recovery metadata remains inspectable for closure.
             const inspected = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
@@ -10806,6 +10823,10 @@ test "guarded continuation originals and progress retain every current read depe
         }
         _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
     }
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(sink, 252, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
+    _ = try connectorExecute(&catalog, &access, try connectorEdit(retired, 253, .{ .drop = .{ .expected_epoch = 2 } }));
+    for ([_]c.DirectRecord.Reference{ original, current }) |reference|
+        try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
 }
 
 test "owned originals reserve before bytes and retain permanent closure through disk recovery" {

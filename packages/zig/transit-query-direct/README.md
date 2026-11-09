@@ -25,6 +25,11 @@ tracked by [#430](https://github.com/spoke-sh/transit/issues/430).
 
 `ApplicationBinding` reconstructs immutable native resource definitions, keeping
 row positions and current grants out of the compiled identity.
+Sink bindings preserve the complete immutable transport profile and exact
+connection dependency. Binding requires inspection for retained continuation
+disclosure and separate dispatch use. Both remain current native requirements; sinks
+are excluded from common data transaction participants. A retained sink binding
+does not grant dispatch permission or establish a current activation state.
 `ApplicationDeclaration` retains the typed instruction tree, exact dependencies,
 executor role and per-invocation budgets. `ManagedApplication` publishes that
 definition through owned records and the shared catalog/KV lifecycle. Its saved
