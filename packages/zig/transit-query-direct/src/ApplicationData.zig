@@ -202,7 +202,11 @@ fn documentRevision(basis: c.DirectTableReader.Basis, policy: c.DirectDocument.P
 /// as SELECT. Outside a block, a changed basis is a refusal, never a new cut
 /// silently substituted for the key read. Absence has no revision.
 pub fn currentRevision(output: std.mem.Allocator, client: c.DirectTableClient, binding: q.ApplicationBinding, key: Value) !Value {
+    return currentRevisionObserved(output, client, binding, key, null);
+}
+pub fn currentRevisionObserved(output: std.mem.Allocator, client: c.DirectTableClient, binding: q.ApplicationBinding, key: Value, reads: ?*q.ApplicationReadSet) !Value {
     if (binding.kind() != .document) return error.ProgramResourceKindMismatch;
+    if (reads != null and client.transaction != null) return error.InvalidTransactionGuard;
     try key.public();
     const response = try client.call(.{ .document_lookup = .{ .namespace = binding.namespace(), .name = binding.name().slice() } });
     defer response.deinit();
@@ -233,8 +237,10 @@ pub fn currentRevision(output: std.mem.Allocator, client: c.DirectTableClient, b
             .selection = .{ .key = try c.DirectTableProtocol.Binary.encode(output, encoded_key) },
         } });
         defer read.deinit();
+        const actual = try c.DirectDocument.Revision.fromRead(read.value.result.current_read.definition);
+        if (reads) |set| try set.add(.{ .current_state = .{ .namespace = binding.namespace(), .kind = .table, .guard = actual.guard } }, read.value.policy_revision);
         if (read.value.result.current_read.selection.key == null) return .null;
-        break :blk try c.DirectDocument.Revision.fromRead(read.value.result.current_read.definition);
+        break :blk actual;
     };
     return .{ .binary = try output.dupe(u8, &try revision.stateFingerprint()) };
 }

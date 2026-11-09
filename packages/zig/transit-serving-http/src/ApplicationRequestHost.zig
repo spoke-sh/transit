@@ -77,7 +77,7 @@ fn findMount(self: *Self, binding: c.DirectSecret.Binding) ?std.Io.Dir {
 }
 fn secret(self: *Self, scope: q.ApplicationExecution.Context) !?Secrets {
     const binding = try secretBinding(scope.declaration) orelse return null;
-    return .{ .client = scope.client, .binding = binding, .io = scope.client.service.http.io, .directory = self.findMount(binding) orelse return null };
+    return .{ .client = scope.client, .binding = binding, .io = scope.client.service.http.io, .directory = self.findMount(binding) orelse return null, .reads = scope.reads };
 }
 fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
     const self: *Self = @ptrCast(@alignCast(context));

@@ -31,6 +31,7 @@ pub const Context = struct {
     input: I.Input,
     step: u32,
     scratch: std.mem.Allocator,
+    reads: ?*q.ApplicationReadSet = null,
 
     /// Recheck a trusted native host's already verified original input against
     /// current invocation/control fences and registered dependency privileges.
@@ -53,7 +54,8 @@ pub const Context = struct {
         try self.work.lease.requireCurrent(try self.declaration.interpretation(control.allocator), observed.head.control, observed.head.attempt);
         if (self.work.execution.cancelled or observed.head.pending == null or
             !std.meta.eql(observed.head.pending.?, self.invocation)) return error.DataflowLeaseFenced;
-        try M.requireExecutorDependencies(control, self.declaration, observed);
+        if (self.reads) |reads| try reads.add(.{ .current_state = .{ .namespace = self.declaration.namespace, .kind = .kv, .guard = observed.guard } }, observed.policy_revision);
+        try M.observeExecutorDependencies(control, self.declaration, observed, self.reads);
     }
 };
 /// One evaluation's borrow. The expression context, rather than a shared
@@ -540,7 +542,17 @@ pub const EffectWorker = struct {
     /// Recheck the original guard against the frozen pre-step environment.
     /// This method never evaluates request operands or performs HTTP I/O.
     pub fn guard(self: EffectWorker, host: Host) !bool {
-        try self.owner.scope.requireCurrent();
+        var reads: q.ApplicationReadSet = .{ .connection = self.owner.scope.client.connection };
+        const result = try self.evaluateGuard(host, &reads);
+        try reads.verify(self.owner.scope.client);
+        return result;
+    }
+    /// Collect the original guard's actual public bases. A physical owner may
+    /// add protected-operand reads before verify; evaluation alone is no permit.
+    pub fn evaluateGuard(self: EffectWorker, host: Host, reads: *q.ApplicationReadSet) !bool {
+        var scope = self.owner.scope;
+        scope.reads = reads;
+        try scope.requireCurrent();
         const allocator = self.owner.scope.scratch;
         const value = self.declaration.value;
         var index = try a.Cursor.Index.init(allocator, &value.program);
@@ -549,7 +561,7 @@ pub const EffectWorker = struct {
         defer bound.deinit();
         var env = try a.Environment.restore(allocator, index, bound, try value.digest(allocator), self.request.value.environment);
         defer env.deinit();
-        var native = try host.bind(host.context, self.owner.scope);
+        var native = try host.bind(host.context, scope);
         defer native.deinit();
         var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = native.expressions };
         const expression = try self.request.value.action.effect.expression(index, bound, self.request.value.instruction);

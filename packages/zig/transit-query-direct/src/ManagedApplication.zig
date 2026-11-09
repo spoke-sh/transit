@@ -52,7 +52,7 @@ pub const Head = struct {
         }
     }
 };
-pub const Observation = struct { head: Head, storage: d.Definition, position: d.Position };
+pub const Observation = struct { head: Head, storage: d.Definition, position: d.Position, guard: p.Transaction.StateGuard, policy_revision: u64 };
 pub fn account() [32]u8 {
     var result: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash("transit.application.declarations.v1", &result, .{});
@@ -197,14 +197,15 @@ fn requireExecutor(client: c.DirectTableClient, value: Declaration) !void {
 fn readHead(client: c.DirectTableClient, value: Declaration) !Observation {
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
-    const read = (try KV.apply(&output, client, .{ .get = .{ .object = value.object, .key = head_key } })).value;
+    const observed = try KV.applyObserved(&output, client, .{ .get = .{ .object = value.object, .key = head_key } });
+    const read = observed.result.value;
     const cell = read.value orelse return error.ManagedTableInitializationPending;
     if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidDirectRecord;
     const parsed = try p.Json.parseFromSlice(Head, client.allocator, cell.value.atom.bytes);
     defer parsed.deinit();
     try parsed.value.validate();
     if (!std.mem.eql(u8, &parsed.value.declaration, &try value.digest(client.allocator))) return error.DataflowIdentityConflict;
-    return .{ .head = parsed.value, .storage = read.interpretation.interpretation, .position = read.position };
+    return .{ .head = parsed.value, .storage = read.interpretation.interpretation, .position = read.position, .guard = try read.publicGuard(), .policy_revision = observed.policy_revision };
 }
 pub fn mutation(_: Self, arena: *std.heap.ArenaAllocator, value: Declaration, storage: d.Definition, position: ?d.Position, head: Head, identity: d.Operation, expect: @FieldType(@FieldType(c.storage.KVPartition.Change, "put"), "expect")) !c.DirectKV.Mutation {
     try head.validate();
@@ -224,6 +225,9 @@ pub fn requireDependencies(self: Self, value: Declaration, observed: Observation
     return requireExecutorDependencies(try self.executor(value, observed), value, observed);
 }
 pub fn requireExecutorDependencies(client: c.DirectTableClient, value: Declaration, observed: Observation) !void {
+    return observeExecutorDependencies(client, value, observed, null);
+}
+pub fn observeExecutorDependencies(client: c.DirectTableClient, value: Declaration, observed: Observation, reads: ?*q.ApplicationReadSet) !void {
     try requireExecutor(client, value);
     if (observed.head.executor_role != client.connection.role) return error.DataflowLeaseFenced;
     var bound = try value.bind(client.allocator);
@@ -232,7 +236,8 @@ pub fn requireExecutorDependencies(client: c.DirectTableClient, value: Declarati
     for (bound.uses, checks[0..bound.uses.len]) |use, *check| check.* = .{ .dependency = try edge(value, observed.storage, use) };
     checks[bound.uses.len] = .{ .dependency = try edge(value, observed.storage, null) };
     const response = try client.call(.{ .check_set = checks[0 .. bound.uses.len + 1] });
-    response.deinit();
+    defer response.deinit();
+    if (reads) |set| for (checks[0 .. bound.uses.len + 1]) |check| try set.add(check, response.value.policy_revision);
 }
 pub const SavedControl = struct {
     definition: p.Growth.Definition,
@@ -370,6 +375,6 @@ test "managed application control requires explicit executor and preserves pendi
     const invalid: Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
     try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
     try t.expectError(error.InvalidQueryBudget, manager.prepareControl(invalid, undefined, null));
-    try t.expectError(error.InvalidDataflowTransition, manager.executor(invalid, .{ .head = initial, .storage = undefined, .position = undefined }));
-    try t.expectError(error.InvalidQueryBudget, manager.executor(invalid, .{ .head = changed, .storage = undefined, .position = undefined }));
+    try t.expectError(error.InvalidDataflowTransition, manager.executor(invalid, .{ .head = initial, .storage = undefined, .position = undefined, .guard = undefined, .policy_revision = undefined }));
+    try t.expectError(error.InvalidQueryBudget, manager.executor(invalid, .{ .head = changed, .storage = undefined, .position = undefined, .guard = undefined, .policy_revision = undefined }));
 }

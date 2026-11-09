@@ -127,6 +127,16 @@ reopens and validates those originals. Waiting leaves the progress revision
 unchanged. A separate result candidate advances the environment only after native
 settlement and verification of its protected response handle.
 
+`ApplicationReadSet` retains the actual public Table/KV bases, program head,
+dependency checks and native policy revision used by one guard evaluation.
+Missing Document/secret rows contribute their read basis. Repeated reads may
+advance acceptance bookkeeping, but logical drift or a changed policy revision
+refuses the evaluation. The native `check_set` verifies all recorded bases under
+publication exclusion. After verification, protected-operand checks may repeat
+those reads but cannot introduce another source. The existing 16-check budget
+applies; overflow refuses before dispatch. Private transaction results cannot
+be used as public effect evidence.
+
 The deployment supplies nonblocking poll, withdrawal/join, release and protected
 response callbacks. It must keep a known completion through lost native replies
 and release it only after joined, terminal settlement. Cancellation joins the

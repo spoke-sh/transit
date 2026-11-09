@@ -210,7 +210,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     kv_digest_intent["action"]["rename"]["bytes"] = bytes(kv_intent["action"]["rename"]["bytes"]).decode()
     kv_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(kv_digest_intent)).digest()
     kv_binding = {**log_binding, "intent": list(kv_digest)}
-    kv_declaration = {"binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    kv_declaration = {"native_binding": None, "binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
     def signed_kv(action):
         envelope = {**request_input, "action": action}
         selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(envelope)).digest())}

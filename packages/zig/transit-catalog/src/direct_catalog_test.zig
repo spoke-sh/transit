@@ -992,6 +992,8 @@ test "native secret reference rotation disable and revoked reads fence the commo
         _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = seed } });
         const get: c.DirectKV.Request = .{ .get = .{ .object = base.binding.target, .key = try .encode(arena.allocator(), &digest), .source = null } };
         const observed = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = get })).kv.value;
+        const current_check: c.DirectTableProtocol.ReadCheck = .{ .current_state = .{ .namespace = 1, .kind = .kv, .guard = .{ .source = .{ .interpretation = observed.interpretation.interpretation, .accepted = observed.position }, .changed_lsn = observed.changed_lsn } } };
+        try t.expectEqual(.checked, try SignedDispatch.call(&arena, &catalog, &access, .{ .check_set = &.{current_check} }));
         const template = try transactionToken(&catalog, 9000, 1, 0);
         const receipt = try catalog.beginTransaction(.{
             .key = template.key,
@@ -1033,6 +1035,11 @@ test "native secret reference rotation disable and revoked reads fence the commo
         try t.expect(settled.cleanup_complete);
         const expected: @TypeOf(settled.observation.decided.outcome) = if (scenario == .unchanged) .committed else .aborted;
         try t.expectEqual(expected, settled.observation.decided.outcome);
+        switch (scenario) {
+            .unchanged => try t.expectEqual(.checked, try SignedDispatch.call(&arena, &catalog, &access, .{ .check_set = &.{current_check} })),
+            .rotate, .disable => try t.expectError(error.TransactionConflict, SignedDispatch.call(&arena, &catalog, &access, .{ .check_set = &.{current_check} })),
+            .revoke_read, .revoke_use => try t.expectError(error.CatalogDenied, SignedDispatch.call(&arena, &catalog, &access, .{ .check_set = &.{current_check} })),
+        }
         var rows = (try resolve(&catalog, &access, "result")).?;
         defer rows.deinit();
         try t.expectEqual(@as(u64, if (scenario == .unchanged) 1 else 0), rows.table.root.live_rows);

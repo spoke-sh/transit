@@ -37,6 +37,14 @@ pub const Read = struct {
     workspace: ?c.protocol.Transaction.ReadView,
     value: ?types.Values.Cell,
     revision: ?c.fuze.TableRow.Identity,
+
+    pub fn publicGuard(self: Read) !c.protocol.Transaction.StateGuard {
+        if (self.source != null or self.workspace != null) return error.InvalidTransactionGuard;
+        const result: c.protocol.Transaction.StateGuard = .{ .source = .{ .interpretation = self.interpretation.interpretation, .accepted = self.position }, .changed_lsn = self.changed_lsn };
+        try result.validate();
+        if (self.interpretation.retired or self.position.next_lsn == 0) return error.InvalidTransactionGuard;
+        return result;
+    }
 };
 pub const Result = union(enum) {
     declaration: K.DeclarationResult,
@@ -142,11 +150,17 @@ pub fn load(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Sa
 /// Returned values survive response cleanup and the next call until output is
 /// reset. No retry, pin release, rebind or mutation follows a failed call.
 pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, action: Action) !Result {
+    return (try applyObserved(output, client, action)).result;
+}
+/// Preserve the native policy observation with the exact returned value/basis.
+/// A later lookup cannot reconstruct the authority of an earlier read.
+pub const Observed = struct { result: Result, policy_revision: u64 };
+pub fn applyObserved(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, action: Action) !Observed {
     var scratch: std.heap.ArenaAllocator = .init(client.allocator);
     defer scratch.deinit();
     const response = try client.call(try action.encode(scratch.allocator()));
     defer response.deinit();
-    return switch (response.value.result) {
+    const result: Result = switch (response.value.result) {
         .kv_declaration => |value| .{ .declaration = value },
         .kv_lookup => |value| .{ .lookup = if (value) |definition| try definition.cloneInto(output.allocator()) else null },
         .kv_list => |value| .{ .list = value },
@@ -155,8 +169,9 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
             .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = try value.spec.cloneInto(output.allocator()), .source = value.source, .workspace = value.workspace, .revision = value.revision, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
             inline else => |value, tag| @unionInit(Result, @tagName(tag), value),
         },
-        else => error.InvalidKVResponse,
+        else => return error.InvalidKVResponse,
     };
+    return .{ .result = result, .policy_revision = response.value.policy_revision };
 }
 
 fn localRowCloneSchedule(allocator: std.mem.Allocator) !void {

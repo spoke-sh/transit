@@ -6737,6 +6737,7 @@
         "InvalidKVKey": 1,
         "InvalidKVOperation": 2,
         "InvalidKVResponse": 1,
+        "InvalidTransactionGuard": 2,
         "KVBatchTooLarge": 2
       },
       "outcomes": {
@@ -6767,8 +6768,10 @@
       "error_sets": {},
       "error_returns": {
         "Action.encode()": "<inferred>",
+        "Read.publicGuard()": "<inferred>",
         "Saved.validate()": "<inferred>",
         "apply()": "<inferred>",
+        "applyObserved()": "<inferred>",
         "load()": "<inferred>",
         "localRowCloneSchedule()": "<inferred>",
         "prepareDeclaration()": "<inferred>",
@@ -6777,7 +6780,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 32,
         "catch": 0
       },
       "imports": [
@@ -7944,11 +7947,12 @@
         "discover()": "<inferred>",
         "key()": "<inferred>",
         "label()": "<inferred>",
-        "read()": "<inferred>"
+        "read()": "<inferred>",
+        "readObserved()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 33,
         "catch": 0
       },
       "imports": [
@@ -27364,7 +27368,7 @@
         "InvalidQueryBudget": 1,
         "InvalidRowIdentity": 1,
         "InvalidTableResponse": 2,
-        "InvalidTransactionGuard": 4,
+        "InvalidTransactionGuard": 5,
         "Overflow": 2,
         "ProgramCardinalityMismatch": 1,
         "ProgramResourceKindMismatch": 3,
@@ -27388,6 +27392,7 @@
         "bindField()": "<inferred>",
         "bindType()": "anyerror",
         "currentRevision()": "<inferred>",
+        "currentRevisionObserved()": "<inferred>",
         "documentRevision()": "<inferred>",
         "fromCell()": "<inferred>",
         "fromValidated()": "anyerror",
@@ -27405,7 +27410,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 96,
+        "try": 97,
         "catch": 1
       },
       "imports": [
@@ -27682,6 +27687,7 @@
         "EffectJob.serviceLease()": "<inferred>",
         "EffectJob.validate()": "<inferred>",
         "EffectResult.validate()": "<inferred>",
+        "EffectWorker.evaluateGuard()": "<inferred>",
         "EffectWorker.guard()": "<inferred>",
         "Effects.join()": "anyerror",
         "Effects.poll()": "anyerror",
@@ -27716,7 +27722,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 224,
+        "try": 227,
         "catch": 6
       },
       "imports": [
@@ -27805,6 +27811,33 @@
       "propagation": {
         "try": 111,
         "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationReadSet.zig": {
+      "errors": {
+        "InvalidSourceControl": 1,
+        "InvalidTableAccessRequest": 1,
+        "InvalidTableReadBudget": 2,
+        "InvalidTransactionGuard": 1,
+        "TransactionAuthorityChanged": 2,
+        "TransactionConflict": 1,
+        "TransactionReadChanged": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "add()": "<inferred>",
+        "policy()": "<inferred>",
+        "verify()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 10,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -28162,6 +28195,7 @@
         "inspectExecutor()": "<inferred>",
         "load()": "<inferred>",
         "mutation()": "<inferred>",
+        "observeExecutorDependencies()": "<inferred>",
         "prepareControl()": "<inferred>",
         "publish()": "<inferred>",
         "readHead()": "<inferred>",
@@ -28172,7 +28206,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 85,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -28498,6 +28532,7 @@
         "ApplicationExecution.zig",
         "ApplicationHost.zig",
         "ApplicationInvocation.zig",
+        "ApplicationReadSet.zig",
         "ApplicationRecovery.zig",
         "ApplicationTransaction.zig",
         "ComputePool.zig",
@@ -31901,6 +31936,7 @@
         "Canceled": 3,
         "InvalidSecretContent": 1,
         "InvalidSecretReference": 1,
+        "InvalidTransactionGuard": 1,
         "ReadFailed": 1,
         "SecretContentChanged": 1,
         "SecretDisabled": 1,
@@ -31913,18 +31949,20 @@
         "current()": "<inferred>",
         "isCurrent()": "<inferred>",
         "load()": "<inferred>",
-        "lookup()": "<inferred>"
+        "lookup()": "<inferred>",
+        "observe()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 11,
         "catch": 3
       },
       "imports": [
         "ApplicationProtectedHost.zig",
         "ApplicationReservation.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_query_direct"
       ]
     },
     "packages/zig/transit-serving-http/src/BrowserProviders.zig": {

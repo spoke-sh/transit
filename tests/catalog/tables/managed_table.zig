@@ -1546,6 +1546,20 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     try t.expectEqualSlices(u8, &try (try c.DirectDocument.Revision.fromRead(policy.value.result.document_lookup.?.definition)).stateFingerprint(), revision.binary);
     try t.expectEqual(.null, try q.ApplicationData.currentRevision(output.allocator(), client, policy_binding, .{ .integer = 999 }));
     try t.expectError(error.ProgramTypeMismatch, q.ApplicationData.currentRevision(output.allocator(), client, policy_binding, .{ .text = "1" }));
+    var absent_reads: q.ApplicationReadSet = .{ .connection = client.connection };
+    try t.expectEqual(.null, try q.ApplicationData.currentRevisionObserved(output.allocator(), client, policy_binding, .{ .integer = 999 }, &absent_reads));
+    try t.expectEqual(@as(usize, 1), absent_reads.count);
+    try absent_reads.verify(client);
+    try dml(client, "INSERT INTO application_policy VALUES (999, TRUE)", 733016);
+    try t.expectError(error.Conflict, absent_reads.verify(client));
+    try dml(client, "DELETE FROM application_policy WHERE id = 999", 733017);
+    // Restoring absence does not restore the original logical observation.
+    try t.expectError(error.Conflict, absent_reads.verify(client));
+    var current_reads: q.ApplicationReadSet = .{ .connection = client.connection };
+    try t.expectEqual(.null, try q.ApplicationData.currentRevisionObserved(output.allocator(), client, policy_binding, .{ .integer = 999 }, &current_reads));
+    _ = try q.ApplicationData.currentRevisionObserved(output.allocator(), client, policy_binding, .{ .integer = 1 }, &current_reads);
+    try t.expectEqual(@as(usize, 1), current_reads.count);
+    try current_reads.verify(client);
     const kv = try c.DirectKVClient.prepareDeclaration(client.allocator, .{
         .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733011 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 733011 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) },
         .namespace = 1,

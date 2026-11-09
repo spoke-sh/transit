@@ -451,6 +451,16 @@ task does not advance the invocation revision. After native effect settlement,
 a separate guarded result candidate advances the environment once; adopting a
 protected body requires the host to verify its original response observation.
 
+Guard evaluation now collects exact public logical read bases, program controls,
+registered dependencies and the native policy revision in a bounded read set.
+Missing Document/secret rows retain evidence too. Native `check_set` validates
+their coexistence under publication exclusion and current rights; a logical
+change or different policy revision rejects. Acceptance-only advances are safe.
+Once verified, cached operand redemptions may repeat recorded reads but cannot
+add another source. The existing 16-check native limit applies, including control
+and dependency entries. This evidence is ephemeral and cannot be reconstructed
+from a later lookup or a private workspace; it does not itself dispatch HTTP.
+
 The host retains a completed attempt until native settlement is observed, even
 after joining it or losing a completion reply. Cancellation withdraws and joins
 the original task before protected reads or native cleanup. Revocation can leave

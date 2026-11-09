@@ -144,6 +144,11 @@ and the same client fence/transaction view. Rotation can produce a false
 currently rejects all handoffs until the native common-commit proof owner is
 connected. It does not enable live ingress or effect dispatch by itself.
 
+When an effect scope supplies an `ApplicationReadSet`, the request host records
+the actual secret metadata read (including absence), native policy revision and
+program control/dependency observations. Cached redemptions repeat these checks;
+they cannot replace a changed basis or add a new source after verification.
+
 `ApplicationEffectHttp` renders frozen effect operands into caller-owned private
 buffers. Form values use exact UTF-8 percent encoding; Bearer headers retain typed
 secret references until the transport resolver rechecks their purpose and current

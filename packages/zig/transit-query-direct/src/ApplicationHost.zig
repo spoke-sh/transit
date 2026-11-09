@@ -80,7 +80,7 @@ fn function(self: *Self, name: a.Function, args: []const V) !V {
             const scope = self.scope orelse return error.InvalidTransactionGuard;
             for (scope.declaration.resources) |binding| {
                 if (std.mem.eql(u8, binding.name().slice(), args[0].text))
-                    return q.ApplicationData.currentRevision(self.scratch, scope.client, binding, args[1]);
+                    return q.ApplicationData.currentRevisionObserved(self.scratch, scope.client, binding, args[1], scope.reads);
             }
             return error.UnknownProgramResource;
         },

@@ -3,6 +3,7 @@
 //! host's private scratch; native metadata and read guards remain authoritative.
 const std = @import("std");
 const c = @import("transit_catalog");
+const q = @import("transit_query_direct");
 const S = c.DirectSecret;
 const R = @import("ApplicationReservation.zig");
 const Host = @import("ApplicationProtectedHost.zig");
@@ -13,6 +14,7 @@ binding: S.Binding,
 io: std.Io,
 /// Borrowed trusted private mount, kept open until all request tasks join.
 directory: std.Io.Dir,
+reads: ?*q.ApplicationReadSet = null,
 
 /// Borrowed for one expression evaluation with its current invocation and
 /// transaction fences. The host erases its entire private arena on return.
@@ -23,7 +25,9 @@ fn lookup(context: *anyopaque, private: std.mem.Allocator, name: []const u8) !R.
     const self: *Self = @ptrCast(@alignCast(context));
     var metadata = std.heap.ArenaAllocator.init(self.client.allocator);
     defer metadata.deinit();
-    const found = try S.read(&metadata, self.client, self.binding, name) orelse return error.SecretNotFound;
+    const observed = try S.readObserved(&metadata, self.client, self.binding, name);
+    try self.observe(observed);
+    const found = observed.value orelse return error.SecretNotFound;
     const bytes = try load(self.io, self.directory, private, found.declaration);
     errdefer std.crypto.secureZero(u8, bytes);
     const revision = try found.revision.encode(private);
@@ -39,7 +43,18 @@ pub fn isCurrent(self: Self, bytes: []const u8) !bool {
     var revision = try S.Revision.decode(self.client.allocator, bytes);
     defer revision.deinit();
     if (!std.meta.eql(self.binding, revision.value.binding)) return error.InvalidSecretReference;
-    return S.current(self.client, revision.value);
+    var output: std.heap.ArenaAllocator = .init(self.client.allocator);
+    defer output.deinit();
+    const observed = try S.readObserved(&output, self.client, self.binding, revision.value.name);
+    try self.observe(observed);
+    const found = observed.value orelse return false;
+    return found.declaration.enabled and std.meta.eql(found.revision.row, revision.value.row);
+}
+fn observe(self: Self, observed: S.Observed) !void {
+    if (self.reads) |reads| {
+        if (observed.workspace != null or self.client.transaction != null) return error.InvalidTransactionGuard;
+        try reads.add(.{ .current_state = .{ .namespace = self.binding.namespace, .kind = .kv, .guard = observed.guard } }, observed.policy_revision);
+    }
 }
 
 /// The allocator must be the protected host's private scratch. The complete

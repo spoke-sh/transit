@@ -88,6 +88,12 @@ pub const Revision = struct {
     }
 };
 pub const Read = struct { declaration: Declaration, revision: Revision };
+pub const Observed = struct {
+    value: ?Read,
+    guard: p.Transaction.StateGuard,
+    workspace: ?p.Transaction.ReadView,
+    policy_revision: u64,
+};
 
 pub fn key(name: []const u8) ![32]u8 {
     try label(name);
@@ -116,6 +122,10 @@ pub fn discover(client: c.DirectTableClient, namespace: u64) !Binding {
 /// Output owns the result and its strings. The native read registers the KV
 /// source in the current transaction, including absence and disabled entries.
 pub fn read(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, binding: Binding, name: []const u8) !?Read {
+    return (try readObserved(output, client, binding, name)).value;
+}
+/// Missing and disabled entries retain the actual native read basis too.
+pub fn readObserved(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, binding: Binding, name: []const u8) !Observed {
     try binding.validate();
     try client.connection.object(binding.interpretation.object);
     // Validate the canonical metadata owner under current namespace/resource
@@ -126,20 +136,23 @@ pub fn read(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, bindi
     control.transaction = null;
     if (!std.meta.eql(binding, try discover(control, binding.namespace))) return error.TableDefinitionChanged;
     const digest = try key(name);
-    const found = (try c.DirectKVClient.apply(output, client, .{ .get = .{ .object = binding.interpretation.object, .key = &digest } })).value;
+    const observed = try c.DirectKVClient.applyObserved(output, client, .{ .get = .{ .object = binding.interpretation.object, .key = &digest } });
+    const found = observed.result.value;
     if (!std.meta.eql(found.interpretation.interpretation, binding.interpretation) or found.interpretation.retired) return error.TableDefinitionChanged;
     const spec = try c.NativeBindingSchema.kvSpec(kind);
     if (found.spec.nullable or !try spec.typeOf().eql(found.spec.typeOf())) return error.InvalidNativeBindingSchema;
     if (client.transaction != null and (found.workspace == null or found.workspace.?.cut.begin.mode != .serializable)) return error.InvalidTransactionGuard;
+    var result: Observed = .{ .value = null, .guard = if (found.workspace) |workspace| workspace.source else try found.publicGuard(), .workspace = found.workspace, .policy_revision = observed.policy_revision };
     const cell = found.value orelse {
         if (found.revision != null) return error.InvalidKVResponse;
-        return null;
+        return result;
     };
     const declaration = try Declaration.fromValue(cell);
     if (!std.mem.eql(u8, declaration.name, name)) return error.InvalidSecretReference;
     const revision: Revision = .{ .definition = p.Growth.current_definition, .binding = binding, .name = declaration.name, .row = found.revision orelse return error.InvalidKVResponse };
     try revision.validate();
-    return .{ .declaration = declaration, .revision = revision };
+    result.value = .{ .declaration = declaration, .revision = revision };
+    return result;
 }
 pub fn current(client: c.DirectTableClient, revision: Revision) !bool {
     try revision.validate();
