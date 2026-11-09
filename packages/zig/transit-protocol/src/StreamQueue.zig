@@ -492,6 +492,7 @@ pub const SchemaTypes = struct {
     queue_cursor: p.QueueRead.Cursor,
     queue_read_release: p.QueueRead.ReleaseReceipt,
     queue_observation_basis: p.QueueRead.Basis,
+    queue_time_observation: p.QueueRead.TimeObservation,
     queue_lease_observation: p.QueueRead.LeaseObservation,
 };
 

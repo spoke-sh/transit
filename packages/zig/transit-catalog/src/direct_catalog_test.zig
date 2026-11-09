@@ -6307,6 +6307,47 @@ fn queueCallWaiting(catalog: *D, access: *Access, cached: *?c.DirectQueue.Cached
     }, .{ .clock = clock.source(), .recovery_steps = steps, .waiting = waiting }, request, access.policy());
 }
 
+test "direct Queue current time preserves inspect rights exact targets and clock independent cuts" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var clock: QueueClock = .{};
+    var cached: ?c.DirectQueue.Cached = null;
+    defer if (cached) |*value| value.deinit();
+    try catalog.initialize(access.policy());
+    const create = try logCreation(.queue, 10, 1, "clock", 1);
+    _ = try catalog.admitLog(create, access.policy());
+    const declared = (try catalog.logOperation(create.binding, .execute, access.policy())).operation.resulting.?;
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = declared.stored.declaration.interpretation, .partition = 0 };
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = scope, .branch = 1, .principal = 1, .audience = 3, .role = null };
+    const request: c.DirectQueue.Request = .{ .current_time = target };
+    const observed = try queueCall(&catalog, &access, &cached, &clock, request, 256);
+    try c.DirectQueueResponse.validate(t.allocator, connection, request, observed);
+    try t.expectEqualDeep(clock.now.?, observed.current_time.time);
+    const puts = objects.puts;
+    clock.now = .{ .earliest_ms = 200, .latest_ms = 250 };
+    const later = try queueCall(&catalog, &access, &cached, &clock, request, 256);
+    try t.expectEqualDeep(observed.current_time.cut, later.current_time.cut);
+    try t.expectEqualDeep(clock.now.?, later.current_time.time);
+    try t.expectEqual(observed.current_time.floor_ms, later.current_time.floor_ms);
+    try t.expectEqual(puts, objects.puts);
+    var invalid = later;
+    invalid.current_time.cut.target.partition += 1;
+    try t.expectError(error.InvalidQueueResponse, c.DirectQueueResponse.validate(t.allocator, connection, request, invalid));
+    clock.now = null;
+    access.denied_privileges = .{ .id = declared.properties.authorization, .mask = c.LogAuthority.inspect };
+    try t.expectError(error.CatalogDenied, queueCall(&catalog, &access, &cached, &clock, request, 256));
+    access.denied_privileges = null;
+    try t.expectError(error.QueueTimeUnavailable, queueCall(&catalog, &access, &cached, &clock, request, 256));
+    try t.expectEqualDeep(observed.current_time.cut, (try queueCall(&catalog, &access, &cached, &clock, .{ .observe = target }, 256)).cut);
+}
+
 test "direct Queue waits preserve timeout absence delayed eligibility and original empty claims through restart" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

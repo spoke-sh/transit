@@ -331,6 +331,9 @@ def generated():
             cut=dict(target=log_target, accepted=dict(partition=91, next_lsn=13),
                      retained_from=0, next=2**64-1),
             time=dict(earliest_ms=600, latest_ms=700))
+        stream_queue['queue_time_observation'] = dict(
+            cut=stream_queue['queue_observation_basis']['cut'],
+            time=dict(earliest_ms=600, latest_ms=700), floor_ms=500)
         stream_queue['queue_lease_observation'] = dict(
             original=lease, state='acquired', epoch=9, attempt=2,
             expires_ms=1000, blocked=dict(none={}), blocked_after_ms=None, liveness='live')

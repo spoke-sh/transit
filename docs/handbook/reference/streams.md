@@ -131,6 +131,13 @@ response requires inspection of that original work; retrying an accepted claim
 never selects different messages. An accepted empty claim remains empty even
 after more messages become eligible.
 
+Native Queue `current_time` returns the authoritative UTC interval at a current
+public cut under current inspect rights. It also reports the persisted time
+floor, without advancing it or changing leases. Missing or regressing time
+refuses this read; ordinary cut and original-result inspection still work.
+Deadline consumers use the conservative upper bound and account for elapsed
+request time. The observation grants no execution authority.
+
 Claims may carry an owned typed predicate over payload columns, partition and
 offset. The native owner evaluates eligible candidates before acquiring leases;
 a nonmatching FIFO head still blocks its key. Search budgets are independent of

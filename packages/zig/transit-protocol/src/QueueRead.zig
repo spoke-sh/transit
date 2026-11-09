@@ -14,6 +14,18 @@ pub const TimeBounds = struct {
         return .{ .earliest_ms = now, .latest_ms = now };
     }
 };
+/// A current authoritative clock sample at one public Queue cut. Observation
+/// creates no claim, lease, retention pin or new persisted time floor.
+pub const TimeObservation = struct {
+    cut: q.Cut,
+    time: TimeBounds,
+    floor_ms: ?u64,
+    pub fn validate(self: TimeObservation) !void {
+        try self.cut.validate();
+        try self.time.validate();
+        _ = try (q.LogClock{ .floor_ms = self.floor_ms orelse 0 }).observe(self.time.latest_ms);
+    }
+};
 pub const State = enum(u2) { available, acquired, acked, archived };
 pub const Blocked = union(enum) {
     none,

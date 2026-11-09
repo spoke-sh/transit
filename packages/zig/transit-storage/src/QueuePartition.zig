@@ -54,6 +54,9 @@ pub fn recoveryState(self: *Self) !RecoveryState {
 pub fn observe(self: *Self, declared: Declaration.Stored, guard: Guard) !p.StreamQueue.Cut {
     return self.owner.observe(declared, guard);
 }
+pub fn observeTime(self: *Self, declared: Declaration.Stored, guard: Guard) !p.QueueRead.TimeObservation {
+    return self.owner.observeTime(declared, guard);
+}
 
 pub fn deadLetterNext(self: *Self, declared: Declaration.Stored, after: ?DeadLetterCursor, maximum: u16, guard: Guard) !DeadLetterPage {
     return self.owner.deadLetterNext(declared, after, maximum, guard);

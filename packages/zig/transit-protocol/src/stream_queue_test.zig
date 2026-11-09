@@ -93,6 +93,19 @@ test "queue payload release binds the original claimant selection and a later ac
     try release.validate();
 }
 
+test "queue time observations preserve bounded clock intervals and accepted floors" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var observation = parsed.value.queue_time_observation;
+    try observation.validate();
+    try t.expectEqual(@as(u64, 600), observation.time.earliest_ms);
+    try t.expectEqual(@as(u64, 700), observation.time.latest_ms);
+    observation.time = .exact(499);
+    try t.expectError(error.LogTimeRegression, observation.validate());
+    observation.time = .{ .earliest_ms = 800, .latest_ms = 700 };
+    try t.expectError(error.LogTimeUnavailable, observation.validate());
+}
+
 test "queue claim cursors separate original selection from current lease observations" {
     const parsed = try fixture();
     defer parsed.deinit();

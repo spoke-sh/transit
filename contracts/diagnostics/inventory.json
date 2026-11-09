@@ -7506,6 +7506,7 @@
         ],
         "Request": [
           "observe",
+          "current_time",
           "mutate",
           "operation",
           "cancel",
@@ -7515,6 +7516,7 @@
         "Result": [
           "recovering",
           "cut",
+          "current_time",
           "operation",
           "page",
           "timed_out"
@@ -7530,7 +7532,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 51,
         "catch": 3
       },
       "imports": [
@@ -7548,6 +7550,7 @@
       "outcomes": {
         "Action": [
           "observe",
+          "current_time",
           "mutate",
           "operation",
           "page",
@@ -7556,6 +7559,7 @@
         "Result": [
           "recovering",
           "cut",
+          "current_time",
           "operation",
           "page",
           "timed_out"
@@ -7601,11 +7605,12 @@
       "error_sets": {},
       "error_returns": {
         "requireReceipt()": "<inferred>",
+        "requireTarget()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
+        "try": 24,
         "catch": 1
       },
       "imports": [
@@ -26332,11 +26337,12 @@
         "Release.validate()": "<inferred>",
         "ReleaseReceipt.requireRelease()": "<inferred>",
         "ReleaseReceipt.validate()": "<inferred>",
-        "TimeBounds.validate()": "<inferred>"
+        "TimeBounds.validate()": "<inferred>",
+        "TimeObservation.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -43811,6 +43817,7 @@
         "Owner().<return>.nextPosition()": "<inferred>",
         "Owner().<return>.nextProducer()": "<inferred>",
         "Owner().<return>.observe()": "<inferred>",
+        "Owner().<return>.observeTime()": "<inferred>",
         "Owner().<return>.open()": "<inferred>",
         "Owner().<return>.operation()": "<inferred>",
         "Owner().<return>.original()": "<inferred>",
@@ -43879,7 +43886,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 902,
+        "try": 907,
         "catch": 20
       },
       "imports": [
@@ -44753,6 +44760,7 @@
         "inspectTransactionSource()": "<inferred>",
         "loadDeclaration()": "<inferred>",
         "observe()": "<inferred>",
+        "observeTime()": "<inferred>",
         "open()": "<inferred>",
         "operation()": "<inferred>",
         "pinTransactionSource()": "<inferred>",

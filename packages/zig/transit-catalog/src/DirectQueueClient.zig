@@ -8,6 +8,7 @@ const w = c.DirectTableProtocol;
 
 pub const Action = union(enum) {
     observe: p.StreamQueue.Partition,
+    current_time: p.StreamQueue.Partition,
     mutate: struct { work: c.DirectQueueMutation.Request, payload: ?[]const u8 = null },
     operation: c.DirectQueueMutation.Request,
     page: @FieldType(wire.Request, "page"),
@@ -30,6 +31,7 @@ pub const Page = struct {
 pub const Result = union(enum) {
     recovering: c.storage.QueuePartition.Recovery,
     cut: p.StreamQueue.Cut,
+    current_time: p.QueueRead.TimeObservation,
     operation: ?wire.Receipt,
     page: Page,
     timed_out: p.StreamQueue.Cut,

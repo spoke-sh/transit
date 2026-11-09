@@ -34,11 +34,13 @@ const Clock = struct {
     value: ?s.LogTime.Sample = .exact(100),
     after: ?s.LogTime.Sample = null,
     change: bool = false,
+    require_held: ?*bool = null,
     fn source(self: *Clock) s.LogTime.Source {
         return .{ .context = self, .read = sample };
     }
     fn sample(raw: *anyopaque) !?s.LogTime.Sample {
         const self: *Clock = @ptrCast(@alignCast(raw));
+        if (self.require_held) |held| try t.expect(held.*);
         const result = self.value;
         if (self.change) {
             self.value = self.after;
@@ -109,6 +111,51 @@ fn selectedLease(objects: s.TransitObjectStore.ObjectStore, receipt: q.ClaimRece
     const selected = try s.QueueSelection.load(t.allocator, objects, receipt.leases.?, &buffer);
     try selected.requireReceipt(receipt);
     return selected.lease(at);
+}
+
+test "queue current time observations hold current policy without advancing accepted floors across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{};
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    while (!(try owner.recoverStep(policy.guard(), 256)).complete) {}
+    var bytes: [8192]u8 = undefined;
+    const appended = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
+    const original = try owner.observe(initial.declared, policy.guard());
+    const puts = objects.puts;
+    clock.value = .{ .earliest_ms = 200, .latest_ms = 250 };
+    clock.require_held = &policy.held;
+    const observed = try owner.observeTime(initial.declared, policy.guard());
+    try t.expectEqualDeep(original, observed.cut);
+    try t.expectEqual(@as(?u64, 100), observed.floor_ms);
+    try t.expectEqualDeep(clock.value.?, observed.time);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(original.accepted.next_lsn, try wal.log().tail(original.accepted.partition));
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 256)).complete) {}
+    try t.expectEqualDeep(observed, try owner.observeTime(initial.declared, policy.guard()));
+    clock.value = .exact(99);
+    try t.expectError(error.LogTimeRegression, owner.observeTime(initial.declared, policy.guard()));
+    clock.value = null;
+    try t.expectError(error.QueueTimeUnavailable, owner.observeTime(initial.declared, policy.guard()));
+    try t.expectEqualDeep(original, try owner.observe(initial.declared, policy.guard()));
+    clock.value = .exact(250);
+    policy.deny_at = policy.calls + 1;
+    try t.expectError(error.PermissionDenied, owner.observeTime(initial.declared, policy.guard()));
+    try t.expect(!policy.held);
 }
 
 test "queue candidate persistence retains long FIFO key children and earlier roots" {

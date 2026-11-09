@@ -97,6 +97,10 @@ Pages retain the original schema and payload while reporting current lease state
 separately. `DirectQueueResponse` validates that attribution, observation basis,
 row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
+The read-only `current_time` action returns a validated public cut, trusted UTC
+interval and accepted time floor under current inspect rights. Sampling does
+not publish a new floor or acquire a lease; ordinary cut inspection does not
+require a clock.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
 Stream and Queue `cancel` requests carry that same saved work and use control
