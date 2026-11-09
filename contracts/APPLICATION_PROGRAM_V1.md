@@ -128,10 +128,14 @@ authorization ticket or evidence of a committed transaction.
 `ApplicationProgram.Step` evaluates one instruction into typed operands. Reads,
 mutations, effects, response operations and common transaction entry/commit are
 explicit host actions. A LET cannot advance without a type-checked result; a
-stale local completion cannot advance a newer cursor. Failure entry discards body
-locals and is refused while an atomic block remains active. The native owner
-must resolve that block's original decision first. These local checks do not
-replace durable fencing, transaction recovery or dispatch authorization.
+stale local completion cannot advance a newer cursor. `Step.propose` creates an
+independent proposed successor for retention before native admission; it does
+not mark the active instruction complete. Failure entry discards body locals
+and preserves monotonically increasing instruction identities. The native owner
+must verify the original block's abort before entering failure from an atomic
+scope. Failure inside `ON FAILURE` terminates that handler without recursively
+entering it again. These local checks do not replace durable fencing,
+transaction recovery or dispatch authorization.
 
 ## Protected values
 

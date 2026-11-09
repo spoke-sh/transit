@@ -132,6 +132,21 @@ pub fn prepare(self: *Self) !Prepared {
 /// particular, .commit means a verified committed common decision, never EOF,
 /// timeout, successful submission or local transaction preparation.
 pub fn finish(self: *Self, step: Prepared, outcome: Outcome) !void {
+    try self.transition(step, outcome);
+}
+/// Compute a private proposed successor without advancing the active cursor or
+/// claiming a native outcome. The owner may retain it before a common decision;
+/// publication/adoption still requires the original native completion. Values
+/// borrow their existing owners until the proposal is encoded.
+pub fn propose(self: *const Self, allocator: std.mem.Allocator, step: Prepared, outcome: Outcome) !a.Environment {
+    var environment = try self.environment.clone(allocator);
+    errdefer environment.deinit();
+    var proposal = self.*;
+    proposal.environment = &environment;
+    try proposal.transition(step, outcome);
+    return environment;
+}
+fn transition(self: *Self, step: Prepared, outcome: Outcome) !void {
     switch (step.action) {
         .get, .select, .effect => {
             if (outcome != .value) return error.ProgramTypeMismatch;
@@ -205,6 +220,11 @@ test "application steps evaluate declared operands and keep common decisions exp
     const commit = try driver.prepare();
     try t.expect(commit.action == .commit);
     try t.expect(env.cursor.atomic() != null);
+    var proposed = try driver.propose(t.allocator, commit, .applied);
+    defer proposed.deinit();
+    try t.expect(proposed.cursor.atomic() == null);
+    try t.expect(env.cursor.atomic() != null);
+    try t.expectEqual(env.cursor.step + 1, proposed.cursor.step);
     try driver.finish(commit, .applied);
     try t.expect(env.cursor.atomic() == null);
     try driver.finish(try driver.prepare(), .applied);

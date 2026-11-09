@@ -199,11 +199,21 @@ fn enter(self: *Self, index: Index, id: a.Id, branch: Branch) !void {
 /// decision, and restore its entry checkpoint after an abort. Partial body locals
 /// are replaced by original input + typed failure.
 pub fn fail(self: *Self, index: Index, expected_step: u32) !void {
-    if (self.step != expected_step or self.phase != .body or self.atomic() != null or self.step == @as(u32, index.program.nodes) * 3) return error.InvalidProgramNode;
+    if (self.phase != .body) return error.InvalidProgramNode;
+    try self.refuse(index, expected_step, false);
+}
+/// The native owner passes atomic_aborted only after verifying the original
+/// transaction's abort decision. Preserve the monotone instruction step while
+/// discarding the failed block's frames. A failing failure handler terminates;
+/// it does not recursively enter ON FAILURE again.
+pub fn refuse(self: *Self, index: Index, expected_step: u32, atomic_aborted: bool) !void {
+    if (self.step != expected_step or self.phase == .complete or
+        (self.atomic() != null) != atomic_aborted or self.step == @as(u32, index.program.nodes) * 3) return error.InvalidProgramNode;
+    const handler = self.phase == .body and index.program.failure != null;
     self.step += 1;
-    self.count = if (index.program.failure != null) 1 else 0;
-    self.phase = if (index.program.failure != null) .failure else .complete;
-    if (self.count != 0) self.frames[0] = .{ .owner = 0, .branch = .failure, .index = 0, .environment = 2 };
+    self.count = if (handler) 1 else 0;
+    self.phase = if (handler) .failure else .complete;
+    if (handler) self.frames[0] = .{ .owner = 0, .branch = .failure, .index = 0, .environment = 2 };
 }
 
 test "application cursor restores exact branches and refuses early atomic exit or stale completions" {

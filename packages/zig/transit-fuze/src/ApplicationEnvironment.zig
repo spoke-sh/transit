@@ -40,6 +40,14 @@ pub fn init(allocator: std.mem.Allocator, index: a.Cursor.Index, bound: a.Types.
     values.appendAssumeCapacity(.{ .instruction = 0, .value = input });
     return .{ .allocator = allocator, .cursor = .initial(), .values = values };
 }
+/// Copy the bounded binding array. Values still borrow their input/turn owners
+/// until the invocation owner encodes its private successor candidate.
+pub fn clone(self: *const Self, allocator: std.mem.Allocator) !Self {
+    var values: std.ArrayList(Binding) = .empty;
+    try values.ensureTotalCapacityPrecise(allocator, self.values.capacity);
+    values.appendSliceAssumeCapacity(self.values.items);
+    return .{ .allocator = allocator, .cursor = self.cursor, .values = values };
+}
 pub fn deinit(self: *Self) void {
     self.values.deinit(self.allocator);
     self.* = undefined;
@@ -124,9 +132,13 @@ pub fn advance(self: *Self, index: a.Cursor.Index, expected_step: u32, action: a
     self.cursor = next;
 }
 pub fn fail(self: *Self, index: a.Cursor.Index, expected_step: u32, failure: Value) !void {
+    if (self.cursor.phase != .body) return error.InvalidProgramNode;
+    try self.refuse(index, expected_step, failure, false);
+}
+pub fn refuse(self: *Self, index: a.Cursor.Index, expected_step: u32, failure: Value, atomic_aborted: bool) !void {
     try failure.validate(.{ .kind = .failure });
     var next = self.cursor;
-    try next.fail(index, expected_step);
+    try next.refuse(index, expected_step, atomic_aborted);
     const count = try next.bindings(index);
     self.values.shrinkRetainingCapacity(if (count == 0) 0 else 1);
     if (count != 0) self.values.appendAssumeCapacity(.{ .instruction = failure_id, .value = failure });
@@ -196,4 +208,37 @@ test "application environment decoding cleans up every allocation failure" {
         }
     };
     try t.checkAllAllocationFailures(t.allocator, Case.run, .{});
+}
+
+test "application failure after verified abort drops locals without resetting instruction identity" {
+    const t = std.testing;
+    var program = try a.parse(t.allocator, "CREATE DATAFLOW act FROM QUEUE jobs AS request AS BEGIN LET outer = 1; BEGIN ATOMIC LET inner = 2; REQUIRE FALSE ELSE 'Refused'; END; ON FAILURE failure REQUIRE FALSE ELSE 'HandlerFailed'; END;", null);
+    defer program.deinit();
+    var bound = try a.Types.bind(t.allocator, program.program, &.{.{ .name = "jobs", .kind = .queue, .fields = &.{} }}, null);
+    defer bound.deinit();
+    var index = try a.Cursor.Index.init(t.allocator, &program.program);
+    defer index.deinit();
+    var env = try init(t.allocator, index, bound, .{ .record = &.{} });
+    defer env.deinit();
+    const outer = (try env.cursor.next(index)).instruction.id;
+    try env.bind(index, bound, 0, outer, .{ .integer = 1 });
+    const block = (try env.cursor.next(index)).enter_atomic.id;
+    try env.advance(index, 1, .{ .enter_atomic = block });
+    const inner = (try env.cursor.next(index)).instruction.id;
+    try env.bind(index, bound, 2, inner, .{ .integer = 2 });
+    const failure: Value = .{ .failure = .{ .code = "Refused", .effect_outcome = "not_dispatched" } };
+    try t.expectError(error.InvalidProgramNode, env.refuse(index, 3, failure, false));
+    try env.refuse(index, 3, failure, true);
+    try t.expectEqual(@as(u32, 4), env.cursor.step);
+    try t.expectEqual(.failure, env.cursor.phase);
+    try t.expectError(error.UnknownProgramVariable, env.lookup(index, "outer"));
+    try t.expectError(error.UnknownProgramVariable, env.lookup(index, "inner"));
+    try t.expectEqual(@as(usize, 0), (try env.lookup(index, "request")).record.len);
+    try t.expectError(error.InvalidProgramNode, env.refuse(index, 3, failure, false));
+    try t.expectError(error.InvalidProgramNode, env.refuse(index, 4, failure, true));
+    try env.refuse(index, 4, failure, false);
+    try t.expectEqual(.complete, env.cursor.phase);
+    try t.expectEqual(@as(u32, 5), env.cursor.step);
+    try t.expectEqual(@as(usize, 0), env.values.items.len);
+    try validate(index, bound, @splat(1), env.snapshot(@splat(1)));
 }
