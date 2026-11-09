@@ -21,6 +21,7 @@ pub const Declaration = struct {
     pub fn intent(self: Declaration, scratch: std.mem.Allocator) !c.DirectCatalog.Intent {
         const action: @FieldType(c.DirectCatalog.Intent, "action") = switch (self.action) {
             .create => |value| blk: {
+                try value.spec.validate();
                 const columns = try scratch.create([2]c.fuze.TableSchema.Column);
                 break :blk .{ .create = .{ .owner = value.owner, .schema = value.spec.schema(self.binding.target.object, columns) } };
             },
@@ -66,9 +67,14 @@ pub const Definition = struct {
     retired: bool,
     position: d.Position,
     changed_lsn: u64,
+    pub fn cloneInto(self: Definition, allocator: std.mem.Allocator) !Definition {
+        var result = self;
+        result.spec = try self.spec.cloneInto(allocator);
+        return result;
+    }
 };
 pub const Change = union(enum) {
-    put: struct { key: w.Binary, value: w.Binary, expect: @FieldType(@FieldType(KV.Change, "put"), "expect") },
+    put: struct { key: w.Binary, value: w.Binary, expect: @FieldType(@FieldType(KV.Change, "put"), "expect"), expected_revision: ?c.fuze.TableRow.Identity = null },
     remove: w.Binary,
 };
 pub const Mutation = struct {
@@ -89,6 +95,10 @@ pub const Mutation = struct {
     pub fn validate(self: Mutation, allocator: std.mem.Allocator) !void {
         try self.binding.validate();
         if (self.binding.action != .insert or self.binding.expected_definition == null or self.changes.len == 0 or self.changes.len > KV.max_changes) return error.InvalidKVOperation;
+        for (self.changes) |change| if (change == .put) if (change.put.expected_revision) |revision| {
+            try revision.validate();
+            if (change.put.expect == .absent) return error.InvalidKVOperation;
+        };
         if (!std.mem.eql(u8, &self.binding.intent, &try self.digest(allocator))) return error.DataIdentityConflict;
     }
 
@@ -98,7 +108,8 @@ pub const Mutation = struct {
         for (self.changes, changes) |change, *lowered| switch (change) {
             .put => |value| {
                 const bytes = try value.value.decode(scratch, c.fuze.Types.Codec.max_bytes);
-                lowered.* = .{ .put = .{ .key = try keyBytes(scratch, value.key), .value = try c.fuze.Types.Codec.decodeBoundInto(scratch, field, bytes), .expect = value.expect } };
+                lowered.* = .{ .put = .{ .key = try keyBytes(scratch, value.key), .value = try c.fuze.Types.Codec.decodeBoundInto(scratch, field, bytes), .expect = value.expect, .expected_revision = value.expected_revision } };
+                try lowered.put.value.validate(field, .{ .value_bytes = KV.max_value_bytes });
             },
             .remove => |key| lowered.* = .{ .remove = try keyBytes(scratch, key) },
         };
@@ -171,6 +182,9 @@ pub const Read = struct {
     source: ?s.TablePartition.SnapshotHandle,
     workspace: ?p.Transaction.ReadView,
     encoded: ?w.Binary,
+    /// Missing keys have no point revision. This is independent of changed_lsn,
+    /// which describes the whole KV resource, and confers no authority.
+    revision: ?c.fuze.TableRow.Identity,
 };
 pub const Result = union(enum) {
     definition: Definition,
@@ -180,7 +194,14 @@ pub const Result = union(enum) {
     pin_status: s.TablePartition.PinState,
     released,
     pub fn deinit(self: Result, allocator: std.mem.Allocator) void {
-        if (self == .value) if (self.value.encoded) |value| allocator.free(value.base64);
+        switch (self) {
+            .definition => |value| value.spec.freeClone(allocator),
+            .value => |value| {
+                value.spec.freeClone(allocator);
+                if (value.encoded) |encoded| allocator.free(encoded.base64);
+            },
+            else => {},
+        }
     }
 };
 
@@ -210,7 +231,7 @@ pub fn applyOwned(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog
     defer selected.view.table = owner.storage;
     const guard = selected.current;
     const result: Result = switch (request) {
-        .observe => .{ .definition = try definition(&owner.storage, selected.view.properties) },
+        .observe => .{ .definition = try (try definition(&owner.storage, selected.view.properties)).cloneInto(output) },
         .operation => |binding| blk: {
             if (owned) |key| {
                 try c.OperationBinding.requireOwned(scratch, catalog.data_objects, .{ .binding = binding, .owner = key });
@@ -233,7 +254,7 @@ pub fn applyOwned(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog
         },
         .get => |value| blk: {
             const key = try keyBytes(scratch, value.key);
-            var basis: Read = .{ .interpretation = owner.storage.root.declared(), .position = .{ .partition = owner.storage.root.partition, .next_lsn = owner.storage.root.next_lsn }, .changed_lsn = owner.storage.root.changed_lsn, .spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec, .source = value.source, .workspace = owner.storage.workspace_read, .encoded = null };
+            var basis: Read = .{ .interpretation = owner.storage.root.declared(), .position = .{ .partition = owner.storage.root.partition, .next_lsn = owner.storage.root.next_lsn }, .changed_lsn = owner.storage.root.changed_lsn, .spec = (try s.KVDeclaration.fromPhysical(owner.storage.declaration.definition)).spec, .source = value.source, .workspace = owner.storage.workspace_read, .encoded = null, .revision = null };
             if (basis.workspace) |view| {
                 if (value.source != null) return error.UnsupportedTransactionRead;
                 basis.position = view.source.source.accepted;
@@ -246,14 +267,17 @@ pub fn applyOwned(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog
                 basis.interpretation = retained.root.declared();
                 basis.position = retained.position();
                 basis.changed_lsn = retained.changedLsn();
-                basis.spec = try s.KVDeclaration.validateSchema(retained.schema.schema);
+                basis.spec = try (try s.KVDeclaration.validateSchema(retained.schema.schema)).cloneInto(scratch);
             }
+            basis.spec = try basis.spec.cloneInto(output);
+            errdefer basis.spec.freeClone(output);
             var row = (if (value.source) |source| try owner.readSnapshot(scratch, source, key, guard) else try owner.get(scratch, key, guard)) orelse break :blk .{ .value = basis };
             defer row.deinit();
             const field: c.fuze.Types.Field = .{ .name = "value", .type = basis.spec.typeOf(), .nullable = basis.spec.nullable };
             const buffer = try scratch.alloc(u8, c.fuze.Types.Codec.max_bytes);
             const bytes = try c.fuze.Types.Codec.encodeBound(row.cell(), field, buffer);
             basis.encoded = try w.Binary.encode(output, bytes);
+            basis.revision = row.revision();
             break :blk .{ .value = basis };
         },
         .pin => |value| .{ .pin = try owner.pin(value.owner, value.expected, guard) },

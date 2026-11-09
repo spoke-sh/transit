@@ -14,7 +14,7 @@ import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
 DEFINITION = b'transit.table.schema.v1.2026-11-01.spatial-reference'
-TYPES = b'transit.fuze.types.v1.2026-11-01.companions'
+TYPES = b'transit.fuze.types.v1.2026-11-08.program-values'
 ROWS = b'transit.table.row.v1.2026-10-05'
 
 
@@ -36,9 +36,9 @@ def fixtures():
     encoded += struct.pack('<HQ', 1, 11)
 
     storage_type = b'FTY1' + bytes([len(TYPES)]) + TYPES + bytes([22, len(columns)])
-    for identity, _, tag, nullable, _ in columns:
+    for identity, _, tag, nullable, limit in columns:
         label = f'{identity:016x}'.encode()
-        storage_type += bytes([len(label)]) + label + bytes([nullable]) + tag
+        storage_type += bytes([len(label)]) + label + bytes([nullable | (4 if limit else 0)]) + (struct.pack("<I", limit) if limit else b"") + tag
     layout = hashlib.sha256(b'transit.table.layout.v1\0' + DEFINITION +
                             struct.pack('<Q', 7) + hashlib.sha256(storage_type).digest()).digest()
     row_payload = b'\3\3' + struct.pack('<i', 12)
@@ -53,8 +53,8 @@ def fixtures():
     key_bytes += b'FVL1' + struct.pack('<H', len(int32)) + int32 + b'\0\3' + struct.pack('<i', 12)
 
     query_type = b'FTY1' + bytes([len(TYPES)]) + TYPES + bytes([22, len(columns)])
-    for _, label, tag, nullable, _ in columns:
-        query_type += bytes([len(label)]) + label.encode() + bytes([nullable]) + tag
+    for _, label, tag, nullable, limit in columns:
+        query_type += bytes([len(label)]) + label.encode() + bytes([nullable | (4 if limit else 0)]) + (struct.pack("<I", limit) if limit else b"") + tag
     query_schema = hashlib.sha256(query_type).digest()
     query_definition = hashlib.sha256(b'transit.fuze.logical-plan.v1:bound-schema:ordered-predicates:output-names:nullable-parameters:collations:scalar-programs:decimal-sum.2026-11-01').digest()
     query_prefix = b'\0\2\1\0'

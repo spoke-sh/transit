@@ -19,6 +19,12 @@ source framing, ordered program trees and static schema/protected-value checks.
 Those local compiler interfaces do not establish installed Queue execution.
 The remaining runtime and qualification gates below still apply.
 
+The next state slice adds typed KV rows with retained field constraints and
+per-key conditional revisions through the shared direct client and transaction
+workspace. Disk recovery, lost replies and stale revisions have focused storage
+coverage. Native browser bindings, Document guards and managed Queue execution
+remain separate work below; these primitives alone do not qualify the consumer.
+
 ## Reviewed inputs and desired experience
 
 Transit baseline: `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`.

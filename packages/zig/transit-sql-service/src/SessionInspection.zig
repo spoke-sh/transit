@@ -171,7 +171,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         const name = try c.TableMetadata.Name.init(inspection.name);
         const response = try host.table.call(.{ .kv_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
-        const definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
+        const definition = try (response.value.result.kv_lookup orelse return error.CatalogNameNotFound).cloneInto(a);
         const rows = if (!inspection.describe) blk: {
             const rows = try a.alloc([]const f.Types.Values.Cell, 1);
             rows[0] = try a.dupe(f.Types.Values.Cell, &.{
@@ -183,6 +183,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                     .boolean => "BOOLEAN",
                     .utf8 => "UTF8",
                     .binary => "BINARY",
+                    .row => "ROW",
                 }),
                 boolean(definition.spec.nullable),
             });
@@ -331,6 +332,7 @@ fn kvDescribeRows(a: std.mem.Allocator, definition: c.DirectKV.Definition) ![]co
             .boolean => "BOOLEAN",
             .utf8 => "UTF8",
             .binary => "BINARY",
+            .row => "ROW",
         }),
         boolean(definition.spec.nullable),
         boolean(false),
@@ -554,7 +556,7 @@ fn describeView(host: *g.Session, arena: *std.heap.ArenaAllocator, namespace: u6
         defer kv_response.deinit();
         if (kv_response.value.result.kv_lookup) |definition| {
             const rows = try kvDescribeRows(arena.allocator(), definition);
-            return .{ .arena = arena.*, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = &log_describe_fields };
+            return .{ .arena = arena.*, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = try definition.cloneInto(arena.allocator()) }, .rows = rows, .output = &log_describe_fields };
         }
     }
     var sql: std.Io.Writer.Allocating = .init(arena.allocator());

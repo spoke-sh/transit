@@ -4,7 +4,7 @@ const ucs2length = lengthModule.default ?? lengthModule;
 "use strict";
 export const Deployment = validate53;
 const schema20 = {"type":"object","additionalProperties":false,"properties":{"definition":{"$ref":"https://transit.invalid/generated-validator/32"},"profile":{"type":"string","enum":["native_v1"]},"realm":{"$ref":"https://transit.invalid/generated-validator/1"},"features":{"type":"object","additionalProperties":false,"properties":{"catalog":{"type":"boolean"},"sql":{"type":"boolean"},"relational":{"type":"boolean"},"query":{"type":"boolean"},"reactive":{"type":"boolean"},"application":{"type":"boolean"}},"required":["catalog","sql","relational","query","reactive","application"]}},"required":["definition","profile","realm","features"]};
-const schema21 = {"type":"string","enum":["972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"]};
+const schema21 = {"type":"string","enum":["68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"]};
 
 function validate54(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -20,7 +20,7 @@ if(typeof data !== "string"){
 validate54.errors = [{}];
 return false;
 }
-if(!(data === "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8")){
+if(!(data === "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747")){
 validate54.errors = [{}];
 return false;
 }

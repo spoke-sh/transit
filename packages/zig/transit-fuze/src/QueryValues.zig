@@ -32,13 +32,14 @@ pub const Column = struct {
     type: types.Type,
     nullable: bool = false,
     optional: bool = false,
+    max_characters: ?u32 = null,
     pub fn native(self: Column) !types.Field {
-        const field: types.Field = .{ .name = self.name, .type = self.type, .nullable = self.nullable, .optional = self.optional };
+        const field: types.Field = .{ .name = self.name, .type = self.type, .nullable = self.nullable, .optional = self.optional, .max_characters = self.max_characters };
         try (types.Type{ .structure = &.{field} }).validate(.{});
         return field;
     }
     pub fn fromNative(alloc: Allocator, value: types.Field) !Column {
-        return .{ .name = try alloc.dupe(u8, value.name), .type = try value.type.cloneInto(alloc), .nullable = value.nullable, .optional = value.optional };
+        return .{ .name = try alloc.dupe(u8, value.name), .type = try value.type.cloneInto(alloc), .nullable = value.nullable, .optional = value.optional, .max_characters = value.max_characters };
     }
 };
 pub fn columns(alloc: Allocator, values: []const Column) !types.Type {

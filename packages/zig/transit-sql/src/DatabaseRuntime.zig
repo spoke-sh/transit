@@ -590,7 +590,7 @@ fn advance(self: *Self, source: *g.Client.Source, state: c.DirectClientToken.Pro
     if (reference == .kv and reference.kv.kind != .ddl) {
         if (!state.cancel) {
             const response = reference.admit(caller) catch |err| switch (err) {
-                error.DuplicatePrimaryKey, error.DuplicateBatchKey, error.TableRowMissing, error.TableDefinitionChanged, error.TableDataChanged => null,
+                error.DuplicatePrimaryKey, error.DuplicateBatchKey, error.TableRowMissing, error.TableDefinitionChanged, error.TableDataChanged, error.KVRevisionChanged => null,
                 else => return err,
             };
             defer if (response) |value| value.deinit();
@@ -854,7 +854,7 @@ fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, sta
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => terminal = try g.Terminal.rejectedKV(intent.kv, .duplicate_key),
             error.TableRowMissing => terminal = try g.Terminal.rejectedKV(intent.kv, .missing_row),
             error.TableDefinitionChanged => terminal = try g.Terminal.rejectedKV(intent.kv, .definition_changed),
-            error.TableDataChanged => terminal = try g.Terminal.rejectedKV(intent.kv, .data_changed),
+            error.TableDataChanged, error.KVRevisionChanged => terminal = try g.Terminal.rejectedKV(intent.kv, .data_changed),
             else => return err,
         }
         deadline.check(self.io) catch {

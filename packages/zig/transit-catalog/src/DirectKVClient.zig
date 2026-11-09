@@ -36,6 +36,7 @@ pub const Read = struct {
     source: ?c.storage.TablePartition.SnapshotHandle,
     workspace: ?c.protocol.Transaction.ReadView,
     value: ?types.Values.Cell,
+    revision: ?c.fuze.TableRow.Identity,
 };
 pub const Result = union(enum) {
     declaration: K.DeclarationResult,
@@ -62,6 +63,7 @@ pub fn prepareDeclaration(allocator: std.mem.Allocator, value: K.Declaration) !K
 /// Encode one bounded batch and fill its content commitment before submission.
 /// All returned bytes belong to output; no durable operation is accepted here.
 pub fn prepareMutation(arena: *std.heap.ArenaAllocator, original: d.Binding, spec: c.storage.KVDeclaration.Spec, changes: []const c.storage.KVPartition.Change) !K.Mutation {
+    try spec.validate();
     const output = arena.allocator();
     if (changes.len == 0 or changes.len > c.storage.KVPartition.max_changes) return error.InvalidKVOperation;
     var scratch: std.heap.ArenaAllocator = .init(output);
@@ -96,7 +98,7 @@ pub fn prepareMutation(arena: *std.heap.ArenaAllocator, original: d.Binding, spe
                 encoded_bytes += required;
                 const key = try w.Binary.encode(output, put.key);
                 errdefer output.free(key.base64);
-                break :blk .{ .put = .{ .key = key, .value = try w.Binary.encode(output, bytes), .expect = put.expect } };
+                break :blk .{ .put = .{ .key = key, .value = try w.Binary.encode(output, bytes), .expect = put.expect, .expected_revision = put.expected_revision } };
             },
             .remove => |key| blk: {
                 const required = 64 + std.base64.standard.Encoder.calcSize(key.len);
@@ -146,10 +148,11 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
     defer response.deinit();
     return switch (response.value.result) {
         .kv_declaration => |value| .{ .declaration = value },
-        .kv_lookup => |value| .{ .lookup = value },
+        .kv_lookup => |value| .{ .lookup = if (value) |definition| try definition.cloneInto(output.allocator()) else null },
         .kv_list => |value| .{ .list = value },
         .kv => |result| switch (result) {
-            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = value.spec, .source = value.source, .workspace = value.workspace, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
+            .definition => |value| .{ .definition = try value.cloneInto(output.allocator()) },
+            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = try value.spec.cloneInto(output.allocator()), .source = value.source, .workspace = value.workspace, .revision = value.revision, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
             inline else => |value, tag| @unionInit(Result, @tagName(tag), value),
         },
         else => error.InvalidKVResponse,

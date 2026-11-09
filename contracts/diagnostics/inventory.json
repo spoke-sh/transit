@@ -6626,7 +6626,7 @@
         "DataIdentityConflict": 2,
         "InvalidCatalogStepBudget": 1,
         "InvalidKVKey": 1,
-        "InvalidKVOperation": 2,
+        "InvalidKVOperation": 3,
         "InvalidKVOutcome": 1,
         "KVBatchTooLarge": 1,
         "KVBuildBudget": 1,
@@ -6678,6 +6678,7 @@
         "Declaration.intent()": "<inferred>",
         "Declaration.request()": "<inferred>",
         "DeclarationRequest.validate()": "<inferred>",
+        "Definition.cloneInto()": "<inferred>",
         "Mutation.decodeChanges()": "<inferred>",
         "Mutation.digest()": "<inferred>",
         "Mutation.validate()": "<inferred>",
@@ -6690,7 +6691,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 55,
         "catch": 2
       },
       "imports": [
@@ -6743,7 +6744,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -6817,7 +6818,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -6843,7 +6844,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -6879,7 +6880,7 @@
     },
     "packages/zig/transit-catalog/src/DirectKVResponse.zig": {
       "errors": {
-        "InvalidKVResponse": 20
+        "InvalidKVResponse": 21
       },
       "outcomes": {},
       "error_sets": {},
@@ -6892,7 +6893,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 29,
         "catch": 0
       },
       "imports": [
@@ -8701,7 +8702,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 260,
+        "try": 261,
         "catch": 0
       },
       "imports": [
@@ -16590,7 +16591,7 @@
         "DuplicateColumnConstraint": 1,
         "UnsupportedCascade": 1,
         "UnsupportedConstruct": 1,
-        "UnsupportedKVValueType": 2,
+        "UnsupportedKVValueType": 3,
         "UnsupportedStatement": 2
       },
       "outcomes": {
@@ -16603,7 +16604,8 @@
           "int64",
           "boolean",
           "utf8",
-          "binary"
+          "binary",
+          "row"
         ],
         "compile().verb": [
           "create",
@@ -16613,13 +16615,15 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Spec.cloneInto()": "<inferred>",
+        "Spec.validate()": "<inferred>",
         "ValueType.fromLogical()": "<inferred>",
         "compile()": "<inferred>",
         "inspection()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -16633,7 +16637,6 @@
       "errors": {
         "DuplicateKVKey": 2,
         "InvalidKVKey": 3,
-        "InvalidLiteral": 1,
         "InvalidParameterIndex": 1,
         "InvalidSqlSyntax": 3,
         "KVBatchTooLarge": 2,
@@ -16691,7 +16694,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 82,
+        "try": 84,
         "catch": 2
       },
       "imports": [
@@ -21054,7 +21057,6 @@
     },
     "packages/zig/transit-fuze/src/TableSchema.zig": {
       "errors": {
-        "CharacterLimitExceeded": 1,
         "CheckConstraintViolation": 1,
         "DuplicateAssignment": 1,
         "DuplicateColumn": 2,
@@ -21062,7 +21064,7 @@
         "DuplicatePrimaryKeyColumn": 1,
         "IncompatibleColumnCollation": 1,
         "IncompatibleColumnEncoding": 1,
-        "InvalidCharacterLimit": 2,
+        "InvalidCharacterLimit": 1,
         "InvalidColumnCount": 3,
         "InvalidColumnIdentity": 1,
         "InvalidKeyWidth": 1,
@@ -21141,7 +21143,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 109,
+        "try": 108,
         "catch": 5
       },
       "imports": [
@@ -21378,6 +21380,7 @@
           "name_nul",
           "duplicate_name",
           "optional_variant",
+          "character_limit",
           "array_length",
           "map_key",
           "depth",
@@ -21504,6 +21507,7 @@
         "DuplicateField": 1,
         "IncompatibleDefinition": 1,
         "InvalidArrayLength": 1,
+        "InvalidCharacterLimit": 2,
         "InvalidDecimal": 2,
         "InvalidFieldCount": 1,
         "InvalidFieldName": 4,
@@ -21625,6 +21629,7 @@
         "Budget.name()": "<inferred>",
         "Budget.node()": "<inferred>",
         "Budget.reject()": "anyerror",
+        "Field.validateConstraint()": "<inferred>",
         "Type.clone()": "<inferred>",
         "Type.cloneInto()": "<inferred>",
         "Type.encode()": "<inferred>",
@@ -21645,7 +21650,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 85,
+        "try": 87,
         "catch": 1
       },
       "imports": [
@@ -21970,7 +21975,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 137,
+        "try": 139,
         "catch": 0
       },
       "imports": [
@@ -21980,6 +21985,7 @@
     },
     "packages/zig/transit-fuze/src/Values.zig": {
       "errors": {
+        "CharacterLimitExceeded": 1,
         "InvalidArrayLength": 1,
         "InvalidConflict": 3,
         "InvalidUnion": 1,
@@ -22026,7 +22032,9 @@
         "Cell.validate()": "<inferred>",
         "Value.jsonParse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
         "atomOrder()": "<inferred>",
+        "characterLimit()": "<inferred>",
         "checkCell()": "anyerror",
+        "checkField()": "<inferred>",
         "checkValue()": "anyerror",
         "cloneAtom()": "<inferred>",
         "cloneValidated()": "anyerror",
@@ -22036,7 +22044,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 51,
+        "try": 56,
         "catch": 0
       },
       "imports": [
@@ -25077,7 +25085,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8\""
+          "@\"68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747\""
         ],
         "Effect.phase": [
           "pending",
@@ -35030,7 +35038,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 153,
+        "try": 155,
         "catch": 2
       },
       "imports": [
@@ -35361,6 +35369,7 @@
         "InvalidGatewayTerminal": 1,
         "InvalidManagedTableRecord": 3,
         "InvalidSqlReadRecovery": 1,
+        "KVRevisionChanged": 2,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "StaleGatewayCoordinator": 6,
@@ -41641,23 +41650,18 @@
         "DataKindMismatch": 1,
         "InvalidKVDeclaration": 3
       },
-      "outcomes": {
-        "Spec.value_type": [
-          "int64",
-          "boolean",
-          "utf8",
-          "binary"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Spec.cloneInto()": "<inferred>",
+        "Spec.validate()": "<inferred>",
         "fromPhysical()": "<inferred>",
         "prepare()": "<inferred>",
         "validateSchema()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
+        "try": 8,
         "catch": 0
       },
       "imports": [
@@ -41670,7 +41674,7 @@
     "packages/zig/transit-storage/src/KVPartition.zig": {
       "errors": {
         "InvalidKVKey": 2,
-        "InvalidKVOperation": 3,
+        "InvalidKVOperation": 4,
         "KVBuildBudget": 2,
         "KVValueTooLarge": 1,
         "OutOfMemory": 1
@@ -41698,7 +41702,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 15,
+        "try": 17,
         "catch": 2
       },
       "imports": [
@@ -43707,16 +43711,16 @@
         "IncompatibleDefinition": 1,
         "InvalidInsertRowIdentity": 2,
         "InvalidKVKey": 2,
-        "InvalidKVOperation": 3,
+        "InvalidKVOperation": 4,
         "InvalidTableKey": 6,
-        "InvalidTableMutationIntent": 12,
+        "InvalidTableMutationIntent": 13,
         "InvalidTableStatementIntent": 1,
         "KVValueTooLarge": 1,
         "TableBatchTooLarge": 1,
         "TableMutationIntentMissing": 1,
         "TableSchemaChanged": 1,
         "UnsupportedTableAction": 1,
-        "UnsupportedTableMutationShape": 3
+        "UnsupportedTableMutationShape": 4
       },
       "outcomes": {
         "Metadata.work": [
@@ -43738,7 +43742,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 79,
         "catch": 0
       },
       "imports": [
@@ -43913,6 +43917,7 @@
         "DuplicateTableRowIdentity": 3,
         "IncompatibleSchemaProjection": 1,
         "InvalidDataDefinition": 1,
+        "InvalidKVOperation": 1,
         "InvalidPartitionLease": 1,
         "InvalidSegmentIndex": 1,
         "InvalidTableBasis": 10,
@@ -43936,6 +43941,7 @@
         "InvalidTransactionPreparation": 7,
         "InvalidTransactionRead": 1,
         "InvalidTransactionWorkspace": 1,
+        "KVRevisionChanged": 2,
         "LostAcknowledgement": 1,
         "MissingTableInterpretation": 8,
         "OnlinePhasedRewriteRequired": 1,
@@ -44162,7 +44168,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 759,
+        "try": 760,
         "catch": 19
       },
       "imports": [
@@ -45403,7 +45409,7 @@
       "predicateAtom": "columnReference ( IS NOT ? cellState | comparison ( literal | PARAMETER ) )",
       "cellState": "NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT",
       "comparison": "EQ | NE | LT | LE | GT | GE",
-      "literal": "signedInteger | signedNumber | TRUE | FALSE | NULL_ | MISSING | STRING ( TYPECAST ( BYTEA | UINT64 | FLOAT64 ) ) ? | ( X | DATE | TIME | TIMESTAMP | UUID | JSON ) STRING | ( STRUCT | LIST | ARRAY | MAP | INTERVAL ) LPAREN ( literal ( COMMA literal ) * ) ? RPAREN | UNION LPAREN identifier COMMA literal RPAREN",
+      "literal": "signedInteger | signedNumber | TRUE | FALSE | NULL_ | MISSING | STRING ( TYPECAST ( BYTEA | UINT64 | FLOAT64 ) ) ? | ( X | DATE | TIME | TIMESTAMP | UUID | JSON ) STRING | ( STRUCT | ROW | LIST | ARRAY | MAP | INTERVAL ) LPAREN ( literal ( COMMA literal ) * ) ? RPAREN | UNION LPAREN identifier COMMA literal RPAREN",
       "signedNumber": "( PLUS | MINUS ) ? NUMBER",
       "signedInteger": "( PLUS | MINUS ) ? INTEGER",
       "limitClause": "LIMIT ( INTEGER | PARAMETER )",
@@ -45463,7 +45469,7 @@
       "columnConstraint": "nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation | ROUNDING identifier | METRIC identifier | TIMEZONE STRING TZDB STRING TZIF X STRING",
       "collation": "UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD",
       "nullability": "NOT NULL_ | NULL_",
-      "dataType": "scalarTypeName ( LPAREN INTEGER ( COMMA INTEGER ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA INTEGER RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN | ( RANGE | MULTIRANGE ) LT dataType GT | VECTOR LPAREN INTEGER COMMA scalarTypeName RPAREN",
+      "dataType": "scalarTypeName ( LPAREN INTEGER ( COMMA INTEGER ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | ROW | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA INTEGER RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN | ( RANGE | MULTIRANGE ) LT dataType GT | VECTOR LPAREN INTEGER COMMA scalarTypeName RPAREN",
       "scalarTypeName": "IDENTIFIER | INT64 | UINT64 | FLOAT64 | BOOL | UTF8 | BINARY | BYTEA | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE PRECISION ? | CHARACTER VARYING",
       "typeField": "identifier dataType nullability ? OPTIONAL ?",
       "alterTable": "ALTER TABLE identifier ( ADD COLUMN ? columnDef | ADD tableConstraint | DROP CONSTRAINT identifier RESTRICT ? | VALIDATE CONSTRAINT identifier | DROP COLUMN ? identifier RESTRICT ? | RENAME COLUMN ? identifier TO identifier | RENAME TO identifier | ALTER COLUMN ? identifier ( SET DEFAULT literal | DROP DEFAULT | SET NOT NULL_ | DROP NOT NULL_ | ( SET DATA ) ? TYPE dataType ) )",
@@ -45482,7 +45488,7 @@
       "explainStatement": "EXPLAIN selectStatement",
       "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | ROW | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE | STREAM | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
       "DECIMAL_ADD": "'DECIMAL_ADD'",
       "DECIMAL_SUBTRACT": "'DECIMAL_SUBTRACT'",
@@ -45643,6 +45649,7 @@
       "DATA": "'DATA'",
       "TYPE": "'TYPE'",
       "STRUCT": "'STRUCT'",
+      "ROW": "'ROW'",
       "LIST": "'LIST'",
       "ARRAY": "'ARRAY'",
       "MAP": "'MAP'",

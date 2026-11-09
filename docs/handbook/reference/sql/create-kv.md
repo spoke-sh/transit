@@ -24,17 +24,23 @@ SHOW KVS;
 SHOW KV name;
 DESCRIBE [KV] name;
 data_type := INT64 | BIGINT | BOOL | BOOLEAN | UTF8 | TEXT | BINARY | BYTEA
+           | ROW (field_name field_type [NULL | NOT NULL] [, ...])
 ```
 
 `name` is an identifier. Value nullability defaults to `NOT NULL` when omitted.
 Keys are non-empty UTF-8 strings (`'key'`) or binary hex literals (`X'...'`,
 `'\x...'::bytea`) of 1–1,024 bytes.
+`ROW` (also spelled `STRUCT`) admits 1–64 ordered logical fields. Fields default
+to nullable and preserve nested `VARCHAR(n)` character limits. Row literals are
+supported; whole-row SQL parameters are unsupported.
 
 ## Examples
 
 ```sql
 CREATE KV settings (UTF8);
 CREATE KV counters (INT64);
+CREATE KV sessions (ROW (identity_id VARCHAR(64), revoked BOOLEAN NOT NULL));
+PUT INTO sessions KEY 'example' VALUE ROW('identity', FALSE) IF ABSENT;
 ```
 
 Direct catalog sessions also accept explicit nullability, point-keyed workload verbs and inspection forms:

@@ -54,15 +54,15 @@ NUMERIC and DECIMAL declare exact decimal values. The complete alias and
 parameter rules live in the [Table type resolver](../../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver).
 
 DECIMAL defaults to precision 38 and scale 0, with precision 1–38 and scale
-0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length;
-nested VARCHAR(n), CHAR padding, BINARY(n)/VARBINARY and FLOAT(p) reject because
-they have no selected semantics. TIME defaults to nanosecond precision and
+0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length on
+columns and named ROW/STRUCT fields. Collection-element VARCHAR(n), CHAR padding,
+BINARY(n)/VARBINARY and FLOAT(p) are unsupported. TIME defaults to nanosecond precision and
 TIMESTAMP to microsecond precision. Civil and UTC timestamps are distinct;
 TIME WITH TIME ZONE and named IANA zones are unsupported.
 
 [CREATE TABLE](create-table.md) and typed DML bind constants directly to the
 column descriptor. Strings use doubled single quotes; binary uses X'hex'.
-Date/time/timestamp/UUID accept exact string forms. STRUCT, LIST, ARRAY, MAP,
+Date/time/timestamp/UUID accept exact string forms. ROW/STRUCT, LIST, ARRAY, MAP,
 UNION and INTERVAL constructors and JSON strings have the
 [shared typed constant grammar](../../../../contracts/TABLE_DDL_V1.md#type-and-literal-profile).
 A storable nested value does not acquire a SQL comparison or aggregate operator.

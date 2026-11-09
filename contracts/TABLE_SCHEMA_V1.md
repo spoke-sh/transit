@@ -216,7 +216,7 @@ big-endian integers in that order, so byte order is identity order.
 
 The physical row type is a logical struct in column order. Each field uses its
 column ID as 16 lowercase hexadecimal ASCII digits, with the column's type and
-nullable flag; optional is false. Validate both the user-named and physical
+nullable flag and character limit; optional is false. Validate both the user-named and physical
 descriptors under shared descriptor limits. The layout fingerprint is SHA-256 of
 `transit.table.layout.v1` followed by NUL, the schema definition string without a
 length, the object u64 little-endian and the physical type's 32-byte fingerprint.

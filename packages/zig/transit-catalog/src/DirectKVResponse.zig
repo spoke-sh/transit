@@ -10,6 +10,7 @@ fn frontier(position: d.Position, changed_lsn: u64) !void {
     if (position.next_lsn == 0 or changed_lsn > position.next_lsn) return error.InvalidKVResponse;
 }
 fn stored(value: s.TableDeclaration.Stored, spec: s.KVDeclaration.Spec) !void {
+    try spec.validate();
     try value.validate();
     if (value.kind != .kv) return error.InvalidKVResponse;
     var columns: [2]c.fuze.TableSchema.Column = undefined;
@@ -75,6 +76,8 @@ pub fn validate(allocator: std.mem.Allocator, request: K.Request, result: K.Resu
             } else if (request == .mutate) return error.InvalidKVResponse;
         },
         .value => |value| {
+            if ((value.encoded == null) != (value.revision == null)) return error.InvalidKVResponse;
+            if (value.revision) |revision| try revision.validate();
             try stored(value.interpretation, value.spec);
             try frontier(value.position, value.changed_lsn);
             if (!std.meta.eql(value.interpretation.interpretation.object, request.target()) or !std.meta.eql(value.source, request.get.source)) return error.InvalidKVResponse;

@@ -44,12 +44,12 @@ def data_type(ctx):
         if name in ('TIMESTAMP', 'TIMESTAMPTZ'):
             return {'timestamp':'utc' if name=='TIMESTAMPTZ' or ctx.WITH() else 'civil'}, None
         return {ALIASES[name]:{}}, parameters[0] if name in ('VARCHAR', 'CHARACTERVARYING') and parameters else None
-    if ctx.STRUCT() or ctx.UNION():
+    if ctx.STRUCT() or ctx.ROW() or ctx.UNION():
         fields = []
         for item in ctx.typeField():
-            typ, bound = data_type(item.dataType()); assert bound is None
-            fields.append(dict(name=identifier(item.identifier()), type=typ, nullable=nullable(item.nullability()), optional=bool(item.OPTIONAL())))
-        return {'structure' if ctx.STRUCT() else 'tagged_union':fields}, None
+            typ, bound = data_type(item.dataType())
+            fields.append(dict(name=identifier(item.identifier()), type=typ, nullable=nullable(item.nullability()), optional=bool(item.OPTIONAL()), max_characters=bound))
+        return {'tagged_union' if ctx.UNION() else 'structure':fields}, None
     children = ctx.dataType()
     types = [data_type(child)[0] for child in children]
     # Nullability clauses belong to the immediately preceding type, not an

@@ -6,8 +6,14 @@ const f = @import("transit_fuze");
 const Declaration = @import("TableDeclaration.zig");
 
 pub const Spec = struct {
-    value_type: enum { int64, boolean, utf8, binary },
+    pub const json_schema_sequence_bounds = .{ .fields = 64 };
+    value_type: f.KVDdl.ValueType,
     nullable: bool,
+    fields: []const f.Types.Field = &.{},
+
+    pub fn validate(self: Spec) !void {
+        try (f.KVDdl.Spec{ .value_type = self.value_type, .nullable = self.nullable, .fields = self.fields }).validate();
+    }
 
     pub fn typeOf(self: Spec) f.Types.Type {
         return switch (self.value_type) {
@@ -15,7 +21,15 @@ pub const Spec = struct {
             .boolean => .boolean,
             .utf8 => .utf8,
             .binary => .binary,
+            .row => .{ .structure = self.fields },
         };
+    }
+    pub fn cloneInto(self: Spec, allocator: std.mem.Allocator) !Spec {
+        const value = try (f.KVDdl.Spec{ .value_type = self.value_type, .nullable = self.nullable, .fields = self.fields }).cloneInto(allocator);
+        return .{ .value_type = value.value_type, .nullable = value.nullable, .fields = value.fields };
+    }
+    pub fn freeClone(self: Spec, allocator: std.mem.Allocator) void {
+        if (self.value_type == .row) self.typeOf().freeClone(allocator);
     }
     pub fn schema(self: Spec, object: u64, columns: *[2]f.TableSchema.Column) f.TableSchema.Schema {
         columns.* = .{
@@ -62,8 +76,10 @@ pub fn validateSchema(schema: f.TableSchema.Schema) !Spec {
         .boolean => .boolean,
         .utf8 => .utf8,
         .binary => .binary,
+        .structure => .row,
         else => return error.InvalidKVDeclaration,
-    }, .nullable = column.nullable };
+    }, .nullable = column.nullable, .fields = if (column.type == .structure) column.type.structure else &.{} };
+    try (f.KVDdl.Spec{ .value_type = spec.value_type, .nullable = spec.nullable, .fields = spec.fields }).validate();
     var columns: [2]f.TableSchema.Column = undefined;
     const expected = spec.schema(schema.object, &columns);
     if (!std.mem.eql(u8, &try expected.fingerprint(), &try schema.fingerprint())) return error.InvalidKVDeclaration;
@@ -71,6 +87,7 @@ pub fn validateSchema(schema: f.TableSchema.Schema) !Spec {
 }
 
 pub fn prepare(allocator: std.mem.Allocator, definition: Definition) !Declaration.Owned {
+    try definition.spec.validate();
     var columns: [2]f.TableSchema.Column = undefined;
     return Declaration.prepare(allocator, definition.physical(&columns));
 }

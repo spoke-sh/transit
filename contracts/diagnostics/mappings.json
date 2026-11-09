@@ -4975,6 +4975,14 @@
         "TimezoneCoverageUnavailable": {
           "code": "file.timezone_coverage_unavailable",
           "category": "unsupported"
+        },
+        "InvalidCharacterLimit": {
+          "code": "file.invalid_character_limit",
+          "category": "binding"
+        },
+        "CharacterLimitExceeded": {
+          "code": "file.character_limit_exceeded",
+          "category": "constraint"
         }
       }
     },

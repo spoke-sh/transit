@@ -13,13 +13,9 @@ prepared: f.KVWorkloadSql.PreparedWrite,
 
 fn fuzeSpec(spec: s.KVDeclaration.Spec) f.KVDdl.Spec {
     return .{
-        .value_type = switch (spec.value_type) {
-            .int64 => .int64,
-            .boolean => .boolean,
-            .utf8 => .utf8,
-            .binary => .binary,
-        },
+        .value_type = spec.value_type,
         .nullable = spec.nullable,
+        .fields = spec.fields,
     };
 }
 
@@ -30,8 +26,9 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     if (selected.kind == .get) return error.UnsupportedStatement;
     const response = try client.call(.{ .kv_lookup = .{ .namespace = namespace, .name = selected.source.name } });
     defer response.deinit();
-    const definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
+    var definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
     const prepared = try f.KVWorkloadSql.PreparedWrite.init(allocator, text, fuzeSpec(definition.spec), dialect, location);
+    definition.spec.fields = prepared.spec.fields;
     return .{
         .connection = client.connection,
         .namespace = namespace,

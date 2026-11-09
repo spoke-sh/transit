@@ -14,7 +14,7 @@ pub const Cell = union(types.State) {
     pub fn validate(self: Cell, field: types.Field, limits: types.Limits) !void {
         try field.type.validate(limits);
         var budget: Budget = .{ .limits = limits };
-        try checkCell(self, field.type, field.nullable, field.optional, 0, &budget);
+        try checkField(self, field, 0, &budget);
     }
 };
 pub const Entry = struct { key: Atom, value: Cell };
@@ -126,6 +126,21 @@ const Budget = struct {
         self.bytes += bytes;
     }
 };
+fn checkField(cell: Cell, field: types.Field, depth: usize, budget: *Budget) !void {
+    try field.validateConstraint();
+    try checkCell(cell, field.type, field.nullable, field.optional, depth, budget);
+    if (field.max_characters) |maximum| switch (cell) {
+        .value => |value| try characterLimit(value, maximum),
+        .conflict => |alternatives| for (alternatives) |alternative| {
+            if (alternative.value == .value) try characterLimit(alternative.value.value, maximum);
+        },
+        else => {},
+    };
+}
+fn characterLimit(value: Value, maximum: u32) !void {
+    // Called only after validating this value as UTF-8, including alternatives.
+    if (try std.unicode.utf8CountCodepoints(value.atom.bytes) > maximum) return error.CharacterLimitExceeded;
+}
 fn checkCell(cell: Cell, expected: types.Type, nullable: bool, optional: bool, depth: usize, budget: *Budget) anyerror!void {
     try budget.child(depth);
     switch (cell) {
@@ -159,7 +174,7 @@ fn checkValue(value: Value, expected: types.Type, depth: usize, budget: *Budget)
         },
         .structure => |cells| {
             if (expected != .structure or cells.len != expected.structure.len) return error.TypeMismatch;
-            for (cells, expected.structure) |cell, field| try checkCell(cell, field.type, field.nullable, field.optional, depth + 1, budget);
+            for (cells, expected.structure) |cell, field| try checkField(cell, field, depth + 1, budget);
         },
         .list, .array => |cells| {
             const element = if (value == .list and expected == .list) expected.list else if (value == .array and expected == .array) blk: {
@@ -181,7 +196,7 @@ fn checkValue(value: Value, expected: types.Type, depth: usize, budget: *Budget)
         .tagged_union => |tagged| {
             if (expected != .tagged_union or tagged.index >= expected.tagged_union.len) return error.InvalidUnion;
             const field = expected.tagged_union[tagged.index];
-            try checkCell(tagged.value.*, field.type, field.nullable, false, depth + 1, budget);
+            try checkField(tagged.value.*, field, depth + 1, budget);
         },
         .json => |bytes| {
             if (expected != .json) return error.TypeMismatch;

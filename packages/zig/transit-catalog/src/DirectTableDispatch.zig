@@ -145,7 +145,7 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             const value = action.kv_lookup;
             var view = try catalog.resolveKV(catalog.allocator, value.namespace, try c.TableAuthority.Name.init(value.name), policy) orelse return .{ .kv_lookup = null };
             defer view.deinit();
-            return .{ .kv_lookup = try c.DirectKV.definition(&view.table, view.properties) };
+            return .{ .kv_lookup = try (try c.DirectKV.definition(&view.table, view.properties)).cloneInto(allocator) };
         },
         .kv_list => {
             const value = action.kv_list;

@@ -1,6 +1,6 @@
 {
   "$id": "urn:transit:sql-read:v1",
-  "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
+  "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
   "$defs": {
     "ReadRequest": {
       "$ref": "#/$defs/ReadRequest/$defs/T0",
@@ -29,7 +29,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           ]
         },
         "T2": {
@@ -253,7 +253,7 @@
             "lifetime_ms"
           ],
           "x-transit-defaults": {
-            "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
+            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
             "readers": 4,
             "window_rows": 100,
             "window_bytes": 2097152,
@@ -263,7 +263,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           ]
         },
         "T3": {
@@ -348,13 +348,13 @@
               "$ref": "#/$defs/ReadResponse/$defs/T10"
             },
             "rows": {
-              "$ref": "#/$defs/ReadResponse/$defs/T23"
+              "$ref": "#/$defs/ReadResponse/$defs/T24"
             },
             "observation": {
               "$ref": "#/$defs/ReadResponse/$defs/T3"
             },
             "observation_kind": {
-              "$ref": "#/$defs/ReadResponse/$defs/T60"
+              "$ref": "#/$defs/ReadResponse/$defs/T61"
             },
             "start": {
               "$ref": "#/$defs/ReadResponse/$defs/T3"
@@ -366,7 +366,7 @@
               "$ref": "#/$defs/ReadResponse/$defs/T4"
             },
             "stopped": {
-              "$ref": "#/$defs/ReadResponse/$defs/T61"
+              "$ref": "#/$defs/ReadResponse/$defs/T62"
             }
           },
           "required": [
@@ -382,7 +382,7 @@
             "stopped"
           ],
           "x-transit-defaults": {
-            "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           }
         },
         "T10": {
@@ -399,7 +399,8 @@
             "name",
             "type",
             "nullable",
-            "optional"
+            "optional",
+            "max_characters"
           ],
           "properties": {
             "name": {
@@ -413,17 +414,22 @@
             },
             "optional": {
               "$ref": "#/$defs/ReadResponse/$defs/T18"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/ReadResponse/$defs/T23"
             }
           },
           "required": [
             "name",
             "type",
             "nullable",
-            "optional"
+            "optional",
+            "max_characters"
           ],
           "x-transit-defaults": {
             "nullable": false,
-            "optional": false
+            "optional": false,
+            "max_characters": null
           }
         },
         "T12": {
@@ -925,11 +931,14 @@
           ]
         },
         "T23": {
-          "type": "array",
-          "maxItems": 100,
-          "items": {
-            "$ref": "#/$defs/ReadResponse/$defs/T24"
-          }
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReadResponse/$defs/T7"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "T24": {
           "type": "array",
@@ -939,6 +948,13 @@
           }
         },
         "T25": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/ReadResponse/$defs/T26"
+          }
+        },
+        "T26": {
           "oneOf": [
             {
               "type": "object",
@@ -948,30 +964,6 @@
               ],
               "properties": {
                 "missing": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T26"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "null"
-              ],
-              "properties": {
-                "null": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T26"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "type_error"
-              ],
-              "properties": {
-                "type_error": {
                   "$ref": "#/$defs/ReadResponse/$defs/T27"
                 }
               }
@@ -980,406 +972,11 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "value"
-              ],
-              "properties": {
-                "value": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T28"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "conflict"
-              ],
-              "properties": {
-                "conflict": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T51"
-                }
-              }
-            }
-          ]
-        },
-        "T26": {
-          "type": "object",
-          "maxProperties": 0
-        },
-        "T27": {
-          "type": "string",
-          "enum": [
-            "unknown",
-            "int64",
-            "uint64",
-            "float64",
-            "boolean",
-            "utf8",
-            "binary",
-            "int8",
-            "int16",
-            "int32",
-            "int128",
-            "uint8",
-            "uint16",
-            "uint32",
-            "uint128",
-            "float32",
-            "decimal",
-            "date",
-            "time",
-            "timestamp",
-            "interval",
-            "uuid",
-            "structure",
-            "list",
-            "array",
-            "map",
-            "tagged_union",
-            "json",
-            "range",
-            "multirange",
-            "vector",
-            "null_value",
-            "text",
-            "character"
-          ]
-        },
-        "T28": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "atom"
-              ],
-              "properties": {
-                "atom": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T29"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "structure"
-              ],
-              "properties": {
-                "structure": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "list"
-              ],
-              "properties": {
-                "list": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "array"
-              ],
-              "properties": {
-                "array": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "map"
-              ],
-              "properties": {
-                "map": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T42"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "tagged_union"
-              ],
-              "properties": {
-                "tagged_union": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T54"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "json"
-              ],
-              "properties": {
-                "json": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "range"
-              ],
-              "properties": {
-                "range": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T57"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "multirange"
-              ],
-              "properties": {
-                "multirange": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T50"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "vector"
-              ],
-              "properties": {
-                "vector": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            }
-          ]
-        },
-        "T29": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "signed"
-              ],
-              "properties": {
-                "signed": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "unsigned"
-              ],
-              "properties": {
-                "unsigned": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "decimal"
-              ],
-              "properties": {
-                "decimal": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "float_bits"
-              ],
-              "properties": {
-                "float_bits": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "boolean"
-              ],
-              "properties": {
-                "boolean": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T31"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "utf8"
-              ],
-              "properties": {
-                "utf8": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "binary"
-              ],
-              "properties": {
-                "binary": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "date_days"
-              ],
-              "properties": {
-                "date_days": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "time_nanos"
-              ],
-              "properties": {
-                "time_nanos": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "timestamp_micros"
-              ],
-              "properties": {
-                "timestamp_micros": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "interval"
-              ],
-              "properties": {
-                "interval": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T32"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "uuid"
-              ],
-              "properties": {
-                "uuid": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T30"
-                }
-              }
-            }
-          ]
-        },
-        "T30": {
-          "type": "string",
-          "maxLength": 262144
-        },
-        "T31": {
-          "type": "boolean"
-        },
-        "T32": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "months",
-            "days",
-            "nanos"
-          ],
-          "properties": {
-            "months": {
-              "$ref": "#/$defs/ReadResponse/$defs/T30"
-            },
-            "days": {
-              "$ref": "#/$defs/ReadResponse/$defs/T30"
-            },
-            "nanos": {
-              "$ref": "#/$defs/ReadResponse/$defs/T30"
-            }
-          },
-          "required": [
-            "months",
-            "days",
-            "nanos"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T33": {
-          "type": "array",
-          "maxItems": 65536,
-          "items": {
-            "$ref": "#/$defs/ReadResponse/$defs/T34"
-          }
-        },
-        "T34": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "missing"
-              ],
-              "properties": {
-                "missing": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T35"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
                 "null"
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T35"
+                  "$ref": "#/$defs/ReadResponse/$defs/T27"
                 }
               }
             },
@@ -1391,7 +988,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T36"
+                  "$ref": "#/$defs/ReadResponse/$defs/T28"
                 }
               }
             },
@@ -1403,7 +1000,7 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T37"
+                  "$ref": "#/$defs/ReadResponse/$defs/T29"
                 }
               }
             },
@@ -1415,17 +1012,17 @@
               ],
               "properties": {
                 "conflict": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T51"
+                  "$ref": "#/$defs/ReadResponse/$defs/T52"
                 }
               }
             }
           ]
         },
-        "T35": {
+        "T27": {
           "type": "object",
           "maxProperties": 0
         },
-        "T36": {
+        "T28": {
           "type": "string",
           "enum": [
             "unknown",
@@ -1464,7 +1061,7 @@
             "character"
           ]
         },
-        "T37": {
+        "T29": {
           "oneOf": [
             {
               "type": "object",
@@ -1474,7 +1071,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T38"
+                  "$ref": "#/$defs/ReadResponse/$defs/T30"
                 }
               }
             },
@@ -1486,7 +1083,7 @@
               ],
               "properties": {
                 "structure": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
                 }
               }
             },
@@ -1498,7 +1095,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
                 }
               }
             },
@@ -1510,7 +1107,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T33"
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
                 }
               }
             },
@@ -1522,7 +1119,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T42"
+                  "$ref": "#/$defs/ReadResponse/$defs/T43"
                 }
               }
             },
@@ -1534,7 +1131,7 @@
               ],
               "properties": {
                 "tagged_union": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T44"
+                  "$ref": "#/$defs/ReadResponse/$defs/T55"
                 }
               }
             },
@@ -1546,7 +1143,7 @@
               ],
               "properties": {
                 "json": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1558,7 +1155,7 @@
               ],
               "properties": {
                 "range": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T47"
+                  "$ref": "#/$defs/ReadResponse/$defs/T58"
                 }
               }
             },
@@ -1570,7 +1167,7 @@
               ],
               "properties": {
                 "multirange": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T50"
+                  "$ref": "#/$defs/ReadResponse/$defs/T51"
                 }
               }
             },
@@ -1582,13 +1179,13 @@
               ],
               "properties": {
                 "vector": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             }
           ]
         },
-        "T38": {
+        "T30": {
           "oneOf": [
             {
               "type": "object",
@@ -1598,7 +1195,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1610,7 +1207,7 @@
               ],
               "properties": {
                 "unsigned": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1622,7 +1219,7 @@
               ],
               "properties": {
                 "decimal": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1634,7 +1231,7 @@
               ],
               "properties": {
                 "float_bits": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1646,7 +1243,7 @@
               ],
               "properties": {
                 "boolean": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                  "$ref": "#/$defs/ReadResponse/$defs/T32"
                 }
               }
             },
@@ -1658,7 +1255,7 @@
               ],
               "properties": {
                 "utf8": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1670,7 +1267,7 @@
               ],
               "properties": {
                 "binary": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1682,7 +1279,7 @@
               ],
               "properties": {
                 "date_days": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1694,7 +1291,7 @@
               ],
               "properties": {
                 "time_nanos": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1706,7 +1303,7 @@
               ],
               "properties": {
                 "timestamp_micros": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             },
@@ -1718,7 +1315,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T41"
+                  "$ref": "#/$defs/ReadResponse/$defs/T33"
                 }
               }
             },
@@ -1730,20 +1327,20 @@
               ],
               "properties": {
                 "uuid": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                  "$ref": "#/$defs/ReadResponse/$defs/T31"
                 }
               }
             }
           ]
         },
-        "T39": {
+        "T31": {
           "type": "string",
           "maxLength": 262144
         },
-        "T40": {
+        "T32": {
           "type": "boolean"
         },
-        "T41": {
+        "T33": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1753,13 +1350,13 @@
           ],
           "properties": {
             "months": {
-              "$ref": "#/$defs/ReadResponse/$defs/T39"
+              "$ref": "#/$defs/ReadResponse/$defs/T31"
             },
             "days": {
-              "$ref": "#/$defs/ReadResponse/$defs/T39"
+              "$ref": "#/$defs/ReadResponse/$defs/T31"
             },
             "nanos": {
-              "$ref": "#/$defs/ReadResponse/$defs/T39"
+              "$ref": "#/$defs/ReadResponse/$defs/T31"
             }
           },
           "required": [
@@ -1769,14 +1366,433 @@
           ],
           "x-transit-defaults": {}
         },
-        "T42": {
+        "T34": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/ReadResponse/$defs/T43"
+            "$ref": "#/$defs/ReadResponse/$defs/T35"
           }
         },
+        "T35": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing"
+              ],
+              "properties": {
+                "missing": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T36"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type_error"
+              ],
+              "properties": {
+                "type_error": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T37"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T38"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "conflict"
+              ],
+              "properties": {
+                "conflict": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T52"
+                }
+              }
+            }
+          ]
+        },
+        "T36": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T37": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "int64",
+            "uint64",
+            "float64",
+            "boolean",
+            "utf8",
+            "binary",
+            "int8",
+            "int16",
+            "int32",
+            "int128",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint128",
+            "float32",
+            "decimal",
+            "date",
+            "time",
+            "timestamp",
+            "interval",
+            "uuid",
+            "structure",
+            "list",
+            "array",
+            "map",
+            "tagged_union",
+            "json",
+            "range",
+            "multirange",
+            "vector",
+            "null_value",
+            "text",
+            "character"
+          ]
+        },
+        "T38": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atom"
+              ],
+              "properties": {
+                "atom": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T39"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T34"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T43"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T45"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T48"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T51"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            }
+          ]
+        },
+        "T39": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signed"
+              ],
+              "properties": {
+                "signed": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unsigned"
+              ],
+              "properties": {
+                "unsigned": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float_bits"
+              ],
+              "properties": {
+                "float_bits": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T41"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date_days"
+              ],
+              "properties": {
+                "date_days": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time_nanos"
+              ],
+              "properties": {
+                "time_nanos": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp_micros"
+              ],
+              "properties": {
+                "timestamp_micros": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T42"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T40"
+                }
+              }
+            }
+          ]
+        },
+        "T40": {
+          "type": "string",
+          "maxLength": 262144
+        },
+        "T41": {
+          "type": "boolean"
+        },
+        "T42": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "properties": {
+            "months": {
+              "$ref": "#/$defs/ReadResponse/$defs/T40"
+            },
+            "days": {
+              "$ref": "#/$defs/ReadResponse/$defs/T40"
+            },
+            "nanos": {
+              "$ref": "#/$defs/ReadResponse/$defs/T40"
+            }
+          },
+          "required": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "x-transit-defaults": {}
+        },
         "T43": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/ReadResponse/$defs/T44"
+          }
+        },
+        "T44": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1785,10 +1801,10 @@
           ],
           "properties": {
             "key": {
-              "$ref": "#/$defs/ReadResponse/$defs/T38"
+              "$ref": "#/$defs/ReadResponse/$defs/T39"
             },
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T34"
+              "$ref": "#/$defs/ReadResponse/$defs/T35"
             }
           },
           "required": [
@@ -1797,7 +1813,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T44": {
+        "T45": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1806,10 +1822,10 @@
           ],
           "properties": {
             "index": {
-              "$ref": "#/$defs/ReadResponse/$defs/T45"
+              "$ref": "#/$defs/ReadResponse/$defs/T46"
             },
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T46"
+              "$ref": "#/$defs/ReadResponse/$defs/T47"
             }
           },
           "required": [
@@ -1818,17 +1834,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T45": {
+        "T46": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T46": {
-          "$ref": "#/$defs/ReadResponse/$defs/T34"
-        },
         "T47": {
+          "$ref": "#/$defs/ReadResponse/$defs/T35"
+        },
+        "T48": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1838,13 +1854,13 @@
           ],
           "properties": {
             "is_empty": {
-              "$ref": "#/$defs/ReadResponse/$defs/T40"
+              "$ref": "#/$defs/ReadResponse/$defs/T41"
             },
             "lower": {
-              "$ref": "#/$defs/ReadResponse/$defs/T48"
+              "$ref": "#/$defs/ReadResponse/$defs/T49"
             },
             "upper": {
-              "$ref": "#/$defs/ReadResponse/$defs/T48"
+              "$ref": "#/$defs/ReadResponse/$defs/T49"
             }
           },
           "required": [
@@ -1854,17 +1870,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T48": {
+        "T49": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ReadResponse/$defs/T49"
+              "$ref": "#/$defs/ReadResponse/$defs/T50"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T49": {
+        "T50": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1873,10 +1889,10 @@
           ],
           "properties": {
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T38"
+              "$ref": "#/$defs/ReadResponse/$defs/T39"
             },
             "inclusive": {
-              "$ref": "#/$defs/ReadResponse/$defs/T40"
+              "$ref": "#/$defs/ReadResponse/$defs/T41"
             }
           },
           "required": [
@@ -1885,21 +1901,21 @@
           ],
           "x-transit-defaults": {}
         },
-        "T50": {
-          "type": "array",
-          "maxItems": 65536,
-          "items": {
-            "$ref": "#/$defs/ReadResponse/$defs/T47"
-          }
-        },
         "T51": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/ReadResponse/$defs/T52"
+            "$ref": "#/$defs/ReadResponse/$defs/T48"
           }
         },
         "T52": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/ReadResponse/$defs/T53"
+          }
+        },
+        "T53": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1909,13 +1925,13 @@
           ],
           "properties": {
             "counter": {
-              "$ref": "#/$defs/ReadResponse/$defs/T39"
+              "$ref": "#/$defs/ReadResponse/$defs/T40"
             },
             "replica": {
-              "$ref": "#/$defs/ReadResponse/$defs/T39"
+              "$ref": "#/$defs/ReadResponse/$defs/T40"
             },
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T53"
+              "$ref": "#/$defs/ReadResponse/$defs/T54"
             }
           },
           "required": [
@@ -1925,7 +1941,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T53": {
+        "T54": {
           "oneOf": [
             {
               "type": "object",
@@ -1935,7 +1951,7 @@
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T35"
+                  "$ref": "#/$defs/ReadResponse/$defs/T36"
                 }
               }
             },
@@ -1947,7 +1963,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T36"
+                  "$ref": "#/$defs/ReadResponse/$defs/T37"
                 }
               }
             },
@@ -1959,13 +1975,13 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/ReadResponse/$defs/T37"
+                  "$ref": "#/$defs/ReadResponse/$defs/T38"
                 }
               }
             }
           ]
         },
-        "T54": {
+        "T55": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -1974,10 +1990,10 @@
           ],
           "properties": {
             "index": {
-              "$ref": "#/$defs/ReadResponse/$defs/T55"
+              "$ref": "#/$defs/ReadResponse/$defs/T56"
             },
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T56"
+              "$ref": "#/$defs/ReadResponse/$defs/T57"
             }
           },
           "required": [
@@ -1986,17 +2002,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T55": {
+        "T56": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T56": {
-          "$ref": "#/$defs/ReadResponse/$defs/T25"
-        },
         "T57": {
+          "$ref": "#/$defs/ReadResponse/$defs/T26"
+        },
+        "T58": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2006,13 +2022,13 @@
           ],
           "properties": {
             "is_empty": {
-              "$ref": "#/$defs/ReadResponse/$defs/T31"
+              "$ref": "#/$defs/ReadResponse/$defs/T32"
             },
             "lower": {
-              "$ref": "#/$defs/ReadResponse/$defs/T58"
+              "$ref": "#/$defs/ReadResponse/$defs/T59"
             },
             "upper": {
-              "$ref": "#/$defs/ReadResponse/$defs/T58"
+              "$ref": "#/$defs/ReadResponse/$defs/T59"
             }
           },
           "required": [
@@ -2022,17 +2038,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T58": {
+        "T59": {
           "anyOf": [
             {
-              "$ref": "#/$defs/ReadResponse/$defs/T59"
+              "$ref": "#/$defs/ReadResponse/$defs/T60"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T59": {
+        "T60": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -2041,10 +2057,10 @@
           ],
           "properties": {
             "value": {
-              "$ref": "#/$defs/ReadResponse/$defs/T29"
+              "$ref": "#/$defs/ReadResponse/$defs/T30"
             },
             "inclusive": {
-              "$ref": "#/$defs/ReadResponse/$defs/T31"
+              "$ref": "#/$defs/ReadResponse/$defs/T32"
             }
           },
           "required": [
@@ -2053,14 +2069,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T60": {
+        "T61": {
           "type": "string",
           "enum": [
             "data",
             "metadata"
           ]
         },
-        "T61": {
+        "T62": {
           "type": "string",
           "enum": [
             "complete",
@@ -2097,7 +2113,7 @@
         "T1": {
           "type": "string",
           "enum": [
-            "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           ]
         },
         "T2": {
@@ -2478,7 +2494,7 @@
             "namespace"
           ],
           "x-transit-defaults": {
-            "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8",
+            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
             "cells": 4,
             "rows": 10000,
             "value_bytes": 16777216,
@@ -2490,7 +2506,7 @@
         "T2": {
           "type": "string",
           "enum": [
-            "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           ]
         },
         "T3": {
@@ -2841,13 +2857,13 @@
               "$ref": "#/$defs/WorkbookResponse/$defs/T23"
             },
             "rows": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T36"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T37"
             },
             "observation": {
               "$ref": "#/$defs/WorkbookResponse/$defs/T5"
             },
             "observation_kind": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T73"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T74"
             },
             "start": {
               "$ref": "#/$defs/WorkbookResponse/$defs/T5"
@@ -2859,7 +2875,7 @@
               "$ref": "#/$defs/WorkbookResponse/$defs/T21"
             },
             "stopped": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T74"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T75"
             }
           },
           "required": [
@@ -2875,7 +2891,7 @@
             "stopped"
           ],
           "x-transit-defaults": {
-            "definition": "972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8"
+            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"
           }
         },
         "T23": {
@@ -2892,7 +2908,8 @@
             "name",
             "type",
             "nullable",
-            "optional"
+            "optional",
+            "max_characters"
           ],
           "properties": {
             "name": {
@@ -2906,17 +2923,22 @@
             },
             "optional": {
               "$ref": "#/$defs/WorkbookResponse/$defs/T31"
+            },
+            "max_characters": {
+              "$ref": "#/$defs/WorkbookResponse/$defs/T36"
             }
           },
           "required": [
             "name",
             "type",
             "nullable",
-            "optional"
+            "optional",
+            "max_characters"
           ],
           "x-transit-defaults": {
             "nullable": false,
-            "optional": false
+            "optional": false,
+            "max_characters": null
           }
         },
         "T25": {
@@ -3418,11 +3440,14 @@
           ]
         },
         "T36": {
-          "type": "array",
-          "maxItems": 100,
-          "items": {
-            "$ref": "#/$defs/WorkbookResponse/$defs/T37"
-          }
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkbookResponse/$defs/T4"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "T37": {
           "type": "array",
@@ -3432,6 +3457,13 @@
           }
         },
         "T38": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/WorkbookResponse/$defs/T39"
+          }
+        },
+        "T39": {
           "oneOf": [
             {
               "type": "object",
@@ -3441,30 +3473,6 @@
               ],
               "properties": {
                 "missing": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T39"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "null"
-              ],
-              "properties": {
-                "null": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T39"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "type_error"
-              ],
-              "properties": {
-                "type_error": {
                   "$ref": "#/$defs/WorkbookResponse/$defs/T40"
                 }
               }
@@ -3473,406 +3481,11 @@
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "value"
-              ],
-              "properties": {
-                "value": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T41"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "conflict"
-              ],
-              "properties": {
-                "conflict": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T64"
-                }
-              }
-            }
-          ]
-        },
-        "T39": {
-          "type": "object",
-          "maxProperties": 0
-        },
-        "T40": {
-          "type": "string",
-          "enum": [
-            "unknown",
-            "int64",
-            "uint64",
-            "float64",
-            "boolean",
-            "utf8",
-            "binary",
-            "int8",
-            "int16",
-            "int32",
-            "int128",
-            "uint8",
-            "uint16",
-            "uint32",
-            "uint128",
-            "float32",
-            "decimal",
-            "date",
-            "time",
-            "timestamp",
-            "interval",
-            "uuid",
-            "structure",
-            "list",
-            "array",
-            "map",
-            "tagged_union",
-            "json",
-            "range",
-            "multirange",
-            "vector",
-            "null_value",
-            "text",
-            "character"
-          ]
-        },
-        "T41": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "atom"
-              ],
-              "properties": {
-                "atom": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T42"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "structure"
-              ],
-              "properties": {
-                "structure": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "list"
-              ],
-              "properties": {
-                "list": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "array"
-              ],
-              "properties": {
-                "array": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "map"
-              ],
-              "properties": {
-                "map": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T55"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "tagged_union"
-              ],
-              "properties": {
-                "tagged_union": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T67"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "json"
-              ],
-              "properties": {
-                "json": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "range"
-              ],
-              "properties": {
-                "range": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T70"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "multirange"
-              ],
-              "properties": {
-                "multirange": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T63"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "vector"
-              ],
-              "properties": {
-                "vector": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            }
-          ]
-        },
-        "T42": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "signed"
-              ],
-              "properties": {
-                "signed": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "unsigned"
-              ],
-              "properties": {
-                "unsigned": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "decimal"
-              ],
-              "properties": {
-                "decimal": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "float_bits"
-              ],
-              "properties": {
-                "float_bits": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "boolean"
-              ],
-              "properties": {
-                "boolean": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "utf8"
-              ],
-              "properties": {
-                "utf8": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "binary"
-              ],
-              "properties": {
-                "binary": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "date_days"
-              ],
-              "properties": {
-                "date_days": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "time_nanos"
-              ],
-              "properties": {
-                "time_nanos": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "timestamp_micros"
-              ],
-              "properties": {
-                "timestamp_micros": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "interval"
-              ],
-              "properties": {
-                "interval": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T45"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "uuid"
-              ],
-              "properties": {
-                "uuid": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-                }
-              }
-            }
-          ]
-        },
-        "T43": {
-          "type": "string",
-          "maxLength": 262144
-        },
-        "T44": {
-          "type": "boolean"
-        },
-        "T45": {
-          "type": "object",
-          "additionalProperties": false,
-          "x-transit-field-order": [
-            "months",
-            "days",
-            "nanos"
-          ],
-          "properties": {
-            "months": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-            },
-            "days": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-            },
-            "nanos": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T43"
-            }
-          },
-          "required": [
-            "months",
-            "days",
-            "nanos"
-          ],
-          "x-transit-defaults": {}
-        },
-        "T46": {
-          "type": "array",
-          "maxItems": 65536,
-          "items": {
-            "$ref": "#/$defs/WorkbookResponse/$defs/T47"
-          }
-        },
-        "T47": {
-          "oneOf": [
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "missing"
-              ],
-              "properties": {
-                "missing": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T48"
-                }
-              }
-            },
-            {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
                 "null"
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T48"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T40"
                 }
               }
             },
@@ -3884,7 +3497,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T49"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T41"
                 }
               }
             },
@@ -3896,7 +3509,7 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T50"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T42"
                 }
               }
             },
@@ -3908,17 +3521,17 @@
               ],
               "properties": {
                 "conflict": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T64"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T65"
                 }
               }
             }
           ]
         },
-        "T48": {
+        "T40": {
           "type": "object",
           "maxProperties": 0
         },
-        "T49": {
+        "T41": {
           "type": "string",
           "enum": [
             "unknown",
@@ -3957,7 +3570,7 @@
             "character"
           ]
         },
-        "T50": {
+        "T42": {
           "oneOf": [
             {
               "type": "object",
@@ -3967,7 +3580,7 @@
               ],
               "properties": {
                 "atom": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T51"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T43"
                 }
               }
             },
@@ -3979,7 +3592,7 @@
               ],
               "properties": {
                 "structure": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
                 }
               }
             },
@@ -3991,7 +3604,7 @@
               ],
               "properties": {
                 "list": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
                 }
               }
             },
@@ -4003,7 +3616,7 @@
               ],
               "properties": {
                 "array": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
                 }
               }
             },
@@ -4015,7 +3628,7 @@
               ],
               "properties": {
                 "map": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T55"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T56"
                 }
               }
             },
@@ -4027,7 +3640,7 @@
               ],
               "properties": {
                 "tagged_union": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T57"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T68"
                 }
               }
             },
@@ -4039,7 +3652,7 @@
               ],
               "properties": {
                 "json": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4051,7 +3664,7 @@
               ],
               "properties": {
                 "range": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T60"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T71"
                 }
               }
             },
@@ -4063,7 +3676,7 @@
               ],
               "properties": {
                 "multirange": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T63"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T64"
                 }
               }
             },
@@ -4075,13 +3688,13 @@
               ],
               "properties": {
                 "vector": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             }
           ]
         },
-        "T51": {
+        "T43": {
           "oneOf": [
             {
               "type": "object",
@@ -4091,7 +3704,7 @@
               ],
               "properties": {
                 "signed": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4103,7 +3716,7 @@
               ],
               "properties": {
                 "unsigned": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4115,7 +3728,7 @@
               ],
               "properties": {
                 "decimal": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4127,7 +3740,7 @@
               ],
               "properties": {
                 "float_bits": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4139,7 +3752,7 @@
               ],
               "properties": {
                 "boolean": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T45"
                 }
               }
             },
@@ -4151,7 +3764,7 @@
               ],
               "properties": {
                 "utf8": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4163,7 +3776,7 @@
               ],
               "properties": {
                 "binary": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4175,7 +3788,7 @@
               ],
               "properties": {
                 "date_days": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4187,7 +3800,7 @@
               ],
               "properties": {
                 "time_nanos": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4199,7 +3812,7 @@
               ],
               "properties": {
                 "timestamp_micros": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             },
@@ -4211,7 +3824,7 @@
               ],
               "properties": {
                 "interval": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T54"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T46"
                 }
               }
             },
@@ -4223,20 +3836,20 @@
               ],
               "properties": {
                 "uuid": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T44"
                 }
               }
             }
           ]
         },
-        "T52": {
+        "T44": {
           "type": "string",
           "maxLength": 262144
         },
-        "T53": {
+        "T45": {
           "type": "boolean"
         },
-        "T54": {
+        "T46": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4246,13 +3859,13 @@
           ],
           "properties": {
             "months": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T44"
             },
             "days": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T44"
             },
             "nanos": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T44"
             }
           },
           "required": [
@@ -4262,14 +3875,433 @@
           ],
           "x-transit-defaults": {}
         },
-        "T55": {
+        "T47": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/WorkbookResponse/$defs/T56"
+            "$ref": "#/$defs/WorkbookResponse/$defs/T48"
           }
         },
+        "T48": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "missing"
+              ],
+              "properties": {
+                "missing": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T49"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "null"
+              ],
+              "properties": {
+                "null": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T49"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type_error"
+              ],
+              "properties": {
+                "type_error": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T50"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "value"
+              ],
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T51"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "conflict"
+              ],
+              "properties": {
+                "conflict": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T65"
+                }
+              }
+            }
+          ]
+        },
+        "T49": {
+          "type": "object",
+          "maxProperties": 0
+        },
+        "T50": {
+          "type": "string",
+          "enum": [
+            "unknown",
+            "int64",
+            "uint64",
+            "float64",
+            "boolean",
+            "utf8",
+            "binary",
+            "int8",
+            "int16",
+            "int32",
+            "int128",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint128",
+            "float32",
+            "decimal",
+            "date",
+            "time",
+            "timestamp",
+            "interval",
+            "uuid",
+            "structure",
+            "list",
+            "array",
+            "map",
+            "tagged_union",
+            "json",
+            "range",
+            "multirange",
+            "vector",
+            "null_value",
+            "text",
+            "character"
+          ]
+        },
+        "T51": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atom"
+              ],
+              "properties": {
+                "atom": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "structure"
+              ],
+              "properties": {
+                "structure": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "list"
+              ],
+              "properties": {
+                "list": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "array"
+              ],
+              "properties": {
+                "array": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T47"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "map"
+              ],
+              "properties": {
+                "map": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T56"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tagged_union"
+              ],
+              "properties": {
+                "tagged_union": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "json"
+              ],
+              "properties": {
+                "json": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "range"
+              ],
+              "properties": {
+                "range": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T61"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "multirange"
+              ],
+              "properties": {
+                "multirange": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T64"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "vector"
+              ],
+              "properties": {
+                "vector": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            }
+          ]
+        },
+        "T52": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "signed"
+              ],
+              "properties": {
+                "signed": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unsigned"
+              ],
+              "properties": {
+                "unsigned": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decimal"
+              ],
+              "properties": {
+                "decimal": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "float_bits"
+              ],
+              "properties": {
+                "float_bits": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "boolean"
+              ],
+              "properties": {
+                "boolean": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T54"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "utf8"
+              ],
+              "properties": {
+                "utf8": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "binary"
+              ],
+              "properties": {
+                "binary": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "date_days"
+              ],
+              "properties": {
+                "date_days": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "time_nanos"
+              ],
+              "properties": {
+                "time_nanos": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "timestamp_micros"
+              ],
+              "properties": {
+                "timestamp_micros": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "interval"
+              ],
+              "properties": {
+                "interval": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T55"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "uuid"
+              ],
+              "properties": {
+                "uuid": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+                }
+              }
+            }
+          ]
+        },
+        "T53": {
+          "type": "string",
+          "maxLength": 262144
+        },
+        "T54": {
+          "type": "boolean"
+        },
+        "T55": {
+          "type": "object",
+          "additionalProperties": false,
+          "x-transit-field-order": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "properties": {
+            "months": {
+              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+            },
+            "days": {
+              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+            },
+            "nanos": {
+              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+            }
+          },
+          "required": [
+            "months",
+            "days",
+            "nanos"
+          ],
+          "x-transit-defaults": {}
+        },
         "T56": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/WorkbookResponse/$defs/T57"
+          }
+        },
+        "T57": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4278,10 +4310,10 @@
           ],
           "properties": {
             "key": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T51"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
             },
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T47"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T48"
             }
           },
           "required": [
@@ -4290,7 +4322,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T57": {
+        "T58": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4299,10 +4331,10 @@
           ],
           "properties": {
             "index": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T58"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T59"
             },
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T59"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T60"
             }
           },
           "required": [
@@ -4311,17 +4343,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T58": {
+        "T59": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T59": {
-          "$ref": "#/$defs/WorkbookResponse/$defs/T47"
-        },
         "T60": {
+          "$ref": "#/$defs/WorkbookResponse/$defs/T48"
+        },
+        "T61": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4331,13 +4363,13 @@
           ],
           "properties": {
             "is_empty": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T54"
             },
             "lower": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T61"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T62"
             },
             "upper": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T61"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T62"
             }
           },
           "required": [
@@ -4347,17 +4379,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T61": {
+        "T62": {
           "anyOf": [
             {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T62"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T63"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T62": {
+        "T63": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4366,10 +4398,10 @@
           ],
           "properties": {
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T51"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
             },
             "inclusive": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T54"
             }
           },
           "required": [
@@ -4378,21 +4410,21 @@
           ],
           "x-transit-defaults": {}
         },
-        "T63": {
-          "type": "array",
-          "maxItems": 65536,
-          "items": {
-            "$ref": "#/$defs/WorkbookResponse/$defs/T60"
-          }
-        },
         "T64": {
           "type": "array",
           "maxItems": 65536,
           "items": {
-            "$ref": "#/$defs/WorkbookResponse/$defs/T65"
+            "$ref": "#/$defs/WorkbookResponse/$defs/T61"
           }
         },
         "T65": {
+          "type": "array",
+          "maxItems": 65536,
+          "items": {
+            "$ref": "#/$defs/WorkbookResponse/$defs/T66"
+          }
+        },
+        "T66": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4402,13 +4434,13 @@
           ],
           "properties": {
             "counter": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
             },
             "replica": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T52"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T53"
             },
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T66"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T67"
             }
           },
           "required": [
@@ -4418,7 +4450,7 @@
           ],
           "x-transit-defaults": {}
         },
-        "T66": {
+        "T67": {
           "oneOf": [
             {
               "type": "object",
@@ -4428,7 +4460,7 @@
               ],
               "properties": {
                 "null": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T48"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T49"
                 }
               }
             },
@@ -4440,7 +4472,7 @@
               ],
               "properties": {
                 "type_error": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T49"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T50"
                 }
               }
             },
@@ -4452,13 +4484,13 @@
               ],
               "properties": {
                 "value": {
-                  "$ref": "#/$defs/WorkbookResponse/$defs/T50"
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T51"
                 }
               }
             }
           ]
         },
-        "T67": {
+        "T68": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4467,10 +4499,10 @@
           ],
           "properties": {
             "index": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T68"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T69"
             },
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T69"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T70"
             }
           },
           "required": [
@@ -4479,17 +4511,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T68": {
+        "T69": {
           "type": "integer",
           "minimum": 0,
           "maximum": 255,
           "x-transit-bits": 8,
           "x-transit-signed": false
         },
-        "T69": {
-          "$ref": "#/$defs/WorkbookResponse/$defs/T38"
-        },
         "T70": {
+          "$ref": "#/$defs/WorkbookResponse/$defs/T39"
+        },
+        "T71": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4499,13 +4531,13 @@
           ],
           "properties": {
             "is_empty": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T44"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T45"
             },
             "lower": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T71"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T72"
             },
             "upper": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T71"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T72"
             }
           },
           "required": [
@@ -4515,17 +4547,17 @@
           ],
           "x-transit-defaults": {}
         },
-        "T71": {
+        "T72": {
           "anyOf": [
             {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T72"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T73"
             },
             {
               "type": "null"
             }
           ]
         },
-        "T72": {
+        "T73": {
           "type": "object",
           "additionalProperties": false,
           "x-transit-field-order": [
@@ -4534,10 +4566,10 @@
           ],
           "properties": {
             "value": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T42"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T43"
             },
             "inclusive": {
-              "$ref": "#/$defs/WorkbookResponse/$defs/T44"
+              "$ref": "#/$defs/WorkbookResponse/$defs/T45"
             }
           },
           "required": [
@@ -4546,14 +4578,14 @@
           ],
           "x-transit-defaults": {}
         },
-        "T73": {
+        "T74": {
           "type": "string",
           "enum": [
             "data",
             "metadata"
           ]
         },
-        "T74": {
+        "T75": {
           "type": "string",
           "enum": [
             "complete",

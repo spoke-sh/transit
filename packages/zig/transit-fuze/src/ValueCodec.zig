@@ -18,7 +18,8 @@ pub fn write(cell: v.Cell, field: types.Field, writer: *std.Io.Writer) !void {
     const encoded_type = try field.type.encode(&descriptor);
     try writer.writeInt(u16, @intCast(encoded_type.len), .little);
     try writer.writeAll(encoded_type);
-    try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1));
+    try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1) | (@as(u8, @intFromBool(field.max_characters != null)) << 2));
+    if (field.max_characters) |maximum| try writer.writeInt(u32, maximum, .little);
     try writeCell(cell, field.type, writer);
 }
 /// Canonical cell payload for an enclosing versioned schema-bound record. The
@@ -209,8 +210,9 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !DecodedInto {
     if (!std.mem.eql(u8, try reader.reader.take(4), "FVL1")) return error.InvalidValueEncoding;
     const descriptor = try types.decodeInto(arena, try reader.reader.take(try reader.reader.takeInt(u16, .little)));
     const flags = try reader.reader.takeByte();
-    if (flags > 3) return error.InvalidValueEncoding;
-    const field: types.Field = .{ .name = "value", .type = descriptor, .nullable = flags & 1 != 0, .optional = flags & 2 != 0 };
+    if (flags > 7) return error.InvalidValueEncoding;
+    const maximum = if (flags & 4 != 0) try reader.reader.takeInt(u32, .little) else null;
+    const field: types.Field = .{ .name = "value", .type = descriptor, .nullable = flags & 1 != 0, .optional = flags & 2 != 0, .max_characters = maximum };
     const cell = try readCell(&reader, field.type, 0);
     if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
     try cell.validate(field, .{});

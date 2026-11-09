@@ -45,7 +45,7 @@ pub const Column = struct {
     semantics: Semantics = .{},
 
     pub fn field(self: Column) t.Field {
-        return .{ .name = self.name, .type = self.type, .nullable = self.nullable };
+        return .{ .name = self.name, .type = self.type, .nullable = self.nullable, .max_characters = self.max_characters };
     }
     pub fn validateEncodingAndCollation(self: Column) !void {
         const is_integer64 = switch (self.type) {
@@ -85,12 +85,6 @@ pub const Column = struct {
                 else => {},
             }
             if (self.type == .utf8) try @import("Collation.zig").validateBytes(cell.value.atom.bytes, self.collation);
-        }
-        if (self.max_characters) |maximum| {
-            if (cell == .value) {
-                if (self.type != .utf8 or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidCharacterLimit;
-                if (try std.unicode.utf8CountCodepoints(cell.value.atom.bytes) > maximum) return error.CharacterLimitExceeded;
-            }
         }
     }
     pub fn initial(self: Column) v.Cell {

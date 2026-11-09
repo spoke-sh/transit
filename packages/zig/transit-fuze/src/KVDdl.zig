@@ -10,13 +10,15 @@ pub const ValueType = enum(u8) {
     boolean = 2,
     utf8 = 3,
     binary = 4,
+    row = 5,
 
-    pub fn typeOf(self: ValueType) Types.Type {
+    pub fn typeOf(self: ValueType, fields: []const Types.Field) Types.Type {
         return switch (self) {
             .int64 => .int64,
             .boolean => .boolean,
             .utf8 => .utf8,
             .binary => .binary,
+            .row => .{ .structure = fields },
         };
     }
 
@@ -26,17 +28,30 @@ pub const ValueType = enum(u8) {
             .boolean => .boolean,
             .utf8 => .utf8,
             .binary => .binary,
+            .structure => .row,
             else => error.UnsupportedKVValueType,
         };
     }
 };
 
 pub const Spec = struct {
+    pub const json_schema_sequence_bounds = .{ .fields = 64 };
     value_type: ValueType,
     nullable: bool = false,
+    fields: []const Types.Field = &.{},
 
     pub fn typeOf(self: Spec) Types.Type {
-        return self.value_type.typeOf();
+        return self.value_type.typeOf(self.fields);
+    }
+    pub fn validate(self: Spec) !void {
+        if ((self.value_type == .row) != (self.fields.len != 0) or self.fields.len > 64) return error.UnsupportedKVValueType;
+        try self.typeOf().validate(.{});
+    }
+    pub fn cloneInto(self: Spec, allocator: std.mem.Allocator) !Spec {
+        try self.validate();
+        var result = self;
+        if (self.value_type == .row) result.fields = (try self.typeOf().cloneInto(allocator)).structure;
+        return result;
     }
 };
 
@@ -97,7 +112,9 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
             if (parser.word("NOT") or parser.word("NULL")) return error.DuplicateColumnConstraint;
             try parser.require(.right);
             try parser.finish();
-            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = .{ .value_type = value_type, .nullable = nullability.value } } } } };
+            const spec: Spec = .{ .value_type = value_type, .nullable = nullability.value, .fields = if (data_type.type == .structure) data_type.type.structure else &.{} };
+            try spec.validate();
+            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = spec } } } };
         },
         .alter => {
             if (parser.word("IF")) return error.UnsupportedConstruct;
@@ -163,4 +180,20 @@ test "KV DDL compiles CREATE ALTER RENAME and DROP with value type validation" {
     try t.expectError(error.UnsupportedKVValueType, compile(t.allocator, "CREATE KV bad (JSON)", .transit, null));
     try t.expectError(error.UnsupportedKVValueType, compile(t.allocator, "CREATE KV bad (VARCHAR(16))", .transit, null));
     try t.expectError(error.UnsupportedCascade, compile(t.allocator, "DROP KV flags CASCADE", .transit, null));
+}
+
+test "KV ROW declarations own nested logical constraints" {
+    var compiled = try compile(std.testing.allocator, "CREATE KV sessions (ROW (identity_id VARCHAR(64), created_at TIMESTAMPTZ NOT NULL, revoked BOOLEAN))", .transit, null);
+    defer compiled.deinit();
+    const spec = compiled.statement.action.create.spec;
+    try std.testing.expectEqual(.row, spec.value_type);
+    try std.testing.expectEqual(@as(usize, 3), spec.fields.len);
+    try std.testing.expectEqual(@as(?u32, 64), spec.fields[0].max_characters);
+    try std.testing.expect(spec.fields[0].nullable);
+    try std.testing.expect(!spec.fields[1].nullable);
+    var owned = try spec.typeOf().clone(std.testing.allocator);
+    defer owned.deinit();
+    try std.testing.expect(try owned.type.eql(spec.typeOf()));
+    try std.testing.expectError(error.UnsupportedKVValueType, (Spec{ .value_type = .row }).validate());
+    try std.testing.expectError(error.UnsupportedKVValueType, (Spec{ .value_type = .binary, .fields = spec.fields }).validate());
 }

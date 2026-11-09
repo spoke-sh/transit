@@ -39,6 +39,10 @@ pub const Request = struct {
             if (self.binding.action != .insert or self.statement != null or self.changes.len == 0) return error.InvalidKVOperation;
             for (self.changes, 0..) |change, ordinal| switch (change) {
                 .put => |value| {
+                    if (value.expected_revision) |revision| {
+                        try revision.validate();
+                        if (value.expect == .absent) return error.InvalidKVOperation;
+                    }
                     if (!std.meta.eql(value.row.identity, try insertIdentity(self.binding.identity, @intCast(ordinal)))) return error.InvalidInsertRowIdentity;
                     if (value.row.cells.len != 2) return error.InvalidKVOperation;
                     const key_cell = value.row.cells[0];
@@ -60,6 +64,7 @@ pub const Request = struct {
             if (!std.mem.eql(u8, &try plan.schema.fingerprint(), &self.interpretation.schema_fingerprint)) return error.TableSchemaChanged;
             return;
         }
+        for (self.changes) |change| if (change == .put and change.put.expected_revision != null) return error.UnsupportedTableMutationShape;
         for (self.changes, 0..) |change, ordinal| switch (self.binding.action) {
             .insert => {
                 if (change != .put or change.put.expect != .absent) return error.UnsupportedTableMutationShape;
@@ -118,6 +123,8 @@ fn encodeWithSchema(allocator: std.mem.Allocator, schema: f.TableSchema.Schema, 
             try schema.validateWrite(value.row.cells);
             try writer.writeByte(1);
             try writer.writeByte(@backingInt(value.expect));
+            try writer.writeByte(@intFromBool(value.expected_revision != null));
+            if (value.expected_revision) |revision| try writer.writeAll(&try revision.encode());
             const length_at = header_bytes + writer.end;
             try writer.writeInt(u32, 0, .little);
             const row = try value.row.encode(schema, bytes[header_bytes + writer.end ..]);
@@ -154,7 +161,7 @@ fn encodedSizeBound(schema: f.TableSchema.Schema, request: Request) !usize {
     for (request.changes) |change| switch (change) {
         .put => |value| {
             try schema.validateWrite(value.row.cells);
-            total = try std.math.add(usize, total, 6 + try value.row.encodedSize(schema));
+            total = try std.math.add(usize, total, 7 + @as(usize, if (value.expected_revision != null) f.TableRow.Identity.encoded_bytes else 0) + try value.row.encodedSize(schema));
         },
         .replace => |value| {
             try schema.validateWrite(value.row.cells);
@@ -241,11 +248,16 @@ pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content:
     for (changes) |*change| switch (try reader.takeByte()) {
         1 => {
             const expected = std.enums.fromInt(Changes.Expect, try reader.takeByte()) orelse return error.InvalidTableMutationIntent;
+            const revision: ?f.TableRow.Identity = switch (try reader.takeByte()) {
+                0 => null,
+                1 => try f.TableRow.Identity.decode(try reader.takeArray(f.TableRow.Identity.encoded_bytes)),
+                else => return error.InvalidTableMutationIntent,
+            };
             const length = try reader.takeInt(u32, .little);
             decoded[count] = try f.TableRow.decode(alloc, declaration.schema.schema, try reader.take(length));
             count += 1;
             try declaration.schema.schema.validateWrite(decoded[count - 1].row().cells);
-            change.* = .{ .put = .{ .row = decoded[count - 1].row(), .expect = expected } };
+            change.* = .{ .put = .{ .row = decoded[count - 1].row(), .expect = expected, .expected_revision = revision } };
         },
         2 => {
             const length = try reader.takeInt(u32, .little);

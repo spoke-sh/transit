@@ -26,13 +26,9 @@ pub const Write = union(enum) {
 
 fn storageSpec(spec: f.KVDdl.Spec) s.KVDeclaration.Spec {
     return .{
-        .value_type = switch (spec.value_type) {
-            .int64 => .int64,
-            .boolean => .boolean,
-            .utf8 => .utf8,
-            .binary => .binary,
-        },
+        .value_type = spec.value_type,
         .nullable = spec.nullable,
+        .fields = spec.fields,
     };
 }
 
@@ -49,6 +45,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
         defer response.deinit();
         if (response.value.result.kv_lookup) |found| {
             definition = found;
+            definition.?.spec = try found.spec.cloneInto(compiled.arena.allocator());
         } else if (syntax.action != .drop or !syntax.action.drop.if_exists) {
             return error.CatalogNameNotFound;
         }

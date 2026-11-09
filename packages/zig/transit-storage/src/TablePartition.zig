@@ -943,7 +943,7 @@ fn performPrepared(self: *Self, operation: Operation, known_request: ?Dml.Reques
         rejected.phase = .rejected;
         rejected.reason = switch (err) {
             error.TableDefinitionChanged => .definition_changed,
-            error.TableDataChanged => .data_changed,
+            error.TableDataChanged, error.KVRevisionChanged => .data_changed,
             error.DuplicatePrimaryKey, error.DuplicateBatchKey => .duplicate_key,
             error.TableRowMissing => .missing_row,
             error.TableRowIdentityChanged, error.DuplicateTableRowIdentity => .invalid_rows,
@@ -1128,6 +1128,13 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
             .replace => 4,
         }};
         digest.update(&tag);
+        if (change == .put) {
+            digest.update(&.{@intFromBool(change.put.expected_revision != null)});
+            if (change.put.expected_revision) |revision| {
+                if (self.options.kind != .kv or change.put.expect == .absent) return error.InvalidKVOperation;
+                digest.update(&try revision.encode());
+            }
+        }
         var length: [8]u8 = undefined;
         std.mem.writeInt(u64, &length, key.len, .little);
         digest.update(&length);
@@ -1182,6 +1189,9 @@ fn applyWithinBudget(self: *Self, allocator: std.mem.Allocator, binding: d.Bindi
                 const expectation = if (change == .put) change.put.expect else Changes.Expect.present;
                 if (expectation == .absent and existing != null) return error.DuplicatePrimaryKey;
                 if (expectation == .present and existing == null) return error.TableRowMissing;
+                if (change == .put) if (change.put.expected_revision) |revision| {
+                    if (existing == null or !std.meta.eql(existing.?.row().identity, revision)) return error.KVRevisionChanged;
+                };
                 matched += 1;
                 if (existing) |*row| {
                     if ((change == .replace or (operation != null and binding.action == .update)) and !std.meta.eql(row.row().identity, value.row.identity)) return error.TableRowIdentityChanged;

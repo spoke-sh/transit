@@ -4,7 +4,7 @@ const std = @import("std");
 pub const Diagnostic = @import("TypeDiagnostic.zig");
 pub const Query = @import("Scalar.zig");
 pub const State = Query.State;
-pub const definition = "transit.fuze.types.v1.2026-11-01.companions";
+pub const definition = "transit.fuze.types.v1.2026-11-08.program-values";
 pub const Ranges = @import("RangeValue.zig");
 pub const Vectors = @import("VectorValue.zig");
 pub const max_encoding_bytes = 16384;
@@ -104,7 +104,69 @@ pub const Timestamp = enum(u8) { civil, utc };
 pub const Element = struct { type: *const Type, nullable: bool = false };
 pub const Array = struct { element: Element, length: u32 };
 pub const Map = struct { key: *const Type, value: Element };
-pub const Field = struct { name: []const u8, type: Type, nullable: bool = false, optional: bool = false };
+pub const Field = struct {
+    name: []const u8,
+    type: Type,
+    nullable: bool = false,
+    optional: bool = false,
+    /// Logical UTF-8 field constraint, measured in Unicode scalar values.
+    /// Encoded-byte limits and physical text codecs remain independent.
+    max_characters: ?u32 = null,
+
+    pub fn validateConstraint(self: Field) !void {
+        if (self.max_characters) |maximum| if (maximum == 0 or self.type != .utf8) return error.InvalidCharacterLimit;
+    }
+};
+
+test "logical nested character constraints survive cloning and both value envelopes" {
+    const testing = std.testing;
+    const record: Type = .{ .structure = &.{.{ .name = "label", .type = .utf8, .nullable = true, .max_characters = 1 }} };
+    var cloned = try record.clone(testing.allocator);
+    defer cloned.deinit();
+    try testing.expectEqual(1, cloned.type.structure[0].max_characters.?);
+    var buffer: [1024]u8 = undefined;
+    const encoded = try record.encode(&buffer);
+    // Independent suffix: one field, five name bytes, nullable+limit flags,
+    // little-endian scalar limit and the existing UTF-8 logical type tag.
+    const suffix = [_]u8{ 1, 5, 'l', 'a', 'b', 'e', 'l', 5, 1, 0, 0, 0, 5 };
+    try testing.expect(std.mem.endsWith(u8, encoded, &suffix));
+    var descriptor = try decode(testing.allocator, encoded);
+    defer descriptor.deinit();
+    try testing.expectEqual(1, descriptor.type.structure[0].max_characters.?);
+
+    const field: Field = .{ .name = "value", .type = record };
+    const accepted: Values.Cell = .{ .value = .{ .structure = &.{.{ .value = .{ .atom = .{ .bytes = "é" } } }} } };
+    const refused: Values.Cell = .{ .value = .{ .structure = &.{.{ .value = .{ .atom = .{ .bytes = "éé" } } }} } };
+    try accepted.validate(field, .{});
+    try testing.expectError(error.CharacterLimitExceeded, refused.validate(field, .{}));
+    var value = try Codec.decode(testing.allocator, try Codec.encode(accepted, field, &buffer));
+    defer value.deinit();
+    try testing.expectEqual(1, value.field.type.structure[0].max_characters.?);
+    try value.cell.validate(field, .{});
+    const root_field: Field = .{ .name = "text", .type = .utf8, .max_characters = 1 };
+    const text: Values.Cell = .{ .value = .{ .atom = .{ .bytes = "é" } } };
+    var root_value = try Codec.decode(testing.allocator, try Codec.encode(text, root_field, &buffer));
+    defer root_value.deinit();
+    try testing.expectEqual(1, root_value.field.max_characters.?);
+    try testing.expectError(error.InvalidCharacterLimit, (Field{ .name = "bad", .type = .int64, .max_characters = 1 }).validateConstraint());
+    try testing.expectError(error.InvalidCharacterLimit, (Field{ .name = "bad", .type = .utf8, .max_characters = 0 }).validateConstraint());
+}
+
+test "logical descriptor cloning releases every partial allocation" {
+    const Fixture = struct {
+        fn check(allocator: std.mem.Allocator) !void {
+            const source: Type = .{ .structure = &.{
+                .{ .name = "label", .type = .utf8, .max_characters = 4 },
+                .{ .name = "ranges", .type = .{ .list = .{ .type = &.{ .range = &.int64 } } } },
+                .{ .name = "map", .type = .{ .map = .{ .key = &.utf8, .value = .{ .type = &.{ .array = .{ .length = 2, .element = .{ .type = &.{ .tagged_union = &.{.{ .name = "text", .type = .utf8 }} } } } } } } } },
+            } };
+            const copy = try source.cloneInto(allocator);
+            defer copy.freeClone(allocator);
+            try std.testing.expect(try source.eql(copy));
+        }
+    };
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, Fixture.check, .{});
+}
 pub const Type = union(Tag) {
     pub const json_schema_sequence_bounds = .{ .structure = 256, .tagged_union = 256 };
     int64,
@@ -186,8 +248,8 @@ pub const Type = union(Tag) {
         const value = try self.cloneInto(arena.allocator());
         return .{ .arena = arena, .type = value };
     }
-    /// Compose within an existing request arena. The caller owns every success
-    /// and partial-failure allocation; no independent owner is returned.
+    /// Own every child/name in the supplied allocator. Arena owners may release
+    /// the arena; other callers release the successful result with freeClone.
     pub fn cloneInto(self: Type, arena: std.mem.Allocator) !Type {
         try self.validate(.{});
         var buffer: [256]u8 = undefined;
@@ -195,6 +257,37 @@ pub const Type = union(Tag) {
         try writeType(self, &encoded.writer);
         if (encoded.fullCount() > max_encoding_bytes - 5 - definition.len) return error.WriteFailed;
         return cloneType(arena, self);
+    }
+    /// Release only a descriptor returned by cloneInto, with its allocator.
+    pub fn freeClone(self: Type, allocator: std.mem.Allocator) void {
+        switch (self) {
+            .range, .multirange => |child| {
+                child.freeClone(allocator);
+                allocator.destroy(child);
+            },
+            .structure, .tagged_union => |fields| {
+                for (fields) |field| {
+                    field.type.freeClone(allocator);
+                    allocator.free(field.name);
+                }
+                allocator.free(fields);
+            },
+            .list => |element| {
+                element.type.freeClone(allocator);
+                allocator.destroy(element.type);
+            },
+            .array => |array| {
+                array.element.type.freeClone(allocator);
+                allocator.destroy(array.element.type);
+            },
+            .map => |map| {
+                map.key.freeClone(allocator);
+                allocator.destroy(map.key);
+                map.value.type.freeClone(allocator);
+                allocator.destroy(map.value.type);
+            },
+            else => {},
+        }
     }
     pub fn fingerprint(self: Type) ![32]u8 {
         var buffer: [max_encoding_bytes]u8 = undefined;
@@ -266,6 +359,10 @@ fn validateType(value: Type, depth: usize, budget: *Budget, path: Diagnostic.Pat
                     budget.path = member.field("optional");
                     return budget.reject(.optional_variant, null, null, "true", null, error.InvalidUnion);
                 }
+                if (field.max_characters) |maximum| if (maximum == 0 or field.type != .utf8) {
+                    budget.path = member.field("max_characters");
+                    return budget.reject(.character_limit, maximum, null, "", null, error.InvalidCharacterLimit);
+                };
                 try validateType(field.type, depth + 1, budget, member.field("type"));
             }
         },
@@ -311,7 +408,8 @@ fn writeType(value: Type, writer: *std.Io.Writer) anyerror!void {
             for (fields) |field| {
                 try writer.writeByte(@intCast(field.name.len));
                 try writer.writeAll(field.name);
-                try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1));
+                try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1) | (@as(u8, @intFromBool(field.max_characters != null)) << 2));
+                if (field.max_characters) |maximum| try writer.writeInt(u32, maximum, .little);
                 try writeType(field.type, writer);
             }
         },
@@ -343,24 +441,33 @@ fn cloneType(allocator: std.mem.Allocator, value: Type) anyerror!Type {
     return switch (value) {
         .range, .multirange => |subtype| blk: {
             const child = try allocator.create(Type);
+            errdefer allocator.destroy(child);
             child.* = try cloneType(allocator, subtype.*);
             break :blk if (value == .range) .{ .range = child } else .{ .multirange = child };
         },
         .structure, .tagged_union => |fields| blk: {
             const owned = try allocator.alloc(Field, fields.len);
-            for (fields, owned) |field, *copy| copy.* = .{
-                .name = try allocator.dupe(u8, field.name),
-                .type = try cloneType(allocator, field.type),
-                .nullable = field.nullable,
-                .optional = field.optional,
+            errdefer allocator.free(owned);
+            var initialized: usize = 0;
+            errdefer for (owned[0..initialized]) |field| {
+                allocator.free(field.name);
+                field.type.freeClone(allocator);
             };
+            for (fields, owned) |field, *copy| {
+                const name = try allocator.dupe(u8, field.name);
+                errdefer allocator.free(name);
+                copy.* = .{ .name = name, .type = try cloneType(allocator, field.type), .nullable = field.nullable, .optional = field.optional, .max_characters = field.max_characters };
+                initialized += 1;
+            }
             break :blk if (value == .structure) .{ .structure = owned } else .{ .tagged_union = owned };
         },
         .list => |element| .{ .list = try cloneElement(allocator, element) },
         .array => |array| .{ .array = .{ .length = array.length, .element = try cloneElement(allocator, array.element) } },
         .map => |map| blk: {
             const key = try allocator.create(Type);
+            errdefer allocator.destroy(key);
             key.* = try cloneType(allocator, map.key.*);
+            errdefer key.freeClone(allocator);
             break :blk .{ .map = .{ .key = key, .value = try cloneElement(allocator, map.value) } };
         },
         else => value,
@@ -368,6 +475,7 @@ fn cloneType(allocator: std.mem.Allocator, value: Type) anyerror!Type {
 }
 fn cloneElement(allocator: std.mem.Allocator, element: Element) !Element {
     const child = try allocator.create(Type);
+    errdefer allocator.destroy(child);
     child.* = try cloneType(allocator, element.type.*);
     return .{ .type = child, .nullable = element.nullable };
 }
@@ -411,8 +519,9 @@ fn readType(allocator: std.mem.Allocator, reader: *std.Io.Reader, depth: usize, 
                 const name = try reader.take(try reader.takeByte());
                 try budget.name(name);
                 const flags = try reader.takeByte();
-                if (flags > 3) return error.InvalidTypeEncoding;
-                field.* = .{ .name = try allocator.dupe(u8, name), .nullable = flags & 1 != 0, .optional = flags & 2 != 0, .type = try readType(allocator, reader, depth + 1, budget) };
+                if (flags > 7) return error.InvalidTypeEncoding;
+                const maximum = if (flags & 4 != 0) try reader.takeInt(u32, .little) else null;
+                field.* = .{ .name = try allocator.dupe(u8, name), .nullable = flags & 1 != 0, .optional = flags & 2 != 0, .max_characters = maximum, .type = try readType(allocator, reader, depth + 1, budget) };
             }
             break :blk if (kind == .structure) .{ .structure = fields } else .{ .tagged_union = fields };
         },

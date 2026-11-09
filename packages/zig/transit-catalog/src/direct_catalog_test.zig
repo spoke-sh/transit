@@ -7209,6 +7209,61 @@ test "direct KV signed dispatch validates typed metadata saved mutations and abs
     try t.expectError(error.TableRetired, Fixture.call(&arena, &catalog, &access, try (Client.Action{ .get = .{ .object = base.binding.target, .key = "absent" } }).encode(arena.allocator())));
 }
 
+test "direct KV signed ROW metadata values and exact revision guards survive response cleanup" {
+    const K = c.DirectKV;
+    const Client = c.DirectKVClient;
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .row, .nullable = false, .fields = &.{.{ .name = "label", .type = .utf8, .max_characters = 1 }} };
+    const value: c.fuze.Types.Values.Cell = .{ .value = .{ .structure = &.{.{ .value = .{ .atom = .{ .bytes = "é" } } }} } };
+    const base = try creation(7, 1, "row_state");
+    const declared = try Client.prepareDeclaration(t.allocator, .{ .binding = base.binding, .namespace = 1, .name = base.intent.name, .action = .{ .create = .{ .owner = 0, .spec = spec } } });
+    for ([_]@FieldType(K.DeclarationRequest, "command"){ .preview, .admit, .execute }) |command| _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+    const metadata = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "row_state" } })).kv_lookup.?;
+    try t.expect(try metadata.spec.typeOf().eql(spec.typeOf()));
+    const empty_action: K.Request = .{ .get = .{ .object = base.binding.target, .key = try .encode(arena.allocator(), "key"), .source = null } };
+    const absent = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = empty_action })).kv.value;
+    try t.expect(absent.encoded == null and absent.revision == null);
+    var binding = base.binding;
+    binding.identity.operation = 2;
+    binding.action = .insert;
+    binding.expected_definition = metadata.interpretation.interpretation;
+    const mutation = try Client.prepareMutation(&arena, binding, spec, &.{.{ .put = .{ .key = "key", .value = value, .expect = .absent } }});
+    _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = mutation } });
+    // The output uses a general allocator: both the descriptor and value must
+    // outlive the temporary catalog reader and have deterministic cleanup.
+    const read = try K.apply(arena.allocator(), t.allocator, &catalog, empty_action, access.policy());
+    defer read.deinit(t.allocator);
+    try c.DirectKVResponse.validate(t.allocator, empty_action, read);
+    try t.expect(try read.value.spec.typeOf().eql(spec.typeOf()));
+    const decoded = try c.fuze.Types.Codec.decodeBoundInto(arena.allocator(), .{ .name = "value", .type = read.value.spec.typeOf() }, try read.value.encoded.?.decode(arena.allocator(), 100));
+    try t.expectEqualStrings("é", decoded.value.structure[0].value.atom.bytes);
+    var malformed = read;
+    malformed.value.revision = null;
+    try t.expectError(error.InvalidKVResponse, c.DirectKVResponse.validate(t.allocator, empty_action, malformed));
+    binding.identity.operation = 3;
+    const update = try Client.prepareMutation(&arena, binding, spec, &.{.{ .put = .{ .key = "key", .value = value, .expected_revision = read.value.revision } }});
+    const saved = try Client.save(arena.allocator(), .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, update);
+    var loaded = try Client.load(t.allocator, saved);
+    defer loaded.deinit();
+    try t.expectEqualDeep(read.value.revision, loaded.value.mutation.changes[0].put.expected_revision);
+    _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = loaded.value.mutation } });
+    _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = loaded.value.mutation } });
+    binding.identity.operation = 4;
+    const stale = try Client.prepareMutation(&arena, binding, spec, &.{.{ .put = .{ .key = "key", .value = value, .expected_revision = read.value.revision } }});
+    try t.expectError(error.KVRevisionChanged, SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = stale } }));
+    access.denied_privileges = .{ .id = 107, .mask = c.KVAuthority.read };
+    try t.expectError(error.CatalogDenied, SignedDispatch.call(&arena, &catalog, &access, .{ .kv = empty_action }));
+}
+
 test "direct KV and Document dependencies preserve kind rights recovery and DROP restrictions" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();

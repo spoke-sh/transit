@@ -125,7 +125,8 @@ pub fn hash(field: t.Field, cell: v.Cell) ![32]u8 {
     var hasher = Hash.init(.{});
     hasher.update("transit.fuze.structural-hash.v1\x00");
     hasher.update(&try field.type.fingerprint());
-    hasher.update(&.{ @intFromBool(field.nullable), @intFromBool(field.optional) });
+    hasher.update(&.{ @intFromBool(field.nullable), @intFromBool(field.optional), @intFromBool(field.max_characters != null) });
+    if (field.max_characters) |maximum| number(&hasher, maximum);
     hashCell(&hasher, field.type, cell);
     return hasher.finalResult();
 }

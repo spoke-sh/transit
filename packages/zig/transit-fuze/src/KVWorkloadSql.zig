@@ -131,8 +131,7 @@ pub const ValueOperand = struct {
             if (parser.location) |location| location.* = .{ .offset = (failure orelse literal.span).start };
             return err;
         };
-        if (cell != .value or cell.value != .atom) return error.InvalidLiteral;
-        try f.LogicalPrepared.validate(cell.value.atom, kind);
+        try cell.validate(.{ .name = "value", .type = kind, .nullable = spec.nullable }, .{});
         return .{ .value = .{ .literal = cell } };
     }
 
@@ -179,10 +178,11 @@ pub const PreparedWrite = struct {
     entries: []const Entry,
     parameter_types: []const f.Types.Type,
 
-    pub fn init(allocator: std.mem.Allocator, text: []const u8, spec: Spec, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !PreparedWrite {
+    pub fn init(allocator: std.mem.Allocator, text: []const u8, input_spec: Spec, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !PreparedWrite {
         var arena = std.heap.ArenaAllocator.init(allocator);
         errdefer arena.deinit();
         const a = arena.allocator();
+        const spec = try input_spec.cloneInto(a);
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         var entries: std.ArrayList(Entry) = .empty;
         var parameters: std.ArrayList(f.TableDmlPrepared.Parameter) = .empty;
@@ -308,10 +308,11 @@ pub const PreparedGet = struct {
     parameter_types: []const f.Types.Type,
     output: f.Types.Decoded,
 
-    pub fn init(allocator: std.mem.Allocator, text: []const u8, spec: Spec, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !PreparedGet {
+    pub fn init(allocator: std.mem.Allocator, text: []const u8, input_spec: Spec, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !PreparedGet {
         var arena = std.heap.ArenaAllocator.init(allocator);
         errdefer arena.deinit();
         const a = arena.allocator();
+        const spec = try input_spec.cloneInto(a);
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         try parser.requireWord("GET");
         try parser.requireWord("FROM");
@@ -344,6 +345,20 @@ pub const PreparedGet = struct {
         return self.key.bind(allocator, values);
     }
 };
+
+test "KV ROW workload literals retain logical field constraints" {
+    var declaration = try f.KVDdl.compile(std.testing.allocator, "CREATE KV sessions (ROW (identity VARCHAR(1), revoked BOOLEAN NOT NULL))", .transit, null);
+    defer declaration.deinit();
+    const spec = declaration.statement.action.create.spec;
+    var prepared = try PreparedWrite.init(std.testing.allocator, "PUT INTO sessions KEY 'key' VALUE ROW('é', FALSE) IF ABSENT", spec, .transit, null);
+    defer prepared.deinit();
+    var bound = try prepared.bind(std.testing.allocator, &.{});
+    defer bound.deinit();
+    try std.testing.expectEqual(.absent, bound.changes[0].put.expect);
+    try std.testing.expectEqualStrings("é", bound.changes[0].put.value.value.structure[0].value.atom.bytes);
+    try std.testing.expectError(error.CharacterLimitExceeded, PreparedWrite.init(std.testing.allocator, "PUT INTO sessions KEY 'key' VALUE ROW('éé', FALSE)", spec, .transit, null));
+    try std.testing.expectError(error.NullNotAllowed, PreparedWrite.init(std.testing.allocator, "PUT INTO sessions KEY 'key' VALUE ROW('é', NULL)", spec, .transit, null));
+}
 
 test "KV workload SQL compiles PUT GET and DELETE with conditional expectations and parameters" {
     const t = std.testing;

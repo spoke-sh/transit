@@ -19,7 +19,7 @@ pub const Root = P.Root;
 pub const Outcome = P.Outcome;
 pub const SnapshotHandle = P.SnapshotHandle;
 pub const Change = union(enum) {
-    put: struct { key: []const u8, value: f.Types.Values.Cell, expect: @import("TableChanges.zig").Expect = .any },
+    put: struct { key: []const u8, value: f.Types.Values.Cell, expect: @import("TableChanges.zig").Expect = .any, expected_revision: ?f.TableRow.Identity = null },
     remove: []const u8,
 };
 
@@ -28,6 +28,9 @@ pub const Value = struct {
     storage: P.OwnedRow,
     pub fn cell(self: *const Value) f.Types.Values.Cell {
         return self.storage.row().cells[1];
+    }
+    pub fn revision(self: *const Value) f.TableRow.Identity {
+        return self.storage.row().identity;
     }
     pub fn deinit(self: *Value) void {
         self.storage.deinit();
@@ -40,6 +43,7 @@ pub const Value = struct {
 storage: P,
 
 pub fn init(allocator: std.mem.Allocator, partition: u64, definition: Declaration.Definition, log: @import("TransitLog.zig").Log, objects: @import("TransitObjectStore.zig").ObjectStore, options: Options) !Self {
+    try definition.spec.validate();
     var selected = options;
     selected.kind = .kv;
     var columns: [2]f.TableSchema.Column = undefined;
@@ -102,11 +106,15 @@ pub fn lower(a: std.mem.Allocator, schema: f.TableSchema.Schema, binding: d.Bind
         .put => |value| {
             if (value.key.len == 0 or value.key.len > max_key_bytes) return error.InvalidKVKey;
             if (value.value == .value and value.value.value == .atom and value.value.value.atom == .bytes and value.value.value.atom.bytes.len > max_value_bytes) return error.KVValueTooLarge;
-            try value.value.validate(field, .{});
+            try value.value.validate(field, .{ .value_bytes = max_value_bytes });
             const cells = try a.alloc(f.Types.Values.Cell, 2);
             cells[0] = .{ .value = .{ .atom = .{ .bytes = value.key } } };
             cells[1] = value.value;
-            out.* = .{ .put = .{ .row = .{ .identity = .{ .origin = binding.identity.principal + 1, .operation = binding.identity.operation, .ordinal = @intCast(ordinal) }, .cells = cells }, .expect = value.expect } };
+            if (value.expected_revision) |revision| {
+                try revision.validate();
+                if (value.expect == .absent) return error.InvalidKVOperation;
+            }
+            out.* = .{ .put = .{ .row = .{ .identity = .{ .origin = binding.identity.principal + 1, .operation = binding.identity.operation, .ordinal = @intCast(ordinal) }, .cells = cells }, .expect = value.expect, .expected_revision = value.expected_revision } };
         },
         .remove => |key| {
             var encoded: [f.Collation.max_sort_key_bytes]u8 = undefined;

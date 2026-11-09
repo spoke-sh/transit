@@ -46,6 +46,7 @@ fn expected(comptime T: type) []const u8 {
         .pointer => |p| if (p.size == .one) expected(p.child) else if (p.child == u8) "UTF-8 string" else "array of field descriptors",
         .int => std.fmt.comptimePrint("integer from {d} to {d}", .{ std.math.minInt(T), std.math.maxInt(T) }),
         .bool => "boolean",
+        .optional => |info| comptime "null or " ++ expected(info.child),
         .void => "empty object",
         else => @compileError("unsupported descriptor JSON type"),
     };

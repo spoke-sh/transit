@@ -15,7 +15,7 @@ import struct
 import uuid
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/types.json'
-DEFINITION = b'transit.fuze.types.v1.2026-11-01.companions'
+DEFINITION = b'transit.fuze.types.v1.2026-11-08.program-values'
 TAGS = dict(zip(('int64 uint64 float64 boolean utf8 binary int8 int16 int32 int128 '
                  'uint8 uint16 uint32 uint128 float32 decimal date time timestamp '
                  'interval uuid structure list array map tagged_union json range multirange vector').split(), range(1, 31)))
@@ -41,7 +41,7 @@ def fixtures():
             semantic = struct.pack('<Q', len(payload) - 4) + payload[4:]
         else:
             semantic = payload
-        logical_hash = hashlib.sha256(b'transit.fuze.structural-hash.v1\0' + hashlib.sha256(desc).digest() + b'\0\0\3' + semantic).hexdigest()
+        logical_hash = hashlib.sha256(b'transit.fuze.structural-hash.v1\0' + hashlib.sha256(desc).digest() + b'\0\0\0\3' + semantic).hexdigest()
         rows.append(dict(name=name, kind=kind, literal=literal, type_hex=desc.hex(),
                          fingerprint=hashlib.sha256(desc).hexdigest(), value_hex=envelope.hex(), logical_hash=logical_hash))
     for signed in (True, False):

@@ -743,7 +743,10 @@ not execute SQL `CREATE KV`, nor accept a writer PID or Station state resource.
 
 A mandatory `kind` in the persisted catalog intent distinguishes `table` and
 `kv`. KV CREATE lowers its value specification to the exact two-column
-`KVDeclaration` physical schema. Its DDL intent digest includes kind, namespace,
+`KVDeclaration` physical schema. Values may be scalar `int64`, `boolean`, `utf8`
+or `binary`, or a `row` with 1–64 named logical fields. Row definitions retain
+nested nullability and character constraints; non-row specifications must have
+no fields. The schema's fingerprint covers the complete descriptor. Its DDL intent digest includes kind, namespace,
 name and action in native field order, with fixed name-byte arrays encoded as
 strings including zero padding, under `transit.catalog.ddl.intent.v1` and a zero
 byte. The signed wire envelope encodes those arrays as JSON numbers. The ordinary catalog admission,
@@ -753,7 +756,16 @@ similar column names never establish object kind.
 
 `DirectKV.Mutation` contains a data-lifecycle binding and 1–1024 changes. A put
 has a base64 byte key, a bound FVL1 value and an `absent`, `present` or `any`
-expectation; remove has a byte key. The mutation uses binding action `insert`
+expectation and an optional exact `expected_revision`; remove has a byte key.
+The point revision is the stored row's original `(origin, operation, ordinal)`
+identity. Every new KV put assigns its own identity. An exact revision requires
+the key to exist and match under the partition publication fence; it cannot be
+combined with `absent`. A mismatch rejects the complete batch with
+`KVRevisionChanged`. Unrelated keys do not change that point revision. The
+expected revision participates in both mutation and accepted-change digests;
+an identical retry recovers its original result before reevaluating the condition.
+The revision is an observation, never read or write authority.
+The mutation uses binding action `insert`
 and requires the exact expected definition. Its intent digest is SHA-256 of
 `transit.kv.mutation.v1`, a zero byte, and canonical public JSON of the change
 list. That list must fit 4 MiB. The shared operation binding is claimed only
@@ -768,7 +780,8 @@ current definition, exact connection and digest, with no fallback decoding.
 
 `get` returns interpretation, public source position, last logical-change position,
 value specification, optional retained source, mandatory nullable `workspace`
-and an optional encoded value.
+and an optional encoded value with its mandatory nullable point `revision`.
+The encoded value and revision must either both exist or both be absent.
 Absence carries the same basis as presence. NULL remains a logical value.
 `pin`, `pin_status` and `release` use the shared retained-snapshot owner identity.
 A retained read verifies the exact handle and current rights before disclosure,

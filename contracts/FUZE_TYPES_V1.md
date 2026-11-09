@@ -10,7 +10,14 @@ representation. Neither a descriptor nor a decoded value grants source access.
 
 A descriptor is an acyclic tree with explicit children and field order. Its
 canonical encoding includes the current definition identifier, kind, parameters,
-field names, nullability and optionality. Its SHA-256 fingerprint excludes memory
+field names, nullability, optionality and optional `max_characters` constraints.
+The positive character constraint is valid only for UTF-8 fields and counts
+Unicode scalar values, independently of byte budgets and physical encoding.
+`ROW` and `STRUCT` are SQL spellings of the same ordered logical record. Their
+named fields preserve `VARCHAR(n)` constraints through cloning, serialization,
+hashing and value validation, including conflict alternatives. Collection
+elements do not carry field constraints; use a named record field when needed.
+Its SHA-256 fingerprint excludes memory
 addresses, allocation strategy and physical batch layout. Unknown identifiers,
 invalid parameters, duplicate field names and trailing bytes reject.
 
@@ -26,7 +33,7 @@ invalid parameters, duplicate field names and trailing bytes reject.
 | Timestamp | Signed microseconds since 1970-01-01; descriptor distinguishes UTC instant from timezone-free civil time |
 | Interval | Signed months, days and nanoseconds; components remain independent; no implicit duration ordering |
 | UUID | Exactly 16 bytes, canonical textual spelling 8-4-4-4-12 hexadecimal |
-| Struct | Ordered named fields, each with type, nullable and optional flags |
+| Struct | Ordered named fields, each with type, nullable/optional flags and optional UTF-8 character limit |
 | List / fixed array | One element type and nullability; arrays have a positive declared length |
 | Map | Entries in strictly increasing typed key order; non-null scalar keys |
 | Tagged union | Ordered named alternatives; one tag and one typed cell |
@@ -130,13 +137,15 @@ JSON and duplicate decoded object keys. It accepts caller-owned allocation;
 `Json.validate` uses a bounded 1 MiB scratch buffer. Neither performs I/O.
 
 `FTY1` is magic, u8 definition-string length, UTF-8 definition, then one recursive
-descriptor. The current definition is `transit.fuze.types.v1.2026-11-01.companions`. Tags
+descriptor. The current definition is `transit.fuze.types.v1.2026-11-08.program-values`. Tags
 1–27 are int64, uint64, float64, boolean, UTF-8, binary, int8, int16, int32,
 int128, uint8, uint16, uint32, uint128, float32, decimal, date, time, timestamp,
 interval, UUID, struct, list, array, map, tagged union and JSON. Scalars have no
 parameters except decimal (u8 precision/scale) and timestamp (0 civil, 1 UTC).
 Struct/union is u8 field count followed by each u8-length UTF-8 name, flags
-(bit 0 nullable, bit 1 optional) and child descriptor. Lists encode a canonical
+(bit 0 nullable, bit 1 optional, bit 2 character limit present), an optional
+positive u32 character limit, and child descriptor. Higher flag bits reject.
+Lists encode a canonical
 boolean nullable byte then child type; arrays prepend u32 length. Maps encode
 key type then the value's nullable byte/type. Integers are little-endian.
 
@@ -170,7 +179,8 @@ stored codecs require canonical input. Scalar interval predicates, vector
 distance, decimal expressions and timezone expressions have separate execution
 admission from these stored values.
 
-`FVL1` is magic, u16 `FTY1` length and bytes, root flags, then one typed cell.
+`FVL1` is magic, u16 `FTY1` length and bytes, root flags, the optional u32
+character limit selected by root flag bit 2, then one typed cell.
 The component's `encodeBound`/`decodeBound` helpers use exactly that final cell
 payload when an enclosing versioned record already binds an exact immutable
 descriptor and flags. Bound payloads contain no standalone type or definition
@@ -241,8 +251,9 @@ not select a fallback decoder.
 empty-object payload, for example `{"int64":{}}`. Decimal has `precision`/`scale`;
 timestamp has `"civil"` or `"utc"`. Struct/union payloads are field arrays;
 list has `type`/`nullable`; array has `length`/`element`; map has `key`/`value`.
-Fields have `name`, `type`, `nullable` and `optional`; omitted flags default to
-false. Element nullability also defaults to false. Logical validation and
+Fields have `name`, `type`, `nullable`, `optional` and nullable `max_characters`;
+omitted flags default to false and omitted character limits to null. Element
+nullability also defaults to false. Logical validation and
 descriptor fingerprints are identical to the binary codec.
 
 `CELL` has exactly one of `missing:{}`, `null:{}`, `type_error:KIND`,
@@ -295,10 +306,11 @@ calendar-month conversion is introduced.
 without allocating a value copy. Equal cells under the same field have equal
 hashes; signed floating zero normalizes to positive zero. Exact codecs preserve
 the original sign. Root field names are excluded; descriptor field names/order,
-parameters and root nullable/optional flags remain significant.
+parameters, root nullable/optional flags and root character limits remain significant.
 
 The SHA-256 input is the bytes `transit.fuze.structural-hash.v1` followed by NUL,
-the 32-byte type fingerprint, two canonical root nullable/optional bytes, then
+the 32-byte type fingerprint, three canonical root nullable/optional/limit-present
+bytes, an optional u32 little-endian character limit, then
 the structural cell. Each cell starts with its state byte; missing/null have no
 payload. Signed/unsigned integer atoms use i128/u128 little-endian values;
 decimal uses i128 coefficient; float uses its exact f64 representation after
