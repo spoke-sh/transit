@@ -31468,6 +31468,51 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationRequests.zig": {
+      "errors": {
+        "ApplicationRequestOwnerMismatch": 2,
+        "ApplicationReservationCapacity": 6,
+        "ApplicationReservationExpired": 3,
+        "ApplicationReservationLost": 6,
+        "ClockUnavailable": 1,
+        "InvalidApplicationReservation": 2,
+        "MissingProgramNativeBinding": 1
+      },
+      "outcomes": {
+        "Slot.state": [
+          "free",
+          "initializing",
+          "open",
+          "closing"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Borrow.checked()": "<inferred>",
+        "Borrow.requireLive()": "<inferred>",
+        "Borrow.view()": "<inferred>",
+        "Limits.allocation()": "<inferred>",
+        "Proof.access()": "<inferred>",
+        "Proof.allow()": "anyerror",
+        "borrow()": "<inferred>",
+        "deny()": "anyerror",
+        "init()": "<inferred>",
+        "now()": "<inferred>",
+        "open()": "<inferred>",
+        "vacant()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 30,
+        "catch": 4
+      },
+      "imports": [
+        "ApplicationProtectedHost.zig",
+        "ApplicationReservation.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationReservation.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -31932,6 +31977,7 @@
       "imports": [
         "ApplicationAuthority.zig",
         "ApplicationProtectedHost.zig",
+        "ApplicationRequests.zig",
         "ApplicationReservation.zig",
         "ApplicationSecrets.zig",
         "BrowserRuntime.zig",

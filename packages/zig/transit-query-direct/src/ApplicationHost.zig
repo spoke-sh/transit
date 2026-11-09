@@ -10,17 +10,17 @@ io: std.Io,
 scope: ?q.ApplicationExecution.Context = null,
 
 pub fn recovery(self: *Self) q.ApplicationRecovery.Host {
-    return .{ .context = self, .bind = bind, .finish = finish };
+    return .{ .context = self, .bind = bind };
 }
 fn finish(context: *anyopaque) void {
     const self: *Self = @ptrCast(@alignCast(context));
     self.scope = null;
 }
-fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
+fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
     const self: *Self = @ptrCast(@alignCast(context));
     self.scope = scope;
     self.scratch = scope.scratch;
-    return self.host();
+    return .{ .expressions = self.host(), .release = finish };
 }
 pub fn host(self: *Self) a.Evaluation.Host {
     return .{ .context = self, .lookup = lookup, .evaluate = evaluate, .condition = condition };

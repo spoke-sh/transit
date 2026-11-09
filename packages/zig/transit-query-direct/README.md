@@ -62,9 +62,11 @@ Borrowed binding values cannot outlive that evaluation.
 `Context.requireCurrent` rechecks the invocation fence, active control head and
 registered dependency rights through the exact executor role. Control checks
 observe current state even during an atomic block; data helpers keep their
-private transaction view. An optional release callback runs for successful host
-bindings after candidate retention or any failure, so a host can release its
-borrowed request state. A current observation does not authorize later dispatch
+private transaction view. Each successful bind returns a `BoundHost` with its
+expression context and mandatory release callback. Cleanup runs on that exact
+context after candidate retention or any failure. Factories serving concurrent
+evaluations return distinct borrowed contexts; cleanup cannot select another
+request through shared factory state. Failed binding releases any partial borrow. A current observation does not authorize later dispatch
 or disclosure without another check.
 `ApplicationTransaction` selects exact Table, row Document, KV and log partitions
 under the existing serializable transaction owner; read access is required for

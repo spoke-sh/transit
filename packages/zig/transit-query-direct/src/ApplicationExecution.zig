@@ -53,12 +53,23 @@ pub const Context = struct {
         try M.requireExecutorDependencies(control, self.declaration, observed);
     }
 };
+/// One evaluation's borrow. The expression context, rather than a shared
+/// factory, identifies the state to release. Factories may serve concurrent
+/// evaluations using distinct contexts; each borrow must be finished once.
+pub const BoundHost = struct {
+    expressions: a.Evaluation.Host,
+    release: *const fn (*anyopaque) void,
+
+    pub fn deinit(self: *BoundHost) void {
+        self.release(self.expressions.context);
+        self.* = undefined;
+    }
+};
 pub const Host = struct {
     context: *anyopaque,
-    bind: *const fn (*anyopaque, Context) anyerror!a.Evaluation.Host,
-    /// Release a successful binding after evaluation/candidate retention,
-    /// including failures. A failed bind must release its own partial borrow.
-    finish: ?*const fn (*anyopaque) void = null,
+    /// The returned context lives through candidate retention. A failed bind
+    /// releases its own partial borrow; every successful bind returns cleanup.
+    bind: *const fn (*anyopaque, Context) anyerror!BoundHost,
 };
 
 pub const Transaction = struct {
@@ -413,7 +424,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
     // The current checkpoint alone cannot prove ownership of a request handle.
     const original_input = if (saved == .input) null else try self.owner.loadInput(client, value, work.*, work.environment orelse return error.InvalidDirectRecord);
     defer if (original_input) |input| input.deinit();
-    const host = try self.native.bind(self.native.context, .{
+    var host = try self.native.bind(self.native.context, .{
         .client = private,
         .declaration = value,
         .work = work.*,
@@ -422,8 +433,8 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         .step = env.cursor.step,
         .scratch = allocator,
     });
-    defer if (self.native.finish) |finish| finish(self.native.context);
-    var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = host };
+    defer host.deinit();
+    var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = host.expressions };
     const step = try driver.prepare();
     candidate.instruction = step.instruction;
     var outcome: a.Step.Outcome = .applied;
@@ -843,4 +854,39 @@ test "application execution validates safe original progress before data calls" 
     try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = null, .reason = .none, .evidence = null }).validate());
     try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = 4, .reason = .execution, .evidence = null }).validate());
     try (Failure{ .refusal = null, .reason = .execution, .evidence = null }).validate();
+}
+
+test "application host bindings release their own context when another borrow remains live" {
+    const t = std.testing;
+    const Factory = struct {
+        slots: [2]q.ApplicationHost,
+        fn bind(context: *anyopaque, scope: Context) !BoundHost {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (scope.step >= self.slots.len) return error.InvalidProgramNode;
+            const selected = self.slots[scope.step].recovery();
+            return selected.bind(selected.context, scope);
+        }
+        fn fail(binding: BoundHost) !void {
+            var owned = binding;
+            defer owned.deinit();
+            _ = try owned.expressions.lookup(owned.expressions.context, "missing");
+        }
+    };
+    var factory: Factory = .{ .slots = @splat(.{ .scratch = t.allocator, .io = t.io }) };
+    const host: Host = .{ .context = &factory, .bind = Factory.bind };
+    // Public host binding does not read authority. Native operations check it
+    // when used; these unused fields intentionally cannot authorize an action.
+    var scope: Context = .{ .client = undefined, .declaration = undefined, .work = undefined, .invocation = undefined, .input = undefined, .step = 0, .scratch = t.allocator };
+    const first = try host.bind(host.context, scope);
+    scope.step = 1;
+    var second = try host.bind(host.context, scope);
+    try t.expect(factory.slots[0].scope != null and factory.slots[1].scope != null);
+    try t.expectError(error.UnknownProgramVariable, Factory.fail(first));
+    try t.expect(factory.slots[0].scope == null);
+    try t.expectEqual(1, factory.slots[1].scope.?.step);
+    second.deinit();
+    try t.expect(factory.slots[1].scope == null);
+    scope.step = 2;
+    try t.expectError(error.InvalidProgramNode, host.bind(host.context, scope));
+    try t.expect(factory.slots[0].scope == null and factory.slots[1].scope == null);
 }

@@ -87,6 +87,19 @@ credential or protected-response bytes through ordinary values. See the
 [application program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
 for helper algorithms, bounds and the remaining live verifier/dispatch work.
 
+`ApplicationRequests` preallocates request bytes, protected-value slots and private
+scratch within an explicit resident budget. Admission refuses capacity without
+evicting live requests and rejects duplicate original inputs, including in-flight
+construction. Each reservation binds an exact Queue input and a fixed
+monotonic deadline; waiting or recovery does not renew it. Evaluations borrow one
+request exclusively while other requests proceed independently. Closing revokes
+further access, joins its current borrower, then erases all request/protected
+bytes. Releasing an evaluation erases its private scratch and removes its borrowed
+authority callback. A stale borrow or close cannot affect a reused slot. Registry
+ownership grants no native rights: new and released reservations deny redemption
+until a native binder supplies current scoped authority. Live listener/executor
+composition remains pending.
+
 `ApplicationSecrets` supplies the protected host's native lookup/current
 callbacks using the exact canonical secret binding and current fenced client.
 The deployment supplies an open private mount for that namespace. Reads accept

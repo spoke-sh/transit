@@ -6,6 +6,7 @@ const s = serving.station;
 const p = s.protocol;
 const telemetry = s.client.observability.telemetry;
 pub const BrowserRuntime = @import("BrowserRuntime.zig");
+pub const ApplicationRequests = @import("ApplicationRequests.zig");
 pub const ApplicationReservation = @import("ApplicationReservation.zig");
 pub const ApplicationProtectedHost = @import("ApplicationProtectedHost.zig");
 pub const ApplicationSecrets = @import("ApplicationSecrets.zig");

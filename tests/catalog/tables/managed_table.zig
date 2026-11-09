@@ -638,7 +638,7 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
     defer client.allocator.free(retire);
     _ = try manager.applyControl(retire);
     var host: ApplicationHost = .{};
-    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish }));
+    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }));
     const closed = (try T.inspect(client, token)).?;
     try t.expectEqual(.closed, closed.original.?.phase);
     try t.expect(!closed.pending);
@@ -903,7 +903,7 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
         defer saved.deinit();
         // Input ownership remains attached until its read has been released.
         if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
-        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish } };
+        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind } };
         const next = try runner.tick(value, progress, saved.value);
         if (!next.pending) {
             try t.expectEqual(.closed, next.original.?.phase);
@@ -1003,7 +1003,7 @@ const ApplicationHost = struct {
     fn host(self: *ApplicationHost) a.Evaluation.Host {
         return .{ .context = self, .lookup = lookup, .evaluate = evaluate, .condition = condition };
     }
-    fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
+    fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
         try t.expectEqual(self.bindings, self.finishes);
         try t.expect(self.native == null);
@@ -1039,7 +1039,7 @@ const ApplicationHost = struct {
         }
         self.native = .{ .scratch = scope.scratch, .io = scope.client.service.http.io, .scope = scope };
         self.bindings += 1;
-        return self.host();
+        return .{ .expressions = self.host(), .release = finish };
     }
     fn finish(context: *anyopaque) void {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
@@ -1195,7 +1195,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                     }
                 }
             }
-            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish }) catch |err| {
+            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }) catch |err| {
                 // The proxy loses accepted replies at native and continuation
                 // boundaries. Reload the same token on the next iteration.
                 if (err == error.InvalidTableResponse) continue;
