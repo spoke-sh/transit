@@ -451,7 +451,7 @@ These checks cover immutable single-Table forks and local process/disk recovery.
 They do not establish writable branch isolation, common multi-Table cuts,
 independent read holds, diff/merge, forward restore, remote ownership, power-loss
 safety or full clean integration. Remaining work stays in
-[Milestone 20](../../roadmap/20-branches-merges-and-restore.md#immutable-table-forks--2026-11-02).
+[Milestone 21](../../roadmap/21-branches-merges-and-restore.md#immutable-table-forks--2026-11-02).
 
 ## Integrated standards ledger and retained collation cuts — 2026-11-02
 

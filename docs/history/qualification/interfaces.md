@@ -535,7 +535,7 @@ the governed-workbench gates are outside this delivery. M30 remains In Progress.
 The question is whether Board can bound background work and preserve original
 result/control identities while each view reacts to configuration, visibility,
 refusal and replacement. This implements R1 of the approved
-[M30 sequence](../../roadmap/30-board-reimplementation.md#next-implementation-sequence-after-pr-326--2026-11-01).
+[M31 sequence](../../roadmap/31-board-reimplementation.md#next-implementation-sequence-after-pr-326--2026-11-01).
 The broad integration source is committed `8b91285ac`, including `origin/main` at
 `095544060`. Final runtime source `a72de1a76` additionally stops automatic
 retries after a changed shared result identity, preserves binding objects for a
@@ -800,7 +800,7 @@ read/window limits pass in the named scenarios. They do not establish a manual
 screen-reader review, a global tab scheduler, concurrent-tab resource benchmarks,
 or measured first-observation/render/residency budgets. Wider core/formal/SDK
 qualification is not claimed. The focused delivery and remaining full-milestone
-gates remain in the [Board roadmap](../../roadmap/30-board-reimplementation.md).
+gates remain in the [Board roadmap](../../roadmap/31-board-reimplementation.md).
 
 ## Board contextual Inspector — 2026-10-30
 
@@ -3480,7 +3480,7 @@ operator installation was changed.
 
 Live browser/keyboard coverage, controlled revert/republication and a superseded
 workflow rerun have not been exercised. These remain explicit
-[publication qualification work](../../roadmap/44-qualification-and-benchmarks.md#documentation-publication).
+[publication qualification work](../../roadmap/45-qualification-and-benchmarks.md#documentation-publication).
 No runtime behavior or new runtime guarantee is established by this documentation
 framing change.
 

@@ -157,7 +157,7 @@ nix develop --command just test::nightly-performance "$perf_run/selection.json" 
   and ordinary PR gates do not execute or qualify the scheduled campaign.
 - Record publication prerequisites, regressions and unqualified scenarios in
   [tracker #378](https://github.com/spoke-sh/transit/issues/378). Follow the
-  [performance milestone's ownership map](docs/roadmap/13-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
+  [performance milestone's ownership map](docs/roadmap/14-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs)
   for provider, replication, operations, clustered execution and build-profile
   extensions. Keep build cost, process placement and durable authority distinct.
 
@@ -418,7 +418,7 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
     `key_fifo` entity-key affinity table, and a Hashed Hierarchical Timing Wheel
     for `visible_at` delays and retry backoff without B-tree page rewrite
     amplification.
-  - **Logical Documents (`DocumentPartition` in [Milestone 7](docs/roadmap/07-document-storage-and-station-decoupling.md)) and the Document Type Library + Gateway Exchange Lifecycle ([Milestone 16](docs/roadmap/16-document-profiles-and-gateway-exchange-lifecycle.md)):**
+  - **Logical Documents (`DocumentPartition` in [Milestone 7](docs/roadmap/07-document-storage-and-station-decoupling.md)) and the Document Type Library + Gateway Exchange Lifecycle ([Milestone 17](docs/roadmap/17-document-profiles-and-gateway-exchange-lifecycle.md)):**
     Decouple `DOCUMENT` from `Station` actor turns (`STATION_DOCUMENT_V1`/`SIX1`
     and the 96-byte scalar string ceiling) into `DocumentPartition` over
     `TransitLog` (`TWAL1`) and `.tseg` segments. Represent documents logically
@@ -442,7 +442,7 @@ claim that `CREATE STREAM`, `PRODUCE INTO`, `CONSUME ... FROM`, `CREATE QUEUE`,
 - **Formalize the gateway as a sans-I/O protocol boundary co-hosted over the Direct Data Plane ([Milestone 8](docs/roadmap/08-gateway-architecture-and-protocol-ingress.md)):**
   Keep wire-protocol codecs (`transit-postgres`, `transit-mysql`,
   `transit-sql-protocol` `TSR1`, `transit-flight`, `transit-serving-http`, and
-  [Milestone 16's](docs/roadmap/16-document-profiles-and-gateway-exchange-lifecycle.md)
+  [Milestone 17's](docs/roadmap/17-document-profiles-and-gateway-exchange-lifecycle.md)
   protocol Document Profiles) strictly as pure sans-I/O byte/frame state machines
   (`InputSlice -> ProtocolEvent / OutputSlice`) with zero socket, TLS, timer or
   thread imports. Co-host `DatabaseRuntime` and SQL/Flight/Serving ingress with
@@ -510,8 +510,8 @@ operator, or AOT query compiler already exists in current builds.
   materialization) first without locking text or code search into a
   bag-of-words model. Mirror the 16-byte string header for 2D/3D geospatial,
   volumetric and interactive world vectors in
-  [Milestone 17](docs/roadmap/17-geospatial-and-spatio-temporal-computing.md) and
-  [Milestone 19](docs/roadmap/19-game-asset-pipelines-and-simulation-streaming.md)
+  [Milestone 18](docs/roadmap/18-geospatial-and-spatio-temporal-computing.md) and
+  [Milestone 20](docs/roadmap/20-game-asset-pipelines-and-simulation-streaming.md)
   with a 16-byte inline spatial header (`[subtype_and_flags: u16][srid_id: u16][hilbert_s2_or_oct_prefix: u32][quantized_mbr_or_inline_xy: 8B]`),
   and pair `.tseg` topological shared-arc/face (`.topo_arc`, `.topo_face`),
   `<2 bpt` Edgebreaker mesh (`.mesh_edgebreaker`), virtualized meshlet cluster

@@ -1134,9 +1134,9 @@ This milestone does not itself deliver the installed lifecycle, transaction
 sessions, automatic scheduling, historical SQL, branches or a universal health
 boolean. [Local storage and `.tseg` segments](02-storage-and-query-performance.md)
 replace the underlying B-tree page store;
-[provider/writer qualification](23-storage-providers-and-concurrency.md) delivers
+[provider/writer qualification](24-storage-providers-and-concurrency.md) delivers
 partitioned concurrency;
-[managed computations](12-sql-and-dataflows.md) add WAL-driven activation and
+[managed computations](13-sql-and-dataflows.md) add WAL-driven activation and
 service-owned maintenance; [historical catalogs](10-standards-and-catalogs.md)
 extend the same identities and interpretation model. The kernel stays generic.
 Definitions and reads never grant rights or dispatch external effects.
