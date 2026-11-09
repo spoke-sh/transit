@@ -628,7 +628,7 @@ defmodule Transit.Station.Sdk.Catalog do
   defp walk({:transit_process, _, _} = v, :public, _, left), do: {Client.convert(v), left - 1}
   defp walk({:transit_resource, _, _} = v, :public, _, left), do: {Client.convert(v), left - 1}
 
-  defp walk({:transit_logical_field, _, _, _, _} = v, :public, _, left),
+  defp walk({:transit_logical_field, _, _, _, _, _} = v, :public, _, left),
     do: {Logical.convert(v), left - 1}
 
   defp walk({:transit_logical_element, _, _} = v, :public, _, left),

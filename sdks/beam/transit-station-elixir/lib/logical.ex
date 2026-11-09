@@ -1,7 +1,7 @@
 defmodule Transit.Station.Sdk.Logical.Field do
   @enforce_keys [:name, :type]
   @derive {Inspect, only: [:name, :nullable, :optional]}
-  defstruct [:name, :type, nullable: false, optional: false]
+  defstruct [:name, :type, nullable: false, optional: false, max_characters: nil]
 end
 
 defmodule Transit.Station.Sdk.Logical.Element do
@@ -57,7 +57,13 @@ defmodule Transit.Station.Sdk.Logical do
     do:
       tagged(
         :transit_logical_field,
-        [v.name, v.type, v.nullable, v.optional],
+        [
+          v.name,
+          v.type,
+          v.nullable,
+          v.optional,
+          if(v.max_characters == nil, do: :undefined, else: v.max_characters)
+        ],
         :native,
         depth,
         left
@@ -70,9 +76,22 @@ defmodule Transit.Station.Sdk.Logical do
     do:
       tagged(:transit_logical_alternative, [v.counter, v.replica, v.value], :native, depth, left)
 
-  defp walk({:transit_logical_field, name, type, nullable, optional}, :public, depth, left) do
-    {[n, t, z, o], next} = children([name, type, nullable, optional], :public, depth, left)
-    {%Field{name: n, type: t, nullable: z, optional: o}, next}
+  defp walk(
+         {:transit_logical_field, name, type, nullable, optional, maximum},
+         :public,
+         depth,
+         left
+       ) do
+    {[n, t, z, o, m], next} =
+      children([name, type, nullable, optional, maximum], :public, depth, left)
+
+    {%Field{
+       name: n,
+       type: t,
+       nullable: z,
+       optional: o,
+       max_characters: if(m == :undefined, do: nil, else: m)
+     }, next}
   end
 
   defp walk({:transit_logical_element, type, nullable}, :public, depth, left) do

@@ -94,19 +94,27 @@ pub struct Column {
     pub value_type: Type,
     pub nullable: bool,
     pub optional: bool,
+    pub max_characters: Option<u32>,
 }
 impl Column {
     fn wire(&self) -> Result<Value> {
-        Ok(
-            json!({"name":name(&self.name)?,"type":self.value_type.wire()?,"nullable":self.nullable,"optional":self.optional}),
-        )
+        Field {
+            name: name(&self.name)?.into(),
+            datatype: self.value_type.clone(),
+            nullable: self.nullable,
+            optional: self.optional,
+            max_characters: self.max_characters,
+        }
+        .wire()
     }
     fn parse(v: &Value) -> Result<Self> {
+        let field = Field::parse(v)?;
         let out = Self {
-            name: string(field(v, "name")?, "query-column")?.to_owned(),
-            value_type: Type::parse(field(v, "type")?)?,
-            nullable: boolean(field(v, "nullable")?, "query-nullable")?,
-            optional: boolean(field(v, "optional")?, "query-optional")?,
+            name: field.name,
+            value_type: field.datatype,
+            nullable: field.nullable,
+            optional: field.optional,
+            max_characters: field.max_characters,
         };
         out.wire()?;
         Ok(out)
@@ -328,6 +336,7 @@ impl Source {
                             datatype: c.datatype.clone(),
                             nullable: c.nullable,
                             optional: false,
+                            max_characters: c.max_characters,
                         })
                         .collect(),
                 );

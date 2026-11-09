@@ -27,6 +27,10 @@ int main() {
     auto nested = integer; for (size_t i = 0; i < 15; ++i) nested = Type::list(nested);
     round(nested); invalid([&] { Type::list(nested); });
     invalid([&] { Type::decimal(39, 0); }); invalid([&] { Type::decimal(2, 3); }); invalid([&] { Type::array(integer, 0); });
+    const auto bounded = Type::structure({{"label", Type::scalar(TRANSIT_LOGICAL_UTF8), true, true, UINT32_MAX}});
+    round(bounded); assert(Type::decode(bounded.encode()).fields()[0].max_characters == UINT32_MAX);
+    invalid([&] { Type::structure({{"label", integer, false, false, 1}}); });
+    invalid([&] { Type::structure({{"label", Type::scalar(TRANSIT_LOGICAL_UTF8), false, false, 0}}); });
     std::vector<Field> fields(255, {"", integer}); round(Type::structure(fields));
     fields.push_back({"", integer}); invalid([&] { Type::structure(fields); });
     round(Type::structure({{std::string(4096, 'x'), integer}}));

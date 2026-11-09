@@ -10,7 +10,7 @@ import type { ObjectIdentity, Position } from "./catalog.ts";
 import { RowIdentity } from "./table.ts";
 import { unhex } from "./framing.ts";
 import { nativeWide, wide } from "./values.ts";
-import { decodeType, decodeAtom } from "./logical-values.ts";
+import { decodeField, decodeAtom } from "./logical-values.ts";
 import type { Descriptor } from "./logical-values.ts";
 import type { UnifiedQueryAction, UnifiedQueryResult } from "./wire.ts";
 import contract from "./contract.json" with { type: "json" };
@@ -106,6 +106,7 @@ export interface Column {
   readonly name: string;
   readonly type: Descriptor;
   readonly nullable: boolean;
+  readonly maxCharacters?: number;
 }
 export interface Source {
   readonly alias: string;
@@ -147,7 +148,8 @@ function description(value: NativeDescription): Description {
     columns: Object.freeze(
       value.columns.map((column) => {
         if (column.optional) throw new IncompatibleNative("Relational columns cannot be missing");
-        const type = decodeType(column.type);
+        const field = decodeField(column);
+        const type = field.type;
         if (
           ![
             "int8",
@@ -171,6 +173,7 @@ function description(value: NativeDescription): Description {
           name: column.name,
           type: Object.freeze(type),
           nullable: column.nullable,
+          ...(field.maxCharacters === undefined ? {} : { maxCharacters: field.maxCharacters }),
         });
       }),
     ),

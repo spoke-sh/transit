@@ -396,6 +396,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
         }),
         nullable: true,
         optional: true,
+        max_characters: None,
     })
     .collect::<Vec<_>>();
     let rows = q::decode_arrow(&columns, &fs::read(text(config, "arrow"))?, 5, None)?;
@@ -482,6 +483,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
             value_type: datatype,
             nullable: false,
             optional: false,
+        max_characters: None,
         }],
         &fs::read(text(config, "nested"))?,
         1,

@@ -3,6 +3,7 @@
 #include <transit/logical.h>
 #include <algorithm>
 #include <array>
+#include <optional>
 
 namespace transit::sdk::logical {
 using Kind = transit_logical_kind;
@@ -47,11 +48,16 @@ public:
     Bytes encode() const { transit_sdk_buffer out{}; check(transit_logical_type_encode(value_.get(), &out)); return Buffer(out).copy(); }
     static Type decode(const Bytes &bytes) { transit_logical_type *out = nullptr; check(transit_logical_type_decode(bytes_view(bytes), &out)); return Type(out); }
 };
-struct Field { std::string name; Type type; bool nullable = true, optional = false; };
+struct Field { std::string name; Type type; bool nullable = true, optional = false; std::optional<uint32_t> max_characters = {}; };
+inline uint32_t field_characters(std::optional<uint32_t> maximum) {
+    if (maximum && !*maximum) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); }
+    return maximum.value_or(0);
+}
+inline std::optional<uint32_t> field_characters(uint32_t maximum) { return maximum ? std::optional<uint32_t>(maximum) : std::nullopt; }
 inline Type fields_type(Kind kind, const std::vector<Field> &fields) {
     std::vector<transit_logical_field> views;
     if (fields.size() > 256) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); }
-    for (const auto &f : fields) views.push_back({text_view(f.name), &f.type.native(), f.nullable, f.optional});
+    for (const auto &f : fields) views.push_back({text_view(f.name), &f.type.native(), f.nullable, f.optional, field_characters(f.max_characters)});
     transit_logical_type_view out{}; out.kind = kind; out.as.fields = {views.data(), views.size()}; return Type(out);
 }
 inline Type Type::structure(const std::vector<Field> &fields) { return fields_type(TRANSIT_LOGICAL_STRUCTURE, fields); }
@@ -62,7 +68,7 @@ inline std::vector<Field> Type::fields() const {
     std::vector<Field> out;
     for (size_t i = 0; i < v.as.fields.size; ++i) {
         const auto &f = v.as.fields.data[i];
-        out.push_back({f.name.size ? std::string(reinterpret_cast<const char *>(f.name.data), f.name.size) : std::string{}, Type(*f.type), f.nullable, f.optional});
+        out.push_back({f.name.size ? std::string(reinterpret_cast<const char *>(f.name.data), f.name.size) : std::string{}, Type(*f.type), f.nullable, f.optional, field_characters(f.max_characters)});
     }
     return out;
 }

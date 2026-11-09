@@ -73,6 +73,14 @@ for datatype in (l.ScalarType('int128'), l.DecimalType(38, 2), l.TimestampType('
     l.ListType(l.Element(l.ScalarType('uuid'), True)), l.ArrayType(l.Element(l.ScalarType('date')), 2),
     l.MapType(l.ScalarType('int64'), l.Element(l.ScalarType('binary')))):
     assert codec.type_from_wire(codec.type_wire(datatype)) == datatype
+bounded = l.StructureType((l.Field('label', l.ScalarType('utf8'), True, True, 1),))
+assert codec.type_from_wire(codec.type_wire(bounded)) == bounded
+for maximum in (0, -1, 1.5, True, 1 << 32):
+    rejects(ValueError, lambda: codec.type_wire(l.StructureType((l.Field('label', l.ScalarType('utf8'), max_characters=maximum),))))
+    rejects(ValueError, lambda: codec.type_from_wire({'structure': [dict(name='label', type={'utf8': {}}, nullable=False, optional=False, max_characters=maximum)]}))
+rejects(ValueError, lambda: codec.type_wire(l.StructureType((l.Field('n', l.ScalarType('int64'), max_characters=1),))))
+rejects(ValueError, lambda: codec.type_from_wire({'structure': [dict(name='label', type={'utf8': {}}, nullable=False, optional=False)]}))
+assert codec.field_wire(l.Field('label', l.ScalarType('utf8')))['max_characters'] is None
 for value in (l.Missing(), l.Null(), l.SourceTypeError('decimal'), l.SourceTypeError('unknown'),
               l.SourceTypeError('null_value'), l.SourceTypeError('text'), l.SourceTypeError('character'), cell,
     l.Present(l.Atom('signed', -(1 << 127))), l.Present(l.Atom('unsigned', (1 << 128) - 1)),

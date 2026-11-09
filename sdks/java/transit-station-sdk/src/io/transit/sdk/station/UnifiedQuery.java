@@ -35,11 +35,12 @@ public final class UnifiedQuery {
         if(value instanceof Logical.Binary v && v.value().size()>4096)throw new IllegalArgumentException("Query literal exceeds 4096 bytes");
         return Logical.atomWire(value);
     }
-    public record Column(String name,Logical.Descriptor type,boolean nullable,boolean optional) {
-        public Column { columnName(name); Objects.requireNonNull(type); }
+    public record Column(String name,Logical.Descriptor type,boolean nullable,boolean optional,Long maxCharacters) {
+        public Column { columnName(name); new Logical.Field(name,type,nullable,optional,maxCharacters); }
+        public Column(String name,Logical.Descriptor type,boolean nullable,boolean optional) { this(name,type,nullable,optional,null); }
         public Column(String name,Logical.Descriptor type) { this(name,type,false,false); }
-        JsonObject wire() { return obj("name",name,"type",Logical.typeWire(type),"nullable",nullable,"optional",optional); }
-        static Column parse(JsonElement value) { JsonObject v=object(value); return new Column(string(v.get("name")),Logical.typeFromWire(v.get("type")),bool(v.get("nullable")),bool(v.get("optional"))); }
+        JsonObject wire() { return Logical.fieldWire(new Logical.Field(name,type,nullable,optional,maxCharacters)); }
+        static Column parse(JsonElement value) { var v=Logical.fieldFromWire(value); return new Column(v.name(),v.type(),v.nullable(),v.optional(),v.maxCharacters()); }
     }
     public record DecoderColumn(String name,DecoderType type) {
         public DecoderColumn { text(name,32); Objects.requireNonNull(type); }
@@ -100,7 +101,7 @@ public final class UnifiedQuery {
         JsonObject value=switch(source) {
             case KvSource v -> obj("kv",obj("prefix",hex(v.prefix()),"key",v.key().wire(),"value",v.value().wire()));
             case TableSource v -> {
-                var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false)).toList());
+                var rowType=new Logical.Structure(v.schema().columns().stream().map(c -> new Logical.Field(c.name(),c.type(),c.nullable(),false,c.maxCharacters().orElse(null))).toList());
                 JsonArray collations=new JsonArray(), semantics=new JsonArray(); v.schema().columns().forEach(c -> { collations.add(Logical.tag(c.collation())); semantics.add(obj("rounding",null,"metric",null,"timezone",null,"spatial",null)); });
                 yield obj("table",obj("scope",v.scope().wire(),"owner",v.audience(),"branch",v.branch().toString(),"namespace",v.namespace(),"object",v.schema().object().toString(),
                     "interpretation",v.interpretation().wire(),"row_type",Logical.typeWire(rowType),"collations",collations,"semantics",semantics));

@@ -46,3 +46,11 @@ from isolated NuGet packages. The same fixture is part of the complete .NET SDK
 schedule. The [proof ledger](../../../../docs/history/qualification/README.md) records executed evidence;
 [logical type semantics](../../../../docs/handbook/reference/sql/types.md) describes the
 shared domain rules.
+
+`Field.MaxCharacters` is a nullable `uint`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

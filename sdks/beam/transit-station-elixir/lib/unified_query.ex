@@ -1,7 +1,7 @@
 defmodule Transit.Station.Sdk.UnifiedQuery.Column do
   @enforce_keys [:name, :type]
   @derive {Inspect, only: []}
-  defstruct [:name, :type, nullable: false, optional: false]
+  defstruct [:name, :type, nullable: false, optional: false, max_characters: nil]
 end
 
 defmodule Transit.Station.Sdk.UnifiedQuery.DecoderColumn do
@@ -400,7 +400,9 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
 
   @doc false
   def native(%Column{} = v),
-    do: {:transit_unified_column, v.name, Logical.native(v.type), v.nullable, v.optional}
+    do:
+      {:transit_unified_column, v.name, Logical.native(v.type), v.nullable, v.optional,
+       Value.optional(v.max_characters)}
 
   def native(%DecoderColumn{} = v), do: {:transit_unified_decoder_column, v.name, v.type}
   def native(%Decoder{} = v), do: {:transit_unified_decoder, native(v.type), native(v.version)}
@@ -524,8 +526,14 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_unified_predicate_program, instructions}),
     do: %PredicateProgram{instructions: convert(instructions)}
 
-  def convert({:transit_unified_column, name, type, nullable, optional}),
-    do: %Column{name: name, type: Logical.convert(type), nullable: nullable, optional: optional}
+  def convert({:transit_unified_column, name, type, nullable, optional, maximum}),
+    do: %Column{
+      name: name,
+      type: Logical.convert(type),
+      nullable: nullable,
+      optional: optional,
+      max_characters: if(maximum == :undefined, do: nil, else: maximum)
+    }
 
   def convert({:transit_unified_decoder_column, name, type}),
     do: %DecoderColumn{name: name, type: type}
@@ -739,7 +747,7 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
   def convert({:transit_resource, _, _} = v), do: Client.convert(v)
   def convert({:transit_process, _, _} = v), do: Client.convert(v)
   def convert({:transit_admission, _} = v), do: Client.convert(v)
-  def convert({:transit_logical_field, _, _, _, _} = v), do: Logical.convert(v)
+  def convert({:transit_logical_field, _, _, _, _, _} = v), do: Logical.convert(v)
   def convert({:transit_logical_element, _, _} = v), do: Logical.convert(v)
   def convert({:transit_logical_alternative, _, _, _} = v), do: Logical.convert(v)
   def convert(:undefined), do: nil

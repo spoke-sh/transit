@@ -1,7 +1,7 @@
 -ifndef(TRANSIT_UNIFIED_QUERY_HRL).
 -define(TRANSIT_UNIFIED_QUERY_HRL, true).
 -include("transit_catalog.hrl").
--record(transit_unified_column, {name :: binary(), type :: transit_logical:descriptor(), nullable=false, optional=false}).
+-record(transit_unified_column, {name :: binary(), type :: transit_logical:descriptor(), nullable=false, optional=false, max_characters=undefined}).
 -record(transit_unified_decoder_column, {name :: binary(), type :: int64 | uint64 | float64 | boolean | utf8 | binary}).
 -record(transit_unified_decoder, {type, version = 1}).
 -record(transit_unified_kv, {resource :: #transit_resource{}, prefix = <<>>, key :: #transit_unified_decoder{}, value :: #transit_unified_decoder{}}).

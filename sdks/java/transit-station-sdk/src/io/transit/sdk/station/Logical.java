@@ -31,8 +31,9 @@ public final class Logical {
         public Decimal { if (precision < 1 || precision > 38 || scale < 0 || scale > precision) throw invalid("decimal descriptor"); }
     }
     public record Timestamp(Zone zone) implements Descriptor { public Timestamp { Objects.requireNonNull(zone); } }
-    public record Field(String name, Descriptor type, boolean nullable, boolean optional) {
-        public Field { text(name, 4096); Objects.requireNonNull(type); }
+    public record Field(String name, Descriptor type, boolean nullable, boolean optional, Long maxCharacters) {
+        public Field { text(name, 4096); Objects.requireNonNull(type); if (maxCharacters != null) { bounded(maxCharacters, 1, 0xffffffffL); if (type != Scalar.UTF8) throw invalid("field length requires UTF8"); } }
+        public Field(String name, Descriptor type, boolean nullable, boolean optional) { this(name, type, nullable, optional, null); }
         public Field(String name, Descriptor type) { this(name, type, false, false); }
     }
     public record Element(Descriptor type, boolean nullable) {
@@ -154,8 +155,17 @@ public final class Logical {
     }
     private static JsonArray fieldsWire(List<Field> fields, Budget budget, int depth) {
         JsonArray result = new JsonArray();
-        for (Field field : fields) result.add(obj("name", budget.name(field.name()), "type", typeWire(field.type(), budget, depth + 1), "nullable", field.nullable(), "optional", field.optional()));
+        for (Field field : fields) result.add(fieldWire(field, budget, depth + 1));
         return result;
+    }
+    public static JsonObject fieldWire(Field field) { return fieldWire(field, new Budget(256), 0); }
+    private static JsonObject fieldWire(Field field, Budget budget, int depth) {
+        return obj("name", budget.name(field.name()), "type", typeWire(field.type(), budget, depth), "nullable", field.nullable(), "optional", field.optional(), "max_characters", field.maxCharacters());
+    }
+    public static Field fieldFromWire(JsonElement value) { return fieldFromWire(value, new Budget(256), 0); }
+    private static Field fieldFromWire(JsonElement value, Budget budget, int depth) {
+        JsonObject v = fields(value, "name", "type", "nullable", "optional", "max_characters");
+        return new Field(budget.name(string(v.get("name"))), typeFromWire(v.get("type"), budget, depth), bool(v.get("nullable")), bool(v.get("optional")), v.get("max_characters").isJsonNull() ? null : number(v.get("max_characters"), 1));
     }
     public static Descriptor typeFromWire(JsonElement value) { return typeFromWire(value, new Budget(256), 0); }
     private static Element elementFromWire(JsonElement value, Budget budget, int depth) {
@@ -172,8 +182,7 @@ public final class Logical {
             case "structure", "tagged_union": {
                 List<Field> fields = new ArrayList<>();
                 for (JsonElement item : payload.getAsJsonArray()) {
-                    JsonObject v = fields(item, "name", "type", "nullable", "optional");
-                    fields.add(new Field(budget.name(string(v.get("name"))), typeFromWire(v.get("type"), budget, depth + 1), bool(v.get("nullable")), bool(v.get("optional"))));
+                    fields.add(fieldFromWire(item, budget, depth + 1));
                 }
                 return kind.equals("structure") ? new Structure(fields) : new Union(fields);
             }

@@ -150,7 +150,7 @@ static void codecs(const char *root) {
     boolean_codecs(root);
     const char *names[]={"int64","uint64","float64","boolean","utf8","binary"}; transit_station_unified_column columns[6];
     const transit_logical_kind kinds[]={TRANSIT_LOGICAL_INT64,TRANSIT_LOGICAL_UINT64,TRANSIT_LOGICAL_FLOAT64,TRANSIT_LOGICAL_BOOLEAN,TRANSIT_LOGICAL_UTF8,TRANSIT_LOGICAL_BINARY};transit_logical_type_view types[6]={{0}};
-    for(size_t i=0;i<6;++i){types[i].kind=kinds[i];columns[i]=(transit_station_unified_column){names[i],&types[i],true,true};}
+    for(size_t i=0;i<6;++i){types[i].kind=kinds[i];columns[i]=(transit_station_unified_column){names[i],&types[i],true,true,0};}
     transit_sdk_bytes ipc=fixture(root,"arrow.ipc"); transit_station_unified_rows *rows=NULL;
     checked(transit_station_unified_decode_arrow(columns,6,ipc,5,NULL,&rows)); memset((void *)ipc.data,0,ipc.size); free((void *)ipc.data);
     for(size_t row=0;row<5;++row) for(size_t col=0;col<6;++col) {
@@ -167,7 +167,7 @@ static void codecs(const char *root) {
     transit_station_unified_plan plan={0};plan.projection=projection;plan.projection_count=128;plan.predicate=TRANSIT_UNIFIED_COMPARE;plan.column=127;plan.value.kind=TRANSIT_ATOM_UNSIGNED;plan.value.as.unsigned_value=(transit_logical_u128){UINT64_MAX,UINT64_MAX};
     for(size_t i=0;i<128;++i){snprintf(wide_names[i],24,"列 %zu",i);snprintf(aliases[i],24,"結果 %zu",i);wide_columns[i]=(transit_station_catalog_column){i+1,wide_names[i],&u128,true,NULL,0,TRANSIT_CATALOG_PLAIN,TRANSIT_CATALOG_NONE};projection[i]=(uint8_t)i;plan.output_names[i]=aliases[i];}
     wide.schema.columns=wide_columns;wide.schema.column_count=128;wide.schema.next_column=129;transit_station_unified_bundle *wide_bundle=NULL;checked(transit_station_unified_prepare_bundle(&wide.source,&plan,(transit_station_unified_budgets){1,1,65536},NULL,&wide_bundle));transit_sdk_bytes wide_bytes={0};checked(transit_station_unified_bundle_bytes(wide_bundle,&wide_bytes));assert(wide_bytes.size&&wide_bytes.size<=25743);transit_station_unified_bundle_destroy(wide_bundle);
-    transit_logical_type_view nested_type={.kind=TRANSIT_LOGICAL_LIST};nested_type.as.list=(transit_logical_element){&u128,true};transit_station_unified_column nested={"value",&nested_type,false,false};
+    transit_logical_type_view nested_type={.kind=TRANSIT_LOGICAL_LIST};nested_type.as.list=(transit_logical_element){&u128,true};transit_station_unified_column nested={"value",&nested_type,false,false,0};
     ipc=fixture(root,"nested.ipc");rows=NULL;checked(transit_station_unified_decode_arrow(&nested,1,ipc,1,NULL,&rows));memset((void*)ipc.data,0,ipc.size);free((void*)ipc.data);transit_logical_cell_view nested_cell={0};checked(transit_station_unified_rows_cell(rows,0,0,&nested_cell));assert(nested_cell.state==TRANSIT_LOGICAL_VALUE&&nested_cell.as.value.kind==TRANSIT_VALUE_LIST&&nested_cell.as.value.as.cells.size==2);const transit_logical_cell_view *children=nested_cell.as.value.as.cells.data;assert(children[1].state==TRANSIT_LOGICAL_NULL);const transit_logical_atom atom=children[0].as.value.as.atom;assert(atom.kind==TRANSIT_ATOM_UNSIGNED&&atom.as.unsigned_value.low==UINT64_MAX&&atom.as.unsigned_value.high==UINT64_MAX);transit_station_unified_rows_destroy(rows);
     puts("C installed unified codecs: three sources, nine Boolean bundles, six types, five states, owned rows, 128 columns, uint128, nested values and malformed rejection passed");
 }

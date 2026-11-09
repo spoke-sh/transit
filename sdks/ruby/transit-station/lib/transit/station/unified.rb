@@ -7,11 +7,12 @@ module Transit
       STATES = %i[missing null type_error value conflict].freeze
       PREDICATE_OPERATORS = %i[negate conjunction disjunction].freeze
       Scalar = Logical::Atom
-      Column = Data.define(:name, :type, :nullable, :optional) do
-        def initialize(name:, type:, nullable: false, optional: false)
-          super(name: Values.name(name), type: Logical.descriptor(type), nullable: Internal.boolean(nullable), optional: Internal.boolean(optional))
+      Column = Data.define(:name, :type, :nullable, :optional, :max_characters) do
+        def initialize(name:, type:, nullable: false, optional: false, max_characters: nil)
+          field = Logical::Field.new(name: Values.name(name), type: type, nullable: nullable, optional: optional, max_characters: max_characters)
+          super(**field.to_h)
         end
-        def wire = { 'name' => name, 'type' => Logical.type_wire(type), 'nullable' => nullable, 'optional' => optional }
+        def wire = Logical.field_wire(Logical::Field.new(**to_h))
       end
       DecoderColumn = Data.define(:name, :type) do
         def initialize(name:, type:)
@@ -53,7 +54,7 @@ module Transit
         def resource = scope.resource
         def wire
           row_type = Logical::Structure.new(fields: schema.columns.map do |column|
-            Logical::Field.new(name: column.name, type: column.type, nullable: column.nullable)
+            Logical::Field.new(name: column.name, type: column.type, nullable: column.nullable, max_characters: column.max_characters)
           end)
           { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
             'scope' => scope.wire, 'owner' => audience, 'branch' => branch.to_s, 'namespace' => namespace, 'object' => schema.object.to_s,
@@ -253,7 +254,7 @@ module Transit
         def source!(value)
           raise ArgumentError, 'Expected declared source' unless value.is_a?(KVSource) || value.is_a?(TableSource) || value.is_a?(DocumentSource)
         end
-        def columns(values) = Logical.collection(values.map { |c| Column.new(name: c.fetch('name'), type: Logical.type_from_wire(c.fetch('type')), nullable: c.fetch('nullable'), optional: c.fetch('optional')) }, Column, 128)
+        def columns(values) = Logical.collection(values.map { |c| Column.new(**Logical.field_from_wire(c).to_h) }, Column, 128)
         def inspected_atom(value)
           raise IncompatibleNative, 'Invalid inspected atom' unless value.is_a?(Hash) && value.length == 1
           kind, atom = value.first

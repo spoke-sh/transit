@@ -18,6 +18,17 @@ def check(value)
 end
 def atom(kind, value, **other) = L::Present.new(value: L::Atom.new(kind: kind, value: value, **other))
 def clone_json(value) = JSON.parse(JSON.generate(value))
+bounded = L::Field.new(name: 'label', type: L::Scalar.new(kind: :utf8), nullable: true, optional: true, max_characters: 0xffff_ffff)
+nested = L::Structure.new(fields: [L::Field.new(name: 'inner', type: L::Union.new(fields: [bounded]))])
+check(L.type_from_wire(L.type_wire(nested)) == nested)
+check(L.field_from_wire(L.field_wire(bounded)) == bounded)
+[0, -1, 1.5, true, 0x1_0000_0000].each do |maximum|
+  rejects(ArgumentError) { L::Field.new(**bounded.to_h.merge(max_characters: maximum)) }
+  rejects(ArgumentError) { L.field_from_wire(L.field_wire(bounded).merge('max_characters' => maximum)) }
+end
+rejects(ArgumentError) { L::Field.new(**bounded.to_h.merge(type: L::Scalar.new(kind: :binary))) }
+missing = L.field_wire(bounded); missing.delete('max_characters')
+rejects(Transit::IncompatibleNative) { L.field_from_wire(missing) }
 scope = M::Scope.new(resource: Transit::ResourceRef.new(realm: 46, resource: 7), catalog: (1 << 64)-1)
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: true) }
 rejects(ArgumentError) { M::Scope.new(resource: scope.resource, catalog: 1 << 64) }

@@ -79,12 +79,14 @@ class Column:
     type: Type
     nullable: bool = False
     optional: bool = False
+    max_characters: int | None = None
     def _wire(self) -> object:
-        return dict(name=_name(self.name), type=logical.type_wire(self.type), nullable=self.nullable, optional=self.optional)
+        return logical.field_wire(logical.Field(_name(self.name), self.type, self.nullable, self.optional, self.max_characters))
 
 
 def _column(value: dict[str, Any]) -> Column:
-    return Column(_name(value['name']), logical.type_from_wire(value['type']), value['nullable'], value['optional'])
+    field = logical.field_from_wire(value)
+    return Column(_name(field.name), field.type, field.nullable, field.optional, field.max_characters)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +154,7 @@ class TableSource:
     @property
     def resource(self) -> ResourceRef: return self.scope.resource
     def _wire(self) -> dict[str, Any]:
-        row_type = logical.StructureType(tuple(logical.Field(c.name, c.type, c.nullable, False) for c in self.schema.columns))
+        row_type = logical.StructureType(tuple(logical.Field(c.name, c.type, c.nullable, False, c.max_characters) for c in self.schema.columns))
         return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
             'scope': self.scope._wire(), 'owner': self.audience, 'branch': str(self.branch), 'namespace': self.namespace,
             'object': str(self.schema.object_id), 'interpretation': self.interpretation._wire(), 'row_type': logical.type_wire(row_type),

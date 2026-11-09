@@ -69,3 +69,11 @@ separate contracts. A logical codec round trip does not qualify every operator
 for the represented type. See [logical types](../../../../contracts/FUZE_TYPES_V1.md)
 and the [proof ledger](../../../../docs/history/qualification/README.md) for contracts and executed
 installed-package evidence.
+
+`#transit_logical_field.max_characters` is an integer or `undefined`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

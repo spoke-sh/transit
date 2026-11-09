@@ -117,3 +117,11 @@ it mutably, preventing concurrent calls in safe Rust. Move ownership into an
 executor's blocking task when needed. `close(self)` consumes the handle and joins
 destruction; `Drop` also joins. Returned values own their data and outlive the
 client. Imported packages do not read credentials or start workers.
+
+`logical::Field.max_characters` is an `Option<u32>`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

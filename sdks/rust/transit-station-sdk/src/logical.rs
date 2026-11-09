@@ -132,6 +132,54 @@ pub struct Field {
     pub datatype: Descriptor,
     pub nullable: bool,
     pub optional: bool,
+    pub max_characters: Option<u32>,
+}
+impl Field {
+    fn validate(&self) -> Result<()> {
+        if self.max_characters.is_some_and(|maximum| {
+            maximum == 0 || self.datatype != Descriptor::Scalar(ScalarType::Utf8)
+        }) {
+            return Err(invalid());
+        }
+        Ok(())
+    }
+    pub(crate) fn wire(&self) -> Result<Json> {
+        self.encode(&mut Budget::new(256), 0)
+    }
+    pub(crate) fn parse(value: &Json) -> Result<Self> {
+        Self::decode(value, &mut Budget::new(256), 0)
+    }
+    fn encode(&self, budget: &mut Budget, depth: usize) -> Result<Json> {
+        self.validate()?;
+        Ok(
+            json!({"name":budget.name(&self.name)?,"type":self.datatype.encode(budget,depth)?,"nullable":self.nullable,"optional":self.optional,"max_characters":self.max_characters}),
+        )
+    }
+    fn decode(value: &Json, budget: &mut Budget, depth: usize) -> Result<Self> {
+        object(
+            value,
+            &["name", "type", "nullable", "optional", "max_characters"],
+        )?;
+        let maximum = &value["max_characters"];
+        let result = Self {
+            name: budget.name(text(&value["name"])?)?.into(),
+            datatype: Descriptor::decode(&value["type"], budget, depth)?,
+            nullable: boolean(&value["nullable"])?,
+            optional: boolean(&value["optional"])?,
+            max_characters: if maximum.is_null() {
+                None
+            } else {
+                Some(
+                    maximum
+                        .as_u64()
+                        .and_then(|v| u32::try_from(v).ok())
+                        .ok_or_else(malformed)?,
+                )
+            },
+        };
+        result.validate()?;
+        Ok(result)
+    }
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Element {
@@ -234,7 +282,10 @@ impl Descriptor {
                 json!({"timestamp":match zone { TimestampZone::Civil => "civil", TimestampZone::Utc => "utc" }})
             }
             Self::Structure(fields) | Self::TaggedUnion(fields) => {
-                let fields: Vec<Json> = fields.iter().map(|field| Ok(json!({"name":budget.name(&field.name)?,"type":field.datatype.encode(budget,depth+1)?,"nullable":field.nullable,"optional":field.optional}))).collect::<Result<_>>()?;
+                let fields: Vec<Json> = fields
+                    .iter()
+                    .map(|field| field.encode(budget, depth + 1))
+                    .collect::<Result<_>>()?;
                 json!({(if matches!(self,Self::Structure(_)) {"structure"} else {"tagged_union"}):fields})
             }
             Self::List(element) => json!({"list":element.wire(budget,depth+1)?}),
@@ -277,15 +328,7 @@ impl Descriptor {
             "structure" | "tagged_union" => {
                 let fields = list(payload)?
                     .iter()
-                    .map(|field| {
-                        object(field, &["name", "type", "nullable", "optional"])?;
-                        Ok(Field {
-                            name: budget.name(text(&field["name"])?)?.into(),
-                            datatype: Self::decode(&field["type"], budget, depth + 1)?,
-                            nullable: boolean(&field["nullable"])?,
-                            optional: boolean(&field["optional"])?,
-                        })
-                    })
+                    .map(|field| Field::decode(field, budget, depth + 1))
                     .collect::<Result<Vec<_>>>()?;
                 if kind == "structure" {
                     Self::Structure(fields)
@@ -735,12 +778,13 @@ mod tests {
                     },
                     nullable: true,
                     optional: false,
+                    max_characters: None,
                 }]),
                 false,
             ),
             length: 2,
         };
-        let expected = json!({"array":{"element":{"type":{"structure":[{"name":"amount","type":{"decimal":{"precision":38,"scale":2}},"nullable":true,"optional":false}]},"nullable":false},"length":2}});
+        let expected = json!({"array":{"element":{"type":{"structure":[{"name":"amount","type":{"decimal":{"precision":38,"scale":2}},"nullable":true,"optional":false,"max_characters":null}]},"nullable":false},"length":2}});
         assert_eq!(descriptor.wire().unwrap(), expected);
         assert_eq!(Descriptor::parse(&expected).unwrap(), descriptor);
         for bad in [
@@ -754,6 +798,55 @@ mod tests {
             assert!(Atom::decode(&bad, &mut Budget::new(65536)).is_err());
         }
         assert!(Atom::Float64(f64::INFINITY).wire().is_err());
+    }
+    #[test]
+    fn field_constraints_survive_nested_descriptors_and_reject_incompatible_wire() {
+        let bounded = Field {
+            name: "label".into(),
+            datatype: Descriptor::Scalar(ScalarType::Utf8),
+            nullable: true,
+            optional: true,
+            max_characters: Some(u32::MAX),
+        };
+        let nested = Descriptor::Structure(vec![Field {
+            name: "inner".into(),
+            datatype: Descriptor::TaggedUnion(vec![bounded.clone()]),
+            nullable: false,
+            optional: false,
+            max_characters: None,
+        }]);
+        assert_eq!(Descriptor::parse(&nested.wire().unwrap()).unwrap(), nested);
+        assert_eq!(Field::parse(&bounded.wire().unwrap()).unwrap(), bounded);
+        for bad in [
+            json!(0),
+            json!(-1),
+            json!(1.5),
+            json!(true),
+            json!(4294967296u64),
+        ] {
+            let mut wire = bounded.wire().unwrap();
+            wire["max_characters"] = bad;
+            assert!(Field::parse(&wire).is_err());
+        }
+        let mut missing = bounded.wire().unwrap();
+        missing.as_object_mut().unwrap().remove("max_characters");
+        assert!(Field::parse(&missing).is_err());
+        assert!(
+            Field {
+                max_characters: Some(0),
+                ..bounded.clone()
+            }
+            .wire()
+            .is_err()
+        );
+        assert!(
+            Field {
+                datatype: Descriptor::Scalar(ScalarType::Binary),
+                ..bounded
+            }
+            .wire()
+            .is_err()
+        );
     }
     #[test]
     fn conflict_alternatives_share_their_column_depth_and_have_exact_dots() {

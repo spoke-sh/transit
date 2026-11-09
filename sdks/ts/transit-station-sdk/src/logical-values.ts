@@ -5,6 +5,14 @@ import { hex, unhex } from "./framing.ts";
 type Request = Extract<CatalogAction, { prepare: unknown }>["prepare"];
 type Schema = Extract<Request["action"], { create: unknown }>["create"]["schema"];
 type WireType = Schema["columns"][number]["type"];
+type WireField = Extract<WireType, { structure: unknown }>["structure"][number];
+type EncodedField = {
+  name: string;
+  type: WireType;
+  nullable: boolean;
+  optional: boolean;
+  max_characters: number | null;
+};
 type WireCell = NonNullable<Schema["columns"][number]["default"]>;
 type WireValue = Extract<WireCell, { value: unknown }>["value"];
 type WireAtom = Extract<WireValue, { atom: unknown }>["atom"];
@@ -36,6 +44,7 @@ export interface Field {
   readonly type: Descriptor;
   readonly nullable?: boolean;
   readonly optional?: boolean;
+  readonly maxCharacters?: number;
 }
 export interface Element {
   readonly type: Descriptor;
@@ -144,6 +153,36 @@ class Budget {
     return value;
   }
 }
+function fieldMaximum(type: Descriptor, value: number | undefined): number | undefined {
+  if (
+    value !== undefined &&
+    (type.kind !== "utf8" || !Number.isInteger(value) || value < 1 || value > 0xffffffff)
+  )
+    throw new TypeError("Character limits require a UTF-8 field and a positive uint32");
+  return value;
+}
+export function encodeField(field: Field, budget = new Budget(256), depth = 0): EncodedField {
+  return {
+    name: budget.name(field.name),
+    type: encodeType(field.type, budget, depth),
+    nullable: field.nullable ?? false,
+    optional: field.optional ?? false,
+    max_characters: fieldMaximum(field.type, field.maxCharacters) ?? null,
+  };
+}
+export function decodeField(field: WireField, budget = new Budget(256), depth = 0): Field {
+  if (field.max_characters === undefined)
+    throw new TypeError("Missing logical field character limit");
+  const type = decodeType(field.type, budget, depth);
+  const maximum = fieldMaximum(type, field.max_characters ?? undefined);
+  return {
+    name: budget.name(field.name),
+    type,
+    nullable: field.nullable ?? false,
+    optional: field.optional ?? false,
+    ...(maximum === undefined ? {} : { maxCharacters: maximum }),
+  };
+}
 export function encodeType(value: Descriptor, budget = new Budget(256), depth = 0): WireType {
   budget.enter(depth);
   const element = (value: Element) => ({
@@ -163,12 +202,7 @@ export function encodeType(value: Descriptor, budget = new Budget(256), depth = 
       return { vector: { dimensions: value.dimensions, element: value.element } };
     case "structure":
     case "tagged_union": {
-      const fields = value.fields.map((field) => ({
-        name: budget.name(field.name),
-        type: encodeType(field.type, budget, depth + 1),
-        nullable: field.nullable ?? false,
-        optional: field.optional ?? false,
-      }));
+      const fields = value.fields.map((field) => encodeField(field, budget, depth + 1));
       return value.kind === "structure" ? { structure: fields } : { tagged_union: fields };
     }
     case "list":
@@ -200,12 +234,7 @@ export function decodeType(value: WireType, budget = new Budget(256), depth = 0)
     const fields = "structure" in value ? value.structure : value.tagged_union;
     return {
       kind: "structure" in value ? "structure" : "tagged_union",
-      fields: fields.map((field) => ({
-        name: budget.name(field.name),
-        type: decodeType(field.type, budget, depth + 1),
-        nullable: field.nullable ?? false,
-        optional: field.optional ?? false,
-      })),
+      fields: fields.map((field) => decodeField(field, budget, depth + 1)),
     };
   }
   if ("list" in value) return { kind: "list", element: element(value.list) };

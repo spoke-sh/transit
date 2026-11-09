@@ -1,6 +1,6 @@
 -ifndef(TRANSIT_LOGICAL_HRL).
 -define(TRANSIT_LOGICAL_HRL, true).
--record(transit_logical_field, {name :: binary(), type, nullable = false :: boolean(), optional = false :: boolean()}).
+-record(transit_logical_field, {name :: binary(), type, nullable = false :: boolean(), optional = false :: boolean(), max_characters = undefined :: undefined | 1..4294967295}).
 -record(transit_logical_element, {type, nullable = false :: boolean()}).
 -record(transit_logical_alternative, {counter :: pos_integer(), replica :: pos_integer(), value}).
 -endif.

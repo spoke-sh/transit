@@ -141,7 +141,7 @@ def recursive_cases():
     def atom(name, value):
         return {'value': {'atom': {name: value}}}
     def field(name, typ):
-        return {'name': name, 'type': typ, 'nullable': True, 'optional': True}
+        return {'name': name, 'type': typ, 'nullable': True, 'optional': True, 'max_characters': None}
     cases = [
         ({'binary': {}}, atom('binary', '00ff01')),
         ({'interval': {}}, atom('interval', {'months': '-3', 'days': '4', 'nanos': '-9223372036854775808'})),
@@ -202,7 +202,7 @@ def main():
         data = b'{"n":[1,null]}\n{"n":null}\n{}\n{"n":[2]}\n'
         physical, batches = cli(['--format', 'jsonl', '--mode', 'full', '--batch-rows', '1', '-c',
                                  'SELECT n AS first, n AS \"Second\" FROM input', '-'], data)
-        fields = [dict(name=name, type=typ, nullable=True, optional=True) for name in ('first', 'Second')]
+        fields = [dict(name=name, type=typ, nullable=True, optional=True, max_characters=None) for name in ('first', 'Second')]
         assert physical.names == ['first', 'Second']
         assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
         expected = [
@@ -233,11 +233,11 @@ def main():
         for typ, cell in recursive_cases():
             for variant in [cell, {'null': {}}, {'missing': {}}, {'type_error': 'utf8'}, {'conflict': [{'counter': '9007199254740993', 'replica': '18446744073709551615', 'value': cell}, {'counter': '18446744073709551615', 'replica': '1', 'value': {'null': {}}}]}]:
                 path = work / 'value.json'
-                path.write_text(json.dumps({'definition': DEFINITION.decode(), 'field': {'name': 'x', 'type': typ, 'nullable': True, 'optional': True}, 'cell': variant}))
+                path.write_text(json.dumps({'definition': DEFINITION.decode(), 'field': {'name': 'x', 'type': typ, 'nullable': True, 'optional': True, 'max_characters': None}, 'cell': variant}))
                 p = subprocess.run([BRIDGE, str(path)], capture_output=True, timeout=30)
                 assert p.returncode == 0 and not p.stderr, (typ, variant, p.stderr)
                 physical, batches = read_stream(p.stdout)
-                assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': [{'name': 'x', 'type': typ, 'nullable': True, 'optional': True}]}).hex().encode()
+                assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': [{'name': 'x', 'type': typ, 'nullable': True, 'optional': True, 'max_characters': None}]}).hex().encode()
                 assert arrow_cell(batches[0].column(0), 0, typ) == cell_bytes(variant, typ), (typ, variant)
                 CASES += 1
         # Batches split under the unchanged 64 KiB segment bound, preserving rows.

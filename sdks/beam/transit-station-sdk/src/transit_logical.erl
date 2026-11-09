@@ -3,7 +3,7 @@
 -include("transit_logical.hrl").
 -export([encode/2,decode/2]).
 %% Package boundary used by catalog/query models; throws tagged SDK errors.
--export([type_wire/1,type_from_wire/1,atom_wire/1,atom_from_wire/1,cell_wire/1,cell_from_wire/1]).
+-export([type_wire/1,type_from_wire/1,field_wire/1,field_from_wire/1,atom_wire/1,atom_from_wire/1,cell_wire/1,cell_from_wire/1]).
 -export_type([descriptor/0,atom_value/0,cell/0,value/0]).
 -type scalar_type() :: int8 | int16 | int32 | int64 | int128 | uint8 | uint16 | uint32 | uint64 | uint128 |
     float32 | float64 | boolean | utf8 | binary | date | time | interval | uuid | json | capability.
@@ -64,16 +64,21 @@ type_wire(V,B,D) -> type_value(V,enter(B,D),D).
 type_value({decimal,P,S},B,_) -> integer(P,1,38),integer(S,0,P),{#{<<"decimal">>=>#{<<"precision">>=>P,<<"scale">>=>S}},B};
 type_value({timestamp,Zone},B,_) -> {#{<<"timestamp">>=>enum(Zone,[civil,utc])},B};
 type_value({Kind,Fields},B,D) when Kind=:=structure; Kind=:=tagged_union ->
-    {Out,Next}=lists:mapfoldl(fun(F,B0)->field_wire(F,B0,D) end,B,list(Fields,256)),{#{atom_to_binary(Kind,utf8)=>Out},Next};
+    {Out,Next}=lists:mapfoldl(fun(F,B0)->field_wire(F,B0,D+1) end,B,list(Fields,256)),{#{atom_to_binary(Kind,utf8)=>Out},Next};
 type_value({list,Element},B,D) -> {Out,Next}=element_wire(Element,B,D),{#{<<"list">>=>Out},Next};
 type_value({array,Element,Length},B,D) ->
     integer(Length,1,4294967295),{Out,Next}=element_wire(Element,B,D),{#{<<"array">>=>#{<<"element">>=>Out,<<"length">>=>Length}},Next};
 type_value({map,Key,Value},B,D) ->
     {K,B1}=type_wire(Key,B,D+1),{V,B2}=element_wire(Value,B1,D),{#{<<"map">>=>#{<<"key">>=>K,<<"value">>=>V}},B2};
 type_value(V,B,_) -> {#{enum(V,scalars())=>#{}},B}.
-field_wire(#transit_logical_field{name=N,type=T,nullable=Null,optional=Optional},B,D) ->
-    {Name,B1}=name(N,B),{Type,B2}=type_wire(T,B1,D+1),
-    {#{<<"name">>=>Name,<<"type">>=>Type,<<"nullable">>=>transit_sdk_value:boolean(Null),<<"optional">>=>transit_sdk_value:boolean(Optional)},B2}.
+field_maximum(undefined,_) -> null;
+field_maximum(Max,utf8) -> integer(Max,1,4294967295);
+field_maximum(_,_) -> invalid().
+field_wire(V) -> {Out,_}=field_wire(V,budget(256),0),Out.
+field_from_wire(V) -> {Out,_}=field_from(V,budget(256),0),Out.
+field_wire(#transit_logical_field{name=N,type=T,nullable=Null,optional=Optional,max_characters=Max},B,D) ->
+    Maximum=field_maximum(Max,T),{Name,B1}=name(N,B),{Type,B2}=type_wire(T,B1,D),
+    {#{<<"name">>=>Name,<<"type">>=>Type,<<"nullable">>=>transit_sdk_value:boolean(Null),<<"optional">>=>transit_sdk_value:boolean(Optional),<<"max_characters">>=>Maximum},B2}.
 element_wire(#transit_logical_element{type=T,nullable=N},B,D) ->
     {Type,Next}=type_wire(T,B,D+1),{#{<<"type">>=>Type,<<"nullable">>=>transit_sdk_value:boolean(N)},Next}.
 -spec type_from_wire(map()) -> descriptor().
@@ -83,7 +88,7 @@ type_parse(decimal,V,B,_) ->
     fields(V,[<<"precision">>,<<"scale">>]),P=integer(maps:get(<<"precision">>,V),1,38),S=integer(maps:get(<<"scale">>,V),0,P),{{decimal,P,S},B};
 type_parse(timestamp,V,B,_) -> {{timestamp,known(V,[civil,utc])},B};
 type_parse(Kind,V,B,D) when Kind=:=structure; Kind=:=tagged_union ->
-    {Out,Next}=lists:mapfoldl(fun(F,B0)->field_from(F,B0,D) end,B,list(V,256)),{{Kind,Out},Next};
+    {Out,Next}=lists:mapfoldl(fun(F,B0)->field_from(F,B0,D+1) end,B,list(V,256)),{{Kind,Out},Next};
 type_parse(list,V,B,D) -> {Out,Next}=element_from(V,B,D),{{list,Out},Next};
 type_parse(array,V,B,D) ->
     fields(V,[<<"element">>,<<"length">>]),{Out,Next}=element_from(maps:get(<<"element">>,V),B,D),{{array,Out,integer(maps:get(<<"length">>,V),1,4294967295)},Next};
@@ -91,8 +96,10 @@ type_parse(map,V,B,D) ->
     fields(V,[<<"key">>,<<"value">>]),{K,B1}=type_from(maps:get(<<"key">>,V),B,D+1),{Out,B2}=element_from(maps:get(<<"value">>,V),B1,D),{{map,K,Out},B2};
 type_parse(Kind,V,B,_) -> fields(V,[]),{Kind,B}.
 field_from(V,B,D) ->
-    fields(V,[<<"name">>,<<"type">>,<<"nullable">>,<<"optional">>]),{N,B1}=name(maps:get(<<"name">>,V),B),{T,B2}=type_from(maps:get(<<"type">>,V),B1,D+1),
-    {#transit_logical_field{name=N,type=T,nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),optional=transit_sdk_value:boolean(maps:get(<<"optional">>,V))},B2}.
+    fields(V,[<<"name">>,<<"type">>,<<"nullable">>,<<"optional">>,<<"max_characters">>]),{N,B1}=name(maps:get(<<"name">>,V),B),{T,B2}=type_from(maps:get(<<"type">>,V),B1,D),
+    Max=case maps:get(<<"max_characters">>,V) of null->undefined; M->integer(M,1,4294967295) end,
+    field_maximum(Max,T),
+    {#transit_logical_field{name=N,type=T,nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V)),optional=transit_sdk_value:boolean(maps:get(<<"optional">>,V)),max_characters=Max},B2}.
 element_from(V,B,D) ->
     fields(V,[<<"type">>,<<"nullable">>]),{T,Next}=type_from(maps:get(<<"type">>,V),B,D+1),{#transit_logical_element{type=T,nullable=transit_sdk_value:boolean(maps:get(<<"nullable">>,V))},Next}.
 

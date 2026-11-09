@@ -14,7 +14,14 @@ import { hex, unhex } from "./framing.ts";
 import { wide, nativeWide, ReadVersion } from "./values.ts";
 import { DocumentReference } from "./document.ts";
 import { Scope, Schema, schemaValue, schemaWire } from "./catalog.ts";
-import { encodeType, decodeType, encodeAtom, decodeCell } from "./logical-values.ts";
+import {
+  encodeType,
+  decodeType,
+  encodeAtom,
+  decodeCell,
+  encodeField,
+  decodeField,
+} from "./logical-values.ts";
 import type { Descriptor, Atom, Cell as LogicalCell, Field } from "./logical-values.ts";
 import type { Aggregate, Comparison } from "./query.ts";
 import type {
@@ -192,18 +199,14 @@ function fieldName(value: string): string {
 }
 function column(value: Column): WireColumn {
   return {
+    ...encodeField(value),
     name: fieldName(value.name),
-    type: encodeType(value.type),
-    nullable: value.nullable ?? false,
-    optional: value.optional ?? false,
   };
 }
 function fromColumn(value: WireColumn): Column {
   return Object.freeze({
+    ...decodeField(value),
     name: fieldName(value.name),
-    type: decodeType(value.type),
-    nullable: value.nullable,
-    optional: value.optional,
   });
 }
 function path(value: readonly string[]): string[] {
@@ -268,6 +271,9 @@ function sourceWire(source: Source): WireSource {
                 type: field.type,
                 nullable: field.nullable ?? true,
                 optional: false,
+                ...(field.maxCharacters === undefined
+                  ? {}
+                  : { maxCharacters: field.maxCharacters }),
               })),
             }),
             collations: schemaWire(source.schema).columns.map((column) => column.collation),

@@ -33,6 +33,8 @@ enum { TRANSIT_LOGICAL_CIVIL, TRANSIT_LOGICAL_UTC };
 typedef struct transit_logical_type_view transit_logical_type_view;
 typedef struct transit_logical_field {
     transit_sdk_bytes name; const transit_logical_type_view *type; bool nullable, optional;
+    /* Zero is unbounded; a positive limit counts Unicode scalar values and requires UTF8. */
+    uint32_t max_characters;
 } transit_logical_field;
 typedef struct transit_logical_element { const transit_logical_type_view *type; bool nullable; } transit_logical_element;
 struct transit_logical_type_view {

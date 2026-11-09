@@ -190,6 +190,58 @@ test("native logical values preserve wide numbers, signed zero and nested states
   assert.throws(() => encodeType(recursive), /nesting/);
 });
 
+test("logical field constraints survive nested wire round trips and reject malformed limits", () => {
+  const descriptor: Descriptor = {
+    kind: "structure",
+    fields: [
+      { name: "label", type: { kind: "utf8" }, nullable: false, optional: true, maxCharacters: 1 },
+    ],
+  };
+  assert.deepEqual(decodeType(encodeType(descriptor)), descriptor);
+  for (const maximum of [0, -1, 1.5, 0x100000000, NaN, Infinity]) {
+    assert.throws(() =>
+      encodeType({ ...descriptor, fields: [{ ...descriptor.fields[0]!, maxCharacters: maximum }] }),
+    );
+    assert.throws(() =>
+      decodeType({
+        structure: [
+          {
+            name: "label",
+            type: { utf8: {} },
+            nullable: false,
+            optional: true,
+            max_characters: maximum,
+          },
+        ],
+      }),
+    );
+  }
+  assert.throws(() =>
+    encodeType({
+      kind: "structure",
+      fields: [{ name: "n", type: { kind: "int64" }, maxCharacters: 1 }],
+    }),
+  );
+  assert.throws(() =>
+    decodeType({
+      structure: [
+        { name: "n", type: { int64: {} }, nullable: false, optional: false, max_characters: 1 },
+      ],
+    }),
+  );
+  assert.throws(() =>
+    decodeType({
+      structure: [{ name: "label", type: { utf8: {} }, nullable: false, optional: false }],
+    }),
+  );
+  const unbounded = encodeType({
+    kind: "structure",
+    fields: [{ name: "label", type: { kind: "utf8" } }],
+  });
+  assert.ok("structure" in unbounded);
+  assert.equal(unbounded.structure[0]!.max_characters, null);
+});
+
 test("logical conflicts, map children and aggregate budgets match native limits", () => {
   let deep: Cell = {
     state: "conflict",

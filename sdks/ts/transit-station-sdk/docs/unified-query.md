@@ -103,7 +103,8 @@ segments contain at most eight rows and 64 KiB. Comparison literals retain their
 4 KiB byte bound; descriptors and recursive cells retain the shared logical
 budgets. KV has two columns; Document projections admit eight scalar decoders.
 
-Result columns carry logical descriptors, nullability and optionality. Cells use
+Result columns carry logical descriptors, nullability, optionality and an optional
+`maxCharacters` constraint. Cells use
 the same language-native `logical.Cell` model as Table writes: `value.atom` for
 scalar values and typed structures/lists/arrays/maps/unions for nested values.
 Signed, unsigned, decimal and temporal atoms preserve exact `bigint` values;

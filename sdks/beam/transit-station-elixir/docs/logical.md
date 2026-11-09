@@ -36,3 +36,11 @@ budget before codec validation. Values are immutable; codec outputs copy bounded
 binary slices instead of retaining unrelated caller storage. External text never
 becomes a BEAM atom. Type storage and query/operator support remain separate
 capabilities; see the shared guide and [proof ledger](../../../../docs/history/qualification/README.md).
+
+`Field.max_characters` is an integer or `nil`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

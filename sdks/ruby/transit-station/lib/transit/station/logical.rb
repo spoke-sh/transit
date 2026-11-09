@@ -14,9 +14,13 @@ module Transit
       end
       Decimal = Data.define(:precision, :scale)
       Timestamp = Data.define(:zone)
-      Field = Data.define(:name, :type, :nullable, :optional) do
-        def initialize(name:, type:, nullable: false, optional: false)
-          super(name: Internal.text(name, 4096).freeze, type: Logical.descriptor(type), nullable: Internal.boolean(nullable), optional: Internal.boolean(optional))
+      Field = Data.define(:name, :type, :nullable, :optional, :max_characters) do
+        def initialize(name:, type:, nullable: false, optional: false, max_characters: nil)
+          unless max_characters.nil?
+            Internal.integer(max_characters, min: 1, max: 0xffff_ffff)
+            raise ArgumentError, 'Field length requires UTF8' unless type == Scalar.new(kind: :utf8)
+          end
+          super(name: Internal.text(name, 4096).freeze, type: Logical.descriptor(type), nullable: Internal.boolean(nullable), optional: Internal.boolean(optional), max_characters: max_characters)
         end
       end
       Element = Data.define(:type, :nullable) do
@@ -155,12 +159,19 @@ module Transit
           raise ArgumentError, 'Unknown timestamp zone' unless %i[civil utc].include?(value.zone)
           { 'timestamp' => value.zone.to_s }
         when Structure, Union
-          fields = value.fields.map { |field| { 'name' => budget.name(field.name), 'type' => type_wire(field.type, budget, depth + 1), 'nullable' => field.nullable, 'optional' => field.optional } }
+          fields = value.fields.map { |field| field_wire(field, budget, depth + 1) }
           { value.is_a?(Structure) ? 'structure' : 'tagged_union' => fields }
         when List then { 'list' => element.call(value.element) }
         when ArrayType then { 'array' => { 'element' => element.call(value.element), 'length' => value.length } }
         when Map then { 'map' => { 'key' => type_wire(value.key, budget, depth + 1), 'value' => element.call(value.value) } }
         end
+      end
+      def field_wire(field, budget = Budget.new(256), depth = 0)
+        { 'name' => budget.name(field.name), 'type' => type_wire(field.type, budget, depth), 'nullable' => field.nullable, 'optional' => field.optional, 'max_characters' => field.max_characters }
+      end
+      def field_from_wire(field, budget = Budget.new(256), depth = 0)
+        object(field, %w[name type nullable optional max_characters])
+        Field.new(name: budget.name(field.fetch('name')), type: type_from_wire(field.fetch('type'), budget, depth), nullable: field.fetch('nullable'), optional: field.fetch('optional'), max_characters: field.fetch('max_characters'))
       end
       def type_from_wire(value, budget = Budget.new(256), depth = 0)
         budget.enter(depth); kind, payload = variant(value)
@@ -180,7 +191,7 @@ module Transit
         when 'structure', 'tagged_union'
           raise IncompatibleNative, 'Expected logical fields' unless payload.is_a?(Array)
           fields = payload.map do |field|
-            object(field, %w[name type nullable optional]); Field.new(name: budget.name(field.fetch('name')), type: type_from_wire(field.fetch('type'), budget, depth + 1), nullable: field.fetch('nullable'), optional: field.fetch('optional'))
+            field_from_wire(field, budget, depth + 1)
           end
           (kind == 'structure' ? Structure : Union).new(fields: fields)
         when 'list' then List.new(element: element.call(payload))

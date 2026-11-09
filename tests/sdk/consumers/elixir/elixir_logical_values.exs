@@ -6,6 +6,24 @@ round = fn kind, value ->
   {:ok, ^value} = L.decode(kind, wire)
 end
 
+bounded = %Field{
+  name: "label",
+  type: :utf8,
+  nullable: true,
+  optional: true,
+  max_characters: 4_294_967_295
+}
+
+round.(:type, {:structure, [%Field{name: "inner", type: {:tagged_union, [bounded]}}]})
+
+for maximum <- [0, -1, 1.5, true, false, 4_294_967_296] do
+  {:error, _} = L.encode(:type, {:structure, [%{bounded | max_characters: maximum}]})
+end
+
+{:error, _} = L.encode(:type, {:structure, [%{bounded | type: :binary}]})
+{:ok, %{"structure" => [field]}} = L.encode(:type, {:structure, [bounded]})
+{:error, _} = L.decode(:type, %{"structure" => [Map.delete(field, "max_characters")]})
+
 for type <- [
       :capability,
       {:structure, [%Field{name: "東京", type: {:decimal, 38, 2}, nullable: true}]},

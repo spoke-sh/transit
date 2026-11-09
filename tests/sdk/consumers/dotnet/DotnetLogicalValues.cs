@@ -8,6 +8,17 @@ internal static class LogicalValues
     private static L.Present Present(L.Atom value) => new(value);
     internal static void Run()
     {
+        L.Field bounded = new("label", new L.Scalar(L.ScalarKind.Utf8), true, true, uint.MaxValue);
+        L.Descriptor nested = new L.Structure([new L.Field("inner", new L.Union([bounded]))]);
+        Check(L.TypeFromWire(L.TypeWire(nested)) == nested);
+        Check(L.FieldFromWire(L.FieldWire(bounded)) == bounded);
+        Reject(() => new L.Field("label", bounded.Type, maxCharacters: 0));
+        Reject(() => new L.Field("label", new L.Scalar(L.ScalarKind.Binary), maxCharacters: 1));
+        var missing = L.FieldWire(bounded); missing.Remove("max_characters"); Reject(() => L.FieldFromWire(missing));
+        foreach (var malformed in new[] { "0", "-1", "1.5", "true", "4294967296" }) {
+            var wireField = L.FieldWire(bounded); wireField["max_characters"] = JsonNode.Parse(malformed); Reject(() => L.FieldFromWire(wireField));
+        }
+
         byte[] input = [0,128,255]; L.BinaryData binary = new(input); input[0] = 1; binary.Copy()[0] = 2; Check(binary.Copy()[0] == 0);
         List<L.Cell> cells = [Present(new L.Binary(binary))]; L.Sequence sequence = new(L.SequenceKind.Structure, cells); cells.Clear(); Check(sequence.Cells.Count == 1);
         List<L.Descriptor> types = Enum.GetValues<L.ScalarKind>().Select(kind => (L.Descriptor)new L.Scalar(kind)).ToList();

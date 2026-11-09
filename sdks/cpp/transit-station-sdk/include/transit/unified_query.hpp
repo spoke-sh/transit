@@ -7,7 +7,7 @@ namespace transit::sdk::station::unified {
 enum class DecoderType { Int64, UInt64, Float64, Boolean, Utf8, Binary };
 using Type = logical::Type;
 enum class ProjectionMode { Scalar, Text, ElementCounter, ElementReplica };
-struct Column { std::string name; Type type; bool nullable = false, optional = false; };
+struct Column { std::string name; Type type; bool nullable = false, optional = false; std::optional<uint32_t> max_characters = {}; };
 struct DecoderColumn { std::string name; DecoderType type; };
 struct Decoder { DecoderType type; uint8_t version = 1; };
 struct KvSource { ResourceRef resource; Bytes prefix; Decoder key, value; };
@@ -32,7 +32,7 @@ using Source = std::variant<KvSource, TableSource, DocumentSource>;
 struct Budgets { uint64_t pages, segments, result_bytes; };
 namespace detail {
 inline transit_station_unified_column column(const Column &v) {
-    checked_string(v.name);return {v.name.c_str(), &v.type.native(), v.nullable, v.optional};
+    checked_string(v.name);return {v.name.c_str(), &v.type.native(), v.nullable, v.optional, logical::field_characters(v.max_characters)};
 }
 inline transit_station_unified_decoder_column column(const DecoderColumn &v) {
     checked_string(v.name);return {v.name.c_str(), static_cast<transit_station_unified_decoder_type>(v.type)};
@@ -195,7 +195,7 @@ public:
         std::copy(std::begin(out.source_digest),std::end(out.source_digest),result.source_digest.begin());
         std::copy(std::begin(out.schema_digest),std::end(out.schema_digest),result.schema_digest.begin());
         auto columns=[](const transit_station_unified_source_description &v) {
-            std::vector<Column> values; for(size_t i=0;i<v.column_count;++i)values.push_back({v.columns[i].name,Type(*v.columns[i].type),v.columns[i].nullable,v.columns[i].optional}); return values;
+            std::vector<Column> values; for(size_t i=0;i<v.column_count;++i)values.push_back({v.columns[i].name,Type(*v.columns[i].type),v.columns[i].nullable,v.columns[i].optional,logical::field_characters(v.columns[i].max_characters)}); return values;
         };
         if(out.kind==TRANSIT_UNIFIED_DESCRIPTION)result.details=SourceDescription{columns(out.details.description)};
         else if(out.kind==TRANSIT_UNIFIED_TABLES){TableListing list;for(size_t i=0;i<out.details.tables.count;++i)list.names.emplace_back(out.details.tables.names[i]);result.details=std::move(list);}
@@ -271,7 +271,7 @@ public:
         std::unique_ptr<transit_station_unified_page, decltype(&transit_station_unified_page_destroy)> owner(out, transit_station_unified_page_destroy);
         transit_station_unified_page_info info{}; check(transit_station_unified_page_get(out, &info));
         Page result{info.manifest, info.ordinal, info.rows, {}, copy_bytes(info.ipc), {}};
-        for (size_t i = 0; i < info.column_count; ++i) result.columns.push_back({info.columns[i].name, Type(*info.columns[i].type),info.columns[i].nullable,info.columns[i].optional});
+        for (size_t i = 0; i < info.column_count; ++i) result.columns.push_back({info.columns[i].name, Type(*info.columns[i].type),info.columns[i].nullable,info.columns[i].optional,logical::field_characters(info.columns[i].max_characters)});
         transit_station_unified_cursor *next = nullptr; check(transit_station_unified_page_next(out, &next)); if (next) result.next.emplace(next);
         return result;
     }

@@ -13,6 +13,17 @@ public final class JavaLogicalValues {
     private static BigInteger n(long value) { return BigInteger.valueOf(value); }
     private static Present present(Atom value) { return new Present(value); }
     public static void run() {
+        Field bounded = new Field("label", Scalar.UTF8, true, true, 0xffffffffL);
+        Descriptor boundedNested = new Structure(List.of(new Field("inner", new Union(List.of(bounded)))));
+        check(typeFromWire(typeWire(boundedNested)).equals(boundedNested));
+        check(fieldFromWire(fieldWire(bounded)).equals(bounded));
+        for (long maximum : new long[]{0, -1, 0x100000000L}) rejects(() -> new Field("label", Scalar.UTF8, false, false, maximum));
+        rejects(() -> new Field("label", Scalar.BINARY, false, false, 1L));
+        JsonObject missing = fieldWire(bounded); missing.remove("max_characters"); rejects(() -> fieldFromWire(missing));
+        for (String malformed : List.of("0", "-1", "1.5", "true", "4294967296")) {
+            JsonObject wire = fieldWire(bounded); wire.add("max_characters", new Gson().fromJson(malformed, JsonElement.class)); rejects(() -> fieldFromWire(wire));
+        }
+
         byte[] data = {0, (byte)128, (byte)255}; BinaryData owned = new BinaryData(data); data[0] = 1; owned.copy()[0] = 2; check(owned.copy()[0] == 0);
         List<Cell> input = new ArrayList<>(List.of(present(new Binary(owned)))); Sequence sequence = new Sequence(SequenceKind.STRUCTURE, input); input.clear(); check(sequence.cells().size() == 1); rejects(() -> sequence.cells().clear());
         List<Descriptor> types = new ArrayList<>(List.of(Scalar.values()));

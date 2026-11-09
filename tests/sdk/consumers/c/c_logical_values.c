@@ -28,7 +28,7 @@ static void values(void) {
     }
     transit_logical_type_view scalar = {.kind = TRANSIT_LOGICAL_INT128};
     char name[] = "amount";
-    transit_logical_field field = {text(name), &scalar, true, false};
+    transit_logical_field field = {text(name), &scalar, true, false, 0};
     transit_logical_type_view structure = {.kind = TRANSIT_LOGICAL_STRUCTURE, .as.fields = {&field, 1}};
     transit_logical_type *type = NULL;
     ok(transit_logical_type_create(&structure, &type));
@@ -43,6 +43,23 @@ static void values(void) {
     memset(encoded.data, 0xcc, encoded.size); transit_sdk_buffer_release(&encoded);
     ok(transit_logical_type_get(type, &view)); assert(view->as.fields.data[0].type->kind == TRANSIT_LOGICAL_INT128);
     transit_logical_type_destroy(type);
+
+    scalar.kind = TRANSIT_LOGICAL_UTF8; field.max_characters = UINT32_MAX;
+    ok(transit_logical_type_create(&structure, &type));
+    ok(transit_logical_type_encode(type, &encoded)); transit_logical_type_destroy(type); type = NULL;
+    ok(transit_logical_type_decode((transit_sdk_bytes){encoded.data, encoded.size}, &type));
+    ok(transit_logical_type_get(type, &view)); assert(view->as.fields.data[0].max_characters == UINT32_MAX);
+    transit_sdk_buffer_release(&encoded); transit_logical_type_destroy(type); type = NULL;
+    scalar.kind = TRANSIT_LOGICAL_BINARY;
+    assert(transit_logical_type_create(&structure, &type).kind == TRANSIT_SDK_INVALID_ARGUMENT && type == NULL);
+    const char *bad_fields[] = {
+        "{\"structure\":[{\"name\":\"label\",\"type\":{\"utf8\":{}},\"nullable\":false,\"optional\":false}]}",
+        "{\"structure\":[{\"name\":\"label\",\"type\":{\"utf8\":{}},\"nullable\":false,\"optional\":false,\"max_characters\":0}]}",
+        "{\"structure\":[{\"name\":\"label\",\"type\":{\"utf8\":{}},\"nullable\":false,\"optional\":false,\"max_characters\":4294967296}]}"
+    };
+    for (size_t i=0;i<sizeof(bad_fields)/sizeof(bad_fields[0]);++i) {
+        assert(transit_logical_type_decode(text(bad_fields[i]), &type).kind != TRANSIT_SDK_OK && type == NULL);
+    }
 
     uint8_t *bytes = malloc(300000); assert(bytes); memset(bytes, 0x9a, 300000);
     transit_logical_cell_view cell = {.state = TRANSIT_LOGICAL_VALUE, .as.value = {.kind = TRANSIT_VALUE_ATOM,
