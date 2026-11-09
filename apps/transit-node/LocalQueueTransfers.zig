@@ -50,7 +50,7 @@ const Workspace = struct {
     fn create(allocator: std.mem.Allocator, native: *backend.Backend, initial: c.storage.LogInitialization.Request, guard: c.storage.PublicationGuard) !*Workspace {
         const self = try allocator.create(Workspace);
         errdefer allocator.destroy(self);
-        self.* = .{ .allocator = allocator, .control = .{ .backend = native, .control = true }, .data = .{ .backend = native }, .queue = undefined };
+        self.* = .{ .allocator = allocator, .control = .{ .backend = native, .control = true, .scratch_allocator = allocator }, .data = .{ .backend = native, .scratch_allocator = allocator }, .queue = undefined };
         self.queue = try Q.open(allocator, self.data.log(), self.data.objects(), initial, guard, .{ .control = .{ .log = self.control.log(), .objects = self.control.objects() } });
         return self;
     }
@@ -97,8 +97,8 @@ pub fn step(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *bac
     const guard = authority.guard();
     _ = try guard.acquire(guard.context);
     guard.release(guard.context);
-    var control: backend.DataStore = .{ .backend = native, .control = true };
-    var data: backend.DataStore = .{ .backend = native };
+    var control: backend.DataStore = .{ .backend = native, .control = true, .scratch_allocator = allocator };
+    var data: backend.DataStore = .{ .backend = native, .scratch_allocator = allocator };
     var catalog = try c.DirectCatalog.init(allocator, host.configuration, control.log(), control.objects(), data.log(), data.objects(), host.options);
     defer catalog.deinit();
     try host.recovery_mutex.lock(io);

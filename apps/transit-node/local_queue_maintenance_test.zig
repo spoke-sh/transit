@@ -56,7 +56,13 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         try t.expectEqual(@as(u64, 2105), claimed.expires_ms);
         try t.expect(cached.?.owner.owner.root.next_lsn > 40 and cached.?.owner.owner.root.recovery == null);
     }
-    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState() };
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(t.allocator, .{ .admission = .{ .data_bytes = 1024 * 1024, .control_bytes = 1024 * 1024 }, .maintenance = .{ .resident_bytes = 32 * 1024 * 1024 } });
+    defer admission.deinit();
+    const held_response = try admission.allocator(false).alloc(u8, admission.data.limit);
+    defer admission.allocator(false).free(held_response);
+    try t.expectError(error.OutOfMemory, admission.allocator(false).alloc(u8, 1));
+    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState(), .admission = &admission };
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator(), .next_kind = .queue };
@@ -108,6 +114,8 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     settings.compact = true;
     const units = try settle(&work, service, settings, signed, &allocations, true, &peak);
     try check(&data, initial, declared, claimed, authority.guard(), 0, true);
+    try t.expectEqual(work.memory.used, admission.maintenance.used.load(.acquire));
+    try t.expect(admission.maintenance.peak.load(.acquire) > 0);
     // Settle all work through the owning public composition. The original expired
     // claim remains open; payload retention must preserve its older read basis.
     clock.now = 2120;

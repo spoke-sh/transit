@@ -27,6 +27,13 @@ pub fn init(settings: Requests) !Self {
     return .{ .request_bytes = settings.request_bytes, .data = .{ .limit = settings.data_bytes }, .control = .{ .limit = settings.control_bytes } };
 }
 
+/// Attach before admitting borrowers. Child quotas retain the existing limits.
+pub fn attach(self: *Self, owner: *@import("DirectStorageMemory.zig")) void {
+    std.debug.assert(self.data.used.load(.acquire) == 0 and self.control.used.load(.acquire) == 0);
+    self.data.parent = &owner.data;
+    self.control.parent = &owner.control;
+}
+
 /// Keep both this owner and the returned single-request budget at stable
 /// addresses until parsing, private work and the joined response write end.
 pub fn request(self: *Self, parent: std.mem.Allocator, control: bool) memory.Budget {

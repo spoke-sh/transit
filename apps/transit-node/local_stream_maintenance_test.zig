@@ -46,7 +46,13 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, policy: 
         }
         try t.expect(cached.?.owner.root.next_lsn > 256 and cached.?.owner.root.recovery == null);
     }
-    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState() };
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(t.allocator, .{ .admission = .{ .data_bytes = 1024 * 1024, .control_bytes = 1024 * 1024 }, .maintenance = .{ .resident_bytes = 32 * 1024 * 1024 } });
+    defer admission.deinit();
+    const held_response = try admission.allocator(false).alloc(u8, admission.data.limit);
+    defer admission.allocator(false).free(held_response);
+    try t.expectError(error.OutOfMemory, admission.allocator(false).alloc(u8, 1));
+    var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState(), .admission = &admission };
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator() };
@@ -79,6 +85,8 @@ pub fn exercise(service: *Service, declaration: c.DirectLog.Definition, policy: 
         idle = if (progressed) 0 else idle + 1;
     }
     try t.expect(retained);
+    try t.expectEqual(work.memory.used, admission.maintenance.used.load(.acquire));
+    try t.expectEqual(admission.data.limit, admission.data.used.load(.acquire));
     try t.expectEqual(work.memory.used, allocations.live_bytes);
     try t.expect(allocations.live_bytes <= settings.resident_bytes);
     var authority: @import("LocalMaintenanceAuthority.zig") = .{ .engine = service.engine, .signed = signed, .resource = service.configuration.scope.resource };

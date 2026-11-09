@@ -139,6 +139,13 @@ Expiry after possible dispatch leaves the original outcome uncertain; it does
 not set an authority rejection or permit remote fallback. Joined cancellation
 still bounds non-socket work and releases partial owned responses before return.
 
+A cohosted `LocalEndpoint` can select a stable backing allocator for owned
+responses. The returned arena keeps that charge until `Parsed.deinit`, even after
+the client closes. The endpoint owner and its quota must outlive all such arenas,
+as well as dispatch tasks and waiters. The allocator hook is an admission hint;
+the host still validates the selected operation and current authority. Allocation
+failure after acceptance does not reject or roll back the original operation.
+
 The optional [worker bootstrap](src/bootstrap.zig) performs no provider calls.
 Its caller supplies a fresh in-memory key; the trusted runtime controller must
 attribute the public registration to the configured container and current worker

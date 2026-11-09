@@ -56,7 +56,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             fn create(allocator: std.mem.Allocator, native: *backend.Backend, initial: c.storage.LogInitialization.Request, guard: c.storage.PublicationGuard) !*Workspace {
                 const self = try allocator.create(Workspace);
                 errdefer allocator.destroy(self);
-                self.* = .{ .allocator = allocator, .control = .{ .backend = native, .control = true }, .data = .{ .backend = native }, .stream = undefined };
+                self.* = .{ .allocator = allocator, .control = .{ .backend = native, .control = true, .scratch_allocator = allocator }, .data = .{ .backend = native, .scratch_allocator = allocator }, .stream = undefined };
                 self.stream = try Partition.open(allocator, self.data.log(), self.data.objects(), initial, guard, .{
                     .control = .{ .log = self.control.log(), .objects = self.control.objects() },
                 });
@@ -107,8 +107,8 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             try host.directory.lockShared(io);
             defer host.directory.unlockShared(io);
             var authority: Authority = .{ .engine = engine, .signed = signed, .resource = host.configuration.scope.resource };
-            var control: backend.DataStore = .{ .backend = native, .control = true };
-            var data: backend.DataStore = .{ .backend = native };
+            var control: backend.DataStore = .{ .backend = native, .control = true, .scratch_allocator = allocator };
+            var data: backend.DataStore = .{ .backend = native, .scratch_allocator = allocator };
             var catalog = try c.DirectCatalog.init(allocator, host.configuration, control.log(), control.objects(), data.log(), data.objects(), host.options);
             defer catalog.deinit();
             try host.recovery_mutex.lock(io);

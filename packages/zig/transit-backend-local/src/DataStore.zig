@@ -10,6 +10,8 @@ const Log = storage.TransitLog;
 const Objects = storage.TransitObjectStore;
 
 backend: *Backend,
+/// Caller-owned transient decoding; its lifetime covers this adapter's work.
+scratch_allocator: ?std.mem.Allocator = null,
 control: bool = false,
 /// Collection's own work/mark objects retain inventory without new source activity.
 track_activity: bool = true,
@@ -98,16 +100,17 @@ fn trimUnitImpl(self: *Self, id: u64, before: u64) !TrimProgress {
     const value_log = self.backend.wal.log();
     const end = try value_log.tail(id);
     if (end == 0 or before >= end) return error.NoCheckpointIntent;
-    var latest = try value_log.read(self.backend.allocator, id, end - 1, 1);
+    const allocator = self.scratch_allocator orelse self.backend.allocator;
+    var latest = try value_log.read(allocator, id, end - 1, 1);
     defer latest.deinit();
     if (latest.frames.len != 1 or latest.frames[0].header.partition_id != id or latest.frames[0].header.lsn != end - 1) return error.IncompleteHistory;
     const frame = latest.frames[0];
     const through = if (std.mem.startsWith(u8, frame.payload, "LOGPART1") or std.mem.startsWith(u8, frame.payload, "LINIT001"))
-        try storage.StreamPartition.archivedThrough(self.backend.allocator, frame)
+        try storage.StreamPartition.archivedThrough(allocator, frame)
     else if (std.mem.startsWith(u8, frame.payload, "DOCPART1") or std.mem.startsWith(u8, frame.payload, "DINIT001"))
-        try storage.DocumentPartition.archivedThrough(self.backend.allocator, frame)
+        try storage.DocumentPartition.archivedThrough(allocator, frame)
     else
-        try storage.TablePartition.archivedThrough(self.backend.allocator, frame);
+        try storage.TablePartition.archivedThrough(allocator, frame);
     if (before > through) return error.NoCheckpointIntent;
     // The serialized Table owner publishes only after durable archive staging.
     // Physical removal does not expire logical history. Conservative allocation

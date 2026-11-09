@@ -19,7 +19,7 @@ def node_observation(client, root):
     batch = client.execute('SHOW STORAGE')['batch']
     assert batch['complete'] and batch['completion']['rows'] == 1
     values, = batch['rows']
-    assert len(values) == 19 and text(values[0]) == 'local'
+    assert len(values) == 39 and text(values[0]) == 'local'
     expected = str((root / 'native').resolve())
     assert text(values[1]) == expected
     metadata = batch['observation']['metadata']
@@ -29,6 +29,12 @@ def node_observation(client, root):
     assert unsigned(values[5]) == 128 * 1024 * 1024
     assert unsigned(values[7]) <= unsigned(values[8]) <= unsigned(values[6]) == 256 * 1024 * 1024
     assert unsigned(values[10]) <= unsigned(values[11]) <= unsigned(values[9]) == 64 * 1024 * 1024
+    limits = [832, 512, 128, 128, 64]
+    for offset, mib in zip(range(19, 39, 4), limits, strict=True):
+        limit, used, peak, refusals = map(unsigned, values[offset:offset + 4])
+        assert 0 <= used <= peak <= limit == mib * 1024 * 1024
+        assert refusals >= 0
+    assert unsigned(values[20]) > 0, 'Retained resident owners are missing from aggregate storage admission'
     assert client.call(dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch'])))['batch'] == batch
     client.call(dict(close_result=batch['cursor']))
     return expected
@@ -82,8 +88,9 @@ def after_insert(client, saved, root, postgres):
         assert int(row[0]) == unsigned(after[0]) and int(row[4]) == unsigned(after[4])
         assert int(row[5]) == 1 and row[8] is True
         node, = wire.execute('SHOW STORAGE').fetchall()
-        assert len(node) == 19 and node[:2] == ('local', expected_root)
+        assert len(node) == 39 and node[:2] == ('local', expected_root)
         assert int(node[5]) == 128 * 1024 * 1024
+        assert int(node[19]) == 832 * 1024 * 1024
 
     import mysql.connector
     from interfaces.sql_wire.clients import connection_options
@@ -99,8 +106,9 @@ def after_insert(client, saved, root, postgres):
             assert int(row[5]) == 1 and row[8] == 1
             cursor.execute('SHOW STORAGE')
             node, = cursor.fetchall()
-            assert len(node) == 19 and node[:2] == ('local', expected_root)
+            assert len(node) == 39 and node[:2] == ('local', expected_root)
             assert int(node[5]) == 128 * 1024 * 1024
+            assert int(node[19]) == 832 * 1024 * 1024
         finally:
             cursor.close()
     print('Storage inspection: fresh prepared execution, exact definition/frontier, repeat fetch and native/PostgreSQL/MySQL values passed.', flush=True)

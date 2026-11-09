@@ -9,6 +9,197 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Aggregate local storage allocation admission — 2026-11-08
+
+Runtime source `c9791bf936e2b02b817b731db13484d6e40df3de` composes direct request
+and retained-owner allocations with independent recovery, maintenance and
+collection reservations. The [storage reference](../../handbook/reference/storage.md#direct-storage-allocation-admission)
+owns the supported boundary and settings; the [allocation ledger](../../handbook/internals/storage-runtime.md#local-direct-storage-allocation-ledger)
+records ancestry, lifetimes and exclusions. The current-v1 definition becomes
+`936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49`.
+Missing/foreign definitions and missing mandatory observation fields reject;
+an unavailable admission observation is explicitly null.
+
+The paired installed run uses baseline `e386615bd5018483ecfbbfc5503d662ef56d841e`
+(the approved plan over unchanged main runtime) and the candidate above. Both
+use Zig `0.17.0-dev.2267+48abf1a34`, ReleaseSafe, physical local disk, one native
+resident page, unchanged durability and retained cuts, three Tables with
+256/1/1 rows and seven-row read pages. Sixteen complete retained reads execute
+per phase; the writer phase also accepts and independently verifies 48 original
+one-row writes. Both Table and Stream profiles pass. Stream retains 16 original
+rows across two partitions and eight samples through compaction and SIGKILL/restart.
+No other task-owned build or proof runs during either measurement window.
+
+| Table phase | Baseline / candidate median read (ms) | Baseline / candidate node CPU (s) | Candidate admission peak (bytes) |
+| --- | --- | --- | --- |
+| Maintenance disabled | 635.258 / 603.431 | 9.12 / 8.61 | 6,598,754 |
+| Automatic flush | 612.227 / 616.984 | 9.39 / 9.16 | 6,204,052 |
+| Writes and flush | 655.023 / 667.273 | 11.82 / 11.64 | 8,292,095 |
+
+Writer medians are 92.978/94.496 ms. These single paired runs are exploratory,
+with an uncontrolled host page cache. The candidate adds a read-only admission
+observation after the process-usage interval; the older baseline has no aggregate
+counters. They establish no statistical latency improvement. Raw records include
+exact source/driver/binary hashes, configuration, every sample, request allocation
+attempts, process CPU/I/O/RSS and restart/convergence outcomes. Process RSS is
+separate from admission bytes; physical sync counts, provider allocation bytes
+and whole-process allocation peaks remain unavailable. Existing correctness
+deadlines and the separately executed console latency gate remain unchanged.
+
+The candidate-only pressure arm sets ordinary aggregate capacity to 8 MiB while
+retaining the 256 MiB request leaf. Concurrent incomplete HTTP bodies cause
+`StorageQuota` with the leaf below its own ceiling. The ordinary parent records
+two then four refusals; its observed peaks are 7,090,040 and 7,104,932 bytes.
+The same saved original receipt remains inspectable through the control route,
+and maintenance completes a step while another body still holds ordinary bytes.
+Both disconnect and deadline termination join and release request bytes to zero,
+returning ordinary use to the original retained-owner charge. The existing
+1 MiB request-leaf pressure arm also passes. No quota or deadline is raised to
+obtain these results.
+
+Component checks separately cover hosted output after dispatch/client close,
+partial-output failure, deadline joins, failed growth rollback, backing failures,
+the deliberately uncharged-parent negative control and protected collection
+progress when the collector reservation is full. The focused typed catalog
+schedule passes with 1,459 graph steps and 64 confirmed orphan allocations
+reclaimed, while retaining protected roots, exact original pins and current
+revocation. Collection is not inferred from Table/Stream maintenance alone.
+
+The subsequent complete clean-source `local-catalog` task passes in 2,982.65
+seconds at `c1de1c69a`. Both signed JSON and typed historical schedules retain
+two original acquisitions through seven lost replies and three physical
+collections/reopens, verify the exact three-row cut and preserve independent
+pin ownership. Branch and owned-record collection schedules also pass. Automatic
+local collection completes 99 units and leaves both owners idle after restart
+and revocation. Stream maintenance settles 157 units at a 5,626,137-byte peak;
+Queue maintenance completes 223 physical and 219 terminal-retention units at a
+20,814,246-byte peak while preserving open claims under reserved capacity.
+These are node/component schedules, separate from the installed HTTP proof.
+
+The command `nix develop .#ci-experience --command just test console-latency-gate`
+passes at the runtime source above, with no budget violations. Raw startup,
+statement and comparison records remain in `.cache/transit-latency/gate/`.
+The required `server-sql-types` task passes in the clean installation lane at
+`c1de1c69a`, in 71.92 seconds with the pinned `ci-experience` shell. Console,
+PostgreSQL and MySQL empty results, mutations, batches, scalar values, aliases,
+projections, negative controls and restart all pass.
+
+The first clean-core attempt passes 69 fast and 20 contract checks, then finds
+the independent Station native-signing fixture still carries old digests. The
+remaining native run is stopped; this attempt is not a passing lane. Commit
+`c1de1c69a` regenerates that fixture without changing runtime code. Its focused
+compiled signing tests pass 2/2, and the complete independent fixture/codec
+check passes, including 4,340 Document parser schedules. The original failed
+checkout remains `/var/tmp/transit-ci-jrvioq_u`.
+
+The clean lanes below execute with
+`nix develop --command just ci clean --lane NAME`; the browser command also uses
+`--browser-system-deps preinstalled`. Each lane creates its own fresh checkout.
+
+The clean `core` lane at `c1de1c69a76ad87a663f74bc98f855f5ea474246` passes
+all 28 expected tasks in 4,052.73 seconds of task execution. It includes the
+complete native test graph, 46 standalone packages, installed Zig consumers,
+runtime/SDK build separation, SQL wire contracts, C ABI, Station, disk recovery,
+authorization, runtime upgrade, callers, inspection and state APIs. The complete
+task inventory and artifact hashes verify through the runner's record checker.
+Evidence is retained in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-nwsy3wpy/`.
+
+The clean `storage-query` lane at the same revision passes all 33 tasks in
+7,395.85 seconds. It includes the complete local catalog schedule above,
+installed Table/KV/Stream/Queue callers, state/mixed transactions, automatic
+Queue transfer, original workload tokens/results, maintenance pressure, catalog
+ABI, node concurrency, block storage, physical collection, local Documents,
+public queries, publication and finite capture. Its final growth scenario
+initializes 139 real KV/Document resources beyond the resident caches and verifies
+every typed value and the original receipt both before and after SIGKILL/restart
+(1,301 typed catalog calls). The complete inventory and artifact hashes verify;
+records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-b8swxjj7/`.
+
+The clean `installation-ui` lane at the same revision passes all 23 tasks in
+3,379.86 seconds. It covers Board contracts/frontend tests, the handbook build,
+server logging/filesystem/single-executable behavior, the required SQL type gate,
+installed direct SQL and fault recovery, managed Tables, source declarations,
+migration lifecycle, SQL lifetimes/authentication, Board inspection/query/
+workbench/computation views, local Station recovery and declarative browser
+listeners. The complete inventory and artifact hashes verify; records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-7t5tq_yt/`.
+
+The clean `interfaces-sql` lane at the same revision passes all eight tasks in
+1,501.38 seconds. It covers TLS, SQL result allocation controls, real PostgreSQL
+and MySQL clients, sessions, integrity, historical reads, Stream/Queue operations
+and transactions. Native, PostgreSQL and MySQL storage inspection preserves exact
+admission values and fresh prepared execution; revocation rejects buffered,
+repeated and terminal disclosure. Original write identities, retained result
+cuts and transaction attachments survive lost replies and restart. The complete
+inventory and artifact hashes verify; records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-_dp3oc5b/`.
+
+The clean `sdks-conformance` lane at the same revision passes all seven tasks
+in 1,392.86 seconds. Generated/native contracts, logical types, the
+installed ten-language interoperability ring, SQL, gRPC faults and connector
+preparation all pass. Every ring link preserves original durable replies and
+queued Table recovery through lost receipts and restart. The complete inventory
+and artifact hashes verify; records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-s2shzi0k/`.
+
+The clean `browser` lane at the same revision passes all nine tasks in
+2,703.61 seconds using preinstalled browser system dependencies. It
+covers Board and query inspection, HTTP/gRPC capture, reactive browser/views and
+lifecycle cleanup, the installed workbench and computation views. Storage
+placement agrees with independent readers across schema evolution, rename and
+reopen; lost replies preserve original identities, and current denial clears
+buffered/cached presentation. The complete inventory and artifact hashes verify;
+records remain in `.cache/ci/clean/c1de1c69a76a-transit-ci-78yo60cf/`.
+
+Additional committed-source commands run from the implementation worktree with
+`nix develop --command just test NAME`. `local-data-collection` passes its complete
+graph schedules and 29 SIGKILL cases in 558.51 seconds; accepted roots and unrelated
+objects survive while exact deletion/FIFO progress resumes. `local-storage-faults`
+passes 193 SIGKILL schedules in 219.36 seconds, preserving acknowledged WAL data,
+fences, trim, immutable retries, archival/compaction/checkpoints, automatic targets,
+original receipts and logical history. `storage-io-faults` passes all 13 disk-space,
+sync, immutable-object publication and overlapping-write cases in 9.68 seconds.
+These timings include command/build overhead. Process death and injected I/O
+failures do not establish a general provider power-loss claim.
+
+The clean `sdks-scripting` lane at the same revision passes its Python, Node
+and Ruby tasks in 1,685.50 seconds. Installed callers preserve wide
+values, original uncertain outcomes, retained relational results and current
+authorization across caller/node replacement; connector recovery and joined
+cleanup also pass. Node's generated validators pass 3,008 differential cases.
+The complete inventory and artifact hashes verify; records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-0hvxzld7/`.
+
+The clean `sdks-systems` lane at the same revision passes its Rust, Go and
+C/C++ tasks in 1,813.97 seconds. Installed callers preserve original
+uncertain outcomes, cancellation/disposal and current authorization. Rust and
+C/C++ also execute durable queued work, typed-query failure, connector recovery
+and direct catalog schedules; C/C++ loader checks retain bounded image ownership
+and reject changed files. The complete inventory and artifact hashes verify;
+records remain in `.cache/ci/clean/c1de1c69a76a-transit-ci-nadtrm8k/`.
+
+The clean `sdks-managed` lane at the same revision passes its Java, .NET and
+Erlang/Elixir tasks in 2,294.26 seconds. Installed callers preserve recursive
+values, exact uncertain outcomes, queued work, bounded query results and current
+authorization. HTTP/gRPC recovery and joined cleanup pass in all four languages;
+the final BEAM direct catalog schedule verifies 145 public requests through
+caller/node replacement and retained metadata after DROP/name reuse. The complete
+inventory and artifact hashes verify; records remain in
+`.cache/ci/clean/c1de1c69a76a-transit-ci-kvzabal9/`.
+Together these nine affected clean lanes pass all 117 expected tasks at the same
+committed implementation source; they are not full integration/release qualification.
+
+Raw paired records remain in `.cache/m3-admission/baseline-01/` and
+`.cache/m3-admission/candidate-01/`; qualification logs and commands remain in
+`.cache/m3-admission/qualification-01/`, `.cache/m3-admission/qualification-02/`,
+`.cache/m3-admission/qualification-sdks/` and the owning runner's clean-lane records.
+An earlier pre-implementation full Debug local-catalog attempt was stopped after
+37 minutes to isolate measurement I/O; it is incomplete, not a pass.
+This slice does not establish whole-owner RSS/CPU/I/O limits, provider-wide
+qualification or completion of Milestone 3's broader lifecycle matrix.
+
 ## Logical Document deletion and partition guards — 2026-11-05
 
 Runtime source `a51731e7624193dc099dc5eb3d0c8be737ed6f27` adds conditional

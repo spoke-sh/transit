@@ -83,6 +83,15 @@ administration endpoint.
 backend, resolved local root (up to 4096 UTF-8 bytes), physical admission bytes
 and limits, direct request allocation use/peaks and separate recovery reserve,
 and the maintenance executor's settings and last bounded failure category.
+The mandatory nullable `admission` field reports `total`, `data`, `control`,
+`maintenance` and `collection` pools; each has `memory: {limit, used, peak}` and
+`refusals`. Limits are positive safe counters, `used <= peak <= limit`, and
+refusals are safe counters. The total limit equals the four child limits; live
+use and peaks are independently sampled and need not add up. Refusals count
+quota attempts, including rejected growth and ancestor denial, not operations
+or backing allocator failures. The [storage reference](../docs/handbook/reference/storage.md#direct-storage-allocation-admission)
+defines the charged allocation boundary and separate reservations. Missing
+`admission` is invalid in this current definition; unsupported hosts send null.
 Unavailable observations are null, never inferred zeroes. Paths and aggregate
 statistics share this operator permission; Table metadata still requires its
 own signed direct Table inspection rights. The ordinary final authority-tail

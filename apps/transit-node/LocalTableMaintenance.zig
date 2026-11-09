@@ -71,7 +71,7 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
         self.queues.deinit();
         self.transfers.deinit();
         std.debug.assert(self.memory.used == 0);
-        self.memory = .{ .parent = self.allocator, .limit = settings.resident_bytes };
+        self.memory = .{ .parent = self.allocator, .limit = settings.resident_bytes, .quota = if (self.host.admission) |owner| &owner.maintenance else null };
     }
     self.memory.peak = self.memory.used;
     defer self.last_peak_bytes = self.memory.peak;
@@ -141,8 +141,8 @@ fn unit(self: *Self, allocator: std.mem.Allocator, engine: *backend.DataAuthorit
     try self.host.directory.lockShared(io);
     defer self.host.directory.unlockShared(io);
     var authority: Authority = .{ .engine = engine, .signed = signed, .resource = self.host.configuration.scope.resource };
-    var control: backend.DataStore = .{ .backend = owner, .control = true };
-    var data: backend.DataStore = .{ .backend = owner };
+    var control: backend.DataStore = .{ .backend = owner, .control = true, .scratch_allocator = allocator };
+    var data: backend.DataStore = .{ .backend = owner, .scratch_allocator = allocator };
     var catalog = try c.DirectCatalog.init(allocator, self.host.configuration, control.log(), control.objects(), data.log(), data.objects(), self.host.options);
     defer catalog.deinit();
     try self.host.recovery_mutex.lock(io);

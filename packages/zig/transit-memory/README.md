@@ -50,6 +50,14 @@ reservations remain charged while a parent allocator runs. Share `Quota`, not a
 mutable `Budget`, between workers. Fuze exports this same `Budget` as
 `MemoryBudget`.
 
+`Quota.Allocator` charges a concurrent quota directly for independently lived
+backing allocations. Use a stable adapter below returned arenas when their
+lifetimes exceed the dispatch call; the adapter, quota and parent allocator must
+outlive every block. Failed growth rolls back its reservation. Quota refusal
+counters include ancestor refusals, but exclude backing allocator failures;
+they count allocation attempts, not failed operations. The allocator returns
+ordinary `OutOfMemory` and does not infer a domain outcome from that error.
+
 Place a budget **below** a workspace, pool or slab to charge its entire retained
 reserve, including idle capacity. Placing another budget above it can constrain
 one borrower, but those logical charges are not additional physical memory.

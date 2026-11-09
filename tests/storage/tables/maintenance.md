@@ -8,6 +8,17 @@ installations under `/var/tmp` and the runner captures stdout automatically.
 The target runs the Table schedule followed by the Stream schedule, sharing the
 built node/caller artifacts while keeping their disk installations separate.
 
+The Table schedule exercises both the 1 MiB request child ceiling and an 8 MiB
+shared ordinary admission ceiling with the normal 256 MiB request child. The
+second arm requires a nonzero retained-owner charge before slow input begins,
+an ancestor refusal before the request child fills, recovery of a saved original
+receipt, and maintenance progress while an input buffer remains held. Disconnect
+and deadline joins must release request bytes while retaining the original idle
+owner charge. Numeric output includes the shared pool observations and keeps
+them distinct from `/proc` RSS and I/O counters. The component graph and log
+maintenance schedules additionally hold ordinary capacity while collector and
+maintenance reservations perform their real disk work.
+
 Three Tables retain 256, one and one point-written rows. Two identities collide
 in the bounded maintenance age cache. Independent values, original snapshot
 identities and unchanged logical positions must survive automatic flushing,

@@ -23,6 +23,7 @@ const unavailable: StorageResponse = {
   request_limit_bytes: null,
   maintenance: null,
   settings: null,
+  admission: null,
 };
 test("storage observations keep unavailable distinct from zero and bound memory facts", () => {
   expect(validateStorage(unavailable)).toBe(true);
@@ -47,4 +48,25 @@ test("storage observations keep unavailable distinct from zero and bound memory 
     { allocated_bytes: Number.MAX_SAFE_INTEGER + 1 },
   ])
     expect(validateStorage({ ...local, ...change })).toBe(false);
+});
+
+test("aggregate storage admission preserves independent samples and rejects invalid pools", () => {
+  const pool = { memory: { limit: 16, used: 7, peak: 8 }, refusals: 3 };
+  const admission = {
+    total: { ...pool, memory: { ...pool.memory, limit: 64 } },
+    data: pool,
+    control: pool,
+    maintenance: pool,
+    collection: pool,
+  };
+  const local = { ...unavailable, backend: "local", admission };
+  expect(validateStorage(local)).toBe(true);
+  expect(validateStorage({ ...local, admission: undefined })).toBe(false);
+  for (const data of [
+    { ...pool, memory: { ...pool.memory, limit: 15 } },
+    { ...pool, memory: { ...pool.memory, used: 9 } },
+    { ...pool, refusals: -1 },
+    { ...pool, refusals: Number.MAX_SAFE_INTEGER + 1 },
+  ])
+    expect(validateStorage({ ...local, admission: { ...admission, data } })).toBe(false);
 });
