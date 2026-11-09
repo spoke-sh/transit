@@ -180,7 +180,7 @@ def main():
             assert actual == expected, case['name']
             counted = invoke(['--format', 'csv', '--mode', 'explicit', '--schema', schema,
                               '-c', 'SELECT COUNT(x) AS present FROM input', '-'], buffer.getvalue().encode(), env=env)
-            assert counted[0]['schema']['type']['structure'] == [dict(name='present', type={'uint64': {}}, nullable=False, optional=False)]
+            assert counted[0]['schema']['type']['structure'] == [dict(name='present', type={'uint64': {}}, nullable=False, optional=False, max_characters=None)]
             assert counted[1]['row']['value']['structure'] == [{'value': {'atom': {'unsigned': '1'}}}]
         base = ['--format', 'csv', '-c', 'SELECT SUM(n) FROM input', '-']
         data = b'n,id\n1,001\n2,002\n'

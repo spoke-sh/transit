@@ -254,7 +254,7 @@ def run(cli, node, host):
             again = shell.call('SELECT COUNT(*) FROM items;')
             assert atom(again, 'unsigned') == '0', again
             values = shell.call('SELECT COUNT(value) AS present FROM items;')
-            assert values['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}], values
+            assert values['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False, 'max_characters': None}], values
             assert atom(values, 'unsigned') == '0', values
             shell.close()
         finally:
@@ -273,7 +273,7 @@ def run(cli, node, host):
         assert len(results) == 9, results
         for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
             assert page['complete']['rows'] == '1', page
-            assert page['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}], page
+            assert page['schema']['type']['structure'] == [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False, 'max_characters': None}], page
             assert atom(page, 'unsigned') == count, page
         assert atom(results[-1], 'signed') == '101', results
         print("Transit server independent console: nullable value/row counts, aliases and derived LIMIT/zero counts passed", flush=True)

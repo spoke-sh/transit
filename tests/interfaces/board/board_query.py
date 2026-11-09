@@ -323,8 +323,8 @@ def run(node, host, proof, board, browser=False):
             description = api({"describe": {}})["description"]
             table = description["source"]["source"]["source"]["table"]
             assert table["row_type"] == {"structure": [
-                {"name": "id", "type": {"int64": {}}, "nullable": False, "optional": False},
-                {"name": "value", "type": {"int64": {}}, "nullable": True, "optional": False},
+                {"name": "id", "type": {"int64": {}}, "nullable": False, "optional": False, "max_characters": None},
+                {"name": "value", "type": {"int64": {}}, "nullable": True, "optional": False, "max_characters": None},
             ]}, table
             sql_caps = api({"sql_capabilities": {}})["sql_capabilities"]
             assert sql_caps["version"] == 1 and sql_caps["parameters"] and sql_caps["statement_bytes"] == 4096
