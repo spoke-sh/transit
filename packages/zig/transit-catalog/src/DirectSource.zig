@@ -31,12 +31,12 @@ pub const Intent = struct {
                 try value.payload.validate(binding.target);
             },
             .control => |value| {
-                if (self.kind != .source or value.expected_epoch == 0) return error.InvalidSourceControl;
+                if (self.kind == .connection or value.expected_epoch == 0) return error.InvalidSourceControl;
                 // This gate lives at the typed boundary, independently of SQL.
                 if (value.command != .retire) return error.SourceExecutionUnsupported;
             },
             .drop => |value| {
-                if ((self.kind == .source) != (value.expected_epoch != null)) return error.InvalidSourceControl;
+                if ((self.kind != .connection) != (value.expected_epoch != null)) return error.InvalidSourceControl;
                 if (value.expected_epoch) |epoch| if (epoch == 0) return error.InvalidSourceControl;
             },
         }
@@ -71,7 +71,7 @@ pub const State = struct {
     dropped: bool,
     pub fn validate(self: State) !void {
         try self.declaration.validate();
-        if ((self.declaration.kind == .source) != (self.control != null)) return error.InvalidSourceControl;
+        if ((self.declaration.kind != .connection) != (self.control != null)) return error.InvalidSourceControl;
         if (self.control) |control| {
             try control.validate();
             if ((control.state != .published and control.state != .retired) or (self.dropped and control.state != .retired)) return error.InvalidSourceControl;
@@ -109,11 +109,11 @@ pub const Operation = struct {
         if (self.intent.bytes <= A.header_bytes or self.intent.bytes > A.max_bytes or self.position.next_lsn == 0 or (self.phase == .rejected) != (self.reason != .none) or (self.phase == .applied) != (self.resulting != null)) return error.InvalidSourceDeclaration;
         if (self.expected_control) |control| {
             try control.validate();
-            if (self.phase != .applied or self.binding.action == .create or self.kind != .source) return error.InvalidSourceControl;
+            if (self.phase != .applied or self.binding.action == .create or self.kind == .connection) return error.InvalidSourceControl;
         }
         if (self.staged) |stored| {
             try stored.validate();
-            if (self.binding.action != .create or !std.meta.eql(stored.interpretation.object, self.binding.target) or stored.kind != self.kind or stored.properties.namespace != self.namespace or !std.meta.eql(stored.properties.name, self.name)) return error.InvalidSourceDeclaration;
+            if (self.phase == .applied or self.binding.action != .create or !std.meta.eql(stored.interpretation.object, self.binding.target) or stored.kind != self.kind or stored.properties.namespace != self.namespace or !std.meta.eql(stored.properties.name, self.name)) return error.InvalidSourceDeclaration;
         }
         if (self.destination) |destination| {
             try destination.validate();
@@ -128,7 +128,7 @@ pub const Operation = struct {
             const declaration = value.declaration;
             if (!std.meta.eql(declaration.interpretation.object, self.binding.target) or declaration.kind != self.kind or declaration.properties.namespace != self.namespace or !std.meta.eql(declaration.properties.name, self.name) or value.dropped != (self.binding.action == .drop)) return error.InvalidSourceDeclaration;
             if (self.binding.action == .create) {
-                if (self.staged == null or !std.meta.eql(self.staged.?, declaration)) return error.InvalidSourceDeclaration;
+                if (self.staged != null) return error.InvalidSourceDeclaration;
                 if (self.previous != null or (value.control != null and !std.meta.eql(value.control.?, p.Source.Control.initial()))) return error.InvalidSourceDeclaration;
             } else {
                 if (self.previous != null or !std.meta.eql(self.binding.expected_definition.?, declaration.interpretation)) return error.InvalidSourceDeclaration;
@@ -140,6 +140,14 @@ pub const Operation = struct {
         }
         if (self.kind == .connection) {
             if (!std.meta.eql(self.added, @as([2]?c.DirectDependency.Edge, @splat(null))) or !std.meta.eql(self.removed, @as([2]?c.DirectDependency.Edge, @splat(null))) or self.destination != null) return error.InvalidSourceDeclaration;
+        } else if (self.kind == .sink) {
+            if (self.destination != null) return error.InvalidSourceDeclaration;
+            if (self.phase == .applied and (self.binding.action == .create or self.binding.action == .drop)) {
+                const edges = if (self.binding.action == .create) self.added else self.removed;
+                const connection = edges[0] orelse return error.InvalidSourceDeclaration;
+                if (edges[1] != null or connection.dependent.kind != .sink or connection.privileges != c.SourceAuthority.use)
+                    return error.InvalidSourceDeclaration;
+            }
         } else if (self.phase == .applied and (self.binding.action == .create or self.binding.action == .drop)) {
             const edges = if (self.binding.action == .create) self.added else self.removed;
             const connection = edges[0] orelse return error.InvalidSourceDeclaration;
@@ -195,9 +203,17 @@ pub const Proposal = struct {
         try c.Model.nativeId(self.namespace);
         try self.name.validate();
         try p.Authorization.roleId(self.owner);
-        // Only scope validation needs an object-shaped value. This fixed value
-        // is neither selected from the Catalog nor returned as an identity.
-        try self.payload.validate(.{ .scope = connection.scope, .branch = 1, .object = 1 });
+        // A placeholder establishes scope without reserving a catalog identity.
+        // Avoid dependencies so preview never refuses a valid object numbered 1.
+        var placeholder: u64 = 1;
+        switch (self.payload) {
+            .connection => {},
+            .source => |value| while (placeholder == value.connection.object.object or placeholder == value.destination.object.object) : (placeholder += 1) {},
+            .sink => |value| if (placeholder == value.connection.object.object) {
+                placeholder += 1;
+            },
+        }
+        try self.payload.validate(.{ .scope = connection.scope, .branch = 1, .object = placeholder });
     }
 };
 pub const Action = union(enum) {

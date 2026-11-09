@@ -11008,7 +11008,8 @@
             "foreign",
             "managed",
             "source",
-            "application"
+            "application",
+            "sink"
           ]
         },
         "T266": {
@@ -68692,7 +68693,8 @@
             "foreign",
             "managed",
             "source",
-            "application"
+            "application",
+            "sink"
           ]
         },
         "T67": {
@@ -76689,6 +76691,7 @@
             "kv_domain",
             "connection_domain",
             "source_domain",
+            "sink_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -76718,6 +76721,9 @@
             "source_domain": {
               "$ref": "#/$defs/T10"
             },
+            "sink_domain": {
+              "$ref": "#/$defs/T10"
+            },
             "database": {
               "$ref": "#/$defs/T10"
             },
@@ -76737,6 +76743,7 @@
             "kv_domain",
             "connection_domain",
             "source_domain",
+            "sink_domain",
             "database",
             "initial_schema",
             "initial_schema_authority"
@@ -83670,7 +83677,8 @@
             "foreign",
             "managed",
             "source",
-            "application"
+            "application",
+            "sink"
           ]
         },
         "T87": {

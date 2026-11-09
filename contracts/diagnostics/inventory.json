@@ -4604,6 +4604,10 @@
         "InvalidNamedResourceOperation": 1,
         "InvalidProjection": 1,
         "InvalidSchemaProjection": 1,
+        "InvalidSinkBudget": 1,
+        "InvalidSinkEncoding": 1,
+        "InvalidSinkHeader": 1,
+        "InvalidSinkRetryPolicy": 1,
         "InvalidTableBasis": 1,
         "InvalidTableDelegation": 1,
         "InvalidTableReadBudget": 1,
@@ -4965,6 +4969,7 @@
         "clientToken()": "<inferred>",
         "clientTokenSelected()": "<inferred>",
         "closeDependencies()": "<inferred>",
+        "connectorConnection()": "<inferred>",
         "connectorCurrent()": "<inferred>",
         "connectorDependencies()": "<inferred>",
         "connectorEdges()": "<inferred>",
@@ -5245,7 +5250,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2890,
+        "try": 2898,
         "catch": 31
       },
       "imports": [
@@ -5866,7 +5871,7 @@
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 18,
-        "InvalidDirectCatalogTransition": 228,
+        "InvalidDirectCatalogTransition": 230,
         "InvalidDocumentSourceTransition": 2,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
@@ -6202,7 +6207,8 @@
           "foreign",
           "managed",
           "source",
-          "application"
+          "application",
+          "sink"
         ],
         "Observation": [
           "not_observed",
@@ -7955,7 +7961,7 @@
         "InvalidCatalogCursor": 1,
         "InvalidCatalogStepBudget": 1,
         "InvalidSourceControl": 9,
-        "InvalidSourceDeclaration": 15,
+        "InvalidSourceDeclaration": 18,
         "InvalidTableResponse": 15,
         "SourceExecutionUnsupported": 2
       },
@@ -11094,16 +11100,18 @@
         "CatalogIntentMissing": 1,
         "CatalogRecordTooLarge": 1,
         "IncompatibleDefinition": 2,
-        "InvalidSourceDeclaration": 6
+        "InvalidSourceDeclaration": 7
       },
       "outcomes": {
         "Kind": [
           "connection",
-          "source"
+          "source",
+          "sink"
         ],
         "Payload": [
           "connection",
-          "source"
+          "source",
+          "sink"
         ]
       },
       "error_sets": {},
@@ -11120,7 +11128,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 27,
+        "try": 29,
         "catch": 1
       },
       "imports": [
@@ -11162,7 +11170,8 @@
           "queue",
           "kv",
           "connection",
-          "source"
+          "source",
+          "sink"
         ]
       },
       "error_sets": {},
@@ -26423,6 +26432,10 @@
     "packages/zig/transit-protocol/src/Source.zig": {
       "errors": {
         "IncompatibleDefinition": 4,
+        "InvalidSinkBudget": 1,
+        "InvalidSinkEncoding": 1,
+        "InvalidSinkHeader": 2,
+        "InvalidSinkRetryPolicy": 1,
         "InvalidSourceAttemptTransition": 2,
         "InvalidSourceBudget": 1,
         "InvalidSourceCapture": 4,
@@ -26469,6 +26482,23 @@
         "Method": [
           "GET"
         ],
+        "Sink.capture": [
+          "redacted_metadata"
+        ],
+        "Sink.method": [
+          "GET",
+          "POST"
+        ],
+        "Sink.request_encoding": [
+          "none",
+          "form"
+        ],
+        "Sink.response": [
+          "protected_json"
+        ],
+        "Sink.unknown_outcome": [
+          "retain"
+        ],
         "State": [
           "published",
           "authorized",
@@ -26491,12 +26521,14 @@
         "Poll.requireDispatch()": "<inferred>",
         "Poll.transition()": "<inferred>",
         "Poll.validate()": "<inferred>",
+        "Sink.header()": "<inferred>",
+        "Sink.validate()": "<inferred>",
         "validateEndpoint()": "<inferred>",
         "validatePath()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 29,
         "catch": 2
       },
       "imports": [

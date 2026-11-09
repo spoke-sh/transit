@@ -36,7 +36,15 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
           finished: "source_end",
           chain: Array(32).fill(3),
         },
-        columns: [{ name: "counter", type: { uint64: {} }, nullable: true, optional: true }],
+        columns: [
+          {
+            name: "counter",
+            type: { uint64: {} },
+            nullable: true,
+            optional: true,
+            max_characters: null,
+          },
+        ],
         ordinal: "0",
         rows: 1,
         ipc: "00",
@@ -79,8 +87,8 @@ describe("unified query boundary", () => {
     const value = page({ value: { atom: { utf8: "\u0000".repeat(2048) } } });
     if (!("page" in value)) throw new Error("fixture");
     value.page.evidence.columns = [
-      { name: "key", type: { utf8: {} }, nullable: true, optional: true },
-      { name: "value", type: { utf8: {} }, nullable: true, optional: true },
+      { name: "key", type: { utf8: {} }, nullable: true, optional: true, max_characters: null },
+      { name: "value", type: { utf8: {} }, nullable: true, optional: true, max_characters: null },
     ];
     value.page.evidence.rows = 8;
     value.page.evidence.ipc = "00".repeat(65536);

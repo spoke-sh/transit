@@ -606,6 +606,7 @@ test("catalog descriptions require all current policy domains without aliases", 
     kv_domain: 33,
     connection_domain: 34,
     source_domain: 35,
+    sink_domain: 36,
     database: 20,
     initial_schema: 1,
     initial_schema_authority: 21,
@@ -642,6 +643,7 @@ test("catalog descriptions require all current policy domains without aliases", 
     "kv_domain",
     "connection_domain",
     "source_domain",
+    "sink_domain",
   ] as const) {
     for (const missing of [true, false]) {
       const bad = structuredClone(description);

@@ -9,6 +9,7 @@ pub fn table(err: anyerror) Refusal {
         error.InvalidDataflowRevision, error.InvalidManagedTableRecord, error.InvalidManagedTableHead, error.InvalidDataflowDeclaration => .InvalidRequest,
         error.DataflowIdentityConflict, error.IncompleteDataflowCoverage, error.ManagedTableInitializationPending => .Conflict,
         error.InvalidRequest => .InvalidRequest,
+        error.InvalidSinkEncoding, error.InvalidSinkHeader, error.InvalidSinkBudget, error.InvalidSinkRetryPolicy => .InvalidRequest,
         error.BranchOperationRequired, error.InvalidBranchCreation, error.InvalidBranchCursor, error.BranchIdentityConflict, error.BranchNotFound => .InvalidRequest,
         error.HistoricalOperationRequired, error.EmptyHistoricalSelection, error.InvalidHistoricalCursor, error.InvalidHistoricalLimits, error.InvalidHistoricalSelector, error.HistoricalObjectNotSelected, error.UnsupportedHistoricalTransaction => .InvalidRequest,
         error.HistoricalIdentityConflict, error.HistoricalNameConflict, error.HistoricalNamespaceConflict, error.HistoricalNotPublished, error.HistoricalRetentionOwned, error.HistoricalRetentionPending, error.HistoricalSourceChanged => .Conflict,

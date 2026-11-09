@@ -111,7 +111,15 @@ describe("temporary workbook session", () => {
         view: {
           definition: readDefinition,
           result: binding.result,
-          columns: [{ name: "n", type: { uint64: {} }, nullable: false, optional: false }],
+          columns: [
+            {
+              name: "n",
+              type: { uint64: {} },
+              nullable: false,
+              optional: false,
+              max_characters: null,
+            },
+          ],
           rows: [[{ value: { atom: { unsigned: "145" } } }]],
           observation: "{}",
           observation_kind: "data",

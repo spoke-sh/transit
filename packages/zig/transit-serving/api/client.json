@@ -7901,7 +7901,8 @@
                                               "json",
                                               "range",
                                               "multirange",
-                                              "vector"
+                                              "vector",
+                                              "capability"
                                             ]
                                           },
                                           "actual": {
@@ -7936,7 +7937,8 @@
                                               "json",
                                               "range",
                                               "multirange",
-                                              "vector"
+                                              "vector",
+                                              "capability"
                                             ]
                                           },
                                           "column": {

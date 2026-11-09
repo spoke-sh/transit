@@ -7,7 +7,19 @@ const d = p.DataLifecycle;
 const r = @import("DirectCatalogRecords.zig");
 pub const max_bytes = 64 * 1024;
 pub const header_bytes = 40;
-pub const Kind = enum { connection, source };
+pub const Kind = enum {
+    connection,
+    source,
+    sink,
+
+    pub fn authority(self: Kind) c.TableAuthority.Kind {
+        return switch (self) {
+            .connection => .connection,
+            .source => .source,
+            .sink => .sink,
+        };
+    }
+};
 pub const Source = struct {
     connection: d.Definition,
     destination: d.Definition,
@@ -25,6 +37,7 @@ pub const Payload = union(Kind) {
         pub const json_schema_fields = .{ .endpoint = .{ .type = "string", .minLength = 1, .maxLength = p.Source.max_endpoint_bytes } };
     },
     source: Source,
+    sink: struct { connection: d.Definition, http: p.Source.Sink },
 
     pub fn validate(self: Payload, object: d.Object) !void {
         switch (self) {
@@ -34,6 +47,12 @@ pub const Payload = union(Kind) {
                 // A nonzero validation placeholder is never persisted. The
                 // actual digest is computed only from the canonical payload.
                 try value.definition(.{ .object = object, .revision = 1, .digest = @splat(1) }).validate();
+            },
+            .sink => |value| {
+                try value.connection.validate();
+                try value.http.validate();
+                if (!std.meta.eql(object.scope, value.connection.object.scope) or object.branch != value.connection.object.branch or
+                    std.meta.eql(object, value.connection.object)) return error.InvalidSourceDeclaration;
             },
         }
     }
@@ -161,4 +180,40 @@ test "SOURCE maximum canonical artifact fits independent 64 KiB budget" {
     var invalid = value;
     invalid.payload.source.executor = 0;
     try t.expectError(error.InvalidCatalogIdentity, invalid.validate());
+}
+
+test "SOURCE SINK declaration owns transport strings and preview accepts low dependency identities" {
+    const t = std.testing;
+    const scope: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const upstream: d.Definition = .{ .object = .{ .scope = scope, .branch = 1, .object = 1 }, .revision = 1, .digest = @splat(1) };
+    const value: Definition = .{ .definition = p.Growth.current_definition, .object = .{ .scope = scope, .branch = 1, .object = 2 }, .revision = 1, .properties = .{ .namespace = 1, .authorization = 6, .name = try .init("token") }, .owner = 1, .payload = .{ .sink = .{ .connection = upstream, .http = .{
+        .method = .POST,
+        .path = "/token",
+        .request_encoding = .form,
+        .accept = "application/json",
+        .user_agent = "consumer",
+        .response = .protected_json,
+        .capture = .redacted_metadata,
+        .request_timeout_ms = 5000,
+        .response_max_bytes = 65536,
+        .follow_redirects = false,
+        .max_attempts = 1,
+        .unknown_outcome = .retain,
+    } } } };
+    const stored = try value.stored(t.allocator);
+    const bytes = try encode(t.allocator, value);
+    defer t.allocator.free(bytes);
+    var decoded = try decode(t.allocator, bytes, stored);
+    defer decoded.deinit();
+    @memset(bytes, 0);
+    try t.expectEqualStrings("/token", decoded.value.payload.sink.http.path);
+    try t.expectEqualStrings("consumer", decoded.value.payload.sink.http.user_agent.?);
+    const proposal: c.DirectSource.Proposal = .{ .namespace = 1, .name = value.properties.name, .owner = 1, .payload = value.payload };
+    try proposal.validate(.{ .scope = scope, .audience = 1, .branch = 1, .principal = 1, .role = null });
+    var changed = value;
+    changed.payload.sink.http.path = "/other";
+    try t.expect(!std.meta.eql(stored.interpretation, (try changed.stored(t.allocator)).interpretation));
+    changed = value;
+    changed.payload.sink.connection.object.scope.catalog = 4;
+    try t.expectError(error.InvalidSourceDeclaration, changed.validate());
 }

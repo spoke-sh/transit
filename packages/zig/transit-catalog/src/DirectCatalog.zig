@@ -6188,9 +6188,9 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
     if (dependent.kind == .captured or dependent.kind == .maintained)
         return !std.meta.eql(object.scope, self.config().scope);
     if (!std.meta.eql(object.scope, self.config().scope)) return false;
-    if (dependent.kind == .source) {
+    if (dependent.kind == .source or dependent.kind == .sink) {
         const value = try self.connectorCurrent(object.object) orelse return false;
-        return !value.dropped and value.declaration.kind == .source and std.meta.eql(value.declaration.interpretation, dependent.interpretation);
+        return !value.dropped and value.declaration.kind == (if (dependent.kind == .source) SourceArtifact.Kind.source else .sink) and std.meta.eql(value.declaration.interpretation, dependent.interpretation);
     }
     if (dependent.kind == .view or dependent.kind == .property_graph or dependent.kind == .foreign) {
         const value = try self.descriptorCurrent(object.object) orelse return false;
@@ -6237,7 +6237,7 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
     const target = try self.entry(object.object) orelse return error.CatalogDenied;
     if (target.connector != null) {
         const value = try self.connectorCurrent(object.object) orelse return error.CatalogDenied;
-        if (value.declaration.kind != .connection or privileges & ~c.SourceAuthority.actions(.connection) != 0) return error.InvalidCatalogDependency;
+        if (value.declaration.kind == .source or privileges & ~c.SourceAuthority.actions(value.declaration.kind) != 0) return error.InvalidCatalogDependency;
         var required = try self.connectorRequirements(policy, value, .inspect);
         if (privileges != 0) required.requirements[2].?.privileges = privileges;
         return .{ .interpretation = value.declaration.interpretation, .live = !value.dropped, .requirements = required };
@@ -6367,7 +6367,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     // Queue declaration edges also retain historical routing. Removing one
     // requires the Queue's closure/retention proof, not generic graph editing.
     if (binding.edge.foreign_key != null) return error.TableDependencyOwned;
-    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign or binding.edge.dependent.kind == .source) return error.CatalogDependencyOwned;
+    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign or binding.edge.dependent.kind == .source or binding.edge.dependent.kind == .sink) return error.CatalogDependencyOwned;
     if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -8210,7 +8210,7 @@ pub fn historicalDefinitions(self: *Self, snapshot: d.Snapshot, namespace_id: u6
 const Connector = c.DirectSource;
 const SourceArtifact = c.SourceDeclaration;
 fn connectorKind(kind: SourceArtifact.Kind) a.Kind {
-    return if (kind == .connection) .connection else .source;
+    return kind.authority();
 }
 fn connectorRecord(self: *Self, object: u64) !?Connector.Operation {
     const target = try self.entry(object) orelse return null;
@@ -8234,6 +8234,10 @@ fn connectorGuard(self: *Self, allocator: std.mem.Allocator, request: Connector.
     const known = try self.connectorCurrent(request.binding.target.object);
     var required = if (known) |value| try self.connectorRequirements(policy, value, if (write) .administer else .inspect) else try self.requirements(policy, try self.authorizationSchema(request.intent.namespace), null, .create_table);
     if (request.intent.action == .create and write) required.selectable = request.intent.action.create.owner;
+    if (dependencies and request.intent.action == .create and request.intent.kind == .sink) {
+        const upstream = try self.dependencySource(request.intent.action.create.payload.sink.connection.object, policy, c.SourceAuthority.use);
+        required = try required.merge(upstream.requirements);
+    }
     if (dependencies and request.intent.action == .create and request.intent.kind == .source) {
         const source = request.intent.action.create.payload.source;
         const connection = try self.dependencySource(source.connection.object, policy, c.SourceAuthority.use);
@@ -8257,6 +8261,7 @@ fn connectorReason(self: *Self, request: Connector.Request, current: P.Guard, pr
         if (try self.entry(binding.target.object) != null and prior_operation == null) return .object_conflict;
         if (!try self.available(intent.namespace, intent.name, binding.target.object, current)) return .name_conflict;
         if (intent.kind == .source) return self.connectorDependencies(intent.action.create.payload.source, current, binding);
+        if (intent.kind == .sink) return self.connectorConnection(intent.action.create.payload.sink.connection, current);
     } else {
         const known = try self.connectorCurrent(binding.target.object) orelse return .object_conflict;
         if (known.dropped or known.declaration.kind != intent.kind) return .object_conflict;
@@ -8308,6 +8313,11 @@ pub fn sourceRegistration(self: *Self, request: Connector.Request, policy: Polic
     return .{ .action = .{ .domain = self.config().authority.domain(connectorKind(request.intent.kind)), .owner = request.intent.action.create.owner, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, connectorKind(request.intent.kind), request.binding.target.object) }, .authorization_revision = fence.policy_epoch - 1 };
 }
 fn connectorEdges(value: SourceArtifact.Definition, stored: SourceArtifact.Stored) ![2]?Dependency.Edge {
+    if (value.payload == .sink) {
+        const edge: Dependency.Edge = .{ .source = value.payload.sink.connection, .dependent = .{ .kind = .sink, .interpretation = stored.interpretation }, .privileges = c.SourceAuthority.use };
+        try edge.validate();
+        return .{ edge, null };
+    }
     if (value.payload != .source) return @splat(null);
     const source = value.payload.source;
     const dependent: Dependency.Dependent = .{ .kind = .source, .interpretation = stored.interpretation };
@@ -8429,7 +8439,7 @@ pub fn sourceOperation(self: *Self, request: Connector.Request, command: Connect
                 return .{ .operation = try self.recordConnector(operation, prior_operation, current) };
             }
             if (!std.meta.eql(operation.staged.?, expected_artifact)) return error.DataIdentityConflict;
-            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind == .source) p.Source.Control.initial() else null, .dropped = false };
+            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind != .connection) p.Source.Control.initial() else null, .dropped = false };
             operation.added = try connectorEdges(value, next.declaration);
         } else {
             next = operation.previous orelse return error.InvalidSourceDeclaration;
@@ -8444,6 +8454,9 @@ pub fn sourceOperation(self: *Self, request: Connector.Request, command: Connect
         operation.expected_control = if (operation.previous) |previous| previous.control else null;
         operation.previous = null;
         operation.resulting = next;
+        // The published declaration now owns the exact staged commitment. Keep
+        // one copy in terminal records; pending recovery still retains staged.
+        operation.staged = null;
         operation.phase = .applied;
     }
     return .{ .operation = try self.recordConnector(operation, prior_operation, current) };
@@ -8470,6 +8483,11 @@ pub fn inspectSource(self: *Self, allocator: std.mem.Allocator, expected: d.Defi
     var artifact = try SourceArtifact.load(allocator, self.store.objects, state.declaration);
     errdefer artifact.deinit();
     var changed = false;
+    if (artifact.value.payload == .sink) {
+        const expected_connection = artifact.value.payload.sink.connection;
+        const connection = try self.connectorCurrent(expected_connection.object.object);
+        changed = connection == null or connection.?.dropped or !std.meta.eql(connection.?.declaration.interpretation, expected_connection);
+    }
     if (artifact.value.payload == .source) {
         const source = artifact.value.payload.source;
         const connection = try self.connectorCurrent(source.connection.object.object);
@@ -8546,9 +8564,14 @@ pub fn listSources(self: *Self, selection: Connector.Selection, cursor: ?Connect
     return result;
 }
 
+fn connectorConnection(self: *Self, expected: d.Definition, current: P.Guard) !Connector.Reason {
+    const connection = try self.connectorCurrent(expected.object.object) orelse return .stale_definition;
+    if (connection.dropped or connection.declaration.kind != .connection or !std.meta.eql(connection.declaration.interpretation, expected) or try self.pending(expected.object.object, current)) return .stale_definition;
+    return .none;
+}
 fn connectorDependencies(self: *Self, payload: SourceArtifact.Source, current: P.Guard, reservation: ?d.Binding) !Connector.Reason {
-    const connection = try self.connectorCurrent(payload.connection.object.object) orelse return .stale_definition;
-    if (connection.dropped or connection.declaration.kind != .connection or !std.meta.eql(connection.declaration.interpretation, payload.connection) or try self.pending(payload.connection.object.object, current)) return .stale_definition;
+    const connection = try self.connectorConnection(payload.connection, current);
+    if (connection != .none) return connection;
     const log = try self.logRecord(payload.destination.object.object) orelse return .stale_definition;
     const destination = log.resulting orelse return .stale_definition;
     if (log.phase != .complete or destination.kind() != .stream or destination.stored.retired or !std.meta.eql(destination.stored.declaration.interpretation, payload.destination) or try self.pending(payload.destination.object.object, current)) return .stale_definition;
@@ -8568,6 +8591,10 @@ pub fn prepareSource(self: *Self, proposal: Connector.Proposal, policy: Policy) 
     defer scratch.deinit();
     var required = try self.requirements(policy, try self.authorizationSchema(proposal.namespace), null, .create_table);
     required.selectable = proposal.owner;
+    if (proposal.payload == .sink) {
+        const upstream = try self.dependencySource(proposal.payload.sink.connection.object, policy, c.SourceAuthority.use);
+        required = try required.merge(upstream.requirements);
+    }
     if (proposal.payload == .source) {
         const source = proposal.payload.source;
         const upstream = try self.dependencySource(source.connection.object, policy, c.SourceAuthority.use);
@@ -8576,7 +8603,7 @@ pub fn prepareSource(self: *Self, proposal: Connector.Proposal, policy: Policy) 
     }
     const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
     try check(current);
-    const reason: Connector.Reason = if (try self.namespacePending(proposal.namespace) != null) .object_conflict else if (!try self.available(proposal.namespace, proposal.name, 0, current)) .name_conflict else if (proposal.payload == .source) try self.connectorDependencies(proposal.payload.source, current, null) else .none;
+    const reason: Connector.Reason = if (try self.namespacePending(proposal.namespace) != null) .object_conflict else if (!try self.available(proposal.namespace, proposal.name, 0, current)) .name_conflict else if (proposal.payload == .source) try self.connectorDependencies(proposal.payload.source, current, null) else if (proposal.payload == .sink) try self.connectorConnection(proposal.payload.sink.connection, current) else .none;
     try check(current);
     return .{ .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = null, .reason = reason };
 }

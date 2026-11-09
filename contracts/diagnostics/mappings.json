@@ -5619,6 +5619,22 @@
         "NativeBindingConflict": {
           "code": "catalog.native_binding_conflict",
           "category": "conflict"
+        },
+        "InvalidSinkEncoding": {
+          "code": "catalog.invalid_sink_encoding",
+          "category": "binding"
+        },
+        "InvalidSinkHeader": {
+          "code": "catalog.invalid_sink_header",
+          "category": "binding"
+        },
+        "InvalidSinkBudget": {
+          "code": "catalog.invalid_sink_budget",
+          "category": "limit"
+        },
+        "InvalidSinkRetryPolicy": {
+          "code": "catalog.invalid_sink_retry_policy",
+          "category": "binding"
         }
       },
       "exceptions": [

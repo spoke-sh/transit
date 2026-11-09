@@ -127,6 +127,10 @@ this package contains no SQL keywords, parser or catalog replica. Its fixtures
 cover late replies, edit coalescing, denial, changed contracts and Unicode ranges.
 
 Query columns carry the complete logical descriptor, nullability and optionality.
+Field descriptors retain `max_characters`; when present, it is a positive
+32-bit bound on UTF-8 Unicode scalar values. Browser validation applies the bound
+to nested fields and keeps it in schema comparisons. It does not normalize text
+or count UTF-16 code units as characters.
 Results admit at most eight rows and 128 columns per page; recursive descriptors
 retain the shared 16-level, 256-node and 4096-name-byte limits. Names contain up to
 255 UTF-8 bytes. Generated validators resolve recursive references within their

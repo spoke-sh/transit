@@ -5,6 +5,12 @@ and Stream policy, returning stable column IDs independently of column order.
 It performs no catalog lookup or ingestion. The [source contract](../../../contracts/SOURCE_V1.md)
 keeps durable declaration, capture and activation gates separate.
 
+The same `DirectSource` owner publishes typed HTTP sinks with a distinct native
+authority domain and exact connection dependency. It recovers the original
+publication, rechecks connection use, protects the connection from DROP and
+removes the edge only through the sink's retired DROP. This declaration profile
+does not dispatch HTTP or install sink SQL.
+
 `DirectCatalogRead.apply` composes read-only inspection, resource and dependency
 callers for data exploration. It returns bounded pages and exact Table metadata;
 lookup checks the supplied interpretation rather than accepting a changed name

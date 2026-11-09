@@ -1843,6 +1843,18 @@
                   "$ref": "#/$defs/Response/$defs/T46"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Response/$defs/T22"
+                }
+              }
             }
           ]
         },
@@ -2288,6 +2300,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/Response/$defs/T39"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Response/$defs/T29"
                 }
               }
             }
@@ -5422,6 +5446,18 @@
                   "$ref": "#/$defs/Response/$defs/T165"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Response/$defs/T128"
+                }
+              }
             }
           ]
         },
@@ -7090,6 +7126,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -7328,6 +7365,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"

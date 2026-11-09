@@ -33,8 +33,20 @@ const source = {
       projection: null,
       row_type: {
         structure: [
-          { name: "id", type: { int64: {} }, nullable: false, optional: false },
-          { name: "value", type: { int64: {} }, nullable: true, optional: false },
+          {
+            name: "id",
+            type: { int64: {} },
+            nullable: false,
+            optional: false,
+            max_characters: null,
+          },
+          {
+            name: "value",
+            type: { int64: {} },
+            nullable: true,
+            optional: false,
+            max_characters: null,
+          },
         ],
       },
     },
@@ -60,7 +72,9 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
 const page: ResultPage = {
   cells: [[{ value: { atom: { signed: "7" } } }]],
   evidence: {
-    columns: [{ name: "value", type: { int64: {} }, nullable: true, optional: false }],
+    columns: [
+      { name: "value", type: { int64: {} }, nullable: true, optional: false, max_characters: null },
+    ],
     ordinal: "0",
     rows: 1,
     ipc: "00",
@@ -169,8 +183,20 @@ function fixture(role: number | null = null) {
             continuous: false,
           },
           columns: [
-            { name: "id", type: { int64: {} }, nullable: true, optional: false },
-            { name: "value", type: { int64: {} }, nullable: true, optional: false },
+            {
+              name: "id",
+              type: { int64: {} },
+              nullable: true,
+              optional: false,
+              max_characters: null,
+            },
+            {
+              name: "value",
+              type: { int64: {} },
+              nullable: true,
+              optional: false,
+              max_characters: null,
+            },
           ],
         },
       };

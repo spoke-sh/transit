@@ -1214,7 +1214,10 @@ fn connectorTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (original) |known| {
         if (!known.pending() or !std.meta.eql(known.intent, outcome.intent) or known.kind != outcome.kind or known.namespace != outcome.namespace or !std.meta.eql(known.name, outcome.name) or (outcome.phase != .applied and !std.meta.eql(known.previous, outcome.previous))) return error.InvalidDirectCatalogTransition;
         if (outcome.phase == .applied and (outcome.previous != null or !std.meta.eql(outcome.expected_control, if (known.previous) |state| state.control else null))) return error.InvalidDirectCatalogTransition;
-        if (known.staged != null and !std.meta.eql(known.staged, outcome.staged)) return error.InvalidDirectCatalogTransition;
+        if (outcome.phase == .applied and outcome.binding.action == .create) {
+            const staged = known.staged orelse return error.InvalidDirectCatalogTransition;
+            if (!std.meta.eql(staged, outcome.resulting.?.declaration) or outcome.staged != null) return error.InvalidDirectCatalogTransition;
+        } else if (known.staged != null and !std.meta.eql(known.staged, outcome.staged)) return error.InvalidDirectCatalogTransition;
         if (known.destination != null and !std.meta.eql(known.destination, outcome.destination)) return error.InvalidDirectCatalogTransition;
         if (before.source_operation_count != record.root.source_operation_count or before.source_reserved_bytes != record.root.source_reserved_bytes) return error.InvalidDirectCatalogTransition;
     } else {

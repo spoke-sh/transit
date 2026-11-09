@@ -1,6 +1,12 @@
 import { expect, test, vi } from "vite-plus/test";
 import { validateUnifiedQuery, unifiedCellText, logicalTypeText } from "./values";
-import { logicalTypeEqual, type LogicalType, type LogicalCell } from "./logical";
+import {
+  logicalCellValid,
+  logicalColumnsValid,
+  logicalTypeEqual,
+  type LogicalType,
+  type LogicalCell,
+} from "./logical";
 import { Request as validRequest } from "./validators.js";
 import type { ResultPage } from "./result";
 import { httpTransport } from "./transport";
@@ -10,6 +16,7 @@ const field = (type: LogicalType, name = "value") => ({
   type,
   nullable: true,
   optional: true,
+  max_characters: null,
 });
 function page(type: LogicalType, cell: LogicalCell): { page: ResultPage } {
   return {
@@ -178,8 +185,8 @@ test("recursive states obey descriptors, exact array lengths, union variants and
   expect(admits(array, { value: { array: [atom({ unsigned: "65535" })] } })).toBe(false);
   const union: LogicalType = {
     tagged_union: [
-      { ...field({ int8: {} }, "integer"), optional: false },
-      { ...field({ utf8: {} }, "text"), optional: false },
+      { ...field({ int8: {} }, "integer"), optional: false, max_characters: null },
+      { ...field({ utf8: {} }, "text"), optional: false, max_characters: null },
     ],
   };
   expect(admits(union, { value: { tagged_union: { index: 1, value: atom({ utf8: "x" }) } } })).toBe(
@@ -211,7 +218,7 @@ test("recursive states obey descriptors, exact array lengths, union variants and
   expect(
     logicalTypeEqual(structure, {
       structure: [
-        { optional: true, nullable: true, type: list, name: "named value" },
+        { optional: true, max_characters: null, nullable: true, type: list, name: "named value" },
         field({ utf8: {} }, "雪"),
       ],
     }),
@@ -371,4 +378,28 @@ test("companion vectors reject bad shape and nonfinite unboxed elements", () => 
       page({ vector: { dimensions: 7, element: "binary" } }, { value: { vector: "00" } }),
     ),
   ).toBe(false);
+});
+
+test("character constraints survive browser metadata and bound Unicode scalar values", () => {
+  const bounded = { ...field({ utf8: {} }), max_characters: 1 };
+  const text = (utf8: string): LogicalCell => ({ value: { atom: { utf8 } } });
+  expect(logicalColumnsValid([bounded])).toBe(true);
+  expect(logicalCellValid(text("😀"), bounded)).toBe(true);
+  expect(logicalCellValid(text("é"), bounded)).toBe(true);
+  expect(logicalCellValid(text("e\u0301"), bounded)).toBe(false);
+  expect(logicalCellValid(text("ab"), bounded)).toBe(false);
+  expect(logicalCellValid({ null: {} }, bounded)).toBe(true);
+  expect(logicalCellValid({ missing: {} }, bounded)).toBe(true);
+  for (const maximum of [0, -1, 0x100000000, 1.5]) {
+    expect(logicalColumnsValid([{ ...bounded, max_characters: maximum }])).toBe(false);
+    expect(logicalCellValid(text("a"), { ...bounded, max_characters: maximum })).toBe(false);
+  }
+  expect(logicalColumnsValid([{ ...bounded, type: { int64: {} } }])).toBe(false);
+  expect(
+    logicalTypeEqual({ structure: [bounded] }, { structure: [{ ...bounded, max_characters: 2 }] }),
+  ).toBe(false);
+  const response = page({ structure: [bounded] }, { value: { structure: [text("ab")] } });
+  expect(validateUnifiedQuery(response)).toBe(false);
+  response.page.cells[0]![0] = { value: { structure: [text("😀")] } };
+  expect(validateUnifiedQuery(response)).toBe(true);
 });

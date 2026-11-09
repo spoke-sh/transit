@@ -17,7 +17,15 @@ function result(overrides: Partial<ResultView> = {}): ReadResponse {
       view: {
         definition: readDefinition,
         result: "b".repeat(64),
-        columns: [{ name: "n", type: { uint128: {} }, nullable: false, optional: false }],
+        columns: [
+          {
+            name: "n",
+            type: { uint128: {} },
+            nullable: false,
+            optional: false,
+            max_characters: null,
+          },
+        ],
         rows: [[{ value: { atom: { unsigned: "340282366920938463463374607431768211455" } } }]],
         observation: '{"metadata":{}}',
         observation_kind: "metadata",

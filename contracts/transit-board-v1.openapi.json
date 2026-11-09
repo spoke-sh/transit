@@ -15279,6 +15279,18 @@
                     "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T46"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T22"
+                  }
+                }
               }
             ]
           },
@@ -15724,6 +15736,18 @@
                 "properties": {
                   "vector": {
                     "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T39"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T29"
                   }
                 }
               }
@@ -18858,6 +18882,18 @@
                     "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T165"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/UnifiedQueryResponse/$defs/T128"
+                  }
+                }
               }
             ]
           },
@@ -20526,6 +20562,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -20764,6 +20801,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -22589,6 +22627,7 @@
               "kv_domain",
               "connection_domain",
               "source_domain",
+              "sink_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -22618,6 +22657,9 @@
               "source_domain": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
+              "sink_domain": {
+                "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
+              },
               "database": {
                 "$ref": "#/components/schemas/RelationalResponse/$defs/T11"
               },
@@ -22637,6 +22679,7 @@
               "kv_domain",
               "connection_domain",
               "source_domain",
+              "sink_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -23463,6 +23506,18 @@
                     "$ref": "#/components/schemas/RelationalResponse/$defs/T64"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T39"
+                  }
+                }
               }
             ]
           },
@@ -23908,6 +23963,18 @@
                 "properties": {
                   "vector": {
                     "$ref": "#/components/schemas/RelationalResponse/$defs/T56"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/RelationalResponse/$defs/T46"
                   }
                 }
               }
@@ -25139,6 +25206,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -25377,6 +25445,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -27493,6 +27562,7 @@
               "kv_domain",
               "connection_domain",
               "source_domain",
+              "sink_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -27522,6 +27592,9 @@
               "source_domain": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
+              "sink_domain": {
+                "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
+              },
               "database": {
                 "$ref": "#/components/schemas/CatalogResponse/$defs/T10"
               },
@@ -27541,6 +27614,7 @@
               "kv_domain",
               "connection_domain",
               "source_domain",
+              "sink_domain",
               "database",
               "initial_schema",
               "initial_schema_authority"
@@ -29671,6 +29745,18 @@
                     "$ref": "#/components/schemas/CatalogResponse/$defs/T111"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T89"
+                  }
+                }
               }
             ]
           },
@@ -30121,6 +30207,18 @@
                     "$ref": "#/components/schemas/CatalogResponse/$defs/T102"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/CatalogResponse/$defs/T25"
+                  }
+                }
               }
             ]
           },
@@ -30478,6 +30576,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -30890,6 +30989,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -32069,6 +32169,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -34254,7 +34355,9 @@
               "property_graph",
               "foreign",
               "managed",
-              "source"
+              "source",
+              "application",
+              "sink"
             ]
           },
           "T269": {
@@ -35889,6 +35992,18 @@
                     "$ref": "#/components/schemas/SqlReadResponse/$defs/T21"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/SqlReadResponse/$defs/T13"
+                  }
+                }
               }
             ]
           },
@@ -36152,6 +36267,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -36571,6 +36687,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -38398,6 +38515,18 @@
                     "$ref": "#/components/schemas/WorkbookResponse/$defs/T34"
                   }
                 }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "capability"
+                ],
+                "properties": {
+                  "capability": {
+                    "$ref": "#/components/schemas/WorkbookResponse/$defs/T26"
+                  }
+                }
               }
             ]
           },
@@ -38661,6 +38790,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"
@@ -39080,6 +39210,7 @@
               "range",
               "multirange",
               "vector",
+              "capability",
               "null_value",
               "text",
               "character"

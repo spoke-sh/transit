@@ -47,6 +47,16 @@ export function boundedQueryJson(input: unknown, maximumBytes = 1048576): boolea
   return visit(input, 0);
 }
 
+function fieldConstraintValid(field: LogicalField): boolean {
+  return (
+    field.max_characters === null ||
+    ("utf8" in field.type &&
+      Number.isInteger(field.max_characters) &&
+      field.max_characters >= 1 &&
+      field.max_characters <= 0xffffffff)
+  );
+}
+
 export function logicalTypeValid(type: LogicalType): boolean {
   let nodes = 0,
     names = 0;
@@ -68,6 +78,7 @@ export function logicalTypeValid(type: LogicalType): boolean {
         return false;
       return fields.every((field) => {
         if (!logicalName(field.name)) return false;
+        if (!fieldConstraintValid(field)) return false;
         names += encoder.encode(field.name).length;
         return (
           names <= 4096 &&
@@ -344,14 +355,20 @@ export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolea
     if ("list" in value)
       return (
         "list" in type &&
-        value.list.every((v) => visit(v, { name: "", ...type.list, optional: false }, depth + 1))
+        value.list.every((v) =>
+          visit(v, { name: "", ...type.list, optional: false, max_characters: null }, depth + 1),
+        )
       );
     if ("array" in value)
       return (
         "array" in type &&
         value.array.length === type.array.length &&
         value.array.every((v) =>
-          visit(v, { name: "", ...type.array.element, optional: false }, depth + 1),
+          visit(
+            v,
+            { name: "", ...type.array.element, optional: false, max_characters: null },
+            depth + 1,
+          ),
         )
       );
     if ("map" in value)
@@ -362,7 +379,11 @@ export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolea
             child(depth + 1) &&
             atom(entry.key, type.map.key) &&
             (i === 0 || atomKey(value.map[i - 1]!.key) < atomKey(entry.key)) &&
-            visit(entry.value, { name: "", ...type.map.value, optional: false }, depth + 1),
+            visit(
+              entry.value,
+              { name: "", ...type.map.value, optional: false, max_characters: null },
+              depth + 1,
+            ),
         )
       );
     if ("tagged_union" in value)
@@ -395,11 +416,21 @@ export function logicalCellValid(cell: LogicalCell, field: LogicalField): boolea
     return "json" in type && bytes <= 1048576 && jsonDocument(value.json);
   }
   function visit(value: LogicalCell, expected: LogicalField, depth: number): boolean {
-    if (!child(depth)) return false;
+    if (!child(depth) || !fieldConstraintValid(expected)) return false;
     if ("missing" in value) return expected.optional;
     if ("null" in value) return expected.nullable;
     if ("type_error" in value) return true;
-    if ("value" in value) return content(value.value, expected.type, depth);
+    if ("value" in value) {
+      if (!content(value.value, expected.type, depth)) return false;
+      if (expected.max_characters !== null) {
+        if (!("atom" in value.value) || !("utf8" in value.value.atom)) return false;
+        let characters = 0;
+        for (const _ of value.value.atom.utf8) {
+          if (++characters > expected.max_characters) return false;
+        }
+      }
+      return true;
+    }
     if (value.conflict.length < 2 || value.conflict.length > 8) return false;
     let previous = [0n, 0n];
     return value.conflict.every((a) => {

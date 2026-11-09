@@ -1,9 +1,11 @@
 # HTTP source ingestion v1
 
-Status: durable CONNECTION/SOURCE declarations, bounded inspection, retirement
+Status: durable CONNECTION/SOURCE/SINK declarations, bounded inspection, retirement
 and restricted DROP through the typed Catalog and native cohosted SQL service.
 HTTP scheduling, capture and activation remain uninstalled; their execution gates
 below are requirements for a later slice.
+SINK publication is available through the typed connector owner. Its SQL
+installation and application dispatch integration are not yet installed.
 Migration files reject connector declarations before admission; reviewed
 dependency plans and migration step recovery for these objects are not installed.
 
@@ -61,14 +63,41 @@ integers with `ms`, `s`, `m`, `h` or `d`, converted to milliseconds with checked
 arithmetic. Byte budgets are positive integer literals. Deployment limits apply
 in addition to declaration budgets; declaration validation grants no capacity.
 
+## Application HTTP sinks
+
+An application SINK is a separate catalog object with its own native authority
+domain and exact CONNECTION dependency. It shares connector publication,
+bounded inspection, retirement, original-operation recovery and restricted DROP.
+Its `inspect` and `use` actions are independent of connection use, application
+invocation, state mutation and eventual dispatch ownership. Publication checks
+current connection use and retains that dependency in the same catalog record.
+The connection cannot be dropped while the sink remains declared. A sink must
+be retired before DROP removes its edge; ordinary dependency edits cannot remove
+the connector owner's edge. Neither creation nor `use` alone permits sending.
+
+The immutable `Source.Sink` profile supports GET with no request encoding and
+POST with form encoding. It retains the exact origin-relative path, bounded
+ASCII Accept and optional User-Agent values, positive request timeout and a
+response budget from one byte through 64 KiB. Both methods require
+`protected_json` responses, `redacted_metadata` capture, no redirect following,
+exactly one attempt and retention of unknown outcomes. Header values exclude
+control bytes and are at most 256 bytes. Request values, credentials, protected
+response bodies and executor leases are absent from the declaration. A timeout
+budget does not renew an application's deadline or authorize a second attempt.
+
+The mandatory `sink_domain` is distinct from every other catalog authority
+domain. Bootstrap and SDK authority profiles carry it explicitly; a missing,
+zero or duplicated domain is invalid. This is part of the current-v1 cutover,
+not a defaulted upgrade of an existing installation.
+
 ## Immutable declaration artifacts
 
 [`SourceDeclaration`](../packages/zig/transit-catalog/src/SourceDeclaration.zig)
 defines a dedicated connector artifact, separate from relational view schemas.
 Canonical bytes have an eight-byte `TSOURCE1` prefix, the 32-byte current contract
 definition, and canonical JSON. The payload contains object/revision, original
-namespace/name, native authorization reference, owner and either an HTTP origin
-or the exact source binding. Its own digest is excluded. SHA-256 of the complete
+namespace/name, native authorization reference, owner and either an HTTP origin,
+the exact source binding or the sink's connection and HTTP profile. Its own digest is excluded. SHA-256 of the complete
 canonical bytes supplies both the immutable content commitment and definition
 digest. Artifact and saved request encodings are each bounded to 64 KiB.
 
@@ -88,6 +117,11 @@ record. The destination writer key is its stable object identity; the value
 retains its exact definition and original source operation. Control metadata
 reports unsupported execution, `never_run` and absent poll/publication positions.
 It must not synthesize an authorization or executor failure.
+Pending CREATE retains the staged artifact commitment until publication. The
+applied record keeps that commitment in its resulting declaration and clears
+the staging copy. Maximum-width pending and completed records remain within the
+existing 16 KiB catalog WAL record budget, including populated root directories
+and a full prerequisite guard.
 
 ## Publication, controls and authority
 

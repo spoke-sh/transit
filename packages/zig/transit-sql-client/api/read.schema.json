@@ -793,6 +793,18 @@
                   "$ref": "#/$defs/ReadResponse/$defs/T21"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/ReadResponse/$defs/T13"
+                }
+              }
             }
           ]
         },
@@ -1056,6 +1068,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -1475,6 +1488,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -3302,6 +3316,18 @@
                   "$ref": "#/$defs/WorkbookResponse/$defs/T34"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/WorkbookResponse/$defs/T26"
+                }
+              }
             }
           ]
         },
@@ -3565,6 +3591,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -3984,6 +4011,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"

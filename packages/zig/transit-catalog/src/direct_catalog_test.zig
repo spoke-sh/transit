@@ -7,7 +7,7 @@ const a = c.TableAuthority;
 const D = c.DirectCatalog;
 const P = s.TablePartition;
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .sink_domain = 36, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 const Source = c.DirectDocumentSource;
 
 fn sourceAuthority(access: *Access, admission: *Source.Admission) Source.Authority {
@@ -378,12 +378,12 @@ const Access = struct {
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table, .stream, .queue, .kv, .connection, .source => 100 + id,
+            .table, .stream, .queue, .kv, .connection, .source, .sink => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => a.reference(profile.database),
-            .table, .stream, .queue, .kv, .connection, .source => a.reference(profile.initial_schema_authority),
+            .table, .stream, .queue, .kv, .connection, .source, .sink => a.reference(profile.initial_schema_authority),
         }, .revision = 1 };
     }
     fn policy(self: *Access) D.Policy {
@@ -10999,6 +10999,7 @@ test "SOURCE CONNECTION reservation publication ownership and original recovery"
     catalog = try owner(&wal, &objects);
     const accepted = try connectorExecute(&catalog, &access, request);
     try t.expectEqual(.applied, accepted.phase);
+    try t.expect(accepted.staged == null);
     var metadata = (try catalog.resolveSource(t.allocator, .{ .namespace = 1, .kind = .connection }, request.intent.name, access.policy())).?;
     defer metadata.deinit();
     try t.expectEqualStrings("https://example.com", metadata.value.definition.payload.connection.endpoint);
@@ -11279,8 +11280,8 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
     stored.kind = .source;
     const state: c.DirectSource.State = .{ .declaration = stored, .control = p.Source.Control.initial(), .dropped = false };
     const edge: c.DirectDependency.Edge = .{ .source = stored.interpretation, .dependent = .{ .kind = .source, .interpretation = stored.interpretation }, .privileges = 3 };
-    // Exercise each supported publication shape: CREATE has a staged artifact,
-    // while successful control/DROP retain the old control and one definition.
+    // Exercise each completed shape; the staged commitment is retained only
+    // by pending publication, never duplicated alongside its resulting owner.
     const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = @splat(255), .root = root, .action = .{ .connector = .{ .binding = request.binding, .intent = stored.content, .kind = .source, .namespace = 1, .name = request.intent.name, .position = .{ .partition = 1, .next_lsn = 1 }, .phase = .applied, .reason = .stale_definition, .previous = state, .expected_control = state.control, .resulting = state, .destination = stored.interpretation, .staged = stored, .removed = .{ edge, edge }, .added = .{ edge, edge } } } };
     for ([_]p.DataLifecycle.Action{ .create, .alter, .drop }) |action| {
         var candidate = record;
@@ -11294,7 +11295,7 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
         operation.binding.expected_definition = if (action == .create) null else stored.interpretation;
         operation.previous = null;
         operation.expected_control = if (action == .create) null else state.control;
-        operation.staged = if (action == .create) stored else null;
+        operation.staged = null;
         operation.added = if (action == .create) .{ edge, edge } else @splat(null);
         operation.removed = if (action == .drop) .{ edge, edge } else @splat(null);
         connectorMaximumWidths(r.Record, &candidate);
@@ -11302,6 +11303,15 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
         defer t.allocator.free(encoded);
         if (encoded.len + 40 > 16 * 1024) std.debug.print("SOURCE {s} maximum record: {d} bytes\n", .{ @tagName(action), encoded.len + 40 });
         try t.expect(encoded.len + 40 <= 16 * 1024);
+        if (action == .create) {
+            operation.phase = .reserved;
+            operation.staged = operation.resulting.?.declaration;
+            operation.resulting = null;
+            operation.added = @splat(null);
+            const pending_bytes = try p.Json.valueAlloc(t.allocator, candidate);
+            defer t.allocator.free(pending_bytes);
+            try t.expect(pending_bytes.len + 40 <= 16 * 1024);
+        }
     }
 }
 
@@ -11968,4 +11978,82 @@ test "service and invocation request fences reject either replaced record across
         access.deny_at = access.calls + 2;
         try t.expectError(error.CatalogDenied, catalog.requireClientLease(lease, access.policy()));
     }
+}
+
+test "SOURCE SINK disk recovery protects connection and rechecks current use" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+    const upstream = try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const connection = (try connectorExecute(&catalog, &access, upstream)).resulting.?;
+    const request = try connectorCreation(78, 101, "token", .{ .sink = .{ .connection = connection.declaration.interpretation, .http = .{
+        .method = .POST,
+        .path = "/token",
+        .request_encoding = .form,
+        .accept = "application/json",
+        .user_agent = null,
+        .response = .protected_json,
+        .capture = .redacted_metadata,
+        .request_timeout_ms = 5000,
+        .response_max_bytes = 65536,
+        .follow_redirects = false,
+        .max_attempts = 1,
+        .unknown_outcome = .retain,
+    } } });
+    const before = catalog.store.root;
+    try t.expectEqual(.none, (try catalog.previewSource(request, access.policy())).reason);
+    try t.expectEqualDeep(before, catalog.store.root);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(request, .reserve, access.policy()));
+    catalog.store.lose_reply = false;
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    access.denied_privileges = .{ .id = connection.declaration.properties.authorization, .mask = c.SourceAuthority.use };
+    const reserved = catalog.store.root;
+    try t.expectError(error.CatalogDenied, connectorExecute(&catalog, &access, request));
+    try t.expectEqualDeep(reserved, catalog.store.root);
+    access.denied_privileges = null;
+    const accepted = try connectorExecute(&catalog, &access, request);
+    try t.expectEqual(.applied, accepted.phase);
+    try t.expect(accepted.staged == null);
+    try t.expectEqual(.published, accepted.resulting.?.control.?.state);
+    try t.expect(accepted.destination == null and accepted.added[1] == null);
+    try t.expectEqual(.sink, accepted.added[0].?.dependent.kind);
+    const edge = accepted.added[0].?;
+    try catalog.checkDependency(edge, access.policy());
+    access.denied_privileges = .{ .id = connection.declaration.properties.authorization, .mask = c.SourceAuthority.use };
+    try t.expectError(error.CatalogDenied, catalog.checkDependency(edge, access.policy()));
+    access.denied_privileges = null;
+    const drop_connection = try connectorEdit(connection, 102, .{ .drop = .{ .expected_epoch = null } });
+    try t.expectEqual(.dependency, (try connectorExecute(&catalog, &access, drop_connection)).reason);
+    var metadata = try catalog.inspectSource(t.allocator, accepted.resulting.?.declaration.interpretation, access.policy());
+    defer metadata.deinit();
+    try t.expectEqualStrings("/token", metadata.value.definition.payload.sink.http.path);
+    try t.expectEqual(.current, metadata.value.dependency_state);
+    // An ordinary graph edit cannot remove the connector owner's edge.
+    const edge_edit: c.DirectDependency.Binding = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = (try configuration()).audience, .principal = 1, .role = null }, .operation = 103, .edge = edge, .action = .remove, .authority = .dependent };
+    try t.expectError(error.CatalogDependencyOwned, catalog.dependencyOperation(edge_edit, .accept, access.policy()));
+    const premature = try connectorEdit(accepted.resulting.?, 104, .{ .drop = .{ .expected_epoch = 1 } });
+    try t.expectEqual(.not_retired, (try connectorExecute(&catalog, &access, premature)).reason);
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(accepted.resulting.?, 105, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
+    const dropped = try connectorExecute(&catalog, &access, try connectorEdit(retired, 106, .{ .drop = .{ .expected_epoch = 2 } }));
+    try t.expect(dropped.resulting.?.dropped);
+    try t.expectEqualDeep(edge, dropped.removed[0].?);
+    const removed = try connectorExecute(&catalog, &access, try connectorEdit(connection, 107, .{ .drop = .{ .expected_epoch = null } }));
+    try t.expect(removed.resulting.?.dropped);
+    _ = try connectorExecute(&catalog, &access, try connectorCreation(79, 108, "upstream", upstream.intent.action.create.payload));
+    // Name reuse never changes the original receipt or its immutable binding.
+    try t.expectEqualDeep(accepted, (try catalog.sourceOperation(request, .inspect, access.policy())).operation);
+    try t.expectEqual(.stale_definition, (try connectorExecute(&catalog, &access, try connectorCreation(80, 109, "stale", request.intent.action.create.payload))).reason);
 }

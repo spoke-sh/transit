@@ -44,7 +44,15 @@ test("lost Run reply reconnects to the same shared reader without resubmitting S
         view: {
           definition: readDefinition,
           result: "b".repeat(64),
-          columns: [{ name: "n", type: { int64: {} }, nullable: false, optional: false }],
+          columns: [
+            {
+              name: "n",
+              type: { int64: {} },
+              nullable: false,
+              optional: false,
+              max_characters: null,
+            },
+          ],
           rows: [],
           observation: '{"metadata":{}}',
           observation_kind: "metadata",
@@ -124,7 +132,15 @@ test("a changed shared result identity clears rows and stops automatic observati
         view: {
           definition: readDefinition,
           result: (action.run ? "b" : "c").repeat(64),
-          columns: [{ name: "n", type: { int64: {} }, nullable: false, optional: false }],
+          columns: [
+            {
+              name: "n",
+              type: { int64: {} },
+              nullable: false,
+              optional: false,
+              max_characters: null,
+            },
+          ],
           rows: [],
           observation: '{"metadata":{}}',
           observation_kind: "metadata",

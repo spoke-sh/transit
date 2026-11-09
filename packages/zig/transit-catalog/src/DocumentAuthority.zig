@@ -65,6 +65,7 @@ test "document privileges distinguish inspection read mutation checkpoint and ad
         .kv_domain = 33,
         .connection_domain = 34,
         .source_domain = 35,
+        .sink_domain = 36,
         .database = 4,
         .initial_schema = 1,
         .initial_schema_authority = 5,

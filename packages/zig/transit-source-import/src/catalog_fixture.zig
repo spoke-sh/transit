@@ -9,7 +9,7 @@ const a = c.TableAuthority;
 const D = c.DirectCatalog;
 const P = s.TablePartition;
 pub const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .sink_domain = 36, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 pub const Access = struct {
     principal: u64 = 1,
     calls: usize = 0,
@@ -71,12 +71,12 @@ pub const Access = struct {
         const native: u64 = switch (kind) {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
-            .table, .stream, .queue, .kv, .connection, .source => 100 + id,
+            .table, .stream, .queue, .kv, .connection, .source, .sink => 100 + id,
         };
         return .{ .reference = a.reference(native), .owner = 0, .registrar = 1, .actions = a.actions(kind), .domain = profile.domain(kind), .binding = if (erased(context).mismatch) @splat(9) else try a.binding(scope, kind, id), .parent = switch (kind) {
             .database => null,
             .schema => a.reference(profile.database),
-            .table, .stream, .queue, .kv, .connection, .source => a.reference(profile.initial_schema_authority),
+            .table, .stream, .queue, .kv, .connection, .source, .sink => a.reference(profile.initial_schema_authority),
         }, .revision = 1 };
     }
     pub fn policy(self: *Access) D.Policy {
