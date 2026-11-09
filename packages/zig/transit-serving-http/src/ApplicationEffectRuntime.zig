@@ -68,7 +68,8 @@ pub const Host = struct {
         const self: *Host = @ptrCast(@alignCast(context));
         var facilities = Requests.available();
         facilities.features.insert(.effects);
-        facilities.features.insert(.deadline);
+        // Exchange deadlines do not qualify native preflight or every
+        // transaction in an invocation. Keep whole-program deadlines gated.
         try self.runtime.requests.requireFacilities(allocator, declaration, facilities);
         for (declaration.resources) |resource| if (resource.value == .sink) {
             const selected = try self.runtime.placement(resource.value.sink.profile.connection);

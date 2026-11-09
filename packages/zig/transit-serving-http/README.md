@@ -208,8 +208,9 @@ shortens that budget. No fresh native dispatch admission means no send; later
 transport failure retains uncertainty. Complete responses remain known through
 failed private body sealing and cancellation. Response adoption checks the
 original deadline again before disclosing the protected body to its continuation.
-This exchange watchdog does not qualify a deadline across native preflight and
-successive application transactions. The explicit host still lacks ingress
+The explicit host rejects programs declaring `DEADLINE`: the exchange watchdog
+does not bound native preflight and successive application transactions. Sink
+timeouts and transient request expiry still bound each exchange. It also lacks ingress
 publication, handoff and transactional response facilities; node/SQL
 deployment composition must supply their owners before admitting the complete
 browser application.

@@ -672,7 +672,7 @@ fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClien
         .{ .value = .{ .sink = .{ .stored = sinks[0].state.declaration, .profile = sinks[0].definition.payload.sink } } },
         .{ .value = .{ .sink = .{ .stored = sinks[1].state.declaration, .profile = sinks[1].definition.payload.sink } } },
     };
-    const declared = try q.ApplicationDeclaration.prepare(allocator, .{
+    const program: q.ApplicationDeclaration.Input = .{
         .connection = client.connection,
         .namespace = 1,
         .object = 748020,
@@ -680,7 +680,7 @@ fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClien
         .resources = &resources,
         .limits = limits,
         .source =
-        \\CREATE DATAFLOW application_http_effects FROM QUEUE application_http_input AS event WITH (DEADLINE = '5s') AS BEGIN
+        \\CREATE DATAFLOW application_http_effects FROM QUEUE application_http_input AS event AS BEGIN
         \\  LET code = HTTP_SECRET_QUERY_UNIQUE(event.request, 'code');
         \\  LET token = EXECUTE SINK application_http_token EFFECT OPERATION_ID(event.id, 'token') GUARD TRUE
         \\    FORM (code = code, mode = CASE WHEN event.mode = 2 THEN 'slow' ELSE 'fast' END) ON REPLAY OBSERVE ONLY;
@@ -693,7 +693,8 @@ fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClien
         \\  REQUIRE event.mode > 0 AND (failure.effect_outcome = 'unknown' OR failure.effect_outcome = 'not_dispatched') ELSE 'UnexpectedEffectFailure';
         \\END;
         ,
-    });
+    };
+    const declared = try q.ApplicationDeclaration.prepare(allocator, program);
     defer declared.deinit();
     const value = declared.value;
     const manager: q.ManagedApplication = .{ .client = client };
@@ -767,6 +768,14 @@ fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClien
     };
     var host: Runtime.Host = .{ .runtime = &runtime, .pool = &pool, .io = init.io };
     const native = host.host();
+    // A physical exchange deadline does not establish whole-program support.
+    // Reject the declared facility before attaching or acquiring any input.
+    const body = std.mem.indexOf(u8, program.source, " AS BEGIN").?;
+    var limited = program;
+    limited.source = try std.fmt.allocPrint(allocator, "{s} WITH (DEADLINE = '5s'){s}", .{ program.source[0..body], program.source[body..] });
+    const unsupported = try q.ApplicationDeclaration.prepare(allocator, limited);
+    defer unsupported.deinit();
+    try t.expectError(error.ApplicationHostUnavailable, native.ready(native.context, allocator, unsupported.value));
     try native.ready(native.context, allocator, value);
     const execution: X = .{ .owner = owner, .native = native };
     var lost_completion: usize = 0;

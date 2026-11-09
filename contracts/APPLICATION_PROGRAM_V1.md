@@ -219,10 +219,11 @@ time. Rechecks only shorten the budget; the sink timeout and transient request
 expiry may shorten it further. Missing/regressing clocks or expiry refuse work.
 This component does not itself activate HTTP execution or authorize dispatch;
 the enclosing worker must bound and join its I/O and repeat current guards.
-The default application host does not advertise deadline support. The explicit
-HTTP worker bounds the exchange; the whole-program path across native preflight
-and successive atomic blocks remains unqualified. Generic native transaction
-deadlines do not establish that integration.
+Both the default application host and the explicit HTTP host reject programs
+declaring a deadline. The physical HTTP worker bounds each exchange by its sink
+timeout and transient request expiry; the whole-program path across native
+preflight and successive atomic blocks remains unqualified. Generic native
+transaction deadlines do not establish that integration.
 
 `NOW()` currently observes the host wall clock and retains its original candidate.
 It is not the native Queue clock interval or a trusted policy-time observation.
