@@ -939,7 +939,7 @@ flowchart TB
 4. **$O(\log N)$ point lookups, $O(1)$ row-group pruning and single-RTT suffix footer reads:**
    Rows within a `.tseg` file are sorted by primary key (or clustering key). In
    the target [Milestone 11](../../roadmap/11-indexing-and-access-paths.md) /
-   [Milestone 13](../../roadmap/13-data-structures-and-performance.md) layout,
+   [Milestone 14](../../roadmap/14-data-structures-and-performance.md) layout,
    the footer is bounded ($\le 64\text{ KiB}$ for a single `Range: bytes=-65536`
    suffix read on EFS or cloud object storage) and embeds **Collation-Aware Zone
    Maps (`min` / `max`)**, cache-line-aligned **Split-Block Bloom Filters** (~10

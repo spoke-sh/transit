@@ -167,9 +167,9 @@ from the qualification owner.
 | [M3](03-live-storage-and-sql-cutover.md#implementation-plan--2026-10-27), In Progress | Installed direct Tables, lazy schema projection, WAL reads, automatic maintenance, database-owned SQL and single-executable packaging | Implementation can start from these merged owners. Preserve P1 native-resource/caller boundaries and P4 maintenance/retention checks. Coordinate P5 read/wait costs and P6 inspection; require affected installed recovery and resource gates at M5 P9. M3 P4–P6 and P8 remain independently open. |
 | [M4](04-statement-results-and-consumption.md#delivered-integration-boundary), Completed | `transit-sql-results`, `Executor`, bounded `ResultSet`, typed counts and immutable observation evidence | Extend the shared model with provisional transaction attribution and decision evidence in P0/P5. Keep completion, delivery and closure separate. Do not rebuild submission/fetch/recovery in each adapter. |
 | [M6 Step 1](06-streams-queues-and-durable-runtime.md#sql-database-runtime-cutover--2026-10-28), In Progress | `DirectClientToken`, `DatabaseRuntime`, activation fencing, `ReadCache`, `commit_saved`, and build checks excluding Station from database packages | The architectural prerequisite is delivered. Preserve the one-data-append fast path and measure complete control-path cost; its remaining performance/installation gates are not prerequisites for drafting P0, nor are they automatically passed by this plan. |
-| [M13 / #194](13-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
-| [M21](21-service-and-sdk-coverage.md), In Progress; [M9](09-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
-| [M22 T4](22-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
+| [M14 / #194](14-data-structures-and-performance.md#implementation-plan-for-issue-194), In Progress | Admitted result/client/service reserves and `transit-memory` / `transit-io` owners | Budget transaction work separately from result and recovery capacity; coordinate source/storage allocation work with F–J. Rebase its older `AccountRuntime` references onto `DatabaseRuntime`; they are not an instruction to restore actors. |
+| [M22](22-service-and-sdk-coverage.md), In Progress; [M9](09-client-foundation-and-language-apis.md), Planned | Existing console, wire adapters and SDKs; agreed future shared-client direction | M5 delivers typed Zig and native SQL transaction callers plus the existing PostgreSQL/MySQL mappings. Review language ownership now; broad new language/Flight transaction coverage remains with M7/M16. |
+| [M23 T4](23-formal-semantics-and-correspondence.md#t4-transaction-decisions-isolation-and-atomic-outbox-publication), In Progress | Model/checker infrastructure and an explicit transaction candidate | Select the local OCC/decision model and production correspondence during P0, replay its counterexamples in P3/P4, and retain its bounded assumptions. Later SSI and distributed proofs do not substitute for the local gate. |
 
 The storage follow-up at this base deliberately **does not adopt** the reusable
 128 MiB private maintenance reserve: installed RSS increased without a clear
@@ -274,7 +274,7 @@ qualification. Public references own the executable syntax and exact limits.
    participant guards for the first local Table profile. Because whole-Table
    read conflict detection aborts concurrent read-write transactions touching
    disjoint keys on the same Table, [indexing and access paths](11-indexing-and-access-paths.md)
-   and [concurrent-writer qualification](23-storage-providers-and-concurrency.md)
+   and [concurrent-writer qualification](24-storage-providers-and-concurrency.md)
    explicitly own the progression to fine-grained key-range and predicate-level
    Serializable Snapshot Isolation (SSI / index-range conflict tracking) over the
    same transaction session and recovery contract; neither can weaken the
@@ -377,23 +377,23 @@ not because a tree offers optimistic traversal. Include indexed/unindexed and
 parent/child foreign-key histories in later qualification.
 
 [Historical catalogs](10-standards-and-catalogs.md) retain exact interpretation;
-[dataflows](12-sql-and-dataflows.md) consume complete transaction changes without
+[dataflows](13-sql-and-dataflows.md) consume complete transaction changes without
 publishing half a multi-object update. General `MERGE`/upsert and prepared-plan
 features stay with SQL composition; this milestone owns their transaction
-interactions. [Foreign relations](18-multi-model-and-foreign-relations.md) owns
+interactions. [Foreign relations](19-multi-model-and-foreign-relations.md) owns
 typed `COPY`/import/export and its adapters. Foreign observations are not
 automatically transactional participants, and exporting bytes cannot be undone
 by local rollback.
 
-[Branches](20-branches-merges-and-restore.md) own multi-commit histories, merge
-validation and forward restore. [Investigations](28-published-resources-and-investigations.md)
+[Branches](21-branches-merges-and-restore.md) own multi-commit histories, merge
+validation and forward restore. [Investigations](29-published-resources-and-investigations.md)
 own retained multi-call bases, including honestly independent source vectors.
 Neither requires keeping an interactive transaction open for hours or days.
 
 The first qualified deployment is an explicitly bounded atomic domain over the
-local foundations. [Provider/concurrent-writer qualification](23-storage-providers-and-concurrency.md),
-[replication](24-replication-and-failover.md), [operations](25-operations-and-recovery.md)
-and [clustered execution](26-clustered-execution.md) extend and requalify decision
+local foundations. [Provider/concurrent-writer qualification](24-storage-providers-and-concurrency.md),
+[replication](25-replication-and-failover.md), [operations](26-operations-and-recovery.md)
+and [clustered execution](27-clustered-execution.md) extend and requalify decision
 durability, fencing and placement. Design all experiences together without
 claiming arbitrary distributed atomicity before those profiles execute.
 

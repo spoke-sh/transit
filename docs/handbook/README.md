@@ -222,9 +222,9 @@ keywords from [the SQL grammar](../../contracts/sql/TransitExtensions.g4).
 It preserves the standard rules for comments, strings and quoted identifiers.
 The source basis is [Streams and Queues](../roadmap/06-streams-queues-and-durable-runtime.md),
 [Documents](../roadmap/07-document-storage-and-station-decoupling.md),
-[dataflows](../roadmap/12-sql-and-dataflows.md) and
-[branch review](../roadmap/20-branches-merges-and-restore.md).
-The [grammar direction](../roadmap/43-sql-grammar-and-dialect-ergonomics.md)
+[dataflows](../roadmap/13-sql-and-dataflows.md) and
+[branch review](../roadmap/21-branches-merges-and-restore.md).
+The [grammar direction](../roadmap/44-sql-grammar-and-dialect-ergonomics.md)
 preserves workload-specific verbs and shared lifecycle controls. The stories
 illustrate the existing declaration shapes and proposed `STREAM_SLICE` form;
 they do not invent settled Document mutations, KV query adapters or automatic

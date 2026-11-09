@@ -36,12 +36,12 @@ profiles take precedence over proposed interfaces in this plan.
 
 | Concern | Owner and boundary |
 | --- | --- |
-| Computation identity, inputs, progress and result publication | [M12](12-sql-and-dataflows.md), [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md) and [SQL results](../../contracts/SQL_RESULTS_V1.md). A captured source vector is atomic only when its owning contract establishes a common cut. |
-| Native execution and specialization | [M13](13-data-structures-and-performance.md) and [M15](15-data-centric-compilation-and-specialization.md) own resource metering, planning and compiled Zig execution. |
-| Deductive rules and equivalent expressions | [M41](41-deductive-rules-datalog-and-equivalence-graphs.md) owns native Datalog, admitted lattice/equivalence operators and witnesses; [M22](22-formal-semantics-and-correspondence.md) owns selected formal correspondence. |
-| Hardware inputs and evidence | [M42](42-hardware-design-rtl-and-eda-verification.md), [M18](18-multi-model-and-foreign-relations.md) and [M17](17-geospatial-and-spatio-temporal-computing.md) own RTL/netlist projections and qualified graph/spatial checks. Applications select EDA tools and domain rules. |
-| Candidate and experiment attribution | [M37](37-ml-ai-and-experiment-provenance.md), [M39](39-software-build-and-deployment-evidence.md) and [M40](40-constrained-planning-and-optimization.md) supply exact experiment/build/problem identities and scoped outcome evidence. |
-| Proposed changes and activation | [M20](20-branches-merges-and-restore.md), [M27](27-control-and-policy-plane.md) and [M29](29-reviewed-data-collaboration.md) own branches, policy and reviewed publication. [M46](46-declarative-language-context-and-synthesis.md) may consume the workflow for speculative synthesis. |
+| Computation identity, inputs, progress and result publication | [M13](13-sql-and-dataflows.md), [data lifecycle](../../contracts/DATA_LIFECYCLE_V1.md) and [SQL results](../../contracts/SQL_RESULTS_V1.md). A captured source vector is atomic only when its owning contract establishes a common cut. |
+| Native execution and specialization | [M14](14-data-structures-and-performance.md) and [M16](16-data-centric-compilation-and-specialization.md) own resource metering, planning and compiled Zig execution. |
+| Deductive rules and equivalent expressions | [M42](42-deductive-rules-datalog-and-equivalence-graphs.md) owns native Datalog, admitted lattice/equivalence operators and witnesses; [M23](23-formal-semantics-and-correspondence.md) owns selected formal correspondence. |
+| Hardware inputs and evidence | [M43](43-hardware-design-rtl-and-eda-verification.md), [M19](19-multi-model-and-foreign-relations.md) and [M18](18-geospatial-and-spatio-temporal-computing.md) own RTL/netlist projections and qualified graph/spatial checks. Applications select EDA tools and domain rules. |
+| Candidate and experiment attribution | [M38](38-ml-ai-and-experiment-provenance.md), [M40](40-software-build-and-deployment-evidence.md) and [M41](41-constrained-planning-and-optimization.md) supply exact experiment/build/problem identities and scoped outcome evidence. |
+| Proposed changes and activation | [M21](21-branches-merges-and-restore.md), [M28](28-control-and-policy-plane.md) and [M30](30-reviewed-data-collaboration.md) own branches, policy and reviewed publication. [M47](47-declarative-language-context-and-synthesis.md) may consume the workflow for speculative synthesis. |
 
 Datalog is a proposed native computation surface over versioned relations.
 Verilog is hardware-design source consumed by an elaborator, simulator,

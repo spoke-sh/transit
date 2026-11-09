@@ -23,11 +23,11 @@ milestone to acquire sound ownership. The
 the current boundaries.
 
 This milestone extracts the foundation from
-[language-native programming and mixed composition](34-programming-model.md).
+[language-native programming and mixed composition](35-programming-model.md).
 That later milestone retains the recorded source assessment, all three mixed
 capabilities (recorded effects, durable consumers and typed Station calls),
 Station behavior ergonomics and the complete installed cross-language journeys
-after outbound MCP. [Service/SDK coverage](21-service-and-sdk-coverage.md)
+after outbound MCP. [Service/SDK coverage](22-service-and-sdk-coverage.md)
 retains its delivered raw-client/console slices and operation/platform breadth;
 it expands over this package and API foundation rather than establishing a
 competing interface first. None of the split marks existing work complete.
@@ -77,8 +77,8 @@ competing interface first. None of the split marks existing work complete.
    first, including concurrent facets through the shared host. Existing consumers
    in every affected language migrate coherently; the representative set does
    not excuse a broken existing binding. Broader new operation/platform coverage
-   remains [M21](21-service-and-sdk-coverage.md); full mixed and Station ergonomics
-   remain [M34](34-programming-model.md).
+   remains [M22](22-service-and-sdk-coverage.md); full mixed and Station ergonomics
+   remain [M35](35-programming-model.md).
    Apply the current-v1 cutover policy to incompatible ABI/stored semantics,
    regenerate fixtures, reject incompatible saved artifacts, and publish current
    behavior in caller/component/SDK owners as each slice lands.
@@ -123,7 +123,7 @@ retains the original planning revision; the delivered increment is recorded
 | M6 logs and SQL | Stream/Queue lifecycle, finite reads, claim waits and settlements are implemented. [Installed declaration SQL](../history/qualification/sql.md#stream-and-queue-declaration-sql--2026-10-31) covers DDL and metadata through native SQL, console, PostgreSQL and MySQL. Explicit paired DLQ statements are implemented. | Compose typed payload operations and reuse SQL results for declarations. Workload SQL verbs, retained `STREAM_SLICE`, mixed SQL, automatic DLQ scheduling and installed transfer qualification remain M6 work. |
 | M7 Documents | Logical algebra, `DocumentPartition`, tree/shredding and retained-storage foundations exist; the [public caller and consumer cutover](07-document-storage-and-station-decoupling.md#implementation-plan-for-remaining-work) remains unfinished. | Keep direct Document APIs and transaction participation gated. M7 supplies the minimal public caller and migrates affected consumers; it must not wait for M9's complete language redesign. |
 | M8 gateways | Event-driven recovery and local SQL composition are delivered. [Resumable PG/MySQL command engines](08-gateway-architecture-and-protocol-ingress.md#resumable-command-session-implementation--2026-10-31) now emit neutral requests/output; the installed host still has blocking workers and timer races. [Startup reductions](08-gateway-architecture-and-protocol-ingress.md#installed-startup-reduction-plan--2026-10-31) have paired iteration evidence. | Use the existing SQL client/service seam. CPU-scaled scheduling, socket deadlines, coarse remote execution, broader ingress and final performance gates remain M8 obligations. Measure SDK startup separately from server readiness. |
-| M20 branches | A [read-only immutable single-Table branch](20-branches-merges-and-restore.md#local-table-branch-increment) is available through typed callers with retained definition/data attribution. Whole-catalog and writable branches remain open. | Preserve full branch identity and existing branch reads through extraction. Do not globally force branch one, widen transaction branch support or promise writable/merged branches. |
+| M20 branches | A [read-only immutable single-Table branch](21-branches-merges-and-restore.md#local-table-branch-increment) is available through typed callers with retained definition/data attribution. Whole-catalog and writable branches remain open. | Preserve full branch identity and existing branch reads through extraction. Do not globally force branch one, widen transaction branch support or promise writable/merged branches. |
 
 The [client qualification record](../history/qualification/sdk.md#local-sql-recovery-and-context-leases--2026-10-31)
 includes passing package/native checks and actual-file plus scripted SQL tests.
@@ -303,10 +303,10 @@ with M21; preserving an existing affected binding is an M9 obligation.
 | Native mixed work | Expose the existing state/append/settlement participant vocabulary and exact decision recovery; add paired transfer after its installed gate. | M6 owns remaining mixed fault qualification and Station/effect consumer migration. A typed variant alone does not qualify an installed transfer. |
 | Document | Integrate M7's shared direct caller, accepted revisions, five-state cells, exact recovery and qualified participant when delivered. | M7 owns public dispatch, the acceptance/consumer cutover and atomic Document participation. Private candidate bytes are not accepted revisions. |
 | [M10](10-standards-and-catalogs.md#delivered-implementation-evidence--2026-10-30) / [M11](11-indexing-and-access-paths.md) | Preserve exact definitions, comparison/type descriptors, operation progress and metadata observation through generated/native APIs. | Standards/helper tests do not establish executable historical catalogs, constraints or indexes. Their durable runtime/SQL integrations stay with those owners. |
-| [M12](12-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30)–[M15](15-data-centric-compilation-and-specialization.md) | Bounded batch/lease APIs and measured bridge costs must accept later operators without changing logical completion. Preserve finite, captured and maintained lifetimes. | Component dataflow/string helpers do not establish durable activation, a metered service, integrated search or AOT execution. No SDK-side query scheduler. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md)–[M20](20-branches-merges-and-restore.md) | Keep typed codec and kind/definition/branch attribution extensible; retain the implemented immutable Table branch profile. | Document profiles, spatial/foreign adapters, asset pipelines, writable branches, merge and restore require their own current-v1 integration and proof. |
-| [M21](21-service-and-sdk-coverage.md) / [M34](34-programming-model.md) | Supply independent packages, composable facets and shared recovery semantics. | M21 expands operations/platforms/Flight/browser coverage. M34 owns complete mixed programs, standalone recorded effects, durable subscriptions and typed Station calls. A Node filesystem store proves no browser recovery profile. |
-| [M22](22-formal-semantics-and-correspondence.md), [M23](23-storage-providers-and-concurrency.md)–[M26](26-clustered-execution.md), [M27](27-control-and-policy-plane.md)–[M33](33-recorded-mcp-integrations.md) | Preserve replayable transitions, exact authority identity, current authorization and source-bound public observations. | Formal/distributed, governance, Board, publication and agent integrations do not extend M9's local delivery claim. Board inspection stays read-only. |
+| [M13](13-sql-and-dataflows.md#delivered-implementation-evidence--2026-10-30)–[M16](16-data-centric-compilation-and-specialization.md) | Bounded batch/lease APIs and measured bridge costs must accept later operators without changing logical completion. Preserve finite, captured and maintained lifetimes. | Component dataflow/string helpers do not establish durable activation, a metered service, integrated search or AOT execution. No SDK-side query scheduler. |
+| [M17](17-document-profiles-and-gateway-exchange-lifecycle.md)–[M21](21-branches-merges-and-restore.md) | Keep typed codec and kind/definition/branch attribution extensible; retain the implemented immutable Table branch profile. | Document profiles, spatial/foreign adapters, asset pipelines, writable branches, merge and restore require their own current-v1 integration and proof. |
+| [M22](22-service-and-sdk-coverage.md) / [M35](35-programming-model.md) | Supply independent packages, composable facets and shared recovery semantics. | M21 expands operations/platforms/Flight/browser coverage. M34 owns complete mixed programs, standalone recorded effects, durable subscriptions and typed Station calls. A Node filesystem store proves no browser recovery profile. |
+| [M23](23-formal-semantics-and-correspondence.md), [M24](24-storage-providers-and-concurrency.md)–[M27](27-clustered-execution.md), [M28](28-control-and-policy-plane.md)–[M34](34-recorded-mcp-integrations.md) | Preserve replayable transitions, exact authority identity, current authorization and source-bound public observations. | Formal/distributed, governance, Board, publication and agent integrations do not extend M9's local delivery claim. Board inspection stays read-only. |
 
 ### Verification and first implementation changes
 
@@ -601,13 +601,13 @@ those labels identify work packages, not a requirement to publish adapters first
 | Later owner | Foundation M9 must leave usable | Work retained by that owner |
 | --- | --- | --- |
 | [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Lossless logical values and orthogonal type/collation/codec descriptors; exact definitions, pins, operation progress and diagnostics | Historical interpretation, constraints and index/rewrite operations. Support follows the executed owner, not a type tag or parser capability. |
-| [M12](12-sql-and-dataflows.md), [M13](13-data-structures-and-performance.md), [M14](14-vectorized-strings-and-search.md), [M15](15-data-centric-compilation-and-specialization.md) | Bounded result batches, transferable ownership, measured bridge costs and distinct computation lifetimes | Managed computation activation, query/search operators, resource policies and compilation. No SDK scheduler, result-materialization requirement or baked-in storage/vector page size. |
-| [M16](16-document-profiles-and-gateway-exchange-lifecycle.md)–[M20](20-branches-merges-and-restore.md) | Exact kind/definition/branch attribution, five-state values and owner-extensible typed codecs | Document profiles, spatial types, foreign relations and branches. Preserve branch fields while refusing unsupported branches; do not add executable placeholders or silently assume all references mean branch one. |
-| [M21](21-service-and-sdk-coverage.md) | Independent client packages, shared ABI/port contracts and representative installed journeys | New language, service, browser, Flight/ADBC and platform breadth. Existing affected bindings still migrate in M9; Node filesystem recovery proves no browser profile. |
-| [M22](22-formal-semantics-and-correspondence.md), [M23](23-storage-providers-and-concurrency.md)–[M26](26-clustered-execution.md) | Replayable deterministic context/knowledge transitions and original authority/instance identity | Formal correspondence and distributed/provider/failover qualification. Reconnecting to a different authority never silently resubmits accepted work. |
-| [M27](27-control-and-policy-plane.md)–[M31](31-mcp-service-and-apps.md) | Current authorization and source-bound, bounded observations through shared public operations | Enterprise identity, published resources/investigations, reviewed changes, Board and MCP. Runtime consumers use shared packages; Board inspection keeps its read-only grant. |
-| [M32](32-reactive-context-and-agent-activation.md)–[M34](34-programming-model.md) | Composable facets, shared values, original-operation recovery and explicit transaction/effect boundaries | Durable subscriptions, standalone recorded effects, typed Station calls and full direct/Station/mixed journeys. Finite Stream waits do not establish continuous subscriptions. |
-| [M43](43-sql-grammar-and-dialect-ergonomics.md), [M44](44-qualification-and-benchmarks.md), [M45](45-releases.md) | Version-bound generated resources, precise capability reporting, installed examples and reproducible measurements | Grammar harmonization, combined qualification and distribution. M9 cannot defer its own installed correctness or matching artifact checks to release work. |
+| [M13](13-sql-and-dataflows.md), [M14](14-data-structures-and-performance.md), [M15](15-vectorized-strings-and-search.md), [M16](16-data-centric-compilation-and-specialization.md) | Bounded result batches, transferable ownership, measured bridge costs and distinct computation lifetimes | Managed computation activation, query/search operators, resource policies and compilation. No SDK scheduler, result-materialization requirement or baked-in storage/vector page size. |
+| [M17](17-document-profiles-and-gateway-exchange-lifecycle.md)–[M21](21-branches-merges-and-restore.md) | Exact kind/definition/branch attribution, five-state values and owner-extensible typed codecs | Document profiles, spatial types, foreign relations and branches. Preserve branch fields while refusing unsupported branches; do not add executable placeholders or silently assume all references mean branch one. |
+| [M22](22-service-and-sdk-coverage.md) | Independent client packages, shared ABI/port contracts and representative installed journeys | New language, service, browser, Flight/ADBC and platform breadth. Existing affected bindings still migrate in M9; Node filesystem recovery proves no browser profile. |
+| [M23](23-formal-semantics-and-correspondence.md), [M24](24-storage-providers-and-concurrency.md)–[M27](27-clustered-execution.md) | Replayable deterministic context/knowledge transitions and original authority/instance identity | Formal correspondence and distributed/provider/failover qualification. Reconnecting to a different authority never silently resubmits accepted work. |
+| [M28](28-control-and-policy-plane.md)–[M32](32-mcp-service-and-apps.md) | Current authorization and source-bound, bounded observations through shared public operations | Enterprise identity, published resources/investigations, reviewed changes, Board and MCP. Runtime consumers use shared packages; Board inspection keeps its read-only grant. |
+| [M33](33-reactive-context-and-agent-activation.md)–[M35](35-programming-model.md) | Composable facets, shared values, original-operation recovery and explicit transaction/effect boundaries | Durable subscriptions, standalone recorded effects, typed Station calls and full direct/Station/mixed journeys. Finite Stream waits do not establish continuous subscriptions. |
+| [M44](44-sql-grammar-and-dialect-ergonomics.md), [M45](45-qualification-and-benchmarks.md), [M46](46-releases.md) | Version-bound generated resources, precise capability reporting, installed examples and reproducible measurements | Grammar harmonization, combined qualification and distribution. M9 cannot defer its own installed correctness or matching artifact checks to release work. |
 
 ### Verification and delivery checklist
 
@@ -683,7 +683,7 @@ TypeScript on Node, on the currently supported Linux x86_64 installation profile
 | [Raw ABI](../../packages/zig/transit-client/docs/bindings.md) and [client host](../../apps/transit-client-host/README.md) are already independent; [Station host](../../apps/transit-station-host/README.md) has exclusive catalog/query/behavior/codec profiles | Preserve raw-only use while adding a composable data context. Avoid requiring one child process and I/O pool for each facet. |
 | [M8 recovery evidence](../history/qualification/sql.md#event-driven-sql-recovery--2026-10-29) qualifies foreground pending settlement and event-driven recovery; the [matched comparison](../history/qualification/performance.md#event-driven-sql-recovery--2026-10-29) records zero post-statement idle upstream calls alongside write-latency regressions | Consume this delivered owner. Do not rebuild its recovery loop in clients or treat less idle traffic as proof that the latency target is met. |
 | [M7](07-document-storage-and-station-decoupling.md#implementation-plan-for-initial-document-decoupling) has delivered the deterministic `transit-document` core and private `DocumentIndex` staging | This is not a public `DocumentPartition` service. Gate direct Document APIs on acceptance, retention, authorization and the coordinated consumer cutover. |
-| [M13](13-data-structures-and-performance.md#implementation-plan-for-issue-194) and the SQL client already establish reusable reserves and explicit batch/statement lifetimes | Reuse those primitives and measure all added bridge/host costs. A new context must not reintroduce per-facet pools or per-row backing allocation. |
+| [M14](14-data-structures-and-performance.md#implementation-plan-for-issue-194) and the SQL client already establish reusable reserves and explicit batch/statement lifetimes | Reuse those primitives and measure all added bridge/host costs. A new context must not reintroduce per-facet pools or per-row backing allocation. |
 
 The first Table/SQL slice can ship before all of M6/M7. It is an intermediate
 foundation gate, not completion of every declared data facet. P7 below requires
@@ -703,11 +703,11 @@ whether they are in the representative new-feature set.
 | [M6](06-streams-queues-and-durable-runtime.md), In Progress | Delivered database/SQL decoupling; future direct KV, Stream/Queue operations and state/input/output transaction composition | P1 preserves the delivered database boundary. P7 waits for native operations, recovery evidence and the Station atomicity migration where affected. |
 | [M7](07-document-storage-and-station-decoupling.md), In Progress | Shared Document semantics now; direct Document lifecycle and public replacement later | Reuse its types without copying merge logic. Do not expose private staged roots as accepted revisions or implement a temporary Station-backed direct Document API. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md#implementation-plan--2026-10-28), In Progress | Delivered foreground settlement/event-driven recovery and selected typed local dispatch/node co-hosting; configuration handoff, coarse remote submission, transport/control lanes and sans-I/O work remain | P0/P1 and deterministic context work can proceed. P4–P6 consume the delivered local seam while preserving M8's remaining P2a–P2c and applicable P3/P4 gates. P8 needs those qualified paths, not completion of unrelated Flight/Serving or new data-kind coverage. |
-| [M13](13-data-structures-and-performance.md), In Progress | Memory/I/O reserves, accounting definitions, current SQL result lifetimes and regression measures | Share allocator/context changes and baseline workloads. M9 owns new client/bridge overhead; M13 owns broader database optimization and scorecards. |
-| [M21](21-service-and-sdk-coverage.md), In Progress | Existing Go raw and SDK/console coverage | Preserve existing installed consumers during migration. New parity follows this foundation instead of extending the Station-shaped data bridge. |
-| [M22](22-formal-semantics-and-correspondence.md#t2-statement-results-disclosure-and-uncertain-settlement), In Progress | Result/settlement models and implementation correspondence | Supply deterministic context/recovery transitions and replay fixtures; do not wait for all formal work or claim full refinement from bounded checks. |
-| [M30](30-board-reimplementation.md), In Progress | Public catalog/SQL/browser consumers | Migrate shared boundary changes with their consumers, preserving read-only inspection and browser-specific credentials. Board runtime code never imports consumer SDKs. |
-| [M45](45-releases.md), In Progress | Installed native/client packaging and release checks | Add matching generated resources and independent artifacts to current installation checks. New platforms and registry publication remain release/coverage work. |
+| [M14](14-data-structures-and-performance.md), In Progress | Memory/I/O reserves, accounting definitions, current SQL result lifetimes and regression measures | Share allocator/context changes and baseline workloads. M9 owns new client/bridge overhead; M13 owns broader database optimization and scorecards. |
+| [M22](22-service-and-sdk-coverage.md), In Progress | Existing Go raw and SDK/console coverage | Preserve existing installed consumers during migration. New parity follows this foundation instead of extending the Station-shaped data bridge. |
+| [M23](23-formal-semantics-and-correspondence.md#t2-statement-results-disclosure-and-uncertain-settlement), In Progress | Result/settlement models and implementation correspondence | Supply deterministic context/recovery transitions and replay fixtures; do not wait for all formal work or claim full refinement from bounded checks. |
+| [M31](31-board-reimplementation.md), In Progress | Public catalog/SQL/browser consumers | Migrate shared boundary changes with their consumers, preserving read-only inspection and browser-specific credentials. Board runtime code never imports consumer SDKs. |
+| [M46](46-releases.md), In Progress | Installed native/client packaging and release checks | Add matching generated resources and independent artifacts to current installation checks. New platforms and registry publication remain release/coverage work. |
 
 Agree the M8 handoff before changing common code:
 
@@ -1460,29 +1460,29 @@ does not silently waive P7. Update this milestone and the roadmap index together
   [M11](11-indexing-and-access-paths.md) extend exact definitions, historical
   interpretation, constraints and index progress through these types and
   operation handles. No SDK-owned index scheduler or alternative snapshot truth.
-- [M12](12-sql-and-dataflows.md),
-  [M16](16-document-profiles-and-gateway-exchange-lifecycle.md),
-  [M17](17-geospatial-and-spatio-temporal-computing.md) and
-  [M18–M20](20-branches-merges-and-restore.md) extend computation, Document profiles,
+- [M13](13-sql-and-dataflows.md),
+  [M17](17-document-profiles-and-gateway-exchange-lifecycle.md),
+  [M18](18-geospatial-and-spatio-temporal-computing.md) and
+  [M18–M21](21-branches-merges-and-restore.md) extend computation, Document profiles,
   geospatial/spatio-temporal computing, foreign data and branches through their own contracts. Reserve composition
   points, not executable placeholder APIs or hardcoded branch-one assumptions
   in otherwise neutral references.
-- [M21](21-service-and-sdk-coverage.md) expands language/service/platform parity,
+- [M22](22-service-and-sdk-coverage.md) expands language/service/platform parity,
   including Flight/ADBC and browser/reactive profiles. M9's Node host/store and
   native Arrow ownership do not establish those interfaces.
-- [M23–M26](26-clustered-execution.md) own provider/distributed placement and
+- [M23–M27](27-clustered-execution.md) own provider/distributed placement and
   failover. A client must preserve instance/audience/definition and original
   identity; automatic failover cannot silently resubmit against another authority.
-- [M27–M31](27-control-and-policy-plane.md) consume shared current authorization,
+- [M28–M31](28-control-and-policy-plane.md) consume shared current authorization,
   publication and bounded observations. M9 neither adds enterprise identity nor
   broadens Board's inspection grant or invents a UI/MCP configuration authority.
-- [M32](32-reactive-context-and-agent-activation.md),
-  [M33](33-recorded-mcp-integrations.md) and
-  [M34](34-programming-model.md) add durable subscriptions, standalone recorded
+- [M33](33-reactive-context-and-agent-activation.md),
+  [M34](34-recorded-mcp-integrations.md) and
+  [M35](35-programming-model.md) add durable subscriptions, standalone recorded
   effects, typed Station calls and full mixed/behavior journeys. Context
   composition and shared values land here; those later capabilities do not.
-- [M44](44-qualification-and-benchmarks.md) and
-  [M45](45-releases.md) combine evidence and distribution at a release revision.
+- [M45](45-qualification-and-benchmarks.md) and
+  [M46](46-releases.md) combine evidence and distribution at a release revision.
   M9 still requires its own installed acceptance before that later qualification.
 
 ## Completion evidence
@@ -1490,7 +1490,7 @@ does not silently waive P7. Update this milestone and the roadmap index together
 Measure the representative installed clients' allocation/copy counts, bounded
 streaming, cancellation/settlement cost and durable completion latency against
 the same native operations. Carry these baselines into the later
-[performance scorecard](13-data-structures-and-performance.md). Shared declaration
+[performance scorecard](14-data-structures-and-performance.md). Shared declaration
 and progress conventions must accommodate the
 [indexing lifecycle](11-indexing-and-access-paths.md) without another client
 scheduler or recovery protocol; index-specific adapters arrive with that owner.

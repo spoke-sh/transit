@@ -99,9 +99,9 @@ D1. Use the following boundaries when implementing and reviewing this slice.
 | [M6](06-streams-queues-and-durable-runtime.md#roadmap-reconciliation-after-427--2026-11-08) | Include delivered direct KV, Stream/Queue operations, mixed native decisions, predicates, `.tack`, timing runs and transfer discovery. Stream system-column sealing and Queue checkpoint redesign remain M6 work; preserve their current object-publication dependencies |
 | [M7](07-document-storage-and-station-decoupling.md) | Include delivered Document partitions, retained revisions and protected source staging in ownership/collection tests. Do not assume its pending Document transaction participant or completed Station migration |
 | [M8](08-gateway-architecture-and-protocol-ingress.md#next-slice--inherited-command-deadlines-and-cancellation), [M9](09-client-foundation-and-language-apis.md) | LocalEndpoint and HTTP must use the same admission classification, inherited deadline and joined cancellation. Preserve saved caller identity and control capacity; resumable hosting, CPU-based worker sizing and broader client handles remain with these owners |
-| [M10](10-standards-and-catalogs.md), [M12](12-sql-and-dataflows.md), [M20](20-branches-merges-and-restore.md) | Retain historical interpretation, immutable Table branch/fork pins, managed results and owned `TXR1`/`CPR1`/`SOR1`/`DFR1` dependencies. Test delivered roots; do not claim writable multi-model branches or complete managed scheduling |
-| [M11](11-indexing-and-access-paths.md), [M13](13-data-structures-and-performance.md), [M23](23-storage-providers-and-concurrency.md) | Sparse fence/Bloom footers, the Table/KV LSM transition, WiscKey separation, general cache replacement and provider cost targets are later work. Their absence cannot defer this installed allocation/recovery gate |
-| [M30](30-board-reimplementation.md) | Shared typed observations may be projected by Board with its existing read-only authority. A new storage workbench and complete six-workload presentation are outside this slice |
+| [M10](10-standards-and-catalogs.md), [M13](13-sql-and-dataflows.md), [M21](21-branches-merges-and-restore.md) | Retain historical interpretation, immutable Table branch/fork pins, managed results and owned `TXR1`/`CPR1`/`SOR1`/`DFR1` dependencies. Test delivered roots; do not claim writable multi-model branches or complete managed scheduling |
+| [M11](11-indexing-and-access-paths.md), [M14](14-data-structures-and-performance.md), [M24](24-storage-providers-and-concurrency.md) | Sparse fence/Bloom footers, the Table/KV LSM transition, WiscKey separation, general cache replacement and provider cost targets are later work. Their absence cannot defer this installed allocation/recovery gate |
+| [M31](31-board-reimplementation.md) | Shared typed observations may be projected by Board with its existing read-only authority. A new storage workbench and complete six-workload presentation are outside this slice |
 
 ### Implementation order and review exits
 
@@ -373,7 +373,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 45](45-releases.md).
+[milestone 45](46-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -394,9 +394,9 @@ default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
 logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
-[milestone 12](12-sql-and-dataflows.md), distributed providers/writers in
-[23](23-storage-providers-and-concurrency.md), and general cache/index/group-commit
-optimization in [13](13-data-structures-and-performance.md).
+[milestone 12](13-sql-and-dataflows.md), distributed providers/writers in
+[23](24-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [13](14-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
 the result boundary. Fix storage/read ownership, current-policy disclosure and
@@ -471,7 +471,7 @@ close-out must:
   samples, source/build identities and unresolved limits before closing P4/P5/P8.
 
 The broader allocator, buffer-manager, provider and query-engine replacements
-retain their [performance roadmap owners](13-data-structures-and-performance.md).
+retain their [performance roadmap owners](14-data-structures-and-performance.md).
 Storage measurement and focused fixes required for this installed cutover remain
 here; neither the later roadmap nor SQL decoupling substitutes for them.
 
@@ -963,7 +963,7 @@ and the backend's native/direct/payload maintenance owners.
   (`TDIX`) B-tree row indexes to a leveled LSM `.tseg` manifest with sparse
   fence footers, Split-Block Bloom filters and WiscKey value separation is owned
   by [Milestone 11](11-indexing-and-access-paths.md) and
-  [Milestone 13](13-data-structures-and-performance.md).
+  [Milestone 14](14-data-structures-and-performance.md).
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
@@ -1775,7 +1775,7 @@ to this installed integration owner. Preserve #108's original acceptance gates:
   identities, requested lifetime, actual result evidence and data-source
   freshness. SQL/SDK and Board projections reuse qualified operations; reading
   or explaining a declaration activates no work. Automatic scheduling stays
-  with [managed computations](12-sql-and-dataflows.md).
+  with [managed computations](13-sql-and-dataflows.md).
 
 Original lifecycle acceptance, retained from milestone 1:
 
@@ -1798,7 +1798,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 23](23-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 23](24-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the
@@ -1904,7 +1904,7 @@ paged-manifest clarification of the original artifact gate.
 Record installed local baselines for durable data operations and native runtime
 work, separating admission, WAL sync, execution/turn commit, recovery and result
 delivery. Include candidate segments, range-read bytes and peak resident memory.
-The later [performance scorecard](13-data-structures-and-performance.md) extends
+The later [performance scorecard](14-data-structures-and-performance.md) extends
 these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 

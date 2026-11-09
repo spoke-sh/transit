@@ -106,7 +106,7 @@ scenario does not replace either suite.
 The next performance work remains with the existing owners: reduce fresh-read
 and write coordination in [M8](../../../docs/roadmap/08-gateway-architecture-and-protocol-ingress.md),
 then qualify retained change consumption, incremental execution and governed
-effect outboxes in [M12](../../../docs/roadmap/12-sql-and-dataflows.md), using
+effect outboxes in [M13](../../../docs/roadmap/13-sql-and-dataflows.md), using
 [M6's mixed transactions](../../../docs/roadmap/06-streams-queues-and-durable-runtime.md).
 The finite adapter supplies a measurable journey for that work; it does not
 establish a 10–100× speedup or replace those contracts.
