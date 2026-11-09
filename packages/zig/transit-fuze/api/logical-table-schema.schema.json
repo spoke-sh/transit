@@ -459,6 +459,18 @@
               "$ref": "#/$defs/T19"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capability"
+          ],
+          "properties": {
+            "capability": {
+              "$ref": "#/$defs/T6"
+            }
+          }
         }
       ]
     },
@@ -728,6 +740,7 @@
         "range",
         "multirange",
         "vector",
+        "capability",
         "null_value",
         "text",
         "character"

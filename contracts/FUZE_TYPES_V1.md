@@ -59,8 +59,8 @@ allocator storage. Releasing that owner invalidates borrowed children.
 
 Type-error evidence uses `Types.Kind`, separately from descriptor `Types.Tag`.
 Every logical kind retains its descriptor tag ID. Additional observed kinds are
-`unknown` (0), `null_value` (31), Document `text` (32) and Document `character`
-(33). An unknown decoder failure must not invent an actual scalar type. These
+`unknown` (0), `null_value` (32), Document `text` (33) and Document `character`
+(34). An unknown decoder failure must not invent an actual scalar type. These
 extra names cannot declare a column or payload type. Document `text` evidence is
 distinct from the SQL TEXT alias, which declares UTF-8. A type error remains a
 type error even when its observed kind is unknown or null.
@@ -137,7 +137,7 @@ JSON and duplicate decoded object keys. It accepts caller-owned allocation;
 `Json.validate` uses a bounded 1 MiB scratch buffer. Neither performs I/O.
 
 `FTY1` is magic, u8 definition-string length, UTF-8 definition, then one recursive
-descriptor. The current definition is `transit.fuze.types.v1.2026-11-08.program-values`. Tags
+descriptor. The current definition is `transit.fuze.types.v1.2026-11-08.capability-handles`. Tags
 1–27 are int64, uint64, float64, boolean, UTF-8, binary, int8, int16, int32,
 int128, uint8, uint16, uint32, uint128, float32, decimal, date, time, timestamp,
 interval, UUID, struct, list, array, map, tagged union and JSON. Scalars have no
@@ -153,6 +153,19 @@ Tags 28 and 29 are range and multirange, followed by their recursive subtype.
 Tag 30 is vector, followed by u32 dimension and u8 element tag: float32 1,
 float16 2, bfloat16 3, int8 4, binary 5. Binary dimension counts bits and must be
 divisible by eight. The metric is a separate column semantic descriptor.
+
+Tag 31 is `CAPABILITY`, an opaque nonzero 32-byte protected-host reference.
+Its atom is distinct from text, binary and UUID. Native schema-bound payloads
+write the cell state followed by exactly 32 bytes, without a length prefix.
+The handle contains no credential or grant; a host must independently verify
+the original request, owner, purpose, current authority and live reservation.
+Native record storage can preserve it, but literals, casts, promotion, equality,
+ordering, hashing, map/primary keys and column defaults reject it. Ordinary
+display, neutral JSON values and Arrow export reject the complete descriptor
+before emitting output, including null values, empty containers and inactive
+union variants. Type metadata remains inspectable. See the
+[application contract](APPLICATION_PROGRAM_V1.md#protected-handle-representation)
+for the protected execution boundary and its integration status.
 
 A range payload starts with flags: bit 0 empty, bit 1 lower present, bit 2 upper
 present, bit 3 lower inclusive, bit 4 upper inclusive. Present bounds follow in

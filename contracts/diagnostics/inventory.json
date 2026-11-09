@@ -16025,6 +16025,7 @@
         "InvalidColumnCount": 1,
         "InvalidKeyColumnCount": 1,
         "MissingPrimaryKey": 1,
+        "ProtectedProgramValue": 2,
         "UnorderedType": 4,
         "UnsupportedColumnCollation": 6
       },
@@ -16066,7 +16067,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
+        "try": 79,
         "catch": 0
       },
       "imports": [
@@ -17408,7 +17409,8 @@
       "errors": {
         "ArrowShapeTooLarge": 6,
         "ArrowWorkspaceExceeded": 1,
-        "OutOfMemory": 1
+        "OutOfMemory": 1,
+        "ProtectedProgramValue": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -17430,7 +17432,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 105,
+        "try": 106,
         "catch": 3
       },
       "imports": [
@@ -17492,6 +17494,7 @@
     },
     "packages/zig/transit-fuze/src/LogicalDisplay.zig": {
       "errors": {
+        "ProtectedProgramValue": 1,
         "WriteFailed": 1
       },
       "outcomes": {},
@@ -17507,7 +17510,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 105,
+        "try": 106,
         "catch": 1
       },
       "imports": [
@@ -17565,6 +17568,7 @@
         "JsonByteBudgetExceeded": 1,
         "OutOfMemory": 1,
         "Overflow": 8,
+        "ProtectedProgramValue": 1,
         "TypeMismatch": 10,
         "ValueBudgetExceeded": 3,
         "VectorDimensionMismatch": 1
@@ -17642,7 +17646,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 109,
+        "try": 112,
         "catch": 3
       },
       "imports": [
@@ -19735,7 +19739,7 @@
       "open_error_set_uses": 2,
       "propagation": {
         "try": 0,
-        "catch": 23
+        "catch": 24
       },
       "imports": [
         "Sql.zig",
@@ -20345,7 +20349,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 39,
+        "try": 40,
         "catch": 2
       },
       "imports": [
@@ -21572,7 +21576,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 108,
+        "try": 109,
         "catch": 5
       },
       "imports": [
@@ -21882,7 +21886,8 @@
         "NoLosslessPromotion": 3,
         "NonFiniteValue": 2,
         "Overflow": 12,
-        "TypeMismatch": 11,
+        "ProtectedProgramValue": 2,
+        "TypeMismatch": 12,
         "UnsupportedAtomType": 2,
         "UnsupportedCast": 5,
         "UnsupportedLiteralType": 1
@@ -21899,7 +21904,8 @@
           "time",
           "timestamp",
           "interval",
-          "uuid"
+          "uuid",
+          "capability"
         ],
         "Rounding": [
           "reject",
@@ -21923,7 +21929,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 31,
+        "try": 34,
         "catch": 8
       },
       "imports": [
@@ -21943,6 +21949,7 @@
         "InvalidMapKey": 1,
         "InvalidTypeEncoding": 7,
         "InvalidUnion": 1,
+        "ProtectedProgramValue": 1,
         "TypeBudgetExceeded": 5,
         "UnsupportedQueryType": 1,
         "WriteFailed": 1
@@ -21980,6 +21987,7 @@
           "range",
           "multirange",
           "vector",
+          "capability",
           "null_value",
           "text",
           "character"
@@ -22014,7 +22022,8 @@
           "json",
           "range",
           "multirange",
-          "vector"
+          "vector",
+          "capability"
         ],
         "Timestamp": [
           "civil",
@@ -22050,10 +22059,15 @@
           "json",
           "range",
           "multirange",
-          "vector"
+          "vector",
+          "capability"
         ]
       },
-      "error_sets": {},
+      "error_sets": {
+        "Type.disclosable().<error>": [
+          "ProtectedProgramValue"
+        ]
+      },
       "error_returns": {
         "Budget.name()": "<inferred>",
         "Budget.node()": "<inferred>",
@@ -22061,10 +22075,12 @@
         "Field.validateConstraint()": "<inferred>",
         "Type.clone()": "<inferred>",
         "Type.cloneInto()": "<inferred>",
+        "Type.disclosable()": "error { ProtectedProgramValue }",
         "Type.encode()": "<inferred>",
         "Type.eql()": "<inferred>",
         "Type.fingerprint()": "<inferred>",
         "Type.queryType()": "<inferred>",
+        "Type.requireDisclosable()": "<inferred>",
         "Type.validate()": "<inferred>",
         "Type.validateDiagnostic()": "<inferred>",
         "cloneElement()": "<inferred>",
@@ -22079,7 +22095,7 @@
       },
       "open_error_set_uses": 6,
       "propagation": {
-        "try": 87,
+        "try": 95,
         "catch": 1
       },
       "imports": [
@@ -22374,7 +22390,7 @@
         "InvalidUnion": 1,
         "InvalidValueEncoding": 9,
         "UnsupportedAtomType": 1,
-        "ValueBudgetExceeded": 6
+        "ValueBudgetExceeded": 7
       },
       "outcomes": {},
       "error_sets": {},
@@ -22404,7 +22420,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 139,
+        "try": 142,
         "catch": 0
       },
       "imports": [
@@ -22421,6 +22437,7 @@
         "MapKeyOrder": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 2,
+        "ProtectedProgramValue": 1,
         "TypeMismatch": 7,
         "UnexpectedToken": 3,
         "UnknownField": 1,
@@ -22473,7 +22490,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 56,
+        "try": 58,
         "catch": 0
       },
       "imports": [
@@ -27194,7 +27211,8 @@
         "ProgramRowAssertionFailed": 2,
         "ProgramTooComplex": 3,
         "ProgramTooDeep": 3,
-        "ProgramTypeMismatch": 25,
+        "ProgramTypeMismatch": 26,
+        "ProtectedProgramValue": 1,
         "QueryResultBudget": 2,
         "TableDefinitionChanged": 5,
         "UnknownProgramField": 2,
@@ -31229,6 +31247,81 @@
         "transit_query"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationReservation.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "ApplicationReferenceCollision": 3,
+        "ApplicationRequestOwnerMismatch": 5,
+        "ApplicationReservationCapacity": 2,
+        "ApplicationReservationExpired": 1,
+        "ApplicationReservationLost": 2,
+        "ClientOperationPending": 1,
+        "InvalidApplicationReservation": 3,
+        "OutOfMemory": 1,
+        "ProtectedObservationChanged": 3,
+        "ProtectedProgramValue": 5
+      },
+      "outcomes": {
+        "Evidence": [
+          "access",
+          "redemption",
+          "transfer"
+        ],
+        "Material": [
+          "secret",
+          "json",
+          "scalar"
+        ],
+        "Origin": [
+          "named",
+          "request_query",
+          "request_cookie",
+          "derived",
+          "random",
+          "provider_token",
+          "bearer"
+        ],
+        "Use": [
+          "commitment",
+          "comparison",
+          "derive",
+          "s256",
+          "bearer",
+          "form",
+          "header",
+          "cookie",
+          "json_projection",
+          "scalar"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Authority.check()": "anyerror",
+        "Input.validate()": "<inferred>",
+        "Proof.check()": "<inferred>",
+        "authorize()": "<inferred>",
+        "copy()": "<inferred>",
+        "find()": "<inferred>",
+        "handoff()": "<inferred>",
+        "init()": "<inferred>",
+        "live()": "<inferred>",
+        "locate()": "<inferred>",
+        "purpose()": "<inferred>",
+        "randomReference()": "<inferred>",
+        "read()": "<inferred>",
+        "request()": "<inferred>",
+        "retain()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 32,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-serving-http/src/BrowserProviders.zig": {
       "errors": {
         "Canceled": 1,
@@ -31581,6 +31674,7 @@
         "catch": 2
       },
       "imports": [
+        "ApplicationReservation.zig",
         "BrowserRuntime.zig",
         "PrivateClient.zig",
         "ReactiveTransport.zig",

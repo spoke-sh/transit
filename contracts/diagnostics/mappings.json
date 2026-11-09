@@ -5021,6 +5021,10 @@
         "CharacterLimitExceeded": {
           "code": "file.character_limit_exceeded",
           "category": "constraint"
+        },
+        "ProtectedProgramValue": {
+          "code": "file.protected_value",
+          "category": "unsupported"
         }
       }
     },

@@ -271,6 +271,7 @@ pub fn compareAtom(left: Values.Atom, right: Values.Atom, expected: Types.Type, 
     try Types.Semantics.validate(left, expected);
     try Types.Semantics.validate(right, expected);
     return switch (left) {
+        .capability => error.ProtectedProgramValue,
         .signed => |v| std.math.order(v, right.signed),
         .unsigned => |v| std.math.order(v, right.unsigned),
         .float => |v| floatTotalOrder(v, right.float),
@@ -395,6 +396,7 @@ pub fn appendSortKey(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.
 }
 
 pub fn appendSortKeyProfile(writer: *std.Io.Writer, cell: Values.Cell, expected: Types.Type, profile: Profile) !void {
+    try expected.requireDisclosable();
     try validateProfile(profile);
     try writer.writeByte(stateRank(std.meta.activeTag(cell)));
     switch (cell) {
@@ -405,6 +407,7 @@ pub fn appendSortKeyProfile(writer: *std.Io.Writer, cell: Values.Cell, expected:
             .atom => |atom| {
                 try Types.Semantics.validate(atom, expected);
                 switch (atom) {
+                    .capability => return error.ProtectedProgramValue,
                     .signed => |v| {
                         const mapped: u128 = @as(u128, @bitCast(v)) ^ (@as(u128, 1) << 127);
                         try writer.writeInt(u128, mapped, .big);

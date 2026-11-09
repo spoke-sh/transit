@@ -10363,6 +10363,13 @@
           "actions": [
             "correct_input"
           ]
+        },
+        "NativeBindingConflict": {
+          "code": "catalog.native_binding_conflict",
+          "category": "conflict",
+          "actions": [
+            "inspect_scope"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"
@@ -18560,6 +18567,43 @@
           "actions": [
             "correct_input"
           ],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "ProtectedProgramValue": {
+          "code": "file.protected_value",
+          "category": "unsupported",
+          "stage": "execute",
+          "actions": [
+            "correct_input"
+          ],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "InvalidCharacterLimit": {
+          "code": "file.invalid_character_limit",
+          "category": "binding",
+          "stage": "execute",
+          "actions": [
+            "correct_input"
+          ],
+          "scenarios": {
+            "schema_file": {
+              "stage": "decode"
+            }
+          }
+        },
+        "CharacterLimitExceeded": {
+          "code": "file.character_limit_exceeded",
+          "category": "constraint",
+          "stage": "execute",
+          "actions": [],
           "scenarios": {
             "schema_file": {
               "stage": "decode"

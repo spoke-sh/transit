@@ -208,7 +208,10 @@ pub const Schema = struct {
             if (column.max_characters) |limit| if (limit == 0 or column.type != .utf8) return error.InvalidCharacterLimit;
             try column.validateEncodingAndCollation();
             try column.semantics.validate(column.type);
-            if (column.default) |value| try column.validateCell(value);
+            if (column.default) |value| {
+                try column.type.requireDisclosable();
+                try column.validateCell(value);
+            }
         }
         try row_type.validate(.{});
         var names: [max_columns][16]u8 = undefined;
@@ -462,7 +465,7 @@ fn boolean(reader: *std.Io.Reader) !bool {
 }
 pub fn keyType(data_type: t.Type) bool {
     return switch (data_type) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector => false,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector, .capability => false,
         else => true,
     };
 }

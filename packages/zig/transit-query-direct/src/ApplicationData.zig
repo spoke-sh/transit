@@ -17,7 +17,7 @@ pub fn bindField(output: std.mem.Allocator, field: f.Types.Field) !a.Types.Value
 fn requireType(type_: f.Types.Type, depth: usize) anyerror!void {
     if (depth > a.max_depth) return error.ProgramTooDeep;
     switch (type_) {
-        .int8, .int16, .int32, .int64, .uint8, .uint16, .uint32, .boolean, .utf8, .binary, .uuid, .json => {},
+        .int8, .int16, .int32, .int64, .uint8, .uint16, .uint32, .boolean, .utf8, .binary, .uuid, .json, .capability => {},
         .timestamp => |zone| if (zone != .utc) return error.ProgramTypeMismatch,
         .structure => |fields| {
             if (fields.len > a.max_arguments) return error.ProgramTooComplex;
@@ -35,6 +35,7 @@ fn bindType(output: std.mem.Allocator, field: f.Types.Field, depth: usize) anyer
         .utf8 => .text,
         .binary => .binary,
         .uuid => .uuid,
+        .capability => .capability,
         .timestamp => |zone| if (zone == .utc) .timestamp else return error.ProgramTypeMismatch,
         .json => .json,
         .structure => |fields| blk: {
@@ -66,6 +67,7 @@ fn fromValidated(output: std.mem.Allocator, type_: f.Types.Type, cell: Cell) any
         .utf8 => .{ .text = try output.dupe(u8, value.atom.bytes) },
         .binary => .{ .binary = try output.dupe(u8, value.atom.bytes) },
         .uuid => .{ .uuid = value.atom.uuid },
+        .capability => .{ .capability = .{ .id = value.atom.capability.* } },
         .timestamp => .{ .timestamp = value.atom.timestamp },
         .json => .{ .json = try output.dupe(u8, value.json) },
         .structure => |fields| blk: {
@@ -79,7 +81,6 @@ fn fromValidated(output: std.mem.Allocator, type_: f.Types.Type, cell: Cell) any
 /// Cells borrow public byte strings from value. Their container arrays belong
 /// to scratch; encoding/retaining the native intent precedes resetting it.
 pub fn intoCell(scratch: std.mem.Allocator, field: f.Types.Field, value: Value) !Cell {
-    try value.public();
     try field.type.validate(.{});
     try requireType(field.type, 0);
     const cell = try intoType(scratch, field.type, value, 0);
@@ -88,6 +89,7 @@ pub fn intoCell(scratch: std.mem.Allocator, field: f.Types.Field, value: Value) 
 }
 fn intoType(scratch: std.mem.Allocator, type_: f.Types.Type, value: Value, depth: usize) anyerror!Cell {
     if (depth > a.max_depth) return error.ProgramTooDeep;
+    if (value.protected() or value == .failure or (value == .capability and type_ != .capability)) return error.ProtectedProgramValue;
     if (value == .null) return .null;
     const result: f.Types.Values.Value = switch (type_) {
         .int8, .int16, .int32, .int64 => if (value == .integer) .{ .atom = .{ .signed = value.integer } } else return error.ProgramTypeMismatch,
@@ -96,6 +98,12 @@ fn intoType(scratch: std.mem.Allocator, type_: f.Types.Type, value: Value, depth
         .utf8 => if (value == .text) .{ .atom = .{ .bytes = value.text } } else return error.ProgramTypeMismatch,
         .binary => if (value == .binary) .{ .atom = .{ .bytes = value.binary } } else return error.ProgramTypeMismatch,
         .uuid => if (value == .uuid) .{ .atom = .{ .uuid = value.uuid } } else return error.ProgramTypeMismatch,
+        .capability => blk: {
+            if (value != .capability) return error.ProgramTypeMismatch;
+            const handle = try scratch.create([32]u8);
+            handle.* = value.capability.id;
+            break :blk .{ .atom = .{ .capability = handle } };
+        },
         .timestamp => if (value == .timestamp) .{ .atom = .{ .timestamp = value.timestamp } } else return error.ProgramTypeMismatch,
         .json => if (value == .json) .{ .json = value.json } else return error.ProgramTypeMismatch,
         .structure => |fields| blk: {
@@ -348,6 +356,30 @@ test "application native values preserve timestamp units, constraints and owned 
     try t.expectError(error.CharacterLimitExceeded, intoCell(arena.allocator(), field.type.structure[0], .{ .text = "long" }));
     try t.expectError(error.ProtectedProgramValue, intoCell(arena.allocator(), .{ .name = "value", .type = .binary }, .{ .capability = .{ .id = @splat(1) } }));
     try t.expectError(error.ProgramTypeMismatch, fromCell(arena.allocator(), .{ .name = "value", .type = .utf8 }, .{ .type_error = .int64 }));
+}
+
+test "application native Queue records retain typed capability handles without binary coercion" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const field: f.Types.Field = .{ .name = "row", .type = .{ .structure = &.{
+        .{ .name = "request", .type = .capability },
+        .{ .name = "id", .type = .uuid },
+    } } };
+    const value: Value = .{ .record = &.{
+        .{ .name = "request", .value = .{ .capability = .{ .id = @splat(7) } } },
+        .{ .name = "id", .value = .{ .uuid = @splat(8) } },
+    } };
+    try value.validate(try bindField(arena.allocator(), field));
+    const cell = try intoCell(arena.allocator(), field, value);
+    var buffer: [128]u8 = undefined;
+    const wire = try f.Types.Codec.encodeBound(cell, field, &buffer);
+    const copy = try fromCell(arena.allocator(), field, try f.Types.Codec.decodeBound(&arena, field, wire));
+    try t.expectEqualDeep(value, copy);
+    try t.expectError(error.ProtectedProgramValue, copy.public());
+    const untyped: [32]u8 = @splat(7);
+    try t.expectError(error.ProgramTypeMismatch, intoCell(arena.allocator(), field.type.structure[0], .{ .binary = &untyped }));
+    try t.expectError(error.ProtectedProgramValue, intoCell(arena.allocator(), field.type.structure[0], .{ .sealed = .{ .kind = .binary, .reference = .{ .id = @splat(7) } } }));
 }
 
 test "application native KV update preserves exact revision and saved original mutation" {

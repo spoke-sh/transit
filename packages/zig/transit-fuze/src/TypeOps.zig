@@ -11,7 +11,7 @@ pub fn supports(descriptor: t.Type, trait: Trait) !bool {
 }
 fn supported(descriptor: t.Type, trait: Trait) bool {
     return switch (descriptor) {
-        .json => false,
+        .json, .capability => false,
         .interval => trait == .equality,
         .map => |map| trait == .equality and supported(map.key.*, trait) and supported(map.value.type.*, trait),
         .structure, .tagged_union => |fields| blk: {
@@ -141,6 +141,7 @@ fn bytesHash(hasher: *Hash, bytes: []const u8) void {
 }
 fn hashAtom(hasher: *Hash, atom: t.Semantics.Atom) void {
     switch (atom) {
+        .capability => unreachable, // validate rejects this trait before hashing.
         .signed => |value| number(hasher, value),
         .unsigned => |value| number(hasher, value),
         .decimal => |value| number(hasher, value),

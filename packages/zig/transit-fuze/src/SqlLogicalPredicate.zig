@@ -77,6 +77,7 @@ pub const Syntax = struct {
 fn literalShape(literal: Parser.Literal, expected: t.Type) bool {
     if (literal.value == .null or literal.value == .missing) return true;
     return switch (expected) {
+        .capability => false,
         .int8, .int16, .int32, .int64, .int128, .uint8, .uint16, .uint32, .uint64, .uint128, .float32, .float64, .decimal => literal.value == .number,
         .utf8 => literal.value == .string,
         .boolean => literal.value == .boolean,
@@ -98,6 +99,7 @@ fn literalShape(literal: Parser.Literal, expected: t.Type) bool {
 /// The exact expected descriptor controls parameter width and representation.
 /// No literal parse, implicit cast or source error/conflict state is introduced.
 pub fn validateParameter(value: t.Values.Atom, expected: t.Type) !void {
+    try expected.requireDisclosable();
     if (value == .bytes and value.bytes.len > t.Query.max_cell_bytes) return error.CellTooLarge;
     try expected.validate(.{});
     try t.Semantics.validate(value, expected);

@@ -44,6 +44,7 @@ const Layout = struct {
             else => {},
         }
         self.value = switch (logical) {
+            .capability => return error.ProtectedProgramValue,
             .int8 => .{ .int8 = {} },
             .int16 => .{ .int16 = {} },
             .int32 => .{ .int32 = {} },
@@ -408,6 +409,7 @@ pub fn messages(schema: t.Type, rows: []const Row, parts: Messages, workspace: [
     };
 }
 fn messagesInner(schema: t.Type, rows: []const Row, parts: Messages, workspace: []u8, output: []u8) ![]const u8 {
+    try schema.requireDisclosable();
     try schema.validate(.{});
     if (schema != .structure or schema.structure.len > 128 or rows.len > max_rows) return error.ArrowShapeTooLarge;
     for (rows) |row| try (v.Cell{ .value = .{ .structure = row.cells } }).validate(.{ .name = "row", .type = schema }, .{});

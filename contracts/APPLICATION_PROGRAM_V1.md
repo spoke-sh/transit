@@ -40,8 +40,9 @@ maximum of 13 per program so their values and the control object fit the existin
 native authorization budget. Queue acquisition/settlement and append are distinct
 required actions. Row Document policy and native browser bindings remain part of
 the resource definition. This binder currently admits native Table, row Document,
-typed KV, Stream and Queue definitions; sink/capability storage integration remains
-required for the complete browser application.
+typed KV, Stream and Queue definitions, including typed capability handles in
+Queue records. Sink and protected-host integration remains required for the
+complete browser application.
 
 The input predicate lowers from the retained instruction tree into the native
 `QueuePredicate`, bound to the exact schema and selected partition. The current
@@ -198,6 +199,47 @@ until their original candidate is retained; recovery never replaces a retained
 observation. Protected helpers require their separate native redemption owner.
 
 ## Service discovery
+
+### Protected handle representation
+
+`CAPABILITY` is a distinct logical descriptor for a nonzero, opaque 32-byte
+handle. Its native value atom is distinct from binary/string atoms; the bound
+value encoding stores exactly those 32 bytes after its ordinary cell-state tag.
+The handle contains no credential bytes, expiry claim or grant. The protected
+host must independently validate its recorded owner, purpose, original request,
+current authorization and live transient reservation before redemption.
+
+Handles have no SQL literal, cast, equality/order/hash trait, map-key use, ordinary
+display, JSON projection or Arrow export. Native Queue payload transport and
+ordered-program continuation may preserve the opaque identity, including a
+transactional handoff, without redeeming it. Expiry or loss of the transient
+reservation cannot be repaired by regenerating a credential or dispatching a
+replacement effect. This representation is being integrated with the protected
+HTTP owner; recognizing the type alone does not activate that owner.
+
+The local HTTP `ApplicationReservation` component binds one active request to
+its exact Queue partition, original enqueue operation and row ordinal. Its
+caller supplies fixed memory and slot budgets, serializes accesses and joins
+borrowers before destroying it. A mandatory native verifier checks the original
+invocation/acquisition and current rights on every access, including cached
+observations; redemption additionally identifies its intended use. Only random
+or derived secrets can be delivered as cookies. Secret and protected JSON bytes
+remain inside the reservation, with separate typed handles and original
+observation identities. Reusing an observation with different arguments or
+material rejects rather than replacing the original value.
+
+This local component admits one explicit ownership handoff, bound to the source
+invocation, original common transaction, effect identity and exact destination
+enqueue record. The verifier must observe the matching committed enqueue,
+handoff, input ACK and checkpoint before transfer. Pending or aborted work
+cannot transfer ownership. Repeating the same observation cannot reset a
+destination already acquired by its original invocation. Expiry, close or loss
+erases bytes and forbids recreating values in that reservation. Capacity failure
+erases partial copies and preserves accepted values. These local checks do not
+establish the native verification callback, ingress readiness or HTTP execution;
+those integrations and their live recovery proofs remain required.
+
+### Bounded invocation scheduling
 
 The database runtime enumerates application declarations and originals through
 bounded Catalog pages under its existing account activation fence. It retains

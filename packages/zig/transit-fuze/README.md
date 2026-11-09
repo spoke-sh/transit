@@ -42,6 +42,13 @@ bytes enter Fuze's environment. Only the native host may redeem a reference afte
 checking its original owner, purpose, current authority and lifetime. This local
 evaluator supplies no durable cursor, Queue worker or transient reservation store.
 
+The native `CAPABILITY` logical atom preserves a nonzero 32-byte handle in
+schema-bound records. It is distinct from binary and has no literal, cast,
+comparison, hash, map-key or column-default semantics. Public display, neutral
+JSON and Arrow value boundaries reject it recursively before writing output;
+descriptor metadata remains inspectable. The host must still verify ownership,
+purpose, current rights and the live reservation before using a stored handle.
+
 The compiler bounds source at 64 KiB, nodes at 4,096, nesting at 32 and argument
 lists at 64. It rejects effects within atomic blocks and mutations outside them.
 Missing reads retain nullable record types; the eventual execution owner must

@@ -1,6 +1,6 @@
 # Downstream declarative application language
 
-**Status: Implementation in progress, 2026-11-08.**
+**Status: Implementation in progress, 2026-11-09.**
 
 Tracking issue: [Transit #430](https://github.com/spoke-sh/transit/issues/430).
 The [ordered program contract](../../contracts/APPLICATION_PROGRAM_V1.md)
@@ -48,6 +48,16 @@ bounded original discovery and coordinator-fenced execution for single-partition
 input Queues. Effect/response settlement and the remaining installation/browser
 phases are unfinished; this
 does not qualify the downstream journey.
+
+The protected-value boundary now has a distinct native `CAPABILITY` handle,
+exact Queue record encoding, owned/borrowed lifetimes and recursive rejection at
+ordinary SQL value, display, comparison and JSON/Arrow export boundaries. The
+HTTP reservation component checks original Queue record ownership, current
+authority on cached access, purpose-specific redemption and observed handoff
+commit evidence. It bounds active request memory, preserves accepted values on
+capacity refusal and erases protected bytes on expiry/loss. These component
+checks do not yet establish the live native verifier, HTTP source/sink execution
+or browser authority cutover; those remain part of the complete PR.
 
 ## Reviewed inputs and desired experience
 

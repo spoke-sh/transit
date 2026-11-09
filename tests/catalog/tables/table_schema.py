@@ -14,7 +14,7 @@ import struct
 
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/table-schema.json'
 DEFINITION = b'transit.table.schema.v1.2026-11-01.spatial-reference'
-TYPES = b'transit.fuze.types.v1.2026-11-08.program-values'
+TYPES = b'transit.fuze.types.v1.2026-11-08.capability-handles'
 ROWS = b'transit.table.row.v1.2026-10-05'
 
 

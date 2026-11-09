@@ -111,6 +111,11 @@ fn cloneValue(a: std.mem.Allocator, value: Value) anyerror!Value {
     };
 }
 pub fn cloneAtom(a: std.mem.Allocator, atom: Atom) !Atom {
+    if (atom == .capability) {
+        const owned = try a.create([32]u8);
+        owned.* = atom.capability.*;
+        return .{ .capability = owned };
+    }
     return if (atom == .bytes) .{ .bytes = try a.dupe(u8, atom.bytes) } else atom;
 }
 const Budget = struct {
@@ -171,6 +176,7 @@ fn checkValue(value: Value, expected: types.Type, depth: usize, budget: *Budget)
         .atom => |atom| {
             try sem.validate(atom, expected);
             if (atom == .bytes) try budget.data(atom.bytes.len);
+            if (atom == .capability) try budget.data(32);
         },
         .structure => |cells| {
             if (expected != .structure or cells.len != expected.structure.len) return error.TypeMismatch;
@@ -223,6 +229,7 @@ pub fn atomOrder(left: Atom, right: Atom, expected: types.Type) !std.math.Order 
     try sem.validate(left, expected);
     try sem.validate(right, expected);
     return switch (left) {
+        .capability => error.ProtectedProgramValue,
         .signed => |v| std.math.order(v, right.signed),
         .unsigned => |v| std.math.order(v, right.unsigned),
         .float => |v| std.math.order(v, right.float),

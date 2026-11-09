@@ -4,7 +4,7 @@ const std = @import("std");
 pub const Diagnostic = @import("TypeDiagnostic.zig");
 pub const Query = @import("Scalar.zig");
 pub const State = Query.State;
-pub const definition = "transit.fuze.types.v1.2026-11-08.program-values";
+pub const definition = "transit.fuze.types.v1.2026-11-08.capability-handles";
 pub const Ranges = @import("RangeValue.zig");
 pub const Vectors = @import("VectorValue.zig");
 pub const max_encoding_bytes = 16384;
@@ -46,6 +46,7 @@ pub const Tag = enum(u8) {
     range,
     multirange,
     vector,
+    capability,
 };
 /// Observed source kinds are evidence, not admissible logical descriptors.
 /// Logical kinds retain Tag's IDs; the extra cases preserve decoder/Document
@@ -82,6 +83,7 @@ pub const Kind = enum(u8) {
     range,
     multirange,
     vector,
+    capability,
     null_value,
     text,
     character,
@@ -199,9 +201,32 @@ pub const Type = union(Tag) {
     range: *const Type,
     multirange: *const Type,
     vector: Vectors.Descriptor,
+    /// A non-authorizing protected-host reference, never credential material.
+    capability,
 
     pub fn tag(self: Type) Tag {
         return std.meta.activeTag(self);
+    }
+    /// Disclosure is a separate boundary from native persistence. Check the
+    /// complete descriptor, including inactive variants and empty containers,
+    /// before producing any public output.
+    pub fn requireDisclosable(self: Type) !void {
+        try self.validate(.{});
+        try self.disclosable();
+    }
+    fn disclosable(self: Type) error{ProtectedProgramValue}!void {
+        switch (self) {
+            .capability => return error.ProtectedProgramValue,
+            .structure, .tagged_union => |fields| for (fields) |field| try field.type.disclosable(),
+            .list => |element| try element.type.disclosable(),
+            .array => |array| try array.element.type.disclosable(),
+            .map => |map| {
+                try map.key.disclosable();
+                try map.value.type.disclosable();
+            },
+            .range, .multirange => |element| try element.disclosable(),
+            else => {},
+        }
     }
     pub fn fromQuery(value: Query.Type) Type {
         return switch (value) {
@@ -389,7 +414,7 @@ fn validateType(value: Type, depth: usize, budget: *Budget, path: Diagnostic.Pat
 
 pub fn isMapKey(value: Type) bool {
     return switch (value) {
-        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector => false,
+        .structure, .list, .array, .map, .tagged_union, .json, .interval, .range, .multirange, .vector, .capability => false,
         else => true,
     };
 }

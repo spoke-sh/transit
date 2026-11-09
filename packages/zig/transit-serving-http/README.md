@@ -85,3 +85,22 @@ Table reads. It does not know application table names or grant social users
 native privileges. See [browser v1](../../../contracts/BROWSER_V1.md) and the
 [example](../../../examples/declarative-browser/README.md). The independent
 listener and buffered-disclosure schedules run with `just test::declarative-browser`.
+
+`ApplicationReservation` supplies the local protected-value boundary being
+integrated with ordered applications. Its caller supplies bounded memory and
+value slots for one active HTTP request, serializes access and joins borrowers
+before destruction. Original Queue append identity and ordinal bind the request;
+copying a handle into a different row cannot transfer ownership. Every access,
+including cached observations, calls the native authority verifier. Redemption
+also names its intended use; only generated or derived secrets may become
+cookies, and provider bodies remain protected JSON references.
+
+One explicit handoff may transfer the request to an exact destination Queue
+record after the verifier observes its committed common transaction. A pending
+or denied observation leaves ownership unchanged, and a repeated handoff cannot
+reset a destination already acquired by its original invocation. Expiry, close
+or request loss erases the reservation; capacity refusal preserves earlier
+values and erases partial copies. This component performs no HTTP dispatch,
+durable admission or native authorization itself. The live ingress, native
+verification callbacks and effect/response integration remain required before
+ordered programs can use it.

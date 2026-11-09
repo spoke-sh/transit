@@ -48,6 +48,7 @@ pub fn typeName(out: *std.Io.Writer, value: t.Type) anyerror!void {
     }
 }
 pub fn cell(out: *std.Io.Writer, value: t.Values.Cell, expected: t.Type) anyerror!void {
+    try expected.requireDisclosable();
     switch (value) {
         .missing => try out.writeAll("MISSING"),
         .null => try out.writeAll("NULL"),
@@ -142,6 +143,7 @@ fn range(out: *std.Io.Writer, value: t.Ranges.Value, subtype: t.Type) !void {
 }
 fn atom(out: *std.Io.Writer, value: t.Values.Atom, expected: t.Type) !void {
     switch (value) {
+        .capability => return error.ProtectedProgramValue,
         inline .signed, .unsigned => |number| try out.print("{d}", .{number}),
         .float => |number| if (expected == .float32) try out.print("{d}", .{@as(f32, @floatCast(number))}) else try out.print("{d}", .{number}),
         .boolean => |boolean| try out.writeAll(if (boolean) "true" else "false"),

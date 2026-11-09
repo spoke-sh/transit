@@ -833,7 +833,12 @@ fn allocationSchedule(allocator: std.mem.Allocator) !void {
     try std.testing.expectEqual(@as(usize, 2), count);
 }
 test "discovery and row ownership release every allocation on failure" {
-    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationSchedule, .{});
+    try allocationSchedule(std.testing.allocator);
+    // In-place growth depends on allocator history. Force growth to allocate
+    // during fault injection so every failure index names an actual allocation;
+    // the normal run above still exercises the backing allocator's resize path.
+    var backing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
+    try std.testing.checkAllAllocationFailures(backing.allocator(), allocationSchedule, .{});
 }
 
 test "explicit partial raw and empty input modes own schema and option evidence" {

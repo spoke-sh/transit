@@ -7,7 +7,7 @@
       "additionalProperties": false,
       "properties": {
         "definition": {
-          "const": "transit.fuze.types.v1.2026-11-08.program-values"
+          "const": "transit.fuze.types.v1.2026-11-08.capability-handles"
         },
         "field": {
           "$ref": "#/$defs/T2"
@@ -412,6 +412,18 @@
               "$ref": "#/$defs/T15"
             }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "capability"
+          ],
+          "properties": {
+            "capability": {
+              "$ref": "#/$defs/T4"
+            }
+          }
         }
       ]
     },
@@ -646,6 +658,7 @@
         "range",
         "multirange",
         "vector",
+        "capability",
         "null_value",
         "text",
         "character"

@@ -20,6 +20,15 @@ codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys
 Map entries use strictly increasing typed keys, rejecting duplicates including
 positive/negative floating zero.
 
+`CAPABILITY` is a separate native handle type for protected application requests.
+Its 32-byte identity contains no credential and grants no redemption rights.
+Native records and ordered continuations can preserve the handle. Ordinary SQL
+literals, casts, comparisons, hashing, keys, defaults, display and JSON/Arrow
+value export reject it, including nested and empty values. The protected host
+must check the original owner, purpose, current authority and live reservation.
+This type boundary does not by itself activate HTTP application execution; see
+the [application contract](../../../../contracts/APPLICATION_PROGRAM_V1.md).
+
 Recursive descriptor validation can retain an owned first-failure witness with
 the exact descriptor-member path, violated rule, supplied values and measured
 budget. File queries expose this context in human and structured diagnostics;
