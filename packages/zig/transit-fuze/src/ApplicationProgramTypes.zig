@@ -49,6 +49,7 @@ columns: []const Field = &.{},
 expression_depth: usize = 0,
 
 pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []const Resource, location: ?*sql.Location) !Bound {
+    try ast.Codec.validate(program);
     if (resources.len > 256 or program.nodes > ast.max_nodes) return error.ProgramTooComplex;
     var arena: std.heap.ArenaAllocator = .init(allocator);
     errdefer arena.deinit();
@@ -227,6 +228,7 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
                 else => {
                     if (left.kind != .null and right.kind != .null and left.kind != right.kind) return error.ProgramTypeMismatch;
                     if (left.kind == .secret or right.kind == .secret or left.kind == .capability or right.kind == .capability or left.kind == .record) return error.ProtectedProgramValue;
+                    for ([_]Kind{ left.kind, right.kind }) |operand| if (operand == .json or operand == .protected_json or operand == .failure) return error.ProgramTypeMismatch;
                 },
             }
             break :blk .{ .kind = kind, .protected = left.protected or right.protected, .nullable = left.nullable or right.nullable };
@@ -236,8 +238,9 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
             try requireKind(condition, .boolean);
             var yes = try self.expression(choice.yes);
             const no = try self.expression(choice.no);
+            const nullable = yes.kind == .null or no.kind == .null or yes.nullable or no.nullable;
             if (yes.kind == .null) yes = no else if (no.kind != .null and yes.kind != no.kind) return error.ProgramTypeMismatch;
-            yes.nullable = yes.nullable or no.nullable;
+            yes.nullable = nullable;
             yes.protected = yes.protected or no.protected or condition.protected;
             break :blk yes;
         },

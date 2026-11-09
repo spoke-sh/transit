@@ -5,8 +5,10 @@ This contract defines the ordered Queue program profile coordinated by
 [BROWSER_V1](BROWSER_V1.md). It introduces no independent catalog, permission
 authority, transaction log or effect ledger.
 
-**Implementation status:** bounded source framing, instruction parsing and local
-schema binding are implemented in Fuze's `ApplicationProgram`. Catalog binding,
+**Implementation status:** bounded source framing, instruction parsing, retained
+instruction encoding and local schema binding are implemented in Fuze's
+`ApplicationProgram`, together with its host-driven expression evaluator.
+Catalog binding,
 publication, activation, execution and recovery remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
@@ -35,6 +37,17 @@ its internal nodes are not separate migrations. All statements and dependencies
 must bind before any migration step is admitted. Compilation performs no network
 dispatch, activation or mutation.
 
+`ApplicationProgram.Codec` retains the instruction tree and source digest under
+the mandatory current native contract definition. Recovery decodes those exact
+instructions without parsing SQL. The encoding is bounded to 1 MiB; its JSON
+syntax depth is checked before recursive decoding, and node identities must be
+unique and cover the declared count. Structural validation rejects cycles,
+aliases, effects inside atomic blocks, mutations outside them, duplicate fields
+and malformed response cookies. Resource and protected-value binding still uses
+the definition's frozen schema inputs; decoding alone establishes neither
+catalog authority nor permission to execute. The exact consumer-source oracle
+checks all six instruction trees and their type bindings after reload.
+
 Bindings are lexical and immutable. Duplicate names in a live scope are rejected.
 Branch and atomic-block locals do not escape their block. A failure continuation
 receives the original input and a typed failure; it cannot depend on a partially
@@ -52,6 +65,14 @@ types. They cannot become ordinary persisted values through casts, concatenation
 JSON construction, logging, captures, queries or export. Compiler checks are
 repeated by native operations at the actual persistence/disclosure boundary.
 Public receipts contain typed status, commitments and original identities.
+
+The local evaluator represents secrets and protected JSON with opaque references.
+Protected scalar projections use a reference plus their logical kind. Native
+helper results are checked against the bound type; a helper cannot return a
+plain string where a protected value is required. Short-circuit and conditional
+evaluation preserve that classification. Only the native host redeems references;
+the reference itself confers no authority. The expression evaluator performs no
+durable acceptance or continuation recovery.
 
 A Queue capability field stores a non-authorizing handle. Its native binding
 includes purpose, scope, original request, current owner and expiry. Possessing

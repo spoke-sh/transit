@@ -15074,6 +15074,49 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationExpression.zig": {
+      "errors": {
+        "InvalidProgramNode": 2,
+        "ProgramArgumentMismatch": 1,
+        "ProgramTooComplex": 2,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 11,
+        "UnexpectedNativeObservation": 2,
+        "UnknownProgramVariable": 1
+      },
+      "outcomes": {
+        "Operation": [
+          "function",
+          "unary",
+          "binary",
+          "protect"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Fixture.condition()": "<inferred>",
+        "Fixture.evaluate()": "<inferred>",
+        "Fixture.lookup()": "<inferred>",
+        "Fixture.run()": "<inferred>",
+        "Host.condition()": "anyerror",
+        "Host.evaluate()": "anyerror",
+        "Host.lookup()": "anyerror",
+        "applyBinary()": "<inferred>",
+        "condition()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "expression()": "anyerror"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 32,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "ApplicationValue.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/ApplicationProgram.zig": {
       "errors": {},
       "outcomes": {
@@ -15188,10 +15231,51 @@
         "catch": 0
       },
       "imports": [
+        "ApplicationExpression.zig",
+        "ApplicationProgramCodec.zig",
         "ApplicationProgramParser.zig",
         "ApplicationProgramTypes.zig",
+        "ApplicationValue.zig",
         "SqlInput.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationProgramCodec.zig": {
+      "errors": {
+        "DuplicateProgramField": 2,
+        "EffectInsideAtomic": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidProgramCookie": 2,
+        "InvalidProgramNode": 6,
+        "InvalidProgramStatus": 1,
+        "MutationOutsideAtomic": 4,
+        "NestedAtomicProgram": 1,
+        "ProgramTooComplex": 10,
+        "ProgramTooDeep": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Validator.block()": "anyerror",
+        "Validator.expression()": "anyerror",
+        "Validator.expressions()": "<inferred>",
+        "Validator.fields()": "<inferred>",
+        "Validator.node()": "<inferred>",
+        "Validator.select()": "<inferred>",
+        "Validator.text()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 74,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/ApplicationProgramParser.zig": {
@@ -15266,7 +15350,7 @@
         "ProgramResourceKindMismatch": 2,
         "ProgramTooComplex": 2,
         "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 16,
+        "ProgramTypeMismatch": 17,
         "ProtectedProgramValue": 4,
         "UnknownProgramField": 2,
         "UnknownProgramResource": 1,
@@ -15318,12 +15402,61 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 138,
+        "try": 139,
         "catch": 0
       },
       "imports": [
         "ApplicationProgram.zig",
         "Sql.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationValue.zig": {
+      "errors": {
+        "InvalidSqlEncoding": 1,
+        "ProgramNullabilityMismatch": 1,
+        "ProgramTooComplex": 3,
+        "ProgramTooDeep": 3,
+        "ProgramTypeMismatch": 7,
+        "ProtectedProgramValue": 2,
+        "UnknownProgramField": 1
+      },
+      "outcomes": {
+        "Value": [
+          "null",
+          "boolean",
+          "integer",
+          "text",
+          "binary",
+          "uuid",
+          "timestamp",
+          "duration",
+          "json",
+          "record",
+          "secret",
+          "protected_json",
+          "capability",
+          "failure",
+          "sealed"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Value.field()": "<inferred>",
+        "Value.public()": "anyerror",
+        "Value.publicDepth()": "anyerror",
+        "Value.reference()": "<inferred>",
+        "Value.validate()": "<inferred>",
+        "Value.validateDepth()": "anyerror",
+        "Value.validateJson()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
         "std"
       ]
     },

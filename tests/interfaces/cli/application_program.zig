@@ -44,12 +44,23 @@ pub fn main(init: std.process.Init) !void {
             };
             defer bound.deinit();
             try t.expect(bound.uses.len > 0);
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(step.sql, &digest, .{});
+            const encoded = try f.ApplicationProgram.Codec.encode(allocator, parsed.program, digest);
+            defer allocator.free(encoded);
+            var retained = try f.ApplicationProgram.Codec.decode(allocator, encoded);
+            defer retained.deinit();
+            try t.expectEqualDeep(parsed.program, retained.program);
+            var rebound = try f.ApplicationProgram.Types.bind(allocator, retained.program, bindings.value, null);
+            defer rebound.deinit();
+            try t.expectEqualDeep(bound.uses, rebound.uses);
+            try t.expectEqualDeep(bound.values, rebound.values);
             programs += 1;
         }
     }
     try t.expectEqual(6, programs);
     var buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try output.interface.writeAll("Application sources: exact checksums, 43 migration boundaries and six typed Queue programs verified against independent schema fixtures; no installation or runtime outcome qualified.\n");
+    try output.interface.writeAll("Application sources: exact checksums, 43 migration boundaries and six retained typed Queue programs verified against independent schema fixtures; no installation or runtime outcome qualified.\n");
     try output.interface.flush();
 }

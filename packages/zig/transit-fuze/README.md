@@ -18,6 +18,22 @@ value metadata owns its schema fields and names. Read, write, dispatch and guard
 dependencies remain distinct. Neither operation performs a catalog lookup,
 publishes a computation, executes an effect or grants native authority.
 
+`ApplicationProgram.Codec` retains the exact instruction tree and source digest
+under the current contract definition, with a separate 1 MiB encoding limit.
+Loading verifies canonical bytes, syntax depth, unique node coverage, atomic
+boundaries and response structure before binding. Recovery uses these retained
+instructions without parsing SQL. `ApplicationProgram.Evaluation` evaluates
+expressions with checked arithmetic, nullable field access, SQL three-valued
+conditions and short-circuit control flow. It delegates native observations to
+an explicit host and checks every returned value against its bound type.
+
+`ApplicationProgram.Values` represents secrets, protected JSON and capabilities
+as non-authorizing references. Protected scalar projections also stay behind
+references, including values selected by a protected condition. No credential
+bytes enter Fuze's environment. Only the native host may redeem a reference after
+checking its original owner, purpose, current authority and lifetime. This local
+evaluator supplies no durable cursor, Queue worker or transient reservation store.
+
 The compiler bounds source at 64 KiB, nodes at 4,096, nesting at 32 and argument
 lists at 64. It rejects effects within atomic blocks and mutations outside them.
 Missing reads retain nullable record types; the eventual execution owner must

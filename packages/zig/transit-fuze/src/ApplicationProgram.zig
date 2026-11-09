@@ -5,6 +5,9 @@
 const std = @import("std");
 pub const Parser = @import("ApplicationProgramParser.zig");
 pub const Types = @import("ApplicationProgramTypes.zig");
+pub const Codec = @import("ApplicationProgramCodec.zig");
+pub const Values = @import("ApplicationValue.zig");
+pub const Evaluation = @import("ApplicationExpression.zig");
 pub const max_source_bytes = @import("SqlInput.zig").max_source_bytes;
 pub const max_nodes = 4096;
 pub const max_depth = 32;
@@ -139,6 +142,9 @@ pub const parse = Parser.parse;
 
 test {
     _ = Types;
+    _ = Codec;
+    _ = Values;
+    _ = Evaluation;
 }
 
 test "application program preserves guarded effects and atomic control flow" {
