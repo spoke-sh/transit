@@ -94,7 +94,11 @@ construction. Each reservation binds an exact Queue input and a fixed
 monotonic deadline; waiting or recovery does not renew it. Evaluations borrow one
 request exclusively while other requests proceed independently. Closing revokes
 further access, joins its current borrower, then erases all request/protected
-bytes. Releasing an evaluation erases its private scratch and removes its borrowed
+bytes. Registry calls take the calling task's I/O runtime, and each borrow retains
+that runtime for cancellable waits and cleanup. Ingress and SQL workers can use
+separate runtimes without borrowing ingress's cancellation context. The native
+request host uses its scoped client's runtime for expressions and secret reads.
+Releasing an evaluation erases its private scratch and removes its borrowed
 authority callback. A stale borrow or close cannot affect a reused slot. Registry
 ownership grants no native rights: new and released reservations deny redemption
 until a native binder supplies current scoped authority. Live listener/executor

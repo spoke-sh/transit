@@ -1297,9 +1297,9 @@ const ApplicationHost = struct {
             // Compose the request factory against this signed claim and both
             // native transaction modes. The capability fixture is transient;
             // the retained invocation remains the authority for every read.
-            var requests = try http.ApplicationRequests.init(scope.scratch, scope.client.service.http.io, .{ .active_requests = 1, .request_bytes = 1024, .protected_bytes = 4096, .protected_values = 8, .scratch_bytes = 8192, .resident_bytes = 64 * 1024 });
-            defer requests.deinit();
-            const ticket = try requests.open(scope.input.source, @splat(2), .{ .query = "state=public-state&code=protected-code", .headers = &.{} }, 60_000);
+            var requests = try http.ApplicationRequests.init(scope.scratch, .{ .active_requests = 1, .request_bytes = 1024, .protected_bytes = 4096, .protected_values = 8, .scratch_bytes = 8192, .resident_bytes = 64 * 1024 });
+            defer requests.deinit(scope.client.service.http.io);
+            const ticket = try requests.open(scope.client.service.http.io, scope.input.source, @splat(2), .{ .query = "state=public-state&code=protected-code", .headers = &.{} }, 60_000);
             var request_factory = try http.ApplicationRequestHost.init(&requests, &.{});
             const factory = request_factory.host();
             try factory.ready(factory.context, scope.scratch, scope.declaration);

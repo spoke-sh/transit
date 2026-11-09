@@ -77,16 +77,17 @@ fn findMount(self: *Self, binding: c.DirectSecret.Binding) ?std.Io.Dir {
 }
 fn secret(self: *Self, scope: q.ApplicationExecution.Context) !?Secrets {
     const binding = try secretBinding(scope.declaration) orelse return null;
-    return .{ .client = scope.client, .binding = binding, .io = self.registry.io, .directory = self.findMount(binding) orelse return null };
+    return .{ .client = scope.client, .binding = binding, .io = scope.client.service.http.io, .directory = self.findMount(binding) orelse return null };
 }
 fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
     const self: *Self = @ptrCast(@alignCast(context));
+    const io = scope.client.service.http.io;
     const reference = try requestReference(scope.input);
     const binding = try scope.scratch.create(Binding);
-    binding.* = .{ .ordinary = .{ .scratch = scope.scratch, .io = self.registry.io, .scope = scope } };
+    binding.* = .{ .ordinary = .{ .scratch = scope.scratch, .io = io, .scope = scope } };
     errdefer binding.finish();
     if (reference) |request| {
-        binding.borrow = self.registry.borrow(.{ .reference = request }, scope.input.source) catch |err| switch (err) {
+        binding.borrow = self.registry.borrow(io, .{ .reference = request }, scope.input.source) catch |err| switch (err) {
             // Transient loss cannot prevent a failure handler from recording
             // public state/receipts. Only use of the missing request fails.
             error.ApplicationReservationLost, error.ApplicationReservationExpired => lost: {
@@ -102,9 +103,9 @@ fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.Applicati
             view.reservation.authority = .{ .context = binding, .check = Binding.check };
             binding.protected = .{
                 .reservation = view.reservation,
-                .access = .{ .owner = scope.invocation, .input = scope.input.source, .now_ms = std.math.cast(u64, std.Io.Clock.awake.now(self.registry.io).toMilliseconds()) orelse return error.ClockUnavailable },
+                .access = .{ .owner = scope.invocation, .input = scope.input.source, .now_ms = std.math.cast(u64, std.Io.Clock.awake.now(io).toMilliseconds()) orelse return error.ClockUnavailable },
                 .step = scope.step,
-                .io = self.registry.io,
+                .io = io,
                 .output = scope.scratch,
                 .private_memory = view.private_memory,
                 .request = view.request,
@@ -203,8 +204,8 @@ test "application request host selection uses only the original input and keeps 
     const t = std.testing;
     var scratch: std.heap.ArenaAllocator = .init(t.allocator);
     defer scratch.deinit();
-    var registry = try Requests.init(t.allocator, t.io, .{ .active_requests = 1, .request_bytes = 512, .protected_bytes = 1024, .protected_values = 4, .scratch_bytes = 1024, .resident_bytes = 64 * 1024 });
-    defer registry.deinit();
+    var registry = try Requests.init(t.allocator, .{ .active_requests = 1, .request_bytes = 512, .protected_bytes = 1024, .protected_values = 4, .scratch_bytes = 1024, .resident_bytes = 64 * 1024 });
+    defer registry.deinit(t.io);
     var self = try init(&registry, &.{});
     const factory = self.host();
     var fields = [_]a.Values.Field{.{ .name = "request", .value = .{ .capability = .{ .id = @splat(9) } } }};
@@ -215,9 +216,11 @@ test "application request host selection uses only the original input and keeps 
         .lease = undefined,
         .environment = .{ .definition = c.protocol.Growth.current_definition, .binding_digest = @splat(1), .cursor = undefined, .values = &.{.{ .instruction = 0, .value = .{ .record = &fields } }} },
     };
-    // A missing reference refuses before inspecting source/client authority.
-    // These deliberately absent native objects must never be consulted here.
-    const scope: q.ApplicationExecution.Context = .{ .client = undefined, .declaration = undefined, .work = undefined, .invocation = undefined, .input = input, .step = 1, .scratch = scratch.allocator() };
+    // The caller supplies its I/O runtime; missing native authority is never
+    // consulted while binding a reservation that has already disappeared.
+    var service = c.client.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer service.deinit();
+    const scope: q.ApplicationExecution.Context = .{ .client = .{ .allocator = t.allocator, .service = &service, .authority = &service, .connection = undefined, .key = undefined }, .declaration = undefined, .work = undefined, .invocation = undefined, .input = input, .step = 1, .scratch = scratch.allocator() };
     var bound = try factory.bind(factory.context, scope);
     defer bound.deinit();
     const expressions = bound.expressions;
