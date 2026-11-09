@@ -7,6 +7,8 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.ProgramRowAssertionFailed, .code = "sql.program_row_assertion_failed", .category = .conflict, .summary = "An existing row differs from the program's asserted row", .hint = "Inspect the original transaction and row; a matching key does not authorize replacing different values." },
+    .{ .cause = error.ProgramCardinalityMismatch, .code = "sql.program_cardinality_mismatch", .category = .constraint, .summary = "The program's single-record SELECT matched more than one row", .hint = "Use a predicate that selects at most one record for this LET binding." },
     .{ .cause = error.NativeBindingConflict, .code = "sql.native_binding_conflict", .category = .conflict, .summary = "The native binding already names a different resource", .hint = "Inspect the canonical binding before changing the declaration." },
     .{ .cause = error.UnknownNativeBinding, .code = "sql.unknown_native_binding", .category = .binding, .summary = "The native binding name is unknown", .hint = "Use a binding defined by the browser state contract." },
     .{ .cause = error.InvalidNativeBindingKind, .code = "sql.invalid_native_binding_kind", .category = .binding, .summary = "The resource kind does not support this native binding", .hint = "Use the Table or KV kind required by the binding." },

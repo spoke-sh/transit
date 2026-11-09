@@ -1223,6 +1223,14 @@
         "NativeBindingConflict": {
           "code": "sql.native_binding_conflict",
           "category": "conflict"
+        },
+        "ProgramCardinalityMismatch": {
+          "code": "sql.program_cardinality_mismatch",
+          "category": "constraint"
+        },
+        "ProgramRowAssertionFailed": {
+          "code": "sql.program_row_assertion_failed",
+          "category": "conflict"
         }
       }
     },

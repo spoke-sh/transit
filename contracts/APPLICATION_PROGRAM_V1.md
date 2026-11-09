@@ -9,6 +9,8 @@ authority, transaction log or effect ledger.
 instruction encoding and local schema binding are implemented in Fuze's
 `ApplicationProgram`, together with its host-driven expression evaluator,
 scoped continuation codec and typed instruction operands.
+`transit-query-direct.ApplicationData` supplies native data conversion and
+read/mutation preparation for these operands.
 Catalog binding,
 publication, activation, execution and recovery remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success

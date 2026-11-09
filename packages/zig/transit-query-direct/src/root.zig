@@ -15,6 +15,7 @@ pub const ComputePool = @import("ComputePool.zig");
 pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const ManagedTable = @import("ManagedTable.zig");
+pub const ApplicationData = @import("ApplicationData.zig");
 pub const ManagedInspection = @import("ManagedInspection.zig");
 pub const ManagedRevision = @import("ManagedRevision.zig");
 test {

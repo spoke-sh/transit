@@ -4,6 +4,19 @@ Finite SQL query execution over authorized direct Tables, exported as
 `transit_query_direct`. The package depends on Catalog, Fuze and the public
 protocol. Its compiled dependency graph excludes Station.
 
+`ApplicationData` connects Fuze's ordered-program operands to native typed
+values, KV point reads and exact revision-guarded mutations, retained single-row
+SELECTs, Table row assertions and Stream/Queue append preparation. SELECT keeps
+the caller's original snapshot, bounds scanned rows and requests, rejects a
+second matching row and checks current read authority after buffering. A
+Document result carries the native collection guard; a Table result carries
+its exact source fingerprint. KV revisions remain point-value identities.
+`DO ASSERT SAME ROW` compares every typed value in a serializable transaction;
+an existing key alone cannot satisfy it. Prepared mutations preserve the original
+operation and use the existing common transaction API. These adapters do not
+install, schedule or recover an application. Managed Queue integration remains
+tracked by [#430](https://github.com/spoke-sh/transit/issues/430).
+
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded
 rows, bytes and source requests. `DirectRelationalCompilation` and

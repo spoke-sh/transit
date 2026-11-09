@@ -19900,8 +19900,10 @@
         "PredicateTooDeep": 1,
         "PrimaryKeyColumnRequired": 1,
         "ProgramArgumentMismatch": 1,
+        "ProgramCardinalityMismatch": 1,
         "ProgramNullabilityMismatch": 1,
         "ProgramResourceKindMismatch": 1,
+        "ProgramRowAssertionFailed": 1,
         "ProgramTooComplex": 1,
         "ProgramTooDeep": 1,
         "ProgramTypeMismatch": 1,
@@ -27089,6 +27091,59 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationData.zig": {
+      "errors": {
+        "DuplicateProgramField": 1,
+        "InvalidQueryBudget": 1,
+        "InvalidRowIdentity": 1,
+        "InvalidTableResponse": 2,
+        "InvalidTransactionGuard": 4,
+        "Overflow": 2,
+        "ProgramCardinalityMismatch": 1,
+        "ProgramResourceKindMismatch": 1,
+        "ProgramRowAssertionFailed": 2,
+        "ProgramTooComplex": 3,
+        "ProgramTooDeep": 3,
+        "ProgramTypeMismatch": 25,
+        "QueryResultBudget": 2,
+        "TableDefinitionChanged": 5,
+        "UnknownProgramField": 2,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "RowContext.condition()": "anyerror",
+        "RowContext.evaluate()": "anyerror",
+        "RowContext.lookup()": "anyerror",
+        "assertSameRow()": "<inferred>",
+        "bindField()": "<inferred>",
+        "bindType()": "anyerror",
+        "fromCell()": "<inferred>",
+        "fromValidated()": "anyerror",
+        "get()": "<inferred>",
+        "intoCell()": "<inferred>",
+        "intoType()": "anyerror",
+        "kvValue()": "<inferred>",
+        "prepareAppend()": "<inferred>",
+        "prepareInsert()": "<inferred>",
+        "preparePut()": "<inferred>",
+        "requireType()": "anyerror",
+        "rowCells()": "<inferred>",
+        "rowValue()": "<inferred>",
+        "select()": "<inferred>"
+      },
+      "open_error_set_uses": 7,
+      "propagation": {
+        "try": 76,
+        "catch": 1
+      },
+      "imports": [
+        "DirectTableScan.zig",
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ComputePool.zig": {
       "errors": {
         "Cancelled": 3,
@@ -27659,6 +27714,7 @@
         "catch": 0
       },
       "imports": [
+        "ApplicationData.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
         "DirectRelationalQuery.zig",
