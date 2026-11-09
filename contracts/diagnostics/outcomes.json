@@ -10370,6 +10370,34 @@
           "actions": [
             "inspect_scope"
           ]
+        },
+        "InvalidSinkEncoding": {
+          "code": "catalog.invalid_sink_encoding",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidSinkHeader": {
+          "code": "catalog.invalid_sink_header",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidSinkBudget": {
+          "code": "catalog.invalid_sink_budget",
+          "category": "limit",
+          "actions": [
+            "correct_input"
+          ]
+        },
+        "InvalidSinkRetryPolicy": {
+          "code": "catalog.invalid_sink_retry_policy",
+          "category": "binding",
+          "actions": [
+            "correct_input"
+          ]
         }
       },
       "mapping_boundary": "direct-catalog-caller"
