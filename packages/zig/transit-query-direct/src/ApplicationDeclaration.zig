@@ -91,6 +91,34 @@ pub fn bind(self: Self, allocator: std.mem.Allocator) !a.Types.Bound {
     for (self.resources, resources) |resource, *target| target.* = try resource.resource(scratch.allocator(), self.connection);
     var result = try a.Types.bind(allocator, self.program, resources, null);
     errdefer result.deinit();
+    // Helpers such as SECRET have no SQL resource operand. Pin their canonical
+    // native owner in the same dependency set and common transaction as reads
+    // named in the program. Resource metadata cannot grant permission itself.
+    const uses = try result.arena.allocator().alloc(a.Types.Use, self.resources.len);
+    @memcpy(uses[0..result.uses.len], result.uses);
+    var count = result.uses.len;
+    var native = result.native.iterator();
+    while (native.next()) |kind| {
+        var found: ?u16 = null;
+        for (self.resources, 0..) |resource, index| if (resource.nativeBinding() == kind) {
+            if (found != null) return error.DuplicateProgramNativeBinding;
+            found = @intCast(index);
+        };
+        const index = found orelse return error.MissingProgramNativeBinding;
+        var existing: ?*a.Types.Use = null;
+        for (uses[0..count]) |*use| if (use.resource == index) {
+            existing = use;
+            break;
+        };
+        if (existing) |use| {
+            use.read = true;
+            use.guard = true;
+        } else {
+            uses[count] = .{ .resource = index, .read = true, .guard = true };
+            count += 1;
+        }
+    }
+    result.uses = uses[0..count];
     // A retained definition carries exactly its used dependencies, not a set of
     // ambient bindings that could silently gain authority after replacement.
     if (result.uses.len != self.resources.len) return error.DataflowIdentityConflict;
@@ -220,8 +248,60 @@ test "application declarations retain exact typed programs and consume rights wi
     changed = declaration;
     changed.resources = &.{ resources[0], resources[0] };
     try t.expectError(error.DuplicateProgramResource, changed.validate(t.allocator));
+
+    // A helper's implicit dependency must be canonical and explicit in the
+    // retained declaration, even when no SQL GET names the secret resource.
+    var secret_program = try a.parse(t.allocator, "CREATE DATAFLOW example FROM QUEUE input AS event AS BEGIN LET key = SECRET('browser.cookie_key'); BEGIN ATOMIC REQUIRE SECRET_CURRENT(key) ELSE 'Rotated'; END; END;", null);
+    defer secret_program.deinit();
+    var with_secret = declaration;
+    with_secret.program = secret_program.program;
+    try t.expectError(error.MissingProgramNativeBinding, with_secret.bind(t.allocator));
+    const secret_binding = try testSecretBinding(arena.allocator(), connection, 9, "secrets", .secret_references);
+    with_secret.resources = &.{ resources[0], secret_binding };
+    var secret_bound = try with_secret.bind(t.allocator);
+    defer secret_bound.deinit();
+    try t.expectEqual(2, secret_bound.uses.len);
+    try t.expect(secret_bound.native.contains(.secret_references));
+    try t.expect(secret_bound.uses[1].read and secret_bound.uses[1].guard and !secret_bound.uses[1].write);
+    try t.expectEqual(c.KVAuthority.read | c.KVAuthority.use_secret, try secret_binding.privileges(secret_bound.uses[1]));
+    const secret_claim = try with_secret.inputClaim(t.allocator, 0, declaration.operation);
+    const begin = try q.ApplicationTransaction.prepareBegin(arena.allocator(), with_secret, secret_claim, .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(3), .token = @splat(5) }, declaration.operation);
+    try t.expectEqual(3, begin.selection.explicit_objects.len);
+    try t.expectEqualDeep(secret_binding.interpretation().object, begin.selection.explicit_objects[2].object);
+
+    var explicit = try a.parse(t.allocator, "CREATE DATAFLOW example FROM QUEUE input AS event AS BEGIN LET row = GET FROM secrets KEY DIGEST('key'); LET key = SECRET('browser.cookie_key'); END;", null);
+    defer explicit.deinit();
+    with_secret.program = explicit.program;
+    var merged = try with_secret.bind(t.allocator);
+    defer merged.deinit();
+    try t.expectEqual(2, merged.uses.len);
+    try t.expect(merged.uses[1].read and merged.uses[1].guard);
+
+    with_secret.program = secret_program.program;
+    with_secret.resources = &.{ resources[0], try testSecretBinding(arena.allocator(), connection, 9, "secrets", null) };
+    try t.expectError(error.MissingProgramNativeBinding, with_secret.bind(t.allocator));
+    with_secret.resources = &.{ resources[0], secret_binding, try testSecretBinding(arena.allocator(), connection, 10, "other_secrets", .secret_references) };
+    try t.expectError(error.DuplicateProgramNativeBinding, with_secret.bind(t.allocator));
+    with_secret.resources = &.{ resources[0], secret_binding };
+    with_secret.program = declaration.program;
+    try t.expectError(error.DataflowIdentityConflict, with_secret.bind(t.allocator));
+
     resources[0].value.log.declaration.properties.name = try .init("forged");
     try t.expectError(error.InvalidTableResponse, declaration.validate(t.allocator));
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = undefined, .service = undefined, .connection = connection, .key = undefined };
     try t.expectError(error.InvalidTableResponse, resources[0].requireCurrent(client));
+}
+
+fn testSecretBinding(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, id: u64, name: []const u8, native: ?q.fuze.NativeBinding.Kind) !Binding {
+    const properties: c.DirectCatalog.Properties = .{ .namespace = 1, .authorization = id + 100, .name = try .init(name), .native_binding = native };
+    const spec = try c.NativeBindingSchema.kvSpec(.secret_references);
+    var buffer: [4096]u8 = undefined;
+    var prepared = try c.storage.KVDeclaration.prepare(allocator, .{
+        .object = .{ .scope = connection.scope, .branch = connection.branch, .object = id },
+        .revision = 1,
+        .spec = spec,
+        .properties = try properties.encode(&buffer),
+    });
+    defer prepared.deinit();
+    return .{ .value = .{ .kv = .{ .stored = try prepared.stored(), .properties = properties, .spec = spec } } };
 }

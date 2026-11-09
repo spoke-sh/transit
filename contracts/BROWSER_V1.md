@@ -321,6 +321,11 @@ current namespace and resource inspection rights. It returns no definition for
 an uninitialized or retired resource. Returned metadata binds the native binding
 into the immutable declaration digest.
 
+Creating a canonical native binding requires current namespace ownership.
+Ordinary namespace CREATE permission cannot reserve that identity. Inspection
+continues to use namespace/resource inspection rights; the binding grants no
+permission to read or change its values.
+
 Conflicting reservations refuse. An uninitialized rejected/cancelled creation may
 be replaced; an initialized resource permanently retains its binding identity,
 including after retirement. Rename preserves the binding. ALTER of a bound

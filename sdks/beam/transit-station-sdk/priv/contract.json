@@ -16394,7 +16394,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T456": {
@@ -74077,7 +74078,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T257": {

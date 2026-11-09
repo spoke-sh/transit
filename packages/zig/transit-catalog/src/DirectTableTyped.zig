@@ -53,7 +53,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, input:
         const create = input.action.create;
         var schema = try f.TableSchemaJson.native(&arena, create.schema);
         ddl.native_binding = create.native_binding;
-        if (create.native_binding) |kind| try c.BrowserStateSchema.prepare(a, kind, &schema);
+        if (create.native_binding) |kind| try c.NativeBindingSchema.prepare(a, kind, &schema);
         if (schema.revision != 1) return error.InvalidTableSchema;
         const subject = try client.require(.{ .namespace = input.namespace, .target = null, .access = .create_table });
         if (create.if_not_exists) {

@@ -70,8 +70,12 @@ The protected helper component now checks cached material authority, preserves
 original random secrets, performs domain-separated derivation and exact bounded
 JSON projection, and erases private scratch on every return. Its component
 proofs cover duplicate request fields, revocation, protected scalar operations,
-cookie/header purposes and capacity refusal. Live secret read guards, effect
-ownership and HTTP composition remain unfinished.
+cookie/header purposes and capacity refusal. Canonical secret-reference metadata
+now uses an exact native KV schema and separate `use_secret` privilege. Program
+declarations include its implicit read dependency, and common-decision tests
+cover rotation, disable and privilege revocation after preparation. Private
+mount loading, live secret callbacks, effect ownership and HTTP composition
+remain unfinished.
 
 ## Reviewed inputs and desired experience
 

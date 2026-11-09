@@ -7,7 +7,10 @@ const a = c.TableAuthority;
 pub const inspect: u64 = 1;
 pub const read: u64 = 2;
 pub const write: u64 = 4;
-pub const all_privileges: u64 = inspect | read | write;
+/// Required in addition to read for the canonical secret-reference resource,
+/// including its native transaction participant at the publication fence.
+pub const use_secret: u64 = 8;
+pub const all_privileges: u64 = inspect | read | write | use_secret;
 pub const Access = enum { create, inspect, read, write, administer };
 
 pub fn requirements(profile: a.Profile, subject: p.Authorization.Subject, schema: a.Schema, object: ?a.Table, access: Access) !p.Authorization.Guard {
@@ -19,7 +22,7 @@ pub fn requirements(profile: a.Profile, subject: p.Authorization.Subject, schema
     try c.Model.nativeId(target.authorization);
     result.requirements[2] = .{ .object = a.reference(target.authorization), .privileges = switch (access) {
         .inspect => inspect,
-        .read => read,
+        .read => read | @as(u64, if (target.native_binding == .secret_references) use_secret else 0),
         .write => write,
         .create, .administer => unreachable,
     } };
@@ -47,6 +50,10 @@ test "KV privileges separate metadata reads writes and ownership in the existing
     try t.expectEqual(a.usage | a.create, create.requirements[1].?.privileges);
     try t.expect(create.requirements[2] == null);
     try t.expectEqual(.ownership, (try requirements(profile, subject, schema, object, .administer)).requirements[2].?.access);
+    var secret = object;
+    secret.native_binding = .secret_references;
+    try t.expectEqual(read | use_secret, (try requirements(profile, subject, schema, secret, .read)).requirements[2].?.privileges);
+    try t.expectEqual(inspect, (try requirements(profile, subject, schema, secret, .inspect)).requirements[2].?.privileges);
     const kv_binding = try a.binding(schema.scope, .kv, object.id);
     for ([_]a.Kind{ .table, .stream, .queue }) |kind| try t.expect(!std.mem.eql(u8, &kv_binding, &try a.binding(schema.scope, kind, object.id)));
     var invalid = profile;

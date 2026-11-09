@@ -3327,7 +3327,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T99": {
@@ -5509,7 +5510,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T199": {
@@ -6097,6 +6099,18 @@
                   "$ref": "#/$defs/Request/$defs/T227"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Request/$defs/T54"
+                }
+              }
             }
           ]
         },
@@ -6535,6 +6549,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/Request/$defs/T220"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Request/$defs/T210"
                 }
               }
             }
@@ -15385,6 +15411,18 @@
                   "$ref": "#/$defs/Request/$defs/T562"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Request/$defs/T552"
+                }
+              }
             }
           ]
         },
@@ -20806,7 +20844,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T159": {
@@ -21271,7 +21310,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T182": {
@@ -22437,7 +22477,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T225": {
@@ -34580,6 +34621,18 @@
                   "$ref": "#/$defs/Response/$defs/T736"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Response/$defs/T709"
+                }
+              }
             }
           ]
         },
@@ -35032,6 +35085,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/Response/$defs/T727"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/Response/$defs/T717"
                 }
               }
             }
@@ -35689,7 +35754,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T10": {
@@ -36749,6 +36815,18 @@
                   "$ref": "#/$defs/SavedIntent/$defs/T67"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T41"
+                }
+              }
             }
           ]
         },
@@ -37191,6 +37269,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/SavedIntent/$defs/T58"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/SavedIntent/$defs/T48"
                 }
               }
             }
@@ -45611,7 +45701,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T32": {
@@ -52189,6 +52280,18 @@
                   "$ref": "#/$defs/HostAction/$defs/T168"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/HostAction/$defs/T2"
+                }
+              }
             }
           ]
         },
@@ -52629,6 +52732,18 @@
                   "$ref": "#/$defs/HostAction/$defs/T161"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/HostAction/$defs/T151"
+                }
+              }
             }
           ]
         },
@@ -52995,6 +53110,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -53407,6 +53523,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -54568,6 +54685,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -55137,7 +55255,8 @@
             "browser_identities",
             "browser_bindings",
             "browser_challenges",
-            "browser_sessions"
+            "browser_sessions",
+            "secret_references"
           ]
         },
         "T254": {
@@ -65449,6 +65568,18 @@
                   "$ref": "#/$defs/HostResult/$defs/T157"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/HostResult/$defs/T25"
+                }
+              }
             }
           ]
         },
@@ -65892,6 +66023,18 @@
                   "$ref": "#/$defs/HostResult/$defs/T150"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/HostResult/$defs/T140"
+                }
+              }
             }
           ]
         },
@@ -66260,6 +66403,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -66672,6 +66816,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -67837,6 +67982,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"

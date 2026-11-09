@@ -78,7 +78,7 @@ pub const Properties = struct {
         return parsed.value;
     }
     pub fn target(self: Properties, id: u64) a.Table {
-        return .{ .id = id, .schema = self.namespace, .authorization = self.authorization };
+        return .{ .id = id, .schema = self.namespace, .authorization = self.authorization, .native_binding = self.native_binding };
     }
 };
 
@@ -405,7 +405,7 @@ pub const Intent = struct {
         }
         if (self.native_binding) |native_binding| {
             if (self.document != null or self.action != .create) return error.InvalidNativeBindingKind;
-            try c.BrowserStateSchema.validate(native_binding, self.action.create.schema, self.kind == .kv);
+            try c.NativeBindingSchema.validate(native_binding, self.action.create.schema, self.kind == .kv);
         }
         const action: d.Action = switch (self.action) {
             .create => .create,

@@ -32,6 +32,13 @@ controls separate publication, explicit role authorization and activation;
 readiness rechecks current dependency actions through the native owner. These
 typed operations do not yet supply installed SQL execution.
 
+Programs using `SECRET` or `SECRET_CURRENT` must bind the canonical
+`transit.secret_references` KV definition. Compilation records that requirement;
+executable declaration binding rejects missing or duplicate native owners and
+merges the implicit read with any explicit use. Readiness requires KV READ and
+`use_secret`; common transactions include the secret resource as a read-guarded
+participant. An unrelated KV with identical columns cannot satisfy the binding.
+
 `ApplicationInvocation` attaches original work before Queue acquisition and
 retains the original claim receipt before reading its input. An immutable input
 record contains the initial typed environment and original enqueue operation,

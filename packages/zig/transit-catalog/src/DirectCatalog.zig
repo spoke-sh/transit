@@ -5537,6 +5537,11 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
     else
         try self.kvRequirements(policy, namespace, target, if (request.intent.action == .create) .create else .administer);
     if (acceptance) requested = try self.foreignRequirements(policy, request, view, requested);
+    if (request.intent.action == .create and request.intent.native_binding != null) {
+        // Canonical native state is a namespace trust binding. Ordinary CREATE
+        // permission cannot reserve its identity before the operator installs it.
+        requested.requirements[1] = .{ .object = a.reference(namespace.authorization), .access = .ownership };
+    }
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
     return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
@@ -5663,7 +5668,7 @@ pub fn resolveNativeBinding(self: *Self, allocator: std.mem.Allocator, namespace
         return null;
     }
     if (view.properties.namespace != namespace or view.properties.native_binding != kind) return error.InvalidDirectCatalogEntry;
-    try c.BrowserStateSchema.validate(kind, view.table.declaration.schema.schema, view.table.root.kind == .kv);
+    try c.NativeBindingSchema.validate(kind, view.table.declaration.schema.schema, view.table.root.kind == .kv);
     const required = if (kind.isKV()) try self.kvRequirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect) else try self.requirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect);
     const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
     try check(current);
@@ -6275,7 +6280,8 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
     else
         try self.requirements(policy, namespace, view.properties.target(object.object), .inspect);
     if (privileges != 0) {
-        requested.requirements[2].?.privileges = privileges;
+        requested.requirements[2].?.privileges = privileges |
+            @as(u64, if (seed.kind == .kv and view.properties.native_binding == .secret_references and privileges & c.KVAuthority.read != 0) c.KVAuthority.use_secret else 0);
         requested.requirements[2].?.access = .all;
     }
     return .{ .interpretation = view.table.root.interpretation, .live = view.table.root.next_lsn != 0 and !view.table.root.retired, .requirements = requested };

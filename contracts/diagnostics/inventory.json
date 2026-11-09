@@ -4066,30 +4066,6 @@
         "std"
       ]
     },
-    "packages/zig/transit-catalog/src/BrowserStateSchema.zig": {
-      "errors": {
-        "InvalidNativeBindingConstraint": 5,
-        "InvalidNativeBindingKind": 1,
-        "InvalidNativeBindingSchema": 4
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "prepare()": "<inferred>",
-        "sameField()": "<inferred>",
-        "validate()": "<inferred>",
-        "validateShape()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 11,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std"
-      ]
-    },
     "packages/zig/transit-catalog/src/CallerCodes.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -7930,6 +7906,46 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectSecret.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidKVResponse": 2,
+        "InvalidNativeBindingSchema": 1,
+        "InvalidSecretContent": 1,
+        "InvalidSecretReference": 7,
+        "InvalidTransactionGuard": 2,
+        "SecretContentChanged": 1,
+        "SecretDisabled": 1,
+        "SecretReferencesUnavailable": 1,
+        "TableDefinitionChanged": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.validate()": "<inferred>",
+        "Declaration.fromValue()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Declaration.value()": "<inferred>",
+        "Declaration.verifyContent()": "<inferred>",
+        "Revision.decode()": "<inferred>",
+        "Revision.encode()": "<inferred>",
+        "Revision.validate()": "<inferred>",
+        "current()": "<inferred>",
+        "discover()": "<inferred>",
+        "key()": "<inferred>",
+        "label()": "<inferred>",
+        "read()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 31,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectSource.zig": {
       "errors": {
         "CatalogKindMismatch": 1,
@@ -10686,6 +10702,31 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/NativeBindingSchema.zig": {
+      "errors": {
+        "InvalidNativeBindingConstraint": 5,
+        "InvalidNativeBindingKind": 2,
+        "InvalidNativeBindingSchema": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "kvSpec()": "<inferred>",
+        "prepare()": "<inferred>",
+        "sameField()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateShape()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/OperationBinding.zig": {
       "errors": {
         "DataIdentityConflict": 11,
@@ -11340,7 +11381,6 @@
         "BrowserContract.zig",
         "BrowserDeclarations.zig",
         "BrowserRecordStore.zig",
-        "BrowserStateSchema.zig",
         "CatalogDefinition.zig",
         "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
@@ -11400,6 +11440,7 @@
         "DirectResource.zig",
         "DirectResourceClient.zig",
         "DirectSchemaProjection.zig",
+        "DirectSecret.zig",
         "DirectSource.zig",
         "DirectSourceCapture.zig",
         "DirectSourceClient.zig",
@@ -11452,6 +11493,7 @@
         "ManagedTableRecords.zig",
         "Model.zig",
         "NameAssertion.zig",
+        "NativeBindingSchema.zig",
         "OperationBinding.zig",
         "PublishedProjection.zig",
         "PublishedResource.zig",
@@ -15589,6 +15631,7 @@
       },
       "imports": [
         "ApplicationProgram.zig",
+        "NativeBinding.zig",
         "Sql.zig",
         "std"
       ]
@@ -17987,7 +18030,8 @@
           "browser_identities",
           "browser_bindings",
           "browser_challenges",
-          "browser_sessions"
+          "browser_sessions",
+          "secret_references"
         ]
       },
       "error_sets": {},
@@ -27239,7 +27283,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 26,
         "catch": 0
       },
       "imports": [
@@ -27306,11 +27350,13 @@
     "packages/zig/transit-query-direct/src/ApplicationDeclaration.zig": {
       "errors": {
         "DataflowIdentityConflict": 3,
+        "DuplicateProgramNativeBinding": 1,
         "DuplicateProgramResource": 1,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationRole": 1,
         "InvalidProgramNode": 1,
         "InvalidQueryBudget": 1,
+        "MissingProgramNativeBinding": 1,
         "ProgramResourceKindMismatch": 2,
         "UnknownProgramResource": 1
       },
@@ -27325,11 +27371,12 @@
         "inputClaim()": "<inferred>",
         "interpretation()": "<inferred>",
         "prepare()": "<inferred>",
+        "testSecretBinding()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 36,
         "catch": 0
       },
       "imports": [

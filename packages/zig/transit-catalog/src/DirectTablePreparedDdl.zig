@@ -57,7 +57,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     errdefer compiled.deinit();
     if (compiled.statement == .create) if (compiled.statement.create.native_binding) |native_binding| {
         var bound = try compiled.statement.create.bind(1);
-        try c.BrowserStateSchema.prepare(compiled.arena.allocator(), native_binding, &bound);
+        try c.NativeBindingSchema.prepare(compiled.arena.allocator(), native_binding, &bound);
         compiled.statement.create.integrity = bound.integrity;
     };
     var create_owner: ?u64 = null;

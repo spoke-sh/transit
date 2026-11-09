@@ -80,7 +80,7 @@ pub const Schema = struct {
         if (self.revision == 0 or self.revision > p.max_counter) return error.InvalidCatalogConfiguration;
     }
 };
-pub const Table = struct { id: u64, schema: u64, authorization: u64 };
+pub const Table = struct { id: u64, schema: u64, authorization: u64, native_binding: ?c.fuze.NativeBinding.Kind = null };
 /// A trusted reader's native identity and the independently authenticated
 /// original subject. The enclosing service binds signed subjects to requests.
 /// The subject audience is that enclosing service/coordinator, independently of

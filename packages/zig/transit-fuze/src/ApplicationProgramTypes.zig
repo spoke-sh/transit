@@ -4,6 +4,7 @@
 const std = @import("std");
 const ast = @import("ApplicationProgram.zig");
 const sql = @import("Sql.zig");
+pub const NativeDependencies = std.EnumSet(@import("NativeBinding.zig").Kind);
 pub const Kind = enum { null, boolean, integer, text, binary, uuid, timestamp, duration, json, record, secret, protected_json, capability, failure };
 pub const Value = struct {
     kind: Kind,
@@ -34,6 +35,9 @@ pub const Bound = struct {
     input: Value,
     values: []const ?Value,
     uses: []const Use,
+    /// Canonical native owners required by helpers without a SQL resource
+    /// operand. Executable declarations must resolve these before publication.
+    native: NativeDependencies,
     pub fn deinit(self: *Bound) void {
         self.arena.deinit();
         self.* = undefined;
@@ -45,6 +49,7 @@ allocator: std.mem.Allocator,
 resources: []const Resource,
 values: []?Value,
 uses: std.ArrayList(Use) = .empty,
+native: NativeDependencies = .empty,
 symbols: std.ArrayList(Symbol) = .empty,
 location: ?*sql.Location,
 columns: []const Field = &.{},
@@ -89,7 +94,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         try self.define(failure.name, .{ .kind = .failure, .fields = &.{.{ .name = "effect_outcome", .value = Value.public(.text) }} });
         try self.block(failure.instructions);
     }
-    return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator) };
+    return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator), .native = self.native };
 }
 fn cloneFields(allocator: std.mem.Allocator, fields: []const Field, depth: usize) ![]const Field {
     if (depth == ast.max_depth or fields.len > ast.max_arguments) return error.ProgramTooComplex;
@@ -288,6 +293,7 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
         .secret => {
             try requireKind(args[0], .text);
             try public(args[0]);
+            self.native.insert(.secret_references);
             return .{ .kind = .secret, .protected = true };
         },
         .random_token, .random_secret => {
@@ -309,6 +315,7 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
         },
         .secret_current => {
             try requireKind(args[0], .secret);
+            self.native.insert(.secret_references);
             return Value.public(.boolean);
         },
         .seconds => {
@@ -548,6 +555,7 @@ test "application program types keep commits and approved secret uses explicit" 
     var bound = try bind(t.allocator, parsed.program, &test_resources, null);
     defer bound.deinit();
     try t.expectEqual(3, bound.uses.len);
+    try t.expect(bound.native.contains(.secret_references));
     try t.expect(bound.uses[0].read and bound.uses[0].consume and !bound.uses[0].write);
     try t.expect(bound.uses[1].dispatch);
     try t.expect(bound.uses[2].write);

@@ -7,6 +7,7 @@ pub const Kind = enum {
     browser_bindings,
     browser_challenges,
     browser_sessions,
+    secret_references,
 
     pub fn name(self: Kind) []const u8 {
         return switch (self) {
@@ -14,6 +15,7 @@ pub const Kind = enum {
             .browser_bindings => "browser.bindings",
             .browser_challenges => "browser.challenges",
             .browser_sessions => "browser.sessions",
+            .secret_references => "transit.secret_references",
         };
     }
     pub fn parse(value: []const u8) !Kind {
@@ -21,7 +23,7 @@ pub const Kind = enum {
         return error.UnknownNativeBinding;
     }
     pub fn isKV(self: Kind) bool {
-        return self == .browser_challenges or self == .browser_sessions;
+        return self == .browser_challenges or self == .browser_sessions or self == .secret_references;
     }
 };
 

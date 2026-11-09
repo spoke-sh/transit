@@ -57,6 +57,12 @@ pub fn namespace(self: Self) u64 {
         .log => |v| v.declaration.properties.namespace,
     };
 }
+pub fn nativeBinding(self: Self) ?f.NativeBinding.Kind {
+    return switch (self.value) {
+        inline .table, .kv => |v| v.properties.native_binding,
+        .log => null,
+    };
+}
 pub fn kind(self: Self) @FieldType(a.Types.Resource, "kind") {
     return switch (self.value) {
         .table => |v| if (v.properties.document != null) .document else .table,
@@ -74,6 +80,7 @@ pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connecti
             defer allocator.free(bytes);
             var decoded = try f.TableSchema.decode(allocator, bytes);
             defer decoded.deinit();
+            if (v.properties.native_binding) |native| try c.NativeBindingSchema.validate(native, decoded.schema, false);
             var buffer: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
             var prepared = try c.storage.TableDeclaration.prepare(allocator, .{
                 .kind = .table,
@@ -87,6 +94,10 @@ pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connecti
         },
         .kv => |v| {
             if (v.stored.kind != .kv or v.stored.retired or v.properties.document != null) return error.TableDefinitionChanged;
+            if (v.properties.native_binding) |native| {
+                var columns: [2]f.TableSchema.Column = undefined;
+                try c.NativeBindingSchema.validate(native, v.spec.schema(v.stored.interpretation.object.object, &columns), true);
+            }
             var buffer: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
             var prepared = try c.storage.KVDeclaration.prepare(allocator, .{
                 .object = v.stored.interpretation.object,
@@ -147,7 +158,8 @@ pub fn privileges(self: Self, use: a.Types.Use) !u64 {
     return switch (self.kind()) {
         .table, .document => (if (use.read or use.guard or use.write) @as(u64, c.TableAuthority.select) else 0) |
             (if (use.write) @as(u64, c.TableAuthority.insert) else 0),
-        .kv => (if (use.read or use.guard or use.write) @as(u64, c.KVAuthority.read) else 0) |
+        .kv => (if (use.read or use.guard or use.write) c.KVAuthority.read |
+            @as(u64, if (self.value.kv.properties.native_binding == .secret_references) c.KVAuthority.use_secret else 0) else 0) |
             (if (use.write) @as(u64, c.KVAuthority.write) else 0),
         .queue, .stream => (if (use.read or use.write) @as(u64, c.LogAuthority.read) else 0) |
             (if (use.write) @as(u64, c.LogAuthority.append) else 0) |

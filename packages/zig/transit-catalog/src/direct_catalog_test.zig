@@ -326,6 +326,7 @@ const Access = struct {
     denied_metadata: ?u64 = null,
     denied_metadata_error: anyerror = error.CatalogDenied,
     denied_privileges: ?struct { id: u64, mask: u64 } = null,
+    denied_ownership: ?u64 = null,
     visible_despite_denied_privileges: bool = false,
     deny_create: bool = false,
     epoch_change_at: usize = std.math.maxInt(usize),
@@ -354,6 +355,7 @@ const Access = struct {
         value.access.calls += 1;
         if (value.access.calls >= value.access.deny_at) return error.CatalogDenied;
         for (value.requested.requirements) |slot| if (slot) |requirement| {
+            if (value.access.denied_ownership) |id| if (requirement.access == .ownership and std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
             if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
             if (requirement.object.kind == .resource and requirement.object.id == value.access.denied_resource) return error.CatalogDenied;
             if (value.access.denied_metadata) |id| if (std.meta.eql(requirement.object, a.reference(id))) return value.access.denied_metadata_error;
@@ -853,6 +855,107 @@ test "Document policy revision guards the original common decision across data a
         var result = (try resolve(&catalog, &access, "result")).?;
         defer result.deinit();
         try t.expectEqual(@as(u64, if (scenario == .unchanged) 1 else 0), result.table.root.live_rows);
+    }
+}
+
+test "native secret reference rotation disable and revoked reads fence the common decision" {
+    const Secret = c.DirectSecret;
+    for ([_]enum { unchanged, rotate, disable, revoke_read, revoke_use }{ .unchanged, .rotate, .disable, .revoke_read, .revoke_use }) |scenario| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        access.denied_ownership = profile.initial_schema_authority;
+        const result = try creation(10, 1, "result");
+        _ = try catalog.admit(result, access.policy());
+        _ = try catalog.perform(result.binding, access.policy());
+        const spec = try c.NativeBindingSchema.kvSpec(Secret.kind);
+        const base = try creation(11, 2, "secret_references");
+        const declared = try c.DirectKVClient.prepareDeclaration(t.allocator, .{ .binding = base.binding, .namespace = 1, .name = base.intent.name, .native_binding = Secret.kind, .action = .{ .create = .{ .owner = 0, .spec = spec } } });
+        try t.expectError(error.CatalogDenied, SignedDispatch.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = .admit, .steps = 1 } }));
+        try t.expect((try SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = Secret.kind } })).native_binding == null);
+        access.denied_ownership = null;
+        for ([_]@FieldType(c.DirectKV.DeclarationRequest, "command"){ .admit, .execute }) |command|
+            _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declared, .command = command, .steps = 1 } });
+        const native = (try SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = Secret.kind } })).native_binding.?;
+        const metadata = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "secret_references" } })).kv_lookup.?;
+        try t.expectEqualDeep(native.interpretation, metadata.interpretation);
+        const name = "browser.cookie_key";
+        var control_columns: [2]c.fuze.TableSchema.Column = undefined;
+        var control = try creation(12, 5, "application");
+        control.intent.kind = .kv;
+        control.intent.action.create.schema = (s.KVDeclaration.Spec{ .value_type = .binary, .nullable = false }).schema(12, &control_columns);
+        control.binding.intent = try control.intent.digest(arena.allocator());
+        _ = try catalog.admit(control, access.policy());
+        _ = try catalog.perform(control.binding, access.policy());
+        const control_metadata = (try c.DirectKV.apply(arena.allocator(), arena.allocator(), &catalog, .{ .observe = control.binding.target }, access.policy())).definition;
+        var dependency = dependencyBinding(metadata.interpretation.interpretation, 6, 12);
+        dependency.edge.dependent = .{ .kind = .application, .interpretation = control_metadata.interpretation.interpretation };
+        // A caller asking only for READ must acquire the native owner's
+        // complete read privilege at readiness and disclosure.
+        dependency.edge.privileges = c.KVAuthority.read;
+        _ = try catalog.dependencyOperation(dependency, .accept, access.policy());
+        try catalog.checkDependency(dependency.edge, access.policy());
+        const digest = try Secret.key(name);
+        var declaration: Secret.Declaration = .{ .name = name, .file = "cookie-key-1", .content_sha256 = @splat(7), .enabled = true };
+        var mutation_binding = base.binding;
+        mutation_binding.identity.operation = 3;
+        mutation_binding.action = .insert;
+        mutation_binding.expected_definition = metadata.interpretation.interpretation;
+        const seed = try c.DirectKVClient.prepareMutation(&arena, mutation_binding, spec, &.{.{ .put = .{ .key = &digest, .value = try declaration.value(arena.allocator()), .expect = .absent } }});
+        _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = seed } });
+        const get: c.DirectKV.Request = .{ .get = .{ .object = base.binding.target, .key = try .encode(arena.allocator(), &digest), .source = null } };
+        const observed = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = get })).kv.value;
+        const template = try transactionToken(&catalog, 9000, 1, 0);
+        const receipt = try catalog.beginTransaction(.{
+            .key = template.key,
+            .fingerprint = template.fingerprint,
+            .operation = template.intent.transaction.begin.identity.begin,
+            .namespace = 1,
+            .mode = .serializable,
+            .selection = .{ .explicit_objects = &.{ .{ .object = result.binding.target, .kind = .table, .partition = null }, .{ .object = base.binding.target, .kind = .kv, .partition = null } } },
+            .limits = c.DirectTransaction.default_limits,
+            .budget = template.budget,
+        }, access.policy());
+        const token = receipt.binding.key;
+        _ = try catalog.acquireTransaction(token, access.policy());
+        const context: c.DirectTransactionRead.Context = .{ .key = token, .revision = (try catalog.inspectTransaction(token, access.policy())).revision };
+        const frozen = (try SignedDispatch.callContext(&arena, &catalog, &access, .{ .kv = get }, context)).kv.value;
+        try t.expect(frozen.workspace != null);
+        try t.expectEqualDeep(observed.revision, frozen.revision);
+        const decoded = try c.fuze.Types.Codec.decodeBoundInto(arena.allocator(), .{ .name = "value", .type = spec.typeOf() }, try frozen.encoded.?.decode(arena.allocator(), 4096));
+        try t.expectEqualDeep(declaration, try Secret.Declaration.fromValue(decoded));
+        _ = try catalog.executeTransactionStatement(token, try workspaceRequest(&catalog, &access, token, 10, 1, 500), access.policy());
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        _ = try catalog.settleTransaction(token, commit, .commit, 1, access.policy());
+        if (scenario == .rotate or scenario == .disable) {
+            mutation_binding.identity.operation = 4;
+            if (scenario == .rotate) {
+                declaration.file = "cookie-key-2";
+                declaration.content_sha256 = @splat(8);
+            } else declaration.enabled = false;
+            const change = try c.DirectKVClient.prepareMutation(&arena, mutation_binding, spec, &.{.{ .put = .{ .key = &digest, .value = try declaration.value(arena.allocator()), .expected_revision = observed.revision } }});
+            _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .mutate = change } });
+            try t.expectError(error.TransactionConflict, catalog.settleTransaction(token, commit, .commit, 8, access.policy()));
+        } else if (scenario == .revoke_read or scenario == .revoke_use) {
+            access.denied_privileges = .{ .id = metadata.authorization, .mask = if (scenario == .revoke_read) c.KVAuthority.read else c.KVAuthority.use_secret };
+            try t.expectError(error.CatalogDenied, catalog.checkDependency(dependency.edge, access.policy()));
+            try t.expectError(error.CatalogDenied, SignedDispatch.call(&arena, &catalog, &access, .{ .kv = get }));
+            try t.expectError(error.CatalogDenied, catalog.settleTransaction(token, commit, .commit, 8, access.policy()));
+        }
+        const settled = try catalog.settleTransaction(token, commit, if (scenario == .unchanged) .commit else .abort, 8, access.policy());
+        try t.expect(settled.cleanup_complete);
+        const expected: @TypeOf(settled.observation.decided.outcome) = if (scenario == .unchanged) .committed else .aborted;
+        try t.expectEqual(expected, settled.observation.decided.outcome);
+        var rows = (try resolve(&catalog, &access, "result")).?;
+        defer rows.deinit();
+        try t.expectEqual(@as(u64, if (scenario == .unchanged) 1 else 0), rows.table.root.live_rows);
     }
 }
 

@@ -181,6 +181,17 @@ projection is `JSON_INTEGER(..., '$.id')`, with exact integer conversion; it
 does not release strings, containers, headers or the response body. Native
 provider identity checks still bind issuer, client and subject.
 
+`SECRET` and `SECRET_CURRENT` require the executable declaration to retain the
+canonical `transit.secret_references` KV binding. This implicit dependency is
+merged with explicit resource uses, requires READ and `use_secret`, and joins
+the common serializable transaction. Missing, duplicate and ordinary lookalike
+owners are rejected before publication. The native metadata contains only a
+logical name, single-component file label, exact SHA-256 content commitment and
+enabled flag. Secret revisions retain the mandatory native definition, immutable
+binding and original KV row identity; rotation, disable and privilege revocation
+remain visible at the common commit decision. The component does not yet connect
+the existing browser secret administration and live gateway to this owner.
+
 Time and randomness enter through native observations. Public observations and
 their step identities are retained where continuation requires them. Secret
 random material remains transient. Replay cannot generate a replacement secret

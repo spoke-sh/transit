@@ -1,4 +1,4 @@
-//! Canonical browser state schemas. Bindings confer no grants. The binding
+//! Canonical native state schemas. Bindings confer no grants. The browser binding
 //! Table's intrinsic CHECK is retained in its definition and enforced by every
 //! Table mutation path, including predicate DML and private transactions.
 const std = @import("std");
@@ -18,6 +18,12 @@ const identities = [_]Field{ identity, field("provider", .utf8), field("issuer",
 const bindings = [_]Field{ identity_ref, field("principal", .int64), field("role", .int64), field("signing_key_reference", .utf8), field("enabled", .boolean), field("restricted", .boolean) };
 const challenges = [_]Field{ field("provider", .utf8), field("policy_revision", .binary), field("secret_revision", .binary), field("secret_commitment", .binary), field("cookie_key_revision", .binary), field("browser_commitment", .binary), field("expires_at", .{ .timestamp = .utc }), field("state", .utf8), field("effect_id", .uuid), field("code_commitment", .binary), identity_ref };
 const sessions = [_]Field{ identity_ref, field("provider", .utf8), field("policy_revision", .binary), field("created_at", .{ .timestamp = .utc }), field("expires_at", .{ .timestamp = .utc }), field("revoked", .boolean) };
+const secrets = [_]Field{
+    .{ .name = "name", .type = .utf8, .max_characters = 255 },
+    .{ .name = "file", .type = .utf8, .max_characters = 255 },
+    .{ .name = "content_sha256", .type = .binary },
+    .{ .name = "enabled", .type = .boolean },
+};
 
 fn fields(kind: Kind) []const Field {
     return switch (kind) {
@@ -25,7 +31,14 @@ fn fields(kind: Kind) []const Field {
         .browser_bindings => &bindings,
         .browser_challenges => &challenges,
         .browser_sessions => &sessions,
+        .secret_references => &secrets,
     };
+}
+/// Native KV owners use the same exact field layout as independent admission.
+/// The returned descriptor borrows immutable schema storage.
+pub fn kvSpec(kind: Kind) !c.storage.KVDeclaration.Spec {
+    if (!kind.isKV()) return error.InvalidNativeBindingKind;
+    return .{ .value_type = .row, .nullable = false, .fields = fields(kind) };
 }
 fn sameField(actual: Field, expected: Field, nullable: bool) !void {
     if (!std.mem.eql(u8, actual.name, expected.name) or !try actual.type.eql(expected.type) or
@@ -52,7 +65,7 @@ pub fn validateShape(kind: Kind, schema: f.TableSchema.Schema, is_kv: bool) !voi
     if (is_kv) {
         const spec = try c.storage.KVDeclaration.validateSchema(schema);
         if (spec.value_type != .row or spec.nullable or spec.fields.len != expected.len) return error.InvalidNativeBindingSchema;
-        for (spec.fields, expected) |actual, wanted| try sameField(actual, wanted, true);
+        for (spec.fields, expected) |actual, wanted| try sameField(actual, wanted, wanted.nullable);
     } else {
         if (schema.columns.len != expected.len or schema.primary_key.len != 1 or schema.primary_key[0] != schema.columns[0].id) return error.InvalidNativeBindingSchema;
         for (schema.columns, expected) |column, wanted| {

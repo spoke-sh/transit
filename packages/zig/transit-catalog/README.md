@@ -646,7 +646,7 @@ capabilities and the future activation boundary.
 
 ## Canonical native state bindings
 
-`BrowserStateSchema` validates the browser Table/KV layouts and prepares the
+`NativeBindingSchema` validates canonical Table/KV layouts and prepares the
 binding Table's intrinsic credential CHECK. `DirectTablePreparedDdl`,
 `DirectTableTyped` and `DirectKVPreparedDdl` use the ordinary declaration owner;
 `DirectCatalog.resolveNativeBinding` and the signed `native_binding` action
@@ -654,3 +654,25 @@ inspect its exact definition under current namespace/resource rights. The
 catalog's paged index retains only the original resource/creation identity.
 See the [binding contract](../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations)
 for schema, uniqueness, retirement and integration limits.
+
+Creating a native binding requires namespace ownership as well as ordinary
+database access and ownership of any registered target. A namespace CREATE grant
+alone cannot reserve a canonical state identity.
+
+`DirectSecret` adds the `transit.secret_references` KV binding. Its non-null ROW
+has `name VARCHAR(255)`, `file VARCHAR(255)`, `content_sha256 BINARY`, and
+`enabled BOOLEAN`, in that order. Names and file basenames use ASCII letters,
+digits, dots, underscores and hyphens and begin with a letter or digit. The key
+is the domain-separated SHA-256 name digest; the value also retains the full
+name. The content commitment has exactly 32 bytes. These are references to
+mounted bytes; the KV contains no credentials.
+
+Reads require native KV READ and `use_secret` rights. Common transactions retain
+the same KV read guard and recheck both rights before publishing their decision.
+`DirectSecret.current` compares the exact immutable resource definition and KV
+row revision, including disabled and absent observations. Its revision descriptor
+does not grant access. The private loader must verify the declared SHA-256 over
+the exact nonempty file bytes, bounded to 64 KiB; no trimming or substitution is
+implicit. This metadata component still needs the administrative secret cutover,
+executable helper dependencies and live HTTP loader integration described in the
+[application contract](../../../contracts/APPLICATION_PROGRAM_V1.md).
