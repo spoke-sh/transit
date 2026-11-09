@@ -1485,6 +1485,31 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
 }
 
+/// Check an already observed public read basis without a pin, admission or
+/// receipt. The host excludes all publication across the enclosing check_set;
+/// its authenticated owner rechecks the accumulated current requirements.
+pub fn checkCurrentState(self: *Self, scratch: std.mem.Allocator, expected: c.DirectTableProtocol.CurrentState, policy: Policy) !void {
+    try self.requireInitialized();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try expected.validate(self.config().scope, self.config().branch);
+    const namespace = try self.schema(expected.namespace);
+    try check(try self.guard(scratch, policy, namespace, null, .schema));
+    const object = expected.guard.source.interpretation.object;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    // Use the public owner so unresolved transaction publication and recovery
+    // barriers are preserved; transactionView is only for transaction control.
+    var view = try self.open(scratch, target, false);
+    defer view.deinit();
+    if (view.properties.namespace != expected.namespace) return error.CatalogDenied;
+    const current = try self.transactionStateGuard(scratch, &view, .read, null, policy);
+    try check(current);
+    if (view.table.root.retired or view.table.root.next_lsn == 0) return error.TableDefinitionChanged;
+    if ((expected.kind == .kv) != (view.table.root.kind == .kv)) return error.CatalogKindMismatch;
+    try expected.guard.requireUnchanged(transactionTableGuard(view.table.root));
+    try check(current);
+}
+
 /// Observe one exact current definition and optionally its first bounded row
 /// page. This is read-only and carries no durable retention or continuation.
 /// The service serializes the target Table while this observation is copied.
@@ -8255,6 +8280,28 @@ fn connectorGuard(self: *Self, allocator: std.mem.Allocator, request: Connector.
         required = try (try required.merge(connection.requirements)).merge(destination.requirements);
     }
     return policy.make_guard(policy.context, allocator, required, if (write) request.binding.prerequisite else null);
+}
+/// Recheck an exact connector definition/control alongside public state reads.
+/// Using a sink also requires its active, explicitly authorized dispatch role.
+pub fn checkCurrentConnector(self: *Self, scratch: std.mem.Allocator, expected: c.DirectTableProtocol.CurrentConnector, policy: Policy) !void {
+    try self.requireInitialized();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try expected.validate(self.config().scope, self.config().branch);
+    const state = try self.connectorCurrent(expected.interpretation.object.object) orelse return error.CatalogDenied;
+    const current = try policy.make_guard(policy.context, scratch, try self.connectorRequirements(policy, state, switch (expected.access) {
+        .inspect => .inspect,
+        .use => .use,
+    }), null);
+    try check(current);
+    if (state.dropped or !std.meta.eql(state.declaration.interpretation, expected.interpretation) or state.declaration.kind != expected.kind) return error.DataIdentityConflict;
+    if (!std.meta.eql(state.control, expected.control)) return error.InvalidSourceControl;
+    if (expected.kind == .sink and expected.access == .use) {
+        const control = state.control orelse return error.InvalidSourceControl;
+        if (control.state != .active) return error.InvalidSourceControl;
+        const role = policy.effective_role orelse if (policy.subject == .signed) policy.subject.signed.claim.role else null;
+        if (role == null or role != control.executor_role) return error.CatalogDenied;
+    }
+    try check(current);
 }
 fn connectorWriter(self: *Self, destination: d.Object) !?Connector.Writer {
     const bytes = try self.store.tree().get(self.store.root.source_writers, try r.idKey(destination.object)) orelse return null;

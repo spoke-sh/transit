@@ -692,6 +692,84 @@ test "direct catalog serializes row admission against DDL without a catalog writ
     try t.expectEqualDeep(committed, (try catalog.applyRows(request, access.policy())).committed);
 }
 
+test "current read sets preserve public logical bases, absence and current Table and KV rights" {
+    const w = c.DirectTableProtocol;
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    try catalog.initialize(access.policy());
+    const create = try creation(7, 1, "events");
+    _ = try catalog.admit(create, access.policy());
+    _ = try catalog.perform(create.binding, access.policy());
+    _ = try catalog.settle(create.binding, access.policy());
+    var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+    var kv_create = try creation(8, 2, "values");
+    kv_create.intent.kind = .kv;
+    kv_create.intent.action.create.schema = (s.KVDeclaration.Spec{ .value_type = .binary, .nullable = false }).schema(8, &kv_columns);
+    kv_create.binding.intent = try kv_create.intent.digest(t.allocator);
+    _ = try catalog.admit(kv_create, access.policy());
+    _ = try catalog.perform(kv_create.binding, access.policy());
+    _ = try catalog.settle(kv_create.binding, access.policy());
+    var table = (try resolve(&catalog, &access, "events")).?;
+    defer table.deinit();
+    const kv = (try SignedDispatch.call(&output, &catalog, &access, .{ .kv = .{ .get = .{ .object = kv_create.binding.target, .key = try w.Binary.encode(output.allocator(), "absent"), .source = null } } })).kv.value;
+    try t.expect(kv.encoded == null);
+    try t.expectEqual(@as(u64, 0), table.table.root.live_rows);
+    const checks = [_]w.ReadCheck{
+        .{ .current_state = .{ .namespace = 1, .kind = .table, .guard = .{ .source = .{ .interpretation = table.table.root.interpretation, .accepted = .{ .partition = table.table.root.partition, .next_lsn = table.table.root.next_lsn } }, .changed_lsn = table.table.root.changed_lsn } } },
+        .{ .current_state = .{ .namespace = 1, .kind = .kv, .guard = .{ .source = .{ .interpretation = kv.interpretation.interpretation, .accepted = kv.position }, .changed_lsn = kv.changed_lsn } } },
+    };
+    const root = catalog.store.root;
+    const puts = objects.puts;
+    const tail = try wal.log().tail(table.table.root.partition);
+    try t.expectEqual(.checked, try SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &checks }));
+    try t.expectEqualDeep(root, catalog.store.root);
+    try t.expectEqual(puts, objects.puts);
+    try t.expectEqual(tail, try wal.log().tail(table.table.root.partition));
+    for ([_]u64{ 107, 108 }) |authority| {
+        access.denied_privileges = .{ .id = authority, .mask = if (authority == 107) a.select else c.KVAuthority.read };
+        try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &checks }));
+    }
+    access.denied_privileges = null;
+    for (0..2) |index| {
+        var changed = checks;
+        changed[index].current_state.kind = if (index == 0) .kv else .table;
+        try t.expectError(error.CatalogKindMismatch, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &changed }));
+        changed = checks;
+        changed[index].current_state.guard.source.interpretation.digest[0] ^= 1;
+        try t.expectError(error.TransactionConflict, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &changed }));
+        changed = checks;
+        changed[index].current_state.guard.source.accepted.next_lsn = 0;
+        try t.expectError(error.InvalidTransactionGuard, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &changed }));
+        changed = checks;
+        changed[index].current_state.guard.source.interpretation.object.branch += 1;
+        try t.expectError(error.CatalogDenied, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &changed }));
+    }
+    var wrong_namespace = checks;
+    wrong_namespace[0].current_state.namespace = 2;
+    try t.expectError(error.CatalogNamespaceMissing, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &wrong_namespace }));
+    const private: c.DirectTransactionRead.Context = .{ .key = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null }, .account = @splat(1), .token = @splat(7) }, .revision = checks[0].current_state.guard.source.accepted };
+    try t.expectError(error.UnsupportedTransactionRead, private.allow(.{ .check_set = &checks }));
+    catalog.transaction_read = private;
+    try t.expectError(error.UnsupportedTransactionRead, catalog.checkCurrentState(output.allocator(), checks[0].current_state, access.policy()));
+    catalog.transaction_read = null;
+    const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 3 }, .target = create.binding.target, .action = .insert, .expected_definition = table.table.root.interpretation, .expected_data = null, .intent = @splat(3) };
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
+    const request: s.TableDmlIntent.Request = .{ .binding = binding, .interpretation = table.table.root.declared(), .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(binding.identity, 0), .cells = &cells }, .expect = .absent } }}, .ingestion = .point };
+    _ = try catalog.admitRows(request, access.policy());
+    try t.expect((try wal.log().tail(table.table.root.partition)) > tail);
+    try t.expectEqual(.checked, try SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &checks }));
+    _ = try catalog.performRows(binding, access.policy());
+    try t.expectError(error.TransactionConflict, SignedDispatch.call(&output, &catalog, &access, .{ .check_set = &checks }));
+    try t.expectEqual(.checked, try SignedDispatch.call(&output, &catalog, &access, .{ .check_set = checks[1..] }));
+}
+
 fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     const schema: c.fuze.TableSchema.Schema = .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{1} };
     const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try a.Name.init(name), .action = .{ .create = .{ .schema = schema, .owner = 0 } } };
@@ -12103,10 +12181,30 @@ test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     const active = (try connectorExecute(&catalog, &access, activate)).resulting.?;
     try t.expectEqual(.active, active.control.?.state);
     try t.expectEqual(@as(?u64, 7), active.control.?.executor_role);
+    var check_memory: std.heap.ArenaAllocator = .init(t.allocator);
+    defer check_memory.deinit();
+    const expected_sink: c.DirectTableProtocol.CurrentConnector = .{ .interpretation = active.declaration.interpretation, .kind = .sink, .control = active.control, .access = .use };
+    var dispatch_policy = access.policy();
+    dispatch_policy.effective_role = 7;
+    const before_check = catalog.store.root;
+    try catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy);
+    try catalog.checkCurrentConnector(check_memory.allocator(), .{ .interpretation = connection.declaration.interpretation, .kind = .connection, .control = null, .access = .use }, dispatch_policy);
+    try t.expectEqualDeep(before_check, catalog.store.root);
+    try t.expectError(error.CatalogDenied, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, access.policy()));
+    access.denied_privileges = .{ .id = active.declaration.properties.authorization, .mask = c.SourceAuthority.use };
+    try t.expectError(error.CatalogDenied, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy));
+    access.denied_privileges = null;
+    var inspected_sink = expected_sink;
+    inspected_sink.access = .inspect;
+    try t.expectEqual(.checked, try SignedDispatch.call(&check_memory, &catalog, &access, .{ .check_set = &.{.{ .current_connector = inspected_sink }} }));
     // Administrative suspension remains possible without assuming dispatch
     // authority; resumption rechecks that original selected role.
     access.denied_selection = 7;
     const suspended = (try connectorExecute(&catalog, &access, try connectorEdit(active, 112, .{ .control = .{ .expected_epoch = 3, .command = .suspend_source, .executor_role = null } }))).resulting.?;
+    try t.expectError(error.InvalidSourceControl, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy));
+    var suspended_sink = expected_sink;
+    suspended_sink.control = suspended.control;
+    try t.expectError(error.InvalidSourceControl, catalog.checkCurrentConnector(check_memory.allocator(), suspended_sink, dispatch_policy));
     const replace_role = try connectorEdit(suspended, 113, .{ .control = .{ .expected_epoch = 4, .command = .authorize, .executor_role = 8 } });
     try t.expectEqual(.stale_control, (try connectorExecute(&catalog, &access, replace_role)).reason);
     const resume_control = try connectorEdit(suspended, 114, .{ .control = .{ .expected_epoch = 4, .command = .resume_source, .executor_role = null } });
@@ -12114,6 +12212,7 @@ test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     access.denied_selection = null;
     const resumed = (try connectorExecute(&catalog, &access, resume_control)).resulting.?;
     try t.expectEqual(.active, resumed.control.?.state);
+    try t.expectError(error.InvalidSourceControl, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy));
     try t.expectEqualDeep(authorized, (try catalog.sourceOperation(authorize, .inspect, access.policy())).operation);
     const stale = try connectorEdit(resumed, 115, .{ .control = .{ .expected_epoch = 2, .command = .suspend_source, .executor_role = null } });
     try t.expectEqual(.stale_control, (try connectorExecute(&catalog, &access, stale)).reason);

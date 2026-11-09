@@ -4655,11 +4655,11 @@
         "BranchSourceChanged": 3,
         "BufferTooSmall": 2,
         "CatalogDefinitionChanged": 1,
-        "CatalogDenied": 93,
+        "CatalogDenied": 98,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 1,
         "CatalogIdentityConflict": 10,
-        "CatalogKindMismatch": 17,
+        "CatalogKindMismatch": 18,
         "CatalogNameHashCollision": 2,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
@@ -4678,7 +4678,7 @@
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
-        "DataIdentityConflict": 17,
+        "DataIdentityConflict": 18,
         "DataflowIdentityConflict": 5,
         "DataflowRevisionNotFound": 1,
         "DirectRecordMissing": 1,
@@ -4741,6 +4741,7 @@
         "InvalidSourceCaptureChunk": 3,
         "InvalidSourceCaptureCursor": 1,
         "InvalidSourceCaptureState": 1,
+        "InvalidSourceControl": 3,
         "InvalidSourceDeclaration": 5,
         "InvalidSourcePublication": 10,
         "InvalidStorageBudget": 1,
@@ -4803,7 +4804,7 @@
         "StorageBudgetExceeded": 1,
         "TableBuildBudget": 1,
         "TableDataChanged": 4,
-        "TableDefinitionChanged": 14,
+        "TableDefinitionChanged": 15,
         "TableDependencyOwned": 1,
         "TableNotCreated": 1,
         "TableRetired": 2,
@@ -4836,7 +4837,7 @@
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedTableAction": 4,
         "UnsupportedTransactionParticipant": 3,
-        "UnsupportedTransactionRead": 3,
+        "UnsupportedTransactionRead": 5,
         "WorkloadServiceUnavailable": 1
       },
       "outcomes": {
@@ -4960,6 +4961,8 @@
         "captureVerify()": "<inferred>",
         "check()": "<inferred>",
         "checkAccess()": "<inferred>",
+        "checkCurrentConnector()": "<inferred>",
+        "checkCurrentState()": "<inferred>",
         "checkDependency()": "<inferred>",
         "checkOperation()": "<inferred>",
         "claimDataBinding()": "<inferred>",
@@ -5251,7 +5254,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2898,
+        "try": 2916,
         "catch": 32
       },
       "imports": [
@@ -8779,7 +8782,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 264,
+        "try": 266,
         "catch": 0
       },
       "imports": [
@@ -8925,8 +8928,9 @@
     },
     "packages/zig/transit-catalog/src/DirectTableProtocol.zig": {
       "errors": {
-        "CatalogDenied": 4,
+        "CatalogDenied": 6,
         "CatalogIdentityConflict": 13,
+        "CatalogKindMismatch": 1,
         "DataIdentityConflict": 5,
         "IncompatibleDefinition": 1,
         "InvalidAuthorizationCredential": 1,
@@ -8936,6 +8940,7 @@
         "InvalidNamedResourceOperation": 1,
         "InvalidPlanEncoding": 2,
         "InvalidProjection": 2,
+        "InvalidSourceControl": 1,
         "InvalidTableBasis": 3,
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
@@ -8945,6 +8950,7 @@
         "InvalidTableReadBudget": 9,
         "InvalidTableRequest": 1,
         "InvalidTableResponse": 5,
+        "InvalidTransactionGuard": 1,
         "OutOfMemory": 1,
         "SourceChanged": 1,
         "TableBatchTooLarge": 1,
@@ -9052,6 +9058,10 @@
           "physical",
           "integrity"
         ],
+        "CurrentConnector.access": [
+          "inspect",
+          "use"
+        ],
         "CurrentRead.selection": [
           "key",
           "rows"
@@ -9059,6 +9069,10 @@
         "CurrentReadResult.selection": [
           "key",
           "rows"
+        ],
+        "CurrentState.kind": [
+          "table",
+          "kv"
         ],
         "Ddl.action": [
           "create",
@@ -9072,6 +9086,8 @@
         ],
         "ReadCheck": [
           "access",
+          "current_state",
+          "current_connector",
           "snapshot",
           "historical",
           "dependency"
@@ -9167,6 +9183,8 @@
         "Connection.object()": "<inferred>",
         "Connection.owner()": "<inferred>",
         "Connection.validate()": "<inferred>",
+        "CurrentConnector.validate()": "<inferred>",
+        "CurrentState.validate()": "<inferred>",
         "Ddl.digest()": "<inferred>",
         "Ddl.intent()": "<inferred>",
         "Ddl.native()": "<inferred>",
@@ -9189,7 +9207,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 184,
+        "try": 190,
         "catch": 6
       },
       "imports": [
@@ -9703,7 +9721,7 @@
         "OutOfMemory": 1,
         "TransactionMemoryLimit": 1,
         "TransactionReadChanged": 1,
-        "UnsupportedTransactionRead": 2
+        "UnsupportedTransactionRead": 3
       },
       "outcomes": {},
       "error_sets": {},

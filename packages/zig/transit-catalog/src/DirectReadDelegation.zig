@@ -282,7 +282,7 @@ pub fn allow(self: Self, action: w.Action) !void {
         },
         .check_set => |values| for (values) |value| switch (value) {
             .snapshot => |snapshot| try self.requirePin(snapshot.object, snapshot.handle.owner),
-            .access, .historical, .dependency => return error.TableDelegationDenied,
+            .access, .current_state, .current_connector, .historical, .dependency => return error.TableDelegationDenied,
         },
         else => return error.TableDelegationDenied,
     }
@@ -334,6 +334,11 @@ test "direct read delegation binds one caller role, executor, definition, pin an
     try t.expectEqualDeep(copy, try decode(t.allocator, &try copy.encode(t.allocator)));
     try copy.proof.verify(key.public_key.toBytes());
     try copy.allow(.{ .pin = .{ .object = binding.interpretation.object, .owner = binding.owner, .expected = binding.expected, .selection = .exact } });
+    try t.expectError(error.TableDelegationDenied, copy.allow(.{ .check_set = &.{.{ .current_state = .{
+        .namespace = 1,
+        .kind = .table,
+        .guard = .{ .source = .{ .interpretation = binding.interpretation, .accepted = binding.expected }, .changed_lsn = binding.expected.next_lsn },
+    } }} }));
     try t.expectError(error.TableDelegationDenied, copy.allow(.{ .check_set = &.{.{ .dependency = .{
         .source = binding.interpretation,
         .dependent = .{ .kind = .application, .interpretation = binding.interpretation },

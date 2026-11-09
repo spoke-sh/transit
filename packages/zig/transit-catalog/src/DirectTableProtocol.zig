@@ -257,8 +257,39 @@ pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
 pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact, interpretation: ?d.Definition = null };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
+/// A current logical read basis, including reads that found no row. This
+/// neither pins history nor permits reading a private transaction workspace.
+pub const CurrentState = struct {
+    namespace: u64,
+    kind: enum { table, kv },
+    guard: p.Transaction.StateGuard,
+
+    pub fn validate(self: CurrentState, scope: d.Scope, branch: u64) !void {
+        try c.Model.nativeId(self.namespace);
+        try self.guard.validate();
+        if (self.guard.source.accepted.next_lsn == 0) return error.InvalidTransactionGuard;
+        const object = self.guard.source.interpretation.object;
+        if (!std.meta.eql(object.scope, scope) or object.branch != branch) return error.CatalogDenied;
+    }
+};
+pub const CurrentConnector = struct {
+    interpretation: d.Definition,
+    kind: c.SourceDeclaration.Kind,
+    control: ?c.DirectSource.Control,
+    access: enum { inspect, use },
+
+    pub fn validate(self: CurrentConnector, scope: d.Scope, branch: u64) !void {
+        try self.interpretation.validate();
+        if (!std.meta.eql(self.interpretation.object.scope, scope) or self.interpretation.object.branch != branch) return error.CatalogDenied;
+        if ((self.kind == .connection) != (self.control == null)) return error.InvalidSourceControl;
+        if (self.control) |control| try control.validate();
+        if (self.access == .use and self.kind == .source) return error.CatalogKindMismatch;
+    }
+};
 pub const ReadCheck = union(enum) {
     access: D.AccessRequest,
+    current_state: CurrentState,
+    current_connector: CurrentConnector,
     snapshot: Snapshot,
     historical: @FieldType(c.DirectHistory.Request, "source"),
     /// Recheck the exact registered dependency and all of its current actions.
@@ -601,6 +632,8 @@ pub const Request = struct {
                 if (values.len == 0 or values.len > 16) return error.InvalidTableReadBudget;
                 for (values) |value| switch (value) {
                     .access => |access| try access.validate(connection.scope, connection.branch),
+                    .current_state => |current| try current.validate(connection.scope, connection.branch),
+                    .current_connector => |current| try current.validate(connection.scope, connection.branch),
                     .historical => |historical| try (c.DirectHistory.Request{ .source = historical }).validate(connection),
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
                     .dependency => |edge| {

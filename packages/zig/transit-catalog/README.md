@@ -43,6 +43,15 @@ rechecks the registered edge, exact live definitions and all current action
 privileges without creating work. Ordinary graph inspection remains a metadata
 operation and does not establish readiness to execute.
 
+A `check_set` current-state entry verifies an exact public Table/KV definition
+and logical read basis under publication exclusion and current read privileges,
+including reads that found no row. Acceptance-only bookkeeping can advance;
+logical changes reject. The bounded set creates no pins or durable work and
+cannot check private workspace data. It is a current observation, not retained
+authority to dispatch an effect.
+Current-connector entries similarly bind exact definitions and control epochs;
+sink use additionally requires active control and its authorized effective role.
+
 `DirectRecord` high-bit formats carry immutable read envelopes with one to 14
 Table/KV/Document/Stream/Queue object requirements, bounded by the existing native
 authorization budget. The list has no null slots. Staging validates caller-provided bytes and grants

@@ -400,6 +400,14 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             defer scratch.deinit();
             for (values) |value| switch (value) {
                 .access => |access| try catalog.checkAccess(access, policy),
+                .current_state => |current| {
+                    _ = scratch.reset(.retain_capacity);
+                    try catalog.checkCurrentState(scratch.allocator(), current, policy);
+                },
+                .current_connector => |current| {
+                    _ = scratch.reset(.retain_capacity);
+                    try catalog.checkCurrentConnector(scratch.allocator(), current, policy);
+                },
                 .dependency => |edge| try catalog.checkDependency(edge, policy),
                 .historical => |input| {
                     _ = scratch.reset(.retain_capacity);

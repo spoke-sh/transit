@@ -2136,18 +2136,33 @@ transaction replays from its beginning. Local closure/destruction performs no
 remote release; the caller explicitly closes its original acquisition when its
 durable history requirement ends.
 
-`check_set` accepts 1–16 tagged `access`, `snapshot`, `historical` or `dependency`
-checks. Access checks use
+`check_set` accepts 1–16 tagged `access`, `current_state`, `current_connector`,
+`snapshot`, `historical` or `dependency` checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify
 the original live pin. Historical checks use the exact historical catalog owner.
 Dependency checks require the registered edge, exact live source/dependent
 definitions and every current source action in its privilege mask, plus dependent
 metadata access. They create no receipt and do not register or repair a missing
 edge. A retained read delegation cannot perform a dependency check.
+Current-state checks carry a namespace, physical `table` or `kv` kind and the
+exact `Transaction.StateGuard` returned by a public read: definition, nonzero
+accepted position and logical-change LSN. They require current Table SELECT or
+KV read privileges, including for an absent row. A changed definition, logical
+change, namespace or kind rejects; acceptance-only advances do not invalidate
+the basis. The public owner preserves transaction publication/recovery barriers.
+Private transaction reads and retained read delegations cannot use this check.
+Current-connector checks bind the exact immutable definition, kind and nullable
+control (state, epoch and authorized role), with either inspect or use privileges.
+Sink use requires active control and the effective caller role to match the
+authorized dispatch role. A suspend/resume cycle cannot restore an older check's
+epoch. Connection use checks its current native use privilege. Neither variant
+admits work; private reads and retained read delegations reject connector checks.
 The local owner excludes Table mutations during the set
 and rechecks the union of successful requirements under one current native
 policy revision after response buffering. Native guard capacity still bounds
-the union. The `checked` result carries no rows or common source cut.
+the union. The `checked` result carries no rows, retained common source cut or
+dispatch authority. A successful current-state set proves that the supplied
+public bases coexist at this check; it does not authorize later unchecked reads.
 
 `namespaces` accepts an optional last-visited schema ID and returns at most eight
 authorized live schemas, a continuation and directory position. Empty filtered
@@ -2308,6 +2323,8 @@ actions are `lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status
 `snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range` and `release`.
 Other actions return `UnsupportedTransactionRead`. Pending statements or a changed
 revision refuse access before disclosure.
+`check_set` rejects `current_state` and `current_connector` entries in a private workspace: a private
+result cannot establish the current public basis required for external effects.
 
 Names and definitions resolve through the accepted begin catalog root. Each Table
 must belong to the acquired source directory, retain its original live pin and
