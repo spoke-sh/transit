@@ -33,7 +33,7 @@ pub fn bind(self: Self, allocator: std.mem.Allocator, expected: t.Type, failure:
     errdefer if (failure) |at| if (at.* == null) {
         at.* = self.span;
     };
-    try expected.validate(.{});
+    try expected.requireDisclosable();
     var budget: SyntaxBudget = .{};
     try self.check(0, &budget, failure);
     return self.bindInner(allocator, expected, failure);

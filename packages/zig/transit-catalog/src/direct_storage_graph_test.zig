@@ -752,7 +752,7 @@ test "direct graph retains prepared log successors actions and frozen decision d
     try selected.put(.{ .participant = .{ .log = .{ .guard = basis, .actions = actions_root } } });
     const directory = try selected.seal();
     const binding: s.TransactionDecisionLog.Binding = .{
-        .begin = .{ .definition = c.protocol.Growth.current_definition, .identity = identity, .mode = .serializable, .selection = .explicit_objects, .objects = directory, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 2 } },
+        .begin = .{ .definition = c.protocol.Growth.current_definition, .identity = identity, .mode = .serializable, .deadline = null, .selection = .explicit_objects, .objects = directory, .catalog = .{ .partition = 1, .next_lsn = 1 }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 2 } },
         .attempt = .{ .definition = c.protocol.Growth.current_definition, .transaction = identity, .operation = .{ .scope = scope_id, .principal = 1, .operation = 101 }, .cut = directory.content, .workspace = directory.content, .participants = directory, .writes = 1, .last_statement = 1 },
     };
     var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);

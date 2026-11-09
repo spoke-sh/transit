@@ -19,7 +19,7 @@ pub const Advance = struct {
     pub fn validate(self: Advance) !void {
         try self.key.validate();
         try self.expected.validate();
-        if (self.expected.next_lsn < 2 or self.format == 0 or self.format & R.guarded_bit != 0) return error.InvalidDirectRecord;
+        if (self.expected.next_lsn < 2 or self.format == 0) return error.InvalidDirectRecord;
     }
 };
 pub const Envelope = struct {
@@ -49,6 +49,7 @@ pub fn encode(allocator: std.mem.Allocator, request: Advance) ![]u8 {
     // Validate the encoded input as well as the bounded envelope.
     const payload = try request.bytes.decode(allocator, R.max_bytes);
     defer allocator.free(payload);
+    try R.validatePayload(allocator, request.key.connection, request.format, payload);
     return p.Json.valueAllocBounded(allocator, Envelope{ .definition = p.Growth.current_definition, .advance = request }, R.max_bytes);
 }
 

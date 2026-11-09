@@ -108,7 +108,19 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`392e8215c91e8c33ff6f21aa53f6b74051b1203551902e1cab05ce652cb3b3e7`.
+`b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb`.
+
+The application foundation combines typed KV fields, capability values, native
+browser bindings, ordered program and original-effect records, composed request
+fences, current connector indexes and optional immutable transaction deadlines
+with aggregate storage admission. All matching callers, generated bindings and
+signing fixtures use this definition. Earlier definitions reject before opening
+retained state or admitting work; there is no fallback decoder or automatic
+conversion. A nullable transaction deadline is mandatory in the current wire
+shape, and missing persisted fields do not acquire current defaults.
+
+These components do not enable complete SQL application installation or the
+declared browser journey; see the [application interfaces](applications.md).
 
 Owned SOURCE capture staging adds mandatory capture ownership to saved Catalog
 progress. Missing ownership fields and earlier definitions reject; old accepted

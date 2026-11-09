@@ -37,9 +37,9 @@ fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
     defer allocator.free(bytes);
     var decoded = try c.fuze.TableSchema.decode(allocator, bytes);
     defer decoded.deinit();
-    const properties: c.DirectCatalog.Properties = .{ .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
+    const properties: c.DirectCatalog.Properties = .{ .document = value.document, .native_binding = value.native_binding, .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
     var encoded: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
-    var declaration = try c.storage.TableDeclaration.prepare(allocator, .{ .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .schema = decoded.schema, .properties = try properties.encode(&encoded) });
+    var declaration = try c.storage.TableDeclaration.prepare(allocator, .{ .kind = value.interpretation.kind, .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .schema = decoded.schema, .properties = try properties.encode(&encoded) });
     defer declaration.deinit();
     if (!std.meta.eql(value.interpretation, try declaration.stored())) return error.InvalidTableResponse;
 }
@@ -200,6 +200,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .log_pending => .log_pending,
         .check, .check_set => .checked,
         .list => .list,
+        .native_binding => .native_binding,
         .lookup => .lookup,
         .observe => .observation,
         .storage => .storage,
@@ -276,6 +277,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .document_lookup => |maybe| if (maybe) |found| {
             try found.policy.validate();
             const value = found.definition;
+            if (!std.meta.eql(value.document, @as(?c.fuze.DocumentDdl.Policy, found.policy))) return error.InvalidTableResponse;
             try workspace(request, value.workspace, value.interpretation.interpretation, value.position, value.changed_lsn, null);
             try definition(request.connection, value.interpretation);
             try value.name.validate();
@@ -654,6 +656,14 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
                 previous = entry.id;
             }
             if (value.next) |next| if (next <= (request.action.namespaces.after orelse 0) or next < previous) return error.InvalidTableResponse;
+        },
+        .native_binding => |maybe| if (maybe) |value| {
+            try value.interpretation.validate();
+            try request.connection.object(value.interpretation.interpretation.object);
+            try value.name.validate();
+            try frontier(value.position, value.changed_lsn);
+            if (value.workspace != null or value.interpretation.retired or value.namespace != request.action.native_binding.namespace or value.native_binding != request.action.native_binding.kind or (value.interpretation.kind == .kv) != request.action.native_binding.kind.isKV()) return error.InvalidTableResponse;
+            try metadata(allocator, value);
         },
         .lookup => |maybe| if (maybe) |value| {
             try workspace(request, value.workspace, value.interpretation.interpretation, value.position, value.changed_lsn, null);

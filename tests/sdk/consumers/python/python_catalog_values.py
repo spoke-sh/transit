@@ -23,15 +23,18 @@ def rejects(kind, action):
 
 contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes())
 definition = contract['definition']
+capability = codec.ScalarType('capability')
+assert codec.type_from_wire(codec.type_wire(capability)) == capability
+rejects(ValueError, lambda: codec.atom_from_wire({'capability': [1] * 32}))
 scope = m.Scope(ResourceRef(46, 7), (1 << 64) - 1)
 connection = m.Connection(scope, 3)
-authority = m.AuthorityProfile(21, 22, 23, 31, 32, 33, 34, 35, 24, 1, 25)
+authority = m.AuthorityProfile(21, 22, 23, 31, 32, 33, 34, 35, 36, 24, 1, 25)
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), True))
 rejects(ValueError, lambda: m.Scope(ResourceRef(46, 7), 1 << 64))
 rejects(ValueError, lambda: m.Connection(scope, 3, role=True))
 rejects(ValueError, lambda: m.Connection(scope, 3, branch=0))
 rejects(ValueError, lambda: m.Identity(1, 0))
-rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 31, 32, 33, 34, 35, 24, 1, 25))
+rejects(ValueError, lambda: m.AuthorityProfile(21, 21, 23, 31, 32, 33, 34, 35, 36, 24, 1, 25))
 object_id = dict(scope=scope._wire(), branch='1', object=str((1 << 64) - 1))
 interpretation = dict(object=object_id, revision='1', digest='ab'*32)
 stored = dict(interpretation=interpretation, content=dict(bytes='300', sha256='ab'*32), schema_fingerprint='cd'*32, retired=False)
@@ -70,6 +73,14 @@ for datatype in (l.ScalarType('int128'), l.DecimalType(38, 2), l.TimestampType('
     l.ListType(l.Element(l.ScalarType('uuid'), True)), l.ArrayType(l.Element(l.ScalarType('date')), 2),
     l.MapType(l.ScalarType('int64'), l.Element(l.ScalarType('binary')))):
     assert codec.type_from_wire(codec.type_wire(datatype)) == datatype
+bounded = l.StructureType((l.Field('label', l.ScalarType('utf8'), True, True, 1),))
+assert codec.type_from_wire(codec.type_wire(bounded)) == bounded
+for maximum in (0, -1, 1.5, True, 1 << 32):
+    rejects(ValueError, lambda: codec.type_wire(l.StructureType((l.Field('label', l.ScalarType('utf8'), max_characters=maximum),))))
+    rejects(ValueError, lambda: codec.type_from_wire({'structure': [dict(name='label', type={'utf8': {}}, nullable=False, optional=False, max_characters=maximum)]}))
+rejects(ValueError, lambda: codec.type_wire(l.StructureType((l.Field('n', l.ScalarType('int64'), max_characters=1),))))
+rejects(ValueError, lambda: codec.type_from_wire({'structure': [dict(name='label', type={'utf8': {}}, nullable=False, optional=False)]}))
+assert codec.field_wire(l.Field('label', l.ScalarType('utf8')))['max_characters'] is None
 for value in (l.Missing(), l.Null(), l.SourceTypeError('decimal'), l.SourceTypeError('unknown'),
               l.SourceTypeError('null_value'), l.SourceTypeError('text'), l.SourceTypeError('character'), cell,
     l.Present(l.Atom('signed', -(1 << 127))), l.Present(l.Atom('unsigned', (1 << 128) - 1)),
@@ -211,7 +222,7 @@ try:
     retained = owner.describe()
     owner._api.response['catalog']['description']['subject']['context'][0] = 2
     assert retained.subject.context == bytes([1]*32) and retained.policy_revision == 4
-    for field in ('stream_domain', 'queue_domain', 'kv_domain', 'connection_domain', 'source_domain'):
+    for field in ('stream_domain', 'queue_domain', 'kv_domain', 'connection_domain', 'source_domain', 'sink_domain'):
         for missing in (True, False):
             bad = copy.deepcopy(description)
             profile = bad['configuration']['authority']

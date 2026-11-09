@@ -13,7 +13,7 @@ import struct
 
 from runner.paths import ROOT
 
-DEFINITION = b'transit.fuze.types.v1.2026-11-01.companions'
+DEFINITION = b'transit.fuze.types.v1.2026-11-08.capability-handles'
 FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/companion-values.json'
 
 

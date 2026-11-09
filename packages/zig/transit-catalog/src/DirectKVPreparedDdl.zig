@@ -26,13 +26,9 @@ pub const Write = union(enum) {
 
 fn storageSpec(spec: f.KVDdl.Spec) s.KVDeclaration.Spec {
     return .{
-        .value_type = switch (spec.value_type) {
-            .int64 => .int64,
-            .boolean => .boolean,
-            .utf8 => .utf8,
-            .binary => .binary,
-        },
+        .value_type = spec.value_type,
         .nullable = spec.nullable,
+        .fields = spec.fields,
     };
 }
 
@@ -49,6 +45,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
         defer response.deinit();
         if (response.value.result.kv_lookup) |found| {
             definition = found;
+            definition.?.spec = try found.spec.cloneInto(compiled.arena.allocator());
         } else if (syntax.action != .drop or !syntax.action.drop.if_exists) {
             return error.CatalogNameNotFound;
         }
@@ -116,7 +113,10 @@ pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.D
             if (create.if_not_exists) {
                 const response = try client.call(.{ .kv_lookup = .{ .namespace = self.namespace, .name = syntax.name } });
                 defer response.deinit();
-                if (response.value.result.kv_lookup) |existing| return self.assertion(operation, syntax.name, existing.interpretation.interpretation);
+                if (response.value.result.kv_lookup) |existing| {
+                    if (create.native_binding != null and existing.native_binding != create.native_binding) return error.NativeBindingConflict;
+                    return self.assertion(operation, syntax.name, existing.interpretation.interpretation);
+                }
             }
             const object: p.DataLifecycle.Object = .{ .scope = self.connection.scope, .branch = self.connection.branch, .object = operation };
             const decl = try c.DirectKVClient.prepareDeclaration(allocator, .{
@@ -131,6 +131,7 @@ pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.D
                 },
                 .namespace = self.namespace,
                 .name = try .init(syntax.name),
+                .native_binding = create.native_binding,
                 .action = .{ .create = .{ .owner = owner_role, .spec = storageSpec(create.spec) } },
             });
             const preview = try client.call(.{ .kv_declaration = .{ .declaration = decl, .command = .preview, .steps = 1 } });

@@ -59,7 +59,7 @@
       "error": "UnsupportedDeclaration"
     },
     {
-      "sql": "CREATE SINK target INTO http CONNECTION conn;",
+      "sql": "CREATE SINK exchange INTO HTTP CONNECTION upstream WITH (method='POST', path='/token', request_encoding='form', accept='application/json', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain');",
       "error": "UnsupportedDeclaration"
     },
     {

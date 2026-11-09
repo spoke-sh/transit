@@ -22,7 +22,8 @@
                   "int64": {}
                 },
                 "nullable": false,
-                "optional": false
+                "optional": false,
+                "max_characters": null
               },
               {
                 "name": "value",
@@ -30,7 +31,8 @@
                   "int64": {}
                 },
                 "nullable": true,
-                "optional": false
+                "optional": false,
+                "max_characters": null
               }
             ]
           },
@@ -149,7 +151,8 @@
                 "int64": {}
               },
               "nullable": false,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             },
             {
               "name": "value",
@@ -157,7 +160,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ]
         }
@@ -200,7 +204,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             },
             {
               "name": "id",
@@ -208,7 +213,8 @@
                 "int64": {}
               },
               "nullable": false,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {
@@ -242,7 +248,8 @@
                 "uint64": {}
               },
               "nullable": false,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {
@@ -284,7 +291,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {
@@ -324,7 +332,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             },
             {
               "name": "copy",
@@ -332,7 +341,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {
@@ -366,7 +376,8 @@
                 "uint64": {}
               },
               "nullable": false,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {
@@ -408,7 +419,8 @@
                 "int64": {}
               },
               "nullable": true,
-              "optional": false
+              "optional": false,
+              "max_characters": null
             }
           ],
           "budgets": {

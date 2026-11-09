@@ -53,6 +53,19 @@ Plane with an explicit Document profile (`versioned` or `causal_crdt`) and
 optional retention policy, while sharing typed schema validation, snapshot reads
 and atomic partition mutations with the direct Catalog owner.
 
+Profile and retention are part of the immutable definition. A pending or
+cancelled `ALTER DOCUMENT` leaves the current policy unchanged; a committed
+retention change advances the definition together with its policy.
+
+The native `DirectDocument.Revision` adapter can guard a read of the versioned
+row profile in a serializable common transaction. It compares the exact
+definition and collection data frontier against the acquired cut; the coordinator
+checks that dependency again before committing other writes. Its physical target
+is the existing shared row partition. This adapter does not add SQL
+`BEGIN ATOMIC`, execute installed application programs, or admit partitioned
+tree Documents. See the [direct transaction contract](../../../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action)
+for the native boundary.
+
 Station's collaborative [Document model](../documents.md) and typed
 [named resource operations](../../../../packages/zig/transit-station-app/docs/named-resources.md)
 remain separate for actor-bound replica resources. Use the

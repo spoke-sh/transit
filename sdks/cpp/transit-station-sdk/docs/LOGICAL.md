@@ -49,3 +49,11 @@ These local models do not authorize I/O or expand Table/operator support.
 Shared Zig owns type/domain validation and execution. See the
 [logical contract](../../../../contracts/FUZE_TYPES_V1.md) and
 [executed proofs](../../../../tests/README.md).
+
+`Field.max_characters` is an `std::optional<uint32_t>`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

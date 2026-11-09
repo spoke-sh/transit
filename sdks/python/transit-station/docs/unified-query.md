@@ -92,7 +92,7 @@ segments contain at most eight rows and 64 KiB. Comparison literals retain a
 KV has two columns, and Document projections admit eight scalar decoders.
 
 `Column.type` is a `logical.Descriptor`, with separate `nullable` and `optional`
-flags. Query parameters use `logical.Atom` (also exported as `q.Scalar`), including
+flags and an optional `max_characters` constraint. Query parameters use `logical.Atom` (also exported as `q.Scalar`), including
 exact Python integers for all widths, decimal coefficients and temporal values.
 Result cells reuse `logical.Missing`, `Null`, `SourceTypeError`, `Present` and
 `Conflict`; a `Present.value` is an atom or a typed recursive value. Collections

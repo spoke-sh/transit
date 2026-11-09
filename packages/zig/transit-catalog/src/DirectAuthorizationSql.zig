@@ -8,6 +8,15 @@ const syntax = c.fuze.AuthorizationSql;
 const w = c.DirectTableProtocol;
 
 pub const Limits = struct { requests: u32 = 128 };
+/// Resolve explicit SQL role selection through the shared current-policy
+/// owner. The caller retains the resulting ID in its original native request.
+pub fn resolveRole(client: c.DirectTableClient, namespace_id: u64, value: syntax.Role, limits: Limits) !u64 {
+    var resolver = try Resolver.init(client, namespace_id, limits);
+    const selected = try resolver.role(value);
+    try resolver.select(selected);
+    _ = try resolver.read(.identity);
+    return selected;
+}
 const Resolver = struct {
     client: c.DirectTableClient,
     authority: c.client.AuthorizationClient,

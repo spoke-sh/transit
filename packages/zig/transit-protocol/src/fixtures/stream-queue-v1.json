@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+    "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
   "append": {
     "append": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -245,7 +245,7 @@
   },
   "producer": {
     "target": {
-      "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+      "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
       "interpretation": {
         "object": {
           "scope": {
@@ -322,7 +322,7 @@
   "claim": {
     "claim": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -450,7 +450,7 @@
     "coverage": {
       "cut": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -528,7 +528,7 @@
       },
       "lease": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -602,7 +602,7 @@
   },
   "group_progress": {
     "target": {
-      "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+      "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
       "interpretation": {
         "object": {
           "scope": {
@@ -671,7 +671,7 @@
       },
       "cut": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -729,7 +729,7 @@
       },
       "expected": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -816,7 +816,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
             "interpretation": {
               "object": {
                 "scope": {
@@ -889,7 +889,7 @@
   "read": {
     "request": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -958,7 +958,7 @@
     },
     "cut": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -1109,7 +1109,7 @@
     "coverage": {
       "cut": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -1172,38 +1172,38 @@
       "complete": true
     },
     "authentication": [
-      201,
-      54,
-      255,
-      107,
-      111,
-      215,
-      171,
-      118,
-      175,
-      183,
-      51,
-      10,
-      88,
-      29,
-      121,
-      201,
-      101,
+      210,
+      116,
+      164,
+      177,
+      154,
+      161,
+      154,
       69,
-      181,
-      37,
-      53,
-      76,
+      45,
+      49,
+      187,
+      142,
+      141,
+      62,
+      199,
       41,
-      18,
-      42,
-      99,
-      20,
-      108,
-      254,
-      175,
-      110,
-      190
+      107,
+      162,
+      7,
+      228,
+      53,
+      19,
+      201,
+      82,
+      68,
+      68,
+      83,
+      182,
+      211,
+      72,
+      233,
+      45
     ]
   },
   "read_progress": {
@@ -1260,7 +1260,7 @@
         "coverage": {
           "cut": {
             "target": {
-              "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+              "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -1323,38 +1323,38 @@
           "complete": false
         },
         "authentication": [
-          156,
-          44,
-          142,
-          47,
-          159,
-          228,
-          242,
-          255,
-          227,
-          182,
-          106,
-          185,
-          71,
+          239,
+          233,
+          233,
           168,
-          175,
-          241,
-          230,
-          22,
-          169,
-          42,
-          197,
-          112,
-          179,
-          118,
-          28,
-          180,
-          185,
-          31,
-          232,
-          121,
-          108,
-          98
+          7,
+          50,
+          129,
+          167,
+          90,
+          105,
+          100,
+          47,
+          153,
+          203,
+          135,
+          174,
+          23,
+          66,
+          138,
+          203,
+          0,
+          215,
+          190,
+          122,
+          171,
+          199,
+          102,
+          64,
+          93,
+          239,
+          69,
+          144
         ]
       },
       "last": {
@@ -1409,7 +1409,7 @@
         "coverage": {
           "cut": {
             "target": {
-              "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+              "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
               "interpretation": {
                 "object": {
                   "scope": {
@@ -1472,38 +1472,38 @@
           "complete": false
         },
         "authentication": [
-          126,
-          164,
-          105,
-          59,
-          97,
-          161,
-          142,
-          31,
-          212,
-          89,
-          178,
-          106,
-          167,
-          240,
-          195,
-          197,
-          91,
-          246,
-          167,
-          193,
-          235,
-          43,
-          162,
-          178,
-          86,
-          113,
-          205,
-          150,
-          210,
+          140,
+          244,
+          56,
+          122,
+          206,
+          226,
+          85,
+          17,
           3,
+          56,
+          181,
+          170,
+          183,
+          1,
+          1,
+          215,
+          154,
           7,
-          68
+          4,
+          13,
+          92,
+          203,
+          178,
+          110,
+          79,
+          239,
+          30,
+          174,
+          144,
+          71,
+          162,
+          152
         ]
       }
     }
@@ -1561,7 +1561,7 @@
       "coverage": {
         "cut": {
           "target": {
-            "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1624,46 +1624,46 @@
         "complete": true
       },
       "authentication": [
-        201,
-        54,
-        255,
-        107,
-        111,
-        215,
-        171,
-        118,
-        175,
-        183,
-        51,
-        10,
-        88,
-        29,
-        121,
-        201,
-        101,
+        210,
+        116,
+        164,
+        177,
+        154,
+        161,
+        154,
         69,
-        181,
-        37,
-        53,
-        76,
+        45,
+        49,
+        187,
+        142,
+        141,
+        62,
+        199,
         41,
-        18,
-        42,
-        99,
-        20,
-        108,
-        254,
-        175,
-        110,
-        190
+        107,
+        162,
+        7,
+        228,
+        53,
+        19,
+        201,
+        82,
+        68,
+        68,
+        83,
+        182,
+        211,
+        72,
+        233,
+        45
       ]
     }
   },
   "group_handle": {
-    "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+    "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
     "group": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -1721,11 +1721,11 @@
     }
   },
   "progress_handle": {
-    "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+    "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
     "receipt": {
       "request": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -1794,7 +1794,7 @@
       },
       "cut": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -1947,7 +1947,7 @@
           "coverage": {
             "cut": {
               "target": {
-                "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+                "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
                 "interpretation": {
                   "object": {
                     "scope": {
@@ -2010,38 +2010,38 @@
             "complete": false
           },
           "authentication": [
-            156,
-            44,
-            142,
-            47,
-            159,
-            228,
-            242,
-            255,
-            227,
-            182,
-            106,
-            185,
-            71,
+            239,
+            233,
+            233,
             168,
-            175,
-            241,
-            230,
-            22,
-            169,
-            42,
-            197,
-            112,
-            179,
-            118,
-            28,
-            180,
-            185,
-            31,
-            232,
-            121,
-            108,
-            98
+            7,
+            50,
+            129,
+            167,
+            90,
+            105,
+            100,
+            47,
+            153,
+            203,
+            135,
+            174,
+            23,
+            66,
+            138,
+            203,
+            0,
+            215,
+            190,
+            122,
+            171,
+            199,
+            102,
+            64,
+            93,
+            239,
+            69,
+            144
           ]
         },
         "last": {
@@ -2096,7 +2096,7 @@
           "coverage": {
             "cut": {
               "target": {
-                "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+                "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
                 "interpretation": {
                   "object": {
                     "scope": {
@@ -2159,38 +2159,38 @@
             "complete": false
           },
           "authentication": [
-            126,
-            164,
-            105,
-            59,
-            97,
-            161,
-            142,
-            31,
-            212,
-            89,
-            178,
-            106,
-            167,
-            240,
-            195,
-            197,
-            91,
-            246,
-            167,
-            193,
-            235,
-            43,
-            162,
-            178,
-            86,
-            113,
-            205,
-            150,
-            210,
+            140,
+            244,
+            56,
+            122,
+            206,
+            226,
+            85,
+            17,
             3,
+            56,
+            181,
+            170,
+            183,
+            1,
+            1,
+            215,
+            154,
             7,
-            68
+            4,
+            13,
+            92,
+            203,
+            178,
+            110,
+            79,
+            239,
+            30,
+            174,
+            144,
+            71,
+            162,
+            152
           ]
         }
       }
@@ -2199,7 +2199,7 @@
   "read_release": {
     "release": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -2315,7 +2315,7 @@
     "receipt": {
       "claim": {
         "target": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -2438,7 +2438,7 @@
       "claim": {
         "claim": {
           "target": {
-            "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
             "interpretation": {
               "object": {
                 "scope": {
@@ -2554,7 +2554,7 @@
   "queue_observation_basis": {
     "cut": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -2615,10 +2615,75 @@
       "latest_ms": 700
     }
   },
+  "queue_time_observation": {
+    "cut": {
+      "target": {
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+        "interpretation": {
+          "object": {
+            "scope": {
+              "realm": 1,
+              "resource": 7,
+              "catalog": 18446744073709551615
+            },
+            "branch": 1,
+            "object": 43
+          },
+          "revision": 2,
+          "digest": [
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29,
+            29
+          ]
+        },
+        "partition": 0
+      },
+      "accepted": {
+        "partition": 91,
+        "next_lsn": 13
+      },
+      "retained_from": 0,
+      "next": 18446744073709551615
+    },
+    "time": {
+      "earliest_ms": 600,
+      "latest_ms": 700
+    },
+    "floor_ms": 500
+  },
   "queue_lease_observation": {
     "original": {
       "target": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {

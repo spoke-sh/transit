@@ -31,8 +31,11 @@ source_resource(#transit_unified_kv{resource=R}) -> R;
 source_resource(#transit_unified_table{scope=#transit_catalog_scope{resource=R}}) -> R;
 source_resource(#transit_unified_document{reference=#transit_document_reference{resource=R}}) -> R.
 name(V) -> B=transit_sdk_value:text(V,255),true=byte_size(B)>0,true=binary:match(B,<<0>>)=:=nomatch,B.
-column(#transit_unified_column{name=N,type=T,nullable=Z,optional=O}) -> #{<<"name">>=>name(N),<<"type">>=>transit_logical:type_wire(T),<<"nullable">>=>transit_sdk_value:boolean(Z),<<"optional">>=>transit_sdk_value:boolean(O)}.
-parsed_column(#{<<"name">>:=N,<<"type">>:=T,<<"nullable">>:=Z,<<"optional">>:=O}) -> #transit_unified_column{name=name(N),type=transit_logical:type_from_wire(T),nullable=transit_sdk_value:boolean(Z),optional=transit_sdk_value:boolean(O)}.
+column(#transit_unified_column{name=N,type=T,nullable=Z,optional=O,max_characters=M}) ->
+    transit_logical:field_wire(#transit_logical_field{name=name(N),type=T,nullable=Z,optional=O,max_characters=M}).
+parsed_column(V) ->
+    #transit_logical_field{name=N,type=T,nullable=Z,optional=O,max_characters=M}=transit_logical:field_from_wire(V),
+    #transit_unified_column{name=name(N),type=T,nullable=Z,optional=O,max_characters=M}.
 decoder_column(#transit_unified_decoder_column{name=N,type=T}) -> #{<<"name">>=>transit_sdk_value:text(N,32),<<"type">>=>type(T)}.
 path(V) -> [transit_sdk_value:text(N,64) || N<-array(V,8)].
 decoder(#transit_unified_decoder{type=T,version=V}) -> #{<<"type">>=>type(T),<<"version">>=>transit_sdk_value:integer(V,0,255)}.
@@ -69,7 +72,7 @@ parsed_table(#{<<"source">>:=#{<<"source">>:=#{<<"table">>:=Direct}}=Envelope,<<
         interpretation=#transit_unified_table_interpretation{revision=wide(maps:get(<<"revision">>,I)),digest=transit_station_value:digest(maps:get(<<"digest">>,I)),byte_count=wide(maps:get(<<"bytes">>,I)),schema_digest=transit_station_value:digest(maps:get(<<"schema">>,I))},schema=transit_catalog_value:parse_schema(Schema)},
     true=source(Source)=:=Envelope,
     #transit_unified_table_definition{source=Source,partition=positive(wide(maps:get(<<"partition">>,Expected))),next_lsn=wide(maps:get(<<"next_lsn">>,Expected))}.
-table_field(#transit_catalog_column{name=N,type=T,nullable=Z}) -> #transit_logical_field{name=N,type=T,nullable=Z}.
+table_field(#transit_catalog_column{name=N,type=T,nullable=Z,max_characters=M}) -> #transit_logical_field{name=N,type=T,nullable=Z,max_characters=M}.
 scalar({utf8,V}=Atom) -> transit_sdk_value:text(V,4096),transit_logical:atom_wire(Atom);
 scalar({binary,V}=Atom) -> transit_sdk_value:bytes(V,4096),transit_logical:atom_wire(Atom);
 scalar(Atom) -> transit_logical:atom_wire(Atom).

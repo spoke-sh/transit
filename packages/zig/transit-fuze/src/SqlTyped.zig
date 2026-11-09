@@ -280,20 +280,20 @@ pub fn dataType(self: *Self) anyerror!names.Resolved {
         try result.validate(.{});
         return .{ .type = result };
     }
-    if (std.ascii.eqlIgnoreCase(name_text, "STRUCT") or std.ascii.eqlIgnoreCase(name_text, "UNION")) {
+    if (std.ascii.eqlIgnoreCase(name_text, "STRUCT") or std.ascii.eqlIgnoreCase(name_text, "ROW") or std.ascii.eqlIgnoreCase(name_text, "UNION")) {
         try self.require(.left);
         var fields: std.ArrayList(t.Field) = .empty;
         while (true) {
             if (fields.items.len == 255) return error.TypeBudgetExceeded;
             const field_name = try self.name();
-            const field_type = try self.nested();
+            const field_type = try self.dataType();
             const nullable = try self.nullability(true);
             const optional = try self.takeWord("OPTIONAL");
-            try fields.append(self.allocator, .{ .name = field_name, .type = field_type, .nullable = nullable.value, .optional = optional });
+            try fields.append(self.allocator, .{ .name = field_name, .type = field_type.type, .nullable = nullable.value, .optional = optional, .max_characters = field_type.max_characters });
             if (!try self.take(.comma)) break;
         }
         try self.require(.right);
-        return .{ .type = if (std.ascii.eqlIgnoreCase(name_text, "STRUCT")) .{ .structure = try fields.toOwnedSlice(self.allocator) } else .{ .tagged_union = try fields.toOwnedSlice(self.allocator) } };
+        return .{ .type = if (std.ascii.eqlIgnoreCase(name_text, "UNION")) .{ .tagged_union = try fields.toOwnedSlice(self.allocator) } else .{ .structure = try fields.toOwnedSlice(self.allocator) } };
     }
     if (std.ascii.eqlIgnoreCase(name_text, "LIST") or std.ascii.eqlIgnoreCase(name_text, "ARRAY") or std.ascii.eqlIgnoreCase(name_text, "MAP")) {
         try self.require(.left);
@@ -411,7 +411,7 @@ fn literalValue(self: *Self, expected: ?t.Type) anyerror!@FieldType(Literal, "va
             try self.require(.right);
             return .{ .tagged_union = .{ .name = selected, .selected = selected_span, .value = child } };
         }
-        inline for (.{ .{ "STRUCT", "structure" }, .{ "LIST", "list" }, .{ "ARRAY", "array" }, .{ "MAP", "map" }, .{ "INTERVAL", "interval" } }) |constructor| {
+        inline for (.{ .{ "STRUCT", "structure" }, .{ "ROW", "structure" }, .{ "LIST", "list" }, .{ "ARRAY", "array" }, .{ "MAP", "map" }, .{ "INTERVAL", "interval" } }) |constructor| {
             if (try self.takeWordRole(constructor[0], .function)) {
                 try self.require(.left);
                 var children: std.ArrayList(Literal) = .empty;

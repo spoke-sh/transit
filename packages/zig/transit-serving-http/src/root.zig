@@ -6,6 +6,15 @@ const s = serving.station;
 const p = s.protocol;
 const telemetry = s.client.observability.telemetry;
 pub const BrowserRuntime = @import("BrowserRuntime.zig");
+pub const ApplicationRequestHost = @import("ApplicationRequestHost.zig");
+pub const ApplicationRequests = @import("ApplicationRequests.zig");
+pub const ApplicationReservation = @import("ApplicationReservation.zig");
+pub const ApplicationProtectedHost = @import("ApplicationProtectedHost.zig");
+pub const ApplicationSecrets = @import("ApplicationSecrets.zig");
+pub const ApplicationAuthority = @import("ApplicationAuthority.zig");
+pub const ApplicationEffectHttp = @import("ApplicationEffectHttp.zig");
+pub const ApplicationEffectTasks = @import("ApplicationEffectTasks.zig");
+pub const ApplicationEffectRuntime = @import("ApplicationEffectRuntime.zig");
 pub const Caller = struct { principal: u64, public_key: [32]u8 };
 pub const Gateway = struct {
     service: u64,

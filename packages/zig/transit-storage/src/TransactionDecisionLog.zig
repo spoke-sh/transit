@@ -41,7 +41,7 @@ pub const Verification = struct {
     context: *anyopaque,
     participant: *const fn (*anyopaque, x.Participant) anyerror!void,
     prepared: *const fn (*anyopaque, x.Prepared) anyerror!void,
-    /// Log writes require a final, allocation-free check after all potentially
+    /// Log writes and BEGIN deadlines require an allocation-free check after all potentially
     /// slow successor verification. It rechecks collected lease/retention
     /// deadlines under this same guard immediately before decision append.
     before_decision: ?*const fn (*anyopaque) anyerror!void = null,
@@ -269,7 +269,7 @@ fn commitBounded(self: *Self, prepared_directory: x.Directory, verification: Ver
         };
         after = page.next orelse break;
     }
-    if (has_log_writes and verification.before_decision == null) return error.MissingTransactionVerification;
+    if ((has_log_writes or self.binding.begin.deadline != null) and verification.before_decision == null) return error.MissingTransactionVerification;
     if (verification.before_decision) |check| try check(verification.context);
     try self.append(.{ .decision = decision }, fence);
     if (self.lose_reply) return error.LostAcknowledgement;

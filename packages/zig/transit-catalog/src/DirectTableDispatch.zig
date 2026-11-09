@@ -54,6 +54,8 @@ fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, va
 fn encodeDefinition(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, view: *const D.View) !w.Definition {
     return .{
         .interpretation = view.table.root.declared(),
+        .document = view.properties.document,
+        .native_binding = view.properties.native_binding,
         .namespace = view.properties.namespace,
         .authorization = view.properties.authorization,
         .name = view.properties.name,
@@ -141,11 +143,17 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .cancel => .{ .operation = try catalog.cancel(request.binding, policy) },
             } };
         },
+        .native_binding => {
+            const value = action.native_binding;
+            var view = try catalog.resolveNativeBinding(catalog.allocator, value.namespace, value.kind, policy) orelse return .{ .native_binding = null };
+            defer view.deinit();
+            return .{ .native_binding = try encodeDefinition(allocator, catalog.allocator, &view) };
+        },
         .kv_lookup => {
             const value = action.kv_lookup;
             var view = try catalog.resolveKV(catalog.allocator, value.namespace, try c.TableAuthority.Name.init(value.name), policy) orelse return .{ .kv_lookup = null };
             defer view.deinit();
-            return .{ .kv_lookup = try c.DirectKV.definition(&view.table, view.properties) };
+            return .{ .kv_lookup = try (try c.DirectKV.definition(&view.table, view.properties)).cloneInto(allocator) };
         },
         .kv_list => {
             const value = action.kv_list;
@@ -392,6 +400,15 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
             defer scratch.deinit();
             for (values) |value| switch (value) {
                 .access => |access| try catalog.checkAccess(access, policy),
+                .current_state => |current| {
+                    _ = scratch.reset(.retain_capacity);
+                    try catalog.checkCurrentState(scratch.allocator(), current, policy);
+                },
+                .current_connector => |current| {
+                    _ = scratch.reset(.retain_capacity);
+                    try catalog.checkCurrentConnector(scratch.allocator(), current, policy);
+                },
+                .dependency => |edge| try catalog.checkDependency(edge, policy),
                 .historical => |input| {
                     _ = scratch.reset(.retain_capacity);
                     var source = try catalog.openHistory(scratch.allocator(), input.snapshot, input.object, input.rows, policy);

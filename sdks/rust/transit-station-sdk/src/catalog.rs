@@ -194,6 +194,7 @@ pub struct AuthorityProfile {
     pub kv_domain: u64,
     pub connection_domain: u64,
     pub source_domain: u64,
+    pub sink_domain: u64,
     pub database: u64,
     pub initial_schema: u64,
     pub initial_schema_authority: u64,
@@ -209,6 +210,7 @@ impl AuthorityProfile {
             self.kv_domain,
             self.connection_domain,
             self.source_domain,
+            self.sink_domain,
             self.database,
             self.initial_schema,
             self.initial_schema_authority,
@@ -224,6 +226,7 @@ impl AuthorityProfile {
             self.kv_domain,
             self.connection_domain,
             self.source_domain,
+            self.sink_domain,
         ];
         for (i, domain) in domains.iter().enumerate() {
             if domains[..i].contains(domain) {
@@ -235,7 +238,7 @@ impl AuthorityProfile {
         }
         Ok(
             json!({"database_domain":self.database_domain,"schema_domain":self.schema_domain,
-            "table_domain":self.table_domain,"stream_domain":self.stream_domain,"queue_domain":self.queue_domain,"kv_domain":self.kv_domain,"connection_domain":self.connection_domain,"source_domain":self.source_domain,"database":self.database,"initial_schema":self.initial_schema,
+            "table_domain":self.table_domain,"stream_domain":self.stream_domain,"queue_domain":self.queue_domain,"kv_domain":self.kv_domain,"connection_domain":self.connection_domain,"source_domain":self.source_domain,"sink_domain":self.sink_domain,"database":self.database,"initial_schema":self.initial_schema,
             "initial_schema_authority":self.initial_schema_authority}),
         )
     }
@@ -251,6 +254,7 @@ impl AuthorityProfile {
                 "kv_domain",
                 "connection_domain",
                 "source_domain",
+                "sink_domain",
                 "database",
                 "initial_schema",
                 "initial_schema_authority",
@@ -265,6 +269,7 @@ impl AuthorityProfile {
             kv_domain: n(&v["kv_domain"], false)?,
             connection_domain: n(&v["connection_domain"], false)?,
             source_domain: n(&v["source_domain"], false)?,
+            sink_domain: n(&v["sink_domain"], false)?,
             database: n(&v["database"], false)?,
             initial_schema: n(&v["initial_schema"], false)?,
             initial_schema_authority: n(&v["initial_schema_authority"], false)?,
@@ -280,7 +285,7 @@ mod authority_tests {
     #[test]
     fn current_authority_domains_are_required_distinct_native_counters() {
         let value = json!({"database_domain":1,"schema_domain":2,"table_domain":3,
-            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,"database":4,"initial_schema":1,"initial_schema_authority":5});
+            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,"sink_domain":36,"database":4,"initial_schema":1,"initial_schema_authority":5});
         let profile = AuthorityProfile::parse(&value).unwrap();
         assert_eq!(
             (
@@ -297,6 +302,7 @@ mod authority_tests {
             "kv_domain",
             "connection_domain",
             "source_domain",
+            "sink_domain",
         ] {
             let mut missing = value.clone();
             missing.as_object_mut().unwrap().remove(field);
@@ -2679,7 +2685,7 @@ mod tests {
     #[test]
     fn authority_requires_complete_distinct_domains() {
         let wire = json!({"database_domain":10,"schema_domain":11,"table_domain":12,
-            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,
+            "stream_domain":31,"queue_domain":32,"kv_domain":33,"connection_domain":34,"source_domain":35,"sink_domain":36,
             "database":20,"initial_schema":1,"initial_schema_authority":21});
         assert_eq!(
             AuthorityProfile::parse(&wire).unwrap().wire().unwrap(),
@@ -2691,6 +2697,7 @@ mod tests {
             "kv_domain",
             "connection_domain",
             "source_domain",
+            "sink_domain",
         ] {
             let mut missing = wire.clone();
             missing.as_object_mut().unwrap().remove(field);

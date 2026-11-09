@@ -56,6 +56,13 @@ pub const Command = enum {
     retire_source,
     drop_connection,
     drop_source,
+    create_sink,
+    authorize_sink,
+    activate_sink,
+    suspend_sink,
+    resume_sink,
+    retire_sink,
+    drop_sink,
     produce,
     consume,
     commit_offset,
@@ -66,7 +73,7 @@ pub const Command = enum {
     extend_lease,
     pub fn connector(self: Command) bool {
         return switch (self) {
-            .create_connection, .create_source, .retire_source, .drop_connection, .drop_source => true,
+            .create_connection, .create_source, .retire_source, .drop_connection, .drop_source, .create_sink, .authorize_sink, .activate_sink, .suspend_sink, .resume_sink, .retire_sink, .drop_sink => true,
             else => false,
         };
     }

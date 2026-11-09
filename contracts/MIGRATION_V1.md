@@ -31,6 +31,12 @@ or `<version_id>_<name>.sql`.
   its `source_sha256` is immutable. Modifying an already-recorded migration file
   returns outcome `checksum_mismatch` (`migration.checksum_mismatch`).
 
+Each source file is bounded to 64 KiB, independently of the executable SQL
+owner's statement limit. A file may contain multiple individually bounded
+statements and comments whose total exceeds 4,096 bytes. Its checksum covers
+all original bytes, including comments and whitespace. This does not raise the
+finite SQL statement limit or grant support to an otherwise unsupported owner.
+
 ## Multi-statement decomposition and step classification
 
 Each migration file is tokenized into 1-based ordered steps (`step_index`, source
@@ -41,6 +47,13 @@ switch requires every prepared owner and native plan variant to choose read,
 durable-operation or unsupported migration semantics. Statements without a
 staged-definition adapter use ordinary SQL preparation against the live catalog;
 there is no migration keyword allowlist for those statements.
+
+Framing retains a Queue dataflow's compound body as one source step, including
+nested `BEGIN`/`END`, `IF`/`END IF` and `CASE` expressions. It does not execute or
+semantically validate that program: Queue dataflow preparation remains
+unsupported. Unterminated quoted tokens/comments, unbalanced parentheses/blocks
+and nesting beyond 64 levels reject the file. Ordinary transaction-control
+statements remain separate steps and retain the rejection below.
 
 Interactive transaction controls and session-setting mutations are unsupported:
 the migration ledger already owns ordered, independently committed steps, and

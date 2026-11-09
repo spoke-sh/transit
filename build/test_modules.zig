@@ -82,7 +82,7 @@ const specs = [_]Spec{
     .{ .id = .direct_named_resources, .path = "tests/catalog/tables/direct_named_resources.zig", .packages = &.{ "transit_catalog", "transit_station_app" } },
     .{ .id = .direct_kv, .path = "tests/catalog/tables/direct_kv.zig", .packages = &.{ "transit_catalog", "transit_data_client" } },
     .{ .id = .direct_state_transaction, .path = "tests/catalog/tables/direct_state_transaction.zig", .packages = &.{"transit_catalog"} },
-    .{ .id = .managed_table, .path = "tests/catalog/tables/managed_table.zig", .packages = &.{"transit_query"} },
+    .{ .id = .managed_table, .path = "tests/catalog/tables/managed_table.zig", .packages = &.{ "transit_query", "transit_sql_service", "transit_serving_http" } },
     .{ .id = .direct_log_token, .path = "tests/catalog/tables/direct_log_token.zig", .packages = &.{"transit_catalog"} },
     .{ .id = .direct_queue_transfer, .path = "tests/catalog/tables/direct_queue_transfer.zig", .packages = &.{"transit_catalog"} },
     .{ .id = .direct_queue, .path = "tests/storage/tables/direct_queue.zig", .packages = &.{ "transit_catalog", "transit_data_client" } },

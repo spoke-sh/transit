@@ -10,8 +10,8 @@ namespace Transit.Station.Sdk;
 public static class Logical
 {
     internal const int DataBytes = 1024 * 1024;
-    public enum ScalarKind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Boolean, Utf8, Binary, Date, Time, Interval, Uuid, Json }
-    public enum Kind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Decimal, Boolean, Utf8, Binary, Date, Time, Timestamp, Interval, Uuid, Structure, TaggedUnion, List, Array, Map, Json, Unknown, NullValue, Text, Character }
+    public enum ScalarKind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Boolean, Utf8, Binary, Date, Time, Interval, Uuid, Json, Capability }
+    public enum Kind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Decimal, Boolean, Utf8, Binary, Date, Time, Timestamp, Interval, Uuid, Structure, TaggedUnion, List, Array, Map, Json, Capability, Unknown, NullValue, Text, Character }
     public enum Zone { Civil, Utc }
     public abstract record Descriptor;
     public sealed record Scalar : Descriptor {
@@ -32,7 +32,8 @@ public static class Logical
         public Descriptor Type { get; }
         public bool Nullable { get; }
         public bool Optional { get; }
-        public Field(string name, Descriptor type, bool nullable = false, bool optional = false) { Name = V.Text(name, 4096); ArgumentNullException.ThrowIfNull(type); Type = type; Nullable = nullable; Optional = optional; }
+        public uint? MaxCharacters { get; }
+        public Field(string name, Descriptor type, bool nullable = false, bool optional = false, uint? maxCharacters = null) { Name = V.Text(name, 4096); ArgumentNullException.ThrowIfNull(type); if (maxCharacters is not null && (maxCharacters == 0 || type is not Scalar { Kind: ScalarKind.Utf8 })) throw Invalid("field length requires UTF8 and a positive bound"); Type = type; Nullable = nullable; Optional = optional; MaxCharacters = maxCharacters; }
     }
     public sealed record Element {
         public Descriptor Type { get; }
@@ -179,7 +180,7 @@ public static class Logical
     }
     public static JsonObject TypeWire(Descriptor value) => TypeWire(value, new(256), 0);
     private static JsonObject ElementWire(Element value, Budget budget, int depth) => V.Obj(("type", TypeWire(value.Type, budget, depth + 1)), ("nullable", value.Nullable));
-    private static JsonArray FieldsWire(IReadOnlyList<Field> fields, Budget budget, int depth) => new(fields.Select(f => (JsonNode?)V.Obj(("name", budget.Name(f.Name)), ("type", TypeWire(f.Type, budget, depth + 1)), ("nullable", f.Nullable), ("optional", f.Optional))).ToArray());
+    private static JsonArray FieldsWire(IReadOnlyList<Field> fields, Budget budget, int depth) => new(fields.Select(f => (JsonNode?)FieldWire(f, budget, depth + 1)).ToArray());
     private static JsonObject TypeWire(Descriptor value, Budget budget, int depth) {
         budget.Enter(depth);
         return value switch {
@@ -194,6 +195,13 @@ public static class Logical
             _ => throw Invalid("descriptor")
         };
     }
+    public static JsonObject FieldWire(Field field) => FieldWire(field, new(256), 0);
+    private static JsonObject FieldWire(Field field, Budget budget, int depth) => V.Obj(("name", budget.Name(field.Name)), ("type", TypeWire(field.Type, budget, depth)), ("nullable", field.Nullable), ("optional", field.Optional), ("max_characters", field.MaxCharacters is { } maximum ? (ulong)maximum : null));
+    public static Field FieldFromWire(JsonNode? value) => FieldFromWire(value, new(256), 0);
+    private static Field FieldFromWire(JsonNode? value, Budget budget, int depth) {
+        var v = Fields(value, "name", "type", "nullable", "optional", "max_characters");
+        return new(budget.Name(V.String(v["name"])), TypeFromWire(v["type"], budget, depth), V.Boolean(v["nullable"]), V.Boolean(v["optional"]), v["max_characters"] is null ? null : checked((uint)V.Number(v["max_characters"], 1)));
+    }
     public static Descriptor TypeFromWire(JsonNode? value) => TypeFromWire(value, new(256), 0);
     private static Element ElementFromWire(JsonNode? value, Budget budget, int depth) { var v = Fields(value, "type", "nullable"); return new(TypeFromWire(v["type"], budget, depth + 1), V.Boolean(v["nullable"])); }
     private static Descriptor TypeFromWire(JsonNode? value, Budget budget, int depth) {
@@ -203,9 +211,7 @@ public static class Logical
             case "decimal": { var v = Fields(payload, "precision", "scale"); return new Decimal(checked((byte)V.Number(v["precision"], 1)), checked((byte)V.Number(v["scale"]))); }
             case "timestamp": return new Timestamp(EnumValue<Zone>(payload));
             case "structure": case "tagged_union": {
-                var fields = (payload as JsonArray ?? throw Invalid("fields")).Select(item => {
-                    var v = Fields(item, "name", "type", "nullable", "optional"); return new Field(budget.Name(V.String(v["name"])), TypeFromWire(v["type"], budget, depth + 1), V.Boolean(v["nullable"]), V.Boolean(v["optional"]));
-                }).ToArray(); return kind == "structure" ? new Structure(fields) : new Union(fields);
+                var fields = (payload as JsonArray ?? throw Invalid("fields")).Select(item => FieldFromWire(item, budget, depth + 1)).ToArray(); return kind == "structure" ? new Structure(fields) : new Union(fields);
             }
             case "list": return new ListType(ElementFromWire(payload, budget, depth));
             case "array": { var v = Fields(payload, "element", "length"); return new ArrayType(ElementFromWire(v["element"], budget, depth), checked((uint)V.Number(v["length"], 1))); }

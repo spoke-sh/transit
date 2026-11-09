@@ -181,7 +181,9 @@ test("relational opens retain complete source bindings and full-width partition 
       definition: contract.definition,
       plan: reference.plan,
       sources: [{ alias: "items", binding, position: { partition: max, next_lsn: max } }],
-      columns: [{ name: "id", type: { int32: {} }, nullable: false, optional: false }],
+      columns: [
+        { name: "id", type: { int32: {} }, nullable: false, optional: false, max_characters: null },
+      ],
       join: null,
       grouped: false,
       executed: false,

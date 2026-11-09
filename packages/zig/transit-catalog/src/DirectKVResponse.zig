@@ -10,6 +10,7 @@ fn frontier(position: d.Position, changed_lsn: u64) !void {
     if (position.next_lsn == 0 or changed_lsn > position.next_lsn) return error.InvalidKVResponse;
 }
 fn stored(value: s.TableDeclaration.Stored, spec: s.KVDeclaration.Spec) !void {
+    try spec.validate();
     try value.validate();
     if (value.kind != .kv) return error.InvalidKVResponse;
     var columns: [2]c.fuze.TableSchema.Column = undefined;
@@ -18,7 +19,7 @@ fn stored(value: s.TableDeclaration.Stored, spec: s.KVDeclaration.Spec) !void {
 pub fn definition(allocator: std.mem.Allocator, value: K.Definition) !void {
     try stored(value.interpretation, value.spec);
     try frontier(value.position, value.changed_lsn);
-    const properties: c.DirectCatalog.Properties = .{ .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
+    const properties: c.DirectCatalog.Properties = .{ .native_binding = value.native_binding, .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
     var buffer: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     var prepared = try s.KVDeclaration.prepare(allocator, .{ .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .spec = value.spec, .properties = try properties.encode(&buffer), .retired = value.retired });
     defer prepared.deinit();
@@ -75,6 +76,8 @@ pub fn validate(allocator: std.mem.Allocator, request: K.Request, result: K.Resu
             } else if (request == .mutate) return error.InvalidKVResponse;
         },
         .value => |value| {
+            if ((value.encoded == null) != (value.revision == null)) return error.InvalidKVResponse;
+            if (value.revision) |revision| try revision.validate();
             try stored(value.interpretation, value.spec);
             try frontier(value.position, value.changed_lsn);
             if (!std.meta.eql(value.interpretation.interpretation.object, request.target()) or !std.meta.eql(value.source, request.get.source)) return error.InvalidKVResponse;

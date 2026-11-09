@@ -2,6 +2,19 @@
 const std = @import("std");
 const http = @import("transit_station_http");
 const t = std.testing;
+const Gate = struct {
+    io: std.Io,
+    path: []const u8,
+    calls: u32 = 0,
+    exited: bool = false,
+    fn check(context: *anyopaque) !void {
+        const self: *Gate = @ptrCast(@alignCast(context));
+        self.calls += 1;
+        defer self.exited = true;
+        if (std.mem.eql(u8, self.path, "/gate-revoked")) return error.DispatchRevoked;
+        if (std.mem.eql(u8, self.path, "/gate-timeout")) try self.io.sleep(.fromSeconds(60), .awake);
+    }
+};
 const Collector = struct {
     hash: std.crypto.hash.sha2.Sha256 = .init(.{}),
     bytes: usize = 0,
@@ -33,11 +46,15 @@ pub fn main(init: std.process.Init) !void {
     var body: std.Io.Reader = .fixed("request-body");
     const request: http.Request = .{ .method = .POST, .target = &.{.{ .literal = args[2] }}, .body_bytes = 12, .headers = &.{ .{ .name = "X-Order", .value = &.{.{ .literal = "first" }} }, .{ .name = "X-Order", .value = &.{.{ .literal = "second" }} } } };
     var collector: Collector = .{ .fail = std.mem.eql(u8, args[2], "/capture-failure") };
-    const result = http.Transport.execute(init.gpa, init.io, endpoint, request, &body, null, .{ .context = &collector, .segment = Collector.capture });
+    var gate: Gate = .{ .io = init.io, .path = args[2] };
+    const gated = std.mem.startsWith(u8, args[2], "/gate-");
+    const result = http.Transport.execute(init.gpa, init.io, endpoint, request, &body, null, .{ .context = &collector, .segment = Collector.capture }, if (gated) .{ .context = &gate, .check = Gate.check } else null);
     var output_buffer: [4096]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     if (result) |r| {
-        try output.interface.print("{{\"status\":{d},\"bytes\":{d},\"omitted\":{d},\"sha256\":\"{x}\"}}\n", .{ r.status, r.bytes, r.omitted_headers, collector.hash.finalResult() });
-    } else |err| try output.interface.print("{{\"error\":\"{s}\",\"captured\":{d},\"completed\":{}}}\n", .{ @errorName(err), collector.bytes, collector.completed });
+        try output.interface.print("{{\"status\":{d},\"bytes\":{d},\"omitted\":{d},\"sha256\":\"{x}\"", .{ r.status, r.bytes, r.omitted_headers, collector.hash.finalResult() });
+    } else |err| try output.interface.print("{{\"error\":\"{s}\",\"captured\":{d},\"completed\":{}", .{ @errorName(err), collector.bytes, collector.completed });
+    if (gated) try output.interface.print(",\"gate_calls\":{d},\"gate_exited\":{}", .{ gate.calls, gate.exited });
+    try output.interface.writeAll("}\n");
     try output.interface.flush();
 }

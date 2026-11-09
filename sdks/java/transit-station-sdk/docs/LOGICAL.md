@@ -42,3 +42,11 @@ without a regex stack frame per byte.
 See the [catalog caller](CATALOG.md) for schemas and assignments and the
 [logical type reference](../../../../docs/handbook/reference/sql/types.md) for shared
 semantics.
+
+`Field.maxCharacters` is a nullable `Long`. A declared limit is a positive
+32-bit integer and requires a UTF-8 field. It counts Unicode scalar values, not
+bytes or UTF-16 code units. Nested fields, table-source row types and query
+result columns preserve the constraint. Wire descriptors require
+`max_characters`, using `null` for an unbounded field; missing or invalid
+metadata is rejected. Local descriptor codecs validate this metadata; shared
+Zig owns validation of values against the declared schema.

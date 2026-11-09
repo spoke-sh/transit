@@ -14,7 +14,7 @@ from transit_client.types import integer
 from .catalog_values import Connection, Basis, Snapshot, Position, ObjectIdentity
 from . import catalog_values as v
 from .table import RowIdentity
-from .logical_values import Descriptor, ScalarType, DecimalType, TimestampType, type_from_wire, atom_from_wire
+from .logical_values import Descriptor, ScalarType, DecimalType, TimestampType, field_from_wire, atom_from_wire
 
 T = TypeVar('T')
 
@@ -101,6 +101,7 @@ class Column:
     name: str
     type: Descriptor
     nullable: bool
+    max_characters: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,12 +146,12 @@ def _description(value: object) -> Description:
         sources.append(Source(v._text(item['alias'], 255), Basis.restore(encode(item['binding']).decode()), v._position(item['position'])))
     columns = []
     for item in _array(value['columns'], 1, 128):
-        item = v._object(item, 'name type nullable optional')
-        kind = type_from_wire(item['type'])
-        if v._boolean(item['optional']) or not (isinstance(kind, (DecimalType, TimestampType)) or
+        field = field_from_wire(item)
+        kind = field.type
+        if field.optional or not (isinstance(kind, (DecimalType, TimestampType)) or
                 isinstance(kind, ScalarType) and kind.kind in ('int8', 'int16', 'int32', 'int64', 'uint64', 'float64', 'boolean', 'date', 'time', 'uuid', 'utf8', 'binary')):
             raise ValueError('Unsupported relational output type')
-        columns.append(Column(v._text(item['name'], 255), kind, v._boolean(item['nullable'])))
+        columns.append(Column(v._text(field.name, 255), kind, field.nullable, field.max_characters))
     join = value['join']
     if join not in (None, 'inner', 'left'): raise ValueError('Invalid relational join')
     return Description(v._digest(value['plan']), tuple(sources), tuple(columns), join, v._boolean(value['grouped']))

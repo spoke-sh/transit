@@ -18,6 +18,7 @@ test "private reader and staging mutations preserve uncertainty without waking c
         .{ .client_token = .{ .bind = undefined } },
         .{ .record = .{ .stage = undefined } },
         .{ .record = .{ .stage_transaction = undefined } },
+        .{ .queue = .{ .wait = .{ .claim = undefined, .milliseconds = 1 } } },
         .{ .client_progress = .{ .update = .{ .key = undefined, .expected = undefined, .pending = true, .cancel = false, .record = .{ .scope = undefined, .format = c.DirectRecord.read_cache_format, .content = undefined } } } },
     };
     for (private) |action| {
@@ -766,6 +767,23 @@ test "dependency membership binds exact edges and keeps receipts separate from c
     const incomplete = try p.Json.valueAlloc(t.allocator, .{ .edge = edge, .position = response.result.dependency_state.position });
     defer t.allocator.free(incomplete);
     try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectDependency.State, t.allocator, incomplete));
+
+    var application = edge;
+    application.dependent.kind = .application;
+    application.dependent.interpretation.object.scope = request.connection.scope;
+    application.dependent.interpretation.object.branch = request.connection.branch;
+    var checks = [_]w.ReadCheck{.{ .dependency = application }};
+    request.action = .{ .check_set = &checks };
+    request.proof.claim.context = try w.Request.context(request.input(), t.allocator);
+    request.proof = try p.Authorization.Proof.sign(request.proof.claim, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
+    try request.validate(t.allocator);
+    try t.expect(!request.transport().mutation);
+    response.context = request.proof.claim.context;
+    response.subject.context = request.proof.claim.context;
+    response.result = .checked;
+    try c.DirectTableClient.validateResponse(t.allocator, request, response);
+    checks[0].dependency.privileges ^= c.TableAuthority.insert;
+    try t.expectError(error.InvalidAuthorizationCredential, request.validate(t.allocator));
 }
 
 test "current observations reject wrong definitions invented coverage and altered row pages" {
@@ -1079,4 +1097,54 @@ test "direct record staging round trips its signed application context" {
     const parsed = try w.Request.parse(alloc, bytes);
     defer parsed.deinit();
     try t.expectEqualDeep(request.proof, parsed.value.proof);
+}
+
+test "signed request binds both recovery fences and requires their current shape" {
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 1 }, .branch = 1, .principal = 4, .role = null, .audience = 5 };
+    const first: c.DirectClientToken.Fence = .{ .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(1), .token = @splat(2) }, .revision = .{ .partition = 1, .next_lsn = 3 } };
+    var second = first;
+    second.key.token = @splat(3);
+    second.revision.next_lsn = 4;
+    const primary = try c.DirectClientToken.Lease.combine(null, first);
+    const both = try c.DirectClientToken.Lease.combine(primary, second);
+    try t.expectError(error.InvalidClientToken, c.DirectClientToken.Lease.combine(primary, first));
+    var renamed = first;
+    renamed.key.connection.role = 2;
+    try t.expectError(error.InvalidClientToken, c.DirectClientToken.Lease.combine(primary, renamed));
+    try t.expectError(error.InvalidClientToken, c.DirectClientToken.Lease.combine(both, first));
+    var foreign = second;
+    foreign.key.connection.principal += 1;
+    try t.expectError(error.InvalidClientToken, c.DirectClientToken.Lease.combine(primary, foreign));
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .lease = both, .action = .describe };
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, alloc) }, key);
+    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .lease = both, .delegation = null, .proof = proof };
+    try request.validate(alloc);
+    var changed = request;
+    changed.lease.?.additional.?.revision.next_lsn += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(alloc));
+    changed = request;
+    changed.lease.?.revision.next_lsn += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(alloc));
+    const bytes = try p.Json.valueAlloc(alloc, request);
+    const restored = try w.Request.parse(alloc, bytes);
+    defer restored.deinit();
+    try t.expectEqualDeep(both, restored.value.lease.?);
+    const old = try p.Json.valueAlloc(alloc, first);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(c.DirectClientToken.Lease, alloc, old));
+}
+
+test "independent signing fixture covers both service and invocation fences" {
+    const parsed = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8 }, t.allocator, @embedFile("fixtures/direct-client-lease-v1.json"));
+    defer parsed.deinit();
+    const fixture = parsed.value;
+    try fixture.request.validate(t.allocator);
+    try fixture.request.proof.verify(fixture.public_key);
+    try t.expect(fixture.request.lease.?.additional != null);
+    var altered = fixture.request;
+    altered.lease.?.additional = null;
+    try t.expectError(error.InvalidAuthorizationCredential, altered.validate(t.allocator));
 }

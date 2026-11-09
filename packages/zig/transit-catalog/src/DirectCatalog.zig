@@ -78,7 +78,7 @@ pub const Policy = struct {
 pub const View = struct {
     table: P,
     properties: Properties,
-    document: ?c.fuze.DocumentDdl.Policy = null,
+    document: ?c.fuze.DocumentDdl.Policy,
     recovery_state: ?*?P.RecoveryState = null,
     owner_slot: ?*?CachedTable = null,
     seed: ?s.TableDeclaration.Stored = null,
@@ -498,7 +498,7 @@ pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.G
 
 fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
     try value.validate(self.config());
-    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn or (value.connector orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.log orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn or (if (value.connector) |connector| connector.at else 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
 }
 
 /// The caller takes the selected Table's lock after directory discovery and
@@ -1485,6 +1485,31 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
     } else try check(try self.guard(arena.allocator(), policy, namespace_value, null, request.access));
 }
 
+/// Check an already observed public read basis without a pin, admission or
+/// receipt. The host excludes all publication across the enclosing check_set;
+/// its authenticated owner rechecks the accumulated current requirements.
+pub fn checkCurrentState(self: *Self, scratch: std.mem.Allocator, expected: c.DirectTableProtocol.CurrentState, policy: Policy) !void {
+    try self.requireInitialized();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try expected.validate(self.config().scope, self.config().branch);
+    const namespace = try self.schema(expected.namespace);
+    try check(try self.guard(scratch, policy, namespace, null, .schema));
+    const object = expected.guard.source.interpretation.object;
+    const target = try self.entry(object.object) orelse return error.CatalogDenied;
+    if (target.seed == null) return error.CatalogDenied;
+    // Use the public owner so unresolved transaction publication and recovery
+    // barriers are preserved; transactionView is only for transaction control.
+    var view = try self.open(scratch, target, false);
+    defer view.deinit();
+    if (view.properties.namespace != expected.namespace) return error.CatalogDenied;
+    const current = try self.transactionStateGuard(scratch, &view, .read, null, policy);
+    try check(current);
+    if (view.table.root.retired or view.table.root.next_lsn == 0) return error.TableDefinitionChanged;
+    if ((expected.kind == .kv) != (view.table.root.kind == .kv)) return error.CatalogKindMismatch;
+    try expected.guard.requireUnchanged(transactionTableGuard(view.table.root));
+    try check(current);
+}
+
 /// Observe one exact current definition and optionally its first bounded row
 /// page. This is read-only and carries no durable retention or continuation.
 /// The service serializes the target Table while this observation is copied.
@@ -1651,8 +1676,9 @@ pub fn inspectManaged(self: *Self, output: std.mem.Allocator, request: c.Managed
         if (!owned.ready) return error.TransactionRecordPending;
         const guarded = (try p.Json.parseFromSlice(c.DirectRecord.Guarded, scratch, try envelope.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
         try guarded.validate(publisher);
-        const required: [3]?d.Object = .{ declared.source.interpretation.interpretation.object, declared.output.interpretation.interpretation.object, declared.object };
-        if (!std.meta.eql(guarded.objects, required)) return error.InvalidManagedTableRecord;
+        const required = [_]d.Object{ declared.source.interpretation.interpretation.object, declared.output.interpretation.interpretation.object, declared.object };
+        if (guarded.objects.len != required.len) return error.InvalidManagedTableRecord;
+        for (guarded.objects, required) |actual, wanted| if (!std.meta.eql(actual, wanted)) return error.InvalidManagedTableRecord;
         const saved = (try p.Json.parseFromSlice(M.Revision, scratch, try guarded.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
         try envelope.transaction.requireSame(saved.transaction);
         try reference.requireSame(saved.declaration);
@@ -1735,12 +1761,22 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
                 if (owned_state.phase == .reserved) return error.OwnedRecordPending;
                 if (owned_state.phase == .closed) return error.OwnedRecordClosed;
                 try value.requireSame(state.receipt.binding.intent.external.record);
+                if (envelope.value.format & c.DirectRecord.guarded_bit != 0) {
+                    const payload = try envelope.value.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(payload);
+                    disclosure = try self.recordReadGuard(allocator, scope.connection, payload, policy);
+                }
             } else if (value.format == c.DirectProgressRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
                 try envelope.value.validate(value);
                 const state = (try self.clientProgress(.{ .inspect = envelope.value.advance.key }, policy)).state orelse return error.ClientOperationMissing;
                 if (!std.meta.eql(state.record, @as(?c.DirectRecord.Reference, value))) return error.ClientOperationConflict;
+                if (envelope.value.advance.format & c.DirectRecord.guarded_bit != 0) {
+                    const payload = try envelope.value.advance.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(payload);
+                    disclosure = try self.recordReadGuard(allocator, scope.connection, payload, policy);
+                }
             } else if (value.format == c.DirectTransactionRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
@@ -1856,14 +1892,13 @@ fn recordReadGuard(self: *Self, allocator: std.mem.Allocator, connection: c.Dire
     defer parsed.deinit();
     try parsed.value.validate(connection);
     var required = try self.requirements(policy, null, null, .database);
-    for (parsed.value.objects) |slot| {
-        const object = slot orelse break;
+    for (parsed.value.objects) |object| {
         const target = try self.entry(object.object) orelse return error.CatalogDenied;
-        const seed = target.seed orelse return error.CatalogKindMismatch;
-        const found = try self.dependencySource(object, policy, switch (seed.kind) {
+        const privileges: u64 = if (target.connector != null) c.SourceAuthority.inspect else if (target.log != null) c.LogAuthority.read else if (target.resource != null) a.select else if (target.seed) |seed| switch (seed.kind) {
             .table => a.select,
             .kv => c.KVAuthority.read,
-        });
+        } else return error.CatalogKindMismatch;
+        const found = try self.dependencySource(object, policy, privileges);
         required = try required.merge(found.requirements);
         if (!found.live) return error.CatalogDenied;
     }
@@ -1932,6 +1967,7 @@ fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference:
 /// the original target's current rights before disclosing its reference.
 pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy: Policy) !void {
     try self.requireInitialized();
+    try lease.validate(lease.key.connection);
     if (lease.key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -1939,6 +1975,10 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
     try check(current);
     const state = (try self.store.clientTokenState(lease.key)) orelse return error.StaleClientLease;
     if (!std.meta.eql(state.revision, lease.revision)) return error.StaleClientLease;
+    if (lease.additional) |additional| {
+        const nested = (try self.store.clientTokenState(additional.key)) orelse return error.StaleClientLease;
+        if (!std.meta.eql(nested.revision, additional.revision)) return error.StaleClientLease;
+    }
     try check(current);
 }
 
@@ -3402,6 +3442,7 @@ pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, 
     if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
         try self.requireTransactionMutation(receipt);
         if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
+        if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.deadline)) return error.ClientTokenConflict;
         return receipt;
     }
     try c.DirectTransaction.requireLimits(request.limits, self.options.transaction_limits);
@@ -3465,7 +3506,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
             }
         },
     }
-    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits };
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else if (self.capture_owner) |value| .{ .source_capture = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, .none)).?;
 }
@@ -4485,7 +4526,7 @@ fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransaction
     // Private roots and their temporary allocator must never enter an ordinary
     // Table owner cache or a public recovery hint.
     view.table.deinit();
-    view.* = .{ .table = table, .properties = properties };
+    view.* = .{ .table = table, .properties = properties, .document = properties.document };
 }
 
 fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?View {
@@ -4974,9 +5015,12 @@ const TransactionVerification = struct {
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
-        if (!self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
+        const deadline = self.binding.begin.deadline;
+        if (deadline == null and !self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
         const environment = self.catalog.log_environment orelse return error.LogTimeUnavailable;
-        const now = (try s.LogTime.bounds(environment.clock, self.floor_ms, true)).?;
+        const floor = if (deadline) |limit| @max(self.floor_ms orelse 0, limit.floor_ms) else self.floor_ms;
+        const now = (try s.LogTime.bounds(environment.clock, floor, true)).?;
+        if (deadline) |limit| if (now.latest_ms >= limit.expires_ms) return error.TransactionDeadlineElapsed;
         if (self.lease_expires_ms) |expires| {
             if (now.earliest_ms >= expires) return error.QueueLeaseExpired;
             if (now.latest_ms >= expires) return error.QueueTimeUnavailable;
@@ -5008,8 +5052,7 @@ pub fn initialize(self: *Self, policy: Policy) !void {
 fn entry(self: *Self, object: u64) !?r.Entry {
     const value = try self.store.tree().get(self.store.root.objects, try r.idKey(object)) orelse return null;
     const result = try r.fromValue(r.Entry, self.allocator, value);
-    try result.validate(self.config());
-    if (result.object != object or result.partition >= self.store.root.next_partition or (result.resource orelse 0) >= self.store.root.next_lsn or (result.log orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    try self.validateEntry(result, try r.idKey(object));
     return result;
 }
 
@@ -5054,7 +5097,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
             table.index.store = table.objects;
             try table.refreshSince(prior);
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-            return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
+            return .{ .table = table, .properties = properties, .document = properties.document, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
         }
         if (primary_slot.* != null) {
             if (self.options.table_owners) |extra| {
@@ -5087,7 +5130,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     else
         try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-    return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
+    return .{ .table = table, .properties = properties, .document = properties.document, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
 }
 
 fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
@@ -5366,7 +5409,7 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
         if (target.connector) |at| {
-            const known = try self.store.connectorRecord(at);
+            const known = try self.store.connectorRecord(at.at);
             if (known.namespace == namespace_id and (known.pending() or (if (known.resulting orelse known.previous) |state| !state.dropped else false))) return .{ .blocked = true, .after = null };
             continue;
         }
@@ -5522,6 +5565,11 @@ fn requestGuard(self: *Self, allocator: std.mem.Allocator, policy: Policy, reque
     else
         try self.kvRequirements(policy, namespace, target, if (request.intent.action == .create) .create else .administer);
     if (acceptance) requested = try self.foreignRequirements(policy, request, view, requested);
+    if (request.intent.action == .create and request.intent.native_binding != null) {
+        // Canonical native state is a namespace trust binding. Ordinary CREATE
+        // permission cannot reserve its identity before the operator installs it.
+        requested.requirements[1] = .{ .object = a.reference(namespace.authorization), .access = .ownership };
+    }
     if (request.intent.action == .create) requested.selectable = request.intent.action.create.owner;
     return policy.make_guard(policy.context, allocator, requested, if (acceptance) request.binding.prerequisite else null);
 }
@@ -5535,7 +5583,7 @@ fn pendingWithView(self: *Self, object: u64, existing: ?*View, current: P.Guard)
     const operation = try r.fromValue(d.Operation, self.allocator, value);
     const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
     if (target.connector) |at| {
-        const known = try self.store.connectorRecord(at);
+        const known = try self.store.connectorRecord(at.at);
         if (!std.meta.eql(known.binding.identity, operation)) return error.InvalidSourceDeclaration;
         return known.pending();
     }
@@ -5564,7 +5612,7 @@ fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
     if (target.connector) |at| {
-        const known = try self.store.connectorRecord(at);
+        const known = try self.store.connectorRecord(at.at);
         if (known.pending()) return proposed.object == object;
         if (known.resulting orelse known.previous) |state| return state.dropped or proposed.object == object;
         return true;
@@ -5612,18 +5660,67 @@ fn record(self: *Self, next_input: r.Root, operation: r.Operation, current: P.Gu
     try self.store.publish(next, .{ .operation = operation }, current);
 }
 
+/// The index names an existing declaration; it stores no browser state or
+/// permission. A cancelled/rejected reservation may be replaced. An initialized
+/// authority, including a retired one, keeps its identity permanently.
+fn bindingAvailable(self: *Self, namespace: u64, kind: c.fuze.NativeBinding.Kind, object: u64) !bool {
+    const encoded = try self.store.tree().get(self.store.root.native_bindings, try r.nameKey(namespace, try .init(kind.name()))) orelse return true;
+    const selected = try r.fromValue(r.Name, self.allocator, encoded);
+    try selected.validate(self.config());
+    if (selected.object == object) return true;
+    const target = try self.entry(selected.object) orelse return error.InvalidDirectCatalogEntry;
+    if (target.seed) |_| {
+        var view = try self.open(self.allocator, target, false);
+        defer view.deinit();
+        if (view.table.root.next_lsn != 0) return false;
+    }
+    const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, selected.reservation) orelse return error.InvalidDirectCatalogOperation;
+    const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
+    return observed.phase == .cancelled or observed.phase == .rejected;
+}
+
+pub fn resolveNativeBinding(self: *Self, allocator: std.mem.Allocator, namespace: u64, kind: c.fuze.NativeBinding.Kind, policy: Policy) !?View {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try check(try self.guard(scratch.allocator(), policy, try self.schema(namespace), null, .schema));
+    const encoded = try self.store.tree().get(self.store.root.native_bindings, try r.nameKey(namespace, try .init(kind.name()))) orelse return null;
+    const selected = try r.fromValue(r.Name, allocator, encoded);
+    try selected.validate(self.config());
+    const target = try self.entry(selected.object) orelse return error.InvalidDirectCatalogEntry;
+    if (target.seed == null) return null;
+    var view = try self.open(allocator, target, false);
+    errdefer view.deinit();
+    if (view.table.root.next_lsn == 0 or view.table.root.retired) {
+        view.deinit();
+        return null;
+    }
+    if (view.properties.namespace != namespace or view.properties.native_binding != kind) return error.InvalidDirectCatalogEntry;
+    try c.NativeBindingSchema.validate(kind, view.table.declaration.schema.schema, view.table.root.kind == .kv);
+    const required = if (kind.isKV()) try self.kvRequirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect) else try self.requirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect);
+    const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
+    try check(current);
+    return view;
+}
+
 fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View, current: P.Guard) !r.Reason {
     if (try self.namespacePending(request.intent.namespace) != null) return .object_conflict;
     const object = request.binding.target.object;
     if (request.intent.action == .create) {
         if (known) return .object_conflict;
+        if (request.intent.native_binding) |kind| if (!try self.bindingAvailable(request.intent.namespace, kind, object)) return .name_conflict;
     } else if (existing) |view| {
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name) or (view.document != null) != (request.intent.document != null)) return .object_conflict;
         if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) return .stale_definition;
+        if (request.intent.action != .alter and !std.meta.eql(view.document, request.intent.document)) return .constraint;
+        if (view.document) |doc| if (doc.profile != request.intent.document.?.profile) return .constraint;
         if (request.binding.expected_data) |expected| {
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
         if (view.table.root.pending != null or try self.pendingWithView(object, view, current)) return .object_conflict;
+        // A native binding's schema/constraint meaning is fixed. Renames keep
+        // the same binding and retirement leaves it unavailable to readers.
+        if (view.properties.native_binding != null and request.intent.action == .alter) return .constraint;
         if ((request.intent.action == .drop and try self.hasDependents(object)) or try self.altersReferencedColumn(request)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
@@ -5711,20 +5808,24 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null, .document = request.intent.document };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
-        } else if (request.intent.document) |doc| if (!std.meta.eql(known.?.document, @as(?c.fuze.DocumentDdl.Policy, doc))) {
-            var updated = known.?;
-            updated.document = doc;
-            next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(updated));
-        };
+            if (request.intent.native_binding) |kind| {
+                const selected: r.Name = .{ .namespace = request.intent.namespace, .name = request.intent.name, .object = object, .reservation = request.binding.identity };
+                next.native_bindings = try self.store.tree().put(next.native_bindings, try r.nameKey(selected.namespace, try .init(kind.name())), try r.pageValue(selected));
+            }
+        }
         if (request.intent.action == .create or request.intent.action == .rename) {
             const name: r.Name = .{ .namespace = request.intent.namespace, .name = proposed_name, .object = object, .reservation = request.binding.identity };
             next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));
         }
         next.pending = try self.store.tree().put(next.pending, try r.idKey(object), try r.pageValue(request.binding.identity));
     }
+    // Binding-index recovery validates the exact original declaration. Flush
+    // its private immutable intent before that validation; only record() below
+    // publishes the index, reservation and operation together.
+    if (reason == .none and request.intent.native_binding != null) try self.store.index.flush();
     try self.record(next, operation, current);
     return operation;
 }
@@ -5822,7 +5923,7 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     const native = try policy.registered(policy.context, request.value.intent.authorityKind(), binding.target.object) orelse return error.CatalogRegistrationRequired;
     try a.validateObject(self.config().authority, self.config().scope, request.value.intent.authorityKind(), binding.target.object, a.reference(namespace.authorization), native);
     if (native.owner != request.value.intent.action.create.owner) return error.CatalogIdentityConflict;
-    const properties: Properties = .{ .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
+    const properties: Properties = .{ .document = request.value.intent.document, .native_binding = request.value.intent.native_binding, .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = request.value.intent.kind, .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
     defer declaration.deinit();
@@ -5877,6 +5978,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     };
     if (advanced) return self.status(binding, policy);
     var properties = view.properties;
+    properties.document = request.value.intent.document;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     const encoded = try properties.encode(&bytes);
@@ -6114,9 +6216,9 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
     if (dependent.kind == .captured or dependent.kind == .maintained)
         return !std.meta.eql(object.scope, self.config().scope);
     if (!std.meta.eql(object.scope, self.config().scope)) return false;
-    if (dependent.kind == .source) {
+    if (dependent.kind == .source or dependent.kind == .sink) {
         const value = try self.connectorCurrent(object.object) orelse return false;
-        return !value.dropped and value.declaration.kind == .source and std.meta.eql(value.declaration.interpretation, dependent.interpretation);
+        return !value.dropped and value.declaration.kind == (if (dependent.kind == .source) SourceArtifact.Kind.source else .sink) and std.meta.eql(value.declaration.interpretation, dependent.interpretation);
     }
     if (dependent.kind == .view or dependent.kind == .property_graph or dependent.kind == .foreign) {
         const value = try self.descriptorCurrent(object.object) orelse return false;
@@ -6128,7 +6230,7 @@ fn dependentDefinition(self: *Self, dependent: Dependency.Dependent) !bool {
         return known.phase == .complete and !value.stored.retired and
             (dependent.kind == .queue) == (value.kind() == .queue) and std.meta.eql(dependent.interpretation, value.stored.declaration.interpretation);
     }
-    if (dependent.kind == .kv or dependent.kind == .managed) {
+    if (dependent.kind == .kv or dependent.kind == .managed or dependent.kind == .application) {
         const target = try self.entry(object.object) orelse return false;
         if (target.seed == null or target.seed.?.kind != .kv) return false;
         var view = try self.open(self.allocator, target, false);
@@ -6163,7 +6265,7 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
     const target = try self.entry(object.object) orelse return error.CatalogDenied;
     if (target.connector != null) {
         const value = try self.connectorCurrent(object.object) orelse return error.CatalogDenied;
-        if (value.declaration.kind != .connection or privileges & ~c.SourceAuthority.actions(.connection) != 0) return error.InvalidCatalogDependency;
+        if (value.declaration.kind == .source or privileges & ~c.SourceAuthority.actions(value.declaration.kind) != 0) return error.InvalidCatalogDependency;
         var required = try self.connectorRequirements(policy, value, .inspect);
         if (privileges != 0) required.requirements[2].?.privileges = privileges;
         return .{ .interpretation = value.declaration.interpretation, .live = !value.dropped, .requirements = required };
@@ -6206,7 +6308,8 @@ fn dependencySource(self: *Self, object: d.Object, policy: Policy, privileges: u
     else
         try self.requirements(policy, namespace, view.properties.target(object.object), .inspect);
     if (privileges != 0) {
-        requested.requirements[2].?.privileges = privileges;
+        requested.requirements[2].?.privileges = privileges |
+            @as(u64, if (seed.kind == .kv and view.properties.native_binding == .secret_references and privileges & c.KVAuthority.read != 0) c.KVAuthority.use_secret else 0);
         requested.requirements[2].?.access = .all;
     }
     return .{ .interpretation = view.table.root.interpretation, .live = view.table.root.next_lsn != 0 and !view.table.root.retired, .requirements = requested };
@@ -6238,6 +6341,23 @@ pub fn dependencyState(self: *Self, edge: Dependency.Edge, policy: Policy) !Depe
     return result;
 }
 
+/// Recheck a registered dependency's exact live definitions and current action
+/// privileges without creating an operation receipt or changing the graph.
+/// The authenticated caller also rechecks the combined guard before disclosure.
+pub fn checkDependency(self: *Self, edge: Dependency.Edge, policy: Policy) !void {
+    try self.requireInitialized();
+    try edge.validate();
+    var arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer arena.deinit();
+    const source = try self.dependencySource(edge.source.object, policy, edge.privileges);
+    const requested = try source.requirements.merge(try self.dependentRequirements(policy, edge.dependent.interpretation.object, false));
+    const current = try policy.make_guard(policy.context, arena.allocator(), requested, null);
+    try check(current);
+    if (!source.live or !std.meta.eql(source.interpretation, edge.source) or
+        !try self.dependentDefinition(edge.dependent) or try self.dependencyEdge(edge) == null) return error.CatalogDefinitionChanged;
+    try check(current);
+}
+
 /// The initial managed profile excludes output chaining and multiple writers.
 /// Checking under the catalog publication CAS makes this also a cycle guard:
 /// no managed output can be another computation's input in either order.
@@ -6256,7 +6376,7 @@ fn managedDependencyAllowed(self: *Self, edge: Dependency.Edge) !bool {
             if (bytes > self.options.index_work_bytes) return error.StorageBudgetExceeded;
             const other = try r.fromValue(Dependency.Edge, self.allocator, item.value);
             try other.validate();
-            if (other.dependent.kind == .managed and !std.meta.eql(other, edge) and
+            if ((other.dependent.kind == .managed or (edge.dependent.kind == .managed and other.dependent.kind == .application)) and !std.meta.eql(other, edge) and
                 ((other.privileges | edge.privileges) & (a.insert | a.delete) != 0)) return false;
             after = item.key;
             found = true;
@@ -6275,7 +6395,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
     // Queue declaration edges also retain historical routing. Removing one
     // requires the Queue's closure/retention proof, not generic graph editing.
     if (binding.edge.foreign_key != null) return error.TableDependencyOwned;
-    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign or binding.edge.dependent.kind == .source) return error.CatalogDependencyOwned;
+    if (binding.edge.dependent.kind == .view or binding.edge.dependent.kind == .property_graph or binding.edge.dependent.kind == .foreign or binding.edge.dependent.kind == .source or binding.edge.dependent.kind == .sink) return error.CatalogDependencyOwned;
     if (binding.action == .remove and binding.edge.dependent.kind == .queue) return error.QueueDependencyRetained;
     if (!binding.connection.matches(self.config()) or binding.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -6308,7 +6428,7 @@ pub fn dependencyOperation(self: *Self, binding: Dependency.Binding, command: De
         if (!value.live or !std.meta.eql(value.interpretation, binding.edge.source) or !try self.dependentDefinition(binding.edge.dependent)) {
             outcome.phase = .rejected;
             outcome.reason = .stale_definition;
-        } else if (binding.edge.dependent.kind == .managed and !try self.managedDependencyAllowed(binding.edge)) {
+        } else if ((binding.edge.dependent.kind == .managed or binding.edge.dependent.kind == .application) and !try self.managedDependencyAllowed(binding.edge)) {
             outcome.phase = .rejected;
             outcome.reason = .source_busy;
         } else if (try self.pending(binding.edge.source.object.object, current)) {
@@ -8118,17 +8238,11 @@ pub fn historicalDefinitions(self: *Self, snapshot: d.Snapshot, namespace_id: u6
 const Connector = c.DirectSource;
 const SourceArtifact = c.SourceDeclaration;
 fn connectorKind(kind: SourceArtifact.Kind) a.Kind {
-    return if (kind == .connection) .connection else .source;
-}
-fn connectorRecord(self: *Self, object: u64) !?Connector.Operation {
-    const target = try self.entry(object) orelse return null;
-    const known = try self.store.connectorRecord(target.connector orelse return null);
-    if (known.binding.target.object != object) return error.InvalidSourceDeclaration;
-    return known;
+    return kind.authority();
 }
 fn connectorCurrent(self: *Self, object: u64) !?Connector.State {
-    const known = try self.connectorRecord(object) orelse return null;
-    return known.resulting orelse known.previous;
+    const target = try self.entry(object) orelse return null;
+    return (target.connector orelse return null).state;
 }
 fn connectorRequirements(self: *Self, policy: Policy, state: Connector.State, access: c.SourceAuthority.Access) !p.Authorization.Guard {
     const stored = state.declaration;
@@ -8142,6 +8256,20 @@ fn connectorGuard(self: *Self, allocator: std.mem.Allocator, request: Connector.
     const known = try self.connectorCurrent(request.binding.target.object);
     var required = if (known) |value| try self.connectorRequirements(policy, value, if (write) .administer else .inspect) else try self.requirements(policy, try self.authorizationSchema(request.intent.namespace), null, .create_table);
     if (request.intent.action == .create and write) required.selectable = request.intent.action.create.owner;
+    if (request.intent.action == .control and write and dependencies and request.intent.kind == .sink) {
+        const control = request.intent.action.control;
+        switch (control.command) {
+            .authorize => required.selectable = control.executor_role,
+            .activate, .resume_source => if (known) |value| {
+                required.selectable = value.control.?.executor_role;
+            },
+            .suspend_source, .retire => {},
+        }
+    }
+    if (dependencies and request.intent.action == .create and request.intent.kind == .sink) {
+        const upstream = try self.dependencySource(request.intent.action.create.payload.sink.connection.object, policy, c.SourceAuthority.use);
+        required = try required.merge(upstream.requirements);
+    }
     if (dependencies and request.intent.action == .create and request.intent.kind == .source) {
         const source = request.intent.action.create.payload.source;
         const connection = try self.dependencySource(source.connection.object, policy, c.SourceAuthority.use);
@@ -8149,6 +8277,28 @@ fn connectorGuard(self: *Self, allocator: std.mem.Allocator, request: Connector.
         required = try (try required.merge(connection.requirements)).merge(destination.requirements);
     }
     return policy.make_guard(policy.context, allocator, required, if (write) request.binding.prerequisite else null);
+}
+/// Recheck an exact connector definition/control alongside public state reads.
+/// Using a sink also requires its active, explicitly authorized dispatch role.
+pub fn checkCurrentConnector(self: *Self, scratch: std.mem.Allocator, expected: c.DirectTableProtocol.CurrentConnector, policy: Policy) !void {
+    try self.requireInitialized();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try expected.validate(self.config().scope, self.config().branch);
+    const state = try self.connectorCurrent(expected.interpretation.object.object) orelse return error.CatalogDenied;
+    const current = try policy.make_guard(policy.context, scratch, try self.connectorRequirements(policy, state, switch (expected.access) {
+        .inspect => .inspect,
+        .use => .use,
+    }), null);
+    try check(current);
+    if (state.dropped or !std.meta.eql(state.declaration.interpretation, expected.interpretation) or state.declaration.kind != expected.kind) return error.DataIdentityConflict;
+    if (!std.meta.eql(state.control, expected.control)) return error.InvalidSourceControl;
+    if (expected.kind == .sink and expected.access == .use) {
+        const control = state.control orelse return error.InvalidSourceControl;
+        if (control.state != .active) return error.InvalidSourceControl;
+        const role = policy.effective_role orelse if (policy.subject == .signed) policy.subject.signed.claim.role else null;
+        if (role == null or role != control.executor_role) return error.CatalogDenied;
+    }
+    try check(current);
 }
 fn connectorWriter(self: *Self, destination: d.Object) !?Connector.Writer {
     const bytes = try self.store.tree().get(self.store.root.source_writers, try r.idKey(destination.object)) orelse return null;
@@ -8165,6 +8315,7 @@ fn connectorReason(self: *Self, request: Connector.Request, current: P.Guard, pr
         if (try self.entry(binding.target.object) != null and prior_operation == null) return .object_conflict;
         if (!try self.available(intent.namespace, intent.name, binding.target.object, current)) return .name_conflict;
         if (intent.kind == .source) return self.connectorDependencies(intent.action.create.payload.source, current, binding);
+        if (intent.kind == .sink) return self.connectorConnection(intent.action.create.payload.sink.connection, current);
     } else {
         const known = try self.connectorCurrent(binding.target.object) orelse return .object_conflict;
         if (known.dropped or known.declaration.kind != intent.kind) return .object_conflict;
@@ -8176,7 +8327,9 @@ fn connectorReason(self: *Self, request: Connector.Request, current: P.Guard, pr
             else => unreachable,
         };
         if (epoch != if (known.control) |control| control.epoch else @as(?u64, null)) return .stale_control;
-        if (intent.action == .control and known.control.?.state != .published) return .stale_control;
+        if (intent.action == .control) {
+            _ = known.control.?.apply(intent.action.control.command, intent.action.control.executor_role) catch return .stale_control;
+        }
         if (intent.action == .drop) {
             if (known.control) |control| if (control.state != .retired) return .not_retired;
             if (try self.hasDependents(binding.target.object)) return .dependency;
@@ -8216,6 +8369,11 @@ pub fn sourceRegistration(self: *Self, request: Connector.Request, policy: Polic
     return .{ .action = .{ .domain = self.config().authority.domain(connectorKind(request.intent.kind)), .owner = request.intent.action.create.owner, .schema = a.reference(namespace.authorization), .binding = try a.binding(self.config().scope, connectorKind(request.intent.kind), request.binding.target.object) }, .authorization_revision = fence.policy_epoch - 1 };
 }
 fn connectorEdges(value: SourceArtifact.Definition, stored: SourceArtifact.Stored) ![2]?Dependency.Edge {
+    if (value.payload == .sink) {
+        const edge: Dependency.Edge = .{ .source = value.payload.sink.connection, .dependent = .{ .kind = .sink, .interpretation = stored.interpretation }, .privileges = c.SourceAuthority.use };
+        try edge.validate();
+        return .{ edge, null };
+    }
     if (value.payload != .source) return @splat(null);
     const source = value.payload.source;
     const dependent: Dependency.Dependent = .{ .kind = .source, .interpretation = stored.interpretation };
@@ -8243,7 +8401,7 @@ fn recordConnector(self: *Self, input: Connector.Operation, prior_operation: ?Co
     }
     const id = try r.idKey(operation.binding.target.object);
     if (operation.pending() or operation.phase == .applied or (prior_operation != null and prior_operation.?.pending())) {
-        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = self.store.root.next_lsn };
+        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = .{ .at = self.store.root.next_lsn, .state = operation.resulting orelse operation.previous } };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
         if (operation.pending()) {
             next.pending = try self.store.tree().put(next.pending, id, try r.pageValue(operation.binding.identity));
@@ -8337,11 +8495,11 @@ pub fn sourceOperation(self: *Self, request: Connector.Request, command: Connect
                 return .{ .operation = try self.recordConnector(operation, prior_operation, current) };
             }
             if (!std.meta.eql(operation.staged.?, expected_artifact)) return error.DataIdentityConflict;
-            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind == .source) p.Source.Control.initial() else null, .dropped = false };
+            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind != .connection) Connector.Control.initial() else null, .dropped = false };
             operation.added = try connectorEdges(value, next.declaration);
         } else {
             next = operation.previous orelse return error.InvalidSourceDeclaration;
-            if (request.intent.action == .control) next.control = try next.control.?.apply(.retire) else {
+            if (request.intent.action == .control) next.control = try next.control.?.apply(request.intent.action.control.command, request.intent.action.control.executor_role) else {
                 var owned = try SourceArtifact.load(self.allocator, self.store.objects, next.declaration);
                 defer owned.deinit();
                 next.dropped = true;
@@ -8352,6 +8510,9 @@ pub fn sourceOperation(self: *Self, request: Connector.Request, command: Connect
         operation.expected_control = if (operation.previous) |previous| previous.control else null;
         operation.previous = null;
         operation.resulting = next;
+        // The published declaration now owns the exact staged commitment. Keep
+        // one copy in terminal records; pending recovery still retains staged.
+        operation.staged = null;
         operation.phase = .applied;
     }
     return .{ .operation = try self.recordConnector(operation, prior_operation, current) };
@@ -8378,6 +8539,11 @@ pub fn inspectSource(self: *Self, allocator: std.mem.Allocator, expected: d.Defi
     var artifact = try SourceArtifact.load(allocator, self.store.objects, state.declaration);
     errdefer artifact.deinit();
     var changed = false;
+    if (artifact.value.payload == .sink) {
+        const expected_connection = artifact.value.payload.sink.connection;
+        const connection = try self.connectorCurrent(expected_connection.object.object);
+        changed = connection == null or connection.?.dropped or !std.meta.eql(connection.?.declaration.interpretation, expected_connection);
+    }
     if (artifact.value.payload == .source) {
         const source = artifact.value.payload.source;
         const connection = try self.connectorCurrent(source.connection.object.object);
@@ -8454,9 +8620,14 @@ pub fn listSources(self: *Self, selection: Connector.Selection, cursor: ?Connect
     return result;
 }
 
+fn connectorConnection(self: *Self, expected: d.Definition, current: P.Guard) !Connector.Reason {
+    const connection = try self.connectorCurrent(expected.object.object) orelse return .stale_definition;
+    if (connection.dropped or connection.declaration.kind != .connection or !std.meta.eql(connection.declaration.interpretation, expected) or try self.pending(expected.object.object, current)) return .stale_definition;
+    return .none;
+}
 fn connectorDependencies(self: *Self, payload: SourceArtifact.Source, current: P.Guard, reservation: ?d.Binding) !Connector.Reason {
-    const connection = try self.connectorCurrent(payload.connection.object.object) orelse return .stale_definition;
-    if (connection.dropped or connection.declaration.kind != .connection or !std.meta.eql(connection.declaration.interpretation, payload.connection) or try self.pending(payload.connection.object.object, current)) return .stale_definition;
+    const connection = try self.connectorConnection(payload.connection, current);
+    if (connection != .none) return connection;
     const log = try self.logRecord(payload.destination.object.object) orelse return .stale_definition;
     const destination = log.resulting orelse return .stale_definition;
     if (log.phase != .complete or destination.kind() != .stream or destination.stored.retired or !std.meta.eql(destination.stored.declaration.interpretation, payload.destination) or try self.pending(payload.destination.object.object, current)) return .stale_definition;
@@ -8476,6 +8647,10 @@ pub fn prepareSource(self: *Self, proposal: Connector.Proposal, policy: Policy) 
     defer scratch.deinit();
     var required = try self.requirements(policy, try self.authorizationSchema(proposal.namespace), null, .create_table);
     required.selectable = proposal.owner;
+    if (proposal.payload == .sink) {
+        const upstream = try self.dependencySource(proposal.payload.sink.connection.object, policy, c.SourceAuthority.use);
+        required = try required.merge(upstream.requirements);
+    }
     if (proposal.payload == .source) {
         const source = proposal.payload.source;
         const upstream = try self.dependencySource(source.connection.object, policy, c.SourceAuthority.use);
@@ -8484,7 +8659,7 @@ pub fn prepareSource(self: *Self, proposal: Connector.Proposal, policy: Policy) 
     }
     const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
     try check(current);
-    const reason: Connector.Reason = if (try self.namespacePending(proposal.namespace) != null) .object_conflict else if (!try self.available(proposal.namespace, proposal.name, 0, current)) .name_conflict else if (proposal.payload == .source) try self.connectorDependencies(proposal.payload.source, current, null) else .none;
+    const reason: Connector.Reason = if (try self.namespacePending(proposal.namespace) != null) .object_conflict else if (!try self.available(proposal.namespace, proposal.name, 0, current)) .name_conflict else if (proposal.payload == .source) try self.connectorDependencies(proposal.payload.source, current, null) else if (proposal.payload == .sink) try self.connectorConnection(proposal.payload.sink.connection, current) else .none;
     try check(current);
     return .{ .position = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .current = null, .reason = reason };
 }

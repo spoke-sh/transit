@@ -136,12 +136,13 @@ pub const Change = union(enum) {
     }
 };
 pub const Ddl = struct {
+    native_binding: ?f.NativeBinding.Kind = null,
     binding: d.Binding,
     namespace: u64,
     name: []const u8,
     action: union(enum) { create: struct { owner: u64, schema: Binary }, alter: Change, rename: []const u8, drop },
     fn intent(self: Ddl, allocator: std.mem.Allocator) !D.Intent {
-        return .{ .kind = .table, .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
+        return .{ .kind = .table, .native_binding = self.native_binding, .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
             .create => |value| .{ .create = .{ .owner = value.owner, .schema = (try f.TableSchema.decode(allocator, try value.schema.decode(allocator, f.TableSchema.max_bytes))).schema } },
             .alter => |value| .{ .alter = try value.native(allocator) },
             .rename => |value| .{ .rename = try .init(value) },
@@ -256,7 +257,45 @@ pub const CaptureSelection = enum(u8) { exact = 1, current = 2 };
 pub const Acquisition = struct { object: d.Object, owner: d.Operation, expected: d.Position, selection: CaptureSelection = .exact, interpretation: ?d.Definition = null };
 pub const Historical = struct { object: d.Object, point: P.HistoryPoint };
 pub const HistoryRequest = struct { snapshot: Snapshot, from: d.Position, through: d.Position, frames: u8 };
-pub const ReadCheck = union(enum) { access: D.AccessRequest, snapshot: Snapshot, historical: @FieldType(c.DirectHistory.Request, "source") };
+/// A current logical read basis, including reads that found no row. This
+/// neither pins history nor permits reading a private transaction workspace.
+pub const CurrentState = struct {
+    namespace: u64,
+    kind: enum { table, kv },
+    guard: p.Transaction.StateGuard,
+
+    pub fn validate(self: CurrentState, scope: d.Scope, branch: u64) !void {
+        try c.Model.nativeId(self.namespace);
+        try self.guard.validate();
+        if (self.guard.source.accepted.next_lsn == 0) return error.InvalidTransactionGuard;
+        const object = self.guard.source.interpretation.object;
+        if (!std.meta.eql(object.scope, scope) or object.branch != branch) return error.CatalogDenied;
+    }
+};
+pub const CurrentConnector = struct {
+    interpretation: d.Definition,
+    kind: c.SourceDeclaration.Kind,
+    control: ?c.DirectSource.Control,
+    access: enum { inspect, use },
+
+    pub fn validate(self: CurrentConnector, scope: d.Scope, branch: u64) !void {
+        try self.interpretation.validate();
+        if (!std.meta.eql(self.interpretation.object.scope, scope) or self.interpretation.object.branch != branch) return error.CatalogDenied;
+        if ((self.kind == .connection) != (self.control == null)) return error.InvalidSourceControl;
+        if (self.control) |control| try control.validate();
+        if (self.access == .use and self.kind == .source) return error.CatalogKindMismatch;
+    }
+};
+pub const ReadCheck = union(enum) {
+    access: D.AccessRequest,
+    current_state: CurrentState,
+    current_connector: CurrentConnector,
+    snapshot: Snapshot,
+    historical: @FieldType(c.DirectHistory.Request, "source"),
+    /// Recheck the exact registered dependency and all of its current actions.
+    /// This is a read-only readiness observation, never an authorization lease.
+    dependency: c.DirectDependency.Edge,
+};
 /// Read current data only while this exact definition and original logical
 /// basis remain valid. The seek key does not retain data or prove prior reads.
 pub const CurrentRead = struct {
@@ -379,6 +418,7 @@ pub const Action = union(enum) {
     queue: c.DirectQueue.Request,
     kv: c.DirectKV.Request,
     kv_declaration: c.DirectKV.DeclarationRequest,
+    native_binding: struct { namespace: u64, kind: f.NativeBinding.Kind },
     kv_lookup: struct { namespace: u64, name: []const u8 },
     kv_list: struct { namespace: u64, after: ?u64 },
     document_declaration: c.DirectDocument.DeclarationRequest,
@@ -412,6 +452,11 @@ pub const Request = struct {
     pub fn publicationHint(self: Request) bool {
         return switch (self.action) {
             .record, .stage, .client_token, .pin, .retain_history, .release, .capture_read => false,
+            // Acquisition changes private lease ownership, not the published
+            // Queue payload or declaration. Native log waits have their own
+            // notifications. In particular an empty wait must not wake the
+            // service's discovery sweep again and defeat its bounded backoff.
+            .queue => |value| value != .wait and value.mutation(),
             .client_progress => |value| value.mutation() and !(value == .update and value.update.record != null and value.update.record.?.format == c.DirectRecord.read_cache_format),
             else => self.transport().mutation,
         };
@@ -486,7 +531,7 @@ pub const Request = struct {
             },
             .kv_declaration => |value| try value.validate(allocator, connection),
             .document_declaration => |value| try value.validate(allocator, connection),
-            inline .kv_lookup, .kv_list, .document_lookup, .document_list => |value| {
+            inline .native_binding, .kv_lookup, .kv_list, .document_lookup, .document_list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (@hasField(@TypeOf(value), "name")) _ = try c.TableAuthority.Name.init(value.name);
             },
@@ -587,8 +632,15 @@ pub const Request = struct {
                 if (values.len == 0 or values.len > 16) return error.InvalidTableReadBudget;
                 for (values) |value| switch (value) {
                     .access => |access| try access.validate(connection.scope, connection.branch),
+                    .current_state => |current| try current.validate(connection.scope, connection.branch),
+                    .current_connector => |current| try current.validate(connection.scope, connection.branch),
                     .historical => |historical| try (c.DirectHistory.Request{ .source = historical }).validate(connection),
                     .snapshot => |snapshot| try validateSnapshot(connection, snapshot),
+                    .dependency => |edge| {
+                        try edge.validate();
+                        try connection.object(edge.source.object);
+                        try connection.object(edge.dependent.interpretation.object);
+                    },
                 };
             },
             inline .list, .resource_list, .log_list, .log_pending => |value| {
@@ -742,6 +794,8 @@ fn validateHistorical(connection: Connection, value: Historical) !void {
 }
 
 pub const Definition = struct {
+    document: ?f.DocumentDdl.Policy = null,
+    native_binding: ?f.NativeBinding.Kind = null,
     interpretation: c.storage.TableDeclaration.Stored,
     namespace: u64,
     authorization: u64,
@@ -911,6 +965,7 @@ pub const Result = union(enum) {
     queue: c.DirectQueue.Result,
     kv: c.DirectKV.Result,
     kv_declaration: c.DirectKV.DeclarationResult,
+    native_binding: ?Definition,
     kv_lookup: ?c.DirectKV.Definition,
     kv_list: StateList,
     document_declaration: c.DirectDocument.DeclarationResult,

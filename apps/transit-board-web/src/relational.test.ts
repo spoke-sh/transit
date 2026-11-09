@@ -135,7 +135,15 @@ describe("relational browser boundaries", () => {
         definition: reference.definition,
         plan: reference.plan,
         sources: [{ alias: "items", binding, position }],
-        columns: [{ name: "id", type: { int32: {} }, optional: false, nullable: false }],
+        columns: [
+          {
+            name: "id",
+            type: { int32: {} },
+            optional: false,
+            max_characters: null,
+            nullable: false,
+          },
+        ],
         join: null,
         grouped: false,
         executed: false,

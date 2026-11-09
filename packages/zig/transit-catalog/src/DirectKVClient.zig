@@ -36,6 +36,15 @@ pub const Read = struct {
     source: ?c.storage.TablePartition.SnapshotHandle,
     workspace: ?c.protocol.Transaction.ReadView,
     value: ?types.Values.Cell,
+    revision: ?c.fuze.TableRow.Identity,
+
+    pub fn publicGuard(self: Read) !c.protocol.Transaction.StateGuard {
+        if (self.source != null or self.workspace != null) return error.InvalidTransactionGuard;
+        const result: c.protocol.Transaction.StateGuard = .{ .source = .{ .interpretation = self.interpretation.interpretation, .accepted = self.position }, .changed_lsn = self.changed_lsn };
+        try result.validate();
+        if (self.interpretation.retired or self.position.next_lsn == 0) return error.InvalidTransactionGuard;
+        return result;
+    }
 };
 pub const Result = union(enum) {
     declaration: K.DeclarationResult,
@@ -62,6 +71,7 @@ pub fn prepareDeclaration(allocator: std.mem.Allocator, value: K.Declaration) !K
 /// Encode one bounded batch and fill its content commitment before submission.
 /// All returned bytes belong to output; no durable operation is accepted here.
 pub fn prepareMutation(arena: *std.heap.ArenaAllocator, original: d.Binding, spec: c.storage.KVDeclaration.Spec, changes: []const c.storage.KVPartition.Change) !K.Mutation {
+    try spec.validate();
     const output = arena.allocator();
     if (changes.len == 0 or changes.len > c.storage.KVPartition.max_changes) return error.InvalidKVOperation;
     var scratch: std.heap.ArenaAllocator = .init(output);
@@ -96,7 +106,7 @@ pub fn prepareMutation(arena: *std.heap.ArenaAllocator, original: d.Binding, spe
                 encoded_bytes += required;
                 const key = try w.Binary.encode(output, put.key);
                 errdefer output.free(key.base64);
-                break :blk .{ .put = .{ .key = key, .value = try w.Binary.encode(output, bytes), .expect = put.expect } };
+                break :blk .{ .put = .{ .key = key, .value = try w.Binary.encode(output, bytes), .expect = put.expect, .expected_revision = put.expected_revision } };
             },
             .remove => |key| blk: {
                 const required = 64 + std.base64.standard.Encoder.calcSize(key.len);
@@ -140,20 +150,48 @@ pub fn load(allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(Sa
 /// Returned values survive response cleanup and the next call until output is
 /// reset. No retry, pin release, rebind or mutation follows a failed call.
 pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, action: Action) !Result {
+    return (try applyObserved(output, client, action)).result;
+}
+/// Preserve the native policy observation with the exact returned value/basis.
+/// A later lookup cannot reconstruct the authority of an earlier read.
+pub const Observed = struct { result: Result, policy_revision: u64 };
+pub fn applyObserved(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, action: Action) !Observed {
     var scratch: std.heap.ArenaAllocator = .init(client.allocator);
     defer scratch.deinit();
     const response = try client.call(try action.encode(scratch.allocator()));
     defer response.deinit();
-    return switch (response.value.result) {
+    const result: Result = switch (response.value.result) {
         .kv_declaration => |value| .{ .declaration = value },
-        .kv_lookup => |value| .{ .lookup = value },
+        .kv_lookup => |value| .{ .lookup = if (value) |definition| try definition.cloneInto(output.allocator()) else null },
         .kv_list => |value| .{ .list = value },
         .kv => |result| switch (result) {
-            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = value.spec, .source = value.source, .workspace = value.workspace, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
+            .definition => |value| .{ .definition = try value.cloneInto(output.allocator()) },
+            .value => |value| .{ .value = .{ .interpretation = value.interpretation, .position = value.position, .changed_lsn = value.changed_lsn, .spec = try value.spec.cloneInto(output.allocator()), .source = value.source, .workspace = value.workspace, .revision = value.revision, .value = if (value.encoded) |encoded| try types.Codec.decodeBoundInto(output.allocator(), .{ .name = "value", .type = value.spec.typeOf(), .nullable = value.spec.nullable }, try encoded.decode(scratch.allocator(), types.Codec.max_bytes)) else null } },
             inline else => |value, tag| @unionInit(Result, @tagName(tag), value),
         },
-        else => error.InvalidKVResponse,
+        else => return error.InvalidKVResponse,
     };
+    return .{ .result = result, .policy_revision = response.value.policy_revision };
+}
+
+fn localRowCloneSchedule(allocator: std.mem.Allocator) !void {
+    var output: std.heap.ArenaAllocator = .init(allocator);
+    defer output.deinit();
+    var name = "interval".*;
+    var element: types.Type = .int64;
+    var fields = [_]types.Field{.{ .name = &name, .type = .{ .range = &element }, .nullable = false }};
+    const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .row, .nullable = false, .fields = &fields };
+    const owned = try c.client.LocalEndpoint.clone(output.allocator(), .{ .spec = spec });
+    @memset(&name, 'x');
+    element = .boolean;
+    fields[0].nullable = true;
+    try std.testing.expectEqualStrings("interval", owned.spec.fields[0].name);
+    try std.testing.expectEqual(.int64, owned.spec.fields[0].type.range.*);
+    try std.testing.expect(!owned.spec.fields[0].nullable);
+}
+test "local KV row responses use bounded logical type cloning and own nested descriptors" {
+    try localRowCloneSchedule(std.testing.allocator);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, localRowCloneSchedule, .{});
 }
 
 test "direct KV caller refuses an oversized batch before exhausting bounded output memory" {

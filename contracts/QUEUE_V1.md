@@ -250,6 +250,17 @@ The storage publication owner repeats these checks under its guard and
 preserves the accepted upper clock floor. Pure transition checks alone provide
 no trusted clock or durable acceptance.
 
+Native `current_time` is a read-only inspection of one Queue partition. It
+returns `QueueRead.TimeObservation`: the current public cut, the trusted closed
+UTC interval and the nullable persisted upper time floor. The owner samples
+time under the current publication guard, checks that the upper bound has not
+regressed below the accepted floor, and rechecks current inspect rights before
+disclosure. Missing time returns `QueueTimeUnavailable`; regression returns
+`LogTimeRegression`. The response validates its exact requested target.
+Observation creates no claim, lease, expiry, retention pin or persisted time
+advance. It cannot authorize later execution. Ordinary cut and original-outcome
+inspection remain independent of clock availability.
+
 NACK backoff starts at its observed upper bound and honors a later requested
 visibility time. Backoff after lease expiry starts at the accepted deadline;
 restart downtime or delayed cleanup does not start that delay again. Exhaustion

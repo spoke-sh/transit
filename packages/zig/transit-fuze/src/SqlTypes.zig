@@ -42,6 +42,7 @@ pub const aliases = [_]Alias{
     .{ .name = "TIMESTAMPTZ", .type = .{ .timestamp = .utc } },
     .{ .name = "INTERVAL", .type = .interval },
     .{ .name = "UUID", .type = .uuid },
+    .{ .name = "CAPABILITY", .type = .capability },
     .{ .name = "JSON", .type = .json },
 };
 fn is(name: []const u8, expected: []const u8) bool {

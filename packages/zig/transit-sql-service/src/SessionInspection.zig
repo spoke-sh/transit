@@ -41,14 +41,14 @@ const connector_fields = [_]f.Types.Field{
     .{ .name = "kind", .type = .utf8 },                      .{ .name = "state", .type = .utf8 },
     .{ .name = "epoch", .type = .uint64, .nullable = true }, .{ .name = "execution_supported", .type = .boolean },
     .{ .name = "execution", .type = .utf8 },                 .{ .name = "catalog_partition", .type = .uint64 },
-    .{ .name = "catalog_next_lsn", .type = .uint64 },
+    .{ .name = "catalog_next_lsn", .type = .uint64 },        .{ .name = "executor_role", .type = .uint64, .nullable = true },
 };
 const connector_detail_fields = connector_fields ++ [_]f.Types.Field{
     .{ .name = "definition", .type = .utf8 },                  .{ .name = "dependency_state", .type = .utf8 },
     .{ .name = "last_poll", .type = .utf8, .nullable = true }, .{ .name = "last_publication", .type = .utf8, .nullable = true },
 };
 fn connectorRow(state: *const c.DirectSource.State, position: c.protocol.DataLifecycle.Position) [connector_fields.len]f.Types.Values.Cell {
-    return .{ text(state.declaration.properties.name.slice()), unsigned(state.declaration.interpretation.object.object), text(@tagName(state.declaration.kind)), text(if (state.control) |control| @tagName(control.state) else "published"), if (state.control) |control| unsigned(control.epoch) else .null, boolean(false), text("never_run"), unsigned(position.partition), unsigned(position.next_lsn) };
+    return .{ text(state.declaration.properties.name.slice()), unsigned(state.declaration.interpretation.object.object), text(@tagName(state.declaration.kind)), text(if (state.control) |control| @tagName(control.state) else "published"), if (state.control) |control| unsigned(control.epoch) else .null, boolean(false), text("never_run"), unsigned(position.partition), unsigned(position.next_lsn), if (state.control) |control| if (control.executor_role) |role| unsigned(role) else .null else .null };
 }
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
 // Log inspection is also a database-wire surface. Its character bound uses
@@ -171,7 +171,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         const name = try c.TableMetadata.Name.init(inspection.name);
         const response = try host.table.call(.{ .kv_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
         defer response.deinit();
-        const definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
+        const definition = try (response.value.result.kv_lookup orelse return error.CatalogNameNotFound).cloneInto(a);
         const rows = if (!inspection.describe) blk: {
             const rows = try a.alloc([]const f.Types.Values.Cell, 1);
             rows[0] = try a.dupe(f.Types.Values.Cell, &.{
@@ -183,6 +183,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                     .boolean => "BOOLEAN",
                     .utf8 => "UTF8",
                     .binary => "BINARY",
+                    .row => "ROW",
                 }),
                 boolean(definition.spec.nullable),
             });
@@ -331,6 +332,7 @@ fn kvDescribeRows(a: std.mem.Allocator, definition: c.DirectKV.Definition) ![]co
             .boolean => "BOOLEAN",
             .utf8 => "UTF8",
             .binary => "BINARY",
+            .row => "ROW",
         }),
         boolean(definition.spec.nullable),
         boolean(false),
@@ -554,7 +556,7 @@ fn describeView(host: *g.Session, arena: *std.heap.ArenaAllocator, namespace: u6
         defer kv_response.deinit();
         if (kv_response.value.result.kv_lookup) |definition| {
             const rows = try kvDescribeRows(arena.allocator(), definition);
-            return .{ .arena = arena.*, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = &log_describe_fields };
+            return .{ .arena = arena.*, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = try definition.cloneInto(arena.allocator()) }, .rows = rows, .output = &log_describe_fields };
         }
     }
     var sql: std.Io.Writer.Allocating = .init(arena.allocator());
@@ -582,7 +584,7 @@ fn prepareConnector(host: *g.Session, statement: g.database.SourceSql.Statement)
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     errdefer arena.deinit();
     const a = arena.allocator();
-    if (statement == .explain) {
+    if (statement == .explain or statement == .explain_sink) {
         // Own parser strings beyond the temporary syntax tree.
         const encoded = try c.protocol.Json.valueAlloc(a, statement);
         const copied = try std.json.parseFromSliceLeaky(g.database.SourceSql.Statement, a, encoded, .{ .allocate = .alloc_always });

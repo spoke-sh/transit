@@ -2328,7 +2328,7 @@
   "extensions": [
     "CREATE CONNECTION market TO HTTP (endpoint = 'https://example.test', token = SECRET('market'));",
     "CREATE SOURCE trades FROM HTTP CONNECTION market INTO STREAM captures WITH (method='GET', path='/trades', poll_interval='5m', request_timeout='10s', response_max_bytes=4194304);",
-    "CREATE SINK fills INTO HTTP CONNECTION market (path = '/orders');",
+    "CREATE SINK exchange INTO HTTP CONNECTION upstream WITH (method='POST', path='/token', request_encoding='form', accept='application/json', response='protected_json', capture='redacted_metadata', request_timeout='5s', response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain');",
     "CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);",
     "CREATE DOCUMENT profile;",
     "CREATE KV settings (UTF8);",

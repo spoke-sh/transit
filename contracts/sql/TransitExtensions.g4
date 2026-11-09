@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | kvWorkloadCommand | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
 historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
 snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
@@ -19,10 +19,12 @@ managedCommand
 // requires its own qualified catalog, capture and effect owners.
 sourceCommand
     : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) SOURCE identifier
-    | DROP (SOURCE | CONNECTION) identifier RESTRICT?
-    | SHOW (SOURCE | CONNECTION) identifier
-    | DESCRIBE (SOURCE | CONNECTION) identifier
-    | EXPLAIN createSource
+    | AUTHORIZE SINK identifier AS ROLE authorizationRole
+    | (ACTIVATE | SUSPEND | RESUME | RETIRE) SINK identifier
+    | DROP (SOURCE | CONNECTION | SINK) identifier RESTRICT?
+    | SHOW (SOURCE | CONNECTION | SINK) identifier
+    | DESCRIBE (SOURCE | CONNECTION | SINK) identifier
+    | EXPLAIN (createSource | createSink)
     ;
 // Session controls lower to the Catalog-owned local Table transaction contract.
 transactionStatement
@@ -138,7 +140,7 @@ literal
     : signedInteger | signedNumber | TRUE | FALSE | NULL_ | MISSING
     | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?
     | (X | DATE | TIME | TIMESTAMP | UUID | JSON) STRING
-    | (STRUCT | LIST | ARRAY | MAP | INTERVAL) LPAREN (literal (COMMA literal)*)? RPAREN
+    | (STRUCT | ROW | LIST | ARRAY | MAP | INTERVAL) LPAREN (literal (COMMA literal)*)? RPAREN
     | UNION LPAREN identifier COMMA literal RPAREN
     ;
 signedNumber: (PLUS | MINUS)? NUMBER;
@@ -244,12 +246,12 @@ createSource
 sourceOptions: LPAREN sourceOption (COMMA sourceOption)* RPAREN;
 sourceOption: identifier EQ (STRING | INTEGER);
 
-// CREATE SINK fills INTO HTTP CONNECTION kafka_conn WITH (path = '/orders');
-// A write target that dispatches a connector effect attempt
-// (docs/handbook/reference/connectors.md), not a durable row store.
+// Application effect target. Publication never dispatches a request.
 createSink
-    : CREATE SINK identifier INTO connectorKind CONNECTION identifier (WITH? connectionOptions)?
+    : CREATE SINK identifier INTO connectorKind CONNECTION identifier WITH sinkOptions
     ;
+sinkOptions: LPAREN sinkOption (COMMA sinkOption)* RPAREN;
+sinkOption: identifier EQ (STRING | INTEGER | TRUE | FALSE);
 
 connectorKind
     : identifier // e.g. HTTP, GRPC: a docs/handbook/reference/connectors.md connector family name
@@ -277,8 +279,9 @@ secretRef
 // General typed schemas; constraints, aliases and parameter values are checked
 // by the shared compiler. Storage/operator/transport admission remains separate.
 createTable
-    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN nativeBindingClause?
     ;
+nativeBindingClause: WITH LPAREN identifier EQ STRING RPAREN;
 tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN | tableConstraint;
 tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstraint);
 checkConstraint: CHECK LPAREN checkPredicate (AND checkPredicate)* RPAREN (NOT VALID)?;
@@ -299,7 +302,7 @@ nullability: NOT NULL_ | NULL_;
 
 dataType
     : scalarTypeName (LPAREN INTEGER (COMMA INTEGER)? RPAREN)? ((WITH | WITHOUT) TIME ZONE)?
-    | (STRUCT | UNION) LPAREN typeField (COMMA typeField)* RPAREN
+    | (STRUCT | ROW | UNION) LPAREN typeField (COMMA typeField)* RPAREN
     | LIST LPAREN dataType nullability? RPAREN
     | ARRAY LPAREN dataType nullability? COMMA INTEGER RPAREN
     | MAP LPAREN dataType nullability? COMMA dataType nullability? RPAREN
@@ -338,10 +341,19 @@ createDocument
     : CREATE DOCUMENT identifier
     ;
 
-// CREATE KV settings (UTF8); — the growing profile's KV resource, DDL form.
+// Dedicated direct KV owner; workload verbs do not lower to Table mutations.
 createKv
-    : CREATE KV identifier LPAREN dataType RPAREN
+    : CREATE KV identifier LPAREN dataType RPAREN nativeBindingClause?
     ;
+kvWorkloadCommand
+    : PUT INTO identifier (KEY kvKey VALUE kvValue | VALUES kvEntry (COMMA kvEntry)*) kvExpectation?
+    | GET FROM identifier KEY kvKey
+    | DELETE FROM identifier (KEY kvKey | KEYS LPAREN kvKey (COMMA kvKey)* RPAREN)
+    ;
+kvEntry: LPAREN kvKey COMMA kvValue RPAREN;
+kvKey: STRING (TYPECAST BYTEA)? | X STRING | PARAMETER;
+kvValue: literal | PARAMETER;
+kvExpectation: IF (ABSENT | PRESENT);
 
 // One object/role and one recipient. Privilege applicability, duplicate options,
 // PUBLIC delegation and role eligibility are production semantic checks.
@@ -400,12 +412,12 @@ identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTI
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
-    | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM
+    | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | PUT | GET | KEYS | ABSENT | PRESENT
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
     | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD
     | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC
     | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF
-    | DATA | TYPE | STRUCT | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
+    | DATA | TYPE | STRUCT | ROW | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE
     | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING
     | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION
     | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES
@@ -578,11 +590,17 @@ EBCDIC_CP037: 'EBCDIC_CP037';
 EBCDIC_037_PAD: 'EBCDIC_037_PAD';
 EBCDIC_1047_NOPAD: 'EBCDIC_1047_NOPAD';
 KEY: 'KEY';
+PUT: 'PUT';
+GET: 'GET';
+KEYS: 'KEYS';
+ABSENT: 'ABSENT';
+PRESENT: 'PRESENT';
 IF: 'IF';
 EXISTS: 'EXISTS';
 DATA: 'DATA';
 TYPE: 'TYPE';
 STRUCT: 'STRUCT';
+ROW: 'ROW';
 LIST: 'LIST';
 ARRAY: 'ARRAY';
 MAP: 'MAP';

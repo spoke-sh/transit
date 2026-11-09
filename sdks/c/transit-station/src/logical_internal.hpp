@@ -29,6 +29,10 @@ struct Budget {
 };
 const char *kind_name(transit_logical_kind kind);
 transit_logical_kind kind_from(const std::string &name);
+Json field_json(const transit_logical_field &, Budget &, size_t depth);
+transit_logical_field field_from(const Json &, Arena &, Budget &, size_t depth);
+inline Json field_json(const transit_logical_field &v) { Budget b(256); return field_json(v, b, 0); }
+inline transit_logical_field field_from(const Json &v, Arena &a) { Budget b(256); return field_from(v, a, b, 0); }
 Json type_json(const transit_logical_type_view &, Budget &, size_t depth);
 Json cell_json(const transit_logical_cell_view &, Budget &, size_t depth);
 Json atom_json(const transit_logical_atom &, Budget &);

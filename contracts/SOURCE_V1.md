@@ -1,9 +1,11 @@
 # HTTP source ingestion v1
 
-Status: durable CONNECTION/SOURCE declarations, bounded inspection, retirement
+Status: durable CONNECTION/SOURCE/SINK declarations, bounded inspection, retirement
 and restricted DROP through the typed Catalog and native cohosted SQL service.
-HTTP scheduling, capture and activation remain uninstalled; their execution gates
+Polling HTTP scheduling, capture and activation remain uninstalled; their execution gates
 below are requirements for a later slice.
+SINK publication and desired lifecycle controls use the same typed connector
+owner through native cohosted SQL. Application dispatch integration is not yet installed.
 Migration files reject connector declarations before admission; reviewed
 dependency plans and migration step recovery for these objects are not installed.
 
@@ -61,14 +63,72 @@ integers with `ms`, `s`, `m`, `h` or `d`, converted to milliseconds with checked
 arithmetic. Byte budgets are positive integer literals. Deployment limits apply
 in addition to declaration budgets; declaration validation grants no capacity.
 
+## Application HTTP sinks
+
+An application SINK is a separate catalog object with its own native authority
+domain and exact CONNECTION dependency. It shares connector publication,
+bounded inspection, retirement, original-operation recovery and restricted DROP.
+Its `inspect` and `use` actions are independent of connection use, application
+invocation, state mutation and eventual dispatch ownership. Publication checks
+current connection use and retains that dependency in the same catalog record.
+The connection cannot be dropped while the sink remains declared. A sink must
+be retired before DROP removes its edge; ordinary dependency edits cannot remove
+the connector owner's edge. Neither creation nor `use` alone permits sending.
+
+The immutable `Source.Sink` profile supports GET with no request encoding and
+POST with form encoding. It retains the exact origin-relative path, bounded
+ASCII Accept and optional User-Agent values, positive request timeout and a
+response budget from one byte through 64 KiB. Both methods require
+`protected_json` responses, `redacted_metadata` capture, no redirect following,
+exactly one attempt and retention of unknown outcomes. Header values exclude
+control bytes and are at most 256 bytes. Request values, credentials, protected
+response bodies and executor leases are absent from the declaration. A timeout
+budget does not renew an application's deadline or authorize a second attempt.
+
+The mandatory `sink_domain` is distinct from every other catalog authority
+domain. Bootstrap and SDK authority profiles carry it explicitly; a missing,
+zero or duplicated domain is invalid. This is part of the current-v1 cutover,
+not a defaulted upgrade of an existing installation.
+
+`CREATE SINK ... INTO HTTP CONNECTION ... WITH (...)` binds the exact connection
+and profile without a polling executor or a destination Stream. `SHOW SINKS`,
+`SHOW SINK`, `DESCRIBE SINK` and `EXPLAIN CREATE SINK` use the shared bounded
+connector inspection owner. EXPLAIN allocates no identity and dispatches no I/O.
+`RETIRE SINK` and `DROP SINK ... RESTRICT` retain original SQL operation identity,
+including after restart or name reuse. `AUTHORIZE SINK name AS ROLE role`
+resolves an explicit SQL role through the shared authorization owner and retains
+its native ID in the original control request. Native authorization checks role
+selection separately from ownership of the sink. The control head retains that
+nonzero role through activation, suspension, resumption and retirement; these
+operations never replace the immutable connection or HTTP profile. `ACTIVATE`
+and `RESUME` recheck permission to select that role. `SUSPEND` and `RETIRE`
+require administrative authority without requiring dispatch-role selection.
+Every change advances the exact expected control epoch. Retrying an accepted
+operation observes its original outcome rather than resolving a role name again.
+Missing persisted role evidence, changed retry operands and invalid lifecycle
+transitions reject. The role field has no compatibility default.
+
+The `active` state records desired activation. Inspection still reports
+`execution_supported = false` and `never_run` until application dispatch is
+installed. Controls do not send HTTP, create grants, establish worker placement
+or prove current connection/secret permissions. The dispatch owner must check
+the active control, selected role, dependencies and original effect at its own
+boundary. The state role invoking a sink and its selected dispatch role remain
+distinct. Polling SOURCE activation remains unavailable.
+Executable program bindings retain the same immutable sink definition and expose
+its `inspect` and `use` requirements. Retained continuation reads recheck current
+connector inspection privileges, including after buffering, restart or DROP.
+Sink dependencies are excluded from data transaction
+participants; they do not create fictitious Table state.
+
 ## Immutable declaration artifacts
 
 [`SourceDeclaration`](../packages/zig/transit-catalog/src/SourceDeclaration.zig)
 defines a dedicated connector artifact, separate from relational view schemas.
 Canonical bytes have an eight-byte `TSOURCE1` prefix, the 32-byte current contract
 definition, and canonical JSON. The payload contains object/revision, original
-namespace/name, native authorization reference, owner and either an HTTP origin
-or the exact source binding. Its own digest is excluded. SHA-256 of the complete
+namespace/name, native authorization reference, owner and either an HTTP origin,
+the exact source binding or the sink's connection and HTTP profile. Its own digest is excluded. SHA-256 of the complete
 canonical bytes supplies both the immutable content commitment and definition
 digest. Artifact and saved request encodings are each bounded to 64 KiB.
 
@@ -78,8 +138,14 @@ binds the original operation, exact expected definition, namespace/name, payload
 commitment and, for control or source DROP, expected epoch. RETIRE increments the
 control epoch without changing definition identity. DROP retains the immutable
 identity and original receipt. Reusing a name cannot reinterpret that receipt.
-The declaration-only typed profile rejects AUTHORIZE, ACTIVATE, SUSPEND and
-RESUME before admission at both the Catalog and SQL boundaries.
+The catalog's paged object directory contains the current declaration, control
+and dropped state alongside the latest operation's WAL position. Publication
+and recovery verify this entry against the accepted operation. Current checks
+use that directory and current scoped authorization; original operation receipts
+remain in the WAL. The entry is part of the current-v1 stored definition, with no
+fallback for a missing state field.
+The polling SOURCE profile rejects AUTHORIZE, ACTIVATE, SUSPEND and RESUME
+before admission at both the Catalog and SQL boundaries.
 
 A reservation commits the saved request's content reference before staging its
 bytes. Only an applied operation can carry a resulting declaration. Source
@@ -88,6 +154,11 @@ record. The destination writer key is its stable object identity; the value
 retains its exact definition and original source operation. Control metadata
 reports unsupported execution, `never_run` and absent poll/publication positions.
 It must not synthesize an authorization or executor failure.
+Pending CREATE retains the staged artifact commitment until publication. The
+applied record keeps that commitment in its resulting declaration and clears
+the staging copy. Maximum-width pending and completed records remain within the
+existing 16 KiB catalog WAL record budget, including populated root directories
+and a full prerequisite guard.
 
 ## Publication, controls and authority
 

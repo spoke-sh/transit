@@ -281,3 +281,54 @@ artifact/definition is rejected before execution; do not delete old storage to
 work around that refusal. Resolve old accepted work with its matching build and
 choose an explicit fresh installation/import procedure under the
 [versioning policy](../docs/handbook/reference/versioning.md).
+
+
+## Canonical state binding declarations
+
+The direct Catalog admits `WITH (native_binding = 'browser.…')` on Table/KV
+creation. SQL and typed Table preparation freeze the binding and its intrinsic
+constraints before hashing the declaration. Native admission independently checks
+the same schema. This is a state-declaration component: browser request and
+administrative integration with these resources remains part of
+[application runtime integration](APPLICATION_PROGRAM_V1.md). Creating a binding
+alone does not activate HTTP ingress or move existing browser records.
+
+| Binding | Kind | Required fields in order |
+| --- | --- | --- |
+| `browser.identities` | Table | `id VARCHAR(64) PRIMARY KEY`, `provider TEXT`, `issuer TEXT`, `client_id TEXT`, `subject TEXT` |
+| `browser.bindings` | Table | `identity_id VARCHAR(64) PRIMARY KEY`, `principal BIGINT`, `role BIGINT`, `signing_key_reference TEXT`, `enabled BOOLEAN`, `restricted BOOLEAN` |
+| `browser.challenges` | KV ROW | `provider TEXT`, `policy_revision BINARY`, `secret_revision BINARY`, `secret_commitment BINARY`, `cookie_key_revision BINARY`, `browser_commitment BINARY`, `expires_at TIMESTAMPTZ`, `state TEXT`, `effect_id UUID`, `code_commitment BINARY`, `identity_id VARCHAR(64)` |
+| `browser.sessions` | KV ROW | `identity_id VARCHAR(64)`, `provider TEXT`, `policy_revision BINARY`, `created_at TIMESTAMPTZ`, `expires_at TIMESTAMPTZ`, `revoked BOOLEAN` |
+
+All Table columns are required, have no defaults and use binary text equality.
+KV values are non-null rows whose fields are nullable. Extra, missing, reordered,
+optional or differently constrained fields reject. Catalog names and assigned
+object/column IDs are independent of the binding name.
+
+The binding Table retains a validated `transit_browser_credentials` CHECK:
+principal must be greater than 1, role greater than 0, both within the native
+counter domain, and the signing-key reference must be nonempty. Every ordinary
+Table mutation path enforces this constraint, including predicate DML and private
+transaction work. A binding confers no grants and does not establish that a
+principal, role or secret exists; current native authority remains required at use.
+
+One paged catalog index maps `(namespace, binding)` to the original resource and
+creation operation. It contains no identities, sessions or credentials. The
+index reservation and DDL admission share one catalog record. Initialization,
+publication and current inspection remain separate. The signed `native_binding`
+read returns the same accepted definition as ordinary Table/KV lookup, under
+current namespace and resource inspection rights. It returns no definition for
+an uninitialized or retired resource. Returned metadata binds the native binding
+into the immutable declaration digest.
+
+Creating a canonical native binding requires current namespace ownership.
+Ordinary namespace CREATE permission cannot reserve that identity. Inspection
+continues to use namespace/resource inspection rights; the binding grants no
+permission to read or change its values.
+
+Conflicting reservations refuse. An uninitialized rejected/cancelled creation may
+be replaced; an initialized resource permanently retains its binding identity,
+including after retirement. Rename preserves the binding. ALTER of a bound
+schema refuses, including removal of its CHECK. `IF NOT EXISTS` cannot attach a
+proposed binding to a differently bound existing name. No automatic import,
+retarget, secondary browser authority or permission is created.

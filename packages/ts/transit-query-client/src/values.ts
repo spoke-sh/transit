@@ -111,6 +111,7 @@ function sourceColumns(
     type: { [field.type]: {} } as LogicalField["type"],
     nullable: true,
     optional: true,
+    max_characters: null,
   }));
 }
 export function validateUnifiedQuery(input: unknown): input is UnifiedQueryResponse {
@@ -339,7 +340,8 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
             field.name === fields[i]!.name &&
             logicalTypeEqual(field.type, fields[i]!.type) &&
             field.nullable === fields[i]!.nullable &&
-            field.optional === fields[i]!.optional,
+            field.optional === fields[i]!.optional &&
+            field.max_characters === fields[i]!.max_characters,
         ) &&
         d.source.capabilities.version === 1 &&
         d.sql.version === 1 &&
@@ -375,6 +377,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
             type: plan.aggregate === "sum" ? { int64: {} } : { uint64: {} },
             nullable: plan.aggregate === "sum",
             optional: false,
+            max_characters: null,
           }),
       ...(plan.output_names?.[i] === null || plan.output_names?.[i] === undefined
         ? {}

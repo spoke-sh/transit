@@ -175,8 +175,8 @@ def run(node, caller, *, finish_pages=64):
                     assert reader.schema.metadata == {
                         b'transit.definition': b'transit.fuze.logical-arrow.v1.2026-11-01.companions',
                         b'transit.logical_schema': descriptor({'structure': [
-                            {'name': 'id', 'type': {'int64': {}}, 'nullable': False, 'optional': False},
-                            {'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': False},
+                            {'name': 'id', 'type': {'int64': {}}, 'nullable': False, 'optional': False, 'max_characters': None},
+                            {'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': False, 'max_characters': None},
                         ]}).hex().encode(),
                     }
                     logical_descriptor = reader.schema.metadata[b"transit.logical_schema"]

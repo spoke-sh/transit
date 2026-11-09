@@ -1,0 +1,426 @@
+[
+  {
+    "name": "signin_policy",
+    "kind": "document",
+    "fields": [
+      {
+        "name": "provider",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "enabled",
+        "value": {
+          "kind": "boolean",
+          "nullable": false
+        }
+      },
+      {
+        "name": "issuer",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "client_id",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "public_origin",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "callback_path",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "client_secret",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "scope",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "challenge_seconds",
+        "value": {
+          "kind": "integer",
+          "nullable": false
+        }
+      },
+      {
+        "name": "session_seconds",
+        "value": {
+          "kind": "integer",
+          "nullable": false
+        }
+      }
+    ],
+    "key": [
+      "provider"
+    ]
+  },
+  {
+    "name": "platform_identities",
+    "kind": "table",
+    "fields": [
+      {
+        "name": "id",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "provider",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "issuer",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "client_id",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "subject",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      }
+    ],
+    "key": [
+      "id"
+    ]
+  },
+  {
+    "name": "identity_bindings",
+    "kind": "table",
+    "fields": [
+      {
+        "name": "identity_id",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "principal",
+        "value": {
+          "kind": "integer",
+          "nullable": false
+        }
+      },
+      {
+        "name": "role",
+        "value": {
+          "kind": "integer",
+          "nullable": false
+        }
+      },
+      {
+        "name": "signing_key_reference",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "enabled",
+        "value": {
+          "kind": "boolean",
+          "nullable": false
+        }
+      },
+      {
+        "name": "restricted",
+        "value": {
+          "kind": "boolean",
+          "nullable": false
+        }
+      }
+    ],
+    "key": [
+      "identity_id"
+    ]
+  },
+  {
+    "name": "login_challenges",
+    "kind": "kv",
+    "fields": [
+      {
+        "name": "provider",
+        "value": {
+          "kind": "text",
+          "nullable": true
+        }
+      },
+      {
+        "name": "policy_revision",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "secret_revision",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "secret_commitment",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "cookie_key_revision",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "browser_commitment",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "expires_at",
+        "value": {
+          "kind": "timestamp",
+          "nullable": true
+        }
+      },
+      {
+        "name": "state",
+        "value": {
+          "kind": "text",
+          "nullable": true
+        }
+      },
+      {
+        "name": "effect_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": true
+        }
+      },
+      {
+        "name": "code_commitment",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "identity_id",
+        "value": {
+          "kind": "text",
+          "nullable": true
+        }
+      }
+    ],
+    "key": []
+  },
+  {
+    "name": "browser_sessions",
+    "kind": "kv",
+    "fields": [
+      {
+        "name": "identity_id",
+        "value": {
+          "kind": "text",
+          "nullable": true
+        }
+      },
+      {
+        "name": "provider",
+        "value": {
+          "kind": "text",
+          "nullable": true
+        }
+      },
+      {
+        "name": "policy_revision",
+        "value": {
+          "kind": "binary",
+          "nullable": true
+        }
+      },
+      {
+        "name": "created_at",
+        "value": {
+          "kind": "timestamp",
+          "nullable": true
+        }
+      },
+      {
+        "name": "expires_at",
+        "value": {
+          "kind": "timestamp",
+          "nullable": true
+        }
+      },
+      {
+        "name": "revoked",
+        "value": {
+          "kind": "boolean",
+          "nullable": true
+        }
+      }
+    ],
+    "key": []
+  },
+  {
+    "name": "auth_requests",
+    "kind": "queue",
+    "fields": [
+      {
+        "name": "request_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": false
+        }
+      },
+      {
+        "name": "route",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "request_ref",
+        "value": {
+          "kind": "capability",
+          "nullable": false
+        }
+      }
+    ],
+    "key": []
+  },
+  {
+    "name": "github_exchanges",
+    "kind": "queue",
+    "fields": [
+      {
+        "name": "request_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": false
+        }
+      },
+      {
+        "name": "request_ref",
+        "value": {
+          "kind": "capability",
+          "nullable": false
+        }
+      },
+      {
+        "name": "challenge_key",
+        "value": {
+          "kind": "binary",
+          "nullable": false
+        }
+      },
+      {
+        "name": "effect_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": false
+        }
+      }
+    ],
+    "key": []
+  },
+  {
+    "name": "auth_receipts",
+    "kind": "stream",
+    "fields": [
+      {
+        "name": "request_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": false
+        }
+      },
+      {
+        "name": "effect_id",
+        "value": {
+          "kind": "uuid",
+          "nullable": true
+        }
+      },
+      {
+        "name": "provider",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "transition",
+        "value": {
+          "kind": "text",
+          "nullable": false
+        }
+      },
+      {
+        "name": "observed_at",
+        "value": {
+          "kind": "timestamp",
+          "nullable": false
+        }
+      }
+    ],
+    "key": []
+  },
+  {
+    "name": "github_token",
+    "kind": "sink",
+    "fields": [],
+    "key": []
+  },
+  {
+    "name": "github_profile",
+    "kind": "sink",
+    "fields": [],
+    "key": []
+  }
+]

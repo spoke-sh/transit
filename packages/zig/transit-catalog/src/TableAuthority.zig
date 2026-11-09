@@ -12,7 +12,7 @@ pub const insert: u64 = 2;
 pub const update: u64 = 4;
 pub const delete: u64 = 8;
 pub const table_actions: u64 = select | insert | update | delete;
-pub const Kind = enum(u8) { database = 1, schema = 2, table = 3, stream = 4, queue = 5, kv = 6, connection = 7, source = 8 };
+pub const Kind = enum(u8) { database = 1, schema = 2, table = 3, stream = 4, queue = 5, kv = 6, connection = 7, source = 8, sink = 9 };
 pub const Profile = struct {
     database_domain: u64,
     schema_domain: u64,
@@ -22,12 +22,13 @@ pub const Profile = struct {
     kv_domain: u64,
     connection_domain: u64,
     source_domain: u64,
+    sink_domain: u64,
     database: u64,
     initial_schema: u64,
     initial_schema_authority: u64,
     pub fn validate(self: Profile) !void {
         inline for (@typeInfo(Profile).@"struct".field_names) |field| try c.Model.nativeId(@field(self, field));
-        const domains = [_]u64{ self.database_domain, self.schema_domain, self.table_domain, self.stream_domain, self.queue_domain, self.kv_domain, self.connection_domain, self.source_domain };
+        const domains = [_]u64{ self.database_domain, self.schema_domain, self.table_domain, self.stream_domain, self.queue_domain, self.kv_domain, self.connection_domain, self.source_domain, self.sink_domain };
         for (domains, 0..) |domain_id, i| for (domains[0..i]) |previous| {
             if (domain_id == previous) return error.InvalidCatalogConfiguration;
         };
@@ -43,6 +44,7 @@ pub const Profile = struct {
             .kv => self.kv_domain,
             .connection => self.connection_domain,
             .source => self.source_domain,
+            .sink => self.sink_domain,
         };
     }
 };
@@ -80,7 +82,7 @@ pub const Schema = struct {
         if (self.revision == 0 or self.revision > p.max_counter) return error.InvalidCatalogConfiguration;
     }
 };
-pub const Table = struct { id: u64, schema: u64, authorization: u64 };
+pub const Table = struct { id: u64, schema: u64, authorization: u64, native_binding: ?c.fuze.NativeBinding.Kind = null };
 /// A trusted reader's native identity and the independently authenticated
 /// original subject. The enclosing service binds signed subjects to requests.
 /// The subject audience is that enclosing service/coordinator, independently of
@@ -221,6 +223,7 @@ pub fn actions(kind: Kind) u64 {
         .kv => c.KVAuthority.all_privileges,
         .connection => c.SourceAuthority.actions(.connection),
         .source => c.SourceAuthority.actions(.source),
+        .sink => c.SourceAuthority.actions(.sink),
     };
 }
 /// Full identities are hashed, never truncated numeric IDs or reusable names.
@@ -279,7 +282,7 @@ pub fn guard(subject: a.Subject, profile: Profile, schema: ?Schema, table: ?Tabl
 
 test "Table requirements distinguish namespace access, data and ownership" {
     const t = std.testing;
-    const profile: Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+    const profile: Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .sink_domain = 36, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
     const scope: c.Model.Scope = .{ .realm = 1, .resource = 7, .catalog = 9 };
     const schema: Schema = .{ .scope = scope, .id = 1, .authorization = 5, .name = try Name.init("public"), .revision = 1 };
     const table: Table = .{ .id = 11, .schema = 1, .authorization = 6 };

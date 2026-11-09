@@ -83,6 +83,16 @@ def check():
         assert accepted == case['postgres'], case['id']
     for sql in data['extensions']:
         tree(sql)
+    for sql in (
+        "PUT INTO settings KEY 'id' VALUE ROW('alice', FALSE) IF ABSENT",
+        "PUT INTO settings VALUES ('a', $1), (X'62', $2) IF PRESENT",
+        "GET FROM settings KEY $1",
+        "DELETE FROM settings KEY 'id'",
+        "DELETE FROM settings KEYS ('a', X'62')",
+        'AUTHORIZE SINK token AS ROLE "Effect Role"',
+        'AUTHORIZE SINK token AS ROLE CURRENT_ROLE',
+    ):
+        tree(sql)
     for invalid in (
         "CREATE SOURCE q FROM HTTP CONNECTION api",
         "CREATE SOURCE q FROM HTTP CONNECTION api WITH (capture_stream='raw')",
@@ -92,10 +102,17 @@ def check():
         "CREATE SOURCE q FROM HTTP CONNECTION api INTO STREAM raw WITH (path=SECRET('path'))",
         "REFRESH SOURCE q",
         "ACTIVATE SOURCE q trailing",
+        "AUTHORIZE SINK q",
+        "RESUME SINK q AS ROLE other",
+        "PUT INTO settings KEY 'id'",
+        "PUT INTO settings KEY 'id' VALUE DEFAULT",
+        "PUT INTO settings VALUES (('id', 1))",
+        "GET FROM settings KEY 'id' WHERE TRUE",
+        "DELETE FROM settings KEYS ()",
     ):
         try: tree(invalid)
         except ValueError: pass
-        else: raise AssertionError(('invalid source syntax accepted', invalid))
+        else: raise AssertionError(('invalid declaration/workload syntax accepted', invalid))
     for statement in ('SELECT id FROM items', 'SHOW TABLES', 'DESCRIBE items', 'EXPLAIN SELECT id FROM items'):
         tree(statement + " AS OF SNAPSHOT 'selector'")
         tree(statement + " AS OF SNAPSHOT 'selector' IN SCHEMA public")

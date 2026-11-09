@@ -7,7 +7,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
             .{ .name = "transit_catalog", .module = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize }).module("transit_catalog") },
+            .{ .name = "transit_query_direct", .module = b.dependency("transit_query_direct", .{ .target = target, .optimize = optimize }).module("transit_query_direct") },
             .{ .name = "transit_station_http", .module = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize }).module("transit_station_http") },
             .{ .name = "transit_serving", .module = b.dependency("transit_serving", .{ .target = target, .optimize = optimize }).module("transit_serving") },
             .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") },

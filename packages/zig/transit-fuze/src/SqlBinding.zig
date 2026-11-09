@@ -126,6 +126,7 @@ pub fn suppliedLogical(self: ?*Self, value: @import("Types.zig").Values.Atom) vo
     detail.literal_truncated = false;
     var out: std.Io.Writer = .fixed(&detail.literal);
     switch (value) {
+        .capability => out.writeAll("<protected>") catch unreachable,
         inline .signed, .unsigned => |number| out.print("{d}", .{number}) catch unreachable,
         .float => |number| out.print("{e}", .{number}) catch unreachable,
         .decimal => |number| out.print("coefficient {d}", .{number}) catch unreachable,

@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+    "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
     "mutation": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -311,7 +311,7 @@
   "replica": {
     "target": {
       "partition": {
-        "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
         "interpretation": {
           "object": {
             "scope": {
@@ -409,7 +409,7 @@
     "checkpoint": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -531,7 +531,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -659,7 +659,7 @@
       "expected": {
         "target": {
           "partition": {
-            "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
             "interpretation": {
               "object": {
                 "scope": {
@@ -783,7 +783,7 @@
     "request": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -868,7 +868,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {
@@ -1077,7 +1077,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1198,45 +1198,45 @@
       "complete": true
     },
     "authentication": [
-      104,
-      63,
-      117,
-      121,
-      77,
-      187,
-      230,
-      58,
-      58,
-      127,
-      71,
-      119,
-      200,
-      106,
-      177,
-      39,
-      200,
-      177,
-      92,
-      242,
-      112,
-      174,
+      228,
+      64,
+      76,
+      179,
+      155,
+      179,
+      153,
+      94,
+      153,
+      237,
       221,
+      55,
+      144,
+      220,
+      206,
+      156,
       148,
-      216,
-      187,
-      11,
-      82,
-      134,
-      101,
-      102,
-      166
+      94,
+      22,
+      19,
+      229,
+      237,
+      10,
+      7,
+      54,
+      119,
+      141,
+      210,
+      184,
+      170,
+      78,
+      185
     ]
   },
   "read_release": {
     "release": {
       "target": {
         "partition": {
-          "definition": "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49",
+          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
           "interpretation": {
             "object": {
               "scope": {

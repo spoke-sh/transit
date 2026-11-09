@@ -303,7 +303,7 @@ def run(node, cli, library, artifacts, report_path=None):
                 for ipc in segments:
                     schema, batches = read_stream(ipc)
                     assert schema.names == ['id', 'value', 'label', 'tags']
-                    fields = [{'name': name, 'type': typ, 'nullable': name == 'value', 'optional': False} for name, typ in zip(schema.names, types)]
+                    fields = [{'name': name, 'type': typ, 'nullable': name == 'value', 'optional': False, 'max_characters': None} for name, typ in zip(schema.names, types)]
                     assert schema.metadata[b'transit.logical_schema'] == descriptor({'structure': fields}).hex().encode()
                     for batch in batches:
                         actual.extend([[arrow_cell(batch.column(column), row, typ) for column, typ in enumerate(types)] for row in range(batch.num_rows)])

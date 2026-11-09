@@ -1,6 +1,7 @@
 """Real local Table HTTP owner, public typed caller, reply fault and disk restart."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
 import hashlib
 import json
 import os
@@ -12,6 +13,7 @@ import sys
 import threading
 import time
 import urllib.request
+from urllib.parse import parse_qs
 
 from harness.services import free_port, wait_ready
 from runner.capture import identity, provenance
@@ -23,6 +25,196 @@ class FaultProxy(ThreadingHTTPServer):
     # Join in-flight handlers before closing their evidence log or leaving the
     # interpreter, including when the caller times out during an upstream request.
     daemon_threads = False
+
+
+class ApplicationEffectPeer:
+    """Independent single-send peer; credentials never enter its evidence log."""
+
+    def __enter__(self):
+        self.requests = []
+        self.failures = []
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(10)
+
+            def log_message(self, *_):
+                pass
+
+            def exchange(self):
+                try:
+                    if self.command == "POST":
+                        assert self.path == "/token"
+                        length = int(self.headers["content-length"])
+                        assert 0 < length <= 65536
+                        fields = parse_qs(self.rfile.read(length).decode(), strict_parsing=True)
+                        assert fields.get("code") == ["opaque-code+ /&"]
+                        assert set(fields) == {"code", "mode"}
+                        assert fields["mode"] in (["fast"], ["slow"])
+                        owner.requests.append(("token", fields["mode"][0]))
+                        if fields["mode"] == ["slow"]:
+                            time.sleep(6)
+                        body = b'{"access_token":"transient-provider-token"}'
+                    else:
+                        assert self.command == "GET" and self.path == "/profile"
+                        assert self.headers["authorization"] == "Bearer transient-provider-token"
+                        owner.requests.append(("profile", "protected"))
+                        body = b'{"id":123}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    # The deadline case closes its socket before this response.
+                    pass
+                except Exception as error:
+                    owner.failures.append(type(error).__name__)
+                    self.close_connection = True
+
+            do_POST = exchange
+            do_GET = exchange
+
+        self.server = FaultProxy(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever)
+        self.thread.start()
+        return self
+
+    def __exit__(self, error_type, *_):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=15)
+        assert not self.thread.is_alive()
+        if error_type is None:
+            assert not self.failures, self.failures
+            assert self.requests == [("token", "fast"), ("profile", "protected"), ("token", "slow")], self.requests
+
+
+class ApplicationFaults:
+    """Lose original replies and crash the native owner at common decisions."""
+
+    expected = {"attachment", "claim", "candidate", "kv", "table", "append", "ack",
+                "checkpoint", "atomic_commit", "final_commit", "execute", "complete",
+                "effect_admission", "effect_completion", "ordered_effect_completion",
+                "physical_effect_admission", "physical_effect_completion"}
+
+    def __init__(self):
+        self.claim = None
+        self.invocation = None
+        self.physical_original = None
+        self.transactions = {}
+        self.passed = set()
+
+    def select(self, envelope, data):
+        action = envelope.get("action", {})
+        if not isinstance(action, dict):
+            return None
+        progress = action.get("client_progress", {})
+        retained = progress.get("retain_original")
+        if retained and retained["key"] == self.physical_original:
+            native = json.loads(data)["result"]["client_progress"]["state"]
+            assert native["original"]["phase"] == "retained"
+            phase = "physical_effect_admission"
+            if phase not in self.passed:
+                self.passed.add(phase)
+                return phase
+            return None
+        work = progress.get("advance") or progress.get("stage_original")
+        phase = None
+        if work and work.get("format") == 0xC1454631:
+            guarded = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
+            effect = json.loads(base64.b64decode(guarded["payload"]["base64"], validate=True))
+            program = effect["descriptor"]["program"]["object"]["object"]
+            assert program in (737020, 737041, 748020)
+            native = json.loads(data)["result"]["client_progress"]["state"]
+            if program == 748020:
+                original = effect["descriptor"]["input"]["operation"]["operation"]
+                if original == 748100 and "advance" in progress and effect["phase"] == "finished":
+                    assert not native["pending"]
+                    if "response" not in effect["outcome"]:
+                        return None  # Preserve the native caller's original refusal assertion.
+                    assert effect["outcome"]["response"]["status"] == 200
+                    phase = "physical_effect_completion"
+                elif original == 748103 and "stage_original" in progress:
+                    assert native["original"]["phase"] == "ready"
+                    assert effect["phase"] == "dispatching"
+                    self.physical_original = work["binding"]["key"]
+            elif program == 737041:
+                if ("advance" in progress and effect["descriptor"]["operation"][0] == 21
+                        and effect["phase"] == "finished"):
+                    assert not native["pending"]
+                    assert effect["outcome"]["response"]["status"] == 201
+                    phase = "ordered_effect_completion"
+            elif "stage_original" in progress and effect["descriptor"]["step"] == 1:
+                assert native["original"]["phase"] == "ready"
+                phase = "effect_admission"
+            elif "advance" in progress and effect["descriptor"]["step"] == 0:
+                assert not native["pending"] and native["cancel"]
+                assert effect["outcome"]["response"]["status"] == 201
+                phase = "effect_completion"
+            if phase and phase not in self.passed:
+                self.passed.add(phase)
+                return phase
+            return None
+        if work and work.get("format") == 0x41505731:
+            payload = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
+            if payload["lease"]["target"]["object"]["object"] == 733020 and payload["lease"]["epoch"] == 1:
+                self.claim = payload["claim"]
+                self.invocation = work["binding"]["key"] if "stage_original" in progress else work["key"]
+                execution = payload["execution"]
+                transaction = execution["transaction"]
+                if transaction:
+                    self.transactions[tuple(transaction["key"]["token"])] = transaction["kind"]
+                if "advance" in progress and execution["phase"] in ("execute", "complete"):
+                    phase = execution["phase"]
+        if self.claim is None:
+            return None
+        parsed = json.loads(data)
+        attachment = progress.get("attach_original")
+        if attachment and attachment["key"] == self.invocation:
+            assert parsed["result"]["client_progress"]["state"]["original"]["phase"] == "attached"
+            phase = "attachment"
+        queue_wait = action.get("queue", {}).get("wait")
+        if queue_wait and queue_wait["claim"] == self.claim:
+            accepted = parsed["result"]["queue"].get("operation")
+            if accepted and "claim" in accepted:
+                assert accepted["claim"]["rows"] == 1
+                phase = "claim"
+        original = progress.get("stage_original")
+        if original and original["format"] == 0xC1504331:
+            assert parsed["result"]["client_progress"]["state"]["original"]["phase"] == "ready"
+            phase = "candidate"
+        record = action.get("record", {}).get("stage_transaction")
+        if record and record["format"] == 0xC1504331:
+            assert parsed["result"]["record"]["reference"]["format"] == 0x54585231
+            phase = "checkpoint"
+        transaction = action.get("transaction", {})
+        for tag in ("statement", "log_statement"):
+            statement = transaction.get(tag)
+            if statement and statement["execute"] and tuple(statement["key"]["token"]) in self.transactions:
+                request = statement["request"]
+                if tag == "log_statement":
+                    kind = next(iter(request["work"]))
+                    phase = {"append": "append", "queue_ack": "ack"}.get(kind)
+                else:
+                    phase = "kv" if request["binding"]["target"]["object"] == 733011 else "table"
+                assert "provisional" in parsed["result"]["transaction"][tag]
+        settlement = transaction.get("settle")
+        if settlement:
+            kind = self.transactions.get(tuple(settlement["key"]["token"]))
+            status = parsed["result"]["transaction"].get("status", {})
+            decision = status.get("observation", {}).get("decided")
+            if kind in ("atomic", "final") and decision and decision["outcome"] == "committed":
+                phase = kind + "_commit"
+        if phase and phase not in self.passed:
+            self.passed.add(phase)
+            return phase
+        return None
 
 
 def run(node, caller, mode="tables", *artifacts):
@@ -47,7 +239,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
-        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
+        if mode in ("managed", "managed-board", "managed-board-browser", "log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -102,6 +294,7 @@ def run(node, caller, mode="tables", *artifacts):
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
         managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False, "attachments_withheld": 0}
+        application_faults = ApplicationFaults() if mode in ("managed", "managed-board", "managed-board-browser") else None
         managed_pages = set()
         computation_reads = []
         computation_inspecting = False
@@ -119,7 +312,7 @@ def run(node, caller, mode="tables", *artifacts):
                 pass
 
             def do_POST(self):
-                nonlocal growth_sequence
+                nonlocal growth_sequence, authority
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 if computation_inspecting and self.path == "/table/v1":
@@ -203,6 +396,18 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    if application_faults is not None and response.status == 200:
+                        application_phase = application_faults.select(envelope, data)
+                        if application_phase:
+                            if application_phase.endswith("_commit") or application_phase == "effect_completion":
+                                authority.kill()
+                                assert authority.wait(timeout=15) == -signal.SIGKILL
+                                authority = start()
+                            # The accepted reply cannot establish caller
+                            # completion. Recovery observes the same work key.
+                            parsed = json.loads(data)
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
                     owned = record.get("stage_transaction") if record else None
                     if mode in ("managed", "managed-board", "managed-board-browser") and owned and response.status == 200:
                         reference = json.loads(data)["result"]["record"]["reference"]
@@ -774,7 +979,21 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
-                subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
+                with ApplicationEffectPeer() as peer:
+                    environment = dict(os.environ, TRANSIT_TEST_APPLICATION_EFFECT_PORT=str(peer.server.server_port))
+                    subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600, env=environment)
+                # Native retained history may contain opaque references and
+                # commitments, never request credentials or provider bodies.
+                for retained in (root / "native").rglob("*"):
+                    if retained.is_file():
+                        data = retained.read_bytes()
+                        assert b"opaque-code+ /&" not in data, retained.name
+                        assert b"transient-provider-token" not in data, retained.name
+                assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
+                print("Application invocation: service discovery/coordinator replacement, empty acquisition, defeated attachment, "
+                      "exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
+                      "ordered effect response/unsent/unknown recovery and retained completion after cancellation, "
+                      f"{len(ApplicationFaults.expected)} original lost replies, three native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
                 if mode != "managed":
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)
                     from interfaces.board.computations import exercise

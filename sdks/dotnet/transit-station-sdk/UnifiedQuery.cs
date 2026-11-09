@@ -44,12 +44,12 @@ public static class UnifiedQuery
         return Logical.AtomWire(value);
     }
     public sealed record Column {
-        public string Name { get; } public Logical.Descriptor Type { get; } public bool Nullable { get; } public bool Optional { get; }
-        public Column(string name,Logical.Descriptor type,bool nullable=false,bool optional=false) {
-            Name=ColumnName(name); ArgumentNullException.ThrowIfNull(type); Type=type; Nullable=nullable; Optional=optional;
+        public string Name { get; } public Logical.Descriptor Type { get; } public bool Nullable { get; } public bool Optional { get; } public uint? MaxCharacters { get; }
+        public Column(string name,Logical.Descriptor type,bool nullable=false,bool optional=false,uint? maxCharacters=null) {
+            Name=ColumnName(name); _=new Logical.Field(name,type,nullable,optional,maxCharacters); Type=type; Nullable=nullable; Optional=optional; MaxCharacters=maxCharacters;
         }
-        internal JsonObject Wire() => V.Obj(("name",Name),("type",Logical.TypeWire(Type)),("nullable",Nullable),("optional",Optional));
-        internal static Column Parse(JsonNode? v) { var a=V.Object(v); return new(V.String(a["name"]),Logical.TypeFromWire(a["type"]),V.Boolean(a["nullable"]),V.Boolean(a["optional"])); }
+        internal JsonObject Wire() => Logical.FieldWire(new(Name,Type,Nullable,Optional,MaxCharacters));
+        internal static Column Parse(JsonNode? v) { var a=Logical.FieldFromWire(v); return new(a.Name,a.Type,a.Nullable,a.Optional,a.MaxCharacters); }
     }
     public sealed record DecoderColumn {
         public string Name { get; } public DecoderType Type { get; }
@@ -88,7 +88,7 @@ public static class UnifiedQuery
             Scope=scope; Audience=V.Counter(audience); Branch=Positive(branch); Namespace=V.Counter(schemaNamespace); Interpretation=interpretation; Schema=schema;
         }
         internal override JsonObject Definition() {
-            var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false)).ToArray());
+            var rowType=new Logical.Structure(Schema.Columns.Select(c=>new Logical.Field(c.Name,c.Type,c.Nullable,false,c.MaxCharacters)).ToArray());
             JsonArray collations=new(), semantics=new(); foreach(var column in Schema.Columns){collations.Add(Logical.EnumName(column.Collation));semantics.Add(V.Obj(("rounding",null),("metric",null),("timezone",null),("spatial",null)));}
             return V.Obj(("table",V.Obj(("scope",Scope.Wire()),("owner",Audience),("branch",Turn.Decimal(Branch)),("namespace",Namespace),("object",Turn.Decimal(Schema.ObjectId)),
                 ("interpretation",Interpretation.Wire()),("row_type",Logical.TypeWire(rowType)),("collations",collations),("semantics",semantics))));

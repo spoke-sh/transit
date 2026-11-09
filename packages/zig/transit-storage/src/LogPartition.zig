@@ -665,6 +665,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             try authorize(guard);
             return result;
         }
+        pub fn observeTime(self: *Self, declared: Declaration.Stored, guard: Guard) !p.QueueRead.TimeObservation {
+            _ = try guard.acquire(guard.context);
+            defer guard.release(guard.context);
+            try self.requireReady();
+            const result: p.QueueRead.TimeObservation = .{ .cut = try self.root.cut(declared), .time = try self.queueTime(self.root.clock_ms), .floor_ms = self.root.clock_ms };
+            try result.validate();
+            return result;
+        }
         fn producerState(self: *Self, request: q.Append) !?q.ProducerState {
             const value = try self.tree().get(self.root.producers, try r.producerKey(request, false)) orelse return null;
             const state = try self.decodeValue(q.ProducerState, value);

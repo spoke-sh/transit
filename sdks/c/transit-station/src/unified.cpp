@@ -24,9 +24,8 @@ size_t select_name(const std::string &name,const char *const *names,size_t count
 std::string string_bytes(transit_sdk_bytes v,size_t bound) { const auto bytes=copy(v,bound);return {bytes.begin(),bytes.end()}; }
 std::string query_name(const char *value) { const auto out=text(value,255);require(!out.empty(),"query-name");return out; }
 std::string column_wire(const transit_station_unified_column &v) {
-    require(v.type,"query-column-type");return logical::encode(logical::Json::object({
-        {"name",logical::Json::string(query_name(v.name))},{"type",logical::type_json(*v.type)},
-        {"nullable",logical::Json::boolean(v.nullable)},{"optional",logical::Json::boolean(v.optional)}}));
+    const auto name=query_name(v.name);
+    return logical::encode(logical::field_json({{reinterpret_cast<const uint8_t*>(name.data()),name.size()},v.type,v.nullable,v.optional,v.max_characters}));
 }
 std::string decoder_column_wire(const transit_station_unified_decoder_column &v) { return "{\"name\":"+quote(text(v.name,32))+",\"type\":"+quote(type_name(v.type))+"}"; }
 std::string columns_wire(const transit_station_unified_column *columns,size_t count) {
@@ -55,7 +54,7 @@ std::string table_wire(const transit_station_unified_source &source) {
     require(source.resource.realm==scope.resource.realm && source.resource.resource==scope.resource.resource && scope.catalog && t.branch && s.object && s.revision && i.revision && i.byte_count,"query-table-identity");
     require(s.columns && s.column_count>0 && s.column_count<=128,"query-table-columns");
     std::vector<transit_logical_field> fields;fields.reserve(s.column_count);
-    for(size_t n=0;n<s.column_count;++n){const auto &c=s.columns[n];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false});}
+    for(size_t n=0;n<s.column_count;++n){const auto &c=s.columns[n];const auto name=query_name(c.name);fields.push_back({{reinterpret_cast<const uint8_t*>(c.name),name.size()},c.type,c.nullable,false,c.max_characters});}
     transit_logical_type_view row{};row.kind=TRANSIT_LOGICAL_STRUCTURE;row.as.fields={fields.data(),fields.size()};
     using J=logical::Json;
     return logical::encode(J::object({{"table",J::object({
@@ -150,7 +149,7 @@ const transit_logical_type_view *parsed_type(const Raw &raw,const Bytes &bytes,c
 }
 transit_station_unified_source_description inspected_columns(const Raw &raw,const Bytes &bytes,const std::string &path,logical::Arena &arena) {
     transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,128);require(out.column_count>0,"inspection-columns");
-    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=parsed_type(raw,bytes,column+"/type",arena);out.columns[i].nullable=raw.boolean(bytes,column+"/nullable");out.columns[i].optional=raw.boolean(bytes,column+"/optional");}
+    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);const auto field=logical::field_from(logical::JsonParser(raw.field(bytes,column)).parse(),arena);out.columns[i].type=field.type;out.columns[i].nullable=field.nullable;out.columns[i].optional=field.optional;out.columns[i].max_characters=field.max_characters;}
     return out;
 }
 // Raw::field serializes parsed JSON canonically. Match the complete tagged
@@ -261,7 +260,7 @@ std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const By
     m.has_sum=raw.field(v,p+"sum")!="null";if(m.has_sum)m.sum=signed_number(raw,v,p+"sum");const char *finished[]={"source_end","limit"};m.finished=static_cast<transit_station_unified_finished>(select_name(raw.field(v,p+"finished",true),finished,2));
     out->info.ordinal=wide(raw,v,"page/ordinal");const auto rows=raw.number(v,"page/rows",true);require(rows<=8,"query-row-bound");out->info.rows=static_cast<uint8_t>(rows);
     out->info.column_count=array_size(raw,v,"page/columns",128);require(out->info.column_count>0,"query-columns");
-    for(size_t i=0;i<out->info.column_count;++i){const auto c="page/columns/"+decimal(i);out->names[i]=raw.field(v,c+"/name",true);require(!out->names[i].empty() && out->names[i].size()<=255 && out->names[i].find('\0')==std::string::npos,"query-column-name");out->info.columns[i]={out->names[i].c_str(),parsed_type(raw,v,c+"/type",out->arena),raw.boolean(v,c+"/nullable"),raw.boolean(v,c+"/optional")};}
+    for(size_t i=0;i<out->info.column_count;++i){const auto c="page/columns/"+decimal(i);out->names[i]=raw.field(v,c+"/name",true);require(!out->names[i].empty() && out->names[i].size()<=255 && out->names[i].find('\0')==std::string::npos,"query-column-name");const auto field=logical::field_from(logical::JsonParser(raw.field(v,c)).parse(),out->arena);out->info.columns[i]={out->names[i].c_str(),field.type,field.nullable,field.optional,field.max_characters};}
     out->ipc=unhex(raw.field(v,"page/ipc",true),65536);out->info.ipc=view(out->ipc);
     if(raw.field(v,"page/next")!="null"){const auto next=raw.field(v,"page/next",true);require(next.size()<=4096,"query-cursor-bound");out->next=Bytes(next.begin(),next.end());}
     return out;

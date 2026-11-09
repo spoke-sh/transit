@@ -79,6 +79,22 @@ unresolved obligations use bounded retry delays. Denial or a failed scan cannot
 certify an empty backlog. A crash loses the volatile signals, so replacement
 always rediscovers the durable pending index and original read-pin slots.
 Successful foreground DML does not require another recovery execution.
+
+Ordered application declarations use the same account activation and scheduling
+stripes, with separate Catalog declaration/original accounts. Bounded sweeps
+reopen frozen programs through `ApplicationRecovery`; payloads are not cached
+per durable invocation. The initial automatic profile requires one input Queue
+partition. A pending empty acquisition retains its token and exact claim and
+adds one account retry obligation, without creating another durable attempt.
+Parked application work uses a 100 ms retry delay, interrupted by publication
+notifications; native Queue waits do not wake discovery themselves. This also
+rechecks delayed visibility and expired leases without one resident waiter per
+declaration. Active instruction phases receive another fair sweep immediately.
+Final non-pending records remain discoverable so a lost original-closure reply
+cannot strand cleanup. The [program contract](../../../../contracts/APPLICATION_PROGRAM_V1.md)
+owns these boundaries; full SQL installation and browser/effect integration
+remain separate work.
+
 If a synchronous wire DML attempt encounters a transient owner conflict after
 token acceptance, it releases its scheduling claim and waits for recovery of
 that original frozen operation within the statement deadline. This includes

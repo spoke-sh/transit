@@ -20,6 +20,15 @@ codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys
 Map entries use strictly increasing typed keys, rejecting duplicates including
 positive/negative floating zero.
 
+`CAPABILITY` is a separate native handle type for protected application requests.
+Its 32-byte identity contains no credential and grants no redemption rights.
+Native records and ordered continuations can preserve the handle. Ordinary SQL
+literals, casts, comparisons, hashing, keys, defaults, display and JSON/Arrow
+value export reject it, including nested and empty values. The protected host
+must check the original owner, purpose, current authority and live reservation.
+This type boundary does not by itself activate HTTP application execution; see
+the [application contract](../../../../contracts/APPLICATION_PROGRAM_V1.md).
+
 Recursive descriptor validation can retain an owned first-failure witness with
 the exact descriptor-member path, violated rule, supplied values and measured
 budget. File queries expose this context in human and structured diagnostics;
@@ -54,15 +63,15 @@ NUMERIC and DECIMAL declare exact decimal values. The complete alias and
 parameter rules live in the [Table type resolver](../../../../contracts/TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver).
 
 DECIMAL defaults to precision 38 and scale 0, with precision 1–38 and scale
-0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length;
-nested VARCHAR(n), CHAR padding, BINARY(n)/VARBINARY and FLOAT(p) reject because
-they have no selected semantics. TIME defaults to nanosecond precision and
+0–precision. VARCHAR(n) counts Unicode scalars and rejects excess length on
+columns and named ROW/STRUCT fields. Collection-element VARCHAR(n), CHAR padding,
+BINARY(n)/VARBINARY and FLOAT(p) are unsupported. TIME defaults to nanosecond precision and
 TIMESTAMP to microsecond precision. Civil and UTC timestamps are distinct;
 TIME WITH TIME ZONE and named IANA zones are unsupported.
 
 [CREATE TABLE](create-table.md) and typed DML bind constants directly to the
 column descriptor. Strings use doubled single quotes; binary uses X'hex'.
-Date/time/timestamp/UUID accept exact string forms. STRUCT, LIST, ARRAY, MAP,
+Date/time/timestamp/UUID accept exact string forms. ROW/STRUCT, LIST, ARRAY, MAP,
 UNION and INTERVAL constructors and JSON strings have the
 [shared typed constant grammar](../../../../contracts/TABLE_DDL_V1.md#type-and-literal-profile).
 A storable nested value does not acquire a SQL comparison or aggregate operator.

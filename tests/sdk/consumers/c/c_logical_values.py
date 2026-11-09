@@ -33,6 +33,8 @@ def oracle(binary, target, environment):
             assert raw == 'invalid\n', (kind, value, raw)
             counts['unsupported_rejections'] += 1
     try:
+        check('t', {'capability': {}})
+        check('c', {'value': {'atom': {'capability': [1] * 32}}}, supported=False)
         for case in fixtures()['cases']:
             kind = case['kind']
             desc = bytes.fromhex(case['type_hex'])

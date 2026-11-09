@@ -176,6 +176,7 @@ test {
     _ = DirectQueueMutation;
     _ = DirectQueue;
     _ = DirectKVIntent;
+    _ = DirectKVClient;
     _ = DirectKVPreparedDdl;
     _ = DirectKVPreparedWrite;
     _ = DirectKVPreparedGet;
@@ -197,6 +198,8 @@ pub const DirectMigration = @import("DirectMigration.zig");
 pub const BrowserRecordStore = @import("BrowserRecordStore.zig");
 pub const BrowserContract = @import("BrowserContract.zig");
 pub const BrowserAdministration = @import("BrowserAdministration.zig");
+pub const NativeBindingSchema = @import("NativeBindingSchema.zig");
+pub const DirectSecret = @import("DirectSecret.zig");
 pub const BrowserDeclarations = @import("BrowserDeclarations.zig");
 pub const DirectTransactionCall = @import("DirectTransactionCall.zig");
 pub const DirectTransactionSavepoint = @import("DirectTransactionSavepoint.zig");

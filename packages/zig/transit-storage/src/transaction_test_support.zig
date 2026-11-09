@@ -36,6 +36,7 @@ pub fn begin(directory: x.Directory) x.Begin {
         .definition = p.Growth.current_definition,
         .identity = identity,
         .mode = .serializable,
+        .deadline = null,
         .selection = .explicit_objects,
         .objects = directory,
         .catalog = .{ .partition = 1, .next_lsn = 1 },

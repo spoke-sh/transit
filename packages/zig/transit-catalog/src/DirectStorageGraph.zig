@@ -931,7 +931,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
         },
         .catalog_root => |*value| {
             const root = value.root;
-            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions, root.descriptor_definitions, root.queue_transfer_sources, root.queue_transfer_pending, root.source_writers, root.transaction_records };
+            const directories = [_]?s.TreeStore.pages.Reference{ root.schemas, root.schema_names, root.namespace_claims, root.namespace_pending, root.objects, root.names, root.operations, root.pending, root.native_allocations, root.dependents, root.dependencies, root.client_tokens, root.client_operations, root.client_pending, root.client_accounts, root.branches, root.branch_names, root.branch_owners, root.history_transactions, root.descriptor_definitions, root.queue_transfer_sources, root.queue_transfer_pending, root.source_writers, root.transaction_records, root.native_bindings };
             if (value.slot > directories.len) return error.InvalidDirectCatalogHistory;
             // An absent directory has no dependency or I/O. Skip it inside
             // this fixed-size list instead of persisting an empty GC step for
@@ -940,7 +940,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
                 const slot = value.slot;
                 value.slot += 1;
                 if (directories[slot]) |reference| {
-                    if (slot == directories.len - 1) {
+                    if (slot == directories.len - 2) {
                         try workspace.enqueue(.{ .transaction_record_directories = .{ .root = root, .walk = try .init(root, .{ .reference = reference, .kind = .values }) } });
                     } else try workspace.enqueue(.{ .catalog_walk = try .init(root, .{ .reference = reference, .kind = if (slot == 4) .objects else if (slot == 19) .values else .pages_only }) });
                     return false;

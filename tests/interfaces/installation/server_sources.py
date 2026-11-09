@@ -1,4 +1,4 @@
-"""Installed SOURCE declarations: original SQL outcomes and no HTTP execution."""
+"""Installed SOURCE/SINK declarations: original SQL outcomes and no HTTP execution."""
 import ctypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -21,6 +21,10 @@ STREAM = ('CREATE STREAM captures (capture_id UUID NOT NULL, source_sequence UIN
           'body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)')
 SOURCE = ("CREATE SOURCE earthquakes FROM HTTP CONNECTION upstream INTO STREAM captures WITH "
           "(method='GET', path='/feed', poll_interval='1s', request_timeout='1s', response_max_bytes=4096)")
+SINK = ("CREATE SINK exchange INTO HTTP CONNECTION upstream WITH "
+        "(method='POST', path='/token', request_encoding='form', accept='application/json', "
+        "response='protected_json', capture='redacted_metadata', request_timeout='5s', "
+        "response_max_bytes=65536, follow_redirects=FALSE, max_attempts=1, unknown_outcome='retain')")
 
 
 def metadata(fixture, sql):
@@ -40,6 +44,9 @@ def settle(client, target):
 
 
 def reader_proof(fixture, declaration, connection_definition):
+    kind = next(iter(declaration['payload']))
+    label = kind.upper()
+    object_name = 'earthquakes' if kind == 'source' else 'exchange'
     record = fixture.record()
     key = ExistingKey(fixture.root, fixture.installation / 'root.seed')
     port, realm = fixture.config['ports']['node'], record['realm']
@@ -62,12 +69,12 @@ def reader_proof(fixture, declaration, connection_definition):
                 return
             assert current['status'] == 'preparing' and time.monotonic() < deadline, current
             command(dict(advance=original))
-    reader = Key(fixture.root, 'source-reader', 73)
-    name = b'source_reader'.hex()
+    reader = Key(fixture.root, f'{kind}-reader', 73 if kind == 'source' else 74)
+    name = f'{kind}_reader'.encode().hex()
     change(dict(create_role=dict(name=name, login=True, create_role=False)))
     role = authority(dict(resolve=name))['body']['resolve']['id']
     # Native authorization IDs currently have a 53-bit counter ceiling.
-    principal = 9007199254740990
+    principal = 9007199254740990 if kind == 'source' else 9007199254740989
     change(dict(bind_credential=dict(principal=principal, role=role, public_key=reader.public, pid=None)))
     reader_connection = dict(record['default_table']['connection'], principal=principal, role=None)
     direct, identity = direct_client(fixture, record['definition'], reader_connection, reader.seed)
@@ -79,22 +86,22 @@ def reader_proof(fixture, declaration, connection_definition):
         change(dict(grant=dict(object=object_ref, grantee=role, privileges=1, grant_options=0)))
     owner, _ = direct_client(fixture, record['definition'], record['default_table']['connection'], fixture.installation / 'caller.seed')
     named = lambda value: dict(len=len(value), bytes=list(value.encode()) + [0]*(63-len(value)))
-    source_identity = owner(dict(source=dict(lookup=dict(selection=dict(namespace=1, kind='source'), name=named('earthquakes')))))['source']['metadata']['state']['declaration']['interpretation']
+    source_identity = owner(dict(source=dict(lookup=dict(selection=dict(namespace=1, kind=kind), name=named(object_name)))))['source']['metadata']['state']['declaration']['interpretation']
     connection_identity = owner(dict(source=dict(lookup=dict(selection=dict(namespace=1, kind='connection'), name=named('upstream')))))['source']['metadata']['state']['declaration']['interpretation']
     direct(dict(source=dict(inspect=source_identity)), expected=403)
     change(dict(grant=dict(object=source, grantee=role, privileges=1, grant_options=0)))
     observed = direct(dict(source=dict(inspect=source_identity)))['source']['metadata']
     assert observed['definition'] == declaration and observed['execution_supported'] is False
-    page = direct(dict(source=dict(list=dict(selection=dict(namespace=1, kind='source'), cursor=None))))['source']['page']
+    page = direct(dict(source=dict(list=dict(selection=dict(namespace=1, kind=kind), cursor=None))))['source']['page']
     assert sum(value is not None for value in page['entries']) == 1
     direct(dict(source=dict(inspect=connection_identity)), expected=403)
     change(dict(revoke_privileges=dict(object=source, grantee=role, privileges=1, grant_option_only=False, behavior='restrict')))
     direct(dict(source=dict(inspect=source_identity)), expected=403)
-    assert not any(direct(dict(source=dict(list=dict(selection=dict(namespace=1, kind='source'), cursor=None))))['source']['page']['entries'])
+    assert not any(direct(dict(source=dict(list=dict(selection=dict(namespace=1, kind=kind), cursor=None))))['source']['page']['entries'])
     assert json.loads(metadata(fixture, 'SHOW CONNECTION upstream')[0]['definition']) == connection_definition
     client = Client(fixture.console_config(), record['definition']).open()
     try:
-        batch = client.execute('SHOW SOURCE earthquakes')['batch']
+        batch = client.execute(f'SHOW {label} {object_name}')['batch']
         assert batch['complete'] and len(batch['rows']) == 1
         replay = dict(fetch=dict(cursor=batch['cursor'], batch=batch['batch']))
         assert client.call(replay)['batch'] == batch
@@ -106,7 +113,7 @@ def reader_proof(fixture, declaration, connection_definition):
         client.call(replay, error='SqlResultIncomplete')
     finally:
         client.close()
-    print('Installed SOURCE: independent maximum-range principal, scoped metadata and revocation after SQL buffering passed.', flush=True)
+    print(f'Installed {label}: independent maximum-range principal, scoped metadata and revocation after SQL buffering passed.', flush=True)
 
 
 def empty_destination(fixture, definition):
@@ -131,8 +138,11 @@ def missing_executor(cli, node, host):
         finally:
             client.close()
         assert metadata(fixture, 'SHOW SOURCES') == []
+        fixture.console("CREATE CONNECTION upstream TO HTTP (endpoint='http://127.0.0.1:1');\n" + SINK + ';\n')
+        assert metadata(fixture, 'SHOW SINK exchange')[0]['state'] == 'published'
+        fixture.console('RETIRE SINK exchange;\nDROP SINK exchange;\nDROP CONNECTION upstream;\n')
         success = True
-        print('Installed SOURCE: omitted executor rejects CREATE and EXPLAIN before admission.', flush=True)
+        print('Installed SOURCE/SINK: missing polling executor refuses SOURCE and does not prevent SINK publication.', flush=True)
     finally:
         fixture.cleanup()
         if success:
@@ -187,6 +197,42 @@ def run(cli, node, host, board, gateway):
         assert explained['executed'] is False and explained['identity'] is None
         assert explained['proposal']['payload']['source']['executor'] == 99
         assert metadata(fixture, 'SHOW SOURCES') == []
+        explained_sink = json.loads(metadata(fixture, 'EXPLAIN ' + SINK)[0]['plan'])
+        assert explained_sink['executed'] is False and explained_sink['identity'] is None
+        assert explained_sink['proposal']['payload']['sink']['http']['max_attempts'] == 1
+        assert metadata(fixture, 'SHOW SINKS') == []
+        sink_token = list(os.urandom(16))
+        sink_client = Client(fixture.console_config(), fixture.record()['definition']).open()
+        try:
+            unsafe = sink_client.call(dict(execute=dict(sql=SINK.replace('max_attempts=1', 'max_attempts=2'), token=list(os.urandom(16)))), error='InvalidSinkRetryPolicy')
+            assert unsafe['err'].get('operation') is None, unsafe
+            sink_client.call(dict(execute=dict(sql=SINK, token=sink_token)), discard_response=True)
+            original_sink = settle(sink_client, dict(token=sink_token))
+            assert original_sink['command'] == 'create_sink' and original_sink['identity']['kind'] == 'connector'
+            assert sink_client.execute(SINK, token=sink_token)['operation'] == original_sink
+            refused = sink_client.call(dict(execute=dict(sql='ACTIVATE SINK exchange', token=list(os.urandom(16)))), error='SourceDeclarationConflict')
+            assert refused['err'].get('operation') is None, refused
+            authorize_sql = 'AUTHORIZE SINK exchange AS ROLE CURRENT_ROLE'
+            authorize_token = list(os.urandom(16))
+            sink_client.call(dict(execute=dict(sql=authorize_sql, token=authorize_token)), discard_response=True)
+            original_authorize = settle(sink_client, dict(token=authorize_token))
+            assert original_authorize['command'] == 'authorize_sink'
+            assert sink_client.execute(authorize_sql, token=authorize_token)['operation'] == original_authorize
+            for control in ('ACTIVATE', 'SUSPEND', 'RESUME'):
+                control_token = list(os.urandom(16))
+                sink_client.execute(f'{control} SINK exchange', token=control_token)
+                observed = settle(sink_client, dict(token=control_token))
+                assert observed['command'] == f'{control.lower()}_sink', observed
+        finally:
+            sink_client.close()
+        sink_metadata = metadata(fixture, 'DESCRIBE SINK exchange')[0]
+        assert sink_metadata['state'] == 'active' and sink_metadata['epoch'] == '5'
+        sink_declaration = json.loads(sink_metadata['definition'])
+        assert sink_metadata['executor_role'] == str(sink_declaration['owner'])
+        assert sink_metadata['execution_supported'] is False and sink_metadata['execution'] == 'never_run'
+        assert sink_declaration['payload']['sink']['http']['path'] == '/token'
+        reader_proof(fixture, sink_declaration, json.loads(connection['definition']))
+        fixture.console('DROP SINK exchange;\n', expected=1)
         transaction = Client(fixture.console_config(), fixture.record()['definition']).open()
         try:
             begin = transaction.execute('BEGIN', token=list(os.urandom(16)))['operation']
@@ -225,35 +271,52 @@ def run(cli, node, host, board, gateway):
         fixture.start()
         fixture.ready(timeout=300)
         assert json.loads(metadata(fixture, 'DESCRIBE SOURCE earthquakes')[0]['definition']) == declaration
+        assert json.loads(metadata(fixture, 'DESCRIBE SINK exchange')[0]['definition']) == sink_declaration
         recovered = Client(fixture.console_config(), fixture.record()['definition']).open()
         try:
             assert recovered.call(dict(status=dict(token=token)))['operation'] == original
             assert recovered.execute(SOURCE, token=token)['operation'] == original
+            assert recovered.call(dict(status=dict(token=sink_token)))['operation'] == original_sink
+            assert recovered.execute(SINK, token=sink_token)['operation'] == original_sink
+            assert recovered.execute(authorize_sql, token=authorize_token)['operation'] == original_authorize
+            after_restart = metadata(fixture, 'SHOW SINK exchange')[0]
+            assert after_restart['state'] == 'active' and after_restart['epoch'] == '5'
+            assert after_restart['executor_role'] == sink_metadata['executor_role']
         finally:
             recovered.close()
         fixture.console('RETIRE SOURCE earthquakes;\n')
         retired = metadata(fixture, 'SHOW SOURCE earthquakes')[0]
         assert retired['state'] == 'retired' and retired['epoch'] == '2'
         assert json.loads(retired['definition']) == declaration
-        fixture.console('DROP SOURCE earthquakes RESTRICT;\nDROP CONNECTION upstream RESTRICT;\n')
+        fixture.console('DROP SOURCE earthquakes RESTRICT;\n')
+        fixture.console('DROP CONNECTION upstream;\n', expected=1)
+        fixture.console('RETIRE SINK exchange;\n')
+        retired_sink = metadata(fixture, 'SHOW SINK exchange')[0]
+        assert retired_sink['state'] == 'retired' and retired_sink['epoch'] == '6'
+        assert retired_sink['executor_role'] == sink_metadata['executor_role']
+        assert json.loads(retired_sink['definition']) == sink_declaration
+        fixture.console('DROP SINK exchange RESTRICT;\nDROP CONNECTION upstream RESTRICT;\n')
         assert metadata(fixture, 'SHOW SOURCES') == []
         assert metadata(fixture, 'SHOW CONNECTIONS') == []
-        fixture.console(f"CREATE CONNECTION upstream TO HTTP (endpoint='http://127.0.0.1:{peer.server_port}');\n" + SOURCE + ';\n')
+        assert metadata(fixture, 'SHOW SINKS') == []
+        fixture.console(f"CREATE CONNECTION upstream TO HTTP (endpoint='http://127.0.0.1:{peer.server_port}');\n" + SOURCE + ';\n' + SINK + ';\n')
         replacement = json.loads(metadata(fixture, 'SHOW SOURCE earthquakes')[0]['definition'])
         assert replacement['object'] != declaration['object']
+        assert json.loads(metadata(fixture, 'SHOW SINK exchange')[0]['definition'])['object'] != sink_declaration['object']
         recovered = Client(fixture.console_config(), fixture.record()['definition']).open()
         try:
             assert recovered.call(dict(status=dict(token=token)))['operation'] == original
             assert recovered.execute(SOURCE, token=token)['operation'] == original
+            assert recovered.execute(SINK, token=sink_token)['operation'] == original_sink
         finally:
             recovered.close()
-        fixture.console('RETIRE SOURCE earthquakes;\nDROP SOURCE earthquakes;\nDROP CONNECTION upstream;\n')
+        fixture.console('RETIRE SOURCE earthquakes;\nDROP SOURCE earthquakes;\nRETIRE SINK exchange;\nDROP SINK exchange;\nDROP CONNECTION upstream;\n')
         empty_destination(fixture, declaration['payload']['source']['destination'])
         assert Peer.requests == 0, Peer.requests
         fixture.stop()
         missing_executor(cli, node, host)
         success = True
-        print('Installed SOURCE: explicit executor, pure EXPLAIN, lost reply, original recovery, restart, retire/drop and zero HTTP requests passed.', flush=True)
+        print('Installed SOURCE/SINK: pure EXPLAIN, lost replies, original recovery, restart, retire/drop, name reuse and zero HTTP requests passed.', flush=True)
     finally:
         fixture.cleanup()
         peer.shutdown()

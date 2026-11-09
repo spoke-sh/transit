@@ -23,7 +23,7 @@ pub const SourceFile = struct {
         if (self.name.len == 0 or self.name.len > max_name_bytes) return error.InvalidMigrationVersion;
         if (self.path.len == 0 or self.path.len > max_path_bytes) return error.InvalidMigrationVersion;
         if (self.sql.len == 0 or self.sql.len > api.max_sql_bytes) return error.InvalidSqlText;
-        try api.fuze.Sql.validateText(self.sql);
+        _ = try api.fuze.SqlInput.SourceScan.init(self.sql);
         var computed: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(self.sql, &computed, .{});
         if (!std.mem.eql(u8, &computed, &self.sha256)) return error.MigrationChecksumMismatch;
@@ -219,4 +219,21 @@ test "migration request validates sorted version ordering and source SHA-256 dig
         .sha256 = corrupted,
     }};
     try t.expectError(error.MigrationChecksumMismatch, bad_sha.validate());
+}
+
+test "migration files retain exact checksums beyond the interactive statement limit" {
+    const t = std.testing;
+    const bytes = try t.allocator.alloc(u8, api.max_sql_bytes + 1);
+    defer t.allocator.free(bytes);
+    @memset(bytes, ' ');
+    @memcpy(bytes[0..9], "SELECT 1;");
+    const sql = bytes[0..api.max_sql_bytes];
+    var source: SourceFile = .{ .version_id = "0001", .name = "large", .path = "0001-large.sql", .sql = sql, .sha256 = undefined };
+    std.crypto.hash.sha2.Sha256.hash(sql, &source.sha256, .{});
+    try source.validate();
+    try t.expectError(error.StatementTooLarge, api.fuze.Sql.validateText(sql));
+    source.sha256[0] ^= 1;
+    try t.expectError(error.MigrationChecksumMismatch, source.validate());
+    source.sql = bytes;
+    try t.expectError(error.InvalidSqlText, source.validate());
 }

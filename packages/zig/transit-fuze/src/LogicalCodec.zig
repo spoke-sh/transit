@@ -119,14 +119,14 @@ pub fn apply(allocator: std.mem.Allocator, action: Action) !Result {
             defer target.deinit();
             if (owner.cell != .value or owner.cell.value != .atom) return error.NonScalarCast;
             const atom = try t.Semantics.cast(owner.cell.value.atom, owner.field.type, target.type, input.rounding);
-            break :blk try valueResult(allocator, .{ .value = .{ .atom = atom } }, .{ .name = "value", .type = target.type, .nullable = owner.field.nullable, .optional = owner.field.optional });
+            break :blk try valueResult(allocator, .{ .value = .{ .atom = atom } }, .{ .name = "value", .type = target.type, .nullable = owner.field.nullable, .optional = owner.field.optional, .max_characters = if (target.type == .utf8 and owner.field.type == .utf8) owner.field.max_characters else null });
         },
         .equal, .order => |input| blk: {
             var left = try j.decode(allocator, input.left_json);
             defer left.deinit();
             var right = try j.decode(allocator, input.right_json);
             defer right.deinit();
-            if (left.field.nullable != right.field.nullable or left.field.optional != right.field.optional or !try left.field.type.eql(right.field.type)) return error.IncompatibleTypes;
+            if (left.field.nullable != right.field.nullable or left.field.optional != right.field.optional or left.field.max_characters != right.field.max_characters or !try left.field.type.eql(right.field.type)) return error.IncompatibleTypes;
             break :blk if (action == .equal) .{ .equal = try t.Operations.eql(left.field, left.cell, right.cell) } else .{ .order = try t.Operations.order(left.field, left.cell, right.cell) };
         },
         .hash => |bytes| blk: {
@@ -165,7 +165,7 @@ pub fn execute(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
 }
 test "logical codec owns complete results and rejects incompatible definitions without I/O" {
     const testing = std.testing;
-    const input = "{\"bind\":{\"type_json\":\"{\\\"definition\\\":\\\"transit.fuze.types.v1.2026-11-01.companions\\\",\\\"type\\\":{\\\"uint128\\\":{}}}\",\"literal\":\"340282366920938463463374607431768211455\"}}";
+    const input = "{\"bind\":{\"type_json\":\"{\\\"definition\\\":\\\"transit.fuze.types.v1.2026-11-08.capability-handles\\\",\\\"type\\\":{\\\"uint128\\\":{}}}\",\"literal\":\"340282366920938463463374607431768211455\"}}";
     try testing.checkAllAllocationFailures(testing.allocator, struct {
         fn run(allocator: std.mem.Allocator, bytes: []const u8) !void {
             const output = try execute(allocator, bytes);

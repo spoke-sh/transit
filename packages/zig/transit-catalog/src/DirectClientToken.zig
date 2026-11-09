@@ -44,13 +44,39 @@ pub const Key = struct {
 /// Optional request fence against a specific Catalog recovery revision. The
 /// local host holds shared Catalog access through execution/disclosure; replacing
 /// this record requires exclusive access, so stale requests cannot cross it.
+pub const Fence = struct {
+    key: Key,
+    revision: p.DataLifecycle.Position,
+    pub fn validate(self: Fence, connection: c.DirectTableProtocol.Connection) !void {
+        try self.key.validate();
+        try self.revision.validate();
+        if (!std.meta.eql(self.key.connection.scope, connection.scope) or self.key.connection.principal != connection.principal or self.key.connection.audience != connection.audience or self.key.connection.branch != connection.branch) return error.InvalidClientToken;
+    }
+};
+/// A service generation and one invocation may fence the same request. Both
+/// records are checked under the same Catalog access held through execution.
 pub const Lease = struct {
     key: Key,
     revision: p.DataLifecycle.Position,
+    additional: ?Fence,
+
+    pub fn primary(self: Lease) Fence {
+        return .{ .key = self.key, .revision = self.revision };
+    }
     pub fn validate(self: Lease, connection: c.DirectTableProtocol.Connection) !void {
-        try self.key.validate();
-        try self.revision.validate();
-        if (!std.meta.eql(self.key.connection.scope, connection.scope) or self.key.connection.principal != connection.principal or self.key.connection.audience != connection.audience) return error.InvalidClientToken;
+        try self.primary().validate(connection);
+        if (self.additional) |value| {
+            try value.validate(connection);
+            if (std.mem.eql(u8, &try value.key.digest(), &try self.key.digest())) return error.InvalidClientToken;
+        }
+    }
+    pub fn combine(existing: ?Lease, value: Fence) !Lease {
+        try value.validate(value.key.connection);
+        var result = existing orelse return .{ .key = value.key, .revision = value.revision, .additional = null };
+        if (result.additional != null) return error.InvalidClientToken;
+        result.additional = value;
+        try result.validate(value.key.connection);
+        return result;
     }
 };
 

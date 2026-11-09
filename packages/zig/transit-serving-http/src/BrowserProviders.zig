@@ -81,7 +81,7 @@ pub fn fetch(allocator: std.mem.Allocator, io: std.Io, url: []const u8, body: ?[
     var capture: Capture = .{ .out = .init(allocator) };
     defer capture.out.deinit();
     var reader: std.Io.Reader = .fixed(body orelse "");
-    const result = try transport.execute(allocator, io, .{ .host = host, .address = address, .port = port, .tls = secure, .ca_file = ca_file, .timeout_ms = 5000 }, .{ .method = if (body != null) .POST else .GET, .target = &.{.{ .literal = target }}, .headers = headers[0..if (bearer != null) 4 else 3], .body_bytes = if (body) |bytes| bytes.len else 0 }, &reader, null, .{ .context = &capture, .segment = Capture.segment });
+    const result = try transport.execute(allocator, io, .{ .host = host, .address = address, .port = port, .tls = secure, .ca_file = ca_file, .timeout_ms = 5000 }, .{ .method = if (body != null) .POST else .GET, .target = &.{.{ .literal = target }}, .headers = headers[0..if (bearer != null) 4 else 3], .body_bytes = if (body) |bytes| bytes.len else 0 }, &reader, null, .{ .context = &capture, .segment = Capture.segment }, null);
     if (result.status < 200 or result.status >= 300) return error.ProviderExchangeRejected;
     return capture.out.toOwnedSlice();
 }

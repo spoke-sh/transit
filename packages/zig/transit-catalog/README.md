@@ -5,6 +5,16 @@ and Stream policy, returning stable column IDs independently of column order.
 It performs no catalog lookup or ingestion. The [source contract](../../../contracts/SOURCE_V1.md)
 keeps durable declaration, capture and activation gates separate.
 
+The same `DirectSource` owner publishes typed HTTP sinks with a distinct native
+authority domain and exact connection dependency. It recovers the original
+publication, rechecks connection use, protects the connection from DROP and
+removes the edge only through the sink's retired DROP. Its native controls bind
+an explicit dispatch role at authorization and preserve it through activation,
+suspension, resumption and retirement, with conditional epochs and original
+operation recovery. SQL resolves role names through `DirectAuthorizationSql`;
+native control publication rechecks role selection. Desired activation does not
+dispatch HTTP or prove worker/dependency readiness.
+
 `DirectCatalogRead.apply` composes read-only inspection, resource and dependency
 callers for data exploration. It returns bounded pages and exact Table metadata;
 lookup checks the supplied interpretation rather than accepting a changed name
@@ -26,8 +36,30 @@ bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
 `transit-storage` owns Table acceptance and retained data. Native authorization
 owns roles, grants, current credentials and resource lifetime.
 
-`DirectRecord` high-bit formats carry immutable read envelopes with one to three
-Table/KV object requirements. Staging validates caller-provided bytes and grants
+Ordered application programs use explicit `application` dependency edges over
+the existing graph. They permit shared transactional state writers while finite
+managed Tables retain their writer-exclusion rule. A `check_set` dependency entry
+rechecks the registered edge, exact live definitions and all current action
+privileges without creating work. Ordinary graph inspection remains a metadata
+operation and does not establish readiness to execute.
+
+A `check_set` current-state entry verifies an exact public Table/KV definition
+and logical read basis under publication exclusion and current read privileges,
+including reads that found no row. Acceptance-only bookkeeping can advance;
+logical changes reject. The bounded set creates no pins or durable work and
+cannot check private workspace data. It is a current observation, not retained
+authority to dispatch an effect.
+Current-connector entries similarly bind exact definitions and control epochs;
+sink use additionally requires active control and its authorized effective role.
+Current connector state resides in the existing paged object directory, accepted
+by the same catalog WAL transition. Publication and recovery verify its exact
+declaration, control and dropped state. Current checks therefore avoid historical
+WAL scans without caching grants or retaining the entire connector inventory in
+memory. Original operation receipts continue to resolve through the WAL.
+
+`DirectRecord` high-bit formats carry immutable read envelopes with one to 14
+Table/KV/Document/Stream/Queue object requirements, bounded by the existing native
+authorization budget. The list has no null slots. Staging validates caller-provided bytes and grants
 no read authority. The catalog rechecks all current read grants on disclosure,
 including raw record reads. Format and envelope bytes
 participate in the immutable key; changing either cannot unwrap an existing
@@ -52,6 +84,10 @@ collector preserves both at its cut and can reclaim superseded records while
 retaining catalog replay and the original admission record. Generic staging and
 binding cannot give a collectible progress record a permanent lifetime. Initial
 external bindings also reject transaction-owned `TXR1` candidates.
+Both `SOR1` and `CPR1` support guarded inner formats. Their immutable dependency
+lists are validated before staging and enforced on generic reads of the outer
+envelope, including after restart. Non-payload token status remains inspectable
+when a dependency's read grant is revoked; it does not reveal guarded values.
 
 ## Lifecycle owner
 
@@ -66,6 +102,10 @@ Pages retain the original schema and payload while reporting current lease state
 separately. `DirectQueueResponse` validates that attribution, observation basis,
 row identities, byte budgets and exact cursor advance. The signed `queue` action
 and `DirectQueueClient` expose standalone operations through the native service.
+The read-only `current_time` action returns a validated public cut, trusted UTC
+interval and accepted time floor under current inspect rights. Sampling does
+not publish a new floor or acquire a lease; ordinary cut inspection does not
+require a clock.
 Saved work preserves the exact original mutation and payload commitment. The
 local node performs bounded automatic lease expiry through catalog maintenance.
 Stream and Queue `cancel` requests carry that same saved work and use control
@@ -205,8 +245,24 @@ both phases within the transaction's resident memory limit. `DirectTransactionCl
 exposes staging, admission, evaluation and original outcome inspection. Prepared
 data verification traverses the owning graph with a metered depth-first stack;
 the final lease/retention check uses trusted host time immediately before the
-decision. Ordinary mutation cannot reuse a private operation reservation, while
-read-only operation lookup can disclose its actual receipt after commit.
+decision. An optional frozen `Begin.deadline` adds a final trusted-time check
+under the same publication guard, including transactions with no log writes.
+Missing or regressing time and an upper time bound at or beyond expiry refuse a
+fresh commit. Abort cleanup and inspection of an already committed original do
+not renew or recheck that deadline; they still require current authority. Ordinary
+mutation cannot reuse a private operation reservation, while read-only operation
+lookup can disclose its actual receipt after commit.
+
+`DirectDocument.Revision` guards reads of the current SQL versioned row Document
+profile through that profile's existing shared row partition. It binds the exact
+immutable policy, definition and data frontier observed with the read. Its
+`target` method explicitly lowers to the physical `table` participant, and
+`requireWorkspace` compares the observation with a serializable retained cut.
+The coordinator still checks the read participant immediately before the common
+decision. No separate Table copy or Document policy store is created. Policy
+publication shares the immutable definition acceptance; admission, cancellation
+and lost replies cannot publish a different policy. The adapter does not enable
+partitioned tree Document participants or installed application execution.
 
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
@@ -619,3 +675,37 @@ Pure proposals, bounded live metadata pages, original recovery, retirement and
 restricted DROP share the [direct contract](../../../contracts/DIRECT_TABLE_V1.md#connection-and-source-declarations).
 The [SOURCE contract](../../../contracts/SOURCE_V1.md) owns bounds, current
 capabilities and the future activation boundary.
+
+
+## Canonical native state bindings
+
+`NativeBindingSchema` validates canonical Table/KV layouts and prepares the
+binding Table's intrinsic credential CHECK. `DirectTablePreparedDdl`,
+`DirectTableTyped` and `DirectKVPreparedDdl` use the ordinary declaration owner;
+`DirectCatalog.resolveNativeBinding` and the signed `native_binding` action
+inspect its exact definition under current namespace/resource rights. The
+catalog's paged index retains only the original resource/creation identity.
+See the [binding contract](../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations)
+for schema, uniqueness, retirement and integration limits.
+
+Creating a native binding requires namespace ownership as well as ordinary
+database access and ownership of any registered target. A namespace CREATE grant
+alone cannot reserve a canonical state identity.
+
+`DirectSecret` adds the `transit.secret_references` KV binding. Its non-null ROW
+has `name VARCHAR(255)`, `file VARCHAR(255)`, `content_sha256 BINARY`, and
+`enabled BOOLEAN`, in that order. Names and file basenames use ASCII letters,
+digits, dots, underscores and hyphens and begin with a letter or digit. The key
+is the domain-separated SHA-256 name digest; the value also retains the full
+name. The content commitment has exactly 32 bytes. These are references to
+mounted bytes; the KV contains no credentials.
+
+Reads require native KV READ and `use_secret` rights. Common transactions retain
+the same KV read guard and recheck both rights before publishing their decision.
+`DirectSecret.current` compares the exact immutable resource definition and KV
+row revision, including disabled and absent observations. Its revision descriptor
+does not grant access. The private loader must verify the declared SHA-256 over
+the exact nonempty file bytes, bounded to 64 KiB; no trimming or substitution is
+implicit. This metadata component still needs the administrative secret cutover,
+executable helper dependencies and live HTTP loader integration described in the
+[application contract](../../../contracts/APPLICATION_PROGRAM_V1.md).

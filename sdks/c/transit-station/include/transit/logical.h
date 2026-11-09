@@ -22,6 +22,8 @@ enum {
     TRANSIT_LOGICAL_UUID, TRANSIT_LOGICAL_JSON, TRANSIT_LOGICAL_DECIMAL,
     TRANSIT_LOGICAL_TIMESTAMP, TRANSIT_LOGICAL_STRUCTURE, TRANSIT_LOGICAL_TAGGED_UNION,
     TRANSIT_LOGICAL_LIST, TRANSIT_LOGICAL_ARRAY, TRANSIT_LOGICAL_MAP,
+    /* Descriptor metadata only; there is no public capability atom. */
+    TRANSIT_LOGICAL_CAPABILITY,
     /* Source mismatch evidence only; never descriptor tags. */
     TRANSIT_LOGICAL_UNKNOWN, TRANSIT_LOGICAL_NULL_VALUE, TRANSIT_LOGICAL_TEXT,
     TRANSIT_LOGICAL_CHARACTER
@@ -31,6 +33,8 @@ enum { TRANSIT_LOGICAL_CIVIL, TRANSIT_LOGICAL_UTC };
 typedef struct transit_logical_type_view transit_logical_type_view;
 typedef struct transit_logical_field {
     transit_sdk_bytes name; const transit_logical_type_view *type; bool nullable, optional;
+    /* Zero is unbounded; a positive limit counts Unicode scalar values and requires UTF8. */
+    uint32_t max_characters;
 } transit_logical_field;
 typedef struct transit_logical_element { const transit_logical_type_view *type; bool nullable; } transit_logical_element;
 struct transit_logical_type_view {

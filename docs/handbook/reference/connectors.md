@@ -12,6 +12,16 @@ executor, support retirement and restricted DROP, and report `never_run`.
 They do not yet schedule HTTP requests or capture bodies. The recorded effect
 profiles below have their own execution contracts.
 
+The typed connector catalog also publishes application HTTP sinks. Each sink
+binds an exact connection and its own native `inspect`/`use` authority, protects
+the connection from DROP, and supports retirement before removal. Its bounded
+transport profile permits GET or form POST, protected JSON responses, redacted
+metadata capture, one attempt and no redirects. Native cohosted
+[CREATE SINK](sql/create-sink.md) publishes these declarations and supplies
+explicit role authorization and desired activation controls. Application HTTP
+dispatch remains unfinished. See the
+[application sink contract](../../../contracts/SOURCE_V1.md#application-http-sinks).
+
 The [sealed HTTP import component](../../../packages/zig/transit-source-import/README.md)
 can retain an already complete, authenticated Exchange and copy its raw response
 into destination-owned [SOURCE capture storage](streams.md#owned-source-captures).

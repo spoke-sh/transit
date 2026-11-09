@@ -10,12 +10,13 @@ or Station actor turns. Fuze's Zig `Declaration.compile` also validates the sing
 ## Syntax
 
 ```text
-CREATE KV [IF NOT EXISTS] name (data_type [NULL | NOT NULL]);
+CREATE KV [IF NOT EXISTS] name (data_type [NULL | NOT NULL])
+  [WITH (native_binding = binding_name)];
 ALTER KV name RENAME TO new_name;
 DROP KV [IF EXISTS] name [RESTRICT];
 
 PUT INTO name KEY key_operand VALUE value_operand [IF ABSENT | IF PRESENT];
-PUT INTO name VALUES ((key_operand, value_operand) [, ...]) [IF ABSENT | IF PRESENT];
+PUT INTO name VALUES (key_operand, value_operand) [, ...] [IF ABSENT | IF PRESENT];
 GET FROM name KEY key_operand;
 DELETE FROM name KEY key_operand;
 DELETE FROM name KEYS (key_operand [, ...]);
@@ -24,17 +25,29 @@ SHOW KVS;
 SHOW KV name;
 DESCRIBE [KV] name;
 data_type := INT64 | BIGINT | BOOL | BOOLEAN | UTF8 | TEXT | BINARY | BYTEA
+           | ROW (field_name field_type [NULL | NOT NULL] [, ...])
 ```
 
 `name` is an identifier. Value nullability defaults to `NOT NULL` when omitted.
 Keys are non-empty UTF-8 strings (`'key'`) or binary hex literals (`X'...'`,
 `'\x...'::bytea`) of 1–1,024 bytes.
+`ROW` (also spelled `STRUCT`) admits 1–64 ordered logical fields. Fields default
+to nullable and preserve nested `VARCHAR(n)` character limits. Row literals are
+supported; whole-row SQL parameters are unsupported.
+
+`native_binding` accepts the quoted names `browser.challenges` and
+`browser.sessions` with the exact [canonical browser schemas](../../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations).
+A binding names this KV as the canonical resource in its namespace; it grants no
+access and does not activate browser programs. The signed catalog binding lookup
+and ordinary KV lookup return the same immutable definition.
 
 ## Examples
 
 ```sql
 CREATE KV settings (UTF8);
 CREATE KV counters (INT64);
+CREATE KV sessions (ROW (identity_id VARCHAR(64), revoked BOOLEAN NOT NULL));
+PUT INTO sessions KEY 'example' VALUE ROW('identity', FALSE) IF ABSENT;
 ```
 
 Direct catalog sessions also accept explicit nullability, point-keyed workload verbs and inspection forms:
@@ -70,4 +83,4 @@ See [query source profiles](../queries.md#source-declarations).
 The [offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)
 defines owned names, complete-input validation, canonical formatting and bounds.
 
-Source: [`createKv`, `dataType`](../../../../contracts/sql/TransitExtensions.g4).
+Source: [`createKv`, `kvWorkloadCommand`, `dataType`](../../../../contracts/sql/TransitExtensions.g4).

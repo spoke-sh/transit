@@ -2,6 +2,11 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidSinkEncoding, .code = "catalog.invalid_sink_encoding", .category = .binding, .message = "Use GET without a request body or POST with form encoding for an application HTTP sink." },
+    .{ .cause = error.InvalidSinkHeader, .code = "catalog.invalid_sink_header", .category = .binding, .message = "Sink Accept and User-Agent values require one to 256 printable ASCII bytes without control characters." },
+    .{ .cause = error.InvalidSinkBudget, .code = "catalog.invalid_sink_budget", .category = .limit, .message = "Declare a positive request timeout and a protected response budget from one byte through 64 KiB." },
+    .{ .cause = error.InvalidSinkRetryPolicy, .code = "catalog.invalid_sink_retry_policy", .category = .binding, .message = "Application HTTP sinks require exactly one attempt and no redirect following. Unknown outcomes remain retained." },
+    .{ .cause = error.NativeBindingConflict, .code = "catalog.native_binding_conflict", .category = .conflict, .message = "The existing object does not have the proposed native binding. Inspect its accepted definition before preparing new work." },
     .{ .cause = error.BranchRetired, .code = "catalog.branch_retired", .category = .lifecycle, .message = "This branch has been retired. Its original creation remains successful, but its retained source and read continuations are unavailable." },
     .{ .cause = error.InvalidBranchCursor, .code = "catalog.invalid_branch_cursor", .category = .binding, .message = "The branch cursor must preserve its original namespace, catalog position and continuation identity." },
     .{ .cause = error.UnsupportedHistoricalKind, .code = "catalog.unsupported_historical_kind", .category = .unsupported, .message = "This caller profile cannot preserve the selected historical or view binding. Use the qualified historical SQL or catalog read operation." },

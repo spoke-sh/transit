@@ -81,6 +81,7 @@ fn provision(admin: *Admin) !Profile {
     const kv_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.kv) } })).?;
     const connection_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.connection) } })).?;
     const source_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.source) } })).?;
+    const sink_domain = (try admin.change(.{ .register_domain = .{ .lifetime_resource = resource, .registrar = 0, .actions = c.TableAuthority.actions(.sink) } })).?;
     const scope: d.Scope = .{ .realm = 42, .resource = resource, .catalog = 1 };
     const database = (try admin.change(.{ .register_object = .{ .domain = database_domain, .owner = role, .binding = try c.TableAuthority.binding(scope, .database, 0) } })).?;
     const namespace = (try admin.change(.{ .register_object = .{ .domain = schema_domain, .owner = role, .schema = c.TableAuthority.reference(database), .binding = try c.TableAuthority.binding(scope, .schema, 1) } })).?;
@@ -89,7 +90,7 @@ fn provision(admin: *Admin) !Profile {
         .branch = 1,
         .partition = 1,
         .audience = 100,
-        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .connection_domain = connection_domain, .source_domain = source_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
+        .authority = .{ .database_domain = database_domain, .schema_domain = schema_domain, .table_domain = table_domain, .stream_domain = stream_domain, .queue_domain = queue_domain, .kv_domain = kv_domain, .connection_domain = connection_domain, .source_domain = source_domain, .sink_domain = sink_domain, .database = database, .initial_schema = 1, .initial_schema_authority = namespace },
         .database_name = try .init("transit"),
         .initial_schema_name = try .init("public"),
     } };
@@ -142,6 +143,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
             .definition = g.current_definition,
             .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
             .mode = .serializable,
+            .deadline = null,
             .selection = .explicit_objects,
             .objects = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
             .catalog = .{ .partition = profile.catalog.partition, .next_lsn = 1 },

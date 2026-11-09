@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49"
+definition = "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -210,7 +210,7 @@ with tempfile.TemporaryDirectory(prefix="transit-direct-contract-") as directory
     kv_digest_intent["action"]["rename"]["bytes"] = bytes(kv_intent["action"]["rename"]["bytes"]).decode()
     kv_digest = hashlib.sha256(b"transit.catalog.ddl.intent.v1\0" + canonical(kv_digest_intent)).digest()
     kv_binding = {**log_binding, "intent": list(kv_digest)}
-    kv_declaration = {"binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
+    kv_declaration = {"native_binding": None, "binding": kv_binding, "namespace": 1, "name": native_name("state"), "action": {"rename": native_name("renamed_state")}}
     def signed_kv(action):
         envelope = {**request_input, "action": action}
         selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(envelope)).digest())}
@@ -719,6 +719,27 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
 
+# Service and invocation progress are independent signed request conditions.
+fence = dict(key=token_key, revision=dict(partition=1, next_lsn=3))
+additional = dict(key={**token_key, "token": [14] * 16}, revision=dict(partition=1, next_lsn=4))
+lease_input = {**request_input, "action": {"describe": {}}, "lease": {**fence, "additional": additional}}
+lease_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(lease_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-lease-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    lease_request = {**lease_input, "proof": {"claim": lease_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(lease_claim)).digest())}}
+validator.validate(lease_request)
+for field in ("key", "revision", "additional"):
+    invalid = copy.deepcopy(lease_request)
+    del invalid["lease"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("key", "revision"):
+    invalid = copy.deepcopy(lease_request)
+    del invalid["lease"]["additional"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-lease-v1.json",
+        (json.dumps({"request": lease_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
+
 # Transaction-owned records bind the original owner, inner guarded format and
 # immutable payload in the signed native request. Missing/foreign owners reject.
 owned_input = {**request_input, "action": {"record": {"stage_transaction": {
@@ -1047,6 +1068,7 @@ transaction_begin = {
     "catalog": {"partition": 1, "next_lsn": 19},
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
+    "deadline": {"floor_ms": 100, "expires_ms": 200},
 }
 transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
@@ -1077,7 +1099,9 @@ selected_begin = {
         {"object": target_object, "kind": "queue", "partition": 0},
         {"object": target_object, "kind": "queue", "partition": 2**32 - 1},
     ]},
-    "limits": transaction_begin["limits"], "budget": token_binding["budget"],
+    "limits": transaction_begin["limits"],
+    "deadline": {"floor_ms": 100, "expires_ms": 200},
+    "budget": token_binding["budget"],
 }
 selected_input = {**request_input, "action": {"transaction": {"begin": selected_begin}}}
 selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(selected_input)).digest())}
@@ -1086,6 +1110,9 @@ with tempfile.TemporaryDirectory(prefix="transit-transaction-selection-contract-
     selected_request = {**selected_input, "proof": {"claim": selected_claim,
         "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(selected_claim)).digest())}}
 validator.validate(selected_request)
+missing_deadline = copy.deepcopy(selected_request)
+del missing_deadline["action"]["transaction"]["begin"]["deadline"]
+assert not validator.is_valid(missing_deadline), 'transaction deadline is mandatory'
 for field in ("object", "kind", "partition"):
     invalid = copy.deepcopy(selected_request)
     del invalid["action"]["transaction"]["begin"]["selection"]["explicit_objects"][0][field]

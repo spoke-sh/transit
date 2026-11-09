@@ -34,79 +34,41 @@ pub const ParsedStep = struct {
 /// Splits a multi-statement SQL file on top-level semicolons while preserving
 /// comments, quoted strings, quoted identifiers and 1-based line/column positions.
 pub fn splitStatements(allocator: std.mem.Allocator, sql_text: []const u8) ![]ParsedStep {
-    try f.Sql.validateText(sql_text);
-    var scan = try f.SqlInput.Scan.init(sql_text);
+    var source = try f.SqlScript.init(sql_text);
     var steps: std.ArrayList(ParsedStep) = .empty;
-    var stmt_start: ?usize = null;
-    var stmt_end: usize = 0;
-    var first_word: ?f.SqlInput.Token = null;
-    var second_word: ?f.SqlInput.Token = null;
-    var third_word: ?f.SqlInput.Token = null;
-    var depth: usize = 0;
-
-    while (try scan.next()) |token| {
-        if (token.kind == .space or token.kind == .comment) continue;
-        if (token.kind == .symbol and std.mem.eql(u8, sql_text[token.start..token.end], "(")) {
-            depth += 1;
-        } else if (token.kind == .symbol and std.mem.eql(u8, sql_text[token.start..token.end], ")")) {
-            if (depth > 0) depth -= 1;
+    var scratch: std.heap.ArenaAllocator = .init(allocator);
+    defer scratch.deinit();
+    errdefer {
+        for (steps.items) |step| {
+            allocator.free(step.object_name);
+            allocator.free(step.sql);
         }
-        if (token.kind == .symbol and depth == 0 and std.mem.eql(u8, sql_text[token.start..token.end], ";")) {
-            if (stmt_start) |start| {
-                const slice = std.mem.trim(u8, sql_text[start..stmt_end], " \t\r\n");
-                if (slice.len != 0) {
-                    if (steps.items.len >= M.max_steps_per_version) return error.InvalidMigrationStepCount;
-                    const step = try classifyStatement(
-                        allocator,
-                        sql_text,
-                        start,
-                        slice,
-                        @intCast(steps.items.len + 1),
-                        first_word,
-                        second_word,
-                        third_word,
-                    );
-                    try steps.append(allocator, step);
-                }
-            }
-            stmt_start = null;
-            first_word = null;
-            second_word = null;
-            third_word = null;
-            continue;
-        }
-        if (stmt_start == null) stmt_start = token.start;
-        stmt_end = token.end;
-        if (first_word == null) {
-            first_word = token;
-        } else if (second_word == null) {
-            second_word = token;
-        } else if (third_word == null) {
-            third_word = token;
-        }
+        steps.deinit(allocator);
     }
-    if (stmt_start) |start| {
-        const slice = std.mem.trim(u8, sql_text[start..stmt_end], " \t\r\n");
-        if (slice.len != 0) {
-            if (steps.items.len >= M.max_steps_per_version) return error.InvalidMigrationStepCount;
-            const step = try classifyStatement(
-                allocator,
-                sql_text,
-                start,
-                slice,
-                @intCast(steps.items.len + 1),
-                first_word,
-                second_word,
-                third_word,
-            );
-            try steps.append(allocator, step);
-        }
+    while (try source.next()) |statement| {
+        if (steps.items.len >= M.max_steps_per_version) return error.InvalidMigrationStepCount;
+        _ = scratch.reset(.retain_capacity);
+        var step = try classifyStatement(
+            scratch.allocator(),
+            sql_text,
+            statement.start,
+            sql_text[statement.start..statement.end],
+            @intCast(steps.items.len + 1),
+            statement.first[0],
+            statement.first[1],
+            statement.first[2],
+        );
+        step.object_name = try allocator.dupe(u8, step.object_name);
+        errdefer allocator.free(step.object_name);
+        step.sql = try allocator.dupe(u8, step.sql);
+        errdefer allocator.free(step.sql);
+        try steps.append(allocator, step);
     }
     if (steps.items.len == 0) return error.InvalidMigrationStepCount;
     return steps.toOwnedSlice(allocator);
 }
 
-fn tokenWord(text: []const u8, token: ?f.SqlInput.Token, expected: []const u8) bool {
+fn tokenWord(text: []const u8, token: ?f.SqlScript.Token, expected: []const u8) bool {
     const tok = token orelse return false;
     return tok.kind == .word and std.ascii.eqlIgnoreCase(text[tok.start..tok.end], expected);
 }
@@ -132,15 +94,18 @@ fn classifyStatement(
     offset: usize,
     stmt_sql: []const u8,
     step_index: u16,
-    first: ?f.SqlInput.Token,
-    second: ?f.SqlInput.Token,
-    third: ?f.SqlInput.Token,
+    first: ?f.SqlScript.Token,
+    second: ?f.SqlScript.Token,
+    third: ?f.SqlScript.Token,
 ) !ParsedStep {
     const pos = lineAndColumn(full_text, offset);
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(stmt_sql, &digest, .{});
 
-    if (g.database.ManagedSql.parse(allocator, stmt_sql, .transit) catch null) |value| {
+    if (g.database.ManagedSql.parse(allocator, stmt_sql, .transit) catch |err| switch (err) {
+        error.OutOfMemory => return err,
+        else => null,
+    }) |value| {
         var managed = value;
         defer managed.deinit();
         return .{
@@ -1945,4 +1910,41 @@ test "reviewed migration digest includes caller authority as well as catalog tar
     changed = target;
     changed.account = "another";
     try t.expect(!std.mem.eql(u8, &expected, &computePlanDigest(changed, &.{})));
+}
+
+test "migration framing retains whole procedural bodies and source coordinates" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const sql =
+        \\-- Header
+        \\CREATE DATAFLOW action FROM QUEUE requests AS request AS BEGIN
+        \\  BEGIN ATOMIC
+        \\    IF TRUE THEN REQUIRE TRUE ELSE 'Denied'; END IF;
+        \\  END;
+        \\END;
+        \\ACTIVATE DATAFLOW action;
+    ;
+    const steps = try splitStatements(arena.allocator(), sql);
+    try t.expectEqual(2, steps.len);
+    try t.expectEqual(2, steps[0].line);
+    try t.expectEqual(7, steps[1].line);
+    try t.expect(std.mem.endsWith(u8, steps[0].sql, "END"));
+    // Framing never grants unsupported bodies an execution owner.
+    try t.expectEqual(.service, steps[0].owner);
+    try t.expectEqual(.computation, steps[1].owner);
+    try t.expectError(error.UnterminatedSqlToken, splitStatements(arena.allocator(), "SELECT 1; /* missing end"));
+}
+
+fn allocationFailureFraming(allocator: std.mem.Allocator) !void {
+    const steps = try splitStatements(allocator, "CREATE TABLE items (id BIGINT PRIMARY KEY); INSERT INTO items VALUES (1); SELECT 1;");
+    defer allocator.free(steps);
+    defer for (steps) |step| {
+        allocator.free(step.object_name);
+        allocator.free(step.sql);
+    };
+    try std.testing.expectEqual(3, steps.len);
+}
+test "migration framing releases partial output on every allocation failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationFailureFraming, .{});
 }

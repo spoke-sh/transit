@@ -18,7 +18,8 @@ pub fn write(cell: v.Cell, field: types.Field, writer: *std.Io.Writer) !void {
     const encoded_type = try field.type.encode(&descriptor);
     try writer.writeInt(u16, @intCast(encoded_type.len), .little);
     try writer.writeAll(encoded_type);
-    try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1));
+    try writer.writeByte(@intFromBool(field.nullable) | (@as(u8, @intFromBool(field.optional)) << 1) | (@as(u8, @intFromBool(field.max_characters != null)) << 2));
+    if (field.max_characters) |maximum| try writer.writeInt(u32, maximum, .little);
     try writeCell(cell, field.type, writer);
 }
 /// Canonical cell payload for an enclosing versioned schema-bound record. The
@@ -46,8 +47,8 @@ pub fn decodeBound(arena: *std.heap.ArenaAllocator, field: types.Field, bytes: [
 pub fn decodeBoundInto(arena: std.mem.Allocator, field: types.Field, bytes: []const u8) !v.Cell {
     return decodeBoundWithOwnership(arena, field, bytes, false);
 }
-/// Decode with the same validation as the owned reader, borrowing text, binary
-/// and JSON bytes from immutable input. Recursive child arrays belong to arena.
+/// Decode with the same validation as the owned reader, borrowing text, binary,
+/// JSON and capability handle bytes. Recursive child arrays belong to arena.
 /// Both input and arena must outlive the result; cloneValidated detaches it.
 pub fn decodeBoundBorrowingBytes(arena: std.mem.Allocator, field: types.Field, bytes: []const u8) !v.Cell {
     return decodeBoundWithOwnership(arena, field, bytes, true);
@@ -156,6 +157,7 @@ fn writeAtom(atom: sem.Atom, expected: types.Type, writer: *std.Io.Writer) !void
             try writer.writeInt(i64, interval.nanos, .little);
         },
         .uuid => |bytes| try writer.writeAll(&bytes),
+        .capability => |bytes| try writer.writeAll(bytes),
     }
 }
 pub const Decoded = struct {
@@ -209,8 +211,9 @@ pub fn decodeInto(arena: std.mem.Allocator, bytes: []const u8) !DecodedInto {
     if (!std.mem.eql(u8, try reader.reader.take(4), "FVL1")) return error.InvalidValueEncoding;
     const descriptor = try types.decodeInto(arena, try reader.reader.take(try reader.reader.takeInt(u16, .little)));
     const flags = try reader.reader.takeByte();
-    if (flags > 3) return error.InvalidValueEncoding;
-    const field: types.Field = .{ .name = "value", .type = descriptor, .nullable = flags & 1 != 0, .optional = flags & 2 != 0 };
+    if (flags > 7) return error.InvalidValueEncoding;
+    const maximum = if (flags & 4 != 0) try reader.reader.takeInt(u32, .little) else null;
+    const field: types.Field = .{ .name = "value", .type = descriptor, .nullable = flags & 1 != 0, .optional = flags & 2 != 0, .max_characters = maximum };
     const cell = try readCell(&reader, field.type, 0);
     if (reader.reader.bufferedLen() != 0) return error.InvalidValueEncoding;
     try cell.validate(field, .{});
@@ -333,9 +336,80 @@ fn readAtom(reader: *Reader, expected: types.Type) !sem.Atom {
         .timestamp => .{ .timestamp = try r.takeInt(i64, .little) },
         .interval => .{ .interval = .{ .months = try r.takeInt(i32, .little), .days = try r.takeInt(i32, .little), .nanos = try r.takeInt(i64, .little) } },
         .uuid => .{ .uuid = (try r.take(16))[0..16].* },
+        .capability => blk: {
+            const limits: types.Limits = .{};
+            if (reader.bytes > limits.value_bytes - 32) return error.ValueBudgetExceeded;
+            reader.bytes += 32;
+            const bytes = (try r.take(32))[0..32];
+            if (reader.borrow_bytes) break :blk .{ .capability = bytes };
+            const owned = try reader.allocator.create([32]u8);
+            owned.* = bytes.*;
+            break :blk .{ .capability = owned };
+        },
         else => error.UnsupportedAtomType,
     };
 }
+test "capability handles have exact native bytes and cannot become public values" {
+    const t = std.testing;
+    const field: types.Field = .{ .name = "request", .type = .capability };
+    var handle: [32]u8 = undefined;
+    for (&handle, 0..) |*byte, index| byte.* = @intCast(index + 1);
+    const atom: sem.Atom = .{ .capability = &handle };
+    const cell: v.Cell = .{ .value = .{ .atom = atom } };
+    var output: [64]u8 = undefined;
+    const encoded = try encodeBound(cell, field, &output);
+    // The enclosing immutable descriptor owns the type. Value state is 3;
+    // there is no binary length prefix or credential payload in this encoding.
+    const expected = [_]u8{3} ++ handle;
+    try t.expectEqualSlices(u8, &expected, encoded);
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const decoded = try decodeBound(&arena, field, encoded);
+    @memset(&output, 0);
+    try t.expectEqualSlices(u8, &handle, decoded.value.atom.capability);
+    var borrowed_input = expected;
+    const borrowed = try decodeBoundBorrowingBytes(arena.allocator(), field, &borrowed_input);
+    const cloned = try v.cloneValidated(arena.allocator(), borrowed);
+    try t.expect(borrowed.value.atom.capability == borrowed_input[1..33]);
+    @memset(&borrowed_input, 0);
+    try t.expectEqualSlices(u8, &handle, cloned.value.atom.capability);
+    for (0..expected.len) |length| {
+        try t.expectError(error.EndOfStream, decodeBound(&arena, field, expected[0..length]));
+    }
+    try t.expectError(error.InvalidValueEncoding, decodeBound(&arena, field, &(expected ++ .{0})));
+    const zero: [32]u8 = @splat(0);
+    try t.expectError(error.ProtectedProgramValue, decodeBound(&arena, field, &([_]u8{3} ++ zero)));
+    try t.expectError(error.TypeMismatch, sem.validate(.{ .bytes = &handle }, .capability));
+    try t.expectError(error.TypeMismatch, sem.validate(atom, .binary));
+    try t.expectError(error.ProtectedProgramValue, sem.bind("anything", .capability));
+    try t.expectError(error.ProtectedProgramValue, sem.cast(atom, .capability, .capability, .reject));
+    try t.expectError(error.ProtectedProgramValue, sem.cast(.{ .bytes = &handle }, .binary, .capability, .reject));
+    try t.expectError(error.ProtectedProgramValue, sem.promote(.capability, .capability));
+    try t.expect(!types.isMapKey(.capability));
+    try t.expect(!@import("TableSchema.zig").keyType(.capability));
+    const literal: @import("SqlLiteral.zig") = .{ .span = .{ .start = 0, .end = 4 }, .value = .null };
+    try t.expectError(error.ProtectedProgramValue, literal.bind(t.allocator, .capability, null));
+    try t.expect(!try types.Operations.supports(.capability, .equality));
+    try t.expect(!try types.Operations.supports(.capability, .ordering));
+    try t.expectError(error.UnsupportedTypeTrait, types.Operations.hash(field, cell));
+    try t.expectError(error.UnsupportedTypeTrait, types.Operations.eql(field, cell, cell));
+    try t.expectError(error.ProtectedProgramValue, v.atomOrder(atom, atom, .capability));
+    try t.expectError(error.ProtectedProgramValue, @import("SqlLogicalPredicate.zig").validateParameter(atom, .capability));
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalJson.zig").encode(t.allocator, cell, field));
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalJson.zig").fromForeign(t.allocator, .null, .{ .name = "request", .type = .capability, .nullable = true }));
+    var writer: std.Io.Writer = .fixed(&output);
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalDisplay.zig").cell(&writer, cell, .capability));
+    try t.expectEqual(@as(usize, 0), writer.end);
+    try t.expectError(error.ProtectedProgramValue, @import("Collation.zig").appendSortKey(&writer, cell, .capability, .utf8_binary));
+    try t.expectEqual(@as(usize, 0), writer.end);
+    // Empty, null and inactive children must not bypass the descriptor gate.
+    const nested: types.Type = .{ .structure = &.{.{ .name = "requests", .type = .{ .list = .{ .type = &.capability } }, .nullable = true }} };
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalDisplay.zig").cell(&writer, .null, nested));
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalJson.zig").foreignCell(t.allocator, .null, nested));
+    var workspace: [64]u8 = undefined;
+    try t.expectError(error.ProtectedProgramValue, @import("LogicalArrow.zig").encode(nested, &.{}, &workspace, &output));
+}
+
 test "neutral recursive cells preserve states and owned bytes through allocation failure" {
     const t = std.testing;
     const field: types.Field = .{ .name = "row", .nullable = true, .optional = true, .type = .{ .list = .{ .type = &.utf8, .nullable = true } } };

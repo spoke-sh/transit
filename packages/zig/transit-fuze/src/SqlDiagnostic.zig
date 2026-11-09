@@ -28,7 +28,6 @@ detail_len: usize = 0,
 
 const mutation_hint = "Use .help INSERT, .help UPDATE or .help DELETE in the console with an authorized Table catalog. A query connection does not grant writes.";
 const read_hint = "Use .help SQL in the console for supported syntax; .schema and .sources show the configured columns and source.";
-const grammar_hint = "This statement family has no executable SQL route; its submitted syntax has not been validated. Use .help SQL in the console for supported statements.";
 
 /// Project only the compiler's original evidence. No follow-up metadata reads.
 pub fn structured(self: Self) !d {
@@ -206,7 +205,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         if (word(text, first, "EXPLAIN") and word(text, second, "CREATE")) {
             while (scan.next() catch null) |token| {
                 if (token.kind == .space or token.kind == .comment) continue;
-                break :explained word(text, token, "SOURCE");
+                break :explained word(text, token, "SOURCE") or word(text, token, "SINK");
             }
         }
         break :explained false;
@@ -235,21 +234,19 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         parsed.deinit();
         result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "This query interface does not apply authorization changes", .hint = "Compile a reviewable plan through the Table bridge compile_authorization operation, then use the explicit native or schema administration lifecycle." };
     } else if (connector_explain or
-        ((word(text, second, "CONNECTION") or word(text, second, "SOURCE")) and
+        ((word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK")) and
             (word(text, first, "CREATE") or word(text, first, "DROP") or word(text, first, "RETIRE") or word(text, first, "SHOW") or word(text, first, "DESCRIBE"))) or
-        (word(text, first, "SHOW") and (word(text, second, "SOURCES") or word(text, second, "CONNECTIONS"))))
+        (word(text, first, "SHOW") and (word(text, second, "SOURCES") or word(text, second, "CONNECTIONS") or word(text, second, "SINKS"))))
     {
         // The owning declaration parser may already have established invalid
         // syntax. Preserve that evidence without inventing an error offset or
         // relabelling its native route as an unavailable query interface.
         if (cause == error.InvalidSqlSyntax) return .{ .kind = .syntax, .route = .connector, .cause = cause, .summary = "Invalid connector declaration syntax", .hint = "Check the native declaration syntax in /reference/sql/create-source/ or /reference/sql/create-connection/." };
-        result = .{ .kind = .interface, .route = .connector, .cause = cause, .summary = "CONNECTION and SOURCE declarations require native cohosted SQL; submitted syntax has not been validated", .hint = "Use /reference/sql/create-source/ and /reference/sql/create-connection/ for the native cohosted declaration profile. HTTP execution is unavailable." };
-    } else if (word(text, first, "CREATE") and word(text, second, "SINK")) {
-        result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution; its submitted syntax has not been validated", .hint = grammar_hint };
+        result = .{ .kind = .interface, .route = .connector, .cause = cause, .summary = "CONNECTION, SOURCE and SINK declarations require native cohosted SQL; submitted syntax has not been validated", .hint = "Use /reference/sql/create-source/, /reference/sql/create-sink/ and /reference/sql/create-connection/ for the native cohosted declaration profile. HTTP execution is unavailable." };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {
         const parsed = (sql.parseInspectionLocated(text, &location) catch |err| return parseFailure(text, err, location, read_hint, .query)).?;
         if (parsed == .show and parsed.show != .tables) {
-            result = .{ .kind = .grammar_only, .cause = cause, .summary = "Catalog listing has reference grammar but no SQL execution", .hint = "SHOW SINKS is grammar-only. Use SHOW TABLES in the console for its configured scope." };
+            result = .{ .kind = .grammar_only, .cause = cause, .summary = "Catalog listing has reference grammar but no SQL execution", .hint = "Use the catalog's native SQL interface; SHOW TABLES inspects this query scope." };
         } else if (!inspection) {
             result = .{ .kind = .interface, .route = .inspection, .cause = cause, .summary = "SQL inspection is unavailable on this query interface", .hint = "Use DESCRIBE, SHOW TABLES or EXPLAIN in the console. Flight clients can use the supported Flight metadata operations." };
         } else return null;
@@ -270,6 +267,47 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
 
 /// Consume context captured by the failing compiler operation, never by a
 /// later catalog read or a guess at similarly spelled source text.
+/// A program has a source-file budget, independently of finite SQL's byte limit.
+/// Keep the original parser location; do not reroute through finite SQL parsing.
+pub fn applicationProgram(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
+    const kind = category(cause) orelse return null;
+    var result: Self = .{
+        .kind = switch (kind) {
+            .syntax => .syntax,
+            .unsupported => .unsupported,
+            .limit => .limit,
+            else => .binding,
+        },
+        .route = .declaration,
+        .cause = cause,
+        .summary = "Application program cannot be compiled",
+        .hint = "Inspect the program instruction and its bound resource types.",
+    };
+    for (@import("SqlCodes.zig").entries) |entry| if (entry.cause == cause) {
+        if (entry.summary) |summary| {
+            result.summary = summary;
+            result.hint = entry.hint.?;
+        }
+        break;
+    };
+    result.source(text, location);
+    return result;
+}
+
+test "program diagnostics preserve source offsets beyond the finite SQL limit" {
+    const t = std.testing;
+    const prefix: [5000]u8 = @splat(' ');
+    const text = prefix ++ "LET invalid = SECRET('never-disclose');";
+    const offset = prefix.len;
+    const detail = applicationProgram(text, error.ProtectedProgramValue, .{ .offset = offset }).?;
+    const result = try detail.structured();
+    try t.expectEqualStrings("sql.protected_program_value", result.code.slice());
+    try t.expectEqual(offset, try result.location.?.offset.value());
+    try t.expectEqual(.not_submitted, result.outcome);
+    try t.expectEqual(0, detail.context_len);
+    try t.expect(applicationProgram(text, error.OutOfMemory, .{}) == null);
+}
+
 pub fn tableDdl(text: []const u8, cause: anyerror, location: sql.Location) ?Self {
     const kind = category(cause) orelse return null;
     var result: Self = .{
@@ -602,7 +640,7 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
         else if (self.route == .inspection)
             "SQL inspection is unavailable here. Use console DESCRIBE/SHOW TABLES/EXPLAIN or Flight metadata operations."
         else if (self.route == .connector)
-            "CONNECTION/SOURCE requires native cohosted SQL; unavailable here. See /reference/sql/create-source/."
+            "CONNECTION/SOURCE/SINK requires native cohosted SQL; unavailable here. See /reference/sql/create-source/."
         else
             "Declaration syntax is supported; this query interface cannot publish it. Use console .help CREATE TABLE."),
         .grammar_only => try out.writeAll("Statement family has reference grammar only; no SQL execution. See /reference/sql/grammar-surface/."),
@@ -699,8 +737,8 @@ test "query boundaries distinguish parser evidence, grammar families and binding
         .{ "SHOW CONNECTIONS;", error.UnsupportedCatalog, Kind.interface, @as(usize, 1) },
         .{ "DESCRIBE SOURCE earthquakes;", error.UnsupportedCatalog, Kind.interface, @as(usize, 1) },
         .{ "RETIRE SOURCE earthquakes;", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
-        .{ "CREATE SINK unfinished", error.UnsupportedStatement, Kind.grammar_only, @as(usize, 1) },
-        .{ "SHOW SINKS;", error.UnsupportedCatalog, Kind.grammar_only, @as(usize, 1) },
+        .{ "CREATE SINK unfinished", error.UnsupportedStatement, Kind.interface, @as(usize, 1) },
+        .{ "SHOW SINKS;", error.UnsupportedCatalog, Kind.interface, @as(usize, 1) },
         .{ "SELEC * FROM items;", error.UnsupportedStatement, Kind.unsupported, @as(usize, 1) },
         .{ "SELECT * FROM items JOIN other;", error.UnsupportedConstruct, Kind.unsupported, @as(usize, 21) },
         .{ "SELECT id, checksum_sha256, status, applied_at_ms FROM platform_migrations ORDER BY id;", error.UnsupportedConstruct, Kind.unsupported, @as(usize, 76) },

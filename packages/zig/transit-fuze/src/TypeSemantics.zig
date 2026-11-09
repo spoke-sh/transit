@@ -17,6 +17,9 @@ pub const Atom = union(enum) {
     timestamp: i64,
     interval: Interval,
     uuid: [16]u8,
+    /// Borrowed immutable identity; cloning/owned decoding detaches it. Keep
+    /// handle bytes out of the scalar union used by ordinary query vectors.
+    capability: *const [32]u8,
 };
 pub const Integer = struct { signed: bool, bits: u8 };
 pub fn integer(value: Type) ?Integer {
@@ -124,6 +127,10 @@ pub fn validate(value: Atom, expected: Type) !void {
         .timestamp => if (value != .timestamp) return error.TypeMismatch,
         .interval => if (value != .interval) return error.TypeMismatch,
         .uuid => if (value != .uuid) return error.TypeMismatch,
+        .capability => {
+            if (value != .capability) return error.TypeMismatch;
+            if (std.mem.allEqual(u8, value.capability, 0)) return error.ProtectedProgramValue;
+        },
         else => return error.UnsupportedAtomType,
     }
 }
@@ -181,6 +188,7 @@ pub fn exact(text: []const u8) !Exact {
     return .{ .coefficient = coefficient, .scale = @intCast(fractional) };
 }
 pub fn bind(text: []const u8, target: Type) !Atom {
+    try target.requireDisclosable();
     try target.validate(.{});
     if (integer(target)) |info| {
         try numberGrammar(text, false);
@@ -274,6 +282,7 @@ fn parseTime(text: []const u8) !u64 {
     return (@as(u64, hour) * 3600 + @as(u64, minute) * 60 + second) * 1000_000_000 + fraction;
 }
 pub fn cast(value: Atom, from: Type, to: Type, rounding: Rounding) !Atom {
+    if (from == .capability or to == .capability) return error.ProtectedProgramValue;
     try from.validate(.{});
     try to.validate(.{});
     try validate(value, from);
@@ -325,6 +334,8 @@ pub fn cast(value: Atom, from: Type, to: Type, rounding: Rounding) !Atom {
     return error.UnsupportedCast;
 }
 pub fn promote(left: Type, right: Type) !Type {
+    try left.requireDisclosable();
+    try right.requireDisclosable();
     try left.validate(.{});
     try right.validate(.{});
     if (try left.eql(right)) return left;

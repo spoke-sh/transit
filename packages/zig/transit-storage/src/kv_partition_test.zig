@@ -39,6 +39,59 @@ fn bytes(value: []const u8) f.Types.Values.Cell {
     return .{ .value = .{ .atom = .{ .bytes = value } } };
 }
 
+test "KV ROW exact revisions survive disk recovery and reject stale conditional writes" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const declared: s.KVDeclaration.Definition = .{ .object = object, .revision = 1, .spec = .{ .value_type = .row, .nullable = false, .fields = &.{
+        .{ .name = "identity", .type = .utf8, .max_characters = 1 },
+        .{ .name = "revoked", .type = .boolean },
+    } }, .properties = "row-policy" };
+    const initial: f.Types.Values.Cell = .{ .value = .{ .structure = &.{ bytes("é"), .{ .value = .{ .atom = .{ .boolean = false } } } } } };
+    const updated: f.Types.Values.Cell = .{ .value = .{ .structure = &.{ bytes("é"), .{ .value = .{ .atom = .{ .boolean = true } } } } } };
+    var before: f.TableRow.Identity = undefined;
+    var after: f.TableRow.Identity = undefined;
+    var retry: d.Binding = undefined;
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var access: Access = .{};
+        var kv = try K.init(t.allocator, 17, declared, wal.log(), objects.objectStore(), .{ .resident_pages = 1 });
+        defer kv.deinit();
+        try kv.recover();
+        if (restart == 0) {
+            _ = try kv.create(binding(&kv, 1), access.guard());
+            _ = try kv.apply(binding(&kv, 2), &.{.{ .put = .{ .key = "challenge", .value = initial, .expect = .absent } }}, access.guard());
+            var read = (try kv.get(t.allocator, "challenge", access.guard())).?;
+            defer read.deinit();
+            before = read.revision();
+            const invalid: f.Types.Values.Cell = .{ .value = .{ .structure = &.{ bytes("éé"), .{ .value = .{ .atom = .{ .boolean = false } } } } } };
+            const root = kv.storage.root;
+            try t.expectError(error.CharacterLimitExceeded, kv.apply(binding(&kv, 3), &.{.{ .put = .{ .key = "invalid", .value = invalid } }}, access.guard()));
+            try t.expectEqualDeep(root, kv.storage.root);
+            // An unrelated write changes the resource LSN, not this key revision.
+            _ = try kv.apply(binding(&kv, 4), &.{.{ .put = .{ .key = "other", .value = initial } }}, access.guard());
+            retry = binding(&kv, 5);
+            kv.storage.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, kv.apply(retry, &.{.{ .put = .{ .key = "challenge", .value = updated, .expected_revision = before } }}, access.guard()));
+        } else {
+            _ = try kv.apply(retry, &.{.{ .put = .{ .key = "challenge", .value = updated, .expected_revision = before } }}, access.guard());
+            var read = (try kv.get(t.allocator, "challenge", access.guard())).?;
+            defer read.deinit();
+            try t.expect(read.cell().value.structure[1].value.atom.boolean);
+            try t.expect(!std.meta.eql(before, read.revision()));
+            if (restart == 1) after = read.revision() else try t.expectEqualDeep(after, read.revision());
+            const root = kv.storage.root;
+            try t.expectError(error.KVRevisionChanged, kv.apply(binding(&kv, 6), &.{.{ .put = .{ .key = "challenge", .value = initial, .expected_revision = before } }}, access.guard()));
+            try t.expectEqualDeep(root, kv.storage.root);
+            try t.expectError(error.KVRevisionChanged, kv.apply(binding(&kv, 7), &.{.{ .put = .{ .key = "missing", .value = initial, .expected_revision = before } }}, access.guard()));
+            try t.expectEqualDeep(root, kv.storage.root);
+            try t.expectError(error.DataIdentityConflict, kv.apply(retry, &.{.{ .put = .{ .key = "challenge", .value = updated, .expected_revision = after } }}, access.guard()));
+        }
+    }
+}
+
 const KVTransactionVerification = struct {
     owner: *K,
     expected: p.Transaction.Prepared,
@@ -61,6 +114,50 @@ const KVTransactionVerification = struct {
         return .{ .context = self, .participant = participant, .prepared = prepared };
     }
 };
+
+test "KV transaction exact revision rejection retains the original guard without changing private values" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var access: Access = .{};
+    var kv = try open(&wal, &objects);
+    defer kv.deinit();
+    _ = try kv.create(binding(&kv, 1), access.guard());
+    _ = try kv.apply(binding(&kv, 2), &.{.{ .put = .{ .key = "challenge", .value = bytes("pending") } }}, access.guard());
+    var original = (try kv.get(t.allocator, "challenge", access.guard())).?;
+    defer original.deinit();
+    var begin = @import("transaction_test_support.zig").begin(undefined);
+    begin.identity.begin.principal = 4;
+    begin.limits.resident_bytes = 16 * 1024 * 1024;
+    var selection = try s.TransactionDirectory.init(t.allocator, objects.objectStore(), begin.identity, .participants, 1000, 1, 1024 * 1024);
+    defer selection.deinit();
+    try selection.put(.{ .participant = .{ .state = .{ .kind = .kv, .guard = s.TableTransaction.tableGuard(kv.storage.root), .access = .read } } });
+    begin.objects = try selection.seal();
+    const pin = try kv.pin(begin.identity.begin, .{ .partition = 17, .next_lsn = kv.storage.root.next_lsn }, access.guard());
+    defer kv.releaseSnapshot(pin, access.guard()) catch unreachable;
+    var workspace = try s.TableWorkspace.init(t.allocator, &kv.storage, begin, pin, null, access.guard());
+    defer workspace.deinit();
+    const before = workspace.table.root.rows;
+    const mutation = binding(&kv, 3);
+    var wrong = original.revision();
+    wrong.operation += 1;
+    const outcome = try workspace.executeKV(.{ .transaction = begin.identity, .sequence = 1, .intent = mutation.intent }, mutation, &.{.{ .put = .{ .key = "challenge", .value = bytes("claimed"), .expected_revision = wrong } }}, access.guard());
+    try t.expectEqual(.data_changed, outcome.rejected.reason);
+    try t.expectEqualDeep(before, workspace.table.root.rows);
+    const rejected = (try workspace.table.operationState(mutation, access.guard())).rejected;
+    var saved = try s.TableDmlIntent.load(t.allocator, objects.objectStore(), rejected.intent);
+    defer saved.deinit();
+    try t.expectEqualDeep(wrong, saved.request.changes[0].put.expected_revision.?);
+    var fresh = binding(&kv, 4);
+    fresh.intent = @splat(8);
+    const success = try workspace.executeKV(.{ .transaction = begin.identity, .sequence = 2, .intent = fresh.intent }, fresh, &.{.{ .put = .{ .key = "challenge", .value = bytes("claimed"), .expected_revision = original.revision() } }}, access.guard());
+    try t.expectEqual(@as(u64, 1), success.provisional.affected);
+    var public = (try kv.get(t.allocator, "challenge", access.guard())).?;
+    defer public.deinit();
+    try t.expectEqualStrings("pending", public.cell().value.atom.bytes);
+    try t.expectEqualDeep(original.revision(), public.revision());
+}
 
 test "KV transaction private batches and common commit or abort survive replacement and reply loss" {
     for ([_]bool{ false, true }) |commit| {

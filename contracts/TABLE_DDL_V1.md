@@ -49,12 +49,13 @@ tombstones, original-operation outcomes and cleanup belong to the runtime owner.
 
 Scalar spellings and parameters use the
 [shared resolver](TABLE_SCHEMA_V1.md#scalar-sql-type-name-resolver). Recursive type
-constructors are STRUCT(name type, ...), LIST(type), ARRAY(type, length),
+constructors are ROW/STRUCT(name type, ...), LIST(type), ARRAY(type, length),
 MAP(key_type, value_type) and UNION(name type, ...). Nested fields/elements default
 to nullable and admit NULL/NOT NULL; struct/union fields additionally admit
 OPTIONAL for missing state. Map keys are required; explicit NULL rejects.
-Parameterized VARCHAR inside a nested descriptor rejects because that descriptor
-does not carry a nested character constraint. No parameter is silently ignored.
+Named struct/union fields retain and enforce parameterized VARCHAR constraints.
+Collection elements require unbounded text or a named record field with the
+constraint. No parameter is silently ignored.
 
 Numeric/boolean defaults bind directly to the declared type. UTF-8 uses quoted
 strings with doubled single quotes. Binary uses X'hex'. Date/time/timestamp/UUID
@@ -115,3 +116,13 @@ summary. Physical/destination validation remains authoritative; the summary does
 not permit coercing error cells, changing frozen initial values or bypassing
 source authorization. Scan/pin/publication effects belong to the enclosing owner.
 These summaries are derived runtime values, not another persisted schema field.
+
+
+## Native state binding clause
+
+CREATE TABLE accepts `WITH (native_binding = 'browser.identities')` or
+`WITH (native_binding = 'browser.bindings')`. Pure compilation retains the enum;
+unknown names and KV-only bindings reject. Shared Catalog preparation and native
+admission enforce the exact [browser binding schema and intrinsic CHECK](BROWSER_V1.md#canonical-state-binding-declarations).
+The binding is part of the original accepted declaration, not a second settings
+or permission surface. Local syntax acceptance alone does not publish it.

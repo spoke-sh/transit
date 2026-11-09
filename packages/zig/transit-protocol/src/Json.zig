@@ -37,6 +37,7 @@ pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void 
             try out.endObject();
         },
         .@"union" => {
+            if (@hasDecl(T, "jsonStringify")) return out.write(value);
             try out.beginObject();
             switch (value) {
                 inline else => |item, tag| {

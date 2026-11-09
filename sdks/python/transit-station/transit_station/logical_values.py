@@ -6,9 +6,9 @@ import struct
 from typing import Any, Literal, TypeAlias
 
 ScalarKind = Literal['int8', 'int16', 'int32', 'int64', 'int128', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128',
-                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json']
+                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json', 'capability']
 _SCALARS = frozenset(('int8', 'int16', 'int32', 'int64', 'int128', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128',
-                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json'))
+                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json', 'capability'))
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,7 @@ class Field:
     type: Descriptor
     nullable: bool = False
     optional: bool = False
+    max_characters: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -261,6 +262,29 @@ def _text(value: object) -> str:
     return value
 
 
+def field_wire(value: Field, budget: _Budget | None = None, depth: int = 0) -> dict[str, Any]:
+    budget = budget or _Budget(256)
+    maximum = value.max_characters
+    if maximum is not None:
+        maximum = _integer(maximum, 1, 0xffffffff)
+        if not isinstance(value.type, ScalarType) or value.type.kind != 'utf8':
+            raise ValueError('Character limits require UTF-8 fields')
+    return dict(name=budget.name(value.name), type=type_wire(value.type, budget, depth),
+                nullable=_boolean(value.nullable), optional=_boolean(value.optional), max_characters=maximum)
+
+
+def field_from_wire(value: object, budget: _Budget | None = None, depth: int = 0) -> Field:
+    budget = budget or _Budget(256)
+    item = _object(value, 'name type nullable optional max_characters')
+    datatype = type_from_wire(item['type'], budget, depth)
+    maximum = item['max_characters']
+    if maximum is not None:
+        maximum = _integer(maximum, 1, 0xffffffff)
+        if not isinstance(datatype, ScalarType) or datatype.kind != 'utf8':
+            raise ValueError('Character limits require UTF-8 fields')
+    return Field(budget.name(item['name']), datatype, _boolean(item['nullable']), _boolean(item['optional']), maximum)
+
+
 def type_wire(value: Descriptor, budget: _Budget | None = None, depth: int = 0) -> dict[str, Any]:
     budget = budget or _Budget(256)
     budget.enter(depth)
@@ -276,7 +300,7 @@ def type_wire(value: Descriptor, budget: _Budget | None = None, depth: int = 0) 
         if value.element not in ('float32', 'float16', 'bfloat16', 'int8', 'binary'): raise ValueError('Unknown vector element')
         return {'vector': dict(dimensions=_integer(value.dimensions, 1, 65536), element=value.element)}
     if isinstance(value, (StructureType, UnionType)):
-        return {'structure' if isinstance(value, StructureType) else 'tagged_union': [dict(name=budget.name(item.name), type=type_wire(item.type, budget, depth + 1), nullable=_boolean(item.nullable), optional=_boolean(item.optional)) for item in value.fields]}
+        return {'structure' if isinstance(value, StructureType) else 'tagged_union': [field_wire(item, budget, depth + 1) for item in value.fields]}
     if isinstance(value, ListType): return {'list': element(value.element)}
     if isinstance(value, ArrayType): return {'array': dict(element=element(value.element), length=_integer(value.length, 1, 0xffffffff))}
     if isinstance(value, MapType): return {'map': dict(key=type_wire(value.key, budget, depth + 1), value=element(value.value))}
@@ -308,10 +332,7 @@ def type_from_wire(value: object, budget: _Budget | None = None, depth: int = 0)
         return VectorType(_integer(item['dimensions'], 1, 65536), item['element'])
     if kind in ('structure', 'tagged_union'):
         if not isinstance(payload, list): raise ValueError('Expected logical fields')
-        fields = []
-        for source in payload:
-            item = _object(source, 'name type nullable optional')
-            fields.append(Field(budget.name(item['name']), type_from_wire(item['type'], budget, depth + 1), _boolean(item['nullable']), _boolean(item['optional'])))
+        fields = [field_from_wire(source, budget, depth + 1) for source in payload]
         return StructureType(tuple(fields)) if kind == 'structure' else UnionType(tuple(fields))
     if kind == 'list': return ListType(element(payload))
     if kind == 'array':

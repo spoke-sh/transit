@@ -2,6 +2,9 @@
 const d = @import("transit_query").protocol.Diagnostic;
 pub const Entry = struct { cause: anyerror, code: []const u8, category: d.Category, message: []const u8 };
 pub const entries = [_]Entry{
+    .{ .cause = error.ProtectedProgramValue, .code = "file.protected_value", .category = .unsupported, .message = "Protected application handles cannot become file-query values or exports." },
+    .{ .cause = error.InvalidCharacterLimit, .code = "file.invalid_character_limit", .category = .binding, .message = "A character limit requires a UTF-8 field and a positive Unicode scalar count." },
+    .{ .cause = error.CharacterLimitExceeded, .code = "file.character_limit_exceeded", .category = .constraint, .message = "Text exceeds the field's Unicode scalar limit; the value was not truncated." },
     .{ .cause = error.UnsupportedScalarFunction, .code = "file.unsupported_scalar_function", .category = .unsupported, .message = "Scalar function is unsupported" },
     .{ .cause = error.InvalidScalarOption, .code = "file.invalid_scalar_option", .category = .binding, .message = "Scalar option is invalid" },
     .{ .cause = error.MissingColumnSemantics, .code = "file.missing_column_semantics", .category = .binding, .message = "Expression requires a declared interpretation" },

@@ -17,7 +17,7 @@ typedef enum transit_station_unified_state {
     TRANSIT_UNIFIED_VALUE, TRANSIT_UNIFIED_CONFLICT
 } transit_station_unified_state;
 typedef transit_logical_atom transit_station_unified_scalar;
-typedef struct transit_station_unified_column { const char *name; const transit_logical_type_view *type; bool nullable, optional; } transit_station_unified_column;
+typedef struct transit_station_unified_column { const char *name; const transit_logical_type_view *type; bool nullable, optional; uint32_t max_characters; } transit_station_unified_column;
 typedef struct transit_station_unified_decoder_column { const char *name; transit_station_unified_decoder_type type; } transit_station_unified_decoder_column;
 typedef struct transit_station_unified_decoder { uint8_t version; transit_station_unified_decoder_type type; } transit_station_unified_decoder;
 typedef enum transit_station_unified_projection_mode {
@@ -127,7 +127,7 @@ typedef struct transit_station_unified_description {
 } transit_station_unified_description;
 typedef enum transit_station_unified_inspection_kind { TRANSIT_UNIFIED_DESCRIPTION, TRANSIT_UNIFIED_TABLES, TRANSIT_UNIFIED_EXPLANATION } transit_station_unified_inspection_kind;
 typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN, TRANSIT_UNIFIED_FILTER, TRANSIT_UNIFIED_INPUT_LIMIT, TRANSIT_UNIFIED_PROJECT, TRANSIT_UNIFIED_COUNT, TRANSIT_UNIFIED_SUM, TRANSIT_UNIFIED_COUNT_VALUES } transit_station_unified_inspection_operator;
-typedef struct transit_station_unified_inspected_column { char name[256]; const transit_logical_type_view *type; bool nullable, optional; } transit_station_unified_inspected_column;
+typedef struct transit_station_unified_inspected_column { char name[256]; const transit_logical_type_view *type; bool nullable, optional; uint32_t max_characters; } transit_station_unified_inspected_column;
 typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[128]; size_t column_count; } transit_station_unified_source_description;
 typedef struct transit_station_unified_table_listing { char names[1][256]; size_t count; } transit_station_unified_table_listing;
 typedef struct transit_station_unified_inspected_atom {

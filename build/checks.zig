@@ -1184,7 +1184,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     for ([_]*std.Build.Step.Compile{ transit_cli, transit_cli, transit_cli, transit_cli, transit_cli }) |artifact| source_server_test.addArtifactArg(artifact);
     source_server_test.has_side_effects = true;
     source_server_test.stdio = .inherit;
-    b.step("test-server-sources", "Prove installed SOURCE declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
+    b.step("test-server-sources", "Prove installed SOURCE/SINK declaration lifecycle, restart and zero HTTP dispatch").dependOn(&source_server_test.step);
     const single_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     single_server_test.addFileArg(b.path("tests/runner/launch.py"));
     single_server_test.addFileArg(b.path("tests/interfaces/installation/server_board_package.py"));
@@ -1217,6 +1217,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scenario_test.stdio = .inherit;
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
     const migrate_lifecycle_test = b.addSystemCommand(&.{ "python3", "-B" });
+    const application_program = b.addExecutable(.{ .name = "transit-application-program-oracle", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/cli/application_program.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") } },
+    }) });
+    const application_program_test = b.addRunArtifact(application_program);
+    application_program_test.addFileArg(b.path("tests/fixtures/application-programs/inputs.json"));
+    application_program_test.addFileArg(b.path("tests/fixtures/application-programs/bindings.json"));
+    inline for (.{ "0001-identity.sql", "0002-github-signin.sql", "0003-publication.sql" }) |file|
+        application_program_test.addFileArg(b.path("tests/fixtures/application-programs/" ++ file));
+    application_program_test.has_side_effects = true;
+    b.step("test-application-programs", "Verify exact consumer migration framing and program compilation").dependOn(&application_program_test.step);
+    migrate_lifecycle_test.step.dependOn(&application_program_test.step);
     migrate_lifecycle_test.addFileArg(b.path("tests/runner/launch.py"));
     migrate_lifecycle_test.addFileArg(b.path("tests/interfaces/cli/migrate_lifecycle.py"));
     migrate_lifecycle_test.addArtifactArg(transit_cli);
@@ -2270,6 +2284,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_core", .module = core.module("transit_core") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_serving", .module = serving.module("transit_serving") },
+        .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
         .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") },
         .{ .name = "transit_station", .module = station.module("transit_station") },
         .{ .name = "transit_station_app", .module = application.module("transit_station_app") },

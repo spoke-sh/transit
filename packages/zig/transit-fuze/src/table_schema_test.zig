@@ -168,10 +168,10 @@ test "all logical type families fit Table columns without implying key traits" {
     const signed: t.Type = .int64;
     const vector_bytes: [2]u8 align(64) = .{ 1, 255 };
     const choices = [_]t.Type{
-        .int8,                                                 .int16,   .int32,                                                                   .int64,                            .int128,                                                         .uint8,                                                         .uint16,                                                   .uint32, .uint64,                  .uint128,
-        .float32,                                              .float64, .boolean,                                                                 .utf8,                             .binary,                                                         .{ .decimal = .{ .precision = 38, .scale = 2 } },               .date,                                                     .time,   .{ .timestamp = .civil }, .{ .timestamp = .utc },
-        .interval,                                             .uuid,    .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true }} }, .{ .list = .{ .type = &signed } }, .{ .array = .{ .element = .{ .type = &signed }, .length = 3 } }, .{ .map = .{ .key = &signed, .value = .{ .type = &signed } } }, .{ .tagged_union = &.{.{ .name = "n", .type = .int64 }} }, .json,   .{ .range = &signed },    .{ .multirange = &signed },
-        .{ .vector = .{ .dimensions = 2, .element = .int8 } },
+        .int8,                                                 .int16,      .int32,                                                                   .int64,                            .int128,                                                         .uint8,                                                         .uint16,                                                   .uint32, .uint64,                  .uint128,
+        .float32,                                              .float64,    .boolean,                                                                 .utf8,                             .binary,                                                         .{ .decimal = .{ .precision = 38, .scale = 2 } },               .date,                                                     .time,   .{ .timestamp = .civil }, .{ .timestamp = .utc },
+        .interval,                                             .uuid,       .{ .structure = &.{.{ .name = "n", .type = .int64, .nullable = true }} }, .{ .list = .{ .type = &signed } }, .{ .array = .{ .element = .{ .type = &signed }, .length = 3 } }, .{ .map = .{ .key = &signed, .value = .{ .type = &signed } } }, .{ .tagged_union = &.{.{ .name = "n", .type = .int64 }} }, .json,   .{ .range = &signed },    .{ .multirange = &signed },
+        .{ .vector = .{ .dimensions = 2, .element = .int8 } }, .capability,
     };
     for (choices) |data_type| {
         const value: s.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "v", .type = data_type }} };
@@ -181,6 +181,7 @@ test "all logical type families fit Table columns without implying key traits" {
         try expect.expect(try data_type.eql(owned.schema.columns[0].type));
         try value.validateRow(&.{.null});
         const cell: Cell = switch (data_type) {
+            .capability => .{ .value = .{ .atom = .{ .capability = &@as([32]u8, @splat(7)) } } },
             .int8, .int16, .int32, .int64, .int128 => integer(-12),
             .uint8, .uint16, .uint32, .uint64, .uint128 => .{ .value = .{ .atom = .{ .unsigned = 123 } } },
             .float32, .float64 => .{ .value = .{ .atom = .{ .float = -0.5 } } },
@@ -207,6 +208,10 @@ test "all logical type families fit Table columns without implying key traits" {
         with_default.default = cell;
         var default_schema = value;
         default_schema.columns = &.{with_default};
+        if (data_type == .capability) {
+            try expect.expectError(error.ProtectedProgramValue, default_schema.validate());
+            continue;
+        }
         var default_copy = try default_schema.clone(expect.allocator);
         defer default_copy.deinit();
         try default_copy.schema.validateRow(&.{default_copy.schema.columns[0].default.?});

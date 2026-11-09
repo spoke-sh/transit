@@ -73,6 +73,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
 /// Allocate through the caller's arena; text/JSON borrow the neutral input.
 /// Transport byte limits remain separate from logical depth/child/value bounds.
 pub fn fromForeign(allocator: std.mem.Allocator, cell: Cell, field: types.Field) !values.Cell {
+    try field.type.requireDisclosable();
     try field.type.validate(.{});
     var budget: Budget = .{};
     const result = try nativeCell(allocator, cell, field.type, 0, &budget);
@@ -81,6 +82,7 @@ pub fn fromForeign(allocator: std.mem.Allocator, cell: Cell, field: types.Field)
 }
 /// Schema-bound scalar parameters embedded in another neutral contract.
 pub fn atomFromForeign(allocator: std.mem.Allocator, value: Atom, expected: types.Type) !values.Atom {
+    try expected.requireDisclosable();
     try expected.validate(.{});
     var budget: Budget = .{};
     return nativeAtom(allocator, value, expected, &budget);
@@ -321,6 +323,7 @@ fn nativeRange(allocator: std.mem.Allocator, range: Range, subtype: types.Type, 
 }
 fn foreignAtom(allocator: std.mem.Allocator, atom: types.Semantics.Atom, expected: types.Type) !Atom {
     return switch (atom) {
+        .capability => error.ProtectedProgramValue,
         .signed => |number| .{ .signed = try decimal(allocator, number) },
         .unsigned => |number| .{ .unsigned = try decimal(allocator, number) },
         .decimal => |number| .{ .decimal = try decimal(allocator, number) },
@@ -339,6 +342,7 @@ fn foreignAtom(allocator: std.mem.Allocator, atom: types.Semantics.Atom, expecte
     };
 }
 pub fn foreignCell(allocator: std.mem.Allocator, cell: values.Cell, expected: types.Type) anyerror!Cell {
+    try expected.requireDisclosable();
     return switch (cell) {
         .missing => .missing,
         .null => .null,

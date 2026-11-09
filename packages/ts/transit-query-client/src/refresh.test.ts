@@ -28,7 +28,15 @@ function compiled(operation: string): Extract<Response, { compiled: unknown }>["
           historical: null,
           projection: null,
           row_type: {
-            structure: [{ name: "value", type: { int64: {} }, nullable: false, optional: false }],
+            structure: [
+              {
+                name: "value",
+                type: { int64: {} },
+                nullable: false,
+                optional: false,
+                max_characters: null,
+              },
+            ],
           },
         },
       },

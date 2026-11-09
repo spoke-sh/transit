@@ -8,6 +8,55 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`SqlScript` frames bounded migration source files, including compound Queue
+program declarations, independently of finite SQL's statement limit.
+`ApplicationProgram` parses their ordered instructions into an owned tree with
+stable node identities and source spans. `ApplicationProgram.Types.bind` checks
+lexical scopes, record fields, resource kinds, function operands and permitted
+protected-value boundaries against supplied schema descriptions. Its returned
+value metadata owns its schema fields and names. Read, write, dispatch and guard
+dependencies remain distinct. Neither operation performs a catalog lookup,
+publishes a computation, executes an effect or grants native authority.
+
+`ApplicationProgram.Codec` retains the exact instruction tree and source digest
+under the current contract definition, with a separate 1 MiB encoding limit.
+Loading verifies canonical bytes, syntax depth, unique node coverage, atomic
+boundaries and response structure before binding. Recovery uses these retained
+instructions without parsing SQL. `ApplicationProgram.Evaluation` evaluates
+expressions with checked arithmetic, nullable field access, SQL three-valued
+conditions and short-circuit control flow. It delegates native observations to
+an explicit host and checks every returned value against its bound type.
+
+`ApplicationProgram.Cursor` and `Environment` retain bounded control flow and
+live typed bindings. Restoration checks the exact binding digest, branch stack,
+local identities and types; closed scopes cannot leak into a continuation.
+`ApplicationProgram.Step` produces typed instruction operands with explicit
+native reads, mutations, effects and transaction decisions. Its local completion
+checks do not establish durable acceptance. The execution owner retains original
+observations and resolves common decisions before publishing a successor.
+
+`ApplicationProgram.Values` represents secrets, protected JSON and capabilities
+as non-authorizing references. Protected scalar projections also stay behind
+references, including values selected by a protected condition. No credential
+bytes enter Fuze's environment. Only the native host may redeem a reference after
+checking its original owner, purpose, current authority and lifetime. This local
+evaluator supplies no durable cursor, Queue worker or transient reservation store.
+
+The native `CAPABILITY` logical atom preserves a nonzero 32-byte handle in
+schema-bound records. It is distinct from binary and has no literal, cast,
+comparison, hash, map-key or column-default semantics. Public display, neutral
+JSON and Arrow value boundaries reject it recursively before writing output;
+descriptor metadata remains inspectable. The host must still verify ownership,
+purpose, current rights and the live reservation before using a stored handle.
+
+The compiler bounds source at 64 KiB, nodes at 4,096, nesting at 32 and argument
+lists at 64. It rejects effects within atomic blocks and mutations outside them.
+Missing reads retain nullable record types; the eventual execution owner must
+enforce required field values and TRUE-only guards at the mutation/disclosure
+boundary. The schema oracle in [application program fixtures](../../../tests/fixtures/application-programs/README.md)
+checks the intended downstream inputs. Installed Queue execution and its recovery
+contracts remain separate integration work.
+
 `QueryValues` supplies neutral columns, scalar/cell projections, predicates and
 plans over the same `Types`, `LogicalJson` and `LogicalQuery` model. It requires
 no Station, transport or source acquisition. Exact integer strings, float bits,

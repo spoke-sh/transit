@@ -236,16 +236,16 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             plan = expected['explanation']
                             if plan['aggregate'] == 'count_values':
                                 assert plan['projection'] == ['value']
-                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
+                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False, 'max_characters': None}]
                                 assert plan['operators'] == (['scan', 'limit', 'count_values'] if 'LIMIT 0' in action['inspect']['sql'] else ['scan', 'count_values'])
                             elif plan['aggregate'] == 'count':
-                                assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
+                                assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': {'uint64': {}}, 'nullable': False, 'optional': False, 'max_characters': None}]
                             elif 'state' in plan['predicate']:
                                 assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}
                                 assert plan['operators'] == ['scan', 'filter', 'limit', 'project']
                                 if 'AS "Result"' in action['inspect']['sql']:
                                     assert plan['projection'] == ['value', 'value']
-                                    assert plan['columns'] == [{'name': name, 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'} for name in ('Result', 'copy')]
+                                    assert plan['columns'] == [{'name': name, 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table', 'max_characters': None} for name in ('Result', 'copy')]
                             else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project'], plan
                 for action, predicate in zip(program_requests, program_predicates, strict=True):
                     expected = None
@@ -255,7 +255,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         assert value['source_kind'] == kind and 'redacted-literal' not in json.dumps(value)
                         plan = value['details']['explanation']
                         assert plan['predicate'] == predicate and plan['operators'] == ['scan', 'filter', 'project']
-                        assert plan['columns'] == [{'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'}] and plan['limit'] is None
+                        assert plan['columns'] == [{'name': 'value', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table', 'max_characters': None}] and plan['limit'] is None
                         if expected is None: expected = value
                         assert value == expected
                 print(f"Unified {kind}: Boolean inspection including 64 instructions agrees across {len(program_inspectors)} enabled native/port/SDK callers", flush=True)

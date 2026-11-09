@@ -25,7 +25,7 @@ const Event = enum {
 };
 
 const scope: d.Scope = .{ .realm = 1, .resource = 3, .catalog = 1 };
-const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+const profile: a.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .sink_domain = 36, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
 const columns = [_]f.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
 
 const Access = struct {
@@ -46,7 +46,7 @@ const Access = struct {
             .database => profile.database,
             .schema => if (id == 1) profile.initial_schema_authority else 20000 + id,
             .table => 100 + id,
-            .stream, .queue, .kv, .connection, .source => return null,
+            .stream, .queue, .kv, .connection, .source, .sink => return null,
         };
         return .{
             .reference = a.reference(native),
@@ -59,7 +59,7 @@ const Access = struct {
                 .database => null,
                 .schema => a.reference(profile.database),
                 .table => a.reference(profile.initial_schema_authority),
-                .stream, .queue, .kv, .connection, .source => return null,
+                .stream, .queue, .kv, .connection, .source, .sink => return null,
             },
             .revision = 1,
         };
@@ -159,7 +159,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                         .connection = connection,
                         .namespace = 1,
                         .purpose = .interactive,
-                        .begin = .{ .definition = p.Growth.current_definition, .identity = tx_id, .mode = .serializable, .selection = .explicit_objects, .objects = try selected.seal(), .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024, .participants = 100, .statements = 100, .savepoints = 16 } },
+                        .begin = .{ .definition = p.Growth.current_definition, .identity = tx_id, .mode = .serializable, .deadline = null, .selection = .explicit_objects, .objects = try selected.seal(), .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn }, .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 256 * 1024, .participants = 100, .statements = 100, .savepoints = 16 } },
                     } },
                 };
                 _ = try catalog.clientToken(.{ .bind = tx_binding }, access.policy());

@@ -152,7 +152,11 @@ fn consumeOwned(allocator: std.mem.Allocator) !void {
 
 test "log consume SQL owns typed projection predicate group and wait operands" {
     try consumeOwned(std.testing.allocator);
-    try std.testing.checkAllAllocationFailures(std.testing.allocator, consumeOwned, .{});
+    // In-place growth depends on allocator history. Force growth to allocate
+    // during fault injection so every failure index names an actual allocation;
+    // the normal run above still exercises the backing allocator's resize path.
+    var backing = std.testing.FailingAllocator.init(std.testing.allocator, .{ .resize_fail_index = 0 });
+    try std.testing.checkAllAllocationFailures(backing.allocator(), consumeOwned, .{});
 }
 
 test "log consume SQL star excludes predicate metadata and keeps finite output limits" {

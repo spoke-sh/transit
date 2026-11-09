@@ -33,6 +33,7 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
     const expected: std.meta.Tag(queue.Result) = switch (request) {
         .mutate, .operation, .wait, .cancel => .operation,
         .observe => .cut,
+        .current_time => .current_time,
         .page => .page,
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidQueueResponse;
@@ -49,9 +50,11 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
         } else if (request != .operation) return error.InvalidQueueResponse,
         .cut => |value| {
             try value.validate();
-            if (!std.meta.eql(value.target.interpretation.object, request.observe.interpretation.object) or
-                value.target.partition != request.observe.partition or value.target.interpretation.revision < request.observe.interpretation.revision or
-                (value.target.interpretation.revision == request.observe.interpretation.revision and !std.meta.eql(value.target, request.observe))) return error.InvalidQueueResponse;
+            try requireTarget(request.observe, value.target);
+        },
+        .current_time => |value| {
+            try value.validate();
+            try requireTarget(request.current_time, value.cut.target);
         },
         .page => |page| {
             const input = request.page;
@@ -88,4 +91,9 @@ pub fn validate(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.
             if (byte_count != page.encoded_bytes) return error.InvalidQueueResponse;
         },
     }
+}
+fn requireTarget(expected: c.protocol.StreamQueue.Partition, observed: c.protocol.StreamQueue.Partition) !void {
+    if (!std.meta.eql(observed.interpretation.object, expected.interpretation.object) or
+        observed.partition != expected.partition or observed.interpretation.revision < expected.interpretation.revision or
+        (observed.interpretation.revision == expected.interpretation.revision and !std.meta.eql(observed, expected))) return error.InvalidQueueResponse;
 }

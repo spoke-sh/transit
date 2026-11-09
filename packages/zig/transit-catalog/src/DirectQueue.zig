@@ -13,6 +13,7 @@ const w = c.DirectTableProtocol;
 
 pub const Request = union(enum) {
     observe: q.Partition,
+    current_time: q.Partition,
     mutate: struct { work: Mutation.Request, payload: ?w.Binary },
     operation: Mutation.Request,
     cancel: Mutation.Request,
@@ -31,7 +32,7 @@ pub const Request = union(enum) {
     }
     pub fn target(self: Request) q.Partition {
         return switch (self) {
-            .observe => |value| value,
+            .observe, .current_time => |value| value,
             .mutate => |value| value.work.target(),
             .operation, .cancel => |value| value.target(),
             .page => |value| value.cursor.receipt.claim.target,
@@ -42,7 +43,7 @@ pub const Request = union(enum) {
         return switch (self) {
             .mutate => |value| value.work.access(),
             .operation, .cancel => |value| value.access(),
-            .observe => .inspect,
+            .observe, .current_time => .inspect,
             .page, .wait => .acquire,
         };
     }
@@ -52,7 +53,7 @@ pub const Request = union(enum) {
             .operation, .cancel => |value| value.identity(),
             .page => |value| value.cursor.receipt.claim.operation,
             .wait => |value| value.claim.operation,
-            .observe => null,
+            .observe, .current_time => null,
         };
     }
     pub fn validate(self: Request, principal: u64, scope: d.Scope) !void {
@@ -72,7 +73,7 @@ pub const Request = union(enum) {
                 try value.cursor.validate();
                 if (value.limits.rows == 0 or value.limits.rows > s.QueueSelection.max_rows or value.limits.encoded_bytes == 0 or value.limits.encoded_bytes > 4 * 1024 * 1024) return error.InvalidQueueReadBudget;
             },
-            .observe => {},
+            .observe, .current_time => {},
             .wait => |value| {
                 try value.claim.validate();
                 if (value.milliseconds == 0 or value.milliseconds > c.client.WaitHint.max_ms) return error.InvalidQueueWait;
@@ -99,6 +100,7 @@ pub const Page = struct {
 pub const Result = union(enum) {
     recovering: Queue.Recovery,
     cut: q.Cut,
+    current_time: read.TimeObservation,
     operation: ?Receipt,
     page: Page,
     /// No claim was accepted by this attempt. Another concurrent attempt with
@@ -215,6 +217,7 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
             break :blk .{ .operation = try originalReceipt(value, try owner.cancel(current.definition.stored, value, current.guard)) };
         },
         .observe => .{ .cut = try owner.observe(current.definition.stored, current.guard) },
+        .current_time => .{ .current_time = try owner.observeTime(current.definition.stored, current.guard) },
         .operation => |value| .{ .operation = if (try owner.operation(value.identity(), current.guard)) |record| try originalReceipt(value, record) else null },
         .page => |value| blk: {
             var page = try owner.readClaimPage(current.definition.stored, value.cursor, value.limits, catalog.allocator, current.guard);

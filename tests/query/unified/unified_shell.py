@@ -57,9 +57,9 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             assert shell.call('.status')['status'] is None
             assert shell.call('SELECT items.value FROM items AS chosen')['err'] == 'UnknownQualifier'
             assert shell.call('.status')['status'] is None
-            columns = [{'name': 'Result', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table'}]
+            columns = [{'name': 'Result', 'type': {'utf8': {}}, 'nullable': True, 'optional': kind != 'table', 'max_characters': None}]
             if kind == 'document':
-                columns += [{'name': name, 'type': {'uint64' if name != 'optional' else 'utf8': {}}, 'nullable': True, 'optional': True} for name in ('counter', 'replica', 'optional')]
+                columns += [{'name': name, 'type': {'uint64' if name != 'optional' else 'utf8': {}}, 'nullable': True, 'optional': True, 'max_characters': None} for name in ('counter', 'replica', 'optional')]
             assert first['columns'] == columns
             sql = ('SELECT chosen.value AS "Result", counter, replica, optional FROM items AS chosen LIMIT 33'
                    if kind == 'document' else 'SELECT chosen.value AS "Result" FROM items AS chosen LIMIT 33')
@@ -72,7 +72,7 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
             if counts:
                 column = 'optional' if kind == 'document' else 'value'
                 sql = f'SELECT COUNT(chosen.amount) AS present FROM (SELECT {column} AS amount FROM items LIMIT 10) AS chosen'
-                columns = [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False}]
+                columns = [{'name': 'present', 'type': {'uint64': {}}, 'nullable': False, 'optional': False, 'max_characters': None}]
             if parameterized:
                 input_file = root / 'query input.json'
                 request = {'sql': sql.replace('LIMIT ' + ('10' if counts else '33'), 'LIMIT $1'),

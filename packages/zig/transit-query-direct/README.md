@@ -4,6 +4,173 @@ Finite SQL query execution over authorized direct Tables, exported as
 `transit_query_direct`. The package depends on Catalog, Fuze and the public
 protocol. Its compiled dependency graph excludes Station.
 
+`ApplicationData` connects Fuze's ordered-program operands to native typed
+values, KV point reads and exact revision-guarded mutations, retained single-row
+SELECTs, Table row assertions and Stream/Queue append preparation. SELECT keeps
+the caller's original snapshot, bounds scanned rows and requests, rejects a
+second matching row and checks current read authority after buffering. A
+Document result carries the native collection state fingerprint; a Table result carries
+its exact source fingerprint. KV revisions remain point-value identities.
+`CURRENT_REVISION` performs a one-key lookup on a versioned row Document. A
+missing key returns NULL. Inside an atomic block its collection revision uses
+the same retained serializable guard as SELECT. Its fingerprint excludes
+acceptance advances caused only by pinning or maintenance; the native decision
+still rechecks the full guard. Outside, the point read refuses a changed basis.
+Neither path silently moves to another data cut.
+`DO ASSERT SAME ROW` compares every typed value in a serializable transaction;
+an existing key alone cannot satisfy it. Prepared mutations preserve the original
+operation and use the existing common transaction API. These adapters do not
+install, schedule or recover an application. Managed Queue integration remains
+tracked by [#430](https://github.com/spoke-sh/transit/issues/430).
+
+`ApplicationBinding` reconstructs immutable native resource definitions, keeping
+row positions and current grants out of the compiled identity.
+Sink bindings preserve the complete immutable transport profile and exact
+connection dependency. Binding requires inspection for retained continuation
+disclosure and separate dispatch use. Both remain current native requirements; sinks
+are excluded from common data transaction participants. A retained sink binding
+does not grant dispatch permission or establish a current activation state.
+`ApplicationDeclaration` retains the typed instruction tree, publication connection,
+exact dependencies and per-invocation budgets. `ManagedApplication` publishes that
+definition through owned records and the shared catalog/KV lifecycle. Its saved
+controls separate publication, explicit role authorization and activation;
+authorization selects a nonzero executor role without changing the definition.
+Every admitted invocation freezes that role, including its transaction, input and
+effect identities. Execution checks it against current control; recovery and
+cleanup use the original role and never substitute a later one. The permanent
+token fingerprint commits the invocation's declaration, role, lease and input
+claim; loading, advancing and executing progress verify it even after original
+payload closure. Readiness
+rechecks current dependency actions through the native owner. These
+typed operations do not yet supply installed SQL execution.
+
+Programs using `SECRET` or `SECRET_CURRENT` must bind the canonical
+`transit.secret_references` KV definition. Compilation records that requirement;
+executable declaration binding rejects missing or duplicate native owners and
+merges the implicit read with any explicit use. Readiness requires KV READ and
+`use_secret`; common transactions include the secret resource as a read-guarded
+participant. An unrelated KV with identical columns cannot satisfy the binding.
+
+`ApplicationInvocation` attaches original work before Queue acquisition and
+retains the original claim receipt before reading its input. An immutable input
+record contains the initial typed environment and original enqueue operation,
+row ordinal and Queue partition behind current input/control read guards.
+Recovery metadata contains only identities, receipts and references.
+Every data call composes the invocation progress fence with the service lease;
+suspend and retire cancel the saved pending token before changing the head.
+Input retention does not ACK the Queue message or execute the program.
+
+`ApplicationExecution.tick` advances one persisted invocation phase with a
+caller-supplied native expression host. It retains proposed successor values
+before dispatching native work. A proposal is not a committed checkpoint.
+The host binds separately for each evaluation, after opening any transaction
+view, with the current fenced client, original input, invocation and step.
+Borrowed binding values cannot outlive that evaluation.
+`Context.requireCurrent` rechecks the invocation fence, active control head and
+registered dependency rights through the exact executor role. Control checks
+observe current state even during an atomic block; data helpers keep their
+private transaction view. Each successful bind returns a `BoundHost` with its
+expression context and mandatory release callback. Cleanup runs on that exact
+context after candidate retention or any failure. Factories serving concurrent
+evaluations return distinct borrowed contexts; cleanup cannot select another
+request through shared factory state. Failed binding releases any partial borrow. A current observation does not authorize later dispatch
+or disclosure without another check.
+`ApplicationTransaction` selects exact Table, row Document, KV and log partitions
+under the existing serializable transaction owner; read access is required for
+write participants as well as declared reads. Native provisional statement
+completions and terminal decisions remain the evidence for their original work.
+The first committed boundary includes the exact input ACK and a transaction-owned
+checkpoint. Later boundaries retain that checkpoint without another ACK.
+Single-record SELECT outside an atomic block uses a bounded original read
+transaction and releases it before adopting the retained observation.
+
+Failure entry follows verified native abort and drops the failed body's locals.
+Guard refusals preserve `EffectGuardRefused` and `ResponseGuardRefused` from the
+original typed instruction, alongside application-written `REQUIRE` codes.
+A lost or expired transient request enters that failure path while retaining
+its distinct reason. It does not cancel the durable input or replace the
+original transaction. Public failure-handler state and receipts can still settle
+after protected bytes disappear; response delivery remains a separate outcome.
+A failed failure handler terminates without recursive entry. Cancellation resolves
+the original transaction before deciding whether it committed; it cannot replace
+a committed success with refusal. The control head retains its pending invocation
+until the original input read is released, so retirement cannot remove its
+dependencies early. Cancelled acquisition closes the original claim and releases
+any accepted read without ACKing its input. Terminal progress retains native
+decision evidence; hosts must retry closing an attached original even when its
+progress already says `pending = false`.
+
+`ApplicationEffect` supplies effect bookkeeping through the same native owned
+records and conditional progress operations. Its key binds one invocation step;
+changed operands conflict with the frozen descriptor. Admission permanently
+binds a fresh nonce in the original receipt. Only the successful live admission
+returns an attempt; replay and lost admission replies cannot return another one.
+Admission first verifies that the exact guarded request is durably retained.
+The caller must still verify current sink, program, secret, guard and deadline
+authority before sending. This component performs no HTTP and does not establish
+honest computation by a caller holding the native identity.
+
+Recorded outcomes distinguish unsent refusal, unknown remote outcome and a
+complete response, including loss of its transient protected body. Cancellation
+preserves a known response. After a worker fence changes, recovery may record
+unknown but cannot authorize another send. An interrupted outcome publication
+resumes its exact saved bytes; missing bytes remain unresolved. Closing an
+unretained original races retention under the native revision and establishes
+that no fresh attempt escaped only when closure wins. The host must withdraw
+and join the live task before using that closure path.
+
+The ordered runner retains each effect's pre-step environment and typed operands
+before admitting a task. Recovery reconstructs the instruction from that frozen
+request without evaluating entropy or protected operands again. A task receives
+fixed native references and the exact invocation/service fences; `openEffect`
+reopens and validates those originals. Waiting leaves the progress revision
+unchanged. A separate result candidate advances the environment only after native
+settlement and verification of its protected response handle.
+
+`ApplicationReadSet` retains the actual public Table/KV bases, program head,
+dependency checks and native policy revision used by one guard evaluation.
+Missing Document/secret rows contribute their read basis. Repeated reads may
+advance acceptance bookkeeping, but logical drift or a changed policy revision
+refuses the evaluation. The native `check_set` verifies all recorded bases under
+publication exclusion. After verification, protected-operand checks may repeat
+those reads but cannot introduce another source. The existing 16-check budget
+applies; overflow refuses before dispatch. Private transaction results cannot
+be used as public effect evidence.
+
+The deployment supplies nonblocking poll, withdrawal/join, release and protected
+response callbacks. It must keep a known completion through lost native replies
+and release it only after joined, terminal settlement. Cancellation joins the
+task before trying to reopen protected operands. An abandoned task becomes
+unsent only when native evidence excludes a dispatch; a retained dispatch becomes
+unknown. Failure handlers receive that original outcome. These interfaces do not
+supply a physical HTTP worker or enable service effect readiness by themselves.
+
+Frozen limits bound each SELECT's requests/scanned rows/result bytes, native
+transaction participants/statements/work, each continuation payload and cumulative
+retained input/proposal/checkpoint bytes. The request limit also bounds partition
+expansion; it is not a count of transport retries. These typed owners currently
+execute data instructions and failure continuations. `ApplicationRecovery`
+reopens frozen declarations and invocations for bounded service scheduling,
+including interrupted final closure and defeated attachment cleanup.
+The compiler derives required host functions and facilities from all branches,
+failure handlers and the input schema. A deployment-supplied host must report
+ready before the service creates or acquires an invocation. Unavailable placement
+parks the existing original; accepted transaction settlement and cancellation
+cleanup do not depend on host availability. The default host admits public data
+programs and refuses protected inputs, effects, responses, handoffs, paging and
+deadlines until the corresponding implementation is supplied. These checks
+describe placement and support, and confer no native rights.
+`ApplicationHost` supplies native public time, entropy, duration, digest and
+Document revision observations; the runner retains their original candidate
+before advancing. Its JSON/URL helpers share Fuze's bounded lossless parser,
+reject duplicate fields and protected values, and preserve exact integer tokens.
+See the [program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
+for admitted JSON paths, conversions and URL construction.
+An explicit physical HTTP effect host is available from `transit-serving-http`.
+SQL installation, deployment composition, ingress and response/handoff operations
+remain integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
+`NOW()` uses the host wall clock; it does not supply trusted native policy time.
+
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded
 rows, bytes and source requests. `DirectRelationalCompilation` and

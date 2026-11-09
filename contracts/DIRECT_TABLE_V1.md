@@ -135,9 +135,11 @@ Initial external bindings reject collectible `TXR1` and `CPR1` records: another
 owner's closure must not remove the original admission body.
 
 Record formats with bit `0x80000000` set carry a `DirectRecord.Guarded` JSON
-envelope: mandatory current `definition`, `objects` (a compact array of up to
-three distinct Table/KV object identities, with null trailing slots) and binary
-`payload`. At least one object is required. The catalog resolves each object's
+envelope: mandatory current `definition`, `objects` (a nonempty array of at most
+14 distinct Table/KV/Document/Stream/Queue object identities) and binary
+`payload`. Null slots are invalid. This bound reserves database/schema entries
+within the existing 16-requirement native authorization budget; additional
+namespaces may exhaust that budget earlier and refuse disclosure. The catalog resolves each object's
 current native read requirement and checks their conjunction before disclosing
 any envelope, including generic `record.read`. Staging only validates and saves
 caller-provided bytes; it grants no right to read the envelope. These are
@@ -260,8 +262,29 @@ mixed kinds for one object and foreign scopes reject. Table and direct KV target
 support private mutations. Stream/Queue targets participate as retained read
 dependencies and private log work with explicit partition ordinals, as specified
 under [transactional log work](#transactional-stream-and-queue-work).
-Document targets reject before token admission. Server-owned
-`authorized_catalog_tables` discovery remains restricted to accessible Tables.
+Partitioned `document` targets reject before token admission. The current SQL
+row Document profile uses the existing TablePartition owner: its explicit
+physical target is `table` with no ordinal. Server-owned
+`authorized_catalog_tables` discovery includes accessible row Documents under
+that same owner; it does not acquire ordered/tree DocumentPartition resources.
+
+For the versioned SQL row Document profile, `DirectDocument.Revision` binds the
+mandatory current contract definition, exact immutable Document policy and
+`Transaction.StateGuard`. Obtain it from the metadata accompanying the data read,
+not from a later lookup. It covers the whole collection's data frontier; a write
+to another row can invalidate it. Pin/flush bookkeeping alone does not change it.
+The descriptor grants no authority and retains no snapshot. Before acting on a
+prior observation, compare it to the selected participant's retained source in
+a serializable workspace. The common coordinator rechecks that source under its
+final publication fence, including after preparing other participants. A failed
+comparison cannot publish their private changes. `causal_crdt` policy and
+partitioned tree Document guards are not admitted by this adapter.
+
+Document profile and retention belong to the immutable declaration properties,
+participate in its definition digest, and accompany signed metadata. Admission
+or cancellation of an ALTER cannot expose its proposed policy. Only acceptance
+of the successor definition publishes the change; recovery preserves the exact
+accepted policy. Profile changes reject, and rename/drop cannot alter policy.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements
@@ -383,11 +406,17 @@ an actual terminal owner observation. External bookkeeping is not evidence of ex
 
 `Progress.staged` is a mandatory nullable candidate reservation; omitted fields
 reject. External owners may replace progress with `client_progress.advance`,
-whose mandatory fields are `key`, `expected`, `pending`, `cancel`, nonzero plain
-inner `format` (high bit clear), and binary `bytes`. Save that request before
+whose mandatory fields are `key`, `expected`, `pending`, `cancel`, nonzero
+inner `format`, and binary `bytes`. A high-bit inner format requires a valid
+guarded envelope. Save that request before
 submission. The Catalog wraps it as `CPR1` (`0x43505231`) with current `definition`
 and `advance`; the complete envelope and scope determine a `progress-records/`
 key. This is scoped recovery bookkeeping, not a computation or effect authority.
+For a guarded inner format, raw `record.read` validates the immutable dependency
+list and checks every current read grant before disclosing the outer envelope.
+Progress inspection exposes references and status without disclosing payloads;
+recovery owners should keep non-payload settlement identities separately from
+guarded values so revocation does not hide their original pending decisions.
 
 An advance requires the original external token and current CONNECT. Its
 reservation stores the reference, expected revision and desired pending/cancel
@@ -422,9 +451,12 @@ Original external work can instead use Catalog-owned `SOR1` (`0x534f5231`)
 records under `owned-records/`. `Progress.original` is mandatory and nullable;
 non-null state contains `phase` and nullable exact KV `attachment` binding.
 The current-v1 definition rejects earlier persisted layouts. An `SOR1` envelope
-contains current `definition`, original token `key`, plain inner `format` and
+contains current `definition`, original token `key`, nonzero inner `format` and
 binary `bytes`. The complete envelope binds storage to one original owner;
 copying an inner payload does not transfer that owner's lifetime.
+High-bit inner formats carry the same guarded read envelope. Staging validates
+that envelope before reservation; current read authorization remains a separate
+disclosure check, including after restart and through generic record reads.
 
 The signed `client_progress.stage_original` carries the complete external token
 `binding`, inner `format` and `bytes`. It checks the content commitment and
@@ -718,10 +750,16 @@ replace it. SQL result reopening uses this native boundary; workload SQL text
 admission and its finite-consumption handoff remain unavailable.
 
 An optional signed request `lease` contains a token key and exact recovery
-revision. Its scope/principal/audience must match the request. The local host
-holds shared Catalog access through execution/disclosure; updates take exclusive
-access. A missing or replaced lease record conflicts before the action executes.
-The lease is a fence, not authorization. Current policy checks remain mandatory.
+revision, plus a mandatory nullable `additional` fence with its own key and
+revision. Both fences must match the request's scope, branch, principal and
+audience; selected roles may differ. They let one request retain its service
+generation fence while also checking an invocation's recovery record. Duplicate
+keys and a third fence reject instead of replacing an existing condition.
+The local host checks both records under shared Catalog access held through
+execution/disclosure; updates take exclusive access. Either missing or replaced
+record conflicts before the action executes. A fence supplies no authorization;
+current policy checks remain mandatory. Omitting `additional` from a non-null
+lease is an incompatible saved request, not an implicit single-fence form.
 
 `commit_saved` accepts a complete staged Table DML reference and returns its
 original row-operation state. INSERT/UPDATE/DELETE evaluate their frozen work and
@@ -743,7 +781,10 @@ not execute SQL `CREATE KV`, nor accept a writer PID or Station state resource.
 
 A mandatory `kind` in the persisted catalog intent distinguishes `table` and
 `kv`. KV CREATE lowers its value specification to the exact two-column
-`KVDeclaration` physical schema. Its DDL intent digest includes kind, namespace,
+`KVDeclaration` physical schema. Values may be scalar `int64`, `boolean`, `utf8`
+or `binary`, or a `row` with 1–64 named logical fields. Row definitions retain
+nested nullability and character constraints; non-row specifications must have
+no fields. The schema's fingerprint covers the complete descriptor. Its DDL intent digest includes kind, namespace,
 name and action in native field order, with fixed name-byte arrays encoded as
 strings including zero padding, under `transit.catalog.ddl.intent.v1` and a zero
 byte. The signed wire envelope encodes those arrays as JSON numbers. The ordinary catalog admission,
@@ -753,7 +794,16 @@ similar column names never establish object kind.
 
 `DirectKV.Mutation` contains a data-lifecycle binding and 1–1024 changes. A put
 has a base64 byte key, a bound FVL1 value and an `absent`, `present` or `any`
-expectation; remove has a byte key. The mutation uses binding action `insert`
+expectation and an optional exact `expected_revision`; remove has a byte key.
+The point revision is the stored row's original `(origin, operation, ordinal)`
+identity. Every new KV put assigns its own identity. An exact revision requires
+the key to exist and match under the partition publication fence; it cannot be
+combined with `absent`. A mismatch rejects the complete batch with
+`KVRevisionChanged`. Unrelated keys do not change that point revision. The
+expected revision participates in both mutation and accepted-change digests;
+an identical retry recovers its original result before reevaluating the condition.
+The revision is an observation, never read or write authority.
+The mutation uses binding action `insert`
 and requires the exact expected definition. Its intent digest is SHA-256 of
 `transit.kv.mutation.v1`, a zero byte, and canonical public JSON of the change
 list. That list must fit 4 MiB. The shared operation binding is claimed only
@@ -768,7 +818,8 @@ current definition, exact connection and digest, with no fallback decoding.
 
 `get` returns interpretation, public source position, last logical-change position,
 value specification, optional retained source, mandatory nullable `workspace`
-and an optional encoded value.
+and an optional encoded value with its mandatory nullable point `revision`.
+The encoded value and revision must either both exist or both be absent.
 Absence carries the same basis as presence. NULL remains a logical value.
 `pin`, `pin_status` and `release` use the shared retained-snapshot owner identity.
 A retained read verifies the exact handle and current rights before disclosure,
@@ -1323,9 +1374,16 @@ registers an edge nor starts work. A missing edge is distinct from an immutable
 successful registration receipt whose edge was subsequently removed. This bounded
 point observation does not certify data availability or a cross-catalog snapshot.
 
+An `application` dependency uses the same native graph and a named KV control
+object for an ordered Queue program. Multiple applications may register their
+transactional read/write requirements on the same resource. The finite managed
+Table profile still excludes shared writers and output chaining, including an
+application writer registered before or after that finite computation.
+
 The edge key digest is SHA-256 over `transit.catalog.dependency.v1` and a zero
 byte, followed by 169 bytes: source definition, one-byte dependent kind (KV=1,
-Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7), dependent definition, and a big-endian
+Document=2, captured=3, maintained=4, Stream=5, Queue=6, Table=7, view=8,
+property_graph=9, foreign=10, managed=11, source=12, application=13), dependent definition, and a big-endian
 unsigned 64-bit privilege mask. Each 80-byte definition contains big-endian
 unsigned 64-bit realm/resource/catalog/branch/object/revision, then its 32-byte
 digest. Foreign-key digests append a big-endian u32 constraint ID and u64
@@ -2078,12 +2136,33 @@ transaction replays from its beginning. Local closure/destruction performs no
 remote release; the caller explicitly closes its original acquisition when its
 durable history requirement ends.
 
-`check_set` accepts 1–16 tagged `access` or `snapshot` checks. Access checks use
+`check_set` accepts 1–16 tagged `access`, `current_state`, `current_connector`,
+`snapshot`, `historical` or `dependency` checks. Access checks use
 the same exact-definition/action requirements as `check`; snapshot checks verify
-the original live pin. The local owner excludes Table mutations during the set
+the original live pin. Historical checks use the exact historical catalog owner.
+Dependency checks require the registered edge, exact live source/dependent
+definitions and every current source action in its privilege mask, plus dependent
+metadata access. They create no receipt and do not register or repair a missing
+edge. A retained read delegation cannot perform a dependency check.
+Current-state checks carry a namespace, physical `table` or `kv` kind and the
+exact `Transaction.StateGuard` returned by a public read: definition, nonzero
+accepted position and logical-change LSN. They require current Table SELECT or
+KV read privileges, including for an absent row. A changed definition, logical
+change, namespace or kind rejects; acceptance-only advances do not invalidate
+the basis. The public owner preserves transaction publication/recovery barriers.
+Private transaction reads and retained read delegations cannot use this check.
+Current-connector checks bind the exact immutable definition, kind and nullable
+control (state, epoch and authorized role), with either inspect or use privileges.
+Sink use requires active control and the effective caller role to match the
+authorized dispatch role. A suspend/resume cycle cannot restore an older check's
+epoch. Connection use checks its current native use privilege. Neither variant
+admits work; private reads and retained read delegations reject connector checks.
+The local owner excludes Table mutations during the set
 and rechecks the union of successful requirements under one current native
 policy revision after response buffering. Native guard capacity still bounds
-the union. The `checked` result carries no rows or common source cut.
+the union. The `checked` result carries no rows, retained common source cut or
+dispatch authority. A successful current-state set proves that the supplied
+public bases coexist at this check; it does not authorize later unchecked reads.
 
 `namespaces` accepts an optional last-visited schema ID and returns at most eight
 authorized live schemas, a continuation and directory position. Empty filtered
@@ -2244,6 +2323,8 @@ actions are `lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status
 `snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range` and `release`.
 Other actions return `UnsupportedTransactionRead`. Pending statements or a changed
 revision refuse access before disclosure.
+`check_set` rejects `current_state` and `current_connector` entries in a private workspace: a private
+result cannot establish the current public basis required for external effects.
 
 Names and definitions resolve through the accepted begin catalog root. Each Table
 must belong to the acquired source directory, retain its original live pin and

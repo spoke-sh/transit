@@ -3,7 +3,7 @@
 
 namespace transit::sdk::logical_detail {
 namespace {
-constexpr const char *kinds[] = {"int8", "int16", "int32", "int64", "int128", "uint8", "uint16", "uint32", "uint64", "uint128", "float32", "float64", "boolean", "utf8", "binary", "date", "time", "interval", "uuid", "json", "decimal", "timestamp", "structure", "tagged_union", "list", "array", "map", "unknown", "null_value", "text", "character"};
+constexpr const char *kinds[] = {"int8", "int16", "int32", "int64", "int128", "uint8", "uint16", "uint32", "uint64", "uint128", "float32", "float64", "boolean", "utf8", "binary", "date", "time", "interval", "uuid", "json", "decimal", "timestamp", "structure", "tagged_union", "list", "array", "map", "capability", "unknown", "null_value", "text", "character"};
 using U128 = unsigned __int128;
 std::string unsigned_text(U128 value) {
     char buffer[40]; auto *end = buffer + sizeof(buffer); auto *start = end;
@@ -74,8 +74,20 @@ transit_logical_kind kind_from(const std::string &name) {
     for (size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); ++i) if (kinds[i] == name) return static_cast<transit_logical_kind>(i);
     fail(TRANSIT_SDK_INVALID_ARGUMENT, "logical-kind");
 }
+Json field_json(const transit_logical_field &f, Budget &b, size_t depth) {
+    b.name(f.name.size); require(f.type, "logical-field-type");
+    require(!f.max_characters || f.type->kind == TRANSIT_LOGICAL_UTF8, "logical-field-length");
+    return Json::object({{"name", Json::string(bytes_text(f.name, 4096))}, {"type", type_json(*f.type, b, depth)}, {"nullable", Json::boolean(f.nullable)}, {"optional", Json::boolean(f.optional)}, {"max_characters", f.max_characters ? Json::integer(f.max_characters) : Json{}}});
+}
+transit_logical_field field_from(const Json &f, Arena &a, Budget &b, size_t depth) {
+    f.fields({"name", "type", "nullable", "optional", "max_characters"}); const auto &name = f.at("name").string(); b.name(name.size());
+    auto *type = a.array<transit_logical_type_view>(1); *type = type_from(f.at("type"), a, b, depth);
+    const auto &maximum = f.at("max_characters"); uint32_t bound = 0;
+    if (!maximum.is_null()) { bound = static_cast<uint32_t>(maximum.number(UINT32_MAX, false)); require(bound && type->kind == TRANSIT_LOGICAL_UTF8, "logical-field-length"); }
+    return {a.bytes(name), type, f.at("nullable").boolean(), f.at("optional").boolean(), bound};
+}
 Json type_json(const transit_logical_type_view &v, Budget &b, size_t depth) {
-    require(v.kind <= TRANSIT_LOGICAL_MAP, "logical-descriptor-kind");
+    require(v.kind <= TRANSIT_LOGICAL_CAPABILITY, "logical-descriptor-kind");
     b.enter(depth); const auto *tag = kind_name(v.kind); Json payload = Json::object();
     switch (v.kind) {
         case TRANSIT_LOGICAL_DECIMAL:
@@ -87,8 +99,7 @@ Json type_json(const transit_logical_type_view &v, Budget &b, size_t depth) {
         case TRANSIT_LOGICAL_STRUCTURE: case TRANSIT_LOGICAL_TAGGED_UNION:
             array_check(v.as.fields.data, v.as.fields.size, 256); payload = Json::array();
             for (size_t i = 0; i < v.as.fields.size; ++i) {
-                const auto &f = v.as.fields.data[i]; b.name(f.name.size); require(f.type, "logical-field-type");
-                payload.items.push_back(Json::object({{"name", Json::string(bytes_text(f.name, 4096))}, {"type", type_json(*f.type, b, depth + 1)}, {"nullable", Json::boolean(f.nullable)}, {"optional", Json::boolean(f.optional)}}));
+                payload.items.push_back(field_json(v.as.fields.data[i], b, depth + 1));
             }
             break;
         case TRANSIT_LOGICAL_LIST: payload = element_json(v.as.list, b, depth); break;
@@ -103,7 +114,7 @@ Json type_json(const transit_logical_type_view &v, Budget &b, size_t depth) {
 }
 transit_logical_type_view type_from(const Json &v, Arena &a, Budget &b, size_t depth) {
     b.enter(depth); const auto &entry = v.variant(); const auto &p = entry.second; transit_logical_type_view out{}; out.kind = kind_from(entry.first);
-    require(out.kind <= TRANSIT_LOGICAL_MAP, "logical-descriptor-kind");
+    require(out.kind <= TRANSIT_LOGICAL_CAPABILITY, "logical-descriptor-kind");
     switch (out.kind) {
         case TRANSIT_LOGICAL_DECIMAL:
             p.fields({"precision", "scale"}); out.as.decimal.precision = static_cast<uint8_t>(p.at("precision").number(38, false));
@@ -113,9 +124,7 @@ transit_logical_type_view type_from(const Json &v, Arena &a, Budget &b, size_t d
         case TRANSIT_LOGICAL_STRUCTURE: case TRANSIT_LOGICAL_TAGGED_UNION: {
             const auto &fields = p.array(256); auto *values = a.array<transit_logical_field>(fields.size()); out.as.fields = {values, fields.size()};
             for (size_t i = 0; i < fields.size(); ++i) {
-                const auto &f = fields[i]; f.fields({"name", "type", "nullable", "optional"}); const auto &name = f.at("name").string(); b.name(name.size());
-                auto *type = a.array<transit_logical_type_view>(1); *type = type_from(f.at("type"), a, b, depth + 1);
-                values[i] = {a.bytes(name), type, f.at("nullable").boolean(), f.at("optional").boolean()};
+                values[i] = field_from(fields[i], a, b, depth + 1);
             }
             break;
         }

@@ -31,6 +31,14 @@ pub const Capture = struct {
     segment: *const fn (*anyopaque, http.Kind, []const u8) anyerror!void,
 };
 pub const Result = struct { status: u16, bytes: u64, omitted_headers: u32 };
+/// A trusted executor's final check, after connection/TLS establishment and
+/// immediately before the first possible HTTP request write. The transport
+/// neither derives native authority nor retries a failed check. The callback
+/// and its borrowed state remain live until execute returns after joining it.
+pub const WriteGate = struct {
+    context: *anyopaque,
+    check: *const fn (*anyopaque) anyerror!void,
+};
 fn secretHeader(name: []const u8) bool {
     for ([_][]const u8{ "set-cookie", "authorization", "proxy-authorization", "www-authenticate", "proxy-authenticate" }) |field| if (std.ascii.eqlIgnoreCase(name, field)) return true;
     return false;
@@ -87,7 +95,7 @@ fn readCause(err: anyerror, raw: *const std.Io.net.Stream.Reader, secure: ?*cons
 fn writeCause(err: anyerror, raw: *const std.Io.net.Stream.Writer) anyerror {
     return if (err == error.WriteFailed) raw.err orelse err else err;
 }
-fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
+fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture, gate: ?WriteGate) !Result {
     const started = std.Io.Clock.awake.now(io);
     const started_ms: u64 = @intCast(std.Io.Clock.real.now(io).toMilliseconds());
     try endpoint.validate();
@@ -112,11 +120,14 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     var output_buffer: [tls.Client.min_buffer_len]u8 = undefined;
     var tls_input: [tls.Client.min_buffer_len]u8 = undefined;
     var tls_output: [tls.Client.min_buffer_len]u8 = undefined;
+    defer std.crypto.secureZero(u8, &input_buffer);
     defer std.crypto.secureZero(u8, &output_buffer);
+    defer std.crypto.secureZero(u8, &tls_input);
     defer std.crypto.secureZero(u8, &tls_output);
     var raw_reader = connection.reader(io, &input_buffer);
     var raw_writer = connection.writer(io, &output_buffer);
     var secure: tls.Client = undefined;
+    defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
     var lock: std.Io.RwLock = .init;
     if (endpoint.tls) {
         var entropy: [tls.Client.Options.entropy_len]u8 = undefined;
@@ -131,10 +142,11 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
             .realtime_now = now,
         }) catch |err| return writeCause(readCause(err, &raw_reader, null), &raw_writer);
     }
-    defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
+    if (gate) |selected| try selected.check(selected.context);
     const writer = if (endpoint.tls) &secure.writer else &raw_writer.interface;
     writer.writeAll(head) catch |err| return writeCause(err, &raw_writer);
     var buffer: [segment_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &buffer);
     var remaining = request.body_bytes;
     while (remaining != 0) {
         const count: usize = @intCast(@min(remaining, buffer.len));
@@ -176,6 +188,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     try emit(capture, .response_head, safe.bytes);
     var total: u64 = 0;
     var chunk_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &chunk_buffer);
     var chunks: Chunked = .{ .input = reader.in, .scratch = &chunk_buffer, .budget = endpoint.response_bytes };
     if (!no_body) {
         const stream = if (response.transfer_encoding == .chunked) null else reader.bodyReader(&.{}, response.transfer_encoding, response.content_length);
@@ -211,14 +224,14 @@ fn timeout(io: std.Io, milliseconds: u32) !void {
 }
 /// Errors after authorization are uncertain remote outcomes, including capture
 /// failure and timeout. They never authorize an automatic external retry.
-pub fn execute(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
+pub fn execute(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture, gate: ?WriteGate) !Result {
     try endpoint.validate();
     const Choice = union(enum) { response: anyerror!Result, timeout: anyerror!void };
     var choices: [2]Choice = undefined;
     var select: std.Io.Select(Choice) = .init(io, &choices);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{ io, endpoint.timeout_ms });
-    try select.concurrent(.response, run, .{ gpa, io, endpoint, request, body, secrets, capture });
+    try select.concurrent(.response, run, .{ gpa, io, endpoint, request, body, secrets, capture, gate });
     return switch (try select.await()) {
         .response => |value| value,
         .timeout => error.HttpOutcomeUnknown,

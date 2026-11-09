@@ -62,17 +62,18 @@ public static partial class Catalog
         public ulong KvDomain { get; }
         public ulong ConnectionDomain { get; }
         public ulong SourceDomain { get; }
+        public ulong SinkDomain { get; }
         public ulong Database { get; }
         public ulong InitialSchema { get; }
         public ulong InitialSchemaAuthority { get; }
-        public AuthorityProfile(ulong databaseDomain, ulong schemaDomain, ulong tableDomain, ulong streamDomain, ulong queueDomain, ulong kvDomain, ulong connectionDomain, ulong sourceDomain, ulong database, ulong initialSchema, ulong initialSchemaAuthority) {
+        public AuthorityProfile(ulong databaseDomain, ulong schemaDomain, ulong tableDomain, ulong streamDomain, ulong queueDomain, ulong kvDomain, ulong connectionDomain, ulong sourceDomain, ulong sinkDomain, ulong database, ulong initialSchema, ulong initialSchemaAuthority) {
             DatabaseDomain = V.Counter(databaseDomain); SchemaDomain = V.Counter(schemaDomain); TableDomain = V.Counter(tableDomain);
-            StreamDomain = V.Counter(streamDomain); QueueDomain = V.Counter(queueDomain); KvDomain = V.Counter(kvDomain); ConnectionDomain = V.Counter(connectionDomain); SourceDomain = V.Counter(sourceDomain);
+            StreamDomain = V.Counter(streamDomain); QueueDomain = V.Counter(queueDomain); KvDomain = V.Counter(kvDomain); ConnectionDomain = V.Counter(connectionDomain); SourceDomain = V.Counter(sourceDomain); SinkDomain = V.Counter(sinkDomain);
             Database = V.Counter(database); InitialSchema = V.Counter(initialSchema); InitialSchemaAuthority = V.Counter(initialSchemaAuthority);
-            if (new[] { databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain, connectionDomain, sourceDomain }.Distinct().Count() != 8 || database == initialSchemaAuthority)
+            if (new[] { databaseDomain, schemaDomain, tableDomain, streamDomain, queueDomain, kvDomain, connectionDomain, sourceDomain, sinkDomain }.Distinct().Count() != 9 || database == initialSchemaAuthority)
                 throw new ArgumentException("Distinct native authorization bindings are required");
         }
-        internal JsonObject Wire() => V.Obj(("database_domain", DatabaseDomain), ("schema_domain", SchemaDomain), ("table_domain", TableDomain), ("stream_domain", StreamDomain), ("queue_domain", QueueDomain), ("kv_domain", KvDomain), ("connection_domain", ConnectionDomain), ("source_domain", SourceDomain),
+        internal JsonObject Wire() => V.Obj(("database_domain", DatabaseDomain), ("schema_domain", SchemaDomain), ("table_domain", TableDomain), ("stream_domain", StreamDomain), ("queue_domain", QueueDomain), ("kv_domain", KvDomain), ("connection_domain", ConnectionDomain), ("source_domain", SourceDomain), ("sink_domain", SinkDomain),
             ("database", Database), ("initial_schema", InitialSchema), ("initial_schema_authority", InitialSchemaAuthority));
     }
     /// <summary>An observed authenticated subject; it grants no authority.</summary>

@@ -11,7 +11,7 @@ pub fn supports(descriptor: t.Type, trait: Trait) !bool {
 }
 fn supported(descriptor: t.Type, trait: Trait) bool {
     return switch (descriptor) {
-        .json => false,
+        .json, .capability => false,
         .interval => trait == .equality,
         .map => |map| trait == .equality and supported(map.key.*, trait) and supported(map.value.type.*, trait),
         .structure, .tagged_union => |fields| blk: {
@@ -125,7 +125,8 @@ pub fn hash(field: t.Field, cell: v.Cell) ![32]u8 {
     var hasher = Hash.init(.{});
     hasher.update("transit.fuze.structural-hash.v1\x00");
     hasher.update(&try field.type.fingerprint());
-    hasher.update(&.{ @intFromBool(field.nullable), @intFromBool(field.optional) });
+    hasher.update(&.{ @intFromBool(field.nullable), @intFromBool(field.optional), @intFromBool(field.max_characters != null) });
+    if (field.max_characters) |maximum| number(&hasher, maximum);
     hashCell(&hasher, field.type, cell);
     return hasher.finalResult();
 }
@@ -140,6 +141,7 @@ fn bytesHash(hasher: *Hash, bytes: []const u8) void {
 }
 fn hashAtom(hasher: *Hash, atom: t.Semantics.Atom) void {
     switch (atom) {
+        .capability => unreachable, // validate rejects this trait before hashing.
         .signed => |value| number(hasher, value),
         .unsigned => |value| number(hasher, value),
         .decimal => |value| number(hasher, value),

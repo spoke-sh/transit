@@ -97,6 +97,12 @@ Direct KV policy defines separate inspection, read and write rights in its own
 native domain. The catalog configuration and all caller descriptors require this
 domain alongside database, schema, Table, Stream and Queue; missing or duplicate
 domain IDs reject. Direct KV lifecycle integration remains in progress.
+The canonical `transit.secret_references` KV binding additionally requires the
+native `use_secret` privilege for value reads, including the final authority
+check of a common transaction. Namespace ownership is required to create a
+canonical native binding. A general CREATE or KV READ grant cannot substitute
+for these permissions. The [catalog component](../../../packages/zig/transit-catalog/README.md#canonical-native-state-bindings)
+documents this secret-metadata profile and its remaining HTTP integration.
 See the [authorization contract](../../../contracts/AUTHORIZATION_V1.md).
 
 SQL authorization plans resolve database, schema and Table names through the

@@ -12,6 +12,7 @@ const Constraints = @import("TableConstraints.zig");
 pub const Create = struct {
     name: []const u8,
     if_not_exists: bool,
+    native_binding: ?@import("NativeBinding.zig").Kind = null,
     columns: []const s.Column,
     primary_key: []const s.ColumnId,
     integrity: Constraints.Integrity = .{},
@@ -188,7 +189,10 @@ fn create(parser: *Parser) !Create {
         try parser.requireWord("EXISTS");
     }
     const name = try parser.named(.proposed);
-    return columnDefinitions(parser, name, if_not_exists);
+    var result = try columnDefinitions(parser, name, if_not_exists);
+    result.native_binding = try @import("NativeBinding.zig").clause(parser);
+    if (result.native_binding) |binding| if (binding.isKV()) return error.InvalidNativeBindingKind;
+    return result;
 }
 /// Shared logical column grammar. The caller owns its declaration keyword,
 /// name and policy clauses; no SQL text is rewritten into another object kind.

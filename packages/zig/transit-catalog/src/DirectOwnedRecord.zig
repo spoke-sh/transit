@@ -43,7 +43,7 @@ pub const Envelope = struct {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.key.validate();
         try reference.validate();
-        if (self.format == 0 or self.format & R.guarded_bit != 0 or reference.format != format or
+        if (self.format == 0 or reference.format != format or
             !std.meta.eql(self.key.scope(), reference.scope)) return error.InvalidOwnedRecord;
     }
 };
@@ -54,7 +54,7 @@ pub const Stage = struct {
     pub fn validate(self: Stage) !void {
         try self.binding.validate();
         if (self.binding.intent != .external or self.binding.intent.external.record.format != format or
-            self.format == 0 or self.format & R.guarded_bit != 0) return error.InvalidOwnedRecord;
+            self.format == 0) return error.InvalidOwnedRecord;
     }
     pub fn encode(self: Stage, allocator: std.mem.Allocator) ![]u8 {
         try self.validate();
@@ -84,6 +84,7 @@ pub const Attach = struct {
 pub fn encode(allocator: std.mem.Allocator, key: Token.Key, inner_format: u32, bytes: c.DirectTableProtocol.Binary) ![]u8 {
     const payload = try bytes.decode(allocator, R.max_bytes);
     defer allocator.free(payload);
+    try R.validatePayload(allocator, key.connection, inner_format, payload);
     return p.Json.valueAllocBounded(allocator, Envelope{ .definition = p.Growth.current_definition, .key = key, .format = inner_format, .bytes = bytes }, R.max_bytes);
 }
 pub fn stage(client: c.DirectTableClient, key: Token.Key, namespace: u64, operation: u64, fingerprint: [32]u8, budget: Token.Budget, inner_format: u32, payload: []const u8) !Token.Progress {

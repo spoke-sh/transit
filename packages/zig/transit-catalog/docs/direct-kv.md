@@ -9,8 +9,9 @@ and attempt diagnostics. Storage belongs to `KVPartition` over `TransitLog` and
 
 Prepare a `DirectKV.Declaration` with `DirectKVClient.prepareDeclaration`. It
 freezes the current definition, scoped object, original operation, namespace/name,
-owner role and `KVDeclaration.Spec`. The value types are `int64`, `boolean`, `utf8`
-and `binary`, with explicit nullability. Save that complete declaration before
+owner role and `KVDeclaration.Spec`. The value types are `int64`, `boolean`, `utf8`,
+`binary` and `row`, with explicit nullability. A row has 1–64 named logical fields
+and preserves their types, nullability and character limits. Save that complete declaration before
 sending it. `declaration` commands are `preview`, `admit`, `inspect`, `execute`
 and `cancel`; execution accepts a bounded step count of 1–256.
 
@@ -35,6 +36,12 @@ expectations. The binding requires the exact definition and may also require an
 observed partition position. A missing-key read includes its observation basis;
 use that position when subsequent changes must invalidate the write. A failed
 key expectation or position guard rejects the whole batch.
+
+A present-key `get` also returns its point `revision`. Pass that identity as a
+put's `expected_revision` to require the exact observed value version. Unrelated
+key writes do not invalidate it. Missing or changed keys reject the whole batch;
+the revision cannot be combined with `absent`. An exact retry after a lost reply
+still returns the original outcome. The revision grants no authority.
 
 Keys contain 1–1024 byte-exact bytes, including zero bytes. Batches contain
 1–1024 changes. A value's logical byte budget is 1 MiB minus 1024 bytes, and the

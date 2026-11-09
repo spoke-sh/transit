@@ -7,6 +7,28 @@ fn fixture() !std.json.Parsed(x.SchemaTypes) {
     return p.Json.parseFromSlice(x.SchemaTypes, t.allocator, @embedFile("fixtures/transaction-v1.json"));
 }
 
+test "transaction deadlines reject empty intervals and missing stored constraints" {
+    try (x.Deadline{ .floor_ms = 0, .expires_ms = 1 }).validate();
+    try t.expectError(error.InvalidTransactionDeadline, (x.Deadline{ .floor_ms = 100, .expires_ms = 100 }).validate());
+    try t.expectError(error.InvalidTransactionDeadline, (x.Deadline{ .floor_ms = 100, .expires_ms = 99 }).validate());
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var begin = parsed.value.begin;
+    begin.deadline = .{ .floor_ms = 100, .expires_ms = 200 };
+    try begin.validate();
+    var changed = begin;
+    changed.deadline.?.expires_ms += 1;
+    try t.expectError(error.TransactionIdentityConflict, begin.requireSame(changed));
+    const bytes = try p.Json.valueAlloc(t.allocator, begin);
+    defer t.allocator.free(bytes);
+    var json = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer json.deinit();
+    try t.expect(json.value.object.swapRemove("deadline"));
+    const missing = try p.Json.valueAlloc(t.allocator, json.value);
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(x.Begin, t.allocator, missing));
+}
+
 test "transaction fixture preserves scoped identities and distinct log positions" {
     const parsed = try fixture();
     defer parsed.deinit();

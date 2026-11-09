@@ -16,6 +16,7 @@ static void round(const Type &value) { assert(Type::decode(value.encode()).encod
 static void round(const Cell &value) { assert(Cell::decode(value.encode()).encode() == value.encode()); }
 int main() {
     for (int i = TRANSIT_LOGICAL_INT8; i <= TRANSIT_LOGICAL_JSON; ++i) round(Type::scalar(static_cast<Kind>(i)));
+    round(Type::scalar(TRANSIT_LOGICAL_CAPABILITY));
     for (const auto kind : {TRANSIT_LOGICAL_UNKNOWN, TRANSIT_LOGICAL_NULL_VALUE, TRANSIT_LOGICAL_TEXT, TRANSIT_LOGICAL_CHARACTER}) {
         round(Cell::type_error(kind)); invalid([&] { Type::scalar(kind); });
     }
@@ -26,6 +27,10 @@ int main() {
     auto nested = integer; for (size_t i = 0; i < 15; ++i) nested = Type::list(nested);
     round(nested); invalid([&] { Type::list(nested); });
     invalid([&] { Type::decimal(39, 0); }); invalid([&] { Type::decimal(2, 3); }); invalid([&] { Type::array(integer, 0); });
+    const auto bounded = Type::structure({{"label", Type::scalar(TRANSIT_LOGICAL_UTF8), true, true, UINT32_MAX}});
+    round(bounded); assert(Type::decode(bounded.encode()).fields()[0].max_characters == UINT32_MAX);
+    invalid([&] { Type::structure({{"label", integer, false, false, 1}}); });
+    invalid([&] { Type::structure({{"label", Type::scalar(TRANSIT_LOGICAL_UTF8), false, false, 0}}); });
     std::vector<Field> fields(255, {"", integer}); round(Type::structure(fields));
     fields.push_back({"", integer}); invalid([&] { Type::structure(fields); });
     round(Type::structure({{std::string(4096, 'x'), integer}}));

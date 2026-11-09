@@ -1794,6 +1794,7 @@ export interface AuthorityProfile {
   readonly kvDomain: number;
   readonly connectionDomain: number;
   readonly sourceDomain: number;
+  readonly sinkDomain: number;
   readonly database: number;
   readonly initialSchema: number;
   readonly initialSchemaAuthority: number;
@@ -1965,6 +1966,7 @@ export class Client {
       authority.kv_domain,
       authority.connection_domain,
       authority.source_domain,
+      authority.sink_domain,
     ];
     if (
       new Set(domains).size !== domains.length ||
@@ -1990,6 +1992,7 @@ export class Client {
           kvDomain: authority.kv_domain,
           connectionDomain: authority.connection_domain,
           sourceDomain: authority.source_domain,
+          sinkDomain: authority.sink_domain,
           database: authority.database,
           initialSchema: authority.initial_schema,
           initialSchemaAuthority: authority.initial_schema_authority,

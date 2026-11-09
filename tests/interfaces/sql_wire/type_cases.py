@@ -33,8 +33,8 @@ CASES = (
 
 # This is deliberately explicit. Adding a native type or alias requires a
 # reviewed disposition, rather than silently narrowing the test to a whitelist.
-UNSUPPORTED_ALIASES = ('INT128', 'UINT128', 'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'INTERVAL', 'UUID', 'JSON')
-UNSUPPORTED_KINDS = ('int128', 'uint128', 'date', 'time', 'timestamp', 'interval', 'uuid', 'structure', 'list', 'array', 'map', 'tagged_union', 'json', 'range', 'multirange', 'vector')
+UNSUPPORTED_ALIASES = ('INT128', 'UINT128', 'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ', 'INTERVAL', 'UUID', 'JSON', 'CAPABILITY')
+UNSUPPORTED_KINDS = ('int128', 'uint128', 'date', 'time', 'timestamp', 'interval', 'uuid', 'structure', 'list', 'array', 'map', 'tagged_union', 'json', 'range', 'multirange', 'vector', 'capability')
 
 
 def native_cell(cell, descriptor):

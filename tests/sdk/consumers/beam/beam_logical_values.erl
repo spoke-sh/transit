@@ -7,13 +7,21 @@ round(Kind,V) -> {ok,W}=transit_logical:encode(Kind,V),{ok,V}=transit_logical:de
 reject(Kind,V) -> {error,_}=transit_logical:encode(Kind,V),ok.
 atom(V) -> {value,{atom,V}}.
 run() ->
-    Types=[int8,int16,int32,int64,int128,uint8,uint16,uint32,uint64,uint128,float32,float64,boolean,utf8,binary,date,time,interval,uuid,json,
+    Bounded=#transit_logical_field{name= <<"label">>,type=utf8,nullable=true,optional=true,max_characters=4294967295},
+    round(type,{structure,[#transit_logical_field{name= <<"inner">>,type={tagged_union,[Bounded]}}]}),
+    lists:foreach(fun(M) -> reject(type,{structure,[Bounded#transit_logical_field{max_characters=M}]}) end,[0,-1,1.5,true,4294967296]),
+    reject(type,{structure,[Bounded#transit_logical_field{type=binary}]}),
+    FieldWire=transit_logical:field_wire(Bounded),
+    {error,_}=transit_logical:decode(type,#{<<"structure">>=>[maps:remove(<<"max_characters">>,FieldWire)]}),
+    lists:foreach(fun(M) -> {error,_}=transit_logical:decode(type,#{<<"structure">>=>[FieldWire#{<<"max_characters">>=>M}]}) end,[0,-1,1.5,true,4294967296]),
+    Types=[int8,int16,int32,int64,int128,uint8,uint16,uint32,uint64,uint128,float32,float64,boolean,utf8,binary,date,time,interval,uuid,json,capability,
         {decimal,38,2},{timestamp,civil},{timestamp,utc},
         {structure,[#transit_logical_field{name= <<"東京"/utf8>>,type=binary,nullable=true,optional=true}]},
         {tagged_union,[#transit_logical_field{name= <<"amount">>,type={decimal,38,2}}]},
         {list,#transit_logical_element{type=int8}}, {array,#transit_logical_element{type=uuid,nullable=true},2},
         {map,utf8,#transit_logical_element{type={decimal,38,2}}}],
     lists:foreach(fun(V)->round(type,V) end,Types),
+    {error,_}=transit_logical:decode(atom,#{<<"capability">>=>lists:duplicate(32,1)}),
     Atoms=[{signed,-(1 bsl 127)},{unsigned,(1 bsl 128)-1},{decimal,123456789012345678901234567890},
         {float32,-0.0},{float64,-0.0},{boolean,false},{utf8,<<"東京"/utf8>>},{binary,<<0,128,255>>},
         {uuid,<<0:128>>},{date_days,-100},{time_nanos,123},{timestamp_micros,-1000},{interval,-1,2,-3000}],

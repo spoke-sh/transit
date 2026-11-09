@@ -37,7 +37,9 @@ function page(n: number): ResultPage {
   return {
     evidence: {
       manifest,
-      columns: [{ name: "id", type: { int64: {} }, nullable: true, optional: true }],
+      columns: [
+        { name: "id", type: { int64: {} }, nullable: true, optional: true, max_characters: null },
+      ],
       ordinal: String(n),
       rows: 1,
       ipc: "00",

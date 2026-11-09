@@ -225,7 +225,9 @@ pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.
 }
 
 /// Copy a protocol value into caller-owned storage without encoding it. This
-/// deliberately accepts only value trees, not arbitrary runtime object graphs.
+/// deliberately accepts value trees and types with an owning cloneInto method,
+/// not arbitrary runtime object graphs. Such owners validate and bound their
+/// recursive descriptors before copying; the generic walker never follows them.
 /// The caller supplies an arena so partial failure is released as one unit.
 pub fn clone(allocator: std.mem.Allocator, value: anytype) !@TypeOf(value) {
     var result = value;
@@ -238,8 +240,15 @@ pub fn clone(allocator: std.mem.Allocator, value: anytype) !@TypeOf(value) {
 // only one variant is live. Large protocol envelopes can exhaust a worker's
 // stack before any slice is copied. Scalar storage is already owned by result;
 // only borrowed slices need allocation and recursive ownership here.
-fn ownSlices(allocator: std.mem.Allocator, value: anytype) std.mem.Allocator.Error!void {
+fn ownSlices(allocator: std.mem.Allocator, value: anytype) anyerror!void {
     const T = @typeInfo(@TypeOf(value)).pointer.child;
+    switch (@typeInfo(T)) {
+        .@"struct", .@"union" => if (@hasDecl(T, "cloneInto")) {
+            value.* = try value.*.cloneInto(allocator);
+            return;
+        },
+        else => {},
+    }
     switch (@typeInfo(T)) {
         .pointer => |info| {
             if (info.size != .slice or info.sentinel_ptr != null) @compileError("local response must be a value tree");

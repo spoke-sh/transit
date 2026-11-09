@@ -11,6 +11,39 @@ pub const Method = enum { GET };
 pub const max_endpoint_bytes = 2048;
 pub const max_path_bytes = 8192;
 
+/// Immutable outbound application transport profile. This descriptor carries
+/// no credentials, request values, executor lease or permission to send.
+pub const Sink = struct {
+    method: enum { GET, POST },
+    path: []const u8,
+    request_encoding: enum { none, form },
+    accept: []const u8,
+    user_agent: ?[]const u8,
+    response: enum { protected_json },
+    capture: enum { redacted_metadata },
+    request_timeout_ms: u64,
+    response_max_bytes: u64,
+    follow_redirects: bool,
+    max_attempts: u8,
+    unknown_outcome: enum { retain },
+
+    pub fn validate(self: Sink) !void {
+        try validatePath(self.path);
+        if ((self.method == .GET and self.request_encoding != .none) or
+            (self.method == .POST and self.request_encoding != .form)) return error.InvalidSinkEncoding;
+        if (self.request_timeout_ms == 0 or self.response_max_bytes == 0 or self.response_max_bytes > 64 * 1024)
+            return error.InvalidSinkBudget;
+        if (self.follow_redirects or self.max_attempts != 1) return error.InvalidSinkRetryPolicy;
+        try header(self.accept);
+        if (self.user_agent) |value| try header(value);
+    }
+
+    fn header(value: []const u8) !void {
+        if (value.len == 0 or value.len > 256) return error.InvalidSinkHeader;
+        for (value) |byte| if (byte < 0x20 or byte >= 0x7f) return error.InvalidSinkHeader;
+    }
+};
+
 pub const Connection = struct {
     definition: p.Growth.Definition,
     interpretation: d.Definition,
@@ -343,4 +376,38 @@ test "HTTP source text bounds agree with the declared schema capacities" {
     path[0] = '/';
     try validatePath(path[0..8192]);
     try std.testing.expectError(error.InvalidSourcePath, validatePath(&path));
+}
+
+test "SOURCE SINK profiles reject retry redirects header injection and unbounded responses" {
+    const t = std.testing;
+    const value: Sink = .{ .method = .POST, .path = "/token", .request_encoding = .form, .accept = "application/json", .user_agent = null, .response = .protected_json, .capture = .redacted_metadata, .request_timeout_ms = 5000, .response_max_bytes = 65536, .follow_redirects = false, .max_attempts = 1, .unknown_outcome = .retain };
+    try value.validate();
+    var changed = value;
+    changed.follow_redirects = true;
+    try t.expectError(error.InvalidSinkRetryPolicy, changed.validate());
+    changed = value;
+    changed.max_attempts = 2;
+    try t.expectError(error.InvalidSinkRetryPolicy, changed.validate());
+    changed = value;
+    changed.method = .GET;
+    try t.expectError(error.InvalidSinkEncoding, changed.validate());
+    changed.request_encoding = .none;
+    try changed.validate();
+    changed = value;
+    changed.response_max_bytes += 1;
+    try t.expectError(error.InvalidSinkBudget, changed.validate());
+    changed = value;
+    changed.request_timeout_ms = 0;
+    try t.expectError(error.InvalidSinkBudget, changed.validate());
+    for ([_][]const u8{ "", "application/json\r\nX-Injected: yes", "\tjson", &(@as([257]u8, @splat('x'))) }) |bad| {
+        changed = value;
+        changed.accept = bad;
+        try t.expectError(error.InvalidSinkHeader, changed.validate());
+        changed = value;
+        changed.user_agent = bad;
+        try t.expectError(error.InvalidSinkHeader, changed.validate());
+    }
+    changed = value;
+    changed.path = "//other.example/token";
+    try t.expectError(error.InvalidSourcePath, changed.validate());
 }

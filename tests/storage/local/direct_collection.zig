@@ -17,7 +17,7 @@ const object: p.DataLifecycle.Object = .{ .scope = .{ .realm = 42, .resource = 2
 const SourceCatalog = struct {
     fixture: *Fixture,
     admission: c.DirectDocumentSource.Admission = .{},
-    const authority: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
+    const authority: c.TableAuthority.Profile = .{ .database_domain = 1, .schema_domain = 2, .table_domain = 3, .stream_domain = 31, .queue_domain = 32, .kv_domain = 33, .connection_domain = 34, .source_domain = 35, .sink_domain = 36, .database = 4, .initial_schema = 1, .initial_schema_authority = 5 };
     fn make(raw: *anyopaque, _: std.mem.Allocator, required: p.Authorization.Guard, _: ?p.Authorization.Guard) !P.Guard {
         try required.validate();
         const self: *SourceCatalog = @ptrCast(@alignCast(raw));

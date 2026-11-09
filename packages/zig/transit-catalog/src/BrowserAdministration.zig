@@ -79,7 +79,7 @@ pub fn prepare(store: b.Store, spec: Prepare) !b.Change {
     if (compiled.plan.aggregate != .rows) return error.UnsupportedBrowserPublication;
     const output = try compiled.plan.outputSchema(&fields);
     const columns = try allocator.alloc(f.TableSchema.Column, output.structure.len);
-    for (output.structure, columns, 0..) |field, *column, index| column.* = .{ .id = @intCast(index + 1), .name = try allocator.dupe(u8, field.name), .type = try field.type.cloneInto(allocator), .nullable = field.nullable };
+    for (output.structure, columns, 0..) |field, *column, index| column.* = .{ .id = @intCast(index + 1), .name = try allocator.dupe(u8, field.name), .type = try field.type.cloneInto(allocator), .nullable = field.nullable, .max_characters = field.max_characters };
     const dependencies = try allocator.alloc(c.HistoricalCatalog.DependencyColumnBinding, 1);
     const input_columns = try allocator.alloc(f.TableSchema.ColumnId, schema.schema.columns.len);
     for (schema.schema.columns, input_columns) |column, *id| id.* = column.id;

@@ -5,7 +5,7 @@ function view(rows: ResultView["rows"], type: ResultView["columns"][number]["typ
   return {
     definition: readDefinition,
     result: "a".repeat(64),
-    columns: [{ name: "value", type, nullable: true, optional: true }],
+    columns: [{ name: "value", type, nullable: true, optional: true, max_characters: null }],
     rows,
     observation: "{}",
     observation_kind: "data",
