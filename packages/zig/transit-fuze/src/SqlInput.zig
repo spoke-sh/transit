@@ -8,6 +8,8 @@ pub const Token = Scan.Token;
 /// offsets remain u16; source offsets include the exclusive end of a 64 KiB file.
 pub const max_source_bytes = 64 * 1024;
 pub const SourceScan = Scanner(u32, max_source_bytes);
+/// Offline source compilation has its own quota; runtime inputs keep their bounds.
+pub const CompilerScan = Scanner(u32, 1024 * 1024);
 pub const Scan = Scanner(u16, sql.max_statement_bytes);
 pub const Range = struct { start: u16, end: u16, quoted: bool = false };
 fn Scanner(comptime Offset: type, comptime max_bytes: usize) type {

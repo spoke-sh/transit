@@ -10,7 +10,7 @@ pub const Statement = struct {
     end: u32,
     first: [3]?Token,
 };
-const Block = enum { body, conditional, expression };
+const Block = enum { body, conditional, expression, loop };
 const Self = @This();
 scan: input.SourceScan,
 
@@ -18,12 +18,24 @@ pub fn init(text: []const u8) !Self {
     return .{ .scan = try input.SourceScan.init(text) };
 }
 
-fn word(text: []const u8, token: Token, value: []const u8) bool {
+fn word(text: []const u8, token: anytype, value: []const u8) bool {
     return token.kind == .word and std.ascii.eqlIgnoreCase(text[token.start..token.end], value);
 }
 
+pub const Compiler = struct {
+    scan: input.CompilerScan,
+    pub fn init(text: []const u8) !Compiler {
+        return .{ .scan = try input.CompilerScan.init(text) };
+    }
+    pub fn next(self: *Compiler) !?Statement {
+        return nextFrame(&self.scan);
+    }
+};
 pub fn next(self: *Self) !?Statement {
-    const text = self.scan.text;
+    return nextFrame(&self.scan);
+}
+fn nextFrame(scan: anytype) !?Statement {
+    const text = scan.text;
     var result: ?Statement = null;
     var count: usize = 0;
     var parentheses: usize = 0;
@@ -33,8 +45,9 @@ pub fn next(self: *Self) !?Statement {
     var body = false;
     var after_as = false;
     var instruction_start = false;
-    var end_if = false;
-    while (try self.scan.next()) |token| {
+    var suffix: ?Block = null;
+    var create_header = false;
+    while (try scan.next()) |token| {
         if (!token.closed and (token.kind == .string or token.kind == .quoted or
             token.kind == .comment and std.mem.startsWith(u8, text[token.start..token.end], "/*")))
             return error.UnterminatedSqlToken;
@@ -45,18 +58,34 @@ pub fn next(self: *Self) !?Statement {
             if (symbol and byte == ';') continue;
             result = .{ .start = token.start, .end = token.end, .first = @splat(null) };
         }
-        if (count < 3) result.?.first[count] = token;
+        if (count < 3) result.?.first[count] = .{ .kind = token.kind, .start = token.start, .end = token.end, .closed = token.closed };
         count += 1;
-        if (count == 2) compound = word(text, result.?.first[0].?, "CREATE") and word(text, token, "DATAFLOW");
-        if (count == 4) compound = compound and word(text, token, "FROM");
-        if (count == 5) compound = compound and word(text, token, "QUEUE");
-        if (compound and count > 5 and after_as and word(text, token, "BEGIN")) body = true;
+        if (count == 1) {
+            create_header = word(text, token, "CREATE");
+            compound = word(text, token, "TEST");
+        }
+        if (create_header and count <= 5) {
+            inline for (.{ "DATAFLOW", "PROCEDURE", "FUNCTION", "GUARD", "MODULE", "TARGET" }) |kind|
+                if (word(text, token, kind)) {
+                    compound = true;
+                };
+        }
+        const opens_body = compound and !body and after_as and word(text, token, "BEGIN");
+        if (opens_body) body = true;
         after_as = word(text, token, "AS");
-        if (end_if) {
-            if (!word(text, token, "IF")) return error.UnbalancedSqlBlock;
-            end_if = false;
-            result.?.end = token.end;
-            continue;
+        if (suffix) |kind| {
+            suffix = null;
+            const expected = switch (kind) {
+                .conditional => "IF",
+                .loop => "FOR",
+                .expression => "CASE",
+                .body => unreachable,
+            };
+            if (word(text, token, expected)) {
+                result.?.end = token.end;
+                continue;
+            }
+            if (kind != .expression) return error.UnbalancedSqlBlock;
         }
         if (symbol and byte == '(') {
             if (parentheses == max_depth) return error.SqlNestingTooDeep;
@@ -66,7 +95,7 @@ pub fn next(self: *Self) !?Statement {
             parentheses -= 1;
         }
         if (body) {
-            const block: ?Block = if (word(text, token, "BEGIN")) .body else if (word(text, token, "CASE")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else null;
+            const block: ?Block = if (word(text, token, "BEGIN")) .body else if (word(text, token, "CASE")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else null;
             if (block) |kind| {
                 if (depth == blocks.len) return error.SqlNestingTooDeep;
                 blocks[depth] = kind;
@@ -75,10 +104,10 @@ pub fn next(self: *Self) !?Statement {
             } else if (word(text, token, "END")) {
                 if (depth == 0) return error.UnbalancedSqlBlock;
                 depth -= 1;
-                end_if = blocks[depth] == .conditional;
+                suffix = if (blocks[depth] == .body) null else blocks[depth];
                 instruction_start = false;
-            } else if (depth > 0 and blocks[depth - 1] == .conditional and
-                (word(text, token, "THEN") or word(text, token, "ELSE")))
+            } else if (depth > 0 and (blocks[depth - 1] == .conditional or blocks[depth - 1] == .loop) and
+                (word(text, token, "THEN") or word(text, token, "ELSE") or word(text, token, "DO")))
             {
                 instruction_start = true;
             } else if (!word(text, token, "ATOMIC")) instruction_start = false;
@@ -90,7 +119,7 @@ pub fn next(self: *Self) !?Statement {
         }
         result.?.end = token.end;
     }
-    if (depth != 0 or end_if) return error.UnbalancedSqlBlock;
+    if (depth != 0 or (suffix != null and suffix.? != .expression)) return error.UnbalancedSqlBlock;
     if (parentheses != 0) return error.UnbalancedSqlParentheses;
     return result;
 }
@@ -164,4 +193,32 @@ test "script framing admits bounded files independently of interactive SQL" {
     try t.expectError(error.StatementTooLarge, input.Scan.init(text[0..max_source_bytes]));
     try t.expectError(error.InvalidSqlEncoding, init("SELECT\x00x"));
     try t.expectError(error.InvalidSqlEncoding, init("SELECT\xff"));
+}
+
+test "source framing covers constructors commands procedures tests and FOR suffixes" {
+    const t = std.testing;
+    inline for (.{ "CREATE PUBLIC MODULE m(x BIGINT)", "CREATE TARGET default", "CREATE PROCEDURE p()", "CREATE FUNCTION fn()", "CREATE DATAFLOW cmd FROM COMMAND (x BIGINT)", "TEST 'nested'" }) |header| {
+        const source = header ++ " AS BEGIN IF TRUE THEN FOR row IN items DO SELECT CASE WHEN TRUE THEN 1 ELSE 2 END CASE; END FOR; ELSIF FALSE THEN SELECT 0; ELSE SELECT 3; END IF; ON FAILURE e BEGIN ATOMIC SELECT 4; END; END; SELECT 5;";
+        var script = try Compiler.init(source);
+        const first = (try script.next()).?;
+        try t.expect(std.mem.endsWith(u8, source[first.start..first.end], "END"));
+        const second = (try script.next()).?;
+        try t.expectEqualStrings("SELECT 5", source[second.start..second.end]);
+        try t.expectEqual(null, try script.next());
+    }
+    var bad = try Compiler.init("CREATE TARGET x AS BEGIN FOR x IN y DO SELECT 1; END IF; END;");
+    try t.expectError(error.UnbalancedSqlBlock, bad.next());
+}
+
+test "compiler files exceed migration input without widening runtime admission" {
+    const t = std.testing;
+    const text = try t.allocator.alloc(u8, 1024 * 1024 + 1);
+    defer t.allocator.free(text);
+    @memset(text, ' ');
+    @memcpy(text[70000..70009], "SELECT 1;");
+    var script = try Compiler.init(text[0 .. 1024 * 1024]);
+    try t.expectEqual(@as(u32, 70000), (try script.next()).?.start);
+    try t.expectEqual(null, try script.next());
+    try t.expectError(error.StatementTooLarge, Compiler.init(text));
+    try t.expectError(error.StatementTooLarge, init(text[0..70010]));
 }
