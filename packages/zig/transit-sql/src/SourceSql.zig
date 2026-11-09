@@ -11,7 +11,7 @@ pub const Statement = union(enum) {
     connection: struct { name: Name, endpoint: []const u8 },
     create: Create,
     sink: Sink,
-    control: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind, command: s.Command },
+    control: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind, command: s.Command, executor_role: ?f.AuthorizationSql.Role },
     drop: struct { name: Name, kind: g.catalog.SourceDeclaration.Kind },
     inspect: struct { name: ?Name, describe: bool, kind: g.catalog.SourceDeclaration.Kind },
     explain: Create,
@@ -83,8 +83,16 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
             if (explain) return error.UnsupportedSourceStatement;
             const command = controls.get(parser.token.text).?;
             try parser.advance();
-            if (try parser.takeWord("SOURCE")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .kind = .source, .command = command } };
-            if (try parser.takeWord("SINK")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .kind = .sink, .command = command } };
+            if (try parser.takeWord("SOURCE")) break :blk .{ .control = .{ .name = try Name.init(try parser.name()), .kind = .source, .command = command, .executor_role = null } };
+            if (try parser.takeWord("SINK")) {
+                const name = try Name.init(try parser.name());
+                const selected = if (command == .authorize) role: {
+                    try parser.requireWord("AS");
+                    try parser.requireWord("ROLE");
+                    break :role try f.AuthorizationSql.role(&parser, false);
+                } else null;
+                break :blk .{ .control = .{ .name = name, .kind = .sink, .command = command, .executor_role = selected } };
+            }
         } else if (try parser.takeWord("DROP")) {
             if (explain) return error.UnsupportedSourceStatement;
             if (try parser.takeWord("SOURCE")) break :blk .{ .drop = .{ .name = try Name.init(try parser.name()), .kind = .source } };
@@ -243,6 +251,27 @@ test "source SQL binds exact application sink profiles without source destinatio
     var drop = (try parse(t.allocator, "DROP SINK github_token RESTRICT", .transit)).?;
     defer drop.deinit();
     try t.expectEqual(.sink, drop.statement.drop.kind);
+}
+
+test "sink authorization uses explicit shared SQL role selection" {
+    const t = std.testing;
+    var named = (try parse(t.allocator, "AUTHORIZE SINK github_token AS ROLE \"Signin Effects\"", .transit)).?;
+    defer named.deinit();
+    try t.expectEqualStrings("Signin Effects", named.statement.control.executor_role.?.named);
+    var current = (try parse(t.allocator, "AUTHORIZE SINK github_token AS ROLE CURRENT_ROLE", .transit)).?;
+    defer current.deinit();
+    try t.expectEqual(.current_role, current.statement.control.executor_role.?);
+    for ([_][]const u8{ "ACTIVATE", "SUSPEND", "RESUME", "RETIRE" }) |verb| {
+        const sql = try std.fmt.allocPrint(t.allocator, "{s} SINK github_token", .{verb});
+        defer t.allocator.free(sql);
+        var selected = (try parse(t.allocator, sql, .transit)).?;
+        defer selected.deinit();
+        try t.expectEqual(.sink, selected.statement.control.kind);
+        try t.expectEqual(null, selected.statement.control.executor_role);
+    }
+    try t.expectError(error.InvalidSqlSyntax, parse(t.allocator, "AUTHORIZE SINK github_token", .transit));
+    try t.expectError(error.InvalidSqlRole, parse(t.allocator, "AUTHORIZE SINK github_token AS ROLE PUBLIC", .transit));
+    try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "RESUME SINK github_token AS ROLE other", .transit));
 }
 
 test "source SQL refuses unsafe or ambiguous application sink options" {

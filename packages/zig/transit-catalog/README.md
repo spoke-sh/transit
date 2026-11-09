@@ -8,8 +8,12 @@ keeps durable declaration, capture and activation gates separate.
 The same `DirectSource` owner publishes typed HTTP sinks with a distinct native
 authority domain and exact connection dependency. It recovers the original
 publication, rechecks connection use, protects the connection from DROP and
-removes the edge only through the sink's retired DROP. This declaration profile
-does not dispatch HTTP or install sink SQL.
+removes the edge only through the sink's retired DROP. Its native controls bind
+an explicit dispatch role at authorization and preserve it through activation,
+suspension, resumption and retirement, with conditional epochs and original
+operation recovery. SQL resolves role names through `DirectAuthorizationSql`;
+native control publication rechecks role selection. Desired activation does not
+dispatch HTTP or prove worker/dependency readiness.
 
 `DirectCatalogRead.apply` composes read-only inspection, resource and dependency
 callers for data exploration. It returns bounded pages and exact Table metadata;

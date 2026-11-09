@@ -3,7 +3,7 @@
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (historicalStatement | selectStatement | mutationStatement | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand) SEMI? EOF;
+statement: (historicalStatement | selectStatement | mutationStatement | kvWorkloadCommand | logAppendCommand | logConsumeCommand | logClaimCommand | logSettlementCommand | logOffsetCommand | extensionStatement | transactionStatement | managedCommand | sourceCommand) SEMI? EOF;
 // The SQL service binds this exact catalog before compiling the inner query.
 historicalStatement: (selectStatement | DESCRIBE identifier | EXPLAIN selectStatement) snapshotClause projectionClause? | SHOW TABLES snapshotClause;
 snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
@@ -18,7 +18,9 @@ managedCommand
 // Ingestion declarations are distinct from query adapters. Runtime activation
 // requires its own qualified catalog, capture and effect owners.
 sourceCommand
-    : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) (SOURCE | SINK) identifier
+    : (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | RETIRE) SOURCE identifier
+    | AUTHORIZE SINK identifier AS ROLE authorizationRole
+    | (ACTIVATE | SUSPEND | RESUME | RETIRE) SINK identifier
     | DROP (SOURCE | CONNECTION | SINK) identifier RESTRICT?
     | SHOW (SOURCE | CONNECTION | SINK) identifier
     | DESCRIBE (SOURCE | CONNECTION | SINK) identifier
@@ -339,10 +341,19 @@ createDocument
     : CREATE DOCUMENT identifier
     ;
 
-// CREATE KV settings (UTF8); — the growing profile's KV resource, DDL form.
+// Dedicated direct KV owner; workload verbs do not lower to Table mutations.
 createKv
     : CREATE KV identifier LPAREN dataType RPAREN nativeBindingClause?
     ;
+kvWorkloadCommand
+    : PUT INTO identifier (KEY kvKey VALUE kvValue | VALUES kvEntry (COMMA kvEntry)*) kvExpectation?
+    | GET FROM identifier KEY kvKey
+    | DELETE FROM identifier (KEY kvKey | KEYS LPAREN kvKey (COMMA kvKey)* RPAREN)
+    ;
+kvEntry: LPAREN kvKey COMMA kvValue RPAREN;
+kvKey: STRING (TYPECAST BYTEA)? | X STRING | PARAMETER;
+kvValue: literal | PARAMETER;
+kvExpectation: IF (ABSENT | PRESENT);
 
 // One object/role and one recipient. Privilege applicability, duplicate options,
 // PUBLIC delegation and role eligibility are production semantic checks.
@@ -401,7 +412,7 @@ identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTI
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
-    | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM
+    | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | PUT | GET | KEYS | ABSENT | PRESENT
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS
     | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD
     | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC
@@ -579,6 +590,11 @@ EBCDIC_CP037: 'EBCDIC_CP037';
 EBCDIC_037_PAD: 'EBCDIC_037_PAD';
 EBCDIC_1047_NOPAD: 'EBCDIC_1047_NOPAD';
 KEY: 'KEY';
+PUT: 'PUT';
+GET: 'GET';
+KEYS: 'KEYS';
+ABSENT: 'ABSENT';
+PRESENT: 'PRESENT';
 IF: 'IF';
 EXISTS: 'EXISTS';
 DATA: 'DATA';

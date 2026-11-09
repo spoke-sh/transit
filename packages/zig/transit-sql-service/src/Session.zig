@@ -1064,7 +1064,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.UnsupportedSourceStatement, error.SourceRequiresCohostedService => .{ "0A000".*, "Connector declarations require a native cohosted session outside an explicit transaction" },
         error.InvalidSinkEncoding, error.InvalidSinkHeader, error.InvalidSinkBudget, error.InvalidSinkRetryPolicy => .{ "22023".*, "SINK options violate the bounded HTTP transport profile" },
         error.SourceExecutorNotConfigured => .{ "55000".*, "CREATE SOURCE requires an explicit executor in the selected database binding" },
-        error.SourceDeclarationConflict => .{ "55000".*, "Connector declaration conflicts with current names, dependencies or writer ownership" },
+        error.SourceDeclarationConflict => .{ "55000".*, "Connector declaration conflicts with current names, control state, dependencies or writer ownership" },
         error.DataflowRevisionNotFound => .{ "42704".*, "The requested dataflow revision has not completed" },
         error.ManagedTableResultBudget => .{ "54000".*, "Retained revision read budget exceeded" },
         error.SettingNotSessionMutable => .{ "0A000".*, "Setting cannot be changed by this session" },

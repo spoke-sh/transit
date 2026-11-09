@@ -210,14 +210,26 @@ def run(cli, node, host, board, gateway):
             original_sink = settle(sink_client, dict(token=sink_token))
             assert original_sink['command'] == 'create_sink' and original_sink['identity']['kind'] == 'connector'
             assert sink_client.execute(SINK, token=sink_token)['operation'] == original_sink
-            for control in ('AUTHORIZE', 'ACTIVATE', 'SUSPEND', 'RESUME'):
-                refused = sink_client.call(dict(execute=dict(sql=f'{control} SINK exchange', token=list(os.urandom(16)))), error='SourceExecutionUnsupported')
-                assert refused['err'].get('operation') is None, refused
+            refused = sink_client.call(dict(execute=dict(sql='ACTIVATE SINK exchange', token=list(os.urandom(16)))), error='SourceDeclarationConflict')
+            assert refused['err'].get('operation') is None, refused
+            authorize_sql = 'AUTHORIZE SINK exchange AS ROLE CURRENT_ROLE'
+            authorize_token = list(os.urandom(16))
+            sink_client.call(dict(execute=dict(sql=authorize_sql, token=authorize_token)), discard_response=True)
+            original_authorize = settle(sink_client, dict(token=authorize_token))
+            assert original_authorize['command'] == 'authorize_sink'
+            assert sink_client.execute(authorize_sql, token=authorize_token)['operation'] == original_authorize
+            for control in ('ACTIVATE', 'SUSPEND', 'RESUME'):
+                control_token = list(os.urandom(16))
+                sink_client.execute(f'{control} SINK exchange', token=control_token)
+                observed = settle(sink_client, dict(token=control_token))
+                assert observed['command'] == f'{control.lower()}_sink', observed
         finally:
             sink_client.close()
         sink_metadata = metadata(fixture, 'DESCRIBE SINK exchange')[0]
-        assert sink_metadata['state'] == 'published' and sink_metadata['epoch'] == '1'
+        assert sink_metadata['state'] == 'active' and sink_metadata['epoch'] == '5'
         sink_declaration = json.loads(sink_metadata['definition'])
+        assert sink_metadata['executor_role'] == str(sink_declaration['owner'])
+        assert sink_metadata['execution_supported'] is False and sink_metadata['execution'] == 'never_run'
         assert sink_declaration['payload']['sink']['http']['path'] == '/token'
         reader_proof(fixture, sink_declaration, json.loads(connection['definition']))
         fixture.console('DROP SINK exchange;\n', expected=1)
@@ -266,6 +278,10 @@ def run(cli, node, host, board, gateway):
             assert recovered.execute(SOURCE, token=token)['operation'] == original
             assert recovered.call(dict(status=dict(token=sink_token)))['operation'] == original_sink
             assert recovered.execute(SINK, token=sink_token)['operation'] == original_sink
+            assert recovered.execute(authorize_sql, token=authorize_token)['operation'] == original_authorize
+            after_restart = metadata(fixture, 'SHOW SINK exchange')[0]
+            assert after_restart['state'] == 'active' and after_restart['epoch'] == '5'
+            assert after_restart['executor_role'] == sink_metadata['executor_role']
         finally:
             recovered.close()
         fixture.console('RETIRE SOURCE earthquakes;\n')
@@ -276,7 +292,8 @@ def run(cli, node, host, board, gateway):
         fixture.console('DROP CONNECTION upstream;\n', expected=1)
         fixture.console('RETIRE SINK exchange;\n')
         retired_sink = metadata(fixture, 'SHOW SINK exchange')[0]
-        assert retired_sink['state'] == 'retired' and retired_sink['epoch'] == '2'
+        assert retired_sink['state'] == 'retired' and retired_sink['epoch'] == '6'
+        assert retired_sink['executor_role'] == sink_metadata['executor_role']
         assert json.loads(retired_sink['definition']) == sink_declaration
         fixture.console('DROP SINK exchange RESTRICT;\nDROP CONNECTION upstream RESTRICT;\n')
         assert metadata(fixture, 'SHOW SOURCES') == []

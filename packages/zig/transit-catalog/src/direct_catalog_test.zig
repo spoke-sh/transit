@@ -327,6 +327,7 @@ const Access = struct {
     denied_metadata_error: anyerror = error.CatalogDenied,
     denied_privileges: ?struct { id: u64, mask: u64 } = null,
     denied_ownership: ?u64 = null,
+    denied_selection: ?u64 = null,
     visible_despite_denied_privileges: bool = false,
     deny_create: bool = false,
     epoch_change_at: usize = std.math.maxInt(usize),
@@ -354,6 +355,7 @@ const Access = struct {
         if (value.access.exclusive and value.access.held) return error.NestedPolicyGuard;
         value.access.calls += 1;
         if (value.access.calls >= value.access.deny_at) return error.CatalogDenied;
+        if (value.access.denied_selection) |role| if (value.requested.selectable == role) return error.CatalogDenied;
         for (value.requested.requirements) |slot| if (slot) |requirement| {
             if (value.access.denied_ownership) |id| if (requirement.access == .ownership and std.meta.eql(requirement.object, a.reference(id))) return error.CatalogDenied;
             if (value.access.deny_create and std.meta.eql(requirement.object, a.reference(profile.initial_schema_authority)) and requirement.privileges & a.create != 0) return error.CatalogDenied;
@@ -10823,7 +10825,7 @@ test "guarded continuation originals and progress retain every current read depe
         }
         _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
     }
-    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(sink, 252, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(sink, 252, .{ .control = .{ .expected_epoch = 1, .command = .retire, .executor_role = null } }))).resulting.?;
     _ = try connectorExecute(&catalog, &access, try connectorEdit(retired, 253, .{ .drop = .{ .expected_epoch = 2 } }));
     for ([_]c.DirectRecord.Reference{ original, current }) |reference|
         try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
@@ -11108,7 +11110,7 @@ test "SOURCE disk lifecycle protects dependencies writers and original outcomes 
     const source_drop = try connectorEdit(accepted.resulting.?, 105, .{ .drop = .{ .expected_epoch = 1 } });
     try t.expectEqual(.not_retired, (try connectorExecute(&catalog, &access, source_drop)).reason);
     for ([_]p.Source.Command{ .authorize, .activate, .suspend_source, .resume_source }) |command| {
-        const blocked = try connectorEdit(accepted.resulting.?, 106, .{ .control = .{ .expected_epoch = 1, .command = command } });
+        const blocked = try connectorEdit(accepted.resulting.?, 106, .{ .control = .{ .expected_epoch = 1, .command = command, .executor_role = null } });
         const root = catalog.store.root;
         try t.expectError(error.SourceExecutionUnsupported, catalog.sourceOperation(blocked, .reserve, access.policy()));
         try t.expectEqualDeep(root, catalog.store.root);
@@ -11116,7 +11118,7 @@ test "SOURCE disk lifecycle protects dependencies writers and original outcomes 
     catalog.deinit();
     catalog = try owner(&wal, &objects);
     try t.expectEqualDeep(accepted, (try catalog.sourceOperation(request, .inspect, access.policy())).operation);
-    const retire = try connectorEdit(accepted.resulting.?, 107, .{ .control = .{ .expected_epoch = 1, .command = .retire } });
+    const retire = try connectorEdit(accepted.resulting.?, 107, .{ .control = .{ .expected_epoch = 1, .command = .retire, .executor_role = null } });
     const retired = (try connectorExecute(&catalog, &access, retire)).resulting.?;
     try t.expectEqualDeep(accepted.resulting.?.declaration, retired.declaration);
     try t.expectEqual(2, retired.control.?.epoch);
@@ -11299,7 +11301,7 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
     const definition: c.SourceDeclaration.Definition = .{ .definition = p.Growth.current_definition, .object = request.binding.target, .revision = 1, .properties = .{ .namespace = 1, .authorization = 177, .name = request.intent.name }, .owner = 0, .payload = request.intent.action.create.payload };
     var stored = try definition.stored(t.allocator);
     stored.kind = .source;
-    const state: c.DirectSource.State = .{ .declaration = stored, .control = p.Source.Control.initial(), .dropped = false };
+    const state: c.DirectSource.State = .{ .declaration = stored, .control = .{ .state = .authorized, .epoch = 1, .executor_role = 1 }, .dropped = false };
     const edge: c.DirectDependency.Edge = .{ .source = stored.interpretation, .dependent = .{ .kind = .source, .interpretation = stored.interpretation }, .privileges = 3 };
     // Exercise each completed shape; the staged commitment is retained only
     // by pending publication, never duplicated alongside its resulting owner.
@@ -11623,7 +11625,7 @@ test "SOURCE capture expiry preserves existing pins and releases bodies without 
     // SOURCE retirement and both metadata drops leave destination ownership intact.
     var meta = try catalog.inspectSource(t.allocator, source.interpretation, access.policy());
     defer meta.deinit();
-    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(meta.value.state, 510001, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(meta.value.state, 510001, .{ .control = .{ .expected_epoch = 1, .command = .retire, .executor_role = null } }))).resulting.?;
     _ = try connectorExecute(&catalog, &access, try connectorEdit(retired, 510002, .{ .drop = .{ .expected_epoch = 2 } }));
     var connection_meta = try catalog.inspectSource(t.allocator, source.connection, access.policy());
     defer connection_meta.deinit();
@@ -12067,8 +12069,57 @@ test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     try t.expectError(error.CatalogDependencyOwned, catalog.dependencyOperation(edge_edit, .accept, access.policy()));
     const premature = try connectorEdit(accepted.resulting.?, 104, .{ .drop = .{ .expected_epoch = 1 } });
     try t.expectEqual(.not_retired, (try connectorExecute(&catalog, &access, premature)).reason);
-    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(accepted.resulting.?, 105, .{ .control = .{ .expected_epoch = 1, .command = .retire } }))).resulting.?;
-    const dropped = try connectorExecute(&catalog, &access, try connectorEdit(retired, 106, .{ .drop = .{ .expected_epoch = 2 } }));
+    // Withdrawal must remain possible when the proposed dispatch role can no
+    // longer be assumed. Cancellation still requires sink administration.
+    const withdrawn = try connectorEdit(accepted.resulting.?, 120, .{ .control = .{ .expected_epoch = 1, .command = .authorize, .executor_role = 8 } });
+    _ = try catalog.sourceOperation(withdrawn, .reserve, access.policy());
+    access.denied_selection = 8;
+    try t.expectEqual(.cancelled, (try catalog.sourceOperation(withdrawn, .cancel, access.policy())).operation.phase);
+    access.denied_selection = null;
+    const authorize = try connectorEdit(accepted.resulting.?, 110, .{ .control = .{ .expected_epoch = 1, .command = .authorize, .executor_role = 7 } });
+    access.denied_selection = 7;
+    const before_authorize = catalog.store.root;
+    try t.expectError(error.CatalogDenied, connectorExecute(&catalog, &access, authorize));
+    try t.expectEqualDeep(before_authorize, catalog.store.root);
+    access.denied_selection = null;
+    _ = try catalog.sourceOperation(authorize, .reserve, access.policy());
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.sourceOperation(authorize, .execute, access.policy()));
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    const authorized = try connectorExecute(&catalog, &access, authorize);
+    try t.expectEqual(.authorized, authorized.resulting.?.control.?.state);
+    try t.expectEqual(@as(?u64, 7), authorized.resulting.?.control.?.executor_role);
+    const substituted = try connectorEdit(accepted.resulting.?, 110, .{ .control = .{ .expected_epoch = 1, .command = .authorize, .executor_role = 8 } });
+    try t.expectError(error.DataIdentityConflict, catalog.sourceOperation(substituted, .execute, access.policy()));
+    const activate = try connectorEdit(authorized.resulting.?, 111, .{ .control = .{ .expected_epoch = 2, .command = .activate, .executor_role = null } });
+    access.denied_selection = 7;
+    try t.expectError(error.CatalogDenied, connectorExecute(&catalog, &access, activate));
+    access.denied_selection = null;
+    const active = (try connectorExecute(&catalog, &access, activate)).resulting.?;
+    try t.expectEqual(.active, active.control.?.state);
+    try t.expectEqual(@as(?u64, 7), active.control.?.executor_role);
+    // Administrative suspension remains possible without assuming dispatch
+    // authority; resumption rechecks that original selected role.
+    access.denied_selection = 7;
+    const suspended = (try connectorExecute(&catalog, &access, try connectorEdit(active, 112, .{ .control = .{ .expected_epoch = 3, .command = .suspend_source, .executor_role = null } }))).resulting.?;
+    const replace_role = try connectorEdit(suspended, 113, .{ .control = .{ .expected_epoch = 4, .command = .authorize, .executor_role = 8 } });
+    try t.expectEqual(.stale_control, (try connectorExecute(&catalog, &access, replace_role)).reason);
+    const resume_control = try connectorEdit(suspended, 114, .{ .control = .{ .expected_epoch = 4, .command = .resume_source, .executor_role = null } });
+    try t.expectError(error.CatalogDenied, connectorExecute(&catalog, &access, resume_control));
+    access.denied_selection = null;
+    const resumed = (try connectorExecute(&catalog, &access, resume_control)).resulting.?;
+    try t.expectEqual(.active, resumed.control.?.state);
+    try t.expectEqualDeep(authorized, (try catalog.sourceOperation(authorize, .inspect, access.policy())).operation);
+    const stale = try connectorEdit(resumed, 115, .{ .control = .{ .expected_epoch = 2, .command = .suspend_source, .executor_role = null } });
+    try t.expectEqual(.stale_control, (try connectorExecute(&catalog, &access, stale)).reason);
+    const retired = (try connectorExecute(&catalog, &access, try connectorEdit(resumed, 105, .{ .control = .{ .expected_epoch = 5, .command = .retire, .executor_role = null } }))).resulting.?;
+    try t.expectEqual(@as(?u64, 7), retired.control.?.executor_role);
+    const dropped = try connectorExecute(&catalog, &access, try connectorEdit(retired, 106, .{ .drop = .{ .expected_epoch = 6 } }));
     try t.expect(dropped.resulting.?.dropped);
     try t.expectEqualDeep(edge, dropped.removed[0].?);
     const removed = try connectorExecute(&catalog, &access, try connectorEdit(connection, 107, .{ .drop = .{ .expected_epoch = null } }));

@@ -16,7 +16,7 @@ ALTER KV name RENAME TO new_name;
 DROP KV [IF EXISTS] name [RESTRICT];
 
 PUT INTO name KEY key_operand VALUE value_operand [IF ABSENT | IF PRESENT];
-PUT INTO name VALUES ((key_operand, value_operand) [, ...]) [IF ABSENT | IF PRESENT];
+PUT INTO name VALUES (key_operand, value_operand) [, ...] [IF ABSENT | IF PRESENT];
 GET FROM name KEY key_operand;
 DELETE FROM name KEY key_operand;
 DELETE FROM name KEYS (key_operand [, ...]);
@@ -83,4 +83,4 @@ See [query source profiles](../queries.md#source-declarations).
 The [offline declaration contract](../../../../contracts/STATE_DECLARATION_V1.md)
 defines owned names, complete-input validation, canonical formatting and bounds.
 
-Source: [`createKv`, `dataType`](../../../../contracts/sql/TransitExtensions.g4).
+Source: [`createKv`, `kvWorkloadCommand`, `dataType`](../../../../contracts/sql/TransitExtensions.g4).

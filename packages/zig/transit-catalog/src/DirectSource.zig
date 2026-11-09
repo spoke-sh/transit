@@ -11,7 +11,7 @@ pub const Intent = struct {
     name: c.TableAuthority.Name,
     action: union(enum) {
         create: struct { owner: u64, payload: A.Payload },
-        control: struct { expected_epoch: u64, command: p.Source.Command },
+        control: struct { expected_epoch: u64, command: p.Source.Command, executor_role: ?u64 },
         drop: struct { expected_epoch: ?u64 },
     },
     pub fn validate(self: Intent, binding: d.Binding) !void {
@@ -32,8 +32,11 @@ pub const Intent = struct {
             },
             .control => |value| {
                 if (self.kind == .connection or value.expected_epoch == 0) return error.InvalidSourceControl;
-                // This gate lives at the typed boundary, independently of SQL.
-                if (value.command != .retire) return error.SourceExecutionUnsupported;
+                // Polling SOURCE execution remains outside this installed
+                // profile. SINK controls select authority without sending I/O.
+                if (self.kind == .source and value.command != .retire) return error.SourceExecutionUnsupported;
+                if ((value.command == .authorize) != (value.executor_role != null)) return error.InvalidSourceControl;
+                if (value.executor_role) |role| try Control.requireRole(role);
             },
             .drop => |value| {
                 if ((self.kind != .connection) != (value.expected_epoch != null)) return error.InvalidSourceControl;
@@ -65,16 +68,59 @@ pub const Command = enum { preview, inspect, reserve, execute, cancel };
 /// Includes request, declaration, bounded directory updates and terminal WAL
 /// capacity. Charged once; resumption and closure do not admit another operation.
 pub const reservation_bytes = 2 * A.max_bytes + 16 * r.max_record_bytes;
+/// Native connector control evidence. An active declaration is desired state;
+/// it does not attest worker placement or grant permission for a remote effect.
+pub const Control = struct {
+    state: p.Source.State,
+    epoch: u64,
+    executor_role: ?u64,
+
+    pub fn initial() Control {
+        return .{ .state = .published, .epoch = 1, .executor_role = null };
+    }
+    fn requireRole(role: u64) !void {
+        try p.Authorization.roleId(role);
+        if (role == 0) return error.InvalidAuthorizationRole;
+    }
+    pub fn validate(self: Control) !void {
+        try (p.Source.Control{ .state = self.state, .epoch = self.epoch }).validate();
+        if (self.executor_role) |role| try requireRole(role);
+        if ((self.state == .published and self.executor_role != null) or
+            ((self.state == .authorized or self.state == .active or self.state == .suspended) and self.executor_role == null)) return error.InvalidSourceControl;
+    }
+    pub fn apply(self: Control, command: p.Source.Command, role: ?u64) !Control {
+        try self.validate();
+        if ((command == .authorize) != (role != null)) return error.InvalidSourceControl;
+        const next = try (p.Source.Control{ .state = self.state, .epoch = self.epoch }).apply(command);
+        const result: Control = .{ .state = next.state, .epoch = next.epoch, .executor_role = if (command == .authorize) role else self.executor_role };
+        try result.validate();
+        return result;
+    }
+    pub fn transition(before: Control, after: Control) !void {
+        try after.validate();
+        const command: p.Source.Command = switch (after.state) {
+            .published => return error.InvalidSourceControl,
+            .authorized => .authorize,
+            .active => if (before.state == .authorized) .activate else .resume_source,
+            .suspended => .suspend_source,
+            .retired => .retire,
+        };
+        const expected = try before.apply(command, if (command == .authorize) after.executor_role else null);
+        if (!std.meta.eql(expected, after)) return error.InvalidSourceControl;
+    }
+};
 pub const State = struct {
     declaration: A.Stored,
-    control: ?p.Source.Control,
+    control: ?Control,
     dropped: bool,
     pub fn validate(self: State) !void {
         try self.declaration.validate();
         if ((self.declaration.kind != .connection) != (self.control != null)) return error.InvalidSourceControl;
         if (self.control) |control| {
             try control.validate();
-            if ((control.state != .published and control.state != .retired) or (self.dropped and control.state != .retired)) return error.InvalidSourceControl;
+            if (self.dropped and control.state != .retired) return error.InvalidSourceControl;
+            if (self.declaration.kind == .source and
+                ((control.state != .published and control.state != .retired) or control.executor_role != null)) return error.InvalidSourceControl;
         }
     }
 };
@@ -90,7 +136,7 @@ pub const Operation = struct {
     phase: enum { reserved, applied, rejected, cancelled },
     reason: Reason,
     previous: ?State,
-    expected_control: ?p.Source.Control,
+    expected_control: ?Control,
     resulting: ?State,
     destination: ?d.Definition,
     staged: ?A.Stored,
@@ -129,12 +175,12 @@ pub const Operation = struct {
             if (!std.meta.eql(declaration.interpretation.object, self.binding.target) or declaration.kind != self.kind or declaration.properties.namespace != self.namespace or !std.meta.eql(declaration.properties.name, self.name) or value.dropped != (self.binding.action == .drop)) return error.InvalidSourceDeclaration;
             if (self.binding.action == .create) {
                 if (self.staged != null) return error.InvalidSourceDeclaration;
-                if (self.previous != null or (value.control != null and !std.meta.eql(value.control.?, p.Source.Control.initial()))) return error.InvalidSourceDeclaration;
+                if (self.previous != null or (value.control != null and !std.meta.eql(value.control.?, Control.initial()))) return error.InvalidSourceDeclaration;
             } else {
                 if (self.previous != null or !std.meta.eql(self.binding.expected_definition.?, declaration.interpretation)) return error.InvalidSourceDeclaration;
                 if (self.binding.action == .alter) {
                     const previous_control = self.expected_control orelse return error.InvalidSourceControl;
-                    if (!std.meta.eql(try previous_control.apply(.retire), value.control.?)) return error.InvalidSourceControl;
+                    try Control.transition(previous_control, value.control orelse return error.InvalidSourceControl);
                 } else if (self.binding.action != .drop or !std.meta.eql(self.expected_control, value.control)) return error.InvalidSourceControl;
             }
         }
@@ -185,12 +231,36 @@ test "SOURCE typed publication refuses every execution control before admission"
     const t = std.testing;
     const object: d.Object = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .object = 4 };
     const binding: d.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = object.scope, .principal = 17, .operation = 1 }, .target = object, .action = .alter, .expected_definition = .{ .object = object, .revision = 1, .digest = @splat(1) }, .expected_data = null, .intent = @splat(1) };
-    var intent: Intent = .{ .kind = .source, .namespace = 1, .name = try .init("earthquakes"), .action = .{ .control = .{ .expected_epoch = 1, .command = .retire } } };
+    var intent: Intent = .{ .kind = .source, .namespace = 1, .name = try .init("earthquakes"), .action = .{ .control = .{ .expected_epoch = 1, .command = .retire, .executor_role = null } } };
     try intent.validate(binding);
     for ([_]p.Source.Command{ .authorize, .activate, .suspend_source, .resume_source }) |command| {
         intent.action.control.command = command;
         try t.expectError(error.SourceExecutionUnsupported, intent.validate(binding));
     }
+}
+
+test "SINK native controls require explicit roles and preserve authority through retirement" {
+    const t = std.testing;
+    const published = Control.initial();
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(Control, t.allocator, "{\"state\":\"published\",\"epoch\":1}"));
+    try t.expectError(error.InvalidSourceControl, published.apply(.authorize, null));
+    try t.expectError(error.InvalidAuthorizationRole, published.apply(.authorize, 0));
+    try t.expectError(error.InvalidSourceTransition, published.apply(.activate, null));
+    const authorized = try published.apply(.authorize, 7);
+    const active = try authorized.apply(.activate, null);
+    try Control.transition(published, authorized);
+    try Control.transition(authorized, active);
+    var changed = active;
+    changed.executor_role = 8;
+    try t.expectError(error.InvalidSourceControl, Control.transition(authorized, changed));
+    try t.expectError(error.InvalidSourceControl, active.apply(.suspend_source, 8));
+    const suspended = try active.apply(.suspend_source, null);
+    try t.expectError(error.InvalidSourceTransition, suspended.apply(.authorize, 8));
+    const resumed = try suspended.apply(.resume_source, null);
+    const retired = try resumed.apply(.retire, null);
+    try t.expectEqual(@as(?u64, 7), retired.executor_role);
+    try t.expectEqual(@as(u64, 6), retired.epoch);
+    try t.expectError(error.SourceRetired, retired.apply(.resume_source, null));
 }
 
 /// A proposal has no object or operation identity and performs no allocation.

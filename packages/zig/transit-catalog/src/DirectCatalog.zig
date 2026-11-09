@@ -8234,6 +8234,16 @@ fn connectorGuard(self: *Self, allocator: std.mem.Allocator, request: Connector.
     const known = try self.connectorCurrent(request.binding.target.object);
     var required = if (known) |value| try self.connectorRequirements(policy, value, if (write) .administer else .inspect) else try self.requirements(policy, try self.authorizationSchema(request.intent.namespace), null, .create_table);
     if (request.intent.action == .create and write) required.selectable = request.intent.action.create.owner;
+    if (request.intent.action == .control and write and dependencies and request.intent.kind == .sink) {
+        const control = request.intent.action.control;
+        switch (control.command) {
+            .authorize => required.selectable = control.executor_role,
+            .activate, .resume_source => if (known) |value| {
+                required.selectable = value.control.?.executor_role;
+            },
+            .suspend_source, .retire => {},
+        }
+    }
     if (dependencies and request.intent.action == .create and request.intent.kind == .sink) {
         const upstream = try self.dependencySource(request.intent.action.create.payload.sink.connection.object, policy, c.SourceAuthority.use);
         required = try required.merge(upstream.requirements);
@@ -8273,7 +8283,9 @@ fn connectorReason(self: *Self, request: Connector.Request, current: P.Guard, pr
             else => unreachable,
         };
         if (epoch != if (known.control) |control| control.epoch else @as(?u64, null)) return .stale_control;
-        if (intent.action == .control and known.control.?.state != .published) return .stale_control;
+        if (intent.action == .control) {
+            _ = known.control.?.apply(intent.action.control.command, intent.action.control.executor_role) catch return .stale_control;
+        }
         if (intent.action == .drop) {
             if (known.control) |control| if (control.state != .retired) return .not_retired;
             if (try self.hasDependents(binding.target.object)) return .dependency;
@@ -8439,11 +8451,11 @@ pub fn sourceOperation(self: *Self, request: Connector.Request, command: Connect
                 return .{ .operation = try self.recordConnector(operation, prior_operation, current) };
             }
             if (!std.meta.eql(operation.staged.?, expected_artifact)) return error.DataIdentityConflict;
-            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind != .connection) p.Source.Control.initial() else null, .dropped = false };
+            next = .{ .declaration = try SourceArtifact.stage(self.allocator, self.store.objects, value), .control = if (request.intent.kind != .connection) Connector.Control.initial() else null, .dropped = false };
             operation.added = try connectorEdges(value, next.declaration);
         } else {
             next = operation.previous orelse return error.InvalidSourceDeclaration;
-            if (request.intent.action == .control) next.control = try next.control.?.apply(.retire) else {
+            if (request.intent.action == .control) next.control = try next.control.?.apply(request.intent.action.control.command, request.intent.action.control.executor_role) else {
                 var owned = try SourceArtifact.load(self.allocator, self.store.objects, next.declaration);
                 defer owned.deinit();
                 next.dropped = true;

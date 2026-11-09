@@ -41,14 +41,14 @@ const connector_fields = [_]f.Types.Field{
     .{ .name = "kind", .type = .utf8 },                      .{ .name = "state", .type = .utf8 },
     .{ .name = "epoch", .type = .uint64, .nullable = true }, .{ .name = "execution_supported", .type = .boolean },
     .{ .name = "execution", .type = .utf8 },                 .{ .name = "catalog_partition", .type = .uint64 },
-    .{ .name = "catalog_next_lsn", .type = .uint64 },
+    .{ .name = "catalog_next_lsn", .type = .uint64 },        .{ .name = "executor_role", .type = .uint64, .nullable = true },
 };
 const connector_detail_fields = connector_fields ++ [_]f.Types.Field{
     .{ .name = "definition", .type = .utf8 },                  .{ .name = "dependency_state", .type = .utf8 },
     .{ .name = "last_poll", .type = .utf8, .nullable = true }, .{ .name = "last_publication", .type = .utf8, .nullable = true },
 };
 fn connectorRow(state: *const c.DirectSource.State, position: c.protocol.DataLifecycle.Position) [connector_fields.len]f.Types.Values.Cell {
-    return .{ text(state.declaration.properties.name.slice()), unsigned(state.declaration.interpretation.object.object), text(@tagName(state.declaration.kind)), text(if (state.control) |control| @tagName(control.state) else "published"), if (state.control) |control| unsigned(control.epoch) else .null, boolean(false), text("never_run"), unsigned(position.partition), unsigned(position.next_lsn) };
+    return .{ text(state.declaration.properties.name.slice()), unsigned(state.declaration.interpretation.object.object), text(@tagName(state.declaration.kind)), text(if (state.control) |control| @tagName(control.state) else "published"), if (state.control) |control| unsigned(control.epoch) else .null, boolean(false), text("never_run"), unsigned(position.partition), unsigned(position.next_lsn), if (state.control) |control| if (control.executor_role) |role| unsigned(role) else .null else .null };
 }
 const explain_fields = [_]f.Types.Field{.{ .name = "plan", .type = .utf8 }};
 // Log inspection is also a database-wire surface. Its character bound uses

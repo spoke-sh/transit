@@ -47,7 +47,7 @@ pub fn proposal(host: *g.Session, arena: *std.heap.ArenaAllocator, statement: g.
 }
 pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
     try requireProfile(host);
-    if (prepared.statement == .control and prepared.statement.control.command != .retire) return error.SourceExecutionUnsupported;
+    if (prepared.statement == .control and prepared.statement.control.kind == .source and prepared.statement.control.command != .retire) return error.SourceExecutionUnsupported;
     var arena: std.heap.ArenaAllocator = .init(host.allocator);
     defer arena.deinit();
     switch (prepared.statement) {
@@ -56,7 +56,14 @@ pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
             const preview = (try c.DirectSourceClient.apply(&arena, host.table, .{ .prepare = value })).preview;
             if (preview.reason != .none) return error.SourceDeclarationConflict;
         },
-        .control => |value| _ = try lookup(host, &arena, value.kind, value.name),
+        .control => |value| {
+            const current = try lookup(host, &arena, value.kind, value.name);
+            const role = if (value.executor_role) |selected| try c.DirectAuthorizationSql.resolveRole(host.table, host.namespace, selected, .{}) else null;
+            _ = current.state.control.?.apply(value.command, role) catch |err| switch (err) {
+                error.InvalidSourceTransition, error.SourceRetired, error.Overflow => return error.SourceDeclarationConflict,
+                else => return err,
+            };
+        },
         .drop => |value| _ = try lookup(host, &arena, value.kind, value.name),
         else => return error.UnsupportedSourceStatement,
     }
@@ -73,7 +80,8 @@ fn prepareRequest(host: *g.Session, arena: *std.heap.ArenaAllocator, prepared: *
         .control => |value| blk: {
             const current = try lookup(host, arena, value.kind, value.name);
             expected = current.state.declaration.interpretation;
-            break :blk .{ .kind = value.kind, .namespace = host.namespace, .name = value.name, .action = .{ .control = .{ .expected_epoch = current.state.control.?.epoch, .command = value.command } } };
+            const role = if (value.executor_role) |selected| try c.DirectAuthorizationSql.resolveRole(host.table, host.namespace, selected, .{}) else null;
+            break :blk .{ .kind = value.kind, .namespace = host.namespace, .name = value.name, .action = .{ .control = .{ .expected_epoch = current.state.control.?.epoch, .command = value.command, .executor_role = role } } };
         },
         .drop => |value| blk: {
             const current = try lookup(host, arena, value.kind, value.name);
@@ -137,7 +145,13 @@ fn command(intent: S.Intent) g.results.Command {
             .connection => .create_connection,
             .sink => .create_sink,
         },
-        .control => if (intent.kind == .sink) .retire_sink else .retire_source,
+        .control => |value| if (intent.kind == .sink) switch (value.command) {
+            .authorize => .authorize_sink,
+            .activate => .activate_sink,
+            .suspend_source => .suspend_sink,
+            .resume_source => .resume_sink,
+            .retire => .retire_sink,
+        } else .retire_source,
         .drop => switch (intent.kind) {
             .source => .drop_source,
             .connection => .drop_connection,

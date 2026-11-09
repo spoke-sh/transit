@@ -2,8 +2,9 @@
 
 **Native cohosted SQL publishes bounded HTTP sink declarations.** A sink names
 an application effect target with an exact connection dependency and its own
-native authority. Publication, inspection, retirement and restricted DROP are
-implemented. Activation and application HTTP dispatch remain unavailable.
+native authority. Publication, explicit role authorization, desired activation,
+inspection, retirement and restricted DROP are implemented. Application HTTP
+dispatch remains unavailable.
 
 ## Syntax
 
@@ -51,11 +52,32 @@ DESCRIBE SINK profile;
 ## Inspection, retirement and recovery
 
 `SHOW SINK name` and `DESCRIBE SINK name` expose the immutable definition,
-connection dependency, current control epoch and Catalog position. Listings and
+connection dependency, selected `executor_role`, current control epoch and Catalog position. Listings and
 metadata use the same bounded, current-authority owner as
 [SOURCE inspection](create-source.md#inspection-retirement-and-drop).
 `EXPLAIN CREATE SINK ...` checks the exact proposal without allocating an
 identity, reserving work or sending HTTP. Inspection is separate from `use`.
+
+Authorize a published sink with an explicit existing role, then activate it:
+
+```sql
+AUTHORIZE SINK profile AS ROLE CURRENT_ROLE;
+ACTIVATE SINK profile;
+SUSPEND SINK profile;
+RESUME SINK profile;
+```
+
+The shared SQL role forms accept a role name, `CURRENT_ROLE`/`CURRENT_USER` or
+`SESSION_USER`; `PUBLIC` is invalid. Authorization resolves the name once and
+retains its nonzero native ID. Activation and resumption check permission to
+select that role. Suspension and retirement require administrative authority;
+they do not require assuming the dispatch role. A later control cannot replace
+the selected role. Each transition requires the observed control epoch.
+
+`active` records desired activation. Until dispatch is installed, inspection
+continues to report `execution_supported = false` and `never_run`. These controls
+create no grants and make no HTTP request. Worker placement and current
+connection, secret and effect authorization remain separate requirements.
 
 The declared sink protects its connection from DROP. Retire the sink before
 removing it:
@@ -68,8 +90,7 @@ DROP CONNECTION remote_api RESTRICT;
 
 SQL recovery retains the original typed request and outcome across lost replies,
 restart and name reuse. Reusing an accepted token cannot create a replacement
-sink. Migration-file installation is not yet supported. `AUTHORIZE`, `ACTIVATE`,
-`SUSPEND` and `RESUME` reject before admission until execution is installed.
+sink or substitute a different role. Migration-file installation is not yet supported.
 
 ## Meaning and current interface
 

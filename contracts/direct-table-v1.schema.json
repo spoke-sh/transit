@@ -4685,7 +4685,8 @@
           "additionalProperties": false,
           "x-transit-field-order": [
             "expected_epoch",
-            "command"
+            "command",
+            "executor_role"
           ],
           "properties": {
             "expected_epoch": {
@@ -4693,11 +4694,15 @@
             },
             "command": {
               "$ref": "#/$defs/Request/$defs/T170"
+            },
+            "executor_role": {
+              "$ref": "#/$defs/Request/$defs/T5"
             }
           },
           "required": [
             "expected_epoch",
-            "command"
+            "command",
+            "executor_role"
           ],
           "x-transit-defaults": {}
         },
@@ -23859,7 +23864,8 @@
           "additionalProperties": false,
           "x-transit-field-order": [
             "state",
-            "epoch"
+            "epoch",
+            "executor_role"
           ],
           "properties": {
             "state": {
@@ -23867,11 +23873,15 @@
             },
             "epoch": {
               "$ref": "#/$defs/Response/$defs/T4"
+            },
+            "executor_role": {
+              "$ref": "#/$defs/Response/$defs/T15"
             }
           },
           "required": [
             "state",
-            "epoch"
+            "epoch",
+            "executor_role"
           ],
           "x-transit-defaults": {}
         },

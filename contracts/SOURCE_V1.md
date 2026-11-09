@@ -2,10 +2,10 @@
 
 Status: durable CONNECTION/SOURCE/SINK declarations, bounded inspection, retirement
 and restricted DROP through the typed Catalog and native cohosted SQL service.
-HTTP scheduling, capture and activation remain uninstalled; their execution gates
+Polling HTTP scheduling, capture and activation remain uninstalled; their execution gates
 below are requirements for a later slice.
-SINK publication uses the same typed connector owner through native cohosted SQL.
-Application dispatch integration is not yet installed.
+SINK publication and desired lifecycle controls use the same typed connector
+owner through native cohosted SQL. Application dispatch integration is not yet installed.
 Migration files reject connector declarations before admission; reviewed
 dependency plans and migration step recovery for these objects are not installed.
 
@@ -95,7 +95,26 @@ and profile without a polling executor or a destination Stream. `SHOW SINKS`,
 `SHOW SINK`, `DESCRIBE SINK` and `EXPLAIN CREATE SINK` use the shared bounded
 connector inspection owner. EXPLAIN allocates no identity and dispatches no I/O.
 `RETIRE SINK` and `DROP SINK ... RESTRICT` retain original SQL operation identity,
-including after restart or name reuse. Activation controls remain unavailable.
+including after restart or name reuse. `AUTHORIZE SINK name AS ROLE role`
+resolves an explicit SQL role through the shared authorization owner and retains
+its native ID in the original control request. Native authorization checks role
+selection separately from ownership of the sink. The control head retains that
+nonzero role through activation, suspension, resumption and retirement; these
+operations never replace the immutable connection or HTTP profile. `ACTIVATE`
+and `RESUME` recheck permission to select that role. `SUSPEND` and `RETIRE`
+require administrative authority without requiring dispatch-role selection.
+Every change advances the exact expected control epoch. Retrying an accepted
+operation observes its original outcome rather than resolving a role name again.
+Missing persisted role evidence, changed retry operands and invalid lifecycle
+transitions reject. The role field has no compatibility default.
+
+The `active` state records desired activation. Inspection still reports
+`execution_supported = false` and `never_run` until application dispatch is
+installed. Controls do not send HTTP, create grants, establish worker placement
+or prove current connection/secret permissions. The dispatch owner must check
+the active control, selected role, dependencies and original effect at its own
+boundary. The state role invoking a sink and its selected dispatch role remain
+distinct. Polling SOURCE activation remains unavailable.
 Executable program bindings retain the same immutable sink definition and expose
 its `inspect` and `use` requirements. Retained continuation reads recheck current
 connector inspection privileges, including after buffering, restart or DROP.

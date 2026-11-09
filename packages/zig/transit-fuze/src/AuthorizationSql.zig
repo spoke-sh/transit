@@ -78,7 +78,7 @@ fn qualified(parser: *Parser, kind: Kind) !Name {
     if (kind == .table and try parser.take(.dot)) return .{ .schema = first, .name = try name(parser) };
     return .{ .name = first };
 }
-fn role(parser: *Parser, public: bool) !Role {
+pub fn role(parser: *Parser, public: bool) !Role {
     if (try parser.takeWord("PUBLIC")) return if (public) .public else error.InvalidSqlRole;
     if (try parser.takeWord("CURRENT_ROLE") or try parser.takeWord("CURRENT_USER")) return .current_role;
     if (try parser.takeWord("SESSION_USER")) return .session_user;
