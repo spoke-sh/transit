@@ -13,7 +13,9 @@ scoped continuation codec and typed instruction operands.
 read/mutation preparation for these operands.
 Native resource binding and typed publication/control are implemented in
 `ApplicationBinding`, `ApplicationDeclaration` and `ManagedApplication`.
-SQL publication, service execution and invocation recovery remain integration work tracked
+`ApplicationInvocation` attaches original work, acquires Queue input and retains
+its initial protected environment. SQL publication, instruction execution and
+service scheduling remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
 
@@ -49,15 +51,33 @@ edges. Repeating publication uses the same original identity and does not reset
 the lifecycle. An application dependency permits shared transactional writers;
 finite Table recomputation retains its writer-exclusion rule. The native
 `check_set` dependency check verifies registered edges, exact live definitions
-and current action privileges without admitting work. Metadata inspection alone
+and current action privileges without admitting work. The control KV has a
+registered read/write dependency too; an executor cannot become ready with only
+metadata access to its checkpoint. Metadata inspection alone
 does not establish readiness, and successful checks confer no future authority.
 
 The declaration freezes the executor role before publication. Authorization names
 that same role explicitly; activation and resume recheck it through native policy.
 Saved control mutations preserve original operation identity and fence the control
-row's observed position. A control row cannot select a different role from the
+row's observed position. Suspend and retire first cancel the exact pending work
+token saved in the control request. Native data calls combine its progress fence
+with the service generation fence, so replacing either record excludes delayed
+calls before native admission. A failed control-row CAS may leave that original
+invocation cancelled; retrying the saved control never cancels a newer invocation.
+A control row cannot select a different role from the
 immutable declaration. These typed lifecycle operations do not yet install a SQL
 service worker or prove an invocation has run.
+
+Input acquisition attaches an immutable work record before its original claim.
+A bounded nonempty wait preserves that claim identity on timeout. The claim
+receipt is retained before reading its original selection. An initial environment
+is stored in an immutable owned record guarded by current input and control KV
+read rights, then referenced from the work's recovery metadata. Recovery can use
+that retained input if the reply was lost before the reference advanced. Safe
+work metadata contains identities, receipts and references, without payloads.
+Acquiring or retaining input does not ACK it, execute instructions or complete an
+invocation. The low-level caller selects the partition; service partition fairness
+and transaction/response settlement are still required integration work.
 
 The compiler accepts one `CREATE DATAFLOW name FROM QUEUE name AS input`
 declaration. A block contains immutable `LET` bindings, TRUE-only `REQUIRE`,

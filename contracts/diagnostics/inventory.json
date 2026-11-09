@@ -27252,6 +27252,49 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationInvocation.zig": {
+      "errors": {
+        "ClientOperationMissing": 1,
+        "DataflowIdentityConflict": 1,
+        "DataflowLeaseFenced": 2,
+        "IncompatibleDefinition": 2,
+        "InvalidDirectRecord": 20,
+        "InvalidProgramNode": 1,
+        "InvalidQueueResponse": 3,
+        "OwnedRecordClosed": 3,
+        "QueueLeaseExpired": 1,
+        "QueueTimeUnavailable": 1,
+        "TableDefinitionChanged": 1
+      },
+      "outcomes": {
+        "Work.phase": [
+          "claiming",
+          "reading",
+          "ready"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Work.validate()": "<inferred>",
+        "acquire()": "<inferred>",
+        "advance()": "<inferred>",
+        "attach()": "<inferred>",
+        "executor()": "<inferred>",
+        "load()": "<inferred>",
+        "loadInput()": "<inferred>",
+        "retainInput()": "<inferred>",
+        "start()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 82,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ComputePool.zig": {
       "errors": {
         "Cancelled": 3,
@@ -27514,14 +27557,14 @@
     },
     "packages/zig/transit-query-direct/src/ManagedApplication.zig": {
       "errors": {
-        "ClientOperationMissing": 1,
-        "DataflowIdentityConflict": 8,
+        "ClientOperationMissing": 2,
+        "DataflowIdentityConflict": 10,
         "DataflowLeaseFenced": 1,
         "DataflowSourceChanged": 1,
-        "IncompatibleDefinition": 1,
+        "IncompatibleDefinition": 2,
         "InvalidDataflowControl": 2,
         "InvalidDataflowTransition": 4,
-        "InvalidDirectRecord": 4,
+        "InvalidDirectRecord": 7,
         "InvalidKVResponse": 1,
         "ManagedTableCleanupPending": 1,
         "ManagedTableInitializationPending": 2,
@@ -27531,6 +27574,7 @@
       "error_sets": {},
       "error_returns": {
         "Head.validate()": "<inferred>",
+        "SavedControl.validate()": "<inferred>",
         "applyControl()": "<inferred>",
         "cleanup()": "<inferred>",
         "edge()": "<inferred>",
@@ -27547,7 +27591,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 77,
         "catch": 0
       },
       "imports": [
@@ -27868,6 +27912,7 @@
         "ApplicationBinding.zig",
         "ApplicationData.zig",
         "ApplicationDeclaration.zig",
+        "ApplicationInvocation.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
         "DirectRelationalQuery.zig",

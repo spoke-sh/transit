@@ -60,7 +60,7 @@ pub fn nameKey(self: Self, namespace: u64, name: c.TableAuthority.Name) c.Direct
     hash.update(name.slice());
     return .{ .definition = p.Growth.current_definition, .connection = self.client.connection, .account = account(), .token = hash.finalResult()[0..16].* };
 }
-fn operation(self: Self, value: Declaration, label: []const u8, ordinal: u64) d.Operation {
+pub fn operation(self: Self, value: Declaration, label: []const u8, ordinal: u64) d.Operation {
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.application.operation.v1\x00");
     hash.update(label);
@@ -114,9 +114,12 @@ pub fn publish(self: Self, value: Declaration) !Observation {
     if (progress.original.?.phase == .closed or progress.cancel) return error.OwnedRecordClosed;
     return self.initialize(value, key);
 }
-fn edge(value: Declaration, storage: d.Definition, use: q.fuze.ApplicationProgram.Types.Use) !c.DirectDependency.Edge {
-    const resource = value.resources[use.resource];
-    return .{ .source = resource.interpretation(), .dependent = .{ .kind = .application, .interpretation = storage }, .privileges = try resource.privileges(use) };
+fn edge(value: Declaration, storage: d.Definition, use: ?q.fuze.ApplicationProgram.Types.Use) !c.DirectDependency.Edge {
+    if (use) |selected| {
+        const resource = value.resources[selected.resource];
+        return .{ .source = resource.interpretation(), .dependent = .{ .kind = .application, .interpretation = storage }, .privileges = try resource.privileges(selected) };
+    }
+    return .{ .source = storage, .dependent = .{ .kind = .application, .interpretation = storage }, .privileges = c.KVAuthority.read | c.KVAuthority.write };
 }
 pub fn initialize(self: Self, value: Declaration, key: c.DirectClientToken.Key) !Observation {
     try self.requireCaller(value);
@@ -141,7 +144,8 @@ pub fn initialize(self: Self, value: Declaration, key: c.DirectClientToken.Key) 
     _ = try KV.apply(&output, self.client, .{ .mutate = try self.mutation(&output, value, metadata.interpretation.interpretation, null, initial, self.operation(value, "initial", 0), .absent) });
     var bound = try value.bind(self.client.allocator);
     defer bound.deinit();
-    for (bound.uses, 0..) |use, index| {
+    for (0..bound.uses.len + 1) |index| {
+        const use = if (index < bound.uses.len) bound.uses[index] else null;
         const response = try self.client.call(.{ .dependency_operation = .{ .binding = .{
             .definition = p.Growth.current_definition,
             .connection = self.client.connection,
@@ -172,7 +176,7 @@ pub fn inspect(self: Self, value: Declaration) !Observation {
         (parsed.value.executor_role != null and parsed.value.executor_role.? != value.executor_role)) return error.DataflowIdentityConflict;
     return .{ .head = parsed.value, .storage = read.interpretation.interpretation, .position = read.position };
 }
-fn mutation(_: Self, arena: *std.heap.ArenaAllocator, value: Declaration, storage: d.Definition, position: ?d.Position, head: Head, identity: d.Operation, expect: @FieldType(@FieldType(c.storage.KVPartition.Change, "put"), "expect")) !c.DirectKV.Mutation {
+pub fn mutation(_: Self, arena: *std.heap.ArenaAllocator, value: Declaration, storage: d.Definition, position: ?d.Position, head: Head, identity: d.Operation, expect: @FieldType(@FieldType(c.storage.KVPartition.Change, "put"), "expect")) !c.DirectKV.Mutation {
     try head.validate();
     const bytes = try p.Json.valueAllocBounded(arena.allocator(), head, 16 * 1024);
     return KV.prepareMutation(arena, .{ .definition = p.Growth.current_definition, .identity = identity, .target = value.object, .action = .insert, .expected_definition = storage, .expected_data = position, .intent = @splat(0) }, spec, &.{.{ .put = .{ .key = head_key, .value = .{ .value = .{ .atom = .{ .bytes = bytes } } }, .expect = expect } }});
@@ -188,11 +192,26 @@ pub fn executor(self: Self, value: Declaration, observed: Observation) !c.Direct
 pub fn requireDependencies(self: Self, value: Declaration, observed: Observation) !void {
     var bound = try value.bind(self.client.allocator);
     defer bound.deinit();
-    var checks: [Declaration.max_resources]c.DirectTableProtocol.ReadCheck = undefined;
+    var checks: [Declaration.max_resources + 1]c.DirectTableProtocol.ReadCheck = undefined;
     for (bound.uses, checks[0..bound.uses.len]) |use, *check| check.* = .{ .dependency = try edge(value, observed.storage, use) };
-    const response = try (try self.executor(value, observed)).call(.{ .check_set = checks[0..bound.uses.len] });
+    checks[bound.uses.len] = .{ .dependency = try edge(value, observed.storage, null) };
+    const response = try (try self.executor(value, observed)).call(.{ .check_set = checks[0 .. bound.uses.len + 1] });
     response.deinit();
 }
+pub const SavedControl = struct {
+    definition: p.Growth.Definition,
+    mutation: KV.Saved,
+    cancel: ?c.DirectClientToken.Key,
+    pub fn validate(self: SavedControl, allocator: std.mem.Allocator) !void {
+        if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.mutation.validate(allocator);
+        if (self.cancel) |key| {
+            try key.validate();
+            if (!std.meta.eql(key.connection, self.mutation.connection) or !std.mem.eql(u8, &key.account, &workAccount())) return error.InvalidDirectRecord;
+        }
+    }
+};
+
 /// Save this exact request before admission. AS ROLE is mandatory for
 /// authorization and cannot silently change the executor on later controls.
 pub fn prepareControl(self: Self, value: Declaration, attempt: flow.ControlAttempt, role: ?u64) ![]u8 {
@@ -216,17 +235,46 @@ pub fn prepareControl(self: Self, value: Declaration, attempt: flow.ControlAttem
     var output: std.heap.ArenaAllocator = .init(self.client.allocator);
     defer output.deinit();
     const request = try self.mutation(&output, value, observed.storage, observed.position, next.head, attempt.operation, .present);
-    return KV.save(self.client.allocator, self.client.connection, request);
+    const saved: SavedControl = .{
+        .definition = p.Growth.current_definition,
+        .mutation = .{ .definition = p.Growth.current_definition, .connection = self.client.connection, .mutation = request },
+        .cancel = if (attempt.command == .suspend_computation or attempt.command == .retire) observed.head.pending else null,
+    };
+    try saved.validate(self.client.allocator);
+    return p.Json.valueAllocBounded(self.client.allocator, saved, c.DirectTableProtocol.max_request_bytes);
 }
 /// No new identity is manufactured after a lost reply. Callers retain these
 /// bytes and may use the ordinary KV operation observation to settle uncertainty.
 pub fn applyControl(self: Self, saved: []const u8) !c.storage.TablePartition.Evidence {
-    const parsed = try KV.load(self.client.allocator, saved);
+    if (self.client.transaction != null) return error.DataflowIdentityConflict;
+    if (saved.len == 0 or saved.len > c.DirectTableProtocol.max_request_bytes) return error.InvalidDirectRecord;
+    const parsed = try p.Json.parseFromSliceOwned(SavedControl, self.client.allocator, saved);
     defer parsed.deinit();
-    if (!std.meta.eql(parsed.value.connection, self.client.connection)) return error.DataflowIdentityConflict;
+    try parsed.value.validate(self.client.allocator);
+    if (!std.meta.eql(parsed.value.mutation.connection, self.client.connection)) return error.DataflowIdentityConflict;
+    // Cancel first, under the same native Catalog exclusion used by request
+    // fences. A failed head CAS may leave this original invocation cancelled;
+    // it never revives it or redirects cancellation to a later invocation.
+    if (parsed.value.cancel) |key| {
+        const progress = try c.DirectClientToken.inspect(self.client, key) orelse return error.ClientOperationMissing;
+        if (progress.pending and !progress.cancel) {
+            const owner: q.ApplicationInvocation = .{ .manager = self };
+            const work = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+            defer work.deinit();
+            const declared = try self.load(work.value.declaration);
+            defer declared.deinit();
+            const binding = parsed.value.mutation.mutation.binding;
+            if (!std.meta.eql(declared.value.object, binding.target)) return error.DataflowIdentityConflict;
+            const check = try self.client.call(.{ .check_set = &.{.{ .dependency = try edge(declared.value, binding.expected_definition orelse return error.InvalidDirectRecord, null) }} });
+            check.deinit();
+            var cancelled = progress;
+            cancelled.cancel = true;
+            _ = try owner.advance(declared.value, cancelled, work.value);
+        }
+    }
     var output: std.heap.ArenaAllocator = .init(self.client.allocator);
     defer output.deinit();
-    return (try KV.apply(&output, self.client, .{ .mutate = parsed.value.mutation })).operation orelse error.InvalidKVResponse;
+    return (try KV.apply(&output, self.client, .{ .mutate = parsed.value.mutation.mutation })).operation orelse error.InvalidKVResponse;
 }
 
 /// Retirement fences new work first. Edges remain until every original
@@ -237,7 +285,8 @@ pub fn cleanup(self: Self, value: Declaration) !bool {
     if (observed.head.retirement_complete) return true;
     var bound = try value.bind(self.client.allocator);
     defer bound.deinit();
-    for (bound.uses, 0..) |use, index| {
+    for (0..bound.uses.len + 1) |index| {
+        const use = if (index < bound.uses.len) bound.uses[index] else null;
         const response = try self.client.call(.{ .dependency_operation = .{ .binding = .{
             .definition = p.Growth.current_definition,
             .connection = self.client.connection,

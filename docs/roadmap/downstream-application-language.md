@@ -36,6 +36,13 @@ fenced controls. Input predicates compile to the existing Queue acquisition
 format. These are implementation foundations: the service does not yet schedule
 ordered invocations or install the complete three-file application.
 
+The invocation input owner now attaches work before acquisition, retains exact
+Queue claim receipts and protects initial environments with native read guards.
+Service and invocation progress fences compose on native requests. Saved suspend
+and retire controls fence the original pending invocation before updating its
+head. Instruction transactions, input ACK, effect/response settlement and service
+scheduling remain unfinished; this does not qualify the downstream journey.
+
 ## Reviewed inputs and desired experience
 
 Transit baseline: `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`.

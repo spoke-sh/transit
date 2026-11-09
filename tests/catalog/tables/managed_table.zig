@@ -578,6 +578,7 @@ fn applicationPublication(client: c.DirectTableClient, admin: anytype, role: u64
     try t.expectError(error.Conflict, manager.requireDependencies(value, try manager.inspect(value)));
     _ = try manager.applyControl(activated);
     try t.expectEqual(.retired, (try manager.inspect(value)).head.control.state);
+    try applicationAcquisition(client, value, admin, role);
 }
 
 pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
@@ -625,4 +626,86 @@ fn applicationFences(client: c.DirectTableClient, claim: c.protocol.StreamQueue.
     for (fences) |fence| _ = try T.update(client, .{ .key = fence.key, .expected = fence.revision, .pending = false, .cancel = true, .record = null });
     try t.expectError(error.Conflict, c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .claim = claim } } }));
     try t.expect((try c.DirectQueueClient.apply(&output, client, .{ .operation = .{ .claim = claim } })).operation == null);
+}
+
+fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedApplication.Declaration, admin: anytype, role: u64) !void {
+    const p = c.protocol;
+    const I = q.ApplicationInvocation;
+    const T = c.DirectClientToken;
+    const declaration = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .executor_role = role,
+        .namespace = 1,
+        .object = 732020,
+        .operation = 732001,
+        .source = "CREATE DATAFLOW application_acquisition FROM QUEUE application_input AS event AS BEGIN REQUIRE event.id > 0 ELSE 'InvalidInput'; END;",
+        .resources = published.resources,
+        .limits = published.limits,
+    });
+    defer declaration.deinit();
+    const value = declaration.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: I = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 732002 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    const token = (try owner.start(value, 0)).?;
+    try t.expectEqualDeep(token, (try owner.start(value, 0)).?);
+    var progress = (try T.inspect(client, token)).?;
+    const initial = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+    defer initial.deinit();
+    try t.expectEqualDeep(progress, try owner.acquire(value, progress, initial.value));
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    var metadata = try c.DirectLogProtocol.decodeMetadata(client.allocator, client.connection, value.resources[0].value.log);
+    defer metadata.deinit();
+    try t.expect((try c.DirectQueueClient.apply(&output, client, .{ .operation = .{ .claim = initial.value.claim } })).operation == null);
+    const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = value.resources[0].value.log.declaration, .schema = metadata.definition.schema }, 732004, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = 42 }} });
+    const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+    _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } });
+    progress = try owner.acquire(value, progress, initial.value);
+    const claimed = try owner.load(progress.record.?);
+    defer claimed.deinit();
+    try t.expectEqual(.reading, claimed.value.phase);
+    try t.expect(claimed.value.environment == null);
+    progress = try owner.acquire(value, progress, claimed.value);
+    const ready = try owner.load(progress.record.?);
+    defer ready.deinit();
+    try t.expectEqual(.ready, ready.value.phase);
+    const executor = try owner.executor(value, progress, ready.value);
+    const input = try owner.loadInput(executor, value, ready.value, ready.value.environment.?);
+    defer input.deinit();
+    try t.expectEqual(@as(i64, 42), (try input.value.environment.values[0].value.field("id")).integer);
+    // Owning the input has not ACKed it. The original receipt still observes
+    // the same acquisition, and a fresh host reads the exact protected value.
+    const page = (try c.DirectQueueClient.apply(&output, executor, .{ .page = .{ .cursor = .{ .receipt = ready.value.receipt.?, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 65536 } } })).page;
+    try t.expectEqual(.acquired, page.rows[0].lease.state);
+    try t.expectEqualDeep(progress, try owner.acquire(value, progress, ready.value));
+    const authority = c.TableAuthority.reference(value.resources[0].value.log.declaration.properties.authorization);
+    _ = try admin.change(.{ .grant = .{ .object = authority, .grantee = role, .privileges = c.LogAuthority.inspect } });
+    _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = 0 } });
+    try t.expectError(error.AccessDenied, owner.loadInput(executor, value, ready.value, ready.value.environment.?));
+    const safe = try owner.load(progress.record.?);
+    safe.deinit();
+    _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = role } });
+    observed = try manager.inspect(value);
+    const suspend_request = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 732005 }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = .suspend_computation }, null);
+    defer client.allocator.free(suspend_request);
+    const control_metadata = (try c.DirectKVClient.apply(&output, client, .{ .observe = value.object })).definition;
+    const control_authority = c.TableAuthority.reference(control_metadata.authorization);
+    _ = try admin.change(.{ .grant = .{ .object = control_authority, .grantee = role, .privileges = c.KVAuthority.inspect | c.KVAuthority.read } });
+    _ = try admin.change(.{ .transfer_object = .{ .object = control_authority, .owner = 0 } });
+    try t.expectError(error.AccessDenied, manager.applyControl(suspend_request));
+    try t.expect(!(try T.inspect(client, token)).?.cancel);
+    _ = try admin.change(.{ .transfer_object = .{ .object = control_authority, .owner = role } });
+    _ = try manager.applyControl(suspend_request);
+    _ = try manager.applyControl(suspend_request);
+    try t.expect((try T.inspect(client, token)).?.cancel);
+    try t.expectError(error.Conflict, c.DirectQueueClient.apply(&output, executor, .{ .observe = ready.value.claim.target }));
+    try t.expectError(error.DataflowLeaseFenced, owner.acquire(value, progress, ready.value));
+    try t.expectEqualDeep(token, (try manager.inspect(value)).head.pending.?);
 }

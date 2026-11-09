@@ -47,7 +47,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
-        if mode in ("log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
+        if mode in ("managed", "managed-board", "managed-board-browser", "log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still

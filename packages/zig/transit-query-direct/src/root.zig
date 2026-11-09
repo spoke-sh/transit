@@ -18,6 +18,7 @@ pub const ManagedTable = @import("ManagedTable.zig");
 pub const ApplicationData = @import("ApplicationData.zig");
 pub const ApplicationBinding = @import("ApplicationBinding.zig");
 pub const ApplicationDeclaration = @import("ApplicationDeclaration.zig");
+pub const ApplicationInvocation = @import("ApplicationInvocation.zig");
 pub const ManagedApplication = @import("ManagedApplication.zig");
 pub const ManagedInspection = @import("ManagedInspection.zig");
 pub const ManagedRevision = @import("ManagedRevision.zig");

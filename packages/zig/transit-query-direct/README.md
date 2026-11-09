@@ -24,7 +24,16 @@ executor role and per-invocation budgets. `ManagedApplication` publishes that
 definition through owned records and the shared catalog/KV lifecycle. Its saved
 controls separate publication, explicit role authorization and activation;
 readiness rechecks current dependency actions through the native owner. These
-typed operations do not yet supply installed SQL execution or invocation recovery.
+typed operations do not yet supply installed SQL execution.
+
+`ApplicationInvocation` attaches original work before Queue acquisition and
+retains the original claim receipt before reading its input. An immutable input
+record contains the initial typed environment behind current input/control read
+guards. Recovery metadata contains only identities, receipts and references.
+Every data call composes the invocation progress fence with the service lease;
+suspend and retire cancel the saved pending token before changing the head.
+Input retention does not ACK the Queue message or execute the program. Instruction
+transactions, terminal settlement and service scheduling remain in progress.
 
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded

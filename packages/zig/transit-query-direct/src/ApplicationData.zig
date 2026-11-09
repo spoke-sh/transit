@@ -206,7 +206,7 @@ const RowContext = struct {
         return self.parent.condition(self.parent.context, value);
     }
 };
-fn rowValue(output: std.mem.Allocator, schema: f.TableSchema.Schema, cells: []const Cell, projection: ?[]const []const u8, revision: ?[]const u8) !Value {
+pub fn rowValue(output: std.mem.Allocator, schema: f.TableSchema.Schema, cells: []const Cell, projection: ?[]const []const u8, revision: ?[]const u8) !Value {
     try schema.validateRow(cells);
     const count = if (projection) |columns| columns.len else schema.columns.len;
     const append_revision = projection == null and revision != null;
