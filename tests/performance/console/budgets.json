@@ -3,6 +3,15 @@
   "definition": "transit.console.latency-budgets.v1",
   "calibrated_revision": "b12ea25b5b95e32694a6aa7b7827cb9b685961b8",
   "calibration_runs": 3,
+  "calibration_workload": {
+    "startup_restarts": 2,
+    "startup_default": true,
+    "repeat": 1,
+    "cycles": 5,
+    "warm_reads": 2,
+    "worker_interval_ms": 10,
+    "cpus": 4
+  },
   "max_regression_pct": 20.0,
   "fast_read_threshold_ms": 50.0,
   "fast_read_noise_floor_ms": 15.0,
@@ -10,7 +19,7 @@
     "startup_restarts": 2,
     "startup_default": true,
     "repeat": 1,
-    "cycles": 5,
+    "cycles": 15,
     "warm_reads": 2,
     "worker_interval_ms": 10,
     "cpus": 4
