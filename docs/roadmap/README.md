@@ -10,6 +10,10 @@ The supporting [on-demand specialization research workflow](on-demand-specializa
 investigates verified CPU specialization, Datalog/RTL analysis and optional
 hardware execution through Nix-packaged experiments and explicit Platform
 handoffs. It adds no milestone or release gate and records no executed result.
+The supporting [downstream application language plan](downstream-application-language.md)
+maps Platform's identity, GitHub sign-in and publication migrations to current
+owners, missing contracts and an ordered implementation/qualification sequence.
+It is a proposal for review and changes no milestone status.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../history/qualification/README.md). A planned milestone does not establish
