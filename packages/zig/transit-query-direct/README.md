@@ -78,6 +78,8 @@ Single-record SELECT outside an atomic block uses a bounded original read
 transaction and releases it before adopting the retained observation.
 
 Failure entry follows verified native abort and drops the failed body's locals.
+Guard refusals preserve `EffectGuardRefused` and `ResponseGuardRefused` from the
+original typed instruction, alongside application-written `REQUIRE` codes.
 A lost or expired transient request enters that failure path while retaining
 its distinct reason. It does not cancel the durable input or replace the
 original transaction. Public failure-handler state and receipts can still settle
@@ -90,6 +92,26 @@ dependencies early. Cancelled acquisition closes the original claim and releases
 any accepted read without ACKing its input. Terminal progress retains native
 decision evidence; hosts must retry closing an attached original even when its
 progress already says `pending = false`.
+
+`ApplicationEffect` supplies effect bookkeeping through the same native owned
+records and conditional progress operations. Its key binds one invocation step;
+changed operands conflict with the frozen descriptor. Admission permanently
+binds a fresh nonce in the original receipt. Only the successful live admission
+returns an attempt; replay and lost admission replies cannot return another one.
+Admission first verifies that the exact guarded request is durably retained.
+The caller must still verify current sink, program, secret, guard and deadline
+authority before sending. This component performs no HTTP and does not establish
+honest computation by a caller holding the native identity.
+
+Recorded outcomes distinguish unsent refusal, unknown remote outcome and a
+complete response, including loss of its transient protected body. Cancellation
+preserves a known response. After a worker fence changes, recovery may record
+unknown but cannot authorize another send. An interrupted outcome publication
+resumes its exact saved bytes; missing bytes remain unresolved. Closing an
+unretained original races retention under the native revision and establishes
+that no fresh attempt escaped only when closure wins. The host must withdraw
+and join the live task before using that closure path. Ordered execution and
+HTTP worker integration remain required before this owner runs application effects.
 
 Frozen limits bound each SELECT's requests/scanned rows/result bytes, native
 transaction participants/statements/work, each continuation payload and cumulative

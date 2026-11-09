@@ -101,8 +101,12 @@ pub const Failure = struct {
         try self.validate();
         if (self.refusal) |id| {
             const instruction = try index.instruction(id);
-            if (instruction.value != .require) return error.InvalidProgramNode;
-            return instruction.value.require.refusal;
+            return switch (instruction.value) {
+                .require => |check| check.refusal,
+                .let => |binding| if (binding.value == .effect) "EffectGuardRefused" else error.InvalidProgramNode,
+                .respond => |response| if (response.guard != null) "ResponseGuardRefused" else error.InvalidProgramNode,
+                else => error.InvalidProgramNode,
+            };
         }
         return switch (self.reason) {
             .none => unreachable,
@@ -866,6 +870,30 @@ test "application execution validates safe original progress before data calls" 
     try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = null, .reason = .none, .evidence = null }).validate());
     try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = 4, .reason = .execution, .evidence = null }).validate());
     try (Failure{ .refusal = null, .reason = .execution, .evidence = null }).validate();
+}
+
+test "application refusal codes preserve effect and response guards" {
+    const t = std.testing;
+    var parsed = try a.parse(t.allocator,
+        \\CREATE DATAFLOW guarded FROM QUEUE requests AS request AS BEGIN
+        \\  REQUIRE FALSE ELSE 'RejectedInput';
+        \\  LET result = EXECUTE SINK target EFFECT request.id GUARD FALSE FORM (value = 'public') ON REPLAY OBSERVE ONLY;
+        \\  RESPOND TO request.ref STATUS 303 LOCATION '/' GUARD FALSE;
+        \\  LET ordinary = 1;
+        \\  RESPOND TO request.ref STATUS 303 LOCATION '/';
+        \\END;
+    , null);
+    defer parsed.deinit();
+    var index = try a.Cursor.Index.init(t.allocator, &parsed.program);
+    defer index.deinit();
+    for ([_][]const u8{ "RejectedInput", "EffectGuardRefused", "ResponseGuardRefused" }, parsed.program.body.instructions[0..3]) |expected, instruction| {
+        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null };
+        try t.expectEqualStrings(expected, try failure.code(index));
+    }
+    for (parsed.program.body.instructions[3..]) |instruction| {
+        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null };
+        try t.expectError(error.InvalidProgramNode, failure.code(index));
+    }
 }
 
 test "application host bindings release their own context when another borrow remains live" {

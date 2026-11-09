@@ -30,7 +30,8 @@ class ApplicationFaults:
     """Lose original replies and crash the native owner at common decisions."""
 
     expected = {"attachment", "claim", "candidate", "kv", "table", "append", "ack",
-                "checkpoint", "atomic_commit", "final_commit", "execute", "complete"}
+                "checkpoint", "atomic_commit", "final_commit", "execute", "complete",
+                "effect_admission", "effect_completion"}
 
     def __init__(self):
         self.claim = None
@@ -45,6 +46,22 @@ class ApplicationFaults:
         progress = action.get("client_progress", {})
         work = progress.get("advance") or progress.get("stage_original")
         phase = None
+        if work and work.get("format") == 0xC1454631:
+            guarded = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
+            effect = json.loads(base64.b64decode(guarded["payload"]["base64"], validate=True))
+            assert effect["descriptor"]["program"]["object"]["object"] == 737020
+            native = json.loads(data)["result"]["client_progress"]["state"]
+            if "stage_original" in progress and effect["descriptor"]["step"] == 1:
+                assert native["original"]["phase"] == "ready"
+                phase = "effect_admission"
+            elif "advance" in progress and effect["descriptor"]["step"] == 0:
+                assert not native["pending"] and native["cancel"]
+                assert effect["outcome"]["response"]["status"] == 201
+                phase = "effect_completion"
+            if phase and phase not in self.passed:
+                self.passed.add(phase)
+                return phase
+            return None
         if work and work.get("format") == 0x41505731:
             payload = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
             if payload["lease"]["target"]["object"]["object"] == 733020 and payload["lease"]["epoch"] == 1:
@@ -283,7 +300,7 @@ def run(node, caller, mode="tables", *artifacts):
                     if application_faults is not None and response.status == 200:
                         application_phase = application_faults.select(envelope, data)
                         if application_phase:
-                            if application_phase.endswith("_commit"):
+                            if application_phase.endswith("_commit") or application_phase == "effect_completion":
                                 authority.kill()
                                 assert authority.wait(timeout=15) == -signal.SIGKILL
                                 authority = start()
@@ -867,7 +884,7 @@ def run(node, caller, mode="tables", *artifacts):
                 assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
                 print("Application invocation: service discovery/coordinator replacement, empty acquisition, defeated attachment, "
                       "exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
-                      f"{len(ApplicationFaults.expected)} original lost replies, two native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
+                      f"{len(ApplicationFaults.expected)} original lost replies, three native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
                 if mode != "managed":
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)
                     from interfaces.board.computations import exercise

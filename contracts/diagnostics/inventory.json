@@ -27427,6 +27427,77 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationEffect.zig": {
+      "errors": {
+        "ClientOperationConflict": 2,
+        "ClientOperationMissing": 5,
+        "ClientOperationPending": 1,
+        "ClientTokenConflict": 1,
+        "DataflowLeaseFenced": 1,
+        "EffectInsideAtomic": 1,
+        "IncompatibleDefinition": 2,
+        "InvalidApplicationEffect": 30,
+        "OwnedRecordClosed": 2,
+        "OwnedRecordPending": 2,
+        "ProgramResourceKindMismatch": 1,
+        "UnknownProgramResource": 1
+      },
+      "outcomes": {
+        "Begin": [
+          "fresh",
+          "observed"
+        ],
+        "Outcome": [
+          "not_dispatched",
+          "unknown",
+          "response"
+        ],
+        "Refusal": [
+          "guard",
+          "authority",
+          "deadline",
+          "request_lost",
+          "budget",
+          "incomplete_dispatch"
+        ],
+        "State.phase": [
+          "dispatching",
+          "finished"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Descriptor.digest()": "<inferred>",
+        "Descriptor.key()": "<inferred>",
+        "Descriptor.validate()": "<inferred>",
+        "Response.validate()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "admit()": "<inferred>",
+        "advance()": "<inferred>",
+        "begin()": "<inferred>",
+        "closeUnretained()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fenced()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "observation()": "<inferred>",
+        "observe()": "<inferred>",
+        "recoverFenced()": "<inferred>",
+        "refuse()": "<inferred>",
+        "requireGuards()": "<inferred>",
+        "requireRequest()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 94,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ApplicationExecution.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -27443,7 +27514,7 @@
         "IncompatibleDefinition": 1,
         "InvalidDirectRecord": 43,
         "InvalidProgramJson": 1,
-        "InvalidProgramNode": 2,
+        "InvalidProgramNode": 4,
         "InvalidQueueResponse": 3,
         "InvalidTransactionGuard": 4,
         "NestedAtomicProgram": 2,
@@ -28326,6 +28397,7 @@
         "ApplicationBinding.zig",
         "ApplicationData.zig",
         "ApplicationDeclaration.zig",
+        "ApplicationEffect.zig",
         "ApplicationExecution.zig",
         "ApplicationHost.zig",
         "ApplicationInvocation.zig",

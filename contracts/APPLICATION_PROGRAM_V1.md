@@ -416,6 +416,27 @@ unknown remote outcome grants no retry permission. The dispatch boundary checks
 current program/sink state, role, secret revisions, policy guards and deadline.
 Token and profile exchanges share the remaining invocation deadline.
 
+The implemented `ApplicationEffect` bookkeeping component binds the dispatch
+nonce in a permanent native owned-record receipt. Its key belongs to the
+invocation step; the descriptor commits to the original input, frozen request,
+program, sink and application effect UUID. Changed operands cannot select a new
+original for that step. Only one successful live admission returns a fresh
+attempt, after verifying retention of the exact guarded request. A lost
+admission reply returns no permission to send; later calls
+observe the original. This is a trusted host boundary, not evidence that the
+native catalog performed or verified an HTTP computation.
+
+Its retained outcome distinguishes `not_dispatched`, `unknown` and `response`.
+A complete response retains status, byte count and content digest, with an
+optional transient protected-body handle. Missing protected bytes do not turn a
+known response into an unsent effect. Cancellation cannot erase a known outcome.
+Recovery after replacement of a worker fence records unknown without another
+dispatch. An unfinished native completion publication resumes the exact saved
+outcome; absent publication bytes remain unresolved. Native closure can prove
+that admission did not escape only while the original is unretained; the host
+must first withdraw and join its live task. This component remains separate from
+the unfinished ordered-runner and HTTP transport integration.
+
 A request has one response owner. Handoff transfers that owner with its commit.
 Responses inside atomic blocks remain buffered until the decision commits.
 Delivery checks current authority and guards immediately before disclosure.

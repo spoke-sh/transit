@@ -582,6 +582,203 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     try applicationAttachment(client, value, role);
     try applicationAcquisition(client, value, admin, role);
     try applicationExecution(client, value, role);
+    try applicationEffects(init, client, value.limits, role);
+}
+
+fn applicationEffectSource(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, role: u64, id: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.Metadata {
+    const intent: c.DirectSource.Intent = .{ .kind = std.meta.activeTag(payload), .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = role, .payload = payload } } };
+    const request: c.DirectSource.Request = .{ .intent = intent, .binding = .{
+        .definition = c.protocol.Growth.current_definition,
+        .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = id },
+        .target = .{ .scope = client.connection.scope, .branch = 1, .object = id },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(client.allocator),
+    } };
+    _ = try c.DirectSourceClient.apply(output, client, .{ .declaration = .{ .request = request, .command = .reserve } });
+    const observed = try c.DirectSourceClient.apply(output, client, .{ .declaration = .{ .request = request, .command = .execute } });
+    try t.expectEqual(.applied, observed.observation.operation.phase);
+    return (try c.DirectSourceClient.apply(output, client, .{ .lookup = .{ .selection = .{ .namespace = 1, .kind = intent.kind }, .name = intent.name } })).metadata.?;
+}
+
+/// Native effect bookkeeping component. This deliberately sends no HTTP and
+/// does not claim that the ordered runner executes these effect instructions.
+fn applicationEffects(init: std.process.Init, client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, role: u64) !void {
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    const R = c.DirectRecord;
+    const E = q.ApplicationEffect;
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    const allocator = output.allocator();
+    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_effect_input (id UUID NOT NULL)", .transit, null);
+    defer queue.deinit();
+    const schema = try queue.statement.action.create.bind(737010);
+    const configured = try queue.statement.configure(null, schema);
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("application_effect_input"), .action = .{ .create = .{ .owner = role, .schema = schema, .configuration = configured.configuration, .limits = configured.limits } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{
+        .definition = p.Growth.current_definition,
+        .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737001 },
+        .target = .{ .scope = client.connection.scope, .branch = 1, .object = 737010 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(client.allocator),
+    } };
+    _ = try c.DirectLogClient.apply(&output, client, .{ .admit = request });
+    try t.expectEqual(.complete, (try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation.phase);
+    const metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_effect_input" } });
+    defer metadata.deinit();
+    const connection = try applicationEffectSource(&output, client, role, 737011, "application_effect_connection", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const sink = try applicationEffectSource(&output, client, role, 737012, "application_effect_sink", .{ .sink = .{
+        .connection = connection.state.declaration.interpretation,
+        .http = .{ .method = .POST, .path = "/token", .request_encoding = .form, .accept = "application/json", .user_agent = null, .response = .protected_json, .capture = .redacted_metadata, .request_timeout_ms = 5000, .response_max_bytes = 65536, .follow_redirects = false, .max_attempts = 1, .unknown_outcome = .retain },
+    } });
+    const resources = [_]q.ApplicationBinding{
+        .{ .value = .{ .log = metadata.value.result.log_lookup.? } },
+        .{ .value = .{ .sink = .{ .stored = sink.state.declaration, .profile = sink.definition.payload.sink } } },
+    };
+    const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .executor_role = role,
+        .namespace = 1,
+        .object = 737020,
+        .operation = 737002,
+        .source =
+        \\CREATE DATAFLOW application_effects FROM QUEUE application_effect_input AS event AS BEGIN
+        \\  LET response = EXECUTE SINK application_effect_sink EFFECT OPERATION_ID(event.id, 'response') GUARD TRUE FORM (value = 'response') ON REPLAY OBSERVE ONLY;
+        \\  LET lost = EXECUTE SINK application_effect_sink EFFECT OPERATION_ID(event.id, 'lost') GUARD TRUE FORM (value = 'lost') ON REPLAY OBSERVE ONLY;
+        \\  LET refused = EXECUTE SINK application_effect_sink EFFECT OPERATION_ID(event.id, 'refused') GUARD FALSE FORM (value = 'refused') ON REPLAY OBSERVE ONLY;
+        \\  LET unresolved = EXECUTE SINK application_effect_sink EFFECT OPERATION_ID(event.id, 'unresolved') GUARD TRUE FORM (value = 'unresolved') ON REPLAY OBSERVE ONLY;
+        \\END;
+        ,
+        .resources = &resources,
+        .limits = limits,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737003 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    const append = try q.ApplicationData.prepareAppend(allocator, client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = schema }, 737100, .{ .kind = .queue, .target = "application_effect_input", .values = &.{.{ .uuid = @splat(7) }} });
+    const bytes = try append.payload.decode(allocator, c.DirectTableProtocol.max_work_bytes);
+    _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = bytes } });
+    const token = (try owner.start(value, 0)).?;
+    var progress = (try T.inspect(client, token)).?;
+    for (0..2) |_| {
+        const work = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+        defer work.deinit();
+        progress = try owner.acquire(value, progress, work.value);
+    }
+    const ready = try owner.load(progress.record.?);
+    defer ready.deinit();
+    try t.expectEqual(.ready, ready.value.phase);
+    const executor = try owner.executor(value, progress, ready.value);
+    const input = try owner.loadInput(executor, value, ready.value, ready.value.environment.?);
+    defer input.deinit();
+    var scope: q.ApplicationExecution.Context = .{ .client = executor, .declaration = value, .work = ready.value, .invocation = token, .input = input.value, .step = 0, .scratch = allocator };
+    try t.expect(!std.meta.eql(scope.client.connection.role, scope.invocation.connection.role));
+    var effects: [4]E = undefined;
+    var dispatches: usize = 0;
+    for (value.program.body.instructions, 0..) |instruction, ordinal| {
+        errdefer std.debug.print("Application effect owner step {d} failed\n", .{ordinal});
+        scope.step = @intCast(ordinal);
+        const effect_id: [16]u8 = @splat(@intCast(ordinal + 1));
+        // A guarded immutable operand record stands in for the runner's frozen
+        // candidate. No AST pointers, credentials or response body enter it.
+        const frozen = try p.Json.valueAlloc(allocator, .{ .instruction = instruction.id, .operation = effect_id, .form = .{ .value = @tagName(@as(enum { response, lost, refused, unresolved }, @fromBackingInt(@intCast(ordinal)))) } });
+        const guarded = try R.encodeGuarded(allocator, executor.connection, &.{ value.object, resources[0].interpretation().object, resources[1].interpretation().object }, frozen);
+        var operand_key = token;
+        operand_key.connection = executor.connection;
+        operand_key.account = @splat(0x73);
+        operand_key.token = @splat(@intCast(ordinal + 1));
+        var fingerprint: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(guarded, &fingerprint, .{});
+        var operand = try c.DirectOwnedRecord.stage(executor, operand_key, 1, 737200 + ordinal, fingerprint, .{ .bytes = 65536 }, R.guarded_bit | 0x45465031, guarded);
+        const unretained = try E.init(scope, operand.receipt.binding.intent.external.record, instruction.id, "application_effect_sink", effect_id);
+        try t.expectError(error.OwnedRecordPending, unretained.begin(init.io));
+        try t.expect(try T.inspect(executor, try unretained.descriptor.key()) == null);
+        operand = try c.DirectOwnedRecord.call(executor, .{ .retain_original = .{ .key = operand_key, .expected = operand.revision } });
+        _ = try T.update(executor, .{ .key = operand_key, .expected = operand.revision, .pending = false, .cancel = false, .record = null });
+        effects[ordinal] = try E.init(scope, operand.receipt.binding.intent.external.record, instruction.id, "application_effect_sink", effect_id);
+        const effect = effects[ordinal];
+        try t.expect(try effect.observe() == null);
+        if (ordinal == 2) {
+            const refusal = try effect.refuse(.guard);
+            try t.expectEqual(.guard, refusal.state.outcome.?.not_dispatched);
+            try t.expect(!refusal.progress.pending);
+            try t.expectEqualDeep(refusal, try effect.refuse(.deadline));
+            try t.expectEqual(.observed, std.meta.activeTag(try effect.begin(init.io)));
+            continue;
+        }
+        if (ordinal == 1) {
+            // The proxy loses the successful stage_original reply. This call
+            // cannot return a fresh attempt or authorize a physical send.
+            try t.expectError(error.InvalidTableResponse, effect.begin(init.io));
+            try t.expectEqual(.observed, std.meta.activeTag(try effect.begin(init.io)));
+            const closed = try effect.closeUnretained();
+            try t.expectEqual(.incomplete_dispatch, closed.state.outcome.?.not_dispatched);
+            try t.expectEqualDeep(closed, try effect.closeUnretained());
+            continue;
+        }
+        const first = try effect.begin(init.io);
+        try t.expectEqual(.fresh, std.meta.activeTag(first));
+        dispatches += 1;
+        const again = try effect.begin(init.io);
+        try t.expectEqual(.observed, std.meta.activeTag(again));
+        try t.expectEqual(.dispatching, again.observed.state.phase);
+        try t.expectEqualDeep(again.observed, try effect.recoverFenced());
+        // A second worker could have inspected absence before the first one
+        // admitted. Equal descriptor fingerprints must still reject its new
+        // nonce through the native permanent original binding.
+        var competing = again.observed.state;
+        competing.dispatch.?.nonce[0] ^= 1;
+        const competing_bytes = try p.Json.valueAlloc(allocator, competing);
+        const competing_guarded = try R.encodeGuarded(allocator, executor.connection, &.{ value.object, resources[0].interpretation().object, resources[1].interpretation().object }, competing_bytes);
+        const admitted = again.observed.progress.receipt.binding;
+        try t.expectError(error.Conflict, c.DirectOwnedRecord.stage(executor, admitted.key, 1, admitted.intent.external.operation, admitted.fingerprint, admitted.budget, E.format, competing_guarded));
+        try t.expectEqualDeep(again.observed, (try effect.observe()).?);
+        var changed = effect;
+        changed.descriptor.operation[0] ^= 1;
+        try t.expectError(error.ClientTokenConflict, changed.begin(init.io));
+        if (ordinal == 0) {
+            var body_digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash("{}", &body_digest, .{});
+            const outcome: E.Outcome = .{ .response = .{ .status = 201, .bytes = 2, .sha256 = body_digest, .body = null } };
+            // Cancellation is not evidence that the provider did not respond.
+            _ = try T.update(executor, .{ .key = first.fresh.key, .expected = again.observed.progress.revision, .pending = true, .cancel = true, .record = null });
+            try t.expectError(error.InvalidTableResponse, effect.finish(first.fresh, outcome));
+            const done = try effect.finish(first.fresh, outcome);
+            try t.expect(!done.progress.pending and done.progress.cancel);
+            try t.expectEqualDeep(outcome, done.state.outcome.?);
+            try t.expectEqualDeep(done, try effect.finish(first.fresh, outcome));
+            try t.expectError(error.ClientOperationConflict, effect.finish(first.fresh, .unknown));
+            try t.expectEqual(.observed, std.meta.activeTag(try effect.begin(init.io)));
+        }
+    }
+    try t.expectEqual(@as(usize, 2), dispatches);
+    // Replacing the invocation fence supplies durable evidence for unknown;
+    // reopening the owner never reconstructs a live dispatch permit.
+    progress = try owner.advance(value, progress, ready.value);
+    const replacement = try owner.executor(value, progress, ready.value);
+    try t.expectError(error.Conflict, effects[3].begin(init.io));
+    effects[3].scope.client = replacement;
+    const unknown = try effects[3].recoverFenced();
+    try t.expectEqual(.unknown, std.meta.activeTag(unknown.state.outcome.?));
+    try t.expect(!unknown.progress.pending);
+    try t.expectEqualDeep(unknown, try effects[3].recoverFenced());
+    try t.expectEqual(.observed, std.meta.activeTag(try effects[3].begin(init.io)));
+    const suspension = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737005 }, .target = try value.interpretation(client.allocator), .expected = (try manager.inspect(value)).head.control, .command = .suspend_computation }, null);
+    defer client.allocator.free(suspension);
+    _ = try manager.applyControl(suspension);
+    try applicationCancelled(owner, value, token);
 }
 
 fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplication.Declaration, role: u64) !void {
