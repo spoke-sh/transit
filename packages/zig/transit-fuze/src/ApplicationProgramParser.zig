@@ -438,6 +438,7 @@ fn program(self: *Self) !a.Program {
         try self.requireWord("DEADLINE");
         try self.require('=');
         deadline = try self.quoted(.string);
+        _ = try a.deadlineMilliseconds(deadline.?);
         try self.require(')');
     }
     try self.requireWord("AS");

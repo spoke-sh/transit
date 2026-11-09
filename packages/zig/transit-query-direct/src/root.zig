@@ -16,6 +16,7 @@ pub const RelationalBridge = @import("RelationalBridge.zig");
 pub const TableChangeReader = @import("TableChangeReader.zig");
 pub const ManagedTable = @import("ManagedTable.zig");
 pub const ApplicationData = @import("ApplicationData.zig");
+pub const ApplicationDeadline = @import("ApplicationDeadline.zig");
 pub const ApplicationBinding = @import("ApplicationBinding.zig");
 pub const ApplicationDeclaration = @import("ApplicationDeclaration.zig");
 pub const ApplicationExecution = @import("ApplicationExecution.zig");

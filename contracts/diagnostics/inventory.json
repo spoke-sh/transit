@@ -15378,7 +15378,9 @@
       ]
     },
     "packages/zig/transit-fuze/src/ApplicationProgram.zig": {
-      "errors": {},
+      "errors": {
+        "InvalidApplicationDeadline": 4
+      },
       "outcomes": {
         "Binary": [
           "equal",
@@ -15484,11 +15486,13 @@
         ]
       },
       "error_sets": {},
-      "error_returns": {},
+      "error_returns": {
+        "deadlineMilliseconds()": "<inferred>"
+      },
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 0
+        "catch": 2
       },
       "imports": [
         "ApplicationCursor.zig",
@@ -15501,6 +15505,7 @@
         "ApplicationProgramTypes.zig",
         "ApplicationStep.zig",
         "ApplicationValue.zig",
+        "PerfectHash.zig",
         "SqlInput.zig",
         "std"
       ]
@@ -15535,7 +15540,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 75,
+        "try": 76,
         "catch": 0
       },
       "imports": [
@@ -15594,7 +15599,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 252,
+        "try": 253,
         "catch": 3
       },
       "imports": [
@@ -27425,6 +27430,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationDeadline.zig": {
+      "errors": {
+        "ApplicationReservationExpired": 2,
+        "ClockUnavailable": 3,
+        "InvalidApplicationDeadline": 4,
+        "InvalidQueueResponse": 3,
+        "InvalidTransactionGuard": 1,
+        "LogTimeRegression": 1,
+        "QueueRecoveryPending": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "now()": "<inferred>",
+        "observe()": "<inferred>",
+        "refresh()": "<inferred>",
+        "remaining()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ApplicationDeclaration.zig": {
       "errors": {
         "DataflowIdentityConflict": 3,
@@ -28532,6 +28566,7 @@
       "imports": [
         "ApplicationBinding.zig",
         "ApplicationData.zig",
+        "ApplicationDeadline.zig",
         "ApplicationDeclaration.zig",
         "ApplicationEffect.zig",
         "ApplicationEffectRequest.zig",

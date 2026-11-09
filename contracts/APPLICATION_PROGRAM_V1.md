@@ -206,6 +206,18 @@ to disguise the loss of an original outcome.
 Program timestamps use SQL's UTC microseconds since epoch; durations use signed
 microseconds. Seconds conversion and timestamp arithmetic must reject overflow.
 
+`WITH (DEADLINE = '5s')` accepts a positive integer followed by `ms`, `s`, `m`,
+`h` or `d` (case-insensitive). Parsing and decoded-plan validation reject zero,
+fractional, unknown-unit and overflowing durations. The shared
+`ApplicationDeadline` component derives the absolute cutoff from the original
+accepted claim's `observed_ms`; another effect, input ACK or worker replacement
+cannot choose a new origin. It uses Queue `current_time`'s upper bound and
+charges the entire native read duration when projecting onto local monotonic
+time. Rechecks only shorten the budget; the sink timeout and transient request
+expiry may shorten it further. Missing/regressing clocks or expiry refuse work.
+This component does not itself activate HTTP execution or authorize dispatch;
+the enclosing worker must bound and join its I/O and repeat current guards.
+
 The native public helper owner implements host time, secure random public tokens,
 checked seconds conversion, Unicode code-point length, SHA-256 digests and
 unpadded base64url S256. `RANDOM_TOKEN(n)` encodes `n` random bytes, with

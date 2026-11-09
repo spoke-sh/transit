@@ -229,7 +229,10 @@ pub fn validate(program: a.Program) !void {
     try self.text(program.name, true);
     try self.text(program.queue, true);
     try self.text(program.input, true);
-    if (program.deadline) |deadline| try self.text(deadline, true);
+    if (program.deadline) |deadline| {
+        try self.text(deadline, true);
+        _ = try a.deadlineMilliseconds(deadline);
+    }
     if (program.predicate) |predicate| try self.expression(predicate, 1);
     switch (program.body) {
         .instructions => |body| try self.block(body, 1, false),

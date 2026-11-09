@@ -145,6 +145,35 @@ pub const Owned = struct {
 };
 pub const parse = Parser.parse;
 
+/// Deadline literals use the same closed units as connector timeouts. Keep
+/// this validation shared by parsed programs, decoded plans and execution.
+pub fn deadlineMilliseconds(text: []const u8) !u64 {
+    var end: usize = 0;
+    while (end < text.len and std.ascii.isDigit(text[end])) : (end += 1) {}
+    const multiplier = @import("PerfectHash.zig").ComptimeMap(u64, true, .{ .{ "ms", 1 }, .{ "s", 1000 }, .{ "m", 60000 }, .{ "h", 3600000 }, .{ "d", 86400000 } }).get(text[end..]) orelse return error.InvalidApplicationDeadline;
+    const count = std.fmt.parseInt(u64, text[0..end], 10) catch return error.InvalidApplicationDeadline;
+    if (count == 0) return error.InvalidApplicationDeadline;
+    return std.math.mul(u64, count, multiplier) catch error.InvalidApplicationDeadline;
+}
+
+test "application program deadlines reject malformed zero and overflowing durations" {
+    const t = std.testing;
+    try t.expectEqual(@as(u64, 5000), try deadlineMilliseconds("5s"));
+    try t.expectEqual(@as(u64, 1), try deadlineMilliseconds("1MS"));
+    try t.expectEqual(@as(u64, 86400000), try deadlineMilliseconds("1d"));
+    for ([_][]const u8{ "", "s", "0s", "-1s", "+1s", "1.5s", " 5s", "5s ", "5", "1us", "18446744073709551616ms", "18446744073709551615s" }) |invalid| {
+        try t.expectError(error.InvalidApplicationDeadline, deadlineMilliseconds(invalid));
+        const source = try std.fmt.allocPrint(t.allocator, "CREATE DATAFLOW x FROM QUEUE q AS request WITH (DEADLINE = '{s}') AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", .{invalid});
+        defer t.allocator.free(source);
+        try t.expectError(error.InvalidApplicationDeadline, parse(t.allocator, source, null));
+    }
+    var parsed = try parse(t.allocator, "CREATE DATAFLOW x FROM QUEUE q AS request WITH (DEADLINE = '5s') AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", null);
+    defer parsed.deinit();
+    try Codec.validate(parsed.program);
+    parsed.program.deadline = "0s";
+    try t.expectError(error.InvalidApplicationDeadline, Codec.validate(parsed.program));
+}
+
 test {
     _ = Types;
     _ = Codec;
