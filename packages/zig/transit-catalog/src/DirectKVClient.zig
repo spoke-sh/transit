@@ -159,6 +159,26 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
     };
 }
 
+fn localRowCloneSchedule(allocator: std.mem.Allocator) !void {
+    var output: std.heap.ArenaAllocator = .init(allocator);
+    defer output.deinit();
+    var name = "interval".*;
+    var element: types.Type = .int64;
+    var fields = [_]types.Field{.{ .name = &name, .type = .{ .range = &element }, .nullable = false }};
+    const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .row, .nullable = false, .fields = &fields };
+    const owned = try c.client.LocalEndpoint.clone(output.allocator(), .{ .spec = spec });
+    @memset(&name, 'x');
+    element = .boolean;
+    fields[0].nullable = true;
+    try std.testing.expectEqualStrings("interval", owned.spec.fields[0].name);
+    try std.testing.expectEqual(.int64, owned.spec.fields[0].type.range.*);
+    try std.testing.expect(!owned.spec.fields[0].nullable);
+}
+test "local KV row responses use bounded logical type cloning and own nested descriptors" {
+    try localRowCloneSchedule(std.testing.allocator);
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, localRowCloneSchedule, .{});
+}
+
 test "direct KV caller refuses an oversized batch before exhausting bounded output memory" {
     const t = std.testing;
     var memory: c.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = 16 * 1024 * 1024 };

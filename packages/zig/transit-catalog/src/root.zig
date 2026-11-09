@@ -176,6 +176,7 @@ test {
     _ = DirectQueueMutation;
     _ = DirectQueue;
     _ = DirectKVIntent;
+    _ = DirectKVClient;
     _ = DirectKVPreparedDdl;
     _ = DirectKVPreparedWrite;
     _ = DirectKVPreparedGet;
