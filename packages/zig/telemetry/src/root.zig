@@ -145,11 +145,15 @@ pub const Runtime = struct {
     // producers. Its final record must not race the writer's queue try-lock.
     terminal_record: Record = undefined,
     terminal_ready: std.atomic.Value(bool) = .init(false),
-    head: usize = 0,
-    len: usize = 0,
+    head: std.atomic.Value(usize) = .init(0),
+    tail: std.atomic.Value(usize) = .init(0),
     rate_second: i64 = 0,
     normal_count: usize = 0,
     important_count: usize = 0,
+
+    fn queued(self: *const Runtime) usize {
+        return self.tail.load(.acquire) -% self.head.load(.acquire);
+    }
 
     pub fn init(io: std.Io, comptime service: []const u8, config: Config) Runtime {
         var instance: [16]u8 = undefined;
@@ -174,11 +178,7 @@ pub const Runtime = struct {
         if (self.writer) |*future| {
             const until = std.Io.Clock.awake.now(self.io).toMilliseconds() + 200;
             while (std.Io.Clock.awake.now(self.io).toMilliseconds() < until) {
-                if (self.mutex.tryLock()) {
-                    const empty = self.len == 0 and !self.terminal_ready.load(.acquire) and !self.busy.load(.acquire);
-                    self.mutex.unlock(self.io);
-                    if (empty) break;
-                }
+                if (!self.busy.load(.seq_cst) and self.queued() == 0 and !self.terminal_ready.load(.acquire) and !self.busy.load(.seq_cst)) break;
                 self.io.sleep(.fromMilliseconds(5), .awake) catch break;
             }
             future.cancel(self.io);
@@ -284,12 +284,12 @@ pub const Runtime = struct {
     }
 
     fn enqueue(self: *Runtime, record: Record, important: bool) void {
+        const second = @divFloor(std.Io.Clock.awake.now(self.io).toMilliseconds(), 1000);
         if (self.sink_failed.load(.acquire) or !self.mutex.tryLock()) {
             _ = self.dropped.fetchAdd(1, .monotonic);
             return;
         }
         defer self.mutex.unlock(self.io);
-        const second = @divFloor(std.Io.Clock.awake.now(self.io).toMilliseconds(), 1000);
         if (second != self.rate_second) {
             self.rate_second = second;
             self.normal_count = 0;
@@ -301,28 +301,32 @@ pub const Runtime = struct {
             return;
         }
         count.* += 1;
-        if (self.len >= (if (important) @as(usize, 128) else 112)) {
+        const head = self.head.load(.acquire);
+        const tail = self.tail.load(.monotonic);
+        if (tail -% head >= (if (important) @as(usize, 128) else 112)) {
             _ = self.dropped.fetchAdd(1, .monotonic);
             return;
         }
-        self.queue[(self.head + self.len) % self.queue.len] = record;
-        self.len += 1;
+        const slot = &self.queue[tail % self.queue.len];
+        @memcpy(slot.bytes[0..record.len], record.bytes[0..record.len]);
+        slot.len = record.len;
+        self.tail.store(tail +% 1, .release);
     }
 
     fn pop(self: *Runtime) ?Record {
-        if (!self.mutex.tryLock()) return null;
-        defer self.mutex.unlock(self.io);
-        if (self.len == 0) {
-            if (!self.terminal_ready.swap(false, .acq_rel)) return null;
-            // Under the queue lock, so stop cannot observe an empty queue
-            // between taking the terminal record and beginning its write.
-            self.busy.store(true, .release);
-            return self.terminal_record;
+        if (self.head.load(.monotonic) == self.tail.load(.acquire) and !self.terminal_ready.load(.acquire)) return null;
+        self.busy.store(true, .seq_cst);
+        const head = self.head.load(.monotonic);
+        const tail = self.tail.load(.acquire);
+        if (head == tail) {
+            if (self.terminal_ready.swap(false, .acq_rel)) return self.terminal_record;
+            self.busy.store(false, .release);
+            return null;
         }
-        const result = self.queue[self.head];
-        self.head = (self.head + 1) % self.queue.len;
-        self.len -= 1;
-        self.busy.store(true, .release);
+        const slot = &self.queue[head % self.queue.len];
+        var result: Record = .{ .len = slot.len };
+        @memcpy(result.bytes[0..result.len], slot.bytes[0..result.len]);
+        self.head.store(head +% 1, .release);
         return result;
     }
 
@@ -422,10 +426,10 @@ test "bounded queue reserves errors; independent metrics survive drops and filte
         var span = runtime.begin(.server, null);
         span.finish(.{ .name = "http.request", .route = "/fixed", .outcome = .ok });
     }
-    try std.testing.expectEqual(112, runtime.len);
+    try std.testing.expectEqual(112, runtime.queued());
     try std.testing.expect(runtime.dropped.load(.monotonic) > 0);
     runtime.event(.{ .name = "service.failure", .level = .err, .outcome = .failed });
-    try std.testing.expectEqual(113, runtime.len);
+    try std.testing.expectEqual(113, runtime.queued());
     try std.testing.expectEqual(160, runtime.snapshot(.server).outcomes[@backingInt(Outcome.ok)]);
     runtime.config.level = .off;
     var span = runtime.begin(.client, null);
@@ -602,4 +606,29 @@ test "periodic metrics honor log level while measurement continues" {
             try std.testing.expect(snapshot_value.get("buckets").?.object.contains("gt_1ms_le_5ms"));
         }
     }
+}
+
+test "writer draining does not contend with a single producer's queue lock" {
+    const io = std.testing.io;
+    var temporary = std.testing.tmpDir(.{});
+    defer temporary.cleanup();
+    const file = try temporary.dir.createFile(io, "startup.log", .{});
+    defer file.close(io);
+    var runtime = Runtime.init(io, "test", .{ .format = .json, .level = .info });
+    runtime.sink = file;
+    runtime.start();
+    var total = runtime.begin(.service, null);
+    for (0..17) |_| {
+        var phase = runtime.begin(.service, total.context);
+        runtime.event(.{ .name = "server.startup.phase.begin", .operation = "phase" });
+        try io.sleep(.fromMilliseconds(10), .awake);
+        phase.finish(.{ .name = "server.startup.phase", .operation = "phase" });
+    }
+    total.finish(.{ .name = "server.startup.complete" });
+    runtime.event(.{ .name = "server.ready" });
+    runtime.event(.{ .name = "board.ready" });
+    runtime.stop();
+    try std.testing.expectEqual(0, runtime.dropped.load(.monotonic));
+    try std.testing.expectEqual(0, runtime.suppressed.load(.monotonic));
+    try std.testing.expectEqual(0, runtime.sink_errors.load(.monotonic));
 }
