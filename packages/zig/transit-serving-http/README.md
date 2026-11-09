@@ -78,6 +78,15 @@ bound; private finite responses retain their 16 KiB client bound.
 
 ## Declarative browser host
 
+The application runtime's `ApplicationReservation` and
+`ApplicationProtectedHost` components own transient protected values and typed
+helper evaluation. Original input identity, per-step observations, redemption
+purpose and current native authority remain distinct from the opaque handle.
+The host erases its separate private scratch on every return and never exports
+credential or protected-response bytes through ordinary values. See the
+[application program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
+for helper algorithms, bounds and the remaining live verifier/dispatch work.
+
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native

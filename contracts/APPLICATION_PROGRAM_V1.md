@@ -268,6 +268,25 @@ remain inside the reservation, with separate typed handles and original
 observation identities. Reusing an observation with different arguments or
 material rejects rather than replacing the original value.
 
+`ApplicationProtectedHost` composes these reservations with public observations
+and native secret-resolution callbacks. Public output, retained material and
+per-call private scratch have separate ownership; private scratch is erased on
+success, rejection and exhaustion. Random secrets contain the unpadded base64url
+encoding of 16–64 secure random bytes and reuse their original reservation.
+Derivation uses HMAC-SHA256 over `transit.application.derive-secret.v1` plus a NUL,
+then the public state and label, each prefixed by its little-endian u64 byte
+length. Its 32-byte result is encoded as unpadded base64url. Commitments and S256
+hash these exact encoded bytes, matching cookie extraction. Bearer construction
+admits nonempty token68 bytes and keeps the resulting header protected.
+
+Protected scalar operators reuse the public evaluator's arithmetic, comparison
+and NULL rules inside the private host and seal the result again. Request fields
+retain duplicate rejection and exact original-record ownership. A cached secret
+still requires current redemption authority. `SECRET_CURRENT` uses a distinct
+inspection purpose so a rotated declaration can return false; its native
+callback must retain the policy read in an active common transaction. These
+helper tests do not establish that callback's live integration or HTTP dispatch.
+
 This local component admits one explicit ownership handoff, bound to the source
 invocation, original common transaction, effect identity and exact destination
 enqueue record. The verifier must observe the matching committed enqueue,

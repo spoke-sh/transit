@@ -298,6 +298,8 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
             try requireKind(args[0], .secret);
             try requireKind(args[1], .text);
             try requireKind(args[2], .text);
+            try public(args[1]);
+            try public(args[2]);
             return .{ .kind = .secret, .protected = true };
         },
         .digest, .commitment, .s256 => {

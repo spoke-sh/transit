@@ -15201,13 +15201,14 @@
         "Host.evaluate()": "anyerror",
         "Host.lookup()": "anyerror",
         "applyBinary()": "<inferred>",
+        "applyUnary()": "<inferred>",
         "condition()": "<inferred>",
         "evaluate()": "<inferred>",
         "expression()": "anyerror"
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 32,
+        "try": 36,
         "catch": 0
       },
       "imports": [
@@ -15583,7 +15584,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 140,
+        "try": 142,
         "catch": 0
       },
       "imports": [
@@ -31306,6 +31307,54 @@
         "transit_query"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationProtectedHost.zig": {
+      "errors": {
+        "AccessDenied": 2,
+        "ApplicationReservationCapacity": 2,
+        "OutOfMemory": 1,
+        "ProgramArgumentMismatch": 13,
+        "ProgramTooComplex": 1,
+        "ProgramTypeMismatch": 5,
+        "ProtectedProgramValue": 6,
+        "UnknownProgramResource": 1,
+        "UnknownProgramVariable": 1,
+        "UnsupportedProgramInstruction": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Proof.check()": "<inferred>",
+        "Proof.isCurrent()": "<inferred>",
+        "Proof.named()": "<inferred>",
+        "Proof.ordinaryCondition()": "<inferred>",
+        "Proof.ordinaryEvaluate()": "<inferred>",
+        "Proof.ordinaryLookup()": "<inferred>",
+        "Secrets.current()": "anyerror",
+        "Secrets.lookup()": "anyerror",
+        "cached()": "<inferred>",
+        "condition()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "lookup()": "<inferred>",
+        "materialBytes()": "<inferred>",
+        "observation()": "<inferred>",
+        "protect()": "<inferred>",
+        "run()": "<inferred>",
+        "scalar()": "<inferred>",
+        "secret()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 43,
+        "catch": 1
+      },
+      "imports": [
+        "ApplicationReservation.zig",
+        "BrowserRequest.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationReservation.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -31341,6 +31390,7 @@
           "bearer"
         ],
         "Use": [
+          "current",
           "commitment",
           "comparison",
           "derive",
@@ -31732,6 +31782,7 @@
         "catch": 2
       },
       "imports": [
+        "ApplicationProtectedHost.zig",
         "ApplicationReservation.zig",
         "BrowserRuntime.zig",
         "PrivateClient.zig",

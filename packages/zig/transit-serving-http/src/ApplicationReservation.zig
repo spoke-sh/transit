@@ -56,7 +56,7 @@ pub const Material = union(enum) {
     scalar: V,
 };
 pub const Origin = enum { named, request_query, request_cookie, derived, random, provider_token, bearer };
-pub const Use = enum { commitment, comparison, derive, s256, bearer, form, header, cookie, json_projection, scalar };
+pub const Use = enum { current, commitment, comparison, derive, s256, bearer, form, header, cookie, json_projection, scalar };
 pub const Slot = struct {
     owner: Key,
     observation: Observation,
@@ -245,6 +245,7 @@ fn same(left: Material, right: Material) bool {
 fn purpose(material: Material, use: Use) !void {
     const allowed = switch (material) {
         .secret => |secret| switch (use) {
+            .current => secret.origin == .named or secret.origin == .derived,
             .commitment, .comparison, .derive, .s256, .bearer, .form => true,
             .header => secret.origin == .bearer,
             // Cookie delivery cannot declassify a mounted provider credential,

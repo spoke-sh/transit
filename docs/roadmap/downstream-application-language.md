@@ -66,6 +66,13 @@ guard. Public JSON/URL helpers preserve integer tokens and reject ambiguous,
 oversized or protected inputs. These additions still require the live protected
 host, effect dispatch, response settlement and canonical browser integration.
 
+The protected helper component now checks cached material authority, preserves
+original random secrets, performs domain-separated derivation and exact bounded
+JSON projection, and erases private scratch on every return. Its component
+proofs cover duplicate request fields, revocation, protected scalar operations,
+cookie/header purposes and capacity refusal. Live secret read guards, effect
+ownership and HTTP composition remain unfinished.
+
 ## Reviewed inputs and desired experience
 
 Transit baseline: `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`.

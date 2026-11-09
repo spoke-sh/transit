@@ -59,12 +59,7 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
         .unary => |unary| blk: {
             const operand = try self.expression(unary.operand, depth + 1);
             if (operand.protected()) break :blk try self.host.evaluate(self.host.context, node.id, .{ .unary = unary.operator }, &.{operand});
-            break :blk switch (unary.operator) {
-                .is_null => .{ .boolean = operand == .null },
-                .is_not_null => .{ .boolean = operand != .null },
-                .not_ => if (operand == .null) .null else if (operand == .boolean) .{ .boolean = !operand.boolean } else return error.ProgramTypeMismatch,
-                .negate => if (operand == .null) .null else if (operand == .integer) .{ .integer = try std.math.negate(operand.integer) } else return error.ProgramTypeMismatch,
-            };
+            break :blk try applyUnary(unary.operator, operand);
         },
         .binary => |binary| blk: {
             const left = try self.expression(binary.left, depth + 1);
@@ -105,7 +100,21 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
     return result;
 }
 
-fn applyBinary(self: Self, operator: a.Binary, left: Value, right: Value) !Value {
+/// Shared scalar semantics for an authorized host that resolves a protected
+/// scalar privately and seals the result again. This boundary never redeems a
+/// reference and refuses protected values supplied directly.
+pub fn applyUnary(operator: a.Unary, operand: Value) !Value {
+    try operand.public();
+    return switch (operator) {
+        .is_null => .{ .boolean = operand == .null },
+        .is_not_null => .{ .boolean = operand != .null },
+        .not_ => if (operand == .null) .null else if (operand == .boolean) .{ .boolean = !operand.boolean } else return error.ProgramTypeMismatch,
+        .negate => if (operand == .null) .null else if (operand == .integer) .{ .integer = try std.math.negate(operand.integer) } else return error.ProgramTypeMismatch,
+    };
+}
+pub fn applyBinary(self: Self, operator: a.Binary, left: Value, right: Value) !Value {
+    try left.public();
+    try right.public();
     if (operator == .and_ or operator == .or_) {
         if ((left != .null and left != .boolean) or (right != .null and right != .boolean)) return error.ProgramTypeMismatch;
         if (operator == .and_) {
