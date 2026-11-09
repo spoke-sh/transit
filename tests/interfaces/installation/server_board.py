@@ -18,15 +18,12 @@ import urllib.request
 from harness.processes import children, command, joined
 from interfaces.installation.server_applications import Applications
 from interfaces.installation.server_application_faults import ExistingKey, native, post, install_peer, arm, wait_file, descendants
-from harness.services import free_port
 
 
 class Board(Applications):
-    def __init__(self, cli, node, host, board):
-        super().__init__(cli, node, host)
-        port = free_port()
-        while port in [*self.config['ports'].values(), self.config['applications']['port']]:
-            port = free_port()
+    def __init__(self, cli, node, host, board, parent="/var/tmp"):
+        super().__init__(cli, node, host, parent=parent)
+        port = self.reserve_port()
         self.config.update(version=1, board={'port': port})
         if Path(board).resolve() != Path(cli).resolve():
             self.config['executables']['board'] = str(Path(board).resolve())
@@ -143,7 +140,9 @@ def lifecycle(cli, node, host, board, worker, operator):
         html = fixture.request('/').decode()
         scripts = re.findall(r'src="([^"]+\.js)"', html)
         assert scripts, html
-        assert len(fixture.request(scripts[0])) > 100_000
+        entry = fixture.request(scripts[0]).decode()
+        chunks = [scripts[0], *('/assets/' + name for name in re.findall(r'"\./([^"]+\.js)"', entry))]
+        assert sum(len(fixture.request(chunk)) for chunk in chunks) > 100_000
         capabilities = json.loads(fixture.request('/api/v1/capabilities'))
         assert not capabilities['query_enabled']
         # Use both real URLs, including their default Host headers. The default
@@ -153,7 +152,7 @@ def lifecycle(cli, node, host, board, worker, operator):
         for origin in origins:
             headers = {'Origin': origin}
             assert fixture.request('/', base_url=origin).decode() == html
-            assert len(fixture.request(scripts[0], base_url=origin)) > 100_000
+            assert sum(len(fixture.request(chunk, base_url=origin)) for chunk in chunks) > 100_000
             assert json.loads(fixture.request('/health', headers, base_url=origin))['ready']
             local_atlas = json.loads(fixture.request('/api/v1/atlas', headers, base_url=origin))
             assert int(local_atlas['identity']['principal']) == 25
@@ -323,7 +322,9 @@ def preflight(cli, node, host, board):
         fixture.refusal('file not found')
         assert not fixture.installation.exists()
         fixture.config = original
-        selected = fixture.root / 'selected-board'
+        selected_dir = fixture.root / 'selected-board'
+        selected_dir.mkdir()
+        selected = selected_dir / 'transit-board'
         shutil.copyfile(board, selected)
         selected.chmod(0o700)
         fixture.config['executables']['board'] = str(selected)
@@ -394,11 +395,14 @@ if __name__ == '__main__':
     try:
         binaries = []
         for argument in sys.argv[1:]:
-            target = artifacts / Path(argument).name
-            shutil.copy2(Path(argument).resolve(), target)
+            source = Path(argument).resolve()
+            target = artifacts / source.name
+            if not target.exists():
+                shutil.copy2(source, target)
             binaries.append(str(target))
+        default_gateway = Path(sys.argv[1]).resolve().parent / 'transit-sql-gateway'
         sql_gateway = artifacts / 'transit-sql-gateway'
-        shutil.copy2(Path(sys.argv[1]).resolve().parent / 'transit-sql-gateway', sql_gateway)
+        shutil.copy2(default_gateway if default_gateway.exists() else Path(sys.argv[1]).resolve(), sql_gateway)
         os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(sql_gateway)
         preflight(*binaries[:4])
         incompatible(*binaries[:4])

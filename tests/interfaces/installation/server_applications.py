@@ -15,15 +15,12 @@ import time
 from harness.processes import children, command
 from interfaces.installation.server import Fixture
 from harness.local_installation import freeze_executables
-from harness.services import free_port
 
 
 class Applications(Fixture):
     def __init__(self, cli, node, host, parent="/var/tmp"):
         super().__init__(cli, node, host, parent=parent)
-        port = free_port()
-        while port in self.config['ports'].values():
-            port = free_port()
+        port = self.reserve_port()
         self.config.update(version=1, applications={'port': port, 'max_applications': 3, 'max_roles': 8})
         self.path.write_text(json.dumps(self.config))
         self.management = None
