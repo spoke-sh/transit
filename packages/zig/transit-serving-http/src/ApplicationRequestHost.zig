@@ -32,7 +32,23 @@ pub fn init(registry: *Requests, mounts: []const Mount) !Self {
     return .{ .registry = registry, .mounts = mounts };
 }
 pub fn host(self: *Self) q.ApplicationExecution.Host {
-    return .{ .context = self, .bind = bind };
+    return .{ .context = self, .ready = requireReady, .bind = bind };
+}
+pub fn available() a.Types.Requirements {
+    var result = q.ApplicationHost.available();
+    result.functions = result.functions.unionWith(.initMany(&.{ .secret, .random_secret, .derive_secret, .secret_current, .http_query, .http_query_unique, .http_secret_query_unique, .http_secret_cookie_unique, .secret_json_value, .bearer }));
+    result.features.insert(.protected_values);
+    return result;
+}
+fn requireReady(context: *anyopaque, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) !void {
+    const self: *Self = @ptrCast(@alignCast(context));
+    var bound = try declaration.bind(allocator);
+    defer bound.deinit();
+    try bound.requirements.requireAvailable(available());
+    if (bound.native.contains(.secret_references)) {
+        const binding = try secretBinding(declaration) orelse return error.ApplicationHostUnavailable;
+        if (self.findMount(binding) == null) return error.ApplicationHostUnavailable;
+    }
 }
 fn requestReference(input: q.ApplicationInvocation.Input) !?a.Values.Reference {
     if (input.definition != c.protocol.Growth.current_definition or input.environment.definition != c.protocol.Growth.current_definition) return error.IncompatibleDefinition;
@@ -44,19 +60,24 @@ fn requestReference(input: q.ApplicationInvocation.Input) !?a.Values.Reference {
     };
     return selected;
 }
-fn secret(self: *Self, scope: q.ApplicationExecution.Context) !?Secrets {
+fn secretBinding(declaration: q.ManagedApplication.Declaration) !?c.DirectSecret.Binding {
     var selected: ?c.DirectSecret.Binding = null;
-    for (scope.declaration.resources) |resource| if (resource.nativeBinding() == .secret_references) {
+    for (declaration.resources) |resource| if (resource.nativeBinding() == .secret_references) {
         if (selected != null) return error.DuplicateProgramNativeBinding;
         selected = .{ .namespace = resource.namespace(), .interpretation = resource.interpretation() };
     };
-    const binding = selected orelse return null;
-    try binding.validate();
-    for (self.mounts) |mount| {
-        if (mount.namespace == binding.namespace and std.meta.eql(mount.scope, binding.interpretation.object.scope))
-            return .{ .client = scope.client, .binding = binding, .io = self.registry.io, .directory = mount.directory };
+    if (selected) |binding| try binding.validate();
+    return selected;
+}
+fn findMount(self: *Self, binding: c.DirectSecret.Binding) ?std.Io.Dir {
+    for (self.mounts) |entry| {
+        if (entry.namespace == binding.namespace and std.meta.eql(entry.scope, binding.interpretation.object.scope)) return entry.directory;
     }
     return null;
+}
+fn secret(self: *Self, scope: q.ApplicationExecution.Context) !?Secrets {
+    const binding = try secretBinding(scope.declaration) orelse return null;
+    return .{ .client = scope.client, .binding = binding, .io = self.registry.io, .directory = self.findMount(binding) orelse return null };
 }
 fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
     const self: *Self = @ptrCast(@alignCast(context));

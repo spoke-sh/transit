@@ -78,6 +78,10 @@ Single-record SELECT outside an atomic block uses a bounded original read
 transaction and releases it before adopting the retained observation.
 
 Failure entry follows verified native abort and drops the failed body's locals.
+A lost or expired transient request enters that failure path while retaining
+its distinct reason. It does not cancel the durable input or replace the
+original transaction. Public failure-handler state and receipts can still settle
+after protected bytes disappear; response delivery remains a separate outcome.
 A failed failure handler terminates without recursive entry. Cancellation resolves
 the original transaction before deciding whether it committed; it cannot replace
 a committed success with refusal. The control head retains its pending invocation
@@ -94,6 +98,14 @@ expansion; it is not a count of transport retries. These typed owners currently
 execute data instructions and failure continuations. `ApplicationRecovery`
 reopens frozen declarations and invocations for bounded service scheduling,
 including interrupted final closure and defeated attachment cleanup.
+The compiler derives required host functions and facilities from all branches,
+failure handlers and the input schema. A deployment-supplied host must report
+ready before the service creates or acquires an invocation. Unavailable placement
+parks the existing original; accepted transaction settlement and cancellation
+cleanup do not depend on host availability. The default host admits public data
+programs and refuses protected inputs, effects, responses, handoffs, paging and
+deadlines until the corresponding implementation is supplied. These checks
+describe placement and support, and confer no native rights.
 `ApplicationHost` supplies native public time, entropy, duration, digest and
 Document revision observations; the runner retains their original candidate
 before advancing. Its JSON/URL helpers share Fuze's bounded lossless parser,

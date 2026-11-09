@@ -174,6 +174,22 @@
               "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
             }
           ]
+        },
+        {
+          "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+          "cause": "ApplicationHostUnavailable",
+          "disposition": "control_flow",
+          "reason": "The runtime compares complete typed program requirements with its installed host before acquiring input. This readiness refusal parks the original; parsing and type binding do not call this check, and it cannot classify SQL syntax or an accepted transaction outcome.",
+          "tests": [
+            {
+              "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+              "name": "application host requirements include unreachable branches and failure continuations"
+            },
+            {
+              "source": "packages/zig/transit-query-direct/src/ApplicationHost.zig",
+              "name": "application public host admits data programs before input and rejects protected input schemas"
+            }
+          ]
         }
       ],
       "codes": {

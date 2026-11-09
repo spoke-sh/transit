@@ -10,10 +10,19 @@ io: std.Io,
 scope: ?q.ApplicationExecution.Context = null,
 
 pub fn recovery(self: *Self) q.ApplicationRecovery.Host {
-    return .{ .context = self, .bind = bind };
+    return .{ .context = self, .ready = requireReady, .bind = bind };
+}
+pub fn available() a.Types.Requirements {
+    return .{ .functions = .initMany(&.{ .random_token, .digest, .commitment, .now, .seconds, .current_revision, .url, .json_object, .s256, .length, .secure_equal, .operation_id, .json_value, .json_integer, .identity_digest }) };
+}
+pub fn requireReady(_: *anyopaque, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) !void {
+    var bound = try declaration.bind(allocator);
+    defer bound.deinit();
+    try bound.requirements.requireAvailable(available());
 }
 fn finish(context: *anyopaque) void {
     const self: *Self = @ptrCast(@alignCast(context));
+    if (self.scope) |*scope| std.crypto.secureZero(u8, std.mem.asBytes(scope));
     self.scope = null;
 }
 fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.ApplicationExecution.BoundHost {
@@ -165,4 +174,24 @@ test "application public observations have exact units and canonical identities"
     try t.expect(!secureEqual("abc", "abd"));
     try t.expect(!secureEqual("abc", "abcd"));
     try t.expect(secureEqual("", ""));
+}
+
+test "application public host admits data programs before input and rejects protected input schemas" {
+    const t = std.testing;
+    var parsed = try a.parse(t.allocator,
+        \\CREATE DATAFLOW x FROM QUEUE events AS event AS BEGIN
+        \\  LET time = NOW();
+        \\  REQUIRE event.id = 1 ELSE 'Rejected';
+        \\END;
+    , null);
+    defer parsed.deinit();
+    const id: a.Types.Field = .{ .name = "id", .value = .{ .kind = .integer } };
+    var public = try a.Types.bind(t.allocator, parsed.program, &.{.{ .name = "events", .kind = .queue, .fields = &.{id} }}, null);
+    defer public.deinit();
+    try public.requirements.requireAvailable(available());
+    // Even an unused request handle makes this a protected input profile.
+    // A data-only host must not claim the row and strand its response owner.
+    var protected = try a.Types.bind(t.allocator, parsed.program, &.{.{ .name = "events", .kind = .queue, .fields = &.{ id, .{ .name = "request", .value = .{ .kind = .capability } } } }}, null);
+    defer protected.deinit();
+    try t.expectError(error.ApplicationHostUnavailable, protected.requirements.requireAvailable(available()));
 }

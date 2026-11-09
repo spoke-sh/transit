@@ -15573,6 +15573,7 @@
     },
     "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig": {
       "errors": {
+        "ApplicationHostUnavailable": 1,
         "DuplicateProgramField": 1,
         "DuplicateProgramResource": 1,
         "DuplicateProgramVariable": 1,
@@ -15607,6 +15608,14 @@
           "capability",
           "failure"
         ],
+        "Requirements.Feature": [
+          "protected_values",
+          "effects",
+          "handoff",
+          "responses",
+          "pages",
+          "deadline"
+        ],
         "Resource.kind": [
           "table",
           "document",
@@ -15618,6 +15627,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Requirements.requireAvailable()": "<inferred>",
         "bind()": "<inferred>",
         "block()": "anyerror",
         "call()": "<inferred>",
@@ -27420,9 +27430,15 @@
     "packages/zig/transit-query-direct/src/ApplicationExecution.zig": {
       "errors": {
         "AccessDenied": 1,
+        "ApplicationRequestOwnerMismatch": 1,
+        "ApplicationReservationCapacity": 1,
+        "ApplicationReservationExpired": 1,
+        "ApplicationReservationLost": 1,
         "DataflowIdentityConflict": 1,
         "DataflowLeaseFenced": 5,
         "DataflowSourceChanged": 1,
+        "DuplicateBrowserParameter": 1,
+        "DuplicateOrEmptyCookie": 1,
         "DuplicateProgramField": 1,
         "IncompatibleDefinition": 1,
         "InvalidDirectRecord": 43,
@@ -27477,6 +27493,8 @@
           "lease_expired",
           "lease_fenced",
           "original_lost",
+          "request_lost",
+          "request_expired",
           "execution"
         ],
         "State.boundary": [
@@ -27516,6 +27534,7 @@
         "Failure.code()": "<inferred>",
         "Failure.validate()": "<inferred>",
         "Host.bind()": "anyerror",
+        "Host.ready()": "anyerror",
         "State.validate()": "<inferred>",
         "abort()": "<inferred>",
         "adopt()": "<inferred>",
@@ -27535,7 +27554,7 @@
         "storeCheckpoint()": "<inferred>",
         "tick()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 3,
       "propagation": {
         "try": 142,
         "catch": 5
@@ -27564,11 +27583,12 @@
         "condition()": "<inferred>",
         "evaluate()": "<inferred>",
         "function()": "<inferred>",
-        "lookup()": "<inferred>"
+        "lookup()": "<inferred>",
+        "requireReady()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -27646,7 +27666,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 7,
         "catch": 0
       },
       "imports": [
@@ -31470,6 +31490,7 @@
     },
     "packages/zig/transit-serving-http/src/ApplicationRequestHost.zig": {
       "errors": {
+        "ApplicationHostUnavailable": 2,
         "ApplicationReservationExpired": 1,
         "ApplicationReservationLost": 4,
         "ClockUnavailable": 1,
@@ -31491,11 +31512,13 @@
         "bind()": "<inferred>",
         "init()": "<inferred>",
         "requestReference()": "<inferred>",
-        "secret()": "<inferred>"
+        "requireReady()": "<inferred>",
+        "secret()": "<inferred>",
+        "secretBinding()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 15,
+        "try": 19,
         "catch": 2
       },
       "imports": [
@@ -36741,7 +36764,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 160,
+        "try": 161,
         "catch": 24
       },
       "imports": [

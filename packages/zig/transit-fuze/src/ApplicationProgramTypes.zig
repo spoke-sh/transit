@@ -30,6 +30,24 @@ pub const Use = struct {
     dispatch: bool = false,
     guard: bool = false,
 };
+/// Required execution facilities, derived from the complete typed program,
+/// including branches and failure handlers. These describe host support, never
+/// authority, readiness of a catalog dependency, or permission to dispatch.
+pub const Requirements = struct {
+    pub const Feature = enum { protected_values, effects, handoff, responses, pages, deadline };
+    functions: std.EnumSet(ast.Function) = .empty,
+    features: std.EnumSet(Feature) = .empty,
+
+    pub fn requireAvailable(self: Requirements, available: Requirements) !void {
+        if (self.functions.differenceWith(available.functions).count() != 0 or
+            self.features.differenceWith(available.features).count() != 0) return error.ApplicationHostUnavailable;
+    }
+    fn value(self: *Requirements, selected: Value) void {
+        if (selected.protected or selected.kind == .secret or selected.kind == .protected_json or selected.kind == .capability)
+            self.features.insert(.protected_values);
+        for (selected.fields) |entry| self.value(entry.value);
+    }
+};
 pub const Bound = struct {
     arena: std.heap.ArenaAllocator,
     input: Value,
@@ -38,6 +56,7 @@ pub const Bound = struct {
     /// Canonical native owners required by helpers without a SQL resource
     /// operand. Executable declarations must resolve these before publication.
     native: NativeDependencies,
+    requirements: Requirements,
     pub fn deinit(self: *Bound) void {
         self.arena.deinit();
         self.* = undefined;
@@ -50,6 +69,7 @@ resources: []const Resource,
 values: []?Value,
 uses: std.ArrayList(Use) = .empty,
 native: NativeDependencies = .empty,
+requirements: Requirements = .{},
 symbols: std.ArrayList(Symbol) = .empty,
 location: ?*sql.Location,
 columns: []const Field = &.{},
@@ -74,6 +94,8 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     };
     const queue = try self.resource(program.queue, .queue, .{ .resource = 0, .read = true, .consume = true });
     try self.define(program.input, .{ .kind = .record, .fields = queue.fields });
+    self.requirements.value(.{ .kind = .record, .fields = queue.fields });
+    if (program.deadline != null) self.requirements.features.insert(.deadline);
     if (program.predicate) |predicate| {
         self.columns = queue.fields;
         try requireKind(try self.expression(predicate), .boolean);
@@ -82,6 +104,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     switch (program.body) {
         .instructions => |instructions| try self.block(instructions),
         .page => |page| {
+            self.requirements.features.insert(.pages);
             _ = try self.select(page.select);
             try requireKind(try self.expression(page.request), .capability);
             if (!std.mem.eql(u8, page.profile, "browser_provider_page_v1") or page.size != 8) return error.UnsupportedProgramProfile;
@@ -94,7 +117,8 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         try self.define(failure.name, .{ .kind = .failure, .fields = &.{.{ .name = "effect_outcome", .value = Value.public(.text) }} });
         try self.block(failure.instructions);
     }
-    return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator), .native = self.native };
+    for (values) |selected| if (selected) |value_| self.requirements.value(value_);
+    return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator), .native = self.native, .requirements = self.requirements };
 }
 fn cloneFields(allocator: std.mem.Allocator, fields: []const Field, depth: usize) ![]const Field {
     if (depth == ast.max_depth or fields.len > ast.max_arguments) return error.ProgramTooComplex;
@@ -269,6 +293,7 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
     return result;
 }
 fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression) !Value {
+    self.requirements.functions.insert(function);
     if (function == .current_revision) {
         if (arguments.len != 2 or arguments[0].value != .name) return error.ProgramArgumentMismatch;
         _ = try self.resource(arguments[0].value.name, .document, .{ .resource = 0, .read = true, .guard = true });
@@ -410,6 +435,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                     },
                     .select => |query| try self.select(query),
                     .effect => |effect| blk: {
+                        self.requirements.features.insert(.effects);
                         _ = try self.resource(effect.sink, .sink, .{ .resource = 0, .dispatch = true });
                         try requireKind(try self.expression(effect.identity), .uuid);
                         try requireKind(try self.expression(effect.guard), .boolean);
@@ -470,11 +496,13 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 for (target.fields, append.values) |expected, actual| try stored(expected.value, try self.expression(actual), append.kind == .queue);
             },
             .handoff => |handoff| {
+                self.requirements.features.insert(.handoff);
                 _ = try self.resource(handoff.queue, .queue, .{ .resource = 0, .write = true });
                 try requireKind(try self.expression(handoff.request), .capability);
                 try requireKind(try self.expression(handoff.effect), .uuid);
             },
             .respond => |response| {
+                self.requirements.features.insert(.responses);
                 try requireKind(try self.expression(response.request), .capability);
                 if (response.guard) |guard| try requireKind(try self.expression(guard), .boolean);
                 switch (response.body) {
@@ -491,6 +519,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 }
             },
             .respond_error => |response| {
+                self.requirements.features.insert(.responses);
                 try requireKind(try self.expression(response.request), .capability);
                 if (!std.mem.eql(u8, response.profile, "browser_v1")) return error.UnsupportedProgramProfile;
                 var found = false;
@@ -562,6 +591,32 @@ test "application program types keep commits and approved secret uses explicit" 
     const token_expression = parsed.program.body.instructions[3].value.let.value.expression;
     try t.expectEqual(.secret, bound.values[token_expression.id].?.kind);
     try t.expect(bound.values[token_expression.id].?.protected);
+    try t.expect(bound.requirements.features.contains(.effects));
+    try t.expect(bound.requirements.features.contains(.responses));
+    try t.expect(bound.requirements.features.contains(.protected_values));
+    try t.expect(bound.requirements.functions.contains(.secret_json_value));
+}
+
+test "application host requirements include unreachable branches and failure continuations" {
+    const t = std.testing;
+    var parsed = try ast.parse(t.allocator,
+        \\CREATE DATAFLOW x FROM QUEUE requests AS request AS BEGIN
+        \\  IF FALSE THEN LET material = RANDOM_SECRET(32); END IF;
+        \\ON FAILURE failure
+        \\  RESPOND ERROR TO request.ref USING failure PUBLIC PROFILE 'browser_v1';
+        \\END;
+    , null);
+    defer parsed.deinit();
+    var bound = try bind(t.allocator, parsed.program, &test_resources, null);
+    defer bound.deinit();
+    try t.expect(bound.requirements.functions.contains(.random_secret));
+    try t.expect(bound.requirements.features.contains(.protected_values));
+    try t.expect(bound.requirements.features.contains(.responses));
+    try t.expectError(error.ApplicationHostUnavailable, bound.requirements.requireAvailable(.{}));
+    var available = bound.requirements;
+    available.features.remove(.responses);
+    try t.expectError(error.ApplicationHostUnavailable, bound.requirements.requireAvailable(available));
+    try bound.requirements.requireAvailable(.{ .functions = .full, .features = .full });
 }
 
 test "application program types bound left-associated expression depth" {

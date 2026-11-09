@@ -251,8 +251,8 @@ client fence or substitute a checkpoint's payload for original input provenance.
 The binding's `requireCurrent` operation checks the original invocation fence,
 active head/pending key and all registered dependency privileges through the
 declared executor role. Control observations use current committed state while
-data helpers retain the original private transaction cut. A release callback,
-when supplied, runs once after every successful bind, including evaluation or
+data helpers retain the original private transaction cut. A mandatory release
+callback runs once after every successful bind, including evaluation or
 retention failure. Failed binds clean up their own partial borrows. These checks
 do not establish honest host computation or a reusable dispatch permit.
 
@@ -344,6 +344,14 @@ superseded service generation cannot advance the invocation, including cleanup.
 The native original owner resolves attachment conflicts; transport uncertainty
 or denial cannot close an attachment as though its CAS had failed.
 
+Before creating or acquiring an invocation, the service checks the configured
+host against requirements derived from the complete typed program, including
+unreachable branches, failure continuations and protected input fields. Physical
+placement may refuse readiness but cannot grant native rights. An unavailable
+host parks the original without replacing its identity; native transaction
+settlement and cancelled cleanup remain available. The default public host
+rejects protected input, effects, responses/handoff, paging and deadline profiles.
+
 The initial automatic profile requires a single-partition input Queue. A larger
 Queue produces an explicit partitioning refusal; the service does not consume
 only its first partition. Typed invocation callers retain their explicit
@@ -394,6 +402,11 @@ a committed success to refusal or issue replacement writes for an unresolved
 decision. Pre-admission refusal, known effect refusal, unknown remote outcome,
 lost protected input and unresolved commit remain distinct inspectable outcomes.
 An absent user-written failure handler still has a native terminal refusal path.
+Transient request loss and expiry enter failure handling after any original
+transaction is resolved, retaining `ApplicationReservationLost` or
+`ApplicationReservationExpired`. They do not establish durable input loss or
+cancel its public failure continuation. A lost response socket cannot undo a
+committed failure receipt; delivery remains separately observable.
 
 ## Effects, responses and activation
 

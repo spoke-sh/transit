@@ -51,6 +51,9 @@ application_pending: bool = false,
 application_waiting: bool = false,
 application_has_declarations: u64 = 0,
 application_scratch: ?std.heap.ArenaAllocator = null,
+/// Deployment-owned composition, fixed before the runtime starts and borrowed
+/// until every recovery task joins. Absence selects the public data-only host.
+application_host: ?g.direct.ApplicationExecution.Host = null,
 foreground_active: std.atomic.Value(u32) = .init(0),
 foreground_notified: std.atomic.Value(bool) = .init(false),
 pub const Keys = struct { table: p.Ed25519.KeyPair };
@@ -625,7 +628,8 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
         const scratch = &self.application_scratch.?;
         _ = scratch.reset(.retain_capacity);
         var host: g.direct.ApplicationHost = .{ .scratch = scratch.allocator(), .io = self.io };
-        switch (try g.direct.ApplicationRecovery.step(manager, entry.receipt.binding.key, host.recovery())) {
+        const selected = self.application_host orelse host.recovery();
+        switch (try g.direct.ApplicationRecovery.step(manager, entry.receipt.binding.key, selected)) {
             .complete => {},
             .progressed => self.application_pending = true,
             .waiting => {
@@ -643,6 +647,9 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
             return;
         }
         if (observed.head.control.state != .active or observed.head.pending != null) return;
+        var public: g.direct.ApplicationHost = .{ .scratch = self.allocator, .io = self.io };
+        const selected = self.application_host orelse public.recovery();
+        try selected.ready(selected.context, self.allocator, declared.value);
         // The initial automatic profile owns one Queue partition. Explicit
         // typed invocation callers may select another partition; discovery
         // must never silently execute only partition zero of a larger Queue.

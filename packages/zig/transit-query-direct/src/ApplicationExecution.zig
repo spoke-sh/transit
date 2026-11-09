@@ -67,6 +67,9 @@ pub const BoundHost = struct {
 };
 pub const Host = struct {
     context: *anyopaque,
+    /// Check complete-program support and physical placement before acquiring
+    /// input. This observation grants no rights and cannot replace native fences.
+    ready: *const fn (*anyopaque, std.mem.Allocator, M.Declaration) anyerror!void,
     /// The returned context lives through candidate retention. A failed bind
     /// releases its own partial borrow; every successful bind returns cleanup.
     bind: *const fn (*anyopaque, Context) anyerror!BoundHost,
@@ -80,7 +83,7 @@ pub const Transaction = struct {
 };
 pub const Failure = struct {
     refusal: ?a.Id,
-    reason: enum { none, authorization, budget, source_changed, row_assertion, lease_expired, lease_fenced, original_lost, execution },
+    reason: enum { none, authorization, budget, source_changed, row_assertion, lease_expired, lease_fenced, original_lost, request_lost, request_expired, execution },
     evidence: ?struct {
         transaction: T.Key,
         statement: ?c.DirectTransactionWorkspace.StatementCompletion,
@@ -110,6 +113,8 @@ pub const Failure = struct {
             .lease_expired => "QueueLeaseExpired",
             .lease_fenced => "DataflowLeaseFenced",
             .original_lost => "OriginalInputLost",
+            .request_lost => "ApplicationReservationLost",
+            .request_expired => "ApplicationReservationExpired",
             .execution => "ProgramExecutionFailed",
         };
     }
@@ -583,9 +588,16 @@ fn refuse(self: Self, value: M.Declaration, progress: T.Progress, original: I.Wo
         error.DuplicateProgramField,
         error.ProtectedProgramValue,
         error.ProgramNullabilityMismatch,
+        error.DuplicateBrowserParameter,
+        error.DuplicateOrEmptyCookie,
         => .execution,
-        error.QueryResultBudget, error.QueryPageBudget, error.TransactionCapacity, error.ProgramTooComplex, error.ProgramTooDeep => .budget,
+        error.QueryResultBudget, error.QueryPageBudget, error.TransactionCapacity, error.ProgramTooComplex, error.ProgramTooDeep, error.ApplicationReservationCapacity => .budget,
         error.OwnedRecordClosed => .original_lost,
+        // Loss of transient bytes does not establish loss of the durable input
+        // or cancellation. Settle an original transaction, then run ON FAILURE.
+        error.ApplicationReservationLost => .request_lost,
+        error.ApplicationReservationExpired => .request_expired,
+        error.ApplicationRequestOwnerMismatch => .authorization,
         else => return err,
     };
     if (original.execution.phase == .abort or original.execution.phase == .closing or original.execution.phase == .release or original.execution.phase == .detach) return err;
@@ -873,7 +885,7 @@ test "application host bindings release their own context when another borrow re
         }
     };
     var factory: Factory = .{ .slots = @splat(.{ .scratch = t.allocator, .io = t.io }) };
-    const host: Host = .{ .context = &factory, .bind = Factory.bind };
+    const host: Host = .{ .context = &factory, .ready = q.ApplicationHost.requireReady, .bind = Factory.bind };
     // Public host binding does not read authority. Native operations check it
     // when used; these unused fields intentionally cannot authorize an action.
     var scope: Context = .{ .client = undefined, .declaration = undefined, .work = undefined, .invocation = undefined, .input = undefined, .step = 0, .scratch = t.allocator };

@@ -28,6 +28,10 @@ pub fn step(manager: M, token: T.Key, host: Host) !Result {
     const declared = try manager.load(loaded.value.declaration);
     defer declared.deinit();
     try loaded.value.validate(declared.value, manager.client.allocator);
+    // An unavailable host parks original acquisitions/evaluations. Settlement
+    // and cleanup remain executable without it, including after cancellation.
+    if (!progress.cancel and !loaded.value.execution.cancelled and loaded.value.execution.phase == .evaluate)
+        try host.ready(host.context, manager.client.allocator, declared.value);
     if (original.phase != .attached) {
         progress = try owner.resumeAttachment(declared.value, progress, loaded.value) orelse return .complete;
     }

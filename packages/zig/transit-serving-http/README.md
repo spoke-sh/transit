@@ -109,7 +109,12 @@ Secret mounts match the declared binding's catalog scope and namespace; physical
 placement never grants secret-use rights. Missing or expired reservations still
 allow public failure-handler expressions, while protected operations fail without
 creating replacement material. The managed executor and listener must still be
-wired to this factory with readiness and failure-settlement semantics.
+wired to this factory. Its readiness check includes all typed program functions,
+protected input fields and failure continuations, and requires a matching mount
+for declared secret references. It currently refuses effects, response/handoff
+operations, paging and invocation deadlines. Supplying this host does not claim
+that those facilities or live ingress are ready. Releasing the binding erases
+its copied scoped clients and signing material after removing registry callbacks.
 
 `ApplicationSecrets` supplies the protected host's native lookup/current
 callbacks using the exact canonical secret binding and current fenced client.

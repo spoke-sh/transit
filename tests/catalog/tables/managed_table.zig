@@ -638,7 +638,7 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
     defer client.allocator.free(retire);
     _ = try manager.applyControl(retire);
     var host: ApplicationHost = .{};
-    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }));
+    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .ready = q.ApplicationHost.requireReady, .bind = ApplicationHost.bind }));
     const closed = (try T.inspect(client, token)).?;
     try t.expectEqual(.closed, closed.original.?.phase);
     try t.expect(!closed.pending);
@@ -693,6 +693,35 @@ fn applicationScheduled(init: std.process.Init, client: c.DirectTableClient, pub
     const account: g.DatabaseAccount = .{ .configuration = .{ .realm = client.connection.scope.realm, .table_principal = client.connection.principal, .account = @splat(73), .bindings = &bindings, .operation_quota = 10000, .byte_quota = 64 * 1024 * 1024 } };
     const first = try g.DatabaseRuntime.init(init.gpa, init.io, client.service.url, account, 1, .{ .table = client.key }, 30000);
     defer first.deinit();
+    const Placement = struct {
+        native: q.ApplicationHost,
+        ready: bool = false,
+        checks: usize = 0,
+        bindings: usize = 0,
+        fn requireReady(context: *anyopaque, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) anyerror!void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.checks += 1;
+            try q.ApplicationHost.requireReady(context, allocator, declaration);
+            if (!self.ready) return error.ApplicationHostUnavailable;
+        }
+        fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) anyerror!q.ApplicationExecution.BoundHost {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try t.expect(self.ready);
+            self.bindings += 1;
+            const factory = self.native.recovery();
+            return factory.bind(factory.context, scope);
+        }
+    };
+    var placement: Placement = .{ .native = .{ .scratch = client.allocator, .io = init.io } };
+    first.application_host = .{ .context = &placement, .ready = Placement.requireReady, .bind = Placement.bind };
+    for (0..256) |_| if (!try first.tick()) break;
+    observed = try manager.inspect(value);
+    try t.expect(placement.checks > 0);
+    try t.expectEqual(@as(usize, 0), placement.bindings);
+    try t.expect(observed.head.pending == null);
+    try t.expectEqual(@as(u64, 0), observed.head.attempt);
+    placement.ready = true;
+    first.notify();
     // No invocation start/tick call: the database service discovers the
     // declaration and retains one original while its input is empty.
     var idle = false;
@@ -717,6 +746,14 @@ fn applicationScheduled(init: std.process.Init, client: c.DirectTableClient, pub
     const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = metadata.definition.schema }, 734100, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = 71 }} });
     const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
     _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } });
+    // A later placement outage also parks the original acquisition without
+    // replacing it or consuming the now-available input.
+    placement.ready = false;
+    first.notify();
+    for (0..256) |_| if (!try first.tick()) break;
+    try t.expectEqualDeep(original, (try T.inspect(client, token)).?);
+    placement.ready = true;
+    first.notify();
     // A pending acquisition supplies retry debt even without a volatile hint.
     var acquired = false;
     const owner: q.ApplicationInvocation = .{ .manager = manager };
@@ -731,6 +768,7 @@ fn applicationScheduled(init: std.process.Init, client: c.DirectTableClient, pub
         }
     }
     try t.expect(acquired);
+    try t.expect(placement.bindings > 0);
     const replacement = try g.DatabaseRuntime.init(init.gpa, init.io, client.service.url, account, 2, .{ .table = client.key }, 30000);
     defer replacement.deinit();
     try t.expectError(error.StaleGatewayCoordinator, first.tick());
@@ -903,7 +941,7 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
         defer saved.deinit();
         // Input ownership remains attached until its read has been released.
         if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
-        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind } };
+        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .ready = q.ApplicationHost.requireReady, .bind = ApplicationHost.bind } };
         const next = try runner.tick(value, progress, saved.value);
         if (!next.pending) {
             try t.expectEqual(.closed, next.original.?.phase);
@@ -982,12 +1020,17 @@ const ApplicationHost = struct {
     bindings: usize = 0,
     finishes: usize = 0,
     authority_checked: [2]bool = .{ false, false },
+    lose_request: bool = false,
     const a = q.fuze.ApplicationProgram;
     fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
         return error.UnknownProgramVariable;
     }
     fn evaluate(context: *anyopaque, _: a.Id, operation: a.Evaluation.Operation, arguments: []const a.Values.Value) anyerror!a.Values.Value {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        if (operation == .function and operation.function == .now and self.lose_request) {
+            self.lose_request = false;
+            return error.ApplicationReservationLost;
+        }
         if (operation == .function and operation.function != .digest) {
             const host_ = (if (self.native) |*native| native else return error.UnexpectedHostOperation).host();
             return host_.evaluate(host_.context, 1, operation, arguments);
@@ -1043,6 +1086,7 @@ const ApplicationHost = struct {
             const ticket = try requests.open(scope.input.source, @splat(2), .{ .query = "state=public-state&code=protected-code", .headers = &.{} }, 60_000);
             var request_factory = try http.ApplicationRequestHost.init(&requests, &.{});
             const factory = request_factory.host();
+            try factory.ready(factory.context, scope.scratch, scope.declaration);
             var request_scope = scope;
             request_scope.input.environment.values = &.{.{ .instruction = 0, .value = .{ .record = &.{.{ .name = "request", .value = .{ .capability = ticket.reference } }} } }};
             var request_bound = try factory.bind(factory.context, request_scope);
@@ -1138,6 +1182,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
         \\    PUT INTO application_state KEY key VALUE ROW(event.id) IF ABSENT;
         \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
         \\    PRODUCE INTO application_events VALUES (event.id);
+        \\    LET observed_at = NOW();
         \\    REQUIRE event.id = 7 ELSE 'AbortBody';
         \\  END;
         \\  LET observed = SELECT * FROM application_rows WHERE id = event.id;
@@ -1173,6 +1218,9 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     defer metadata.deinit();
     var host: ApplicationHost = .{};
     for ([_]i64{ 7, 8, 9 }, 0..) |id, ordinal| {
+        // Lose transient request material after the three private mutations.
+        // The failure handler must run after their original common abort.
+        host.lose_request = id == 8;
         _ = output.reset(.retain_capacity);
         const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = value.resources[0].value.log.declaration, .schema = metadata.definition.schema }, 733100 + ordinal, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = id }} });
         const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
@@ -1222,7 +1270,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                     }
                 }
             }
-            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }) catch |err| {
+            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .ready = q.ApplicationHost.requireReady, .bind = ApplicationHost.bind }) catch |err| {
                 // The proxy loses accepted replies at native and continuation
                 // boundaries. Reload the same token on the next iteration.
                 if (err == error.InvalidTableResponse) continue;
@@ -1239,6 +1287,11 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                 try t.expect(final.value.execution.acknowledged);
                 errdefer std.debug.print("Application terminal failure: {any}\n", .{final.value.execution.failure});
                 try t.expectEqual(id != 7, final.value.execution.failure != null);
+                if (id == 8) {
+                    try t.expectEqual(.request_lost, final.value.execution.failure.?.reason);
+                    try t.expect(!host.lose_request);
+                    try t.expect(!final.value.execution.cancelled);
+                }
                 complete = true;
                 break;
             }
