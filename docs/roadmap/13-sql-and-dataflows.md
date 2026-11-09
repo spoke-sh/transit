@@ -22,6 +22,17 @@ Connecting computations, reactive watches and Station actors to **`TransitLog`
 (`TWAL1`) delta streams** must preserve each consumer's change contract and
 equivalence with the finite recomputation oracle.
 
+## Source compilation handoff
+
+[M12](12-application-modules-compilation-and-testing.md) owns recursive `.transit`
+composition, `build.transit`, SQL emission and the shared build/test graph.
+Consume its generated `.sql` through the same managed-definition and lifecycle
+operations as handwritten SQL. The runtime must not fetch packages or evaluate
+source-only build constructs. Preserve exact definition revisions, current
+authorization and accepted continuation identities across compilation and
+replacement. This planned integration does not change the delivered runtime
+profile or make M12's unfinished toolchain a prerequisite for handwritten SQL.
+
 ## Managed computation sequence
 
 Consume the durable catalog/snapshot contract in

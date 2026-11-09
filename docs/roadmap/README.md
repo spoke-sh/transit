@@ -34,6 +34,13 @@ defines the proposed measures and comparison method; individual milestones
 qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
 
+The [planned source/build model](../handbook/reference/applications.md#planned-source-language-and-build-model)
+provides the authoring path: recursively compose `.transit` modules, describe
+builds in that same dialect, and emit executable `.sql` for statements or
+explicit migrations. [M12](12-application-modules-compilation-and-testing.md) owns
+that language and toolchain; later compilation and language adapters reuse its
+semantics rather than introducing another build or execution authority.
+
 ## Performance ambition
 
 Our ambition is to make Transit the fastest database and durable runtime for its
@@ -78,7 +85,7 @@ Read the [delivery checkpoints](#delivery-checkpoints) for the execution plan.
 
 | Phase | Milestones | Exit outcome |
 | --- | --- | --- |
-| [I: Local data and application foundations](#phase-i-local-data-and-application-foundations) | 1–12 | Applications declare and query local Tables, KV, Documents (backed by `.tseg` succinct trees and shredded subcolumns in `DocumentPartition` with `Station` decoupled), Streams (`PRODUCE INTO` / `CONSUME ... FROM`) and Queues (`ENQUEUE INTO` / `CLAIM ... FROM`), consume complete statement outcomes, compose supported transactions, run `Station` behaviors over database primitives with the database decoupled from actor turns, connect through a formalized event-driven, sans-I/O gateway boundary co-hosted with the Direct Data Plane without `/table/v1` polling cascades, use shared clients with exact historical interpretation and maintained indexes, and organize declarative application code into encapsulated schema modules with offline whole-program static verification, desired-state migration synthesis and deterministic unit/replay testing |
+| [I: Local data and application foundations](#phase-i-local-data-and-application-foundations) | 1–12 | Applications declare and query local Tables, KV, Documents (backed by `.tseg` succinct trees and shredded subcolumns in `DocumentPartition` with `Station` decoupled), Streams (`PRODUCE INTO` / `CONSUME ... FROM`) and Queues (`ENQUEUE INTO` / `CLAIM ... FROM`), consume complete statement outcomes, compose supported transactions, run `Station` behaviors over database primitives with the database decoupled from actor turns, connect through a formalized event-driven, sans-I/O gateway boundary co-hosted with the Direct Data Plane without `/table/v1` polling cascades, use shared clients with exact historical interpretation and maintained indexes, and compose recursive `.transit` modules through `build.transit`, compile executable `.sql` with `transit build`, synthesize migrations against an explicit prior basis and run deterministic `transit test` suites across workspace and pinned repository dependencies |
 | [II: Data composition, performance and interface coverage](#phase-ii-data-composition-performance-and-interface-coverage) | 13–23 | Applications maintain derived data, meet measured local database/runtime, string/search and data-centric compilation performance targets, use the multi-format Document Type Library (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`, `PDF`, `DOCX`, `XLSX`, `ODF`) and unified gateway/connector exchange lifecycle, store and query 2D/3D geospatial, volumetric 3D model, discrete-exterior-calculus cochain field (`COCHAIN_FIELD` / `.float_zfp`), raster and spatio-temporal data (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`) with topological/Edgebreaker/octree compression and incremental DBSP evaluation, compose native and foreign models, cook and stream interactive 3D game assets and continuum/fluid simulations (`.mesh_cluster_dag`, `.tex_mip_morton`, `.vdb_hierarchy`, `.splat_hilbert`, `SKELETON3D`, `ANIMATION_CLIP`, incremental `NavMesh`/`HLOD` DDC dataflows, CFD differential/isosurface/conservation operators and ECS AoI streaming), work across branches and use the qualified service/SDK matrix with selected formal models and implementation correspondence |
 | [III: Distributed durability and operations](#phase-iii-distributed-durability-and-operations) | 24–27 | Operators use qualified providers, replicate and recover complete history, perform verified backup/restore/upgrades and move execution safely |
 | [IV: Governed collaboration and Board](#phase-iv-governed-collaboration-and-board) | 28–31 | People and applications inspect published resources, propose and review changes under shared policy and use the installed Board workbench |
@@ -110,7 +117,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Declarative application modules, compilation, migration synthesis and testing](12-application-modules-compilation-and-testing.md) | Planned | Encapsulated schema modules (`IMPORT`, `PUBLIC`/`PRIVATE` visibility), compile-time `PROFILE`/`FUNCTION`/`GUARD`/`PROCEDURE` lowering, block-aware whole-program static type/capability/secret checking (`transit app check`), desired-state-to-migration synthesis (`CREATE OR REPLACE` with active-generation draining), and deterministic offline SQL unit/replay testing (`transit test`) |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | Planned | One higher-order SQL dialect for source and `build.transit`; typed recursive modules, monorepo/pinned repository composition, deterministic `transit build` SQL emission, explicit-basis migration synthesis and `transit test` through the same emitter |
 
 ### Phase II: Data composition, performance and interface coverage
 
@@ -119,7 +126,7 @@ combines that evidence at one revision.
 | 13 | [Managed computations and WAL-activated dataflows](13-sql-and-dataflows.md) | In Progress ([remaining implementation plan, 2026-11-03](13-sql-and-dataflows.md#implementation-plan-for-remaining-work--2026-11-03); [SOURCE ingestion plan](13-sql-and-dataflows.md#create-source-implementation-plan--2026-11-05); [SOURCE declarations](13-sql-and-dataflows.md#next-source-slice-durable-declarations-and-inspection--2026-11-06); [capture storage and readers](13-sql-and-dataflows.md#next-source-slice-owned-capture-storage-and-readers--2026-11-07); [finite computation slice](13-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification)) | Build on finite managed Tables, retained revisions, transaction-owned candidates, Catalog-owned progress and original staging/closure, batched pages/statements and independent SQL/Board inspection. Complete combined finite recovery/resource qualification, then transaction-consistent history consumers and incremental execution. Build on qualified durable SOURCE declarations, owned capture storage and guarded readers; add fenced HTTP admission and durable scheduling before exposing activation. Develop analytical SQL, bitemporal queries, retained changes and governed sinks through explicit adjacent-owner gates |
 | 14 | [Data structures, query optimization and runtime performance](14-data-structures-and-performance.md) | In Progress | Zero-steady-state-allocation hot paths, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB directory-tagged join hash tables & WCOJ, statistics/costing, partitioning/clustering, LSM/`.tseg` compaction bounds and workload scorecards |
 | 15 | [First-class strings, perfect hashing and vectorized search execution](15-vectorized-strings-and-search.md) | In Progress ([remaining implementation plan, 2026-11-02](15-vectorized-strings-and-search.md#implementation-plan--2026-11-02); [first implementation slice](15-vectorized-strings-and-search.md#first-implementation-slice-owned-predicate-preparation)) | Build on delivered compact Batch strings, safe lookup and shared encoded traversal: prepare owned predicates, integrate retained operator keys and constant membership; deliver shared index lifecycle and owned searchable generations, vectorized lexical/proximity execution and snapshot-bound hybrid search, with independent inspection and installed recovery/resource/performance qualification; retain biological, chemical and audio search profiles as gated scope |
-| 16 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](16-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
+| 16 | [Data-centric pipeline fusion, AOT query compilation and adaptive specialization](16-data-centric-compilation-and-specialization.md) | Planned | HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up, `transit build` AOT Zig query/view compilation and HyPer/Umbra/CedarDB benchmark baselines |
 | 17 | [Document type library, protocol grammars and gateway exchange lifecycle](17-document-profiles-and-gateway-exchange-lifecycle.md) | In Progress ([2026-11-02 plan](17-document-profiles-and-gateway-exchange-lifecycle.md#implementation-plan--2026-11-02); [next increment](17-document-profiles-and-gateway-exchange-lifecycle.md#next-increment-profile-candidates-and-publication-handoff)) | Extend delivered offline JSON/XML/MIME readers/writers, compound commitments and bounded candidates through publication contracts. Qualify M7's ordered/raw-part storage and public lifecycle before SQL exposure; use the common Document/effect decision for exchange cutover. Reuse delivered transaction-owned staging and independent-reader inspection without assuming Document participation. Full protocol/office, search/branch, SIMD/AOT and future evidence-consumer handoffs remain tracked. |
 | 18 | [Geospatial types, topological compression, spatial indexing and incremental spatio-temporal queries](18-geospatial-and-spatio-temporal-computing.md) | In Progress ([implementation plan](18-geospatial-and-spatio-temporal-computing.md#implementation-plan--2026-11-01)) | Orthogonal $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ 2D/3D types (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `SPARSE_MATRIX`, `COCHAIN_FIELD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact `orient2d`/`3d` predicates & snap-rounding grids, 16B inline 2D/3D MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker`/`.raster_morton`/`.float_zfp`/`.sparse_bcsr` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face` + $C^0..C^3$ cochain fields), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring coverings (`.s2_roaring`, `.octree_roaring`), instanced `.scene_dag`, 2.5D VLSI `.layout_manhattan`, `.pcloud_hilbert` (including 3D protein/atomic structures & spatial transcriptomics) and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, `DRC`/`LVS`, Discrete Divergence Theorem volume/flux aggregates and spatial/3D clash joins |
 | 19 | [Multi-model and multi-format foreign relations](19-multi-model-and-foreign-relations.md) | Planned | Document/graph/2D-spatial/3D-coboundary projections (with WCOJ cyclic pattern matching), multi-model lexical/structural/vector/2D-3D-spatial hybrid search composition, foreign formats (`Parquet`/`GeoParquet`, `FlatGeobuf`, `COG`, `glTF`/`GLB`, `OpenUSD`, `KTX2`, `OpenVDB`, `IFC`/`STEP`, `3D Tiles`, `LAS`/`LAZ`/`COPC`, `CGNS`/`VTU`/`OpenFOAM`/`Zarr`/`NetCDF`/`GRIB2`, `FASTQ`/`BAM`/`CRAM`/`VCF`/`PDB`/`mmCIF`/`SMILES`/`.h5ad`, `DICOM`/`NIfTI`/`OME-Zarr`, `OASIS`/`GDSII`/`LEF`/`DEF`/`SPICE`, `FLAC`/`WAV`/`MiniSEED`/`EDF+`/`ITCH`, `CSV`/`JSONL`, mainframe `FB`/`VB`), streaming CDC ingress and typed COPY/import/export |
@@ -233,11 +240,11 @@ evidence rather than assuming every preceding number is a technical dependency.
 | I | Establish the application API foundation | 9 | Extract shared data packages, compose bounded client/host infrastructure and qualify representative installed language APIs with original-operation recovery before SDK expansion |
 | I | Retain exact data interpretation | 10 | Qualify historical catalog/data bindings, declarative `CHECK`/`FOREIGN KEY` constraints, lazy `.tseg` schema projection, collation and encoding fidelity, current permissions and explicit capability evidence over the earlier snapshot contracts |
 | I | Declare and maintain indexes | 11 | Qualify ordered, covering and partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement, online index/table build recovery and snapshot-specific coverage through shared callers |
-| I | Organize declarative modules, compile migration plans and test dataflows | 12 | Qualify encapsulated schema modules (`IMPORT`, `PUBLIC`/`PRIVATE`), compile-time `PROFILE`/`FUNCTION`/`GUARD`/`PROCEDURE` expansion, block-aware whole-program static type/capability/secret checking, desired-state-to-migration synthesis (`CREATE OR REPLACE` with active-generation draining) and deterministic offline `transit test --verify-replay` execution |
+| I | Compose recursive source modules, emit SQL and test applications | 12 | Qualify `build.transit` in the source dialect, typed module interfaces, monorepo/remote locks, bounded evaluation, independent generated-SQL execution, explicit-basis migration synthesis and deterministic `transit test` replay schedules |
 | II | Maintain declared computations | 13 | Qualify complete analytical SQL (windows, CTEs, universal `D-Join` subquery unnesting, multi-way joins, sandboxed UDFs), bitemporal `AS OF JOIN`, `CHANGES(...)` CDC egress, service-owned activation, complete-commit change consumption, bounded operator state and recovered completed revisions |
 | II | Optimize database and runtime work | 14 | Establish workload/competitor baselines and numeric budgets, deliver zero-steady-state-allocation hot-path arenas, per-morsel CPU/memory/IOPS metering, LeanStore/Umbra swizzled zero-copy buffer slabs, CedarDB ~10-instruction directory-tagged join hash tables & WCOJ, statistics/planning, partitioning/clustering keys, LSM/`.tseg` compaction bounds and scan-resistant caching, and pass installed correctness/resource/performance gates |
 | II | Deliver first-class strings, perfect hashing and vectorized search | 15 | Qualify 16B collation-prefixed Umbra/German strings, compressed-domain `.dictionary`/`.fsst` predicates, `comptime`/immutable perfect hashing with 16B SIMD string comparisons, and declarative text/proximity search contracts over swappable `.tseg` index profiles (starting with vectorized 256-doc Block-Max BM25 and hybrid search) |
-| II | Deliver data-centric compilation, AOT queries and specialization | 16 | Qualify HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up and `transit-app` AOT Zig query/view compilation against HyPer/Umbra/CedarDB (VLDB 2018, JOB and CH-benCHmark) baselines |
+| II | Deliver data-centric compilation, AOT queries and specialization | 16 | Qualify HyPer/CedarDB data-centric push fusion inside vectorized morsels, per-row-group dense non-null specialization, Flying-Start Adaptive Morsel Tier-Up and `transit build` AOT Zig query/view compilation against HyPer/Umbra/CedarDB (VLDB 2018, JOB and CH-benCHmark) baselines |
 | II | Deliver the Document Type Library and gateway exchange lifecycle | 17 | Qualify declarative Document Profiles (`JSON`, `XML`, `HTTP`/`MIME`, `FTP`, `EDI_X12`/`EDIFACT`/`HL7`, `SMTP`/`IMAP`/`POP3`, `LDAP`, `SIP`, `AMQP`, `MQTT`, `NTP`) and compound formats (`PDF`, `DOCX`, `XLSX`, `ODF`) over shared SIMD structural scanners, perfect hash vocabularies, container part graphs and `.tseg` subcolumns, and cut `STATION_EXCHANGE_V1` connector/gateway capture over to `DocumentPartition` with causal lineage and transport decoupling |
 | II | Deliver geospatial types, topological compression and incremental spatio-temporal queries | 18 | Qualify $\tau \perp \kappa_{\text{spatial}} \perp \epsilon$ (`GEOMETRY`, `GEOGRAPHY`, `MESH3D`, `SOLID3D`, `SCENE3D`, `TRANSFORM3D`, `POINTCLOUD`, `RASTER2D`/`GRID3D`, `COCHAIN_FIELD`, `BBOX2D`/`3D`, `S2_CELL`, `H3_CELL`, `OCT_CELL`, `TRAJECTORY`), Shewchuk exact 2D/3D predicates and snap-rounding grids, 16B inline MBR vector headers, `.geoarrow`/`.twkb_delta`/`.mesh_edgebreaker`/`.raster_morton`/`.float_zfp` codecs, logical topological shared-arc/face (`.topo_arc`, `.topo_face` + $C^0..C^3$ cochains), `INTERIOR`/`BOUNDARY` `S2`/`H3`/`OCT` Roaring cell/octree coverings, `.scene_dag`, `.pcloud_hilbert` and 4D/6-DoF trajectory compression, 2D/3D zone maps, `RTREE`/`S2`/`OCTREE` indexes, 2D/3D spatial SSI and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, linear volume/flux aggregates and 2D/3D clash joins |
 | II | Compose multi-model relations, game asset pipelines, simulation streaming and history | 19–21 | Qualify foreign COPY/projections (`GeoParquet`, `FlatGeobuf`, `COG`, `glTF`/`OpenUSD`/`KTX2`/`OpenVDB`/`IFC`/`STEP`/`3D Tiles`/`COPC`/`CGNS`/`VTU`/`OpenFOAM`/`Zarr`/`NetCDF`), streaming CDC ingress, multi-model lexical/structural/vector/2D-3D-spatial search composition, virtualized `.mesh_cluster_dag` meshlets, `.tex_mip_morton` virtual texture pyramids, `.skin_weights`/`.anim_acl` skeletal animation, WAL-activated DDC cooking, incremental DBSP `NavMesh`/`HLOD` maintenance, CFD differential/isosurface/streamline operators & DBSP conservation/Lift-Drag audits, ECS archetype & frustum AoI streaming, multi-commit branches, branch-aware compaction/GC and conditional forward publication with `FOREIGN KEY`/uniqueness/constraint evidence and measured costs |
@@ -276,42 +283,36 @@ added at the end of **Phase I** (shifting former Milestones 12–46 to 13–47) 
 establish that software-engineering foundation before Phase II–VII workload and
 interface expansion:
 
-1. **Decouple logical module authoring (`modules/<schema>/*.sql`) from chronological migration artifacts (`migrations/<version>-<name>.sql`) via `transit app compile` / `transit migration diff` ([Milestone 12 D1/P4](12-application-modules-compilation-and-testing.md#d1--separate-logical-module-source-modulesschemasql-from-immutable-migration-ledger-artifacts-migrationsversion-namesql)).**
-   Developers author desired schema state by domain module (`auth`, `kms`, `vcs`,
-   `builds`, `artifacts`, `environments`, `webhooks`, `api`). The compiler parses
-   all module files into a topological `CatalogGraph`, compares it against the
-   committed migration baseline (`CatalogDiff` / `DIFF_SCHEMA`), and synthesizes
-   reviewable forward SQL migrations with `CREATE OR REPLACE` definitions for
-   compute/routing objects (`VIEW`, `DATAFLOW`, `PUBLICATION`, `SINK`, `SOURCE`)
-   while flagging destructive storage changes (`DROP TABLE`, `DROP COLUMN`,
-   incompatible type narrowing) unless explicitly annotated.
-2. **Introduce encapsulated schema modules (`CREATE SCHEMA ... IMPORT (...)`) with `PUBLIC`/`PRIVATE` visibility ([Milestone 12 D2/P1](12-application-modules-compilation-and-testing.md#d2--elevate-schema-into-an-encapsulated-module-with-public--private-visibility-and-explicit-import-interfaces)).**
-   Cross-schema references require an explicit `IMPORT` edge in the module header;
-   import cycles are rejected at compile time. `PRIVATE` tables, queues, streams,
-   views, functions, guards, and procedures remain encapsulated inside their
-   owning module so external domains and `PUBLICATION` routes can only couple to
-   `PUBLIC` interfaces.
-3. **Eliminate copy-pasted boilerplate via zero-runtime-overhead compile-time abstractions (`PROFILE`, `FUNCTION`, `GUARD`, `PROCEDURE`) ([Milestone 12 D3/P2](12-application-modules-compilation-and-testing.md#d3--composable-compile-time-abstractions-profile-function-guard-procedure)).**
-   Reusable `CREATE PROFILE ... FOR SOURCE | SINK | PUBLICATION`, pure scalar/row
-   `CREATE FUNCTION`, composable admission predicates (`CREATE GUARD`), and
-   transactional multi-table mutations (`CREATE PROCEDURE ... AS BEGIN ATOMIC`)
-   expand during compilation into canonical `Fuze` ASTs (`FQP1`/`FDM1`) and
-   Milestone 5 atomic transactions without introducing actor hops or runtime
-   indirection.
-4. **Enforce block-aware statement splitting and whole-program static verification (`transit app check`) ([Milestone 12 D4/P0/P3](12-application-modules-compilation-and-testing.md#d4--block-aware-scanner-and-offline-whole-program-static-compiler-transit-app-check)).**
-   A shared block-aware lexical splitter (`SqlLexer.splitStatements`) replaces
-   naive semicolon splitting in `MigrationRunner` and `MigrationClient`,
-   supporting arbitrarily large multi-statement files containing `BEGIN ... END;`
-   dataflow and procedure bodies. Whole-program analysis verifies schema-resolved
-   column/field types, linear `CLAIM`/`ACK`/`NACK` and `NEXT OPERATION`/`COMPLETE`
-   lifecycles along every control-flow path, and `SECRET` taint isolation before
-   any runtime node starts.
-5. **Deliver first-class deterministic SQL unit and crash-replay testing (`transit test`) ([Milestone 12 D6/P5](12-application-modules-compilation-and-testing.md#d6--deterministic-offline-unit-testing-effectclock-simulation-and-yield-point-fault-injection-transit-test)).**
-   Declarative `CREATE TEST ... BEGIN ... END;` suites run against ephemeral
-   in-memory `DatabaseRuntime` instances with simulated logical/wall-clock time
-   (`SET TEST CLOCK`), mocked outbound effects (`MOCK SINK`, `MOCK OBSERVATION`),
-   relational assertions (`ASSERT (query)`, `ASSERT SINK_DISPATCHED`), and
-   automatic yield-point crash/replay verification (`transit test --verify-replay`).
+The source/build design uses a higher-order SQL dialect rather than a separate
+application command family. All items below are planned:
+
+1. **Use `.transit` for source and `build.transit` for builds in that same language ([D1](12-application-modules-compilation-and-testing.md#d1--one-source-dialect-and-build-graph-executable-sql-outputs)).**
+   `transit build` resolves, checks and specializes a program into executable
+   Transit `.sql`. The output runs through ordinary statement owners or the
+   existing migration lifecycle without source repositories or a build interpreter.
+2. **Compose typed modules recursively across workspaces and repositories ([D2](12-application-modules-compilation-and-testing.md#d2--recursive-typed-modules-repository-dependencies-and-explicit-stateful-instances)).**
+   Child builds, module-valued parameters and exported constructors use the same
+   interfaces as remote dependencies. Separate packages/modules from SQL schemas;
+   explicitly bind durable instances. Lock exact revisions/content and transitive
+   inputs, record local overrides, and support frozen offline rebuilds. Reject
+   dependency cycles and conflicting versions of one stateful instance.
+3. **Lower higher-order abstractions to SQL with shared semantics ([D3](12-application-modules-compilation-and-testing.md#d3--composable-compile-time-abstractions-profile-function-guard-procedure)).**
+   Typed profiles, functions, guards and procedures expand hygienically with
+   source maps. Compile-time work and output are bounded; runtime authorization,
+   logical types, definition bindings and transaction boundaries survive emission.
+4. **Share whole-program checking and independent SQL execution ([D4](12-application-modules-compilation-and-testing.md#d4--shared-compiler-bounded-evaluation-and-canonical-sql-emission-transit-build)).**
+   Block-aware scanning separates file, statement and graph budgets. Capability
+   and secret analysis precede emission; reparse generated SQL through ordinary
+   compilers and compare definitions/outcomes with hand-expanded equivalents.
+5. **Generate immutable migrations against an explicit prior state ([P4](12-application-modules-compilation-and-testing.md#p4--desired-state-to-migration-synthesizer-schemadefinition-diffing-and-create-or-replace-lifecycle)).**
+   Build targets compare desired definitions with a declared basis and explicit
+   transforms. Existing migration owners apply the frozen SQL and recover original
+   work; builds neither apply changes nor recompile accepted migrations.
+6. **Run tests through the same graph and SQL emitter ([D6](12-application-modules-compilation-and-testing.md#d6--deterministic-offline-unit-testing-effectclock-simulation-and-yield-point-fault-injection-transit-test)).**
+   `transit test` reads `build.transit`, compiles `.test.transit` bodies and executes
+   their SQL through isolated real database components. Runner-only clocks, mocks
+   and fault schedules preserve uncertainty; simulation is separate from provider
+   qualification. Performance objectives remain targets pending measurement.
 
 ## Unified LSM, `.tseg` format, branching and provider-cost review — 2026-11-08
 
@@ -996,7 +997,7 @@ subsequent milestones to `13–30`:
    empty `.tdel`) with **Flying-Start Adaptive Morsel Tier-Up** ($0\,\mu\text{s}$
    startup via fused superinstructions, tiering up at a morsel boundary to
    Copy-and-Patch stencils only for long-running queries) and **true Ahead-of-Time
-   (AOT) Zig compilation via `transit-app`**, setting HyPer, Umbra and CedarDB on
+   (AOT) Zig compilation through `transit build` targets**, setting HyPer, Umbra and CedarDB on
    the VLDB 2018 microbenchmarks, the Join Order Benchmark (JOB), ClickBench and
    the HTAP CH-benCHmark as comparative baselines.
 
@@ -1453,7 +1454,7 @@ requirements; no original tracker closes merely because its work was split.
    collation-prefixed strings, `comptime`/immutable perfect hashing and vectorized
    Block-Max BM25 search ([Milestone 15](15-vectorized-strings-and-search.md)),
    HyPer-style data-centric push pipeline fusion, per-row-group kernel
-   specialization and `transit-app` AOT Zig query compilation
+   specialization and `transit build` AOT Zig query compilation
    ([Milestone 16](16-data-centric-compilation-and-specialization.md)),
    declarative Document Profiles (`JSON`, `XML`, `HTTP`, `FTP`, `EDI`) with
    transport-decoupled gateway/connector exchange capture

@@ -27,6 +27,18 @@ operational inspection and expose each capability through its owning public
 operation; the interface does not become another catalog, query engine or
 permission authority.
 
+## Planned source and build inspection
+
+Consume [M12's source-to-SQL model](12-application-modules-compilation-and-testing.md)
+when its compiler and public inspection contracts are available. Present recursive
+`.transit` module/target dependencies, resolved package provenance, emitted SQL
+and source-mapped diagnostics through shared owners. Keep source modules distinct
+from catalog schemas and deployed instances. Board must not invent another build
+language, resolve dependencies differently or treat a successful build as applied
+SQL. Existing explicit administrative submission and scoped Live read execution
+retain their separate authorization and observation boundaries. Qualification
+must show that source edits/build previews do not implicitly apply migrations.
+
 ## Accordion and reactive workbook design — 2026-11-03
 
 **Status: bounded implementation delivered; full milestone qualification remains open.** Design

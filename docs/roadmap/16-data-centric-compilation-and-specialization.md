@@ -24,14 +24,19 @@ Consume the qualified [local engine](02-storage-and-query-performance.md),
 [transactions](05-transactions-and-atomic-composition.md),
 [collations and historical catalogs](10-standards-and-catalogs.md),
 [indexing](11-indexing-and-access-paths.md),
+[recursive source compilation and builds](12-application-modules-compilation-and-testing.md),
 [analytical SQL and dataflows](13-sql-and-dataflows.md),
 [data structures and resource metering](14-data-structures-and-performance.md)
 and [first-class strings and perfect hashing](15-vectorized-strings-and-search.md).
 Start from [query mechanisms](../handbook/internals/query-engine.md),
 [storage mechanisms](../handbook/internals/storage-runtime.md),
 [declarative applications](../handbook/reference/applications.md),
-[`transit-fuze`](../../packages/zig/transit-fuze/README.md) and
-[`transit-station-app`](../../packages/zig/transit-station-app/README.md).
+[`transit-fuze`](../../packages/zig/transit-fuze/README.md) and the
+[planned source-to-SQL boundary](../handbook/internals/query-engine.md#planned-source-to-sql-compilation).
+M12 owns `.transit`, `build.transit`, dependency resolution and executable SQL
+emission. This milestone adds optional AOT outputs to that same `transit build`
+graph and preserves correspondence with its SQL; it introduces no separate
+module system or Station dependency for database compilation.
 
 The existing interpreted [`VectorKernel`](../../packages/zig/transit-fuze/src/VectorKernel.zig)
 and [`RelationalKernel`](../../packages/zig/transit-fuze/src/RelationalKernel.zig)
@@ -98,11 +103,11 @@ accounting as the reference interpreter.
      (Copy-and-Patch compilation in $< 50\,\mu\text{s}$ into a bounded W^X slab),
      so short OLTP queries finish instantly while long analytical scans run at
      full compiled speed.
-4. **Deliver Ahead-of-Time (AOT) Zig compilation for declared application queries, views and functions (`transit-app`).**
-   Extend [`transit-station-app`](../../packages/zig/transit-station-app/README.md)
-   (`transit-app`) so applications that declare schemas, named relational queries,
-   maintained views, streams and user-defined functions in `.sql` can compile
-   them ahead of time into specialized Zig modules:
+4. **Deliver Ahead-of-Time (AOT) Zig compilation through `transit build` targets.**
+   Extend M12's shared build graph with AOT outputs for schemas, named queries,
+   maintained views, streams and functions. Consume the same typed semantics as
+   emitted `.sql`, preserving that inspectable SQL output and exact definition
+   bindings. AOT is a later backend, not a prerequisite for source-to-SQL builds:
    - Monomorphize scan, filter, join, group-by and incremental delta (`+row`/`-row`)
      operators to the exact `TableSchema`, column types ($\tau$), physical codecs
      ($\epsilon$) and collations ($\kappa$) at build time, eliminating all runtime
@@ -113,8 +118,9 @@ accounting as the reference interpreter.
    - Bake `comptime` perfect hash tables ([Milestone 15](15-vectorized-strings-and-search.md))
      for constant `IN (...)` sets and static lookup tables directly into `.rodata`.
    - Verify the compiled module's schema/definition digest against the active
-     catalog cut at pin acquisition; reject or fall back cleanly if the runtime
-     schema has evolved incompatibly.
+     catalog cut at pin acquisition; reject incompatible bindings before
+     execution. An interpreted alternative must use the same validated semantics
+     and source basis, never recompile accepted work against a changed schema.
 5. **Specialize storage page decoders and wire result encoders to bound projections.**
    Generate projection-specialized `.tseg`/WAL decoders and result encoders
    (native `transit-sql-results` binary columns, Arrow IPC and PostgreSQL binary
@@ -129,7 +135,7 @@ accounting as the reference interpreter.
 | Data-centric push fusion + vectorized morsels (HyPer + CedarDB + VectorWise synthesis) | Register pressure, L1d/L2 cache misses, ~10-instruction directory-tagged join probe filtering, LLC miss hiding via `@prefetch` on hash joins (TPC-H Q3, Q9 and JOB), arithmetic/aggregation throughput (TPC-H Q1, Q6, Q18) and exact ordered-failure-frontier preservation |
 | Per-row-group dense non-null specialization | Branch misprediction reduction (`perf` branch-misses), throughput on clean (`null_count == 0`) versus dirty/nullable `.tseg` blocks, and zero regression when falling back on overflow or five-state errors |
 | Ad-hoc SQL specialization: Fused Superinstructions + Adaptive Morsel Tier-Up (Flying Start / Copy-and-Patch stencil JIT) | Tier-0/1 startup latency ($0\,\mu\text{s}$), stencil tier-up latency ($\le 50\text{–}100\,\mu\text{s}$), morsel threshold calibration, W^X security/sandbox compliance, cross-platform support (`x86_64-linux`, `aarch64-linux`, `aarch64-macos`) and binary size impact |
-| AOT application query/view compilation (`transit-app`) | End-to-end latency and throughput versus ad-hoc SQL plans, UDF inlining speedup, build-time compilation budget, and catalog definition-digest verification on schema evolution |
+| AOT application query/view compilation (`transit build`) | Equivalence with emitted SQL, end-to-end latency and throughput versus ad-hoc SQL plans, UDF inlining speedup, build-time compilation budget, and catalog definition-digest verification on schema evolution |
 | Projection-specialized storage decoders and wire serializers | End-to-end query throughput across `.tseg` scans into `transit-sql-client`, Flight SQL and PostgreSQL binary clients; allocation/copy counts |
 
 [HyPer's data-centric query compilation](https://www.vldb.org/pvldb/vol4/p539-neumann.pdf)

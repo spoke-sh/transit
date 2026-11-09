@@ -67,6 +67,17 @@ select a venue, strategy, latency target or monetary representation for you.
 
 ## Workloads guide the architecture
 
+The [planned source-to-SQL toolchain](applications.md#planned-source-language-and-build-model)
+places recursive `.transit` module composition and `build.transit` evaluation
+outside runtime authority. The proposed `transit build` and `transit test` use
+shared Zig compiler components to produce and exercise executable Transit SQL.
+The database consumes that SQL through its ordinary statement and migration
+owners; it does not need source repositories or a build interpreter. Compilation
+must preserve authorization, definition identity and transaction boundaries.
+The database compiler remains independent of Station; Station and interface
+integrations consume the common language boundary. These are proposed boundaries,
+not claims that the build language or commands are available.
+
 Interactive inspection, shared Documents, capture/materialization, historical
 research, enrichment, workflow coordination and external execution have different
 latency, freshness and recovery needs. The [workload model](workloads.md) records

@@ -38,6 +38,18 @@ current owners. Keep the shared Zig implementation and generated binding
 contracts. Language-native APIs need not have identical class layouts or
 scheduling surfaces to preserve the same semantics.
 
+## Planned source-module integration
+
+Consume [M12's recursive `.transit` build model](12-application-modules-compilation-and-testing.md)
+for declarative application definitions. Language SDKs execute generated `.sql`
+through shared statement/migration APIs and consume typed exported interfaces;
+they do not reimplement module resolution, expansion or recovery semantics.
+Compose direct-data and Station application examples with local and pinned
+repository modules, while keeping host-language compilation and runtime bindings
+explicit. Prove that emitted SQL runs without source packages and that dependency
+upgrades preserve original operation identities and require explicit migrations
+where definitions change. This adds no implicit deployment or grants to a build.
+
 ## Source review — 2026-10-24
 
 Review of runtime/SDK source at `94335c2a` establishes these starting points;
