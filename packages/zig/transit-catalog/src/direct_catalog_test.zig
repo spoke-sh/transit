@@ -694,6 +694,103 @@ fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
 }
 
+test "native browser binding KV declaration retains the same schema and resource as signed point reads" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var parsed = try c.fuze.KVDdl.compile(t.allocator, "CREATE KV sessions (ROW(identity_id VARCHAR(64), provider TEXT, policy_revision BINARY, created_at TIMESTAMPTZ, expires_at TIMESTAMPTZ, revoked BOOLEAN)) WITH (native_binding = 'browser.sessions')", .transit, null);
+    defer parsed.deinit();
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .row, .nullable = false, .fields = parsed.statement.action.create.spec.fields };
+    const base = try creation(7, 1, "sessions");
+    const declaration = try c.DirectKVClient.prepareDeclaration(t.allocator, .{
+        .binding = base.binding,
+        .namespace = 1,
+        .name = base.intent.name,
+        .native_binding = parsed.statement.action.create.native_binding,
+        .action = .{ .create = .{ .owner = 0, .spec = spec } },
+    });
+    for ([_]@FieldType(c.DirectKV.DeclarationRequest, "command"){ .preview, .admit, .execute }) |command|
+        _ = try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_declaration = .{ .declaration = declaration, .command = command, .steps = 1 } });
+    const found = (try SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = .browser_sessions } })).native_binding.?;
+    const named = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv_lookup = .{ .namespace = 1, .name = "sessions" } })).kv_lookup.?;
+    try t.expectEqualDeep(found.interpretation, named.interpretation);
+    try t.expectEqual(found.native_binding, named.native_binding);
+    const read = (try SignedDispatch.call(&arena, &catalog, &access, .{ .kv = .{ .get = .{ .object = base.binding.target, .key = try .encode(arena.allocator(), "session"), .source = null } } })).kv.value;
+    try t.expectEqualDeep(found.interpretation, read.interpretation);
+    try t.expect(try read.spec.typeOf().eql(spec.typeOf()));
+    try t.expect(read.encoded == null and read.revision == null);
+    var bad = declaration;
+    bad.action.create.spec.fields = spec.fields[0..5];
+    try t.expectError(error.InvalidNativeBindingSchema, c.DirectKVClient.prepareDeclaration(t.allocator, bad));
+}
+
+test "native browser binding is unique recoverable catalog metadata with current disclosure authority" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: p.DataLifecycle.Binding = undefined;
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        var compiled = try c.fuze.TableDdl.compile(t.allocator, "CREATE TABLE people (id VARCHAR(64) PRIMARY KEY, provider TEXT NOT NULL, issuer TEXT NOT NULL, client_id TEXT NOT NULL, subject TEXT NOT NULL) WITH (native_binding = 'browser.identities')", null, null);
+        defer compiled.deinit();
+        var request = try creation(7, 1, "people");
+        request.intent.native_binding = compiled.statement.create.native_binding;
+        request.intent.action.create.schema = try compiled.statement.create.bind(7);
+        request.binding.intent = try request.intent.digest(t.allocator);
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            binding = request.binding;
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.admit(request, access.policy()));
+            continue;
+        }
+        try t.expect(try catalog.perform(binding, access.policy()) == .committed);
+        const found = (try SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = .browser_identities } })).native_binding.?;
+        try t.expectEqualStrings("people", found.name.slice());
+        try t.expectEqual(@as(?c.fuze.NativeBinding.Kind, .browser_identities), found.native_binding);
+        try t.expectEqual(7, found.interpretation.interpretation.object.object);
+        const named = (try SignedDispatch.call(&arena, &catalog, &access, .{ .lookup = .{ .namespace = 1, .name = "people" } })).lookup.?;
+        try t.expectEqualDeep(found.interpretation, named.interpretation);
+        try t.expect((try SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = .browser_sessions } })).native_binding == null);
+        access.denied_metadata = 107;
+        try t.expectError(error.CatalogDenied, SignedDispatch.call(&arena, &catalog, &access, .{ .native_binding = .{ .namespace = 1, .kind = .browser_identities } }));
+        access.denied_metadata = null;
+        request.binding.identity.operation = 2;
+        request.binding.target.object = 8;
+        request.intent.name = try .init("other_people");
+        request.intent.action.create.schema.object = 8;
+        request.binding.intent = try request.intent.digest(t.allocator);
+        try t.expectEqual(.name_conflict, (try catalog.preview(request, access.policy())).reason);
+        try t.expectEqual(.name_conflict, (try catalog.admit(request, access.policy())).reason);
+        // An operator cannot remove the binding's intrinsic shape/constraints
+        // by changing the backing schema through the ordinary DDL interface.
+        var alter = request;
+        alter.binding.identity.operation = 3;
+        alter.binding.target = binding.target;
+        alter.binding.action = .alter;
+        alter.binding.expected_definition = found.interpretation.interpretation;
+        alter.intent.native_binding = null;
+        alter.intent.name = found.name;
+        alter.intent.action = .{ .alter = .{ .drop = 2 } };
+        alter.binding.intent = try alter.intent.digest(t.allocator);
+        try t.expectEqual(.constraint, (try catalog.preview(alter, access.policy())).reason);
+    }
+}
+
 test "companion Table defaults and semantic descriptors recover admitted DDL from disk" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

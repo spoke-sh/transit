@@ -9377,6 +9377,56 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "table-native-binding",
+      "sql": "CREATE TABLE identities (id VARCHAR(64) PRIMARY KEY) WITH (native_binding = 'browser.identities')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "table-native-binding-unknown",
+      "sql": "CREATE TABLE identities (id VARCHAR(64) PRIMARY KEY) WITH (native_binding = 'browser.unknown')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unknown_native_binding",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "table-native-binding-kind",
+      "sql": "CREATE TABLE identities (id VARCHAR(64) PRIMARY KEY) WITH (native_binding = 'browser.sessions')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_native_binding_kind",
+        "category": "binding"
+      }
+    },
+    {
+      "id": "kv-native-binding-reference",
+      "sql": "CREATE KV sessions (TEXT) WITH (native_binding = 'browser.sessions')",
+      "profile": "table_ddl",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_sql_syntax",
+        "category": "syntax"
+      }
     }
   ]
 }

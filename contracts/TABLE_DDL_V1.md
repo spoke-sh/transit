@@ -116,3 +116,13 @@ summary. Physical/destination validation remains authoritative; the summary does
 not permit coercing error cells, changing frozen initial values or bypassing
 source authorization. Scan/pin/publication effects belong to the enclosing owner.
 These summaries are derived runtime values, not another persisted schema field.
+
+
+## Native state binding clause
+
+CREATE TABLE accepts `WITH (native_binding = 'browser.identities')` or
+`WITH (native_binding = 'browser.bindings')`. Pure compilation retains the enum;
+unknown names and KV-only bindings reject. Shared Catalog preparation and native
+admission enforce the exact [browser binding schema and intrinsic CHECK](BROWSER_V1.md#canonical-state-binding-declarations).
+The binding is part of the original accepted declaration, not a second settings
+or permission surface. Local syntax acceptance alone does not publish it.

@@ -136,12 +136,13 @@ pub const Change = union(enum) {
     }
 };
 pub const Ddl = struct {
+    native_binding: ?f.NativeBinding.Kind = null,
     binding: d.Binding,
     namespace: u64,
     name: []const u8,
     action: union(enum) { create: struct { owner: u64, schema: Binary }, alter: Change, rename: []const u8, drop },
     fn intent(self: Ddl, allocator: std.mem.Allocator) !D.Intent {
-        return .{ .kind = .table, .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
+        return .{ .kind = .table, .native_binding = self.native_binding, .namespace = self.namespace, .name = try .init(self.name), .action = switch (self.action) {
             .create => |value| .{ .create = .{ .owner = value.owner, .schema = (try f.TableSchema.decode(allocator, try value.schema.decode(allocator, f.TableSchema.max_bytes))).schema } },
             .alter => |value| .{ .alter = try value.native(allocator) },
             .rename => |value| .{ .rename = try .init(value) },
@@ -379,6 +380,7 @@ pub const Action = union(enum) {
     queue: c.DirectQueue.Request,
     kv: c.DirectKV.Request,
     kv_declaration: c.DirectKV.DeclarationRequest,
+    native_binding: struct { namespace: u64, kind: f.NativeBinding.Kind },
     kv_lookup: struct { namespace: u64, name: []const u8 },
     kv_list: struct { namespace: u64, after: ?u64 },
     document_declaration: c.DirectDocument.DeclarationRequest,
@@ -486,7 +488,7 @@ pub const Request = struct {
             },
             .kv_declaration => |value| try value.validate(allocator, connection),
             .document_declaration => |value| try value.validate(allocator, connection),
-            inline .kv_lookup, .kv_list, .document_lookup, .document_list => |value| {
+            inline .native_binding, .kv_lookup, .kv_list, .document_lookup, .document_list => |value| {
                 try c.Model.nativeId(value.namespace);
                 if (@hasField(@TypeOf(value), "name")) _ = try c.TableAuthority.Name.init(value.name);
             },
@@ -742,6 +744,7 @@ fn validateHistorical(connection: Connection, value: Historical) !void {
 }
 
 pub const Definition = struct {
+    native_binding: ?f.NativeBinding.Kind = null,
     interpretation: c.storage.TableDeclaration.Stored,
     namespace: u64,
     authorization: u64,
@@ -911,6 +914,7 @@ pub const Result = union(enum) {
     queue: c.DirectQueue.Result,
     kv: c.DirectKV.Result,
     kv_declaration: c.DirectKV.DeclarationResult,
+    native_binding: ?Definition,
     kv_lookup: ?c.DirectKV.Definition,
     kv_list: StateList,
     document_declaration: c.DirectDocument.DeclarationResult,

@@ -2,6 +2,7 @@
 const common = @import("CallerCodes.zig");
 pub const Entry = common.Entry;
 pub const entries = [_]Entry{
+    .{ .cause = error.NativeBindingConflict, .code = "catalog.native_binding_conflict", .category = .conflict, .message = "The existing object does not have the proposed native binding. Inspect its accepted definition before preparing new work." },
     .{ .cause = error.BranchRetired, .code = "catalog.branch_retired", .category = .lifecycle, .message = "This branch has been retired. Its original creation remains successful, but its retained source and read continuations are unavailable." },
     .{ .cause = error.InvalidBranchCursor, .code = "catalog.invalid_branch_cursor", .category = .binding, .message = "The branch cursor must preserve its original namespace, catalog position and continuation identity." },
     .{ .cause = error.UnsupportedHistoricalKind, .code = "catalog.unsupported_historical_kind", .category = .unsupported, .message = "This caller profile cannot preserve the selected historical or view binding. Use the qualified historical SQL or catalog read operation." },

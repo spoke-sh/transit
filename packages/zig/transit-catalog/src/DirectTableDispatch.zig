@@ -54,6 +54,7 @@ fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, va
 fn encodeDefinition(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, view: *const D.View) !w.Definition {
     return .{
         .interpretation = view.table.root.declared(),
+        .native_binding = view.properties.native_binding,
         .namespace = view.properties.namespace,
         .authorization = view.properties.authorization,
         .name = view.properties.name,
@@ -140,6 +141,12 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                 .execute => .{ .operation = try execution.ddl(execution.context, catalog, request.binding, policy, value.steps) },
                 .cancel => .{ .operation = try catalog.cancel(request.binding, policy) },
             } };
+        },
+        .native_binding => {
+            const value = action.native_binding;
+            var view = try catalog.resolveNativeBinding(catalog.allocator, value.namespace, value.kind, policy) orelse return .{ .native_binding = null };
+            defer view.deinit();
+            return .{ .native_binding = try encodeDefinition(allocator, catalog.allocator, &view) };
         },
         .kv_lookup => {
             const value = action.kv_lookup;

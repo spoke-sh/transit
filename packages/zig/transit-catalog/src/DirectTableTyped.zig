@@ -13,7 +13,7 @@ pub const Request = struct {
     operation: []const u8,
     name: []const u8,
     action: union(enum) {
-        create: struct { schema: f.TableSchemaJson.Schema, if_not_exists: bool },
+        create: struct { schema: f.TableSchemaJson.Schema, if_not_exists: bool, native_binding: ?f.NativeBinding.Kind = null },
         alter: struct { basis: h.PreparedBinding, change: c.TableLowering.Change },
         rename: struct { basis: h.PreparedBinding, name: []const u8 },
         drop: struct { basis: ?h.PreparedBinding, if_exists: bool },
@@ -51,13 +51,18 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, input:
     var ddl: w.Ddl = .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 0 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) }, .namespace = input.namespace, .name = input.name, .action = undefined };
     if (input.action == .create) {
         const create = input.action.create;
-        const schema = try f.TableSchemaJson.native(&arena, create.schema);
+        var schema = try f.TableSchemaJson.native(&arena, create.schema);
+        ddl.native_binding = create.native_binding;
+        if (create.native_binding) |kind| try c.BrowserStateSchema.prepare(a, kind, &schema);
         if (schema.revision != 1) return error.InvalidTableSchema;
         const subject = try client.require(.{ .namespace = input.namespace, .target = null, .access = .create_table });
         if (create.if_not_exists) {
             const response = try client.call(.{ .lookup = .{ .namespace = input.namespace, .name = input.name } });
             defer response.deinit();
-            if (response.value.result.lookup) |existing| return assertion(allocator, client, input, operation, existing.interpretation.interpretation);
+            if (response.value.result.lookup) |existing| {
+                if (create.native_binding != null and existing.native_binding != create.native_binding) return error.NativeBindingConflict;
+                return assertion(allocator, client, input, operation, existing.interpretation.interpretation);
+            }
         }
         var bytes: [f.TableSchema.max_bytes]u8 = undefined;
         ddl.binding.target.object = schema.object;

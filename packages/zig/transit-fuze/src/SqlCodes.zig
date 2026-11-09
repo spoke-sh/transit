@@ -7,6 +7,11 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.NativeBindingConflict, .code = "sql.native_binding_conflict", .category = .conflict },
+    .{ .cause = error.UnknownNativeBinding, .code = "sql.unknown_native_binding", .category = .binding },
+    .{ .cause = error.InvalidNativeBindingKind, .code = "sql.invalid_native_binding_kind", .category = .binding },
+    .{ .cause = error.InvalidNativeBindingSchema, .code = "sql.invalid_native_binding_schema", .category = .binding },
+    .{ .cause = error.InvalidNativeBindingConstraint, .code = "sql.invalid_native_binding_constraint", .category = .constraint },
     .{ .cause = error.SqlNestingTooDeep, .code = "sql.source_nesting_limit", .category = .limit, .summary = "SQL source nesting exceeds its bound", .hint = "Reduce source nesting within the documented limit." },
     .{ .cause = error.UnbalancedSqlBlock, .code = "sql.unbalanced_block", .category = .syntax, .summary = "SQL program blocks are unbalanced", .hint = "Close each BEGIN, IF and CASE with its matching END form." },
     .{ .cause = error.UnbalancedSqlParentheses, .code = "sql.unbalanced_parentheses", .category = .syntax, .summary = "SQL parentheses are unbalanced", .hint = "Close expressions before terminating the statement." },

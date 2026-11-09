@@ -19,7 +19,7 @@ fn stored(value: s.TableDeclaration.Stored, spec: s.KVDeclaration.Spec) !void {
 pub fn definition(allocator: std.mem.Allocator, value: K.Definition) !void {
     try stored(value.interpretation, value.spec);
     try frontier(value.position, value.changed_lsn);
-    const properties: c.DirectCatalog.Properties = .{ .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
+    const properties: c.DirectCatalog.Properties = .{ .native_binding = value.native_binding, .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
     var buffer: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     var prepared = try s.KVDeclaration.prepare(allocator, .{ .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .spec = value.spec, .properties = try properties.encode(&buffer), .retired = value.retired });
     defer prepared.deinit();

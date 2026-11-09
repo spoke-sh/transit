@@ -5612,11 +5612,55 @@ fn record(self: *Self, next_input: r.Root, operation: r.Operation, current: P.Gu
     try self.store.publish(next, .{ .operation = operation }, current);
 }
 
+/// The index names an existing declaration; it stores no browser state or
+/// permission. A cancelled/rejected reservation may be replaced. An initialized
+/// authority, including a retired one, keeps its identity permanently.
+fn bindingAvailable(self: *Self, namespace: u64, kind: c.fuze.NativeBinding.Kind, object: u64) !bool {
+    const encoded = try self.store.tree().get(self.store.root.native_bindings, try r.nameKey(namespace, try .init(kind.name()))) orelse return true;
+    const selected = try r.fromValue(r.Name, self.allocator, encoded);
+    try selected.validate(self.config());
+    if (selected.object == object) return true;
+    const target = try self.entry(selected.object) orelse return error.InvalidDirectCatalogEntry;
+    if (target.seed) |_| {
+        var view = try self.open(self.allocator, target, false);
+        defer view.deinit();
+        if (view.table.root.next_lsn != 0) return false;
+    }
+    const binding = try c.OperationBinding.lookup(self.allocator, self.store.objects, selected.reservation) orelse return error.InvalidDirectCatalogOperation;
+    const observed = try self.store.operation(binding) orelse return error.InvalidDirectCatalogOperation;
+    return observed.phase == .cancelled or observed.phase == .rejected;
+}
+
+pub fn resolveNativeBinding(self: *Self, allocator: std.mem.Allocator, namespace: u64, kind: c.fuze.NativeBinding.Kind, policy: Policy) !?View {
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    if (self.transaction_read != null) return error.UnsupportedTransactionRead;
+    try check(try self.guard(scratch.allocator(), policy, try self.schema(namespace), null, .schema));
+    const encoded = try self.store.tree().get(self.store.root.native_bindings, try r.nameKey(namespace, try .init(kind.name()))) orelse return null;
+    const selected = try r.fromValue(r.Name, allocator, encoded);
+    try selected.validate(self.config());
+    const target = try self.entry(selected.object) orelse return error.InvalidDirectCatalogEntry;
+    if (target.seed == null) return null;
+    var view = try self.open(allocator, target, false);
+    errdefer view.deinit();
+    if (view.table.root.next_lsn == 0 or view.table.root.retired) {
+        view.deinit();
+        return null;
+    }
+    if (view.properties.namespace != namespace or view.properties.native_binding != kind) return error.InvalidDirectCatalogEntry;
+    try c.BrowserStateSchema.validate(kind, view.table.declaration.schema.schema, view.table.root.kind == .kv);
+    const required = if (kind.isKV()) try self.kvRequirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect) else try self.requirements(policy, try self.authorizationSchema(namespace), view.properties.target(target.object), .inspect);
+    const current = try policy.make_guard(policy.context, scratch.allocator(), required, null);
+    try check(current);
+    return view;
+}
+
 fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View, current: P.Guard) !r.Reason {
     if (try self.namespacePending(request.intent.namespace) != null) return .object_conflict;
     const object = request.binding.target.object;
     if (request.intent.action == .create) {
         if (known) return .object_conflict;
+        if (request.intent.native_binding) |kind| if (!try self.bindingAvailable(request.intent.namespace, kind, object)) return .name_conflict;
     } else if (existing) |view| {
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name) or (view.document != null) != (request.intent.document != null)) return .object_conflict;
         if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) return .stale_definition;
@@ -5624,6 +5668,9 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
         if (view.table.root.pending != null or try self.pendingWithView(object, view, current)) return .object_conflict;
+        // A native binding's schema/constraint meaning is fixed. Renames keep
+        // the same binding and retirement leaves it unavailable to readers.
+        if (view.properties.native_binding != null and request.intent.action == .alter) return .constraint;
         if ((request.intent.action == .drop and try self.hasDependents(object)) or try self.altersReferencedColumn(request)) return .dependency;
     } else return .object_conflict;
     const proposed_name = if (request.intent.action == .rename) request.intent.action.rename else request.intent.name;
@@ -5714,6 +5761,10 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
             const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null, .document = request.intent.document };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
+            if (request.intent.native_binding) |kind| {
+                const selected: r.Name = .{ .namespace = request.intent.namespace, .name = request.intent.name, .object = object, .reservation = request.binding.identity };
+                next.native_bindings = try self.store.tree().put(next.native_bindings, try r.nameKey(selected.namespace, try .init(kind.name())), try r.pageValue(selected));
+            }
         } else if (request.intent.document) |doc| if (!std.meta.eql(known.?.document, @as(?c.fuze.DocumentDdl.Policy, doc))) {
             var updated = known.?;
             updated.document = doc;
@@ -5725,6 +5776,10 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         }
         next.pending = try self.store.tree().put(next.pending, try r.idKey(object), try r.pageValue(request.binding.identity));
     }
+    // Binding-index recovery validates the exact original declaration. Flush
+    // its private immutable intent before that validation; only record() below
+    // publishes the index, reservation and operation together.
+    if (reason == .none and request.intent.native_binding != null) try self.store.index.flush();
     try self.record(next, operation, current);
     return operation;
 }
@@ -5822,7 +5877,7 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     const native = try policy.registered(policy.context, request.value.intent.authorityKind(), binding.target.object) orelse return error.CatalogRegistrationRequired;
     try a.validateObject(self.config().authority, self.config().scope, request.value.intent.authorityKind(), binding.target.object, a.reference(namespace.authorization), native);
     if (native.owner != request.value.intent.action.create.owner) return error.CatalogIdentityConflict;
-    const properties: Properties = .{ .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
+    const properties: Properties = .{ .native_binding = request.value.intent.native_binding, .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = request.value.intent.kind, .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
     defer declaration.deinit();

@@ -53,6 +53,7 @@ pub const SqlTyped = @import("SqlTyped.zig");
 pub const TableDdl = @import("TableDdl.zig");
 pub const DocumentDdl = @import("DocumentDdl.zig");
 pub const LogDdl = @import("LogDdl.zig");
+pub const NativeBinding = @import("NativeBinding.zig");
 pub const KVDdl = @import("KVDdl.zig");
 pub const KVWorkloadSql = @import("KVWorkloadSql.zig");
 pub const AuthorizationSql = @import("AuthorizationSql.zig");

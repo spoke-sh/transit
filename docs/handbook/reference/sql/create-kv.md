@@ -10,7 +10,8 @@ or Station actor turns. Fuze's Zig `Declaration.compile` also validates the sing
 ## Syntax
 
 ```text
-CREATE KV [IF NOT EXISTS] name (data_type [NULL | NOT NULL]);
+CREATE KV [IF NOT EXISTS] name (data_type [NULL | NOT NULL])
+  [WITH (native_binding = binding_name)];
 ALTER KV name RENAME TO new_name;
 DROP KV [IF EXISTS] name [RESTRICT];
 
@@ -33,6 +34,12 @@ Keys are non-empty UTF-8 strings (`'key'`) or binary hex literals (`X'...'`,
 `ROW` (also spelled `STRUCT`) admits 1–64 ordered logical fields. Fields default
 to nullable and preserve nested `VARCHAR(n)` character limits. Row literals are
 supported; whole-row SQL parameters are unsupported.
+
+`native_binding` accepts the quoted names `browser.challenges` and
+`browser.sessions` with the exact [canonical browser schemas](../../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations).
+A binding names this KV as the canonical resource in its namespace; it grants no
+access and does not activate browser programs. The signed catalog binding lookup
+and ordinary KV lookup return the same immutable definition.
 
 ## Examples
 

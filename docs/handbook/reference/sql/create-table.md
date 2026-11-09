@@ -29,8 +29,15 @@ CREATE TABLE [IF NOT EXISTS] name (
     column_name data_type [NULL | NOT NULL] [DEFAULT constant] [PRIMARY KEY],
     ...
     [, PRIMARY KEY (column_name, ...)]
-);
+) [WITH (native_binding = binding_name)];
 ```
+
+`native_binding` accepts the quoted names `browser.identities` and
+`browser.bindings` with the exact [canonical browser schemas](../../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations).
+The Catalog fixes one resource per binding and namespace. Preparation adds the
+binding Table's intrinsic credential CHECK; native callers cannot omit it.
+These declarations do not activate browser programs or grant access. Bound
+schemas permit rename and retirement; ALTER is refused.
 
 Schemas admit 1–128 columns within a 64 KiB encoded-schema budget. Names contain
 1–255 decoded UTF-8 bytes. Unquoted identifiers fold ASCII case to lowercase;

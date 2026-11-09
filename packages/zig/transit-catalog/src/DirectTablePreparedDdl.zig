@@ -55,6 +55,11 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var parents = ForeignParents{ .client = client, .namespace = namespace };
     var compiled = try f.TableDdl.compileWithForeignKeys(allocator, text, if (schema) |value| value.schema else null, location, dialect, .{ .context = &parents, .lookup = ForeignParents.lookup });
     errdefer compiled.deinit();
+    if (compiled.statement == .create) if (compiled.statement.create.native_binding) |native_binding| {
+        var bound = try compiled.statement.create.bind(1);
+        try c.BrowserStateSchema.prepare(compiled.arena.allocator(), native_binding, &bound);
+        compiled.statement.create.integrity = bound.integrity;
+    };
     var create_owner: ?u64 = null;
     if (target.kind == .create) {
         create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
@@ -117,10 +122,14 @@ pub fn bindPrepared(self: *const Self, allocator: std.mem.Allocator, client: c.D
             if (create.if_not_exists) {
                 const response = try client.call(.{ .lookup = .{ .namespace = self.namespace, .name = create.name } });
                 defer response.deinit();
-                if (response.value.result.lookup) |existing| return self.assertion(operation, create.name, existing.interpretation.interpretation);
+                if (response.value.result.lookup) |existing| {
+                    if (create.native_binding != null and existing.native_binding != create.native_binding) return error.NativeBindingConflict;
+                    return self.assertion(operation, create.name, existing.interpretation.interpretation);
+                }
             }
             var buffer: [f.TableSchema.max_bytes]u8 = undefined;
             ddl.name = create.name;
+            ddl.native_binding = create.native_binding;
             ddl.action = .{ .create = .{ .owner = owner_role, .schema = try .encode(a, try (try create.bind(create_object.?)).encode(&buffer)) } };
         },
         .alter, .drop => {

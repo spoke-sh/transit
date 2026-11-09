@@ -197,6 +197,7 @@ pub const DirectMigration = @import("DirectMigration.zig");
 pub const BrowserRecordStore = @import("BrowserRecordStore.zig");
 pub const BrowserContract = @import("BrowserContract.zig");
 pub const BrowserAdministration = @import("BrowserAdministration.zig");
+pub const BrowserStateSchema = @import("BrowserStateSchema.zig");
 pub const BrowserDeclarations = @import("BrowserDeclarations.zig");
 pub const DirectTransactionCall = @import("DirectTransactionCall.zig");
 pub const DirectTransactionSavepoint = @import("DirectTransactionSavepoint.zig");

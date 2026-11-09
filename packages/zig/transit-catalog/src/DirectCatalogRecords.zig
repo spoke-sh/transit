@@ -31,9 +31,24 @@ pub const Configuration = struct {
 /// Canonical TableDeclaration.properties. The current native object remains the
 /// role/permission authority; this record only names its stable reference.
 pub const Properties = struct {
+    native_binding: ?c.fuze.NativeBinding.Kind = null,
     namespace: u64,
     authorization: u64,
     name: a.Name,
+    pub fn jsonStringify(self: Properties, jws: anytype) !void {
+        try jws.beginObject();
+        try jws.objectField("namespace");
+        try jws.write(self.namespace);
+        try jws.objectField("authorization");
+        try jws.write(self.authorization);
+        try jws.objectField("name");
+        try jws.write(self.name);
+        if (self.native_binding) |binding| {
+            try jws.objectField("native_binding");
+            try jws.write(binding);
+        }
+        try jws.endObject();
+    }
     pub fn validate(self: Properties) !void {
         try c.Model.nativeId(self.namespace);
         try c.Model.nativeId(self.authorization);
@@ -166,9 +181,10 @@ pub const Root = struct {
     queue_transfer_sources: ?pages.Reference,
     queue_transfer_pending: ?pages.Reference,
     transaction_records: ?pages.Reference,
+    native_bindings: ?pages.Reference,
     pub fn empty(config: Configuration) !Root {
         try config.validate();
-        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null, .descriptor_definitions = null, .source_writers = null, .source_operation_count = 0, .source_reserved_bytes = 0, .queue_transfer_sources = null, .queue_transfer_pending = null, .transaction_records = null };
+        return .{ .configuration = config, .next_lsn = 0, .next_partition = config.partition + 1, .initialized = false, .schemas = null, .schema_names = null, .namespace_claims = null, .namespace_pending = null, .objects = null, .names = null, .operations = null, .pending = null, .native_allocations = null, .dependents = null, .dependencies = null, .client_tokens = null, .client_token_count = 0, .client_operations = null, .client_pending = null, .client_accounts = null, .branches = null, .branch_names = null, .branch_owners = null, .history_transactions = null, .descriptor_definitions = null, .source_writers = null, .source_operation_count = 0, .source_reserved_bytes = 0, .queue_transfer_sources = null, .queue_transfer_pending = null, .transaction_records = null, .native_bindings = null };
     }
     pub fn validate(self: Root) !void {
         try self.configuration.validate();
@@ -338,6 +354,7 @@ pub fn fromValue(comptime T: type, allocator: std.mem.Allocator, input: pages.Va
 /// CREATE freezes the selected owner role. Its native registration ID is a
 /// later accepted provisioning result, never part of caller-chosen intent.
 pub const Intent = struct {
+    native_binding: ?c.fuze.NativeBinding.Kind = null,
     kind: storage.TableDeclaration.Kind,
     namespace: u64,
     name: a.Name,
@@ -358,6 +375,10 @@ pub const Intent = struct {
         try jws.write(self.name);
         try jws.objectField("action");
         try jws.write(self.action);
+        if (self.native_binding) |binding| {
+            try jws.objectField("native_binding");
+            try jws.write(binding);
+        }
         if (self.document) |doc| {
             try jws.objectField("document");
             try jws.write(doc);
@@ -377,6 +398,10 @@ pub const Intent = struct {
         if (self.document) |doc| {
             if (self.kind != .table) return error.InvalidDirectCatalogOperation;
             if (doc.retention_max_age_ms) |ms| if (ms == 0) return error.InvalidDirectCatalogOperation;
+        }
+        if (self.native_binding) |native_binding| {
+            if (self.document != null or self.action != .create) return error.InvalidNativeBindingKind;
+            try c.BrowserStateSchema.validate(native_binding, self.action.create.schema, self.kind == .kv);
         }
         const action: d.Action = switch (self.action) {
             .create => .create,

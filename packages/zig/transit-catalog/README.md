@@ -619,3 +619,15 @@ Pure proposals, bounded live metadata pages, original recovery, retirement and
 restricted DROP share the [direct contract](../../../contracts/DIRECT_TABLE_V1.md#connection-and-source-declarations).
 The [SOURCE contract](../../../contracts/SOURCE_V1.md) owns bounds, current
 capabilities and the future activation boundary.
+
+
+## Canonical native state bindings
+
+`BrowserStateSchema` validates the browser Table/KV layouts and prepares the
+binding Table's intrinsic credential CHECK. `DirectTablePreparedDdl`,
+`DirectTableTyped` and `DirectKVPreparedDdl` use the ordinary declaration owner;
+`DirectCatalog.resolveNativeBinding` and the signed `native_binding` action
+inspect its exact definition under current namespace/resource rights. The
+catalog's paged index retains only the original resource/creation identity.
+See the [binding contract](../../../contracts/BROWSER_V1.md#canonical-state-binding-declarations)
+for schema, uniqueness, retirement and integration limits.

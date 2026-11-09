@@ -4066,6 +4066,30 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/BrowserStateSchema.zig": {
+      "errors": {
+        "InvalidNativeBindingConstraint": 5,
+        "InvalidNativeBindingKind": 1,
+        "InvalidNativeBindingSchema": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "prepare()": "<inferred>",
+        "sameField()": "<inferred>",
+        "validate()": "<inferred>",
+        "validateShape()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 11,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/CallerCodes.zig": {
       "errors": {
         "AccessDenied": 1,
@@ -4610,6 +4634,7 @@
         "InvalidTableResponse": 1,
         "InvalidTableSchema": 1,
         "InvalidTransactionRead": 1,
+        "NativeBindingConflict": 1,
         "QueryPageBudget": 1,
         "StaleAuthorizationCredential": 1,
         "TableBatchTooLarge": 1,
@@ -4712,9 +4737,9 @@
         "InvalidCatalogDescriptor": 10,
         "InvalidClientToken": 2,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 16,
+        "InvalidDirectCatalogEntry": 19,
         "InvalidDirectCatalogName": 2,
-        "InvalidDirectCatalogOperation": 28,
+        "InvalidDirectCatalogOperation": 30,
         "InvalidDirectCatalogTransition": 1,
         "InvalidDirectRecord": 4,
         "InvalidDocumentSource": 3,
@@ -4829,7 +4854,7 @@
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedTableAction": 4,
         "UnsupportedTransactionParticipant": 3,
-        "UnsupportedTransactionRead": 2,
+        "UnsupportedTransactionRead": 3,
         "WorkloadServiceUnavailable": 1
       },
       "outcomes": {
@@ -4930,6 +4955,7 @@
         "available()": "<inferred>",
         "beginTransaction()": "<inferred>",
         "beginTransactionBounded()": "<inferred>",
+        "bindingAvailable()": "<inferred>",
         "branchGuard()": "<inferred>",
         "branchParent()": "<inferred>",
         "branchProgress()": "<inferred>",
@@ -5155,6 +5181,7 @@
         "resolveDocument()": "<inferred>",
         "resolveKV()": "<inferred>",
         "resolveLog()": "<inferred>",
+        "resolveNativeBinding()": "<inferred>",
         "resolveResource()": "<inferred>",
         "resolveSource()": "<inferred>",
         "resolveState()": "<inferred>",
@@ -5240,7 +5267,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2845,
+        "try": 2877,
         "catch": 31
       },
       "imports": [
@@ -5649,6 +5676,7 @@
         "InvalidDirectCatalogOperation": 13,
         "InvalidDirectCatalogProperties": 2,
         "InvalidDirectCatalogRoot": 6,
+        "InvalidNativeBindingKind": 1,
         "UnsupportedKVAlter": 1,
         "WriteFailed": 4
       },
@@ -5704,6 +5732,7 @@
         "Operation.validate()": "<inferred>",
         "Properties.decode()": "<inferred>",
         "Properties.encode()": "<inferred>",
+        "Properties.jsonStringify()": "<inferred>",
         "Properties.validate()": "<inferred>",
         "Record.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
@@ -5718,7 +5747,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 94,
         "catch": 4
       },
       "imports": [
@@ -5859,7 +5888,7 @@
         "InvalidClientToken": 8,
         "InvalidDirectCatalogHistory": 8,
         "InvalidDirectCatalogOperation": 18,
-        "InvalidDirectCatalogTransition": 223,
+        "InvalidDirectCatalogTransition": 228,
         "InvalidDocumentSourceTransition": 2,
         "InvalidHistoricalState": 4,
         "InvalidHistoricalTransition": 1,
@@ -5948,10 +5977,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 436,
+        "try": 442,
         "catch": 1
       },
       "imports": [
+        "DirectCatalogIntent.zig",
         "DirectCatalogRecords.zig",
         "root.zig",
         "std"
@@ -6801,7 +6831,8 @@
         "CatalogDefinitionChanged": 4,
         "CatalogIdentityConflict": 2,
         "CatalogNameNotFound": 3,
-        "InvalidDataOperation": 1
+        "InvalidDataOperation": 1,
+        "NativeBindingConflict": 1
       },
       "outcomes": {
         "Write": [
@@ -8702,7 +8733,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 261,
+        "try": 263,
         "catch": 0
       },
       "imports": [
@@ -8792,6 +8823,7 @@
         "InvalidDataIdentity": 1,
         "InvalidDataOperation": 1,
         "InvalidTableIntent": 1,
+        "NativeBindingConflict": 1,
         "TableDefinitionChanged": 1,
         "TableNotFound": 3
       },
@@ -8814,7 +8846,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 38,
         "catch": 0
       },
       "imports": [
@@ -8948,6 +8980,7 @@
           "queue",
           "kv",
           "kv_declaration",
+          "native_binding",
           "kv_lookup",
           "kv_list",
           "document_declaration",
@@ -9060,6 +9093,7 @@
           "queue",
           "kv",
           "kv_declaration",
+          "native_binding",
           "kv_lookup",
           "kv_list",
           "document_declaration",
@@ -9188,7 +9222,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 173
+        "InvalidTableResponse": 174
       },
       "outcomes": {},
       "error_sets": {},
@@ -9214,7 +9248,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 246,
+        "try": 251,
         "catch": 10
       },
       "imports": [
@@ -9228,6 +9262,7 @@
         "IncompatibleDefinition": 1,
         "InvalidDataOperation": 1,
         "InvalidTableSchema": 1,
+        "NativeBindingConflict": 1,
         "TableDefinitionChanged": 1,
         "TableNotFound": 2
       },
@@ -9247,7 +9282,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 26,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -11286,6 +11321,7 @@
         "BrowserContract.zig",
         "BrowserDeclarations.zig",
         "BrowserRecordStore.zig",
+        "BrowserStateSchema.zig",
         "CatalogDefinition.zig",
         "DeclarativeIngress.zig",
         "DelegationAndSecrets.zig",
@@ -16589,6 +16625,7 @@
     "packages/zig/transit-fuze/src/KVDdl.zig": {
       "errors": {
         "DuplicateColumnConstraint": 1,
+        "InvalidNativeBindingKind": 1,
         "UnsupportedCascade": 1,
         "UnsupportedConstruct": 1,
         "UnsupportedKVValueType": 3,
@@ -16623,10 +16660,11 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 36,
         "catch": 0
       },
       "imports": [
+        "NativeBinding.zig",
         "Sql.zig",
         "SqlTyped.zig",
         "Types.zig",
@@ -17532,6 +17570,33 @@
         "Types.zig",
         "VectorPage.zig",
         "execute.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/NativeBinding.zig": {
+      "errors": {
+        "UnknownNativeBinding": 2
+      },
+      "outcomes": {
+        "Kind": [
+          "browser_identities",
+          "browser_bindings",
+          "browser_challenges",
+          "browser_sessions"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Kind.parse()": "<inferred>",
+        "clause()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "SqlTyped.zig",
         "std"
       ]
     },
@@ -19447,6 +19512,9 @@
         "InvalidMapKey": 1,
         "InvalidMutationColumns": 1,
         "InvalidMutationPlan": 1,
+        "InvalidNativeBindingConstraint": 1,
+        "InvalidNativeBindingKind": 1,
+        "InvalidNativeBindingSchema": 1,
         "InvalidNumericLiteral": 1,
         "InvalidOutputNames": 1,
         "InvalidParameterIndex": 1,
@@ -19512,6 +19580,7 @@
         "MultiplePrimaryKeys": 1,
         "MutationBatchTooLarge": 1,
         "MutationOutsideAtomic": 1,
+        "NativeBindingConflict": 1,
         "NestedAtomicProgram": 1,
         "NoPrimaryKey": 1,
         "NonCanonicalMultiRange": 1,
@@ -19568,6 +19637,7 @@
         "UnexpectedEndOfInput": 1,
         "UngroupedRelationalColumn": 1,
         "UnknownColumn": 1,
+        "UnknownNativeBinding": 1,
         "UnknownProgramField": 1,
         "UnknownProgramFunction": 1,
         "UnknownProgramResource": 1,
@@ -20668,6 +20738,7 @@
         "InvalidColumnCount": 1,
         "InvalidColumnSemantics": 3,
         "InvalidConstraintCount": 3,
+        "InvalidNativeBindingKind": 1,
         "InvalidPrimaryKey": 1,
         "MultiplePrimaryKeys": 3,
         "NullablePrimaryKey": 2,
@@ -20739,11 +20810,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 150,
+        "try": 152,
         "catch": 1
       },
       "imports": [
         "DecimalArithmetic.zig",
+        "NativeBinding.zig",
         "PerfectHash.zig",
         "PinnedTimezone.zig",
         "Sql.zig",
@@ -22522,6 +22594,7 @@
         "LogicalQuery.zig",
         "LogicalSchema.zig",
         "LogicalStream.zig",
+        "NativeBinding.zig",
         "NeutralEncoding.zig",
         "OperatorTraits.zig",
         "PerfectHash.zig",
@@ -45457,7 +45530,8 @@
       "connectionOption": "identifier EQ optionValue",
       "optionValue": "STRING | secretRef",
       "secretRef": "SECRET LPAREN STRING RPAREN",
-      "createTable": "CREATE TABLE ( IF NOT EXISTS ) ? identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN",
+      "createTable": "CREATE TABLE ( IF NOT EXISTS ) ? identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN nativeBindingClause ?",
+      "nativeBindingClause": "WITH LPAREN identifier EQ STRING RPAREN",
       "tableElement": "columnDef | PRIMARY KEY LPAREN identifier ( COMMA identifier ) * RPAREN | tableConstraint",
       "tableConstraint": "( CONSTRAINT identifier ) ? ( checkConstraint | foreignKeyConstraint )",
       "checkConstraint": "CHECK LPAREN checkPredicate ( AND checkPredicate ) * RPAREN ( NOT VALID ) ?",
@@ -45475,7 +45549,7 @@
       "alterTable": "ALTER TABLE identifier ( ADD COLUMN ? columnDef | ADD tableConstraint | DROP CONSTRAINT identifier RESTRICT ? | VALIDATE CONSTRAINT identifier | DROP COLUMN ? identifier RESTRICT ? | RENAME COLUMN ? identifier TO identifier | RENAME TO identifier | ALTER COLUMN ? identifier ( SET DEFAULT literal | DROP DEFAULT | SET NOT NULL_ | DROP NOT NULL_ | ( SET DATA ) ? TYPE dataType ) )",
       "dropTable": "DROP TABLE ( IF EXISTS ) ? identifier RESTRICT ?",
       "createDocument": "CREATE DOCUMENT identifier",
-      "createKv": "CREATE KV identifier LPAREN dataType RPAREN",
+      "createKv": "CREATE KV identifier LPAREN dataType RPAREN nativeBindingClause ?",
       "grantStatement": "GRANT privilegeList ON authorizationObject TO grantee grantOption ? | GRANT identifier TO authorizationRole ( WITH membershipOption ( COMMA membershipOption ) * ) ?",
       "revokeStatement": "REVOKE ( GRANT OPTION FOR ) ? privilegeList ON authorizationObject FROM grantee revokeBehavior ? | REVOKE ( ( ADMIN | INHERIT | SET ) OPTION FOR ) ? identifier FROM authorizationRole revokeBehavior ?",
       "privilege": "CONNECT | USAGE | CREATE | SELECT | INSERT | UPDATE | DELETE",

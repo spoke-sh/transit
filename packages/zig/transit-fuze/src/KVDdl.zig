@@ -58,7 +58,7 @@ pub const Spec = struct {
 pub const Statement = struct {
     name: []const u8,
     action: union(enum) {
-        create: struct { if_not_exists: bool = false, spec: Spec },
+        create: struct { if_not_exists: bool = false, spec: Spec, native_binding: ?@import("NativeBinding.zig").Kind = null },
         rename: []const u8,
         drop: struct { if_exists: bool = false },
     },
@@ -111,10 +111,12 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
             const nullability = try parser.nullability(false);
             if (parser.word("NOT") or parser.word("NULL")) return error.DuplicateColumnConstraint;
             try parser.require(.right);
+            const native_binding = try @import("NativeBinding.zig").clause(&parser);
+            if (native_binding) |binding| if (!binding.isKV()) return error.InvalidNativeBindingKind;
             try parser.finish();
             const spec: Spec = .{ .value_type = value_type, .nullable = nullability.value, .fields = if (data_type.type == .structure) data_type.type.structure else &.{} };
             try spec.validate();
-            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = spec } } } };
+            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = spec, .native_binding = native_binding } } } };
         },
         .alter => {
             if (parser.word("IF")) return error.UnsupportedConstruct;

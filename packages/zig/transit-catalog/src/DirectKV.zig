@@ -9,6 +9,7 @@ const KV = s.KVPartition;
 const w = c.DirectTableProtocol;
 
 pub const Declaration = struct {
+    native_binding: ?c.fuze.NativeBinding.Kind = null,
     binding: d.Binding,
     namespace: u64,
     name: c.TableAuthority.Name,
@@ -28,7 +29,7 @@ pub const Declaration = struct {
             .rename => |value| .{ .rename = value },
             .drop => .drop,
         };
-        return .{ .kind = .kv, .namespace = self.namespace, .name = self.name, .action = action };
+        return .{ .kind = .kv, .native_binding = self.native_binding, .namespace = self.namespace, .name = self.name, .action = action };
     }
     pub fn request(self: Declaration, scratch: std.mem.Allocator) !c.DirectCatalog.Request {
         const result: c.DirectCatalog.Request = .{ .binding = self.binding, .intent = try self.intent(scratch) };
@@ -59,6 +60,7 @@ pub const DeclarationRequest = struct {
 pub const DeclarationResult = union(enum) { preview: c.DirectCatalog.Preview, operation: c.DirectCatalog.Observation };
 
 pub const Definition = struct {
+    native_binding: ?c.fuze.NativeBinding.Kind = null,
     interpretation: s.TableDeclaration.Stored,
     namespace: u64,
     name: c.TableAuthority.Name,
@@ -294,5 +296,5 @@ pub fn applyOwned(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog
 
 pub fn definition(owner: *s.TablePartition, properties: c.DirectCatalog.Properties) !Definition {
     const declared = try s.KVDeclaration.fromPhysical(owner.declaration.definition);
-    return .{ .interpretation = owner.root.declared(), .namespace = properties.namespace, .name = properties.name, .authorization = properties.authorization, .spec = declared.spec, .retired = owner.root.retired, .position = .{ .partition = owner.root.partition, .next_lsn = owner.root.next_lsn }, .changed_lsn = owner.root.changed_lsn };
+    return .{ .interpretation = owner.root.declared(), .native_binding = properties.native_binding, .namespace = properties.namespace, .name = properties.name, .authorization = properties.authorization, .spec = declared.spec, .retired = owner.root.retired, .position = .{ .partition = owner.root.partition, .next_lsn = owner.root.next_lsn }, .changed_lsn = owner.root.changed_lsn };
 }

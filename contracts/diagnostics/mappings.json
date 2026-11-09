@@ -21,7 +21,8 @@
         "packages/zig/transit-fuze/src/LogClaimSql.zig",
         "packages/zig/transit-fuze/src/LogReadSql.zig",
         "packages/zig/transit-fuze/src/LogSettlementSql.zig",
-        "packages/zig/transit-fuze/src/ApplicationProgram*.zig"
+        "packages/zig/transit-fuze/src/ApplicationProgram*.zig",
+        "packages/zig/transit-fuze/src/NativeBinding.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -1202,6 +1203,26 @@
         "UnsupportedProgramProfile": {
           "code": "sql.unsupported_program_profile",
           "category": "unsupported"
+        },
+        "UnknownNativeBinding": {
+          "code": "sql.unknown_native_binding",
+          "category": "binding"
+        },
+        "InvalidNativeBindingKind": {
+          "code": "sql.invalid_native_binding_kind",
+          "category": "binding"
+        },
+        "InvalidNativeBindingSchema": {
+          "code": "sql.invalid_native_binding_schema",
+          "category": "binding"
+        },
+        "InvalidNativeBindingConstraint": {
+          "code": "sql.invalid_native_binding_constraint",
+          "category": "constraint"
+        },
+        "NativeBindingConflict": {
+          "code": "sql.native_binding_conflict",
+          "category": "conflict"
         }
       }
     },
@@ -5573,6 +5594,10 @@
         "InvalidBranchCursor": {
           "code": "catalog.invalid_branch_cursor",
           "category": "binding"
+        },
+        "NativeBindingConflict": {
+          "code": "catalog.native_binding_conflict",
+          "category": "conflict"
         }
       },
       "exceptions": [

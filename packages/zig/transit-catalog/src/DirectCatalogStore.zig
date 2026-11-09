@@ -116,7 +116,7 @@ fn recoverSinceOptions(self: *Self, prior: ?RecoveryState, retain_cache: bool) !
         next = record.root;
         chain = r.hash(frame.payload);
     }
-    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions, next.descriptor_definitions, next.source_writers, next.queue_transfer_sources, next.queue_transfer_pending, next.transaction_records }) |slot| if (slot) |reference| {
+    for ([_]?pages.Reference{ next.schemas, next.schema_names, next.namespace_claims, next.namespace_pending, next.objects, next.names, next.operations, next.pending, next.native_allocations, next.dependents, next.dependencies, next.client_tokens, next.client_operations, next.client_pending, next.client_accounts, next.branches, next.branch_names, next.branch_owners, next.history_transactions, next.descriptor_definitions, next.source_writers, next.queue_transfer_sources, next.queue_transfer_pending, next.transaction_records, next.native_bindings }) |slot| if (slot) |reference| {
         _ = try self.index.load(reference);
     };
     self.root = next;
@@ -269,6 +269,19 @@ fn transactionRecordTransition(self: *Self, before: r.Root, record: r.Record) !v
 }
 
 fn operationTransition(self: *Self, before: r.Root, record: r.Record) !void {
+    if (!std.meta.eql(before.native_bindings, record.root.native_bindings)) {
+        if (record.action != .operation or record.action.operation.phase != .admitted or record.action.operation.binding.action != .create) return error.InvalidDirectCatalogTransition;
+        const accepted = record.action.operation;
+        if (try self.operationAt(before, accepted.binding) != null) return error.InvalidDirectCatalogTransition;
+        var intent = try @import("DirectCatalogIntent.zig").load(self.allocator, self.objects, before.configuration, accepted.intent);
+        defer intent.deinit();
+        const kind = intent.value.intent.native_binding orelse return error.InvalidDirectCatalogTransition;
+        const key = try r.nameKey(intent.value.intent.namespace, try .init(kind.name()));
+        const encoded = try self.tree().get(record.root.native_bindings, key) orelse return error.InvalidDirectCatalogTransition;
+        const selected = try r.fromValue(r.Name, self.allocator, encoded);
+        if (selected.namespace != intent.value.intent.namespace or !std.meta.eql(selected.name, intent.value.intent.name) or selected.object != accepted.binding.target.object or !std.meta.eql(selected.reservation, accepted.binding.identity)) return error.InvalidDirectCatalogTransition;
+    }
+
     if (record.action == .connector) return self.connectorTransition(before, record);
     if (!std.meta.eql(before.source_writers, record.root.source_writers) or before.source_operation_count != record.root.source_operation_count or before.source_reserved_bytes != record.root.source_reserved_bytes) return error.InvalidDirectCatalogTransition;
     if (record.action == .transaction_record) return self.transactionRecordTransition(before, record);

@@ -277,8 +277,9 @@ secretRef
 // General typed schemas; constraints, aliases and parameter values are checked
 // by the shared compiler. Storage/operator/transport admission remains separate.
 createTable
-    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN nativeBindingClause?
     ;
+nativeBindingClause: WITH LPAREN identifier EQ STRING RPAREN;
 tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN | tableConstraint;
 tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstraint);
 checkConstraint: CHECK LPAREN checkPredicate (AND checkPredicate)* RPAREN (NOT VALID)?;
@@ -340,7 +341,7 @@ createDocument
 
 // CREATE KV settings (UTF8); — the growing profile's KV resource, DDL form.
 createKv
-    : CREATE KV identifier LPAREN dataType RPAREN
+    : CREATE KV identifier LPAREN dataType RPAREN nativeBindingClause?
     ;
 
 // One object/role and one recipient. Privilege applicability, duplicate options,
