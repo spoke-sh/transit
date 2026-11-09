@@ -314,6 +314,41 @@ nix develop --command just test::nightly-performance "$perf_run/selection.json" 
 - Do not choose trading venues, strategies, latency targets, or live requirements
   implicitly. Future monetary state needs explicit fixed-point/decimal rules.
 
+### Recursive source language and build system: future implementation direction
+
+Follow the [planned source language](docs/handbook/reference/applications.md#planned-source-language-and-build-model)
+and [Milestone 12](docs/roadmap/12-application-modules-compilation-and-testing.md).
+This is architectural direction, not a claim that the grammar or commands exist.
+
+- Treat `.transit` as a higher-order Transit SQL dialect and `build.transit` as
+  a program in that same language. `transit build` and `transit test` share its
+  recursively composed module graph and emit/exercise executable `.sql` through
+  ordinary statement owners. Build evaluation, publication, migration application
+  and runtime activation remain separate operations.
+- Compose typed modules, constructors and child build modules through the same
+  import/export interfaces for monorepos and external repositories. Keep source
+  packages, workspaces, modules and targets separate from SQL schemas and durable
+  module instances. File paths and import aliases must not determine durable
+  object identity. Imports do not grant rights.
+- Resolve repository dependencies to exact revisions and verified content, record
+  transitive locks and explicit local overrides, and support frozen offline builds
+  after fetching. Reject conflicting versions bound to the same stateful instance.
+  Key reproducibility on compiler/contract identity and all declared inputs.
+- Lower typed, hygienic source constructs to canonical executable SQL while
+  preserving source maps, logical types, authorization, definition bindings and
+  atomic boundaries. Compile-time recursion needs deterministic resource budgets;
+  import/build cycles reject. The runtime must not need source repositories,
+  source-only directives or a parallel execution authority to run generated SQL.
+- Generate migrations only against an explicit prior definition basis with
+  explicit transforms for ambiguous/destructive changes. Preserve immutable
+  applied SQL and original recovery identities; never recompile accepted work.
+  Tests exercise the same emitter and real database components with isolated
+  clock/effect controls; simulation does not establish provider qualification.
+- Keep the compiler Zig-native and independent of Station. Future AOT targets
+  extend this build graph and shared SQL semantics. The existing `transit-app`
+  interface compiler remains documented according to its actual profile until
+  an explicit implementation cutover; do not invent a `transit app` command family.
+
 ### SQL statements and result sets: future implementation direction
 
 Formalize statement results across the SQL service, shared client and consumers
@@ -545,7 +580,7 @@ operator, or AOT query compiler already exists in current builds.
   compile latency via `comptime` fused superinstruction dispatch ("Flying Start")
   and tier up mid-query at a `Batch` morsel boundary to Copy-and-Patch machine
   stencils only when the runtime morsel CPU tick/row counter crosses a threshold
-  (no runtime LLVM dependency), while extending `transit-app` to compile declared
+  (no runtime LLVM dependency), while extending `transit build` targets to compile declared
   application queries, views and Zig UDFs ahead of time into schema-monomorphized
   Zig modules.
 

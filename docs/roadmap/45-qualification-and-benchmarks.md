@@ -61,7 +61,7 @@ remains a gate for every preceding milestone.
   2D/3D spatial codecs and DBSP Z-set incremental `ST_Union`, `ST_3DUnion`, Discrete Divergence Theorem linear 3D volume aggregates and 2D/3D spatial/clash joins, compressed-domain `.dictionary`/`.fsst` evaluation, `comptime`/immutable
   perfect hashing, vectorized 256-doc Block-Max BM25 and hybrid search, HyPer-style
   data-centric push pipeline fusion, per-row-group dense non-null specialization,
-  Flying-Start Adaptive Morsel Tier-Up, `transit-app` AOT-compiled queries/views,
+  Flying-Start Adaptive Morsel Tier-Up, `transit build` AOT-compiled queries/views,
   leveled/tiered `.tseg` compaction bounds, `.tdel` tombstone reclamation,
   declarative partitioning/multi-dimensional clustering (`PARTITION BY`,
   `CLUSTER BY`), scan-resistant caching, external NVMe spill for window/join/sort
@@ -73,6 +73,16 @@ remains a gate for every preceding milestone.
   failures/regressions. Report leadership only for reproduced equivalent workload
   profiles; a component win or reduced TPC workload is not a universal
   database/runtime ranking.
+
+- Qualify [M12's source-to-SQL toolchain](12-application-modules-compilation-and-testing.md)
+  at the common revision: recursive root/child `build.transit` composition,
+  monorepo and pinned repository dependencies, explicit local overrides, frozen
+  offline rebuilds, deterministic SQL and cache invalidation. Execute emitted
+  SQL through installed ordinary clients with source packages absent. Include
+  capability/visibility failures, bounded evaluation, migration drift, dependency
+  upgrades and replay of original migration bytes after source/compiler changes.
+  `transit test` must use the production emitter; report simulation coverage
+  separately from provider and physical-durability evidence.
 
 - Qualify full declaration lifecycles: define data and computation, apply policy,
   inspect publication/results/progress, evolve dependencies and recover accepted

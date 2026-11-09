@@ -6,6 +6,111 @@ transform durable data. Use the [first application guide](../guides/applications
 for a separately compiled Zig worker and [work-items](../../../examples/work-items/README.md)
 for the complete example.
 
+## Planned source language and build model
+
+The proposed authoring language is a higher-order Transit SQL dialect stored in
+`.transit` files. Ordinary SQL forms its executable foundation; typed modules,
+imports, parameters and compile-time composition organize larger programs.
+`build.transit` is a program in that same dialect. The proposed `transit build`
+and `transit test` commands read it to select outputs and tests from one resolved
+dependency graph. These commands and the source-language extensions are not
+implemented; the current interface-definition compiler and installation APIs
+below retain their documented scope.
+
+```text
+build.transit + imported .transit modules + locked dependencies
+    -> resolve, typecheck, specialize and compose
+    -> executable Transit .sql
+    -> ordinary statement execution or explicit migration application
+```
+
+The output is Transit SQL, including the target runtime's supported extensions;
+it does not imply portability to other database engines. Generated SQL must be
+independently parseable and executable through the ordinary statement owners,
+without fetching source packages or interpreting a build file on the server.
+Compilation alone publishes nothing, grants no rights and starts no computation.
+
+### Recursive modules and repository composition
+
+Composition uses the same module interface at every level. A module can import
+and compose other modules, export modules or typed constructors, and accept
+types, values or modules satisfying declared interfaces. A child build module can
+be built independently or composed into a parent build. A local workspace module
+and a module from another repository expose the same import/export semantics.
+The compiler resolves their shared graph; nesting does not require invoking a
+separate compiler process for each directory.
+
+| Concept | Proposed responsibility |
+| --- | --- |
+| Workspace | Coordinates packages and targets developed together, including a monorepo |
+| Package | Distributes source modules and declares their dependencies; a repository can contain several packages |
+| Module | Encapsulates typed source declarations, imports, parameters and exports; may contain only pure helpers |
+| Build target | Selects a composition and its SQL outputs or test suite |
+| SQL schema | Names instantiated database objects in a catalog; remains distinct from a source module or package |
+
+Composition explicitly binds stateful module instances to catalog namespaces
+and stable object identities. Moving a source file, changing its import alias or
+reorganizing a repository must not recreate durable data. Conflicting dependency
+versions cannot silently select or duplicate the same stateful instance; separate
+instances require explicit bindings. Imports and exported interfaces grant no
+runtime privileges. Any encapsulation guarantee that must hold for direct SQL
+callers must survive lowering into runtime-enforced definitions and permissions.
+
+Remote dependencies resolve by repository, optional package subdirectory, exact
+revision and verified content digest. A committed lockfile records the transitive
+selection; explicit local overrides support development across repositories and
+remain visible in build provenance. Once dependencies are fetched, frozen builds
+and tests must work offline. Compiler/contract identity, source contents, locked
+dependencies, target options and instance bindings participate in reproducibility
+and cache keys. A package version is separate from a database definition revision.
+
+### Compile-time evaluation and executable SQL
+
+Higher-order functions compose typed declarations and expressions with hygienic
+names, preserving definition-site and invocation-site source locations. Build
+targets, imports, specialization and file emission are compile-time operations;
+database reads, mutations, transactions and effects remain explicit runtime SQL.
+Build evaluation cannot inspect a live catalog or dispatch application effects
+implicitly. Runtime settings and secret references stay runtime-bound rather
+than being captured as private values in generated SQL.
+
+Recursive composition is supported throughout this proposed model. Recursive
+compile-time evaluation needs deterministic work, depth, memory and output
+budgets with attributable failures. Import/build dependency cycles reject;
+runtime recursive queries and durable workflows keep their own execution rules.
+Language syntax and those budgets require contracts before implementation.
+
+Canonical SQL emission must preserve types, collations, cell-state behavior,
+atomic boundaries, authorization and definition binding. Compile-time helpers
+expand into executable forms; constructs retained in emitted SQL require support
+from their owning runtime. Source maps and dependency manifests may accompany the
+SQL for diagnostics and provenance; they cannot supply missing execution semantics.
+The [compiler analysis](../internals/query-engine.md#planned-source-to-sql-compilation)
+describes the equivalence and rejection evidence needed for this boundary.
+
+### Statement outputs, migrations and tests
+
+A statement target compiles source against its declared dependency and schema
+inputs. A migration target additionally requires an explicit prior definition
+state and any necessary data transformations. Desired-state compilation can
+describe a table; synthesizing its evolution requires comparison with that prior
+state. Ambiguous or destructive changes need an explicit transformation or rewrite
+plan. Build evaluation never discovers the migration basis by silently contacting
+a live deployment.
+
+Generated migration files use the existing
+[SQL migration lifecycle](cli.md#application-sql-migrations). Applied bytes remain
+immutable: recovery uses the original migration and accepted operation identities,
+even after source, compiler or dependency changes. A successful build neither
+applies a migration nor proves that an existing deployment matches its basis.
+
+The proposed `transit test` resolves the same build graph and exercises the same
+SQL emitter as `transit build`. Test bodies execute generated SQL through real
+database components in isolated instances, with explicit runner-owned clocks,
+effect mocks and fault schedules. Test controls are distinct from deployable SQL.
+Local simulation establishes only its executed scenarios; it does not qualify
+external providers, physical durability or distributed recovery.
+
 ## Installation and bootstrap
 
 The language-neutral declaration describes roles, resources, artifacts and

@@ -44,6 +44,17 @@ that variable. `--format` overrides rc presentation settings. Connection files
 use YAML by default, with explicit JSON compatibility; credentials and identities
 are never merged between them. The rc files remain DuckDB-style dot-command scripts.
 
+## Planned build and test commands
+
+The proposed `transit build` and `transit test` commands read `build.transit`,
+written in the same higher-order SQL dialect as imported `.transit` modules.
+They compose workspace and pinned repository dependencies and compile executable
+`.sql`; testing exercises that output with explicit isolated runner controls.
+These commands are not part of the installed CLI described above. See the
+[planned source language and build model](applications.md#planned-source-language-and-build-model)
+for recursive composition and the separation between compilation, statement
+execution and migration application.
+
 ## Application SQL migrations
 
 `transit migrate` reviews and applies ordered `<version>-<name>.sql` files through

@@ -29,6 +29,7 @@ Build on the delivered and planned foundations across
 [gateway wire protocols](08-gateway-architecture-and-protocol-ingress.md),
 [standards, collations and historical catalogs](10-standards-and-catalogs.md),
 [indexing and access paths](11-indexing-and-access-paths.md),
+[recursive `.transit` source and builds](12-application-modules-compilation-and-testing.md),
 [managed computations and dataflows](13-sql-and-dataflows.md),
 [first-class strings and search](15-vectorized-strings-and-search.md),
 [data-centric compilation](16-data-centric-compilation-and-specialization.md),
@@ -105,6 +106,15 @@ audit checks composition without making unqualified parsers executable.
 
 ## Delivery sequence
 
+Preserve M12's two compilation stages within one language family: `.transit`
+source (including `build.transit`) composes typed modules and emits executable
+Transit `.sql`; ordinary SQL preparation lowers that output into shared plans.
+Share SQL productions and formatting without admitting source-only imports,
+constructors, build operations or test controls on runtime statement entry points.
+M12 owns the source semantics and initial proofs; this milestone audits their
+integration with the broader dialect. Runtime recursive SQL and compile-time
+module recursion have distinct semantics and resource bounds.
+
 1. **Publish the machine-readable grammar & dialect comparison matrix and verification corpus.**
    Extend [Milestone 10's](10-standards-and-catalogs.md) standards ledger and
    [`contracts/sql/corpus/`](../../contracts/sql/README.md) with a comprehensive,
@@ -126,6 +136,11 @@ audit checks composition without making unqualified parsers executable.
      a user writes `INSERT INTO stream ...`).
    - **Outside selected profile:** Explicitly unsupported syntax with documented
      rationale.
+
+   Record an independent stage classification for every form: source/build-only,
+   test-runner-only, executable SQL, or shared. Include positive and negative
+   fixtures for `.transit` parsing, emitted SQL reparsing and source-only rejection
+   by ordinary clients. Grammar acceptance must not imply runtime support.
 
 2. **Implement DuckDB-style `FROM`-first query syntax and compositional relational ergonomics.**
    Extend the reference grammar, production Zig relational/analytical compilers,
@@ -245,6 +260,11 @@ audit checks composition without making unqualified parsers executable.
      execution.
 
 5. **Qualify grammar unambiguity, canonical plan equivalence, formatter round-trips and editor autocomplete.**
+   - **Source-to-SQL equivalence:** Qualify nested build/module composition,
+     hygienic expansion, source maps and formatting across `.transit` and emitted
+     `.sql`. Compare generated and hand-expanded SQL through ordinary compilers
+     and execution owners. Reject unsupported target constructs before emission;
+     test budget exhaustion and source-only forms on runtime entry points.
    - **Zero parser ambiguity:** Regenerate [`TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4)
      with `-Werror` and verify zero ANTLR ambiguity or conflict reports across the
      expanded multi-dialect positive and negative corpus (`just test::sql-grammar`).

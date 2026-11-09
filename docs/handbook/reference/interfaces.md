@@ -34,6 +34,13 @@ to encode a type does not establish query execution support for that type.
 
 ## Runtime foundations
 
+The [planned source language and build model](applications.md#planned-source-language-and-build-model)
+adds `.transit` modules, same-language `build.transit` programs and proposed
+`transit build` / `transit test` commands. Its output is executable `.sql` for the
+ordinary SQL and migration interfaces above; it is not an installed entry point.
+The [compiler analysis](../internals/query-engine.md#planned-source-to-sql-compilation)
+defines the intended preservation and verification boundary.
+
 | Subject | Current behavior | Technical account |
 | --- | --- | --- |
 | Ownership, fencing, process turns and delivery | [Processes](processes.md), [streams](streams.md) | [System model](../internals/system-model.md), [execution model](../internals/execution-model.md) |
