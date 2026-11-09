@@ -29,16 +29,20 @@ the October plan and its delivered evidence retain their original scope.
 
 ## Next slice implementation plan — 2026-11-08
 
-**Plan status: approved for implementation on 2026-11-08.** The user authorized
-implementation, logical commits and a completion PR. Source basis is local main
-at `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`, including the unified storage
-roadmap review and predicate-aware Queue acquisition. The shared definition in
-[`Growth.zig`](../../packages/zig/transit-protocol/src/Growth.zig) is
-`972af216cef957c3a434cad1292c292fd33b43711acbdaf7bb11be7c74dc34c8`.
-Approval adds no runtime qualification. Milestone 3 remains **In Progress**;
-the earlier approval below applies to that dated plan.
+**Implementation status: the allocation boundary is delivered; broader combined
+qualification remains open.** The planning source was main
+`6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`, including the unified storage
+roadmap review and predicate-aware Queue acquisition. The implemented boundary
+and exclusions belong to the [storage reference](../handbook/reference/storage.md#direct-storage-allocation-admission)
+and [allocation ledger](../handbook/internals/storage-runtime.md#local-direct-storage-allocation-ledger).
+The [executed qualification account](../history/qualification/storage.md#aggregate-local-storage-allocation-admission--2026-11-08)
+records exact sources, paired measurements, pressure/recovery results and failed
+attempts. The current-v1 definition becomes
+`936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49`.
+Milestone 3 remains **In Progress**; neither this allocation increment nor the
+earlier dated approvals close its full P4/P5/P6/P8 gates.
 
-**Next outcome: compose direct-storage allocation admission and prove recovery
+**Delivered outcome: compose direct-storage allocation admission and prove recovery
 under simultaneous foreground and maintenance pressure.** An application can
 keep its declared data, retained reads and original operation outcomes while
 ordinary allocation capacity is exhausted. An authorized operator can inspect
@@ -55,7 +59,7 @@ account of simultaneous retained and active work before extending those caches.
 Complete the allocation boundary first, then use its installed evidence to
 select P5's next measured bottleneck and P6's broader workload projections.
 
-### Current owners and the gap
+### Owners and gap at the planning source
 
 The [storage reference](../handbook/reference/storage.md),
 [retention rules](../handbook/reference/retention.md),
@@ -75,12 +79,12 @@ item is not evidence that its entire implementation is missing.
 | Shared primitives | [`transit-memory`](../../packages/zig/transit-memory/README.md) already supplies concurrent ancestor `Quota`s, borrower `Budget`s and allocation probes | Compose existing primitives at the node lifetime; do not introduce another allocator framework or an eager installation-sized slab |
 | Public observation | Native storage inspection and SQL `SHOW STORAGE` already expose backend/root, physical admission bytes, request counters and maintenance activity; `SHOW STORAGE FOR table` exposes accepted Table progress | Extend those operations with scoped aggregate admission evidence; do not reimplement the delivered node observation or invent per-workload physical counts |
 
-Request pools, resident pools and private maintenance limits currently describe
-different allocation boundaries. Adding their separate high-water marks does
-not measure simultaneous memory. Provider/engine caches, native requests,
-co-hosted SQL buffers, stacks, sockets and kernel cache also prevent a
-whole-process RSS claim. The first review must make those exclusions and their
-independent bounds explicit before choosing the aggregate default.
+At the planning source, request pools, resident pools and private maintenance
+limits described different allocation boundaries. Adding their separate
+high-water marks does not measure simultaneous memory. Provider/engine caches,
+native requests, co-hosted SQL buffers, stacks, sockets and kernel cache also
+prevent a whole-process RSS claim. The first review must make those exclusions
+and their independent bounds explicit before choosing the aggregate default.
 
 ### Recent milestones and upcoming handoffs
 
@@ -101,23 +105,25 @@ D1. Use the following boundaries when implementing and reviewing this slice.
 
 ### Implementation order and review exits
 
-Use the following ordered changes inside the existing P0–P8 plan. Each exit is
-required before its dependent integration; unchecked items below are planned
-work, not claims about tests already run.
+The ordered changes below refine the existing P0–P8 plan. Checked items describe
+the delivered allocation increment and its executed evidence. The many-workload
+combined fixture, broader pressure/fault combinations and simultaneous cohosted
+SQL/collection campaign remain unchecked. Separate component and installed
+schedules do not establish those combined claims.
 
 **A. Freeze the allocation ledger and mixed-workload baseline (P0/P4/P5).**
 
-- [ ] Trace allocation ownership from `Local.runOwner` through
+- [x] Trace allocation ownership from `Local.runOwner` through
   `NativeServer`, `LocalTableHost`, local dispatch, `LocalTableMaintenance`,
   native/direct collectors and backend I/O. Record each allocator's parent,
   limit, concurrency, retained lifetime and cleanup owner. Include structures,
   decode buffers and provider temporaries which bypass private operator budgets.
-- [ ] Inventory every active `DirectStorageGraph` work variant, including
+- [x] Inventory every active `DirectStorageGraph` work variant, including
   Queue predicates/results, `.tack` and `QueueTimeRun`, Document staging,
   transaction preparation, progress records and captures. Classify each as
   foreground work, scheduled maintenance, retained state or graph traversal;
   graph membership does not imply an automatic maintenance implementation.
-- [ ] Extend the existing
+- [x] Extend the existing
   [installed maintenance fixture](../../tests/storage/tables/maintenance.md)
   and [direct service fixture](../../tests/storage/tables/direct_table_service.py)
   with a frozen pressure schedule. Record source/definition, binary hashes,
@@ -132,27 +138,27 @@ Do not use earlier Table-only observations to qualify the expanded graph.
 
 **B. Specify admission, settings and observation before wiring (P0/P6).**
 
-- [ ] Define a node-owned direct-storage allocation envelope with separate
+- [x] Define a node-owned direct-storage allocation envelope with separate
   ordinary, maintenance and recovery reservations. Ordinary work must never
   borrow the latter two. Bound retained maintenance work and collector scratch
   together while reserving enough collector capacity for one bounded unit.
   Define the lock/admission order and refusal behavior without waiting for
   memory while holding catalog, partition or publication locks.
-- [ ] Preserve existing request/per-owner limits as leaf ceilings. Derive the
+- [x] Preserve existing request/per-owner limits as leaf ceilings. Derive the
   proposed default envelope from the ledger and existing maxima, accounting for
   work that remains live while another class runs; freeze exact byte defaults
   and valid combinations in this review. Do not silently reinterpret
   `storage.requests.data_bytes` as a whole-node setting or increase quotas to
   hide failed controls. An ordinary leaf may exceed its parent's available
   capacity and refuse; the configured control reserve must remain usable.
-- [ ] Add restart-scoped settings through
+- [x] Add restart-scoped settings through
   [`Storage.zig`](../../packages/zig/transit-protocol/src/Storage.zig) and the
   existing configuration registry. Specify accounted categories, limit/use/peak,
   refusal categories and unavailable observations through the existing native
   storage response and SQL result projection. Preserve realm-wide inspection
   for paths/aggregate counters and object-specific rights for Table details.
   Live counters remain distinct from durable roots and are not an atomic sample.
-- [ ] Map every changed public field to its generated schema, native/SQL client,
+- [x] Map every changed public field to its generated schema, native/SQL client,
   binding validator and consumer. Replace the shared current-v1 definition for
   incompatible settings/response semantics; regenerate independent fixtures and
   prove foreign/missing definitions reject. This slice need not change stored
@@ -163,27 +169,27 @@ operators can infer. Runtime integration cannot choose conflicting semantics.
 
 **C. Compose quotas at the exclusive owner lifetime (P4.4).**
 
-- [ ] Initialize stable ancestor quotas before constructing request pools,
+- [x] Initialize stable ancestor quotas before constructing request pools,
   resident owners or maintenance; destroy them only after all request, SQL and
   maintenance tasks join. Use existing `Quota`/`Budget` ancestry. Charge backing
   allocations once; nested logical usage and an arena's reserved bytes are not
   two physical allocations. Include aligned capacity and idle retained storage.
-- [ ] Wire both HTTP and typed local request/result paths, resident creation and
+- [x] Wire both HTTP and typed local request/result paths, resident creation and
   eviction, Table/log/transfer maintenance and collector graph work to the
   envelope. Route any newly covered provider/decode allocation through the
   owning budget without reversing backend/catalog dependencies. Keep separately
   bounded exclusions visible; a remaining bypass blocks the claimed boundary.
-- [ ] Attach local output admission to the co-hosted caller/result owner's
+- [x] Attach local output admission to the co-hosted caller/result owner's
   allocator lifetime. A stack-local dispatch budget cannot own a response that
   outlives `invoke`; retain its charge until the result arena or reader releases
   the bytes. Preserve the shared client's owned-response cleanup and M4 batch
   lifetimes, including failed final disclosure and early close.
-- [ ] Preserve scratch/output separation, partial-construction cleanup,
+- [x] Preserve scratch/output separation, partial-construction cleanup,
   failed allocation/resize/remap rollback, slow response ownership, early reader
   close and cancellation joins. Retain current `StorageQuota`,
   `ControlCapacity` and `StorageMaintenanceBudget` distinctions as applicable;
   distinguish configured exhaustion from a backing allocator failure.
-- [ ] Admit controls only through the existing validated operation class and
+- [x] Admit controls only through the existing validated operation class and
   current authorization. Exhausted data cannot prevent the qualified original
   receipt inspection/cancellation or pin release. Do not relabel arbitrary DML,
   Queue claims or a whole transaction execution as reserved control work.
@@ -195,7 +201,7 @@ negative control so the measurement cannot pass while missing a covered path.
 
 **D. Preserve bounded maintenance and retained obligations (P4.2–P4.5).**
 
-- [ ] Preserve independently advancing class/partition cursors, fixed accepted
+- [x] Preserve independently advancing class/partition cursors, fixed accepted
   targets and resumable collection progress. Capacity failure backs off through
   the existing scheduler; it cannot spin, erase a target, start a replacement
   pass or grow a resident queue with durable population. Recoverable log owners
@@ -205,7 +211,7 @@ negative control so the measurement cannot pass while missing a covered path.
   and retained reads; Queue leases, predicates, renewal, timing runs and DLQ;
   Document revisions/staging; retained transaction and computation records.
   Use actual typed owners where SQL lifecycle support is incomplete.
-- [ ] Under the shared envelope, run complete graph marking and continued
+- [x] Under the shared envelope, run complete graph marking and continued
   collection of a known orphan while independently verifying protected roots.
   Include historical catalogs, independent branch pins, captures, pending and
   committed decisions and original receipts. Retain epoch/reuse fences, trusted
@@ -228,11 +234,11 @@ available storage, authority and trusted time where required.
   Demonstrate reserved control progress during observed saturation, not only
   before or after it. Include deadline expiry, disconnect, post-buffer
   revocation, empty/terminal results and repeated reads.
-- [ ] After lost replies or response-allocation failure, recover the saved
+- [x] After lost replies or response-allocation failure, recover the saved
   operation/transaction identity and independently verify its original result.
   Do not rerun SQL or allocate another token to make the fixture pass. Preserve
   failed installations and uncertain outcomes for their owning investigation.
-- [ ] Compare matched baseline/candidate runs with identical durability,
+- [x] Compare matched baseline/candidate runs with identical durability,
   retention, data, limits and physical storage. Record aggregate live/peak
   backing bytes and allocation attempts, CPU, I/O operations/bytes, WAL syncs,
   object writes, foreground latency, maintenance convergence and restart cost.
@@ -240,7 +246,7 @@ available storage, authority and trusted time where required.
   remain unavailable. Freeze regression budgets before candidate measurements,
   and report failures rather than dropping samples. Run no heavy builds during
   measurement windows.
-- [ ] Extend `SHOW STORAGE` and affected typed consumers with the agreed
+- [x] Extend `SHOW STORAGE` and affected typed consumers with the agreed
   counters; verify current inspection after buffering and distinguish capacity,
   policy, clock and storage failures. Update public storage/configuration/node
   owners with exact supported limits and add source-attributed results to the
