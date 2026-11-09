@@ -36,6 +36,15 @@ address. No ambient proxy, DNS choice, redirect or transparent retry changes sco
 The worker clamps its live timeout to the remaining original reconciliation budget.
 An already-authorized send may still be in flight after policy changes or closure.
 
+`Transport.execute` accepts a nullable trusted `WriteGate`. When supplied, its
+callback runs once after connection/TLS authentication and immediately before
+the first possible HTTP request write. Failure sends zero HTTP request bytes;
+TLS establishment itself may already have exchanged handshake bytes. The same
+transport timeout includes the callback, and all callback work is joined before
+return. Executors use this boundary to repeat current authority, protected-input
+and deadline checks. The callback does not create native dispatch authority or
+authorize a retry; failures after it succeeds can still have unknown outcomes.
+
 ## Finite public admission and outcomes
 
 `RequestRecord.prepare` validates the request and computes two Publication specs.

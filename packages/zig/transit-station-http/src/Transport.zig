@@ -31,6 +31,14 @@ pub const Capture = struct {
     segment: *const fn (*anyopaque, http.Kind, []const u8) anyerror!void,
 };
 pub const Result = struct { status: u16, bytes: u64, omitted_headers: u32 };
+/// A trusted executor's final check, after connection/TLS establishment and
+/// immediately before the first possible HTTP request write. The transport
+/// neither derives native authority nor retries a failed check. The callback
+/// and its borrowed state remain live until execute returns after joining it.
+pub const WriteGate = struct {
+    context: *anyopaque,
+    check: *const fn (*anyopaque) anyerror!void,
+};
 fn secretHeader(name: []const u8) bool {
     for ([_][]const u8{ "set-cookie", "authorization", "proxy-authorization", "www-authenticate", "proxy-authenticate" }) |field| if (std.ascii.eqlIgnoreCase(name, field)) return true;
     return false;
@@ -87,7 +95,7 @@ fn readCause(err: anyerror, raw: *const std.Io.net.Stream.Reader, secure: ?*cons
 fn writeCause(err: anyerror, raw: *const std.Io.net.Stream.Writer) anyerror {
     return if (err == error.WriteFailed) raw.err orelse err else err;
 }
-fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
+fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture, gate: ?WriteGate) !Result {
     const started = std.Io.Clock.awake.now(io);
     const started_ms: u64 = @intCast(std.Io.Clock.real.now(io).toMilliseconds());
     try endpoint.validate();
@@ -134,6 +142,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
             .realtime_now = now,
         }) catch |err| return writeCause(readCause(err, &raw_reader, null), &raw_writer);
     }
+    if (gate) |selected| try selected.check(selected.context);
     const writer = if (endpoint.tls) &secure.writer else &raw_writer.interface;
     writer.writeAll(head) catch |err| return writeCause(err, &raw_writer);
     var buffer: [segment_bytes]u8 = undefined;
@@ -215,14 +224,14 @@ fn timeout(io: std.Io, milliseconds: u32) !void {
 }
 /// Errors after authorization are uncertain remote outcomes, including capture
 /// failure and timeout. They never authorize an automatic external retry.
-pub fn execute(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture) !Result {
+pub fn execute(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Request, body: *std.Io.Reader, secrets: ?http.Request.Resolver, capture: Capture, gate: ?WriteGate) !Result {
     try endpoint.validate();
     const Choice = union(enum) { response: anyerror!Result, timeout: anyerror!void };
     var choices: [2]Choice = undefined;
     var select: std.Io.Select(Choice) = .init(io, &choices);
     defer select.cancelDiscard();
     try select.concurrent(.timeout, timeout, .{ io, endpoint.timeout_ms });
-    try select.concurrent(.response, run, .{ gpa, io, endpoint, request, body, secrets, capture });
+    try select.concurrent(.response, run, .{ gpa, io, endpoint, request, body, secrets, capture, gate });
     return switch (try select.await()) {
         .response => |value| value,
         .timeout => error.HttpOutcomeUnknown,

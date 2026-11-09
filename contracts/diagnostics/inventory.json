@@ -40628,6 +40628,7 @@
       "error_returns": {
         "Capture.segment()": "anyerror",
         "Endpoint.validate()": "<inferred>",
+        "WriteGate.check()": "anyerror",
         "captureHeaders()": "<inferred>",
         "emit()": "<inferred>",
         "execute()": "<inferred>",
@@ -40636,9 +40637,9 @@
         "timeout()": "<inferred>",
         "writeCause()": "anyerror"
       },
-      "open_error_set_uses": 7,
+      "open_error_set_uses": 8,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 8
       },
       "imports": [

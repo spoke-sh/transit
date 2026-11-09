@@ -462,7 +462,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             const remaining = descriptor.reconcile_before_ms -| now(init.io);
             endpoint.timeout_ms = @intCast(@min(endpoint.timeout_ms, remaining));
             var transport = diagnostics.begin(.application, operation.context);
-            const result = if (remaining == 0) @as(anyerror!http.Transport.Result, error.ExpiredReconciliation) else http.Transport.execute(init.gpa, init.io, endpoint, prepared.request, &body, .{ .context = &secrets, .resolve = Secrets.resolve }, .{ .context = &driver, .segment = Driver.capture });
+            const result = if (remaining == 0) @as(anyerror!http.Transport.Result, error.ExpiredReconciliation) else http.Transport.execute(init.gpa, init.io, endpoint, prepared.request, &body, .{ .context = &secrets, .resolve = Secrets.resolve }, .{ .context = &driver, .segment = Driver.capture }, null);
             if (result) |response| {
                 transport.finish(.{ .name = "http.transport.completed", .operation = "execute", .status = response.status, .realm = config.realm, .pid = config.pid, .generation = config.generation, .position = receipt.position });
                 try driver.apply(.{ .finish = response.status });

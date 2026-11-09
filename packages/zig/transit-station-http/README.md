@@ -17,6 +17,13 @@ Transport erases its request, response, TLS and chunk-framing buffers on every
 return, including failed exchanges. Capture owners must erase their own private
 copies separately.
 
+An executor may supply a `Transport.WriteGate` for a final current-authority,
+operand and deadline check after connection/TLS establishment, immediately before
+the first HTTP request byte. A failed gate sends no HTTP request. The callback is
+inside the same finite timeout and is joined before return, including timeout or
+cancellation. The gate establishes no native rights by itself; the application
+owner still preserves its original dispatch identity and uncertain outcomes.
+
 `validateResponse` rejects ambiguous content lengths/transfer coding and unsupported
 compression before capture. `beginSegment` adapts HTTP record kinds to the shared
 Publication commitment. A status line, successfully parsed head or sealed body

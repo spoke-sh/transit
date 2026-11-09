@@ -16,6 +16,8 @@ def run(binary):
     requests = []
     failures = []
     names = []
+    connections = []
+    connection_done = threading.Condition()
     payload = bytes((i * 17 + 3) % 256 for i in range(16387))
     chunk_cases = {
         "/chunk-hex": (b"ZZZ\r\n", "HttpChunkInvalid"),
@@ -32,16 +34,23 @@ def run(binary):
 
     class Peer(socketserver.BaseRequestHandler):
         def handle(self):
+            observation = {"bytes": 0, "complete": False}
+            with connection_done:
+                connections.append(observation)
             try:
                 data = b""
                 while b"\r\n\r\n" not in data:
                     part = self.request.recv(4096)
+                    observation["bytes"] += len(part)
                     if not part:
                         return
                     data += part
                 head, body = data.split(b"\r\n\r\n", 1)
                 while len(body) < 12:
-                    body += self.request.recv(4096)
+                    part = self.request.recv(4096)
+                    observation["bytes"] += len(part)
+                    assert part, "truncated request body"
+                    body += part
                 assert body == b"request-body", body
                 assert b"X-Order: first\r\nX-Order: second" in head
                 path = head.split(b" ")[1].decode()
@@ -80,6 +89,10 @@ def run(binary):
                 pass  # Expected when validation/capture rejects the response.
             except BaseException as error:
                 failures.append(repr(error))
+            finally:
+                with connection_done:
+                    observation["complete"] = True
+                    connection_done.notify_all()
 
     class Server(socketserver.ThreadingTCPServer):
         allow_reuse_address = True
@@ -101,11 +114,20 @@ def run(binary):
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 try:
-                    def invoke(path, trust=cert):
+                    def invoke(path, trust=cert, sent=None):
                         before = requests.count(path)
+                        with connection_done:
+                            connection_index = len(connections)
                         env = dict(os.environ, **{key: "http://127.0.0.1:1" for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")})
                         result = json.loads(subprocess.check_output([binary, str(server.server_address[1]), path, "tls" if tls else "plain", str(trust)], timeout=10, env=env))
-                        if path not in ("/wrong-host", "/dns-address", "/wrong-ca"):
+                        if sent is None:
+                            sent = path not in ("/wrong-host", "/dns-address", "/wrong-ca", "/gate-revoked", "/gate-timeout")
+                        if path.startswith("/gate-") and result["gate_calls"]:
+                            with connection_done:
+                                assert connection_done.wait_for(lambda: len(connections) > connection_index and connections[connection_index]["complete"], timeout=3)
+                                received = connections[connection_index]["bytes"]
+                            assert (received > 0) if sent else (received == 0), (path, received)
+                        if sent:
                             assert requests.count(path) == before + 1, (path, requests, result)
                         else:
                             assert requests.count(path) == before
@@ -114,6 +136,12 @@ def run(binary):
                     result = invoke("/chunked")
                     assert result == {"status": 200, "bytes": len(payload), "omitted": 2, "sha256": hashlib.sha256(payload).hexdigest()}, result
                     assert invoke("/pinned-name") == result  # Reserved name has no DNS record.
+                    gated = invoke("/gate-allowed")
+                    assert gated == dict(result, gate_calls=1, gate_exited=True), gated
+                    refused = invoke("/gate-revoked")
+                    assert refused == dict(error="DispatchRevoked", captured=0, completed=False, gate_calls=1, gate_exited=True), refused
+                    timed_gate = invoke("/gate-timeout")
+                    assert timed_gate == dict(error="HttpOutcomeUnknown", captured=0, completed=False, gate_calls=1, gate_exited=True), timed_gate
                     assert "error" in invoke("/dns-address")  # A name cannot replace the pinned numeric address.
                     assert invoke("/no-body")["bytes"] == 0
                     assert invoke("/redirect")["status"] == 307
@@ -139,6 +167,8 @@ def run(binary):
                     if tls:
                         assert invoke("/wrong-host")["error"] == "CertificateHostMismatch"
                         assert invoke("/wrong-ca", other_cert)["error"] == "NoTrustedPath"
+                        untrusted = invoke("/gate-allowed", other_cert, sent=False)
+                        assert untrusted == dict(error="NoTrustedPath", captured=0, completed=False, gate_calls=0, gate_exited=False), untrusted
                         assert "http-pin.invalid" in names and "localhost" in names
                 finally:
                     server.shutdown()
@@ -146,7 +176,7 @@ def run(binary):
         assert not failures, failures
         from interfaces.http.http_tls import verify_paths
         verify_paths(binary, root)
-        print(f"HTTP transport: {len(requests)} single-send requests; TLS identity, framing, binary chunks, omissions, failures and deadline passed.")
+        print(f"HTTP transport: {len(requests)} single-send requests; TLS identity, zero HTTP bytes on final-gate refusal/timeout, joined callbacks, framing, binary chunks, omissions, failures and deadline passed.")
 
 
 if __name__ == "__main__":
