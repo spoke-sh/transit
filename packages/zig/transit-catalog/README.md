@@ -51,6 +51,11 @@ cannot check private workspace data. It is a current observation, not retained
 authority to dispatch an effect.
 Current-connector entries similarly bind exact definitions and control epochs;
 sink use additionally requires active control and its authorized effective role.
+Current connector state resides in the existing paged object directory, accepted
+by the same catalog WAL transition. Publication and recovery verify its exact
+declaration, control and dropped state. Current checks therefore avoid historical
+WAL scans without caching grants or retaining the entire connector inventory in
+memory. Original operation receipts continue to resolve through the WAL.
 
 `DirectRecord` high-bit formats carry immutable read envelopes with one to 14
 Table/KV/Document/Stream/Queue object requirements, bounded by the existing native

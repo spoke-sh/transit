@@ -498,7 +498,7 @@ pub fn maintenanceNext(self: *Self, cursor: *MaintenanceCursor, guard_value: P.G
 
 fn validateEntry(self: *Self, value: r.Entry, key: pages.Key) !void {
     try value.validate(self.config());
-    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn or (value.connector orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    if (!std.meta.eql(key, try r.idKey(value.object)) or value.partition >= self.store.root.next_partition or (value.resource orelse 0) >= self.store.root.next_lsn or (value.log orelse 0) >= self.store.root.next_lsn or (value.descriptor orelse 0) >= self.store.root.next_lsn or (if (value.connector) |connector| connector.at else 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
 }
 
 /// The caller takes the selected Table's lock after directory discovery and
@@ -5048,8 +5048,7 @@ pub fn initialize(self: *Self, policy: Policy) !void {
 fn entry(self: *Self, object: u64) !?r.Entry {
     const value = try self.store.tree().get(self.store.root.objects, try r.idKey(object)) orelse return null;
     const result = try r.fromValue(r.Entry, self.allocator, value);
-    try result.validate(self.config());
-    if (result.object != object or result.partition >= self.store.root.next_partition or (result.resource orelse 0) >= self.store.root.next_lsn or (result.log orelse 0) >= self.store.root.next_lsn) return error.InvalidDirectCatalogEntry;
+    try self.validateEntry(result, try r.idKey(object));
     return result;
 }
 
@@ -5406,7 +5405,7 @@ fn namespaceDependencies(self: *Self, namespace_id: u64, after: ?u64, current: P
         try target.validate(self.config());
         if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
         if (target.connector) |at| {
-            const known = try self.store.connectorRecord(at);
+            const known = try self.store.connectorRecord(at.at);
             if (known.namespace == namespace_id and (known.pending() or (if (known.resulting orelse known.previous) |state| !state.dropped else false))) return .{ .blocked = true, .after = null };
             continue;
         }
@@ -5580,7 +5579,7 @@ fn pendingWithView(self: *Self, object: u64, existing: ?*View, current: P.Guard)
     const operation = try r.fromValue(d.Operation, self.allocator, value);
     const target = try self.entry(object) orelse return error.InvalidDirectCatalogOperation;
     if (target.connector) |at| {
-        const known = try self.store.connectorRecord(at);
+        const known = try self.store.connectorRecord(at.at);
         if (!std.meta.eql(known.binding.identity, operation)) return error.InvalidSourceDeclaration;
         return known.pending();
     }
@@ -5609,7 +5608,7 @@ fn available(self: *Self, namespace: u64, name: a.Name, object: u64, current: P.
     const proposed = try self.candidate(namespace, name) orelse return true;
     const target = try self.entry(proposed.object) orelse return error.InvalidDirectCatalogName;
     if (target.connector) |at| {
-        const known = try self.store.connectorRecord(at);
+        const known = try self.store.connectorRecord(at.at);
         if (known.pending()) return proposed.object == object;
         if (known.resulting orelse known.previous) |state| return state.dropped or proposed.object == object;
         return true;
@@ -8237,15 +8236,9 @@ const SourceArtifact = c.SourceDeclaration;
 fn connectorKind(kind: SourceArtifact.Kind) a.Kind {
     return kind.authority();
 }
-fn connectorRecord(self: *Self, object: u64) !?Connector.Operation {
-    const target = try self.entry(object) orelse return null;
-    const known = try self.store.connectorRecord(target.connector orelse return null);
-    if (known.binding.target.object != object) return error.InvalidSourceDeclaration;
-    return known;
-}
 fn connectorCurrent(self: *Self, object: u64) !?Connector.State {
-    const known = try self.connectorRecord(object) orelse return null;
-    return known.resulting orelse known.previous;
+    const target = try self.entry(object) orelse return null;
+    return (target.connector orelse return null).state;
 }
 fn connectorRequirements(self: *Self, policy: Policy, state: Connector.State, access: c.SourceAuthority.Access) !p.Authorization.Guard {
     const stored = state.declaration;
@@ -8404,7 +8397,7 @@ fn recordConnector(self: *Self, input: Connector.Operation, prior_operation: ?Co
     }
     const id = try r.idKey(operation.binding.target.object);
     if (operation.pending() or operation.phase == .applied or (prior_operation != null and prior_operation.?.pending())) {
-        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = self.store.root.next_lsn };
+        const target: r.Entry = .{ .object = operation.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = .{ .at = self.store.root.next_lsn, .state = operation.resulting orelse operation.previous } };
         next.objects = try self.store.tree().put(next.objects, id, try r.pageValue(target));
         if (operation.pending()) {
             next.pending = try self.store.tree().put(next.pending, id, try r.pageValue(operation.binding.identity));

@@ -138,8 +138,14 @@ binds the original operation, exact expected definition, namespace/name, payload
 commitment and, for control or source DROP, expected epoch. RETIRE increments the
 control epoch without changing definition identity. DROP retains the immutable
 identity and original receipt. Reusing a name cannot reinterpret that receipt.
-The declaration-only typed profile rejects AUTHORIZE, ACTIVATE, SUSPEND and
-RESUME before admission at both the Catalog and SQL boundaries.
+The catalog's paged object directory contains the current declaration, control
+and dropped state alongside the latest operation's WAL position. Publication
+and recovery verify this entry against the accepted operation. Current checks
+use that directory and current scoped authorization; original operation receipts
+remain in the WAL. The entry is part of the current-v1 stored definition, with no
+fallback for a missing state field.
+The polling SOURCE profile rejects AUTHORIZE, ACTIVATE, SUSPEND and RESUME
+before admission at both the Catalog and SQL boundaries.
 
 A reservation commits the saved request's content reference before staging its
 bytes. Only an applied operation can carry a resulting declaration. Source

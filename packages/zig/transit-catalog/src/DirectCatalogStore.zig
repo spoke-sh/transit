@@ -1246,16 +1246,18 @@ fn connectorTransition(self: *Self, before: r.Root, record: r.Record) !void {
     if (!changes_object) return;
     const id = try r.idKey(outcome.binding.target.object);
     const entry = try r.fromValue(r.Entry, self.allocator, try self.tree().get(record.root.objects, id) orelse return error.InvalidDirectCatalogTransition);
-    const expected: r.Entry = .{ .object = outcome.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = before.next_lsn };
+    const expected: r.Entry = .{ .object = outcome.binding.target.object, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = .{ .at = before.next_lsn, .state = outcome.resulting orelse outcome.previous } };
+    try entry.validate(before.configuration);
     if (!std.meta.eql(entry, expected)) return error.InvalidDirectCatalogTransition;
     const old_entry = try self.tree().get(before.objects, id);
     if (original == null and outcome.binding.action == .create) {
         if (old_entry != null) return error.InvalidDirectCatalogTransition;
     } else {
         const previous_entry = try r.fromValue(r.Entry, self.allocator, old_entry orelse return error.InvalidDirectCatalogTransition);
-        const previous = try self.connectorRecordAt(before, previous_entry.connector orelse return error.InvalidDirectCatalogTransition);
+        try previous_entry.validate(before.configuration);
+        const previous = previous_entry.connector orelse return error.InvalidDirectCatalogTransition;
         const expected_previous = if (outcome.phase == .applied) original.?.previous else outcome.previous;
-        if (!std.meta.eql(previous.resulting orelse previous.previous, expected_previous)) return error.InvalidDirectCatalogTransition;
+        if (previous.at >= before.next_lsn or !std.meta.eql(previous.state, expected_previous)) return error.InvalidDirectCatalogTransition;
         if (expected_previous) |state| if (outcome.resulting) |resulting| if (!std.meta.eql(state.declaration, resulting.declaration)) return error.InvalidDirectCatalogTransition;
     }
     const pending = try self.tree().get(record.root.pending, id);

@@ -11452,6 +11452,10 @@ test "SOURCE maximum control record stays within the unchanged sixteen KiB WAL b
         defer t.allocator.free(encoded);
         if (encoded.len + 40 > 16 * 1024) std.debug.print("SOURCE {s} maximum record: {d} bytes\n", .{ @tagName(action), encoded.len + 40 });
         try t.expect(encoded.len + 40 <= 16 * 1024);
+        var entry: r.Entry = .{ .object = 1, .partition = 0, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = .{ .at = 1, .state = operation.resulting } };
+        connectorMaximumWidths(r.Entry, &entry);
+        const page = try r.pageValue(entry);
+        try t.expectEqualDeep(entry, try r.fromValue(r.Entry, t.allocator, page));
         if (action == .create) {
             operation.phase = .reserved;
             operation.staged = operation.resulting.?.declaration;
@@ -12129,6 +12133,62 @@ test "service and invocation request fences reject either replaced record across
     }
 }
 
+test "SOURCE current directory cannot substitute state during publication or recovery" {
+    const r = @import("DirectCatalogRecords.zig");
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    const request = try connectorCreation(77, 100, "upstream", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const connection = (try connectorExecute(&catalog, &access, request)).resulting.?;
+    const drop = try connectorEdit(connection, 101, .{ .drop = .{ .expected_epoch = null } });
+    const reserved = (try catalog.sourceOperation(drop, .reserve, access.policy())).operation;
+    const before = try catalog.recoveryState();
+    var next = before.root;
+    next.next_lsn += 1;
+    var cancelled = reserved;
+    cancelled.phase = .cancelled;
+    cancelled.position.next_lsn = next.next_lsn;
+    try cancelled.validate();
+    {
+        var batch: s.TreeStore.Batch = .{};
+        try catalog.store.index.beginBatch(catalog.options.index_work_bytes, &batch);
+        defer catalog.store.index.end();
+        const id = try r.idKey(77);
+        var entry = try r.fromValue(r.Entry, t.allocator, (try catalog.store.tree().get(next.objects, id)).?);
+        entry.connector.?.at = before.root.next_lsn;
+        // A cancelled DROP must keep the live predecessor. This remains a
+        // well-shaped state, so rejection must compare the accepted transition.
+        entry.connector.?.state.?.dropped = true;
+        try entry.validate(next.configuration);
+        next.objects = try catalog.store.tree().put(next.objects, id, try r.pageValue(entry));
+        next.pending = try catalog.store.tree().remove(next.pending, id);
+        try catalog.store.receipt(&next, drop.binding);
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        const guard = try Access.make(&access, scratch.allocator(), try a.guard(access.policy().subject, profile, null, null, .database), null);
+        try t.expectError(error.InvalidDirectCatalogTransition, catalog.store.publish(next, .{ .connector = cancelled }, guard));
+        try t.expectEqualDeep(before, try catalog.recoveryState());
+        try catalog.store.index.flush();
+    }
+    // Even a checksum-valid forged WAL record cannot bless the substituted
+    // directory on restart or same-owner incremental recovery.
+    const record: r.Record = .{ .definition = p.Growth.current_definition, .previous = before.chain, .root = next, .action = .{ .connector = cancelled } };
+    var encoded: [r.max_record_bytes]u8 = undefined;
+    encoded[0..8].* = "TCATLOG1".*;
+    encoded[8..40].* = p.Growth.definition_bytes;
+    var writer: std.Io.Writer = .fixed(encoded[40..]);
+    try std.json.Stringify.value(record, .{}, &writer);
+    _ = try wal.log().append(next.configuration.partition, before.root.next_lsn, 1, 1, .catalog_ddl, encoded[0 .. 40 + writer.end]);
+    try t.expectError(error.InvalidDirectCatalogTransition, catalog.recoverSince(before));
+    try t.expectError(error.InvalidDirectCatalogTransition, catalog.recover());
+    try t.expectError(error.CatalogRecoveryRequired, catalog.recoveryState());
+}
+
 test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
@@ -12232,11 +12292,35 @@ test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     var check_memory: std.heap.ArenaAllocator = .init(t.allocator);
     defer check_memory.deinit();
     const expected_sink: c.DirectTableProtocol.CurrentConnector = .{ .interpretation = active.declaration.interpretation, .kind = .sink, .control = active.control, .access = .use };
+    // Reconstruct the paged directory from disk, then prohibit WAL reads while
+    // checking current definitions/controls. History length must not turn a
+    // current authorization check into a scan from a segment's beginning.
+    catalog.deinit();
+    wal.deinit();
+    objects.deinit();
+    wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    catalog = try owner(&wal, &objects);
+    const NoHistory = struct {
+        fn read(_: *anyopaque, _: std.mem.Allocator, _: u64, _: u64, _: usize) !s.TransitLog.Log.OwnedBatch {
+            return error.UnexpectedHistoryRead;
+        }
+    };
+    const original_log = catalog.store.log;
+    var current_only = original_log.vtable.*;
+    current_only.read = NoHistory.read;
     var dispatch_policy = access.policy();
     dispatch_policy.effective_role = 7;
     const before_check = catalog.store.root;
-    try catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy);
-    try catalog.checkCurrentConnector(check_memory.allocator(), .{ .interpretation = connection.declaration.interpretation, .kind = .connection, .control = null, .access = .use }, dispatch_policy);
+    {
+        catalog.store.log.vtable = &current_only;
+        defer catalog.store.log = original_log;
+        try catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy);
+        try catalog.checkCurrentConnector(check_memory.allocator(), .{ .interpretation = connection.declaration.interpretation, .kind = .connection, .control = null, .access = .use }, dispatch_policy);
+        access.denied_privileges = .{ .id = active.declaration.properties.authorization, .mask = c.SourceAuthority.use };
+        try t.expectError(error.CatalogDenied, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, dispatch_policy));
+        access.denied_privileges = null;
+    }
     try t.expectEqualDeep(before_check, catalog.store.root);
     try t.expectError(error.CatalogDenied, catalog.checkCurrentConnector(check_memory.allocator(), expected_sink, access.policy()));
     access.denied_privileges = .{ .id = active.declaration.properties.authorization, .mask = c.SourceAuthority.use };

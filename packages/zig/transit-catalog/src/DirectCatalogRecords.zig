@@ -92,7 +92,9 @@ pub const Entry = struct {
     /// Latest Stream/Queue lifecycle record in this same control log.
     log: ?u64,
     descriptor: ?u64,
-    connector: ?u64,
+    /// Current state is part of the same paged, WAL-accepted object directory.
+    /// Historical operation receipts retain their original log position.
+    connector: ?struct { at: u64, state: ?c.DirectSource.State },
     pub fn jsonStringify(self: Entry, jws: anytype) !void {
         try jws.beginObject();
         try jws.objectField("object");
@@ -113,8 +115,13 @@ pub const Entry = struct {
     }
     pub fn validate(self: Entry, config: Configuration) !void {
         if (self.object == 0) return error.InvalidDirectCatalogEntry;
-        if (self.connector) |at| {
-            if (at == 0 or self.partition != 0 or self.seed != null or self.resource != null or self.log != null or self.descriptor != null) return error.InvalidDirectCatalogEntry;
+        if (self.connector) |connector| {
+            if (connector.at == 0 or self.partition != 0 or self.seed != null or self.resource != null or self.log != null or self.descriptor != null) return error.InvalidDirectCatalogEntry;
+            if (connector.state) |state| {
+                try state.validate();
+                const id = state.declaration.interpretation.object;
+                if (id.object != self.object or !std.meta.eql(id.scope, config.scope) or id.branch != config.branch) return error.InvalidDirectCatalogEntry;
+            }
             return;
         }
         if (self.descriptor) |at| {
