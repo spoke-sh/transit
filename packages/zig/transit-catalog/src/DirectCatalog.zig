@@ -1651,8 +1651,9 @@ pub fn inspectManaged(self: *Self, output: std.mem.Allocator, request: c.Managed
         if (!owned.ready) return error.TransactionRecordPending;
         const guarded = (try p.Json.parseFromSlice(c.DirectRecord.Guarded, scratch, try envelope.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
         try guarded.validate(publisher);
-        const required: [3]?d.Object = .{ declared.source.interpretation.interpretation.object, declared.output.interpretation.interpretation.object, declared.object };
-        if (!std.meta.eql(guarded.objects, required)) return error.InvalidManagedTableRecord;
+        const required = [_]d.Object{ declared.source.interpretation.interpretation.object, declared.output.interpretation.interpretation.object, declared.object };
+        if (guarded.objects.len != required.len) return error.InvalidManagedTableRecord;
+        for (guarded.objects, required) |actual, wanted| if (!std.meta.eql(actual, wanted)) return error.InvalidManagedTableRecord;
         const saved = (try p.Json.parseFromSlice(M.Revision, scratch, try guarded.payload.decode(scratch, c.ManagedInspection.max_bytes))).value;
         try envelope.transaction.requireSame(saved.transaction);
         try reference.requireSame(saved.declaration);
@@ -1735,12 +1736,22 @@ pub fn directRecord(self: *Self, allocator: std.mem.Allocator, request: c.Direct
                 if (owned_state.phase == .reserved) return error.OwnedRecordPending;
                 if (owned_state.phase == .closed) return error.OwnedRecordClosed;
                 try value.requireSame(state.receipt.binding.intent.external.record);
+                if (envelope.value.format & c.DirectRecord.guarded_bit != 0) {
+                    const payload = try envelope.value.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(payload);
+                    disclosure = try self.recordReadGuard(allocator, scope.connection, payload, policy);
+                }
             } else if (value.format == c.DirectProgressRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
                 try envelope.value.validate(value);
                 const state = (try self.clientProgress(.{ .inspect = envelope.value.advance.key }, policy)).state orelse return error.ClientOperationMissing;
                 if (!std.meta.eql(state.record, @as(?c.DirectRecord.Reference, value))) return error.ClientOperationConflict;
+                if (envelope.value.advance.format & c.DirectRecord.guarded_bit != 0) {
+                    const payload = try envelope.value.advance.bytes.decode(allocator, c.DirectRecord.max_bytes);
+                    defer allocator.free(payload);
+                    disclosure = try self.recordReadGuard(allocator, scope.connection, payload, policy);
+                }
             } else if (value.format == c.DirectTransactionRecord.format) {
                 const envelope = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, allocator, bytes);
                 defer envelope.deinit();
@@ -1856,14 +1867,13 @@ fn recordReadGuard(self: *Self, allocator: std.mem.Allocator, connection: c.Dire
     defer parsed.deinit();
     try parsed.value.validate(connection);
     var required = try self.requirements(policy, null, null, .database);
-    for (parsed.value.objects) |slot| {
-        const object = slot orelse break;
+    for (parsed.value.objects) |object| {
         const target = try self.entry(object.object) orelse return error.CatalogDenied;
-        const seed = target.seed orelse return error.CatalogKindMismatch;
-        const found = try self.dependencySource(object, policy, switch (seed.kind) {
+        const privileges: u64 = if (target.log != null) c.LogAuthority.read else if (target.resource != null) a.select else if (target.seed) |seed| switch (seed.kind) {
             .table => a.select,
             .kv => c.KVAuthority.read,
-        });
+        } else return error.CatalogKindMismatch;
+        const found = try self.dependencySource(object, policy, privileges);
         required = try required.merge(found.requirements);
         if (!found.live) return error.CatalogDenied;
     }

@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+    "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
     "mutation": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {
@@ -311,7 +311,7 @@
   "replica": {
     "target": {
       "partition": {
-        "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+        "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
         "interpretation": {
           "object": {
             "scope": {
@@ -409,7 +409,7 @@
     "checkpoint": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {
@@ -531,7 +531,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {
@@ -659,7 +659,7 @@
       "expected": {
         "target": {
           "partition": {
-            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+            "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
             "interpretation": {
               "object": {
                 "scope": {
@@ -783,7 +783,7 @@
     "request": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {
@@ -868,7 +868,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {
@@ -1077,7 +1077,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+            "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1198,45 +1198,45 @@
       "complete": true
     },
     "authentication": [
-      115,
-      104,
-      188,
-      214,
-      115,
-      157,
-      221,
-      7,
-      97,
-      140,
-      19,
+      187,
+      209,
+      129,
+      102,
+      112,
       149,
-      243,
+      143,
       196,
-      200,
-      104,
-      214,
-      184,
-      64,
-      253,
-      116,
-      197,
-      46,
-      123,
-      242,
-      15,
-      59,
-      160,
-      179,
-      177,
+      127,
+      152,
+      37,
+      35,
       199,
-      158
+      39,
+      113,
+      205,
+      220,
+      117,
+      20,
+      225,
+      167,
+      49,
+      212,
+      242,
+      208,
+      8,
+      85,
+      52,
+      117,
+      101,
+      211,
+      193
     ]
   },
   "read_release": {
     "release": {
       "target": {
         "partition": {
-          "definition": "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747",
+          "definition": "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98",
           "interpretation": {
             "object": {
               "scope": {

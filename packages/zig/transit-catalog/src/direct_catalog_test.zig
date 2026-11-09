@@ -10272,7 +10272,7 @@ test "transaction record reservation retry quota disclosure and abort closure su
     const allocator = arena.allocator();
     const R = c.DirectTransactionRecord;
     const key = try ownedRecordTransaction(&catalog, &access, 9500, 20, .serializable, 1024 * 1024);
-    const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, .{ create.binding.target, null, null }, "candidate");
+    const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, &.{create.binding.target}, "candidate");
     const request: c.DirectRecord.Request = .{ .stage_transaction = .{ .transaction = key, .format = c.DirectRecord.guarded_bit | 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, guarded) } };
     const bytes = try R.encode(allocator, key, request.stage_transaction.format, guarded);
     const reference = try c.DirectRecord.reference(key.scope(), R.format, bytes);
@@ -10363,7 +10363,7 @@ test "transaction record graph retains uncertain and committed payloads and rele
     var requests: [3]c.DirectRecord.Request = undefined;
     for (&references, &requests, 0..) |*reference, *request, i| {
         const key = try ownedRecordTransaction(&catalog, &access, 9500 + i, @intCast(20 + i), .serializable, 1024 * 1024);
-        const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, .{ create.binding.target, null, null }, "candidate");
+        const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, &.{create.binding.target}, "candidate");
         request.* = .{ .stage_transaction = .{ .transaction = key, .format = c.DirectRecord.guarded_bit | 17, .bytes = try c.DirectTableProtocol.Binary.encode(allocator, guarded) } };
         reference.* = (try catalog.directRecord(allocator, request.*, access.policy())).reference;
         // Cross multiple durable inventory leaves with one resident page.
@@ -10546,6 +10546,73 @@ fn ownedOriginalRequest(allocator: std.mem.Allocator, ordinal: u8) !c.DirectOwne
     const bytes = try c.DirectTableProtocol.Binary.encode(allocator, "private original work");
     const encoded = try c.DirectOwnedRecord.encode(allocator, key, 17, bytes);
     return .{ .binding = .{ .key = key, .fingerprint = @splat(ordinal), .budget = .{ .bytes = 64 * 1024 }, .intent = .{ .external = .{ .connection = key.connection, .namespace = 1, .operation = 74000 + @as(u64, ordinal), .record = try c.DirectRecord.reference(key.scope(), c.DirectOwnedRecord.format, encoded) } } }, .format = 17, .bytes = bytes };
+}
+
+test "guarded continuation originals and progress retain every current read dependency across restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{};
+    try catalog.initialize(access.policy());
+    var resources: [5]p.DataLifecycle.Object = undefined;
+    for ([_][]const u8{ "first", "second", "third", "fourth" }, 0..) |name, index| {
+        const create = try creation(10 + index, 100 + index, name);
+        _ = try catalog.admit(create, access.policy());
+        _ = try catalog.perform(create.binding, access.policy());
+        resources[index] = create.binding.target;
+    }
+    const queue = try logCreation(.queue, 20, 200, "input", 1);
+    _ = try catalog.admitLog(queue, access.policy());
+    _ = try catalog.logOperation(queue.binding, .execute, access.policy());
+    resources[4] = queue.binding.target;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    var request = try ownedOriginalRequest(allocator, 1);
+    const key = request.binding.key;
+    const guarded = try c.DirectRecord.encodeGuarded(allocator, key.connection, &resources, "retained continuation values");
+    request.format = c.DirectRecord.guarded_bit | 17;
+    request.bytes = try c.DirectTableProtocol.Binary.encode(allocator, guarded);
+    const bytes = try c.DirectOwnedRecord.encode(allocator, key, request.format, request.bytes);
+    request.binding.intent.external.record = try c.DirectRecord.reference(key.scope(), c.DirectOwnedRecord.format, bytes);
+    catalog.store.lose_reply = true;
+    try t.expectError(error.LostAcknowledgement, catalog.clientProgress(.{ .stage_original = request }, access.policy()));
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    const ready = (try catalog.clientProgress(.{ .stage_original = request }, access.policy())).state.?;
+    const original = ready.receipt.binding.intent.external.record;
+    _ = try catalog.directRecord(allocator, .{ .read = original }, access.policy());
+    const retained = (try catalog.clientProgress(.{ .retain_original = .{ .key = key, .expected = ready.revision } }, access.policy())).state.?;
+    const advance: c.DirectProgressRecord.Advance = .{ .key = key, .expected = retained.revision, .pending = true, .cancel = false, .format = request.format, .bytes = request.bytes };
+    const progress = (try catalog.clientProgress(.{ .advance = advance }, access.policy())).state.?;
+    const current = progress.record.?;
+    catalog.deinit();
+    catalog = try owner(&wal, &objects);
+    try catalog.recover();
+    for ([_]c.DirectRecord.Reference{ original, current }) |reference| {
+        const before = access.calls;
+        _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+        const checks = access.calls - before;
+        try t.expect(checks >= 2);
+        // A final disclosure check must still refuse after payload buffering.
+        access.deny_at = access.calls + checks;
+        try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+        access.deny_at = std.math.maxInt(usize);
+        for (resources, 0..) |resource, index| {
+            access.denied_privileges = .{ .id = 100 + resource.object, .mask = if (index == 4) c.LogAuthority.read else a.select };
+            try t.expectError(error.CatalogDenied, catalog.directRecord(allocator, .{ .read = reference }, access.policy()));
+            // Non-payload recovery metadata remains inspectable for closure.
+            const inspected = (try catalog.clientProgress(.{ .inspect = key }, access.policy())).state.?;
+            try t.expectEqual(current, inspected.record.?);
+            access.denied_privileges = null;
+        }
+        _ = try catalog.directRecord(allocator, .{ .read = reference }, access.policy());
+    }
 }
 
 test "owned originals reserve before bytes and retain permanent closure through disk recovery" {

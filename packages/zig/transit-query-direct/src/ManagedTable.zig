@@ -194,13 +194,13 @@ pub fn validateOutput(plan: f.Relational.Plan, schema: f.TableSchema.Schema) !vo
     }
 }
 
-fn readObjects(value: Declaration) [3]?d.Object {
+fn readObjects(value: Declaration) [3]d.Object {
     return .{ value.source.interpretation.interpretation.object, value.output.interpretation.interpretation.object, value.object };
 }
 fn storeRevision(self: Self, declaration: Declaration, value: Revision) !c.DirectRecord.Reference {
     const bytes = try p.Json.valueAllocBounded(self.client.allocator, value, c.DirectRecord.max_bytes);
     defer self.client.allocator.free(bytes);
-    const guarded = c.DirectRecord.encodeGuarded(self.client.allocator, self.client.connection, readObjects(declaration), bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    const guarded = c.DirectRecord.encodeGuarded(self.client.allocator, self.client.connection, &readObjects(declaration), bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
     defer self.client.allocator.free(guarded);
     return c.DirectTransactionRecord.stage(self.client, value.transaction, revision_format, guarded);
 }
@@ -828,7 +828,7 @@ fn flushPage(
         .rows = rows,
     };
     const page_bytes = p.Json.valueAllocBounded(scratch.allocator(), page, c.DirectRecord.max_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
-    const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
+    const guarded = c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, &readObjects(value), page_bytes) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
     const owned = c.DirectTransactionRecord.encode(scratch.allocator(), transaction, page_format, guarded) catch |err| return if (err == error.WriteFailed) error.ManagedTableResultBudget else err;
     retained_bytes.* = try std.math.add(u64, retained_bytes.*, owned.len);
     if (retained_bytes.* > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;
@@ -926,7 +926,7 @@ fn orderPages(self: Self, value: Declaration, transaction: c.DirectClientToken.K
             (page.previous == null) != (remaining_pages == 1)) return error.IncompleteDataflowCoverage;
         const link: PageLink = .{ .definition = p.Growth.current_definition, .transaction = transaction, .page = reference, .next = next };
         const payload = try p.Json.valueAllocBounded(scratch.allocator(), link, c.DirectRecord.max_bytes);
-        const guarded = try c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, readObjects(value), payload);
+        const guarded = try c.DirectRecord.encodeGuarded(scratch.allocator(), self.client.connection, &readObjects(value), payload);
         const owned = try c.DirectTransactionRecord.encode(scratch.allocator(), transaction, page_link_format, guarded);
         retained_bytes.* = try std.math.add(u64, retained_bytes.*, owned.len);
         if (retained_bytes.* > value.options.budgets.result_bytes) return error.ManagedTableResultBudget;

@@ -26,8 +26,9 @@ bindings and dependencies. Fuze owns logical schemas and SQL/typed lowering;
 `transit-storage` owns Table acceptance and retained data. Native authorization
 owns roles, grants, current credentials and resource lifetime.
 
-`DirectRecord` high-bit formats carry immutable read envelopes with one to three
-Table/KV object requirements. Staging validates caller-provided bytes and grants
+`DirectRecord` high-bit formats carry immutable read envelopes with one to 14
+Table/KV/Document/Stream/Queue object requirements, bounded by the existing native
+authorization budget. The list has no null slots. Staging validates caller-provided bytes and grants
 no read authority. The catalog rechecks all current read grants on disclosure,
 including raw record reads. Format and envelope bytes
 participate in the immutable key; changing either cannot unwrap an existing
@@ -52,6 +53,10 @@ collector preserves both at its cut and can reclaim superseded records while
 retaining catalog replay and the original admission record. Generic staging and
 binding cannot give a collectible progress record a permanent lifetime. Initial
 external bindings also reject transaction-owned `TXR1` candidates.
+Both `SOR1` and `CPR1` support guarded inner formats. Their immutable dependency
+lists are validated before staging and enforced on generic reads of the outer
+envelope, including after restart. Non-payload token status remains inspectable
+when a dependency's read grant is revoked; it does not reveal guarded values.
 
 ## Lifecycle owner
 

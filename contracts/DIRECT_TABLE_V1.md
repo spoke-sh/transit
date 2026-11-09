@@ -135,9 +135,11 @@ Initial external bindings reject collectible `TXR1` and `CPR1` records: another
 owner's closure must not remove the original admission body.
 
 Record formats with bit `0x80000000` set carry a `DirectRecord.Guarded` JSON
-envelope: mandatory current `definition`, `objects` (a compact array of up to
-three distinct Table/KV object identities, with null trailing slots) and binary
-`payload`. At least one object is required. The catalog resolves each object's
+envelope: mandatory current `definition`, `objects` (a nonempty array of at most
+14 distinct Table/KV/Document/Stream/Queue object identities) and binary
+`payload`. Null slots are invalid. This bound reserves database/schema entries
+within the existing 16-requirement native authorization budget; additional
+namespaces may exhaust that budget earlier and refuse disclosure. The catalog resolves each object's
 current native read requirement and checks their conjunction before disclosing
 any envelope, including generic `record.read`. Staging only validates and saves
 caller-provided bytes; it grants no right to read the envelope. These are
@@ -404,11 +406,17 @@ an actual terminal owner observation. External bookkeeping is not evidence of ex
 
 `Progress.staged` is a mandatory nullable candidate reservation; omitted fields
 reject. External owners may replace progress with `client_progress.advance`,
-whose mandatory fields are `key`, `expected`, `pending`, `cancel`, nonzero plain
-inner `format` (high bit clear), and binary `bytes`. Save that request before
+whose mandatory fields are `key`, `expected`, `pending`, `cancel`, nonzero
+inner `format`, and binary `bytes`. A high-bit inner format requires a valid
+guarded envelope. Save that request before
 submission. The Catalog wraps it as `CPR1` (`0x43505231`) with current `definition`
 and `advance`; the complete envelope and scope determine a `progress-records/`
 key. This is scoped recovery bookkeeping, not a computation or effect authority.
+For a guarded inner format, raw `record.read` validates the immutable dependency
+list and checks every current read grant before disclosing the outer envelope.
+Progress inspection exposes references and status without disclosing payloads;
+recovery owners should keep non-payload settlement identities separately from
+guarded values so revocation does not hide their original pending decisions.
 
 An advance requires the original external token and current CONNECT. Its
 reservation stores the reference, expected revision and desired pending/cancel
@@ -443,9 +451,12 @@ Original external work can instead use Catalog-owned `SOR1` (`0x534f5231`)
 records under `owned-records/`. `Progress.original` is mandatory and nullable;
 non-null state contains `phase` and nullable exact KV `attachment` binding.
 The current-v1 definition rejects earlier persisted layouts. An `SOR1` envelope
-contains current `definition`, original token `key`, plain inner `format` and
+contains current `definition`, original token `key`, nonzero inner `format` and
 binary `bytes`. The complete envelope binds storage to one original owner;
 copying an inner payload does not transfer that owner's lifetime.
+High-bit inner formats carry the same guarded read envelope. Staging validates
+that envelope before reservation; current read authorization remains a separate
+disclosure check, including after restart and through generic record reads.
 
 The signed `client_progress.stage_original` carries the complete external token
 `binding`, inner `format` and `bytes`. It checks the content commitment and

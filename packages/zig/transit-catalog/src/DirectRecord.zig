@@ -12,33 +12,40 @@ pub const read_cache_format: u32 = 0x53515231; // SQR1
 /// Its bounded conjunction is part of the immutable bytes, never caller-supplied
 /// read authority. Generic reads must enforce it before returning the envelope.
 pub const guarded_bit: u32 = 0x80000000;
+/// Reserve database/schema requirements within the existing native guard
+/// budget. Additional namespaces may exhaust that budget before this bound.
+pub const max_guard_objects = p.Authorization.max_requirements - 2;
 pub const Guarded = struct {
+    pub const json_schema_sequence_bounds = .{ .objects = max_guard_objects };
     definition: p.Growth.Definition,
-    objects: [3]?p.DataLifecycle.Object,
+    objects: []const p.DataLifecycle.Object,
     payload: w.Binary,
 
     pub fn validate(self: Guarded, connection: w.Connection) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
-        if (self.objects[0] == null) return error.InvalidDirectRecord;
-        var ended = false;
-        for (self.objects, 0..) |slot, i| {
-            const object = slot orelse {
-                ended = true;
-                continue;
-            };
-            if (ended) return error.InvalidDirectRecord;
+        if (self.objects.len == 0 or self.objects.len > max_guard_objects) return error.InvalidDirectRecord;
+        for (self.objects, 0..) |object, i| {
             try connection.object(object);
-            for (self.objects[0..i]) |previous| if (std.meta.eql(previous.?, object)) return error.InvalidDirectRecord;
+            for (self.objects[0..i]) |previous| if (std.meta.eql(previous, object)) return error.InvalidDirectRecord;
         }
     }
 };
 
-pub fn encodeGuarded(allocator: std.mem.Allocator, connection: w.Connection, objects: [3]?p.DataLifecycle.Object, payload: []const u8) ![]u8 {
+pub fn encodeGuarded(allocator: std.mem.Allocator, connection: w.Connection, objects: []const p.DataLifecycle.Object, payload: []const u8) ![]u8 {
     const binary = try w.Binary.encode(allocator, payload);
     defer allocator.free(binary.base64);
     const value: Guarded = .{ .definition = p.Growth.current_definition, .objects = objects, .payload = binary };
     try value.validate(connection);
     return p.Json.valueAllocBounded(allocator, value, max_bytes);
+}
+/// Owned original/progress wrappers preserve the inner format's immutable read
+/// policy. Validate it before reserving/staging the wrapper's bytes.
+pub fn validatePayload(allocator: std.mem.Allocator, connection: w.Connection, format: u32, bytes: []const u8) !void {
+    if (format == 0) return error.InvalidDirectRecord;
+    if (format & guarded_bit == 0) return;
+    const parsed = try p.Json.parseFromSlice(Guarded, allocator, bytes);
+    defer parsed.deinit();
+    try parsed.value.validate(connection);
 }
 pub const Scope = struct {
     definition: p.Growth.Definition,
@@ -158,17 +165,19 @@ test "guarded record policy is immutable content and requires a bounded nonempty
     const t = std.testing;
     const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .audience = 3, .principal = 0, .role = null };
     const object: p.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 7 };
-    const encoded = try encodeGuarded(t.allocator, connection, .{ object, null, null }, "retained bytes");
+    const encoded = try encodeGuarded(t.allocator, connection, &.{object}, "retained bytes");
     defer t.allocator.free(encoded);
     const parsed = try p.Json.parseFromSlice(Guarded, t.allocator, encoded);
     defer parsed.deinit();
     try parsed.value.validate(connection);
     var invalid = parsed.value;
-    invalid.objects = @splat(null);
+    invalid.objects = &.{};
     try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
-    invalid.objects = .{ object, null, object };
+    invalid.objects = &.{ object, object };
     try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
-    invalid.objects = .{ object, object, null };
+    var too_many: [max_guard_objects + 1]p.DataLifecycle.Object = @splat(object);
+    for (&too_many, 0..) |*entry, index| entry.object += index;
+    invalid.objects = &too_many;
     try t.expectError(error.InvalidDirectRecord, invalid.validate(connection));
     const scope: Scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(1) };
     const protected = try reference(scope, guarded_bit | 7, encoded);
@@ -176,4 +185,25 @@ test "guarded record policy is immutable content and requires a bounded nonempty
     var first: [96]u8 = undefined;
     var second: [96]u8 = undefined;
     try t.expect(!std.mem.eql(u8, try key(protected, &first), try key(raw, &second)));
+}
+
+test "guarded continuation codecs reject null slots and validate inner envelopes before staging" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const connection: w.Connection = .{ .scope = .{ .realm = 1, .resource = 2, .catalog = 3 }, .branch = 1, .audience = 3, .principal = 4, .role = null };
+    const object: p.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 7 };
+    const binary = try w.Binary.encode(allocator, "private values");
+    const legacy = try p.Json.valueAlloc(allocator, .{ .definition = p.Growth.current_definition, .objects = [3]?p.DataLifecycle.Object{ object, null, null }, .payload = binary });
+    try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(Guarded, allocator, legacy));
+    const empty = try p.Json.valueAlloc(allocator, Guarded{ .definition = p.Growth.current_definition, .objects = &.{}, .payload = binary });
+    const token: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(1), .token = @splat(2) };
+    try t.expectError(error.InvalidDirectRecord, c.DirectOwnedRecord.encode(allocator, token, guarded_bit | 1, try w.Binary.encode(allocator, empty)));
+    const advance: c.DirectProgressRecord.Advance = .{ .key = token, .expected = .{ .partition = 1, .next_lsn = 2 }, .pending = true, .cancel = false, .format = guarded_bit | 1, .bytes = try w.Binary.encode(allocator, empty) };
+    try t.expectError(error.InvalidDirectRecord, c.DirectProgressRecord.encode(allocator, advance));
+    var objects: [max_guard_objects]p.DataLifecycle.Object = @splat(object);
+    for (&objects, 0..) |*entry, index| entry.object += index;
+    const encoded = try encodeGuarded(allocator, connection, &objects, "bounded values");
+    try validatePayload(allocator, connection, guarded_bit | 1, encoded);
 }

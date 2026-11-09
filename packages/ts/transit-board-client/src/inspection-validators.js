@@ -2025,7 +2025,7 @@ validate292.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema27 = {"anyOf":[{"$ref":"https://transit.invalid/generated-validator/66"},{"type":"null"}]};
 const schema28 = {"type":"object","additionalProperties":false,"properties":{"version":{"const":1},"definition":{"$ref":"https://transit.invalid/generated-validator/32"},"code":{"type":"string","maxLength":96},"category":{"$ref":"https://transit.invalid/generated-validator/33"},"stage":{"$ref":"https://transit.invalid/generated-validator/34"},"outcome":{"$ref":"https://transit.invalid/generated-validator/35"},"evidence":{"$ref":"https://transit.invalid/generated-validator/36"},"message":{"type":"string","maxLength":384},"cause":{"$ref":"https://transit.invalid/generated-validator/37"},"identity":{"$ref":"https://transit.invalid/generated-validator/42"},"location":{"$ref":"https://transit.invalid/generated-validator/46"},"facts":{"$ref":"https://transit.invalid/generated-validator/61"},"actions":{"$ref":"https://transit.invalid/generated-validator/65"}},"required":["version","definition","code","category","stage","outcome","evidence","message","cause","identity","location","facts","actions"]};
-const schema21 = {"type":"string","enum":["68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747"]};
+const schema21 = {"type":"string","enum":["b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98"]};
 
 function validate54(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -2041,7 +2041,7 @@ if(typeof data !== "string"){
 validate54.errors = [{}];
 return false;
 }
-if(!(data === "68ca1b84fc6bd2402f816d6d1faa141624e722be76c1c8c24ff5597c3e536747")){
+if(!(data === "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98")){
 validate54.errors = [{}];
 return false;
 }
