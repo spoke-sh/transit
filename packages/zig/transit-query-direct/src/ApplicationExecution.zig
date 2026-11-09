@@ -35,6 +35,7 @@ pub const Context = struct {
     /// The control read is current even while data helpers use a private cut.
     /// This is an observation, never a dispatch permit or retained authority.
     pub fn requireCurrent(self: Context) !void {
+        if (self.client.connection.role != self.work.executor_role) return error.DataflowLeaseFenced;
         const lease = self.client.lease orelse return error.DataflowLeaseFenced;
         try lease.validate(self.client.connection);
         if (!std.meta.eql(lease.key, self.invocation) and
@@ -537,13 +538,14 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
 /// transaction without consulting a participant that may already be prepared.
 /// Every new data instruction still requires current declaration authority.
 pub fn tick(self: Self, value: M.Declaration, progress: T.Progress, original: I.Work) !T.Progress {
+    try original.requireOrigin(self.owner.manager.client.allocator, progress);
     try value.validate(self.owner.manager.client.allocator);
     try original.validate(value, self.owner.manager.client.allocator);
     try progress.receipt.binding.key.requireSame(self.owner.key(value, original.lease.epoch, "transit.application.invocation.v1\x00"));
     if (!std.meta.eql(original.lease.owner, self.owner.manager.operation(value, "worker", original.lease.epoch)) or
         !std.meta.eql(original.claim.operation, self.owner.manager.operation(value, "queue-claim", original.lease.epoch))) return error.DataflowIdentityConflict;
     var executor_identity = self.owner.manager.client;
-    executor_identity.connection.role = value.executor_role;
+    executor_identity.connection.role = original.executor_role;
     if (original.execution.transaction) |transaction| try transaction.key.requireSame(self.beginKey(executor_identity, value, original, transaction.step, transaction.kind));
     if (original.execution.phase == .complete) return self.closeOriginal(progress);
     if (!progress.pending or progress.original == null or progress.original.?.phase != .attached) return error.InvalidDirectRecord;
@@ -558,7 +560,7 @@ pub fn tick(self: Self, value: M.Declaration, progress: T.Progress, original: I.
     }
     if (work.phase != .ready and work.execution.phase == .evaluate) return self.owner.acquire(value, progress, work) catch |err| self.refuse(value, progress, work, err);
     var client = self.owner.manager.client;
-    client.connection.role = value.executor_role;
+    client.connection.role = work.executor_role;
     switch (work.execution.phase) {
         .abort, .closing, .release, .detach => {},
         .settle => client.lease = try T.Lease.combine(client.lease, .{ .key = progress.receipt.binding.key, .revision = progress.revision }),
@@ -619,7 +621,7 @@ fn advance(self: Self, client: c.DirectTableClient, value: M.Declaration, work: 
         .evaluate, .fail => return self.evaluate(client, value, work),
         .begin => {
             const transaction = work.execution.transaction.?;
-            const request = try Native.prepareBegin(client.allocator, value, work.claim, transaction.key, self.operation(value, work.*, transaction.step, "begin"));
+            const request = try Native.prepareBegin(client.allocator, value, work.executor_role, work.claim, transaction.key, self.operation(value, work.*, transaction.step, "begin"));
             defer client.allocator.free(request.selection.explicit_objects);
             _ = try tx.begin(request);
             work.execution.phase = .acquire;
@@ -745,7 +747,7 @@ fn checkpoint(self: Self, client: c.DirectTableClient, value: M.Declaration, wor
     defer parsed.deinit();
     var head = parsed.value;
     try head.validate();
-    if (!std.mem.eql(u8, &head.declaration, &try value.digest(client.allocator)) or head.executor_role != value.executor_role or head.pending == null) return error.DataflowLeaseFenced;
+    if (!std.mem.eql(u8, &head.declaration, &try value.digest(client.allocator)) or head.executor_role != work.executor_role or head.pending == null) return error.DataflowLeaseFenced;
     try work.lease.requireCurrent(try value.interpretation(client.allocator), head.control, head.attempt);
     try head.pending.?.requireSame(self.owner.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"));
     head.checkpoint = work.execution.checkpoint;

@@ -14,15 +14,17 @@ const Tx = c.DirectTransactionClient;
 /// Queue consumption uses its original partition; partitioned append targets
 /// include every possible destination because their keys may depend on reads.
 /// The caller supplies reviewed native limits and retains the returned Begin.
-pub fn prepareBegin(output: std.mem.Allocator, value: q.ApplicationDeclaration, claim: p.StreamQueue.Claim, key: T.Key, operation: d.Operation) !c.DirectTransactionRequest.Begin {
+pub fn prepareBegin(output: std.mem.Allocator, value: q.ApplicationDeclaration, executor_role: u64, claim: p.StreamQueue.Claim, key: T.Key, operation: d.Operation) !c.DirectTransactionRequest.Begin {
     try value.validate(output);
+    try p.Authorization.roleId(executor_role);
+    if (executor_role == 0) return error.InvalidAuthorizationRole;
     try claim.validate();
     const limits = value.limits.transaction;
     try limits.validate();
     var bound = try value.bind(output);
     defer bound.deinit();
     var connection = value.connection;
-    connection.role = value.executor_role;
+    connection.role = executor_role;
     if (!std.meta.eql(claim, try value.inputClaim(output, claim.target.partition, claim.operation)) or
         !std.meta.eql(key.connection, connection)) return error.DataflowIdentityConflict;
     var count: u64 = 1; // The control KV publishes the continuation.
@@ -187,7 +189,6 @@ test "application transactions select exact mixed owners and bound partition exp
     bindings[4] = .{ .value = .{ .sink = .{ .stored = try sink.stored(t.allocator), .profile = sink.payload.sink } } };
     const declared = try q.ApplicationDeclaration.prepare(t.allocator, .{
         .connection = connection,
-        .executor_role = 6,
         .namespace = 1,
         .object = 11,
         .operation = 2000,
@@ -213,7 +214,7 @@ test "application transactions select exact mixed owners and bound partition exp
     var limits = c.DirectTransaction.default_limits;
     limits.participants = 7;
     value.limits.transaction = limits;
-    const begin = try prepareBegin(allocator, value, claim, key, operation);
+    const begin = try prepareBegin(allocator, value, 6, claim, key, operation);
     const expected = [_]x.Target{
         .{ .object = object(7), .kind = .queue, .partition = 1 },
         .{ .object = object(8), .kind = .kv, .partition = null },
@@ -235,8 +236,8 @@ test "application transactions select exact mixed owners and bound partition exp
     try t.expect(dispatch);
     try t.expectEqual(.serializable, begin.mode);
     value.limits.transaction.participants = 6;
-    try t.expectError(error.TransactionCapacity, prepareBegin(allocator, value, claim, key, operation));
+    try t.expectError(error.TransactionCapacity, prepareBegin(allocator, value, 6, claim, key, operation));
     var foreign = key;
     foreign.connection.role = 8;
-    try t.expectError(error.DataflowIdentityConflict, prepareBegin(allocator, value, claim, foreign, operation));
+    try t.expectError(error.DataflowIdentityConflict, prepareBegin(allocator, value, 6, claim, foreign, operation));
 }

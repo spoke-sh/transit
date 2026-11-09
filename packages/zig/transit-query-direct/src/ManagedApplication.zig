@@ -31,7 +31,10 @@ pub const Head = struct {
     pub fn validate(self: Head) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.control.validate();
-        if (self.executor_role) |role| try p.Authorization.roleId(role);
+        if (self.executor_role) |role| {
+            try p.Authorization.roleId(role);
+            if (role == 0) return error.InvalidAuthorizationRole;
+        }
         if ((self.control.state == .published and self.executor_role != null) or
             ((self.control.state == .authorized or self.control.state == .active or self.control.state == .suspended) and self.executor_role == null) or
             (self.retirement_complete and (self.control.state != .retired or self.pending != null)) or
@@ -174,16 +177,21 @@ pub fn inspect(self: Self, value: Declaration) !Observation {
     try self.requireCaller(value);
     return readHead(self.client, value);
 }
-/// Native helpers observe the same control owner through the declared executor
+/// Native helpers observe the same control owner through the authorized executor
 /// role. This does not mint an executor identity or bypass any read grant.
 pub fn inspectExecutor(client: c.DirectTableClient, value: Declaration) !Observation {
     try requireExecutor(client, value);
-    return readHead(client, value);
+    const observed = try readHead(client, value);
+    if (observed.head.executor_role != client.connection.role) return error.DataflowLeaseFenced;
+    return observed;
 }
 fn requireExecutor(client: c.DirectTableClient, value: Declaration) !void {
     try value.validate(client.allocator);
+    const role = client.connection.role orelse return error.InvalidAuthorizationRole;
+    try p.Authorization.roleId(role);
+    if (role == 0) return error.InvalidAuthorizationRole;
     var expected = value.connection;
-    expected.role = value.executor_role;
+    expected.role = role;
     if (!std.meta.eql(client.connection, expected) or client.transaction != null) return error.DataflowIdentityConflict;
 }
 fn readHead(client: c.DirectTableClient, value: Declaration) !Observation {
@@ -195,8 +203,7 @@ fn readHead(client: c.DirectTableClient, value: Declaration) !Observation {
     const parsed = try p.Json.parseFromSlice(Head, client.allocator, cell.value.atom.bytes);
     defer parsed.deinit();
     try parsed.value.validate();
-    if (!std.mem.eql(u8, &parsed.value.declaration, &try value.digest(client.allocator)) or
-        (parsed.value.executor_role != null and parsed.value.executor_role.? != value.executor_role)) return error.DataflowIdentityConflict;
+    if (!std.mem.eql(u8, &parsed.value.declaration, &try value.digest(client.allocator))) return error.DataflowIdentityConflict;
     return .{ .head = parsed.value, .storage = read.interpretation.interpretation, .position = read.position };
 }
 pub fn mutation(_: Self, arena: *std.heap.ArenaAllocator, value: Declaration, storage: d.Definition, position: ?d.Position, head: Head, identity: d.Operation, expect: @FieldType(@FieldType(c.storage.KVPartition.Change, "put"), "expect")) !c.DirectKV.Mutation {
@@ -206,8 +213,9 @@ pub fn mutation(_: Self, arena: *std.heap.ArenaAllocator, value: Declaration, st
 }
 pub fn executor(self: Self, value: Declaration, observed: Observation) !c.DirectTableClient {
     const role = observed.head.executor_role orelse return error.InvalidDataflowTransition;
-    if (role != value.executor_role) return error.DataflowIdentityConflict;
-    try p.Authorization.roleId(role);
+    try value.validate(self.client.allocator);
+    try observed.head.validate();
+    if (!std.mem.eql(u8, &observed.head.declaration, &try value.digest(self.client.allocator))) return error.DataflowIdentityConflict;
     var result = self.client;
     result.connection.role = role;
     return result;
@@ -217,7 +225,7 @@ pub fn requireDependencies(self: Self, value: Declaration, observed: Observation
 }
 pub fn requireExecutorDependencies(client: c.DirectTableClient, value: Declaration, observed: Observation) !void {
     try requireExecutor(client, value);
-    if (observed.head.executor_role != value.executor_role) return error.DataflowIdentityConflict;
+    if (observed.head.executor_role != client.connection.role) return error.DataflowLeaseFenced;
     var bound = try value.bind(client.allocator);
     defer bound.deinit();
     var checks: [Declaration.max_resources + 1]c.DirectTableProtocol.ReadCheck = undefined;
@@ -252,8 +260,8 @@ pub fn prepareControl(self: Self, value: Declaration, attempt: flow.ControlAttem
     next.head.control = try next.head.control.apply(attempt.command);
     if (attempt.command == .authorize) {
         next.head.executor_role = role orelse return error.InvalidDataflowTransition;
-        if (next.head.executor_role.? != value.executor_role) return error.DataflowIdentityConflict;
         try p.Authorization.roleId(next.head.executor_role.?);
+        if (next.head.executor_role.? == 0) return error.InvalidAuthorizationRole;
     } else if (role != null) return error.InvalidDataflowTransition;
     switch (attempt.command) {
         .authorize, .activate, .resume_computation => try self.requireDependencies(value, next),
@@ -287,7 +295,7 @@ pub fn applyControl(self: Self, saved: []const u8) !c.storage.TablePartition.Evi
         const progress = try c.DirectClientToken.inspect(self.client, key) orelse return error.ClientOperationMissing;
         if (progress.pending and !progress.cancel) {
             const owner: q.ApplicationInvocation = .{ .manager = self };
-            const work = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+            const work = try owner.load(progress);
             defer work.deinit();
             const declared = try self.load(work.value.declaration);
             defer declared.deinit();
@@ -343,6 +351,8 @@ test "managed application control requires explicit executor and preserves pendi
     var changed = initial;
     changed.control = try initial.control.apply(.authorize);
     try t.expectError(error.InvalidDataflowControl, changed.validate());
+    changed.executor_role = 0;
+    try t.expectError(error.InvalidAuthorizationRole, changed.validate());
     changed.executor_role = 7;
     try changed.validate();
     changed.control = try changed.control.apply(.activate);
@@ -357,9 +367,9 @@ test "managed application control requires explicit executor and preserves pendi
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = undefined, .service = undefined, .connection = undefined, .key = undefined };
     const manager: Self = .{ .client = client };
     const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = null };
-    const invalid: Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
+    const invalid: Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
     try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
     try t.expectError(error.InvalidQueryBudget, manager.prepareControl(invalid, undefined, null));
     try t.expectError(error.InvalidDataflowTransition, manager.executor(invalid, .{ .head = initial, .storage = undefined, .position = undefined }));
-    try t.expectError(error.DataflowIdentityConflict, manager.executor(invalid, .{ .head = changed, .storage = undefined, .position = undefined }));
+    try t.expectError(error.InvalidQueryBudget, manager.executor(invalid, .{ .head = changed, .storage = undefined, .position = undefined }));
 }

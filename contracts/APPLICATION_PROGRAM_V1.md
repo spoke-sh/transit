@@ -28,7 +28,7 @@ does not establish that a SQL service can install or run a program.
 ## Definition and compilation
 
 A definition has a scoped catalog identity, immutable source digest, exact
-resource definitions, executor principal/role, input Queue and acquisition
+resource definitions, publication connection, input Queue and acquisition
 predicate, budgets and native contract definition. Node identities belong to
 that frozen definition. A later declaration cannot reinterpret an accepted
 invocation or its continuation.
@@ -63,16 +63,23 @@ registered read/write dependency too; an executor cannot become ready with only
 metadata access to its checkpoint. Metadata inspection alone
 does not establish readiness, and successful checks confer no future authority.
 
-The declaration freezes the executor role before publication. Authorization names
-that same role explicitly; activation and resume recheck it through native policy.
+Publication does not select an executor role. Authorization explicitly selects a
+nonzero role in the control head without changing the immutable definition;
+activation and resume recheck its rights through native policy. Each original
+invocation retains that selected role. Its input, transaction and effect keys use
+the retained role, and current execution checks it against the authorized head.
+Recovery and cleanup never substitute another role or infer a missing role from
+current control. The permanent original token fingerprint commits the definition,
+declaration reference, selected role, computation lease and input claim. Loading,
+advancing or executing progress checks that commitment, including after the
+original payload closes. Missing or changed persisted origin evidence is rejected.
 Saved control mutations preserve original operation identity and fence the control
 row's observed position. Suspend and retire first cancel the exact pending work
 token saved in the control request. Native data calls combine its progress fence
 with the service generation fence, so replacing either record excludes delayed
 calls before native admission. A failed control-row CAS may leave that original
 invocation cancelled; retrying the saved control never cancels a newer invocation.
-A control row cannot select a different role from the
-immutable declaration. Service discovery schedules these typed declarations;
+Service discovery schedules these typed declarations;
 publication and activation alone do not prove an invocation has completed.
 
 Input acquisition attaches an immutable work record before its original claim.
@@ -250,7 +257,7 @@ evaluation and are invalid after it returns. A host must not reuse a prior
 client fence or substitute a checkpoint's payload for original input provenance.
 The binding's `requireCurrent` operation checks the original invocation fence,
 active head/pending key and all registered dependency privileges through the
-declared executor role. Control observations use current committed state while
+original authorized executor role. Control observations use current committed state while
 data helpers retain the original private transaction cut. A mandatory release
 callback runs once after every successful bind, including evaluation or
 retention failure. Failed binds clean up their own partial borrows. These checks

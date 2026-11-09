@@ -23,7 +23,7 @@ pub fn step(manager: M, token: T.Key, host: Host) !Result {
     if (original.phase == .closed) return .complete;
     if (original.phase == .reserved) return error.OwnedRecordPending;
     const owner: I = .{ .manager = manager };
-    const loaded = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+    const loaded = try owner.load(progress);
     defer loaded.deinit();
     const declared = try manager.load(loaded.value.declaration);
     defer declared.deinit();

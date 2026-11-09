@@ -30,11 +30,18 @@ connection dependency. Binding requires inspection for retained continuation
 disclosure and separate dispatch use. Both remain current native requirements; sinks
 are excluded from common data transaction participants. A retained sink binding
 does not grant dispatch permission or establish a current activation state.
-`ApplicationDeclaration` retains the typed instruction tree, exact dependencies,
-executor role and per-invocation budgets. `ManagedApplication` publishes that
+`ApplicationDeclaration` retains the typed instruction tree, publication connection,
+exact dependencies and per-invocation budgets. `ManagedApplication` publishes that
 definition through owned records and the shared catalog/KV lifecycle. Its saved
 controls separate publication, explicit role authorization and activation;
-readiness rechecks current dependency actions through the native owner. These
+authorization selects a nonzero executor role without changing the definition.
+Every admitted invocation freezes that role, including its transaction, input and
+effect identities. Execution checks it against current control; recovery and
+cleanup use the original role and never substitute a later one. The permanent
+token fingerprint commits the invocation's declaration, role, lease and input
+claim; loading, advancing and executing progress verify it even after original
+payload closure. Readiness
+rechecks current dependency actions through the native owner. These
 typed operations do not yet supply installed SQL execution.
 
 Programs using `SECRET` or `SECRET_CURRENT` must bind the canonical

@@ -28,7 +28,6 @@ pub const Limits = struct {
 };
 definition: p.Growth.Definition,
 connection: c.DirectTableProtocol.Connection,
-executor_role: u64,
 namespace: u64,
 name: c.TableAuthority.Name,
 object: d.Object,
@@ -40,7 +39,6 @@ limits: Limits,
 
 pub const Input = struct {
     connection: c.DirectTableProtocol.Connection,
-    executor_role: u64,
     namespace: u64,
     object: u64,
     operation: u64,
@@ -49,13 +47,13 @@ pub const Input = struct {
     limits: Limits,
 };
 /// Compile once and own the complete native binding. The caller supplies
-/// resolved schemas and the reviewed executor role; this performs no I/O.
+/// resolved schemas; executor selection belongs to authorization. No I/O occurs.
 pub fn prepare(allocator: std.mem.Allocator, input: Input) !std.json.Parsed(Self) {
     var parsed = try a.parse(allocator, input.source, null);
     defer parsed.deinit();
     var source_digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(input.source, &source_digest, .{});
-    const value: Self = .{ .definition = p.Growth.current_definition, .connection = input.connection, .executor_role = input.executor_role, .namespace = input.namespace, .name = try .init(parsed.program.name), .object = .{ .scope = input.connection.scope, .branch = input.connection.branch, .object = input.object }, .operation = .{ .scope = input.connection.scope, .principal = input.connection.principal, .operation = input.operation }, .source_digest = source_digest, .program = parsed.program, .resources = input.resources, .limits = input.limits };
+    const value: Self = .{ .definition = p.Growth.current_definition, .connection = input.connection, .namespace = input.namespace, .name = try .init(parsed.program.name), .object = .{ .scope = input.connection.scope, .branch = input.connection.branch, .object = input.object }, .operation = .{ .scope = input.connection.scope, .principal = input.connection.principal, .operation = input.operation }, .source_digest = source_digest, .program = parsed.program, .resources = input.resources, .limits = input.limits };
     const bytes = try value.encode(allocator);
     defer allocator.free(bytes);
     return decode(allocator, bytes);
@@ -64,8 +62,6 @@ pub fn prepare(allocator: std.mem.Allocator, input: Input) !std.json.Parsed(Self
 pub fn validate(self: Self, allocator: std.mem.Allocator) !void {
     if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try self.connection.validate();
-    try p.Authorization.roleId(self.executor_role);
-    if (self.executor_role == 0) return error.InvalidAuthorizationRole;
     try self.connection.object(self.object);
     try self.connection.owner(self.operation);
     try c.Model.nativeId(self.namespace);
@@ -208,7 +204,6 @@ test "application declarations retain exact typed programs and consume rights wi
     const declaration: Self = .{
         .definition = p.Growth.current_definition,
         .connection = connection,
-        .executor_role = 6,
         .namespace = 1,
         .name = try .init("example"),
         .object = .{ .scope = connection.scope, .branch = 1, .object = 8 },
@@ -222,7 +217,7 @@ test "application declarations retain exact typed programs and consume rights wi
     defer t.allocator.free(bytes);
     const restored = try decode(t.allocator, bytes);
     defer restored.deinit();
-    const compiled = try prepare(t.allocator, .{ .connection = connection, .executor_role = 6, .namespace = 1, .object = 8, .operation = 13, .source = source, .resources = &resources, .limits = declaration.limits });
+    const compiled = try prepare(t.allocator, .{ .connection = connection, .namespace = 1, .object = 8, .operation = 13, .source = source, .resources = &resources, .limits = declaration.limits });
     defer compiled.deinit();
     try t.expectEqualDeep(try declaration.digest(t.allocator), try compiled.value.digest(t.allocator));
     try t.expectEqualDeep(try declaration.interpretation(t.allocator), try restored.value.interpretation(t.allocator));
@@ -238,9 +233,6 @@ test "application declarations retain exact typed programs and consume rights wi
     try t.expectEqual(c.LogAuthority.read | c.LogAuthority.append, try resources[0].privileges(.{ .resource = 0, .write = true }));
     var changed = declaration;
     changed.connection.role = 7;
-    try t.expect(!std.meta.eql(try declaration.digest(t.allocator), try changed.digest(t.allocator)));
-    changed = declaration;
-    changed.executor_role = 7;
     try t.expect(!std.meta.eql(try declaration.digest(t.allocator), try changed.digest(t.allocator)));
     changed = declaration;
     changed.object.object = 7;
@@ -265,7 +257,7 @@ test "application declarations retain exact typed programs and consume rights wi
     try t.expect(secret_bound.uses[1].read and secret_bound.uses[1].guard and !secret_bound.uses[1].write);
     try t.expectEqual(c.KVAuthority.read | c.KVAuthority.use_secret, try secret_binding.privileges(secret_bound.uses[1]));
     const secret_claim = try with_secret.inputClaim(t.allocator, 0, declaration.operation);
-    const begin = try q.ApplicationTransaction.prepareBegin(arena.allocator(), with_secret, secret_claim, .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(3), .token = @splat(5) }, declaration.operation);
+    const begin = try q.ApplicationTransaction.prepareBegin(arena.allocator(), with_secret, 6, secret_claim, .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(3), .token = @splat(5) }, declaration.operation);
     try t.expectEqual(3, begin.selection.explicit_objects.len);
     try t.expectEqualDeep(secret_binding.interpretation().object, begin.selection.explicit_objects[2].object);
 

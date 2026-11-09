@@ -31,7 +31,7 @@ remaining integration below are still required to qualify the consumer.
 Retained program environments and native data-operation adapters now preserve
 instruction identity, lexical scope, exact KV revisions and single-record read
 coverage. Typed application declarations publish through the catalog's owned
-records, with an immutable executor role, native dependency readiness checks and
+records, with explicit control-head role authorization, native dependency readiness checks and
 fenced controls. Input predicates compile to the existing Queue acquisition
 format. These are implementation foundations; they do not yet install the
 complete three-file application.

@@ -519,7 +519,6 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     const value: A.Declaration = .{
         .definition = p.Growth.current_definition,
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .name = try .init("application_example"),
         .object = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 730020 },
@@ -542,6 +541,7 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     try t.expectError(error.DataflowIdentityConflict, manager.publish(conflicting));
     var attempt: p.Dataflow.ControlAttempt = .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 730003 }, .target = try value.interpretation(client.allocator), .expected = original.head.control, .command = .authorize };
     try t.expectError(error.InvalidDataflowTransition, manager.prepareControl(value, attempt, null));
+    try t.expectError(error.InvalidAuthorizationRole, manager.prepareControl(value, attempt, 0));
     const authorized = try manager.prepareControl(value, attempt, role);
     defer client.allocator.free(authorized);
     const accepted = try manager.applyControl(authorized);
@@ -641,7 +641,6 @@ fn applicationEffects(init: std.process.Init, client: c.DirectTableClient, limit
     };
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = 737020,
         .operation = 737002,
@@ -673,13 +672,32 @@ fn applicationEffects(init: std.process.Init, client: c.DirectTableClient, limit
     const token = (try owner.start(value, 0)).?;
     var progress = (try T.inspect(client, token)).?;
     for (0..2) |_| {
-        const work = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+        const work = try owner.load(progress);
         defer work.deinit();
         progress = try owner.acquire(value, progress, work.value);
     }
-    const ready = try owner.load(progress.record.?);
+    const ready = try owner.load(progress);
     defer ready.deinit();
     try t.expectEqual(.ready, ready.value.phase);
+    try t.expectEqual(role, ready.value.executor_role);
+    const work_bytes = try p.Json.valueAlloc(allocator, ready.value);
+    var without_role = try std.json.parseFromSlice(std.json.Value, allocator, work_bytes, .{ .parse_numbers = false });
+    defer without_role.deinit();
+    try t.expect(without_role.value.object.swapRemove("executor_role"));
+    const missing_role = try p.Json.valueAlloc(allocator, without_role.value);
+    try t.expectError(error.MissingField, p.Json.parseFromSliceOwned(q.ApplicationInvocation.Work, allocator, missing_role));
+    var changed_role = ready.value;
+    changed_role.executor_role += 1;
+    try t.expectError(error.DataflowIdentityConflict, owner.executor(value, progress, changed_role));
+    try t.expectError(error.DataflowIdentityConflict, owner.advance(value, progress, changed_role));
+    var changed_lease = ready.value;
+    changed_lease.lease.epoch += 1;
+    try t.expectError(error.DataflowIdentityConflict, owner.executor(value, progress, changed_lease));
+    try t.expectError(error.DataflowIdentityConflict, owner.advance(value, progress, changed_lease));
+    try t.expectEqualDeep(progress, (try T.inspect(client, token)).?);
+    var changed_origin = progress;
+    changed_origin.receipt.binding.fingerprint[0] ^= 1;
+    try t.expectError(error.DataflowIdentityConflict, owner.load(changed_origin));
     const executor = try owner.executor(value, progress, ready.value);
     const input = try owner.loadInput(executor, value, ready.value, ready.value.environment.?);
     defer input.deinit();
@@ -787,7 +805,6 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
     const I = q.ApplicationInvocation;
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = 735020,
         .operation = 735002,
@@ -815,6 +832,7 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
     const publication = (try T.inspect(client, manager.nameKey(value.namespace, value.name))).?;
     const work: I.Work = .{
         .definition = p.Growth.current_definition,
+        .executor_role = role,
         .declaration = publication.receipt.binding.intent.external.record,
         .lease = .{ .target = try value.interpretation(client.allocator), .control = head.control, .owner = manager.operation(value, "worker", 1), .epoch = 1 },
         .attachment = try manager.mutation(&arena, value, observed.storage, observed.position, head, manager.operation(value, "claim", 1), .present),
@@ -826,8 +844,7 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
         .execution = .initial(),
     };
     const bytes = try p.Json.valueAllocBounded(arena.allocator(), work, 64 * 1024);
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    const digest = try work.originDigest(client.allocator);
     _ = try c.DirectOwnedRecord.stage(client, token, 1, work.lease.owner.operation, digest, .{ .bytes = 128 * 1024 }, I.work_format, bytes);
     // A control publication defeats the frozen attachment before it can claim
     // input. Recovery must close the serialized original, with no fresh CAS.
@@ -860,7 +877,6 @@ fn applicationScheduled(init: std.process.Init, client: c.DirectTableClient, pub
     const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?) };
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = 734020,
         .operation = 734002,
@@ -957,7 +973,7 @@ fn applicationScheduled(init: std.process.Init, client: c.DirectTableClient, pub
     for (0..256) |_| {
         _ = try first.tick();
         const progress = (try T.inspect(client, token)).?;
-        const work = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+        const work = try owner.load(progress);
         defer work.deinit();
         if (work.value.execution.phase == .execute) {
             acquired = true;
@@ -1049,7 +1065,6 @@ fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedAppli
     const T = c.DirectClientToken;
     const declaration = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = 732020,
         .operation = 732001,
@@ -1071,7 +1086,7 @@ fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedAppli
     const token = (try owner.start(value, 0)).?;
     try t.expectEqualDeep(token, (try owner.start(value, 0)).?);
     var progress = (try T.inspect(client, token)).?;
-    const initial = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+    const initial = try owner.load(progress);
     defer initial.deinit();
     try t.expectEqualDeep(progress, try owner.acquire(value, progress, initial.value));
     var output: std.heap.ArenaAllocator = .init(client.allocator);
@@ -1083,12 +1098,12 @@ fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedAppli
     const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
     _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } });
     progress = try owner.acquire(value, progress, initial.value);
-    const claimed = try owner.load(progress.record.?);
+    const claimed = try owner.load(progress);
     defer claimed.deinit();
     try t.expectEqual(.reading, claimed.value.phase);
     try t.expect(claimed.value.environment == null);
     progress = try owner.acquire(value, progress, claimed.value);
-    const ready = try owner.load(progress.record.?);
+    const ready = try owner.load(progress);
     defer ready.deinit();
     try t.expectEqual(.ready, ready.value.phase);
     const executor = try owner.executor(value, progress, ready.value);
@@ -1104,7 +1119,7 @@ fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedAppli
     _ = try admin.change(.{ .grant = .{ .object = authority, .grantee = role, .privileges = c.LogAuthority.inspect } });
     _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = 0 } });
     try t.expectError(error.AccessDenied, owner.loadInput(executor, value, ready.value, ready.value.environment.?));
-    const safe = try owner.load(progress.record.?);
+    const safe = try owner.load(progress);
     safe.deinit();
     _ = try admin.change(.{ .transfer_object = .{ .object = authority, .owner = role } });
     observed = try manager.inspect(value);
@@ -1134,7 +1149,7 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
     var host: ApplicationHost = .{};
     for (0..16) |_| {
         const progress = (try T.inspect(client, token)).?;
-        const saved = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+        const saved = try owner.load(progress);
         defer saved.deinit();
         // Input ownership remains attached until its read has been released.
         if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
@@ -1142,8 +1157,10 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
         const next = try runner.tick(value, progress, saved.value);
         if (!next.pending) {
             try t.expectEqual(.closed, next.original.?.phase);
-            const final = try owner.load(next.record.?);
+            const final = try owner.load(next);
             defer final.deinit();
+            try t.expectEqual(saved.value.executor_role, final.value.executor_role);
+            try t.expectEqualDeep(next.receipt.binding.fingerprint, try final.value.originDigest(client.allocator));
             try t.expectEqual(.complete, final.value.execution.phase);
             try t.expect(final.value.execution.cancelled);
             try t.expect(!final.value.execution.acknowledged);
@@ -1164,7 +1181,6 @@ fn applicationCancelAcquisition(client: c.DirectTableClient, published: q.Manage
     const operation: u64 = if (claimed) 732200 else 732100;
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = operation + 20,
         .operation = operation,
@@ -1194,11 +1210,11 @@ fn applicationCancelAcquisition(client: c.DirectTableClient, published: q.Manage
     }
     const token = (try owner.start(value, 0)).?;
     const progress = (try c.DirectClientToken.inspect(client, token)).?;
-    const initial = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+    const initial = try owner.load(progress);
     defer initial.deinit();
     const acquired = try owner.acquire(value, progress, initial.value);
     if (claimed) {
-        const saved = try owner.load(acquired.record.?);
+        const saved = try owner.load(acquired);
         defer saved.deinit();
         try t.expectEqual(.reading, saved.value.phase);
         try t.expect(saved.value.environment == null);
@@ -1253,6 +1269,9 @@ const ApplicationHost = struct {
         try scope.requireCurrent();
         var invalid = scope;
         invalid.client.lease = null;
+        try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
+        invalid = scope;
+        invalid.work.executor_role += 1;
         try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
         invalid = scope;
         invalid.invocation.token[0] ^= 1;
@@ -1365,7 +1384,6 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } }, policy_binding };
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .executor_role = role,
         .namespace = 1,
         .object = 733020,
         .operation = 733002,
@@ -1438,7 +1456,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
             // A fresh owner and decoded progress on every iteration must resume
             // the same instruction/native operation, with no host cursor cache.
             const progress = (try T.inspect(client, token)).?;
-            const saved = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+            const saved = try owner.load(progress);
             defer saved.deinit();
             const execution = saved.value.execution;
             errdefer std.debug.print("Application input {d}, phase {s}, transaction {s}\n", .{ id, @tagName(execution.phase), if (execution.transaction) |transaction| @tagName(transaction.kind) else "none" });
@@ -1478,7 +1496,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                 const next = (try T.inspect(client, token)).?;
                 try t.expect(!next.pending);
                 try t.expectEqual(.closed, next.original.?.phase);
-                const final = try owner.load(next.record.?);
+                const final = try owner.load(next);
                 defer final.deinit();
                 try t.expectEqual(.complete, final.value.execution.phase);
                 try t.expect(final.value.execution.acknowledged);

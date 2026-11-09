@@ -27396,7 +27396,6 @@
         "DuplicateProgramNativeBinding": 1,
         "DuplicateProgramResource": 1,
         "IncompatibleDefinition": 1,
-        "InvalidAuthorizationRole": 1,
         "InvalidProgramNode": 1,
         "InvalidQueryBudget": 1,
         "MissingProgramNativeBinding": 1,
@@ -27419,7 +27418,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 36,
+        "try": 35,
         "catch": 0
       },
       "imports": [
@@ -27506,7 +27505,7 @@
         "ApplicationReservationExpired": 1,
         "ApplicationReservationLost": 1,
         "DataflowIdentityConflict": 1,
-        "DataflowLeaseFenced": 5,
+        "DataflowLeaseFenced": 6,
         "DataflowSourceChanged": 1,
         "DuplicateBrowserParameter": 1,
         "DuplicateOrEmptyCookie": 1,
@@ -27627,7 +27626,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 142,
+        "try": 143,
         "catch": 5
       },
       "imports": [
@@ -27671,10 +27670,12 @@
       "errors": {
         "ClientOperationMissing": 1,
         "Conflict": 1,
-        "DataflowIdentityConflict": 1,
-        "DataflowLeaseFenced": 2,
+        "DataflowIdentityConflict": 2,
+        "DataflowLeaseFenced": 3,
         "IncompatibleDefinition": 2,
-        "InvalidDirectRecord": 27,
+        "InvalidAuthorizationRole": 1,
+        "InvalidDataflowTransition": 1,
+        "InvalidDirectRecord": 29,
         "InvalidProgramNode": 1,
         "InvalidQueueResponse": 3,
         "OwnedRecordAttached": 1,
@@ -27696,6 +27697,8 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Work.originDigest()": "<inferred>",
+        "Work.requireOrigin()": "<inferred>",
         "Work.validate()": "<inferred>",
         "acquire()": "<inferred>",
         "advance()": "<inferred>",
@@ -27709,7 +27712,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 91,
+        "try": 109,
         "catch": 3
       },
       "imports": [
@@ -27748,6 +27751,7 @@
     "packages/zig/transit-query-direct/src/ApplicationTransaction.zig": {
       "errors": {
         "DataflowIdentityConflict": 1,
+        "InvalidAuthorizationRole": 1,
         "InvalidTableResponse": 1,
         "InvalidTransactionRead": 2,
         "ProgramResourceKindMismatch": 1,
@@ -27768,7 +27772,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 16,
+        "try": 17,
         "catch": 0
       },
       "imports": [
@@ -28039,10 +28043,11 @@
     "packages/zig/transit-query-direct/src/ManagedApplication.zig": {
       "errors": {
         "ClientOperationMissing": 2,
-        "DataflowIdentityConflict": 12,
-        "DataflowLeaseFenced": 1,
+        "DataflowIdentityConflict": 10,
+        "DataflowLeaseFenced": 3,
         "DataflowSourceChanged": 1,
         "IncompatibleDefinition": 2,
+        "InvalidAuthorizationRole": 4,
         "InvalidDataflowControl": 3,
         "InvalidDataflowTransition": 4,
         "InvalidDirectRecord": 7,
@@ -28076,7 +28081,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 81,
+        "try": 85,
         "catch": 0
       },
       "imports": [

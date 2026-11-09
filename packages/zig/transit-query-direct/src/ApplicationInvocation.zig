@@ -26,6 +26,9 @@ pub const Input = struct {
 pub const Work = struct {
     definition: p.Growth.Definition,
     declaration: R.Reference,
+    /// Frozen from the authorized control head when this original is admitted.
+    /// Recovery and cleanup never select a replacement role from mutable state.
+    executor_role: u64,
     lease: p.Dataflow.Lease,
     attachment: ?c.DirectKV.Mutation,
     claim: p.StreamQueue.Claim,
@@ -34,14 +37,37 @@ pub const Work = struct {
     environment: ?R.Reference,
     phase: enum { claiming, reading, ready },
     execution: q.ApplicationExecution.State,
+    /// The permanent token fingerprint commits the invocation's authority and
+    /// input identity independently of removable original/progress payloads.
+    pub fn originDigest(self: Work, allocator: std.mem.Allocator) ![32]u8 {
+        const bytes = try p.Json.valueAllocBounded(allocator, .{
+            .definition = self.definition,
+            .declaration = self.declaration,
+            .executor_role = self.executor_role,
+            .lease = self.lease,
+            .claim = self.claim,
+        }, 32 * 1024);
+        defer allocator.free(bytes);
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.application.invocation.origin.v1\x00");
+        hash.update(bytes);
+        return hash.finalResult();
+    }
+    pub fn requireOrigin(self: Work, allocator: std.mem.Allocator, progress: T.Progress) !void {
+        try progress.validate();
+        if (progress.original == null or progress.receipt.binding.intent != .external) return error.InvalidDirectRecord;
+        if (!std.mem.eql(u8, &try self.originDigest(allocator), &progress.receipt.binding.fingerprint)) return error.DataflowIdentityConflict;
+    }
     pub fn validate(self: Work, value: M.Declaration, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try p.Authorization.roleId(self.executor_role);
+        if (self.executor_role == 0) return error.InvalidAuthorizationRole;
         try self.execution.validate();
         if (self.execution.retained_bytes > value.limits.retained_bytes) return error.InvalidDirectRecord;
         if (self.execution.transaction) |transaction| {
             if (transaction.step > @as(u32, value.program.nodes) * 3 or transaction.sequence > value.limits.transaction.statements) return error.InvalidDirectRecord;
             var connection = value.connection;
-            connection.role = value.executor_role;
+            connection.role = self.executor_role;
             if (!std.meta.eql(transaction.key.connection, connection)) return error.InvalidDirectRecord;
         }
         if (self.phase != .ready and !std.meta.eql(self.execution, q.ApplicationExecution.State.initial())) {
@@ -73,7 +99,7 @@ pub const Work = struct {
         }
         if (self.environment) |reference| {
             try reference.validate();
-            if (reference.format != c.DirectOwnedRecord.format or reference.scope.connection.role != value.executor_role or
+            if (reference.format != c.DirectOwnedRecord.format or reference.scope.connection.role != self.executor_role or
                 reference.scope.connection.principal != value.connection.principal or
                 !std.meta.eql(reference.scope.connection.scope, value.connection.scope) or
                 reference.scope.connection.branch != value.connection.branch or
@@ -105,8 +131,11 @@ fn inputKey(self: Self, value: M.Declaration, epoch: u64, connection: c.DirectTa
     return token;
 }
 
-pub fn load(self: Self, reference: R.Reference) !std.json.Parsed(Work) {
+pub fn load(self: Self, progress: T.Progress) !std.json.Parsed(Work) {
     const client = self.manager.client;
+    try progress.validate();
+    if (progress.original == null or progress.receipt.binding.intent != .external) return error.InvalidDirectRecord;
+    const reference = progress.record orelse progress.receipt.binding.intent.external.record;
     if (!std.meta.eql(reference.scope.connection, client.connection)) return error.InvalidDirectRecord;
     const bytes = try R.read(client.allocator, client, reference);
     defer client.allocator.free(bytes);
@@ -115,6 +144,8 @@ pub fn load(self: Self, reference: R.Reference) !std.json.Parsed(Work) {
             const parsed = try p.Json.parseFromSlice(c.DirectOwnedRecord.Envelope, client.allocator, bytes);
             defer parsed.deinit();
             try parsed.value.validate(reference);
+            try reference.requireSame(progress.receipt.binding.intent.external.record);
+            try parsed.value.key.requireSame(progress.receipt.binding.key);
             if (parsed.value.format != work_format) return error.InvalidDirectRecord;
             break :blk try parsed.value.bytes.decode(client.allocator, R.max_bytes);
         },
@@ -122,6 +153,7 @@ pub fn load(self: Self, reference: R.Reference) !std.json.Parsed(Work) {
             const parsed = try p.Json.parseFromSlice(c.DirectProgressRecord.Envelope, client.allocator, bytes);
             defer parsed.deinit();
             try parsed.value.validate(reference);
+            try parsed.value.advance.key.requireSame(progress.receipt.binding.key);
             if (parsed.value.advance.format != work_format) return error.InvalidDirectRecord;
             break :blk try parsed.value.advance.bytes.decode(client.allocator, R.max_bytes);
         },
@@ -130,7 +162,10 @@ pub fn load(self: Self, reference: R.Reference) !std.json.Parsed(Work) {
     defer client.allocator.free(binary);
     if (binary.len > 64 * 1024) return error.InvalidDirectRecord;
     try a.Codec.validateEncoding(binary);
-    return p.Json.parseFromSliceOwned(Work, client.allocator, binary);
+    const parsed = try p.Json.parseFromSliceOwned(Work, client.allocator, binary);
+    errdefer parsed.deinit();
+    try parsed.value.requireOrigin(client.allocator, progress);
+    return parsed;
 }
 
 /// Attach the immutable work before any Queue action. The caller supplies the
@@ -158,7 +193,7 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
             return null;
         }
         if (original.phase != .reserved) {
-            const saved = try self.load(progress.record orelse progress.receipt.binding.intent.external.record);
+            const saved = try self.load(progress);
             defer saved.deinit();
             try saved.value.validate(value, m.client.allocator);
             if (original.phase != .attached and try self.resumeAttachment(value, progress, saved.value) == null) return null;
@@ -172,6 +207,7 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
     const work: Work = .{
         .definition = p.Growth.current_definition,
         .declaration = publication.receipt.binding.intent.external.record,
+        .executor_role = next.executor_role orelse return error.InvalidDataflowTransition,
         .lease = .{ .target = try value.interpretation(m.client.allocator), .control = next.control, .owner = m.operation(value, "worker", next.attempt), .epoch = next.attempt },
         .attachment = try m.mutation(&scratch, value, observed.storage, observed.position, next, m.operation(value, "claim", next.attempt), .present),
         .claim = try value.inputClaim(m.client.allocator, partition, m.operation(value, "queue-claim", next.attempt)),
@@ -183,20 +219,28 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
     };
     try work.validate(value, m.client.allocator);
     const bytes = try p.Json.valueAllocBounded(scratch.allocator(), work, 64 * 1024);
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    if (known) |progress| if (!std.mem.eql(u8, &progress.receipt.binding.fingerprint, &digest)) {
-        // The initial payload never became ready and a control change defeated
-        // its exact attachment. Close that reservation before selecting again.
-        _ = try c.DirectOwnedRecord.call(m.client, .{ .close_original = .{ .key = token, .expected = progress.revision } });
-        return null;
-    };
+    const digest = try work.originDigest(m.client.allocator);
+    if (known) |progress| {
+        const binary = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), bytes);
+        const encoded = try c.DirectOwnedRecord.encode(scratch.allocator(), token, work_format, binary);
+        const reference = try R.reference(token.scope(), c.DirectOwnedRecord.format, encoded);
+        if (!std.mem.eql(u8, &progress.receipt.binding.fingerprint, &digest) or
+            !std.meta.eql(reference, progress.receipt.binding.intent.external.record))
+        {
+            // The initial payload never became ready and a control change
+            // defeated its exact attachment. The origin fingerprint excludes
+            // that mutable attachment, so compare the full original as well.
+            _ = try c.DirectOwnedRecord.call(m.client, .{ .close_original = .{ .key = token, .expected = progress.revision } });
+            return null;
+        }
+    }
     const progress = try c.DirectOwnedRecord.stage(m.client, token, value.namespace, work.lease.owner.operation, digest, .{ .bytes = 128 * 1024 }, work_format, bytes);
     if (progress.original.?.phase == .closed) return error.OwnedRecordClosed;
     if (try self.resumeAttachment(value, progress, work) == null) return null;
     return token;
 }
 pub fn attach(self: Self, progress: T.Progress, work: Work) !T.Progress {
+    try work.requireOrigin(self.manager.client.allocator, progress);
     return c.DirectOwnedRecord.call(self.manager.client, .{ .attach_original = .{ .key = progress.receipt.binding.key, .expected = progress.revision, .mutation = work.attachment orelse return error.InvalidDirectRecord } });
 }
 
@@ -204,6 +248,7 @@ pub fn attach(self: Self, progress: T.Progress, work: Work) !T.Progress {
 /// whether the exact head mutation already committed and fences late retries.
 /// An uncertain response or an authorization failure is not a defeated CAS.
 pub fn resumeAttachment(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !?T.Progress {
+    try work.requireOrigin(self.manager.client.allocator, progress);
     try work.validate(value, self.manager.client.allocator);
     try progress.receipt.binding.key.requireSame(self.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"));
     const original = progress.original orelse return error.InvalidDirectRecord;
@@ -226,6 +271,7 @@ pub fn resumeAttachment(self: Self, value: M.Declaration, progress: T.Progress, 
 }
 
 pub fn advance(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !T.Progress {
+    try work.requireOrigin(self.manager.client.allocator, progress);
     try work.validate(value, self.manager.client.allocator);
     const bytes = try p.Json.valueAllocBounded(self.manager.client.allocator, work, 64 * 1024);
     defer self.manager.client.allocator.free(bytes);
@@ -235,10 +281,12 @@ pub fn advance(self: Self, value: M.Declaration, progress: T.Progress, work: Wor
 }
 
 pub fn executor(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !c.DirectTableClient {
+    try work.requireOrigin(self.manager.client.allocator, progress);
     try progress.receipt.binding.key.requireSame(self.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"));
     if (!std.meta.eql(work.lease.owner, self.manager.operation(value, "worker", work.lease.epoch)) or
         !std.meta.eql(work.claim.operation, self.manager.operation(value, "queue-claim", work.lease.epoch))) return error.DataflowIdentityConflict;
     const observed = try self.manager.inspect(value);
+    if (observed.head.executor_role != work.executor_role) return error.DataflowLeaseFenced;
     try work.lease.requireCurrent(try value.interpretation(self.manager.client.allocator), observed.head.control, observed.head.attempt);
     if (!progress.pending or progress.cancel or observed.head.pending == null or
         !std.meta.eql(observed.head.pending.?, progress.receipt.binding.key) or
@@ -376,7 +424,7 @@ test "application invocation rejects invalid declarations before native acquisit
     const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = null };
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = undefined, .service = undefined, .connection = connection, .key = undefined };
     const owner: Self = .{ .manager = .{ .client = client } };
-    const invalid: M.Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
+    const invalid: M.Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
     try t.expectError(error.InvalidQueryBudget, owner.start(invalid, 0));
     try t.expectError(error.InvalidQueryBudget, owner.acquire(invalid, undefined, undefined));
     try t.expect(!std.meta.eql(owner.key(invalid, 1, "work"), owner.key(invalid, 2, "work")));
