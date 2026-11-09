@@ -54,6 +54,7 @@ fn schema(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, va
 fn encodeDefinition(allocator: std.mem.Allocator, scratch_allocator: std.mem.Allocator, view: *const D.View) !w.Definition {
     return .{
         .interpretation = view.table.root.declared(),
+        .document = view.properties.document,
         .native_binding = view.properties.native_binding,
         .namespace = view.properties.namespace,
         .authorization = view.properties.authorization,

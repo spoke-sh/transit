@@ -744,6 +744,7 @@ fn validateHistorical(connection: Connection, value: Historical) !void {
 }
 
 pub const Definition = struct {
+    document: ?f.DocumentDdl.Policy = null,
     native_binding: ?f.NativeBinding.Kind = null,
     interpretation: c.storage.TableDeclaration.Stored,
     namespace: u64,

@@ -208,6 +208,17 @@ the final lease/retention check uses trusted host time immediately before the
 decision. Ordinary mutation cannot reuse a private operation reservation, while
 read-only operation lookup can disclose its actual receipt after commit.
 
+`DirectDocument.Revision` guards reads of the current SQL versioned row Document
+profile through that profile's existing shared row partition. It binds the exact
+immutable policy, definition and data frontier observed with the read. Its
+`target` method explicitly lowers to the physical `table` participant, and
+`requireWorkspace` compares the observation with a serializable retained cut.
+The coordinator still checks the read participant immediately before the common
+decision. No separate Table copy or Document policy store is created. Policy
+publication shares the immutable definition acceptance; admission, cancellation
+and lost replies cannot publish a different policy. The adapter does not enable
+partitioned tree Document participants or installed application execution.
+
 `DirectStreamResponse` validates exact operation attribution, pinned schemas,
 ordered row identities, byte budgets and finite coverage. Pages carry the
 original source declaration, including after a later ALTER or DROP.

@@ -37,7 +37,7 @@ fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
     defer allocator.free(bytes);
     var decoded = try c.fuze.TableSchema.decode(allocator, bytes);
     defer decoded.deinit();
-    const properties: c.DirectCatalog.Properties = .{ .native_binding = value.native_binding, .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
+    const properties: c.DirectCatalog.Properties = .{ .document = value.document, .native_binding = value.native_binding, .namespace = value.namespace, .authorization = value.authorization, .name = value.name };
     var encoded: [c.storage.TableDeclaration.max_properties_bytes]u8 = undefined;
     var declaration = try c.storage.TableDeclaration.prepare(allocator, .{ .kind = value.interpretation.kind, .object = value.interpretation.interpretation.object, .revision = value.interpretation.interpretation.revision, .schema = decoded.schema, .properties = try properties.encode(&encoded) });
     defer declaration.deinit();
@@ -277,6 +277,7 @@ pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Re
         .document_lookup => |maybe| if (maybe) |found| {
             try found.policy.validate();
             const value = found.definition;
+            if (!std.meta.eql(value.document, @as(?c.fuze.DocumentDdl.Policy, found.policy))) return error.InvalidTableResponse;
             try workspace(request, value.workspace, value.interpretation.interpretation, value.position, value.changed_lsn, null);
             try definition(request.connection, value.interpretation);
             try value.name.validate();

@@ -32,6 +32,7 @@ pub const Configuration = struct {
 /// role/permission authority; this record only names its stable reference.
 pub const Properties = struct {
     native_binding: ?c.fuze.NativeBinding.Kind = null,
+    document: ?c.fuze.DocumentDdl.Policy = null,
     namespace: u64,
     authorization: u64,
     name: a.Name,
@@ -47,12 +48,20 @@ pub const Properties = struct {
             try jws.objectField("native_binding");
             try jws.write(binding);
         }
+        if (self.document) |policy| {
+            try jws.objectField("document");
+            try jws.write(policy);
+        }
         try jws.endObject();
     }
     pub fn validate(self: Properties) !void {
         try c.Model.nativeId(self.namespace);
         try c.Model.nativeId(self.authorization);
         try self.name.validate();
+        if (self.document) |policy| {
+            if (self.native_binding != null) return error.InvalidDirectCatalogProperties;
+            try policy.validate();
+        }
     }
     pub fn encode(self: Properties, output: []u8) ![]const u8 {
         try self.validate();
@@ -84,7 +93,6 @@ pub const Entry = struct {
     log: ?u64,
     descriptor: ?u64,
     connector: ?u64,
-    document: ?c.fuze.DocumentDdl.Policy = null,
     pub fn jsonStringify(self: Entry, jws: anytype) !void {
         try jws.beginObject();
         try jws.objectField("object");
@@ -101,10 +109,6 @@ pub const Entry = struct {
         try jws.write(self.descriptor);
         try jws.objectField("connector");
         try jws.write(self.connector);
-        if (self.document) |doc| {
-            try jws.objectField("document");
-            try jws.write(doc);
-        }
         try jws.endObject();
     }
     pub fn validate(self: Entry, config: Configuration) !void {
@@ -397,7 +401,7 @@ pub const Intent = struct {
         try self.name.validate();
         if (self.document) |doc| {
             if (self.kind != .table) return error.InvalidDirectCatalogOperation;
-            if (doc.retention_max_age_ms) |ms| if (ms == 0) return error.InvalidDirectCatalogOperation;
+            try doc.validate();
         }
         if (self.native_binding) |native_binding| {
             if (self.document != null or self.action != .create) return error.InvalidNativeBindingKind;

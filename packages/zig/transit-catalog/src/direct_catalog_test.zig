@@ -694,6 +694,159 @@ fn creation(object: u64, operation: u64, name: []const u8) !D.Request {
     return .{ .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = operation }, .target = .{ .scope = scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(t.allocator) }, .intent = intent };
 }
 
+fn documentCreation(object: u64, operation: u64, name: []const u8) !D.Request {
+    var request = try creation(object, operation, name);
+    request.intent.document = .{};
+    request.binding.intent = try request.intent.digest(t.allocator);
+    return request;
+}
+
+fn documentPolicyEdit(view: *D.View, operation: u64, policy: c.DirectDocument.Policy) !D.Request {
+    var request = try edit(view, operation, .{ .alter = .{ .integrity = view.table.declaration.schema.schema } });
+    request.intent.document = policy;
+    request.binding.intent = try request.intent.digest(t.allocator);
+    return request;
+}
+
+test "Document policy publication waits for its exact definition and survives cancellation and lost disk replies" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var pending: p.DataLifecycle.Binding = undefined;
+    var committed: p.DataLifecycle.Binding = undefined;
+    var original: p.DataLifecycle.Definition = undefined;
+    const next_policy: c.DirectDocument.Policy = .{ .retention_max_age_ms = 60000 };
+    for (0..3) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            const create = try documentCreation(7, 1, "policy");
+            _ = try catalog.admit(create, access.policy());
+            _ = try catalog.perform(create.binding, access.policy());
+            var view = (try resolve(&catalog, &access, "policy")).?;
+            defer view.deinit();
+            original = view.table.root.interpretation;
+            const change = try documentPolicyEdit(&view, 2, next_policy);
+            pending = change.binding;
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.admit(change, access.policy()));
+            catalog.store.lose_reply = false;
+            try catalog.recover();
+        }
+        const metadata = (try SignedDispatch.call(&arena, &catalog, &access, .{ .document_lookup = .{ .namespace = 1, .name = "policy" } })).document_lookup.?;
+        try t.expectEqualDeep(metadata.policy, metadata.definition.document.?);
+        if (restart < 2) {
+            try t.expectEqualDeep(c.DirectDocument.Policy{}, metadata.policy);
+            try t.expectEqualDeep(original, metadata.definition.interpretation.interpretation);
+        } else {
+            try t.expectEqualDeep(next_policy, metadata.policy);
+            try t.expect(!std.meta.eql(original, metadata.definition.interpretation.interpretation));
+            try t.expect((try catalog.perform(committed, access.policy())) == .committed);
+        }
+        if (restart == 1) {
+            try t.expect((try catalog.cancel(pending, access.policy())) == .cancelled);
+            var view = (try resolve(&catalog, &access, "policy")).?;
+            defer view.deinit();
+            try t.expectEqualDeep(c.DirectDocument.Policy{}, view.document.?);
+            const incompatible = try documentPolicyEdit(&view, 3, .{ .profile = .causal_crdt });
+            try t.expectEqual(.constraint, (try catalog.admit(incompatible, access.policy())).reason);
+            const change = try documentPolicyEdit(&view, 4, next_policy);
+            committed = change.binding;
+            _ = try catalog.admit(change, access.policy());
+            catalog.lose_table_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.perform(change.binding, access.policy()));
+        }
+    }
+}
+
+test "Document policy revision guards the original common decision across data and definition races" {
+    for ([_]enum { unchanged, data_before_cut, data_before_decision, definition_before_decision }{ .unchanged, .data_before_cut, .data_before_decision, .definition_before_decision }) |scenario| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{};
+        try catalog.initialize(access.policy());
+        for ([_]D.Request{ try creation(10, 1, "result"), try documentCreation(11, 2, "policy") }) |create| {
+            _ = try catalog.admit(create, access.policy());
+            _ = try catalog.perform(create.binding, access.policy());
+        }
+        _ = try insertSelectedTable(&catalog, &access, "policy", 3);
+        var arena = std.heap.ArenaAllocator.init(t.allocator);
+        defer arena.deinit();
+        const found = (try SignedDispatch.call(&arena, &catalog, &access, .{ .document_lookup = .{ .namespace = 1, .name = "policy" } })).document_lookup.?.definition;
+        const read = (try SignedDispatch.call(&arena, &catalog, &access, .{ .read_current = .{
+            .namespace = 1,
+            .interpretation = found.interpretation.interpretation,
+            .expected = found.position,
+            .selection = .{ .rows = .{ .after = null, .limits = .{} } },
+        } })).current_read;
+        try t.expectEqual(@as(usize, 1), read.selection.rows.rows.len);
+        const revision = try c.DirectDocument.Revision.fromRead(read.definition);
+        var bytes: [c.DirectDocument.Revision.max_bytes]u8 = undefined;
+        try t.expectEqualDeep(revision, try c.DirectDocument.Revision.decode(try revision.encode(&bytes)));
+        try t.expectError(error.MissingField, c.DirectDocument.Revision.decode("{}"));
+        var unsupported = revision;
+        unsupported.policy.profile = .causal_crdt;
+        try t.expectError(error.UnsupportedTransactionParticipant, unsupported.target());
+        if (scenario == .data_before_cut) _ = try insertSelectedTable(&catalog, &access, "policy", 4);
+        const template = try transactionToken(&catalog, 9000, 1, 0);
+        const receipt = try catalog.beginTransaction(.{
+            .key = template.key,
+            .fingerprint = template.fingerprint,
+            .operation = template.intent.transaction.begin.identity.begin,
+            .namespace = 1,
+            .mode = .serializable,
+            .selection = .{ .explicit_objects = &.{ .{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .kind = .table, .partition = null }, try revision.target() } },
+            .limits = c.DirectTransaction.default_limits,
+            .budget = template.budget,
+        }, access.policy());
+        const key = receipt.binding.key;
+        _ = try catalog.acquireTransaction(key, access.policy());
+        const context: c.DirectTransactionRead.Context = .{ .key = key, .revision = (try catalog.inspectTransaction(key, access.policy())).revision };
+        const frozen = (try SignedDispatch.callContext(&arena, &catalog, &access, .{ .document_lookup = .{ .namespace = 1, .name = "policy" } }, context)).document_lookup.?.definition;
+        const commit: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 700 };
+        if (scenario == .data_before_cut) {
+            try t.expectError(error.TransactionConflict, revision.requireWorkspace(frozen));
+            _ = try catalog.settleTransaction(key, commit, .abort, 8, access.policy());
+            continue;
+        }
+        try revision.requireWorkspace(frozen);
+        _ = try catalog.executeTransactionStatement(key, try workspaceRequest(&catalog, &access, key, 10, 1, 500), access.policy());
+        // Prepare the write owner first. The policy read must still be checked
+        // immediately before the common decision, not merely before prepare.
+        _ = try catalog.settleTransaction(key, commit, .commit, 1, access.policy());
+        if (scenario == .data_before_decision) _ = try insertSelectedTable(&catalog, &access, "policy", 4);
+        if (scenario == .definition_before_decision) {
+            var view = (try resolve(&catalog, &access, "policy")).?;
+            defer view.deinit();
+            const change = try documentPolicyEdit(&view, 4, .{ .retention_max_age_ms = 60000 });
+            _ = try catalog.admit(change, access.policy());
+            _ = try catalog.perform(change.binding, access.policy());
+        }
+        if (scenario != .unchanged) {
+            try t.expectError(error.TransactionConflict, catalog.settleTransaction(key, commit, .commit, 8, access.policy()));
+            const status = try catalog.settleTransaction(key, commit, .abort, 8, access.policy());
+            try t.expect(status.cleanup_complete and status.observation.decided.outcome == .aborted);
+        } else {
+            const status = try catalog.settleTransaction(key, commit, .commit, 8, access.policy());
+            try t.expect(status.cleanup_complete and status.observation.decided.outcome == .committed);
+        }
+        var result = (try resolve(&catalog, &access, "result")).?;
+        defer result.deinit();
+        try t.expectEqual(@as(u64, if (scenario == .unchanged) 1 else 0), result.table.root.live_rows);
+    }
+}
+
 test "native browser binding KV declaration retains the same schema and resource as signed point reads" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -8993,15 +9146,19 @@ const SignedDispatch = struct {
         return error.UnexpectedDispatchExecution;
     }
     fn call(arena: *std.heap.ArenaAllocator, catalog: *D, access: *Access, action: c.DirectTableProtocol.Action) !c.DirectTableProtocol.Result {
+        return callContext(arena, catalog, access, action, null);
+    }
+    fn callContext(arena: *std.heap.ArenaAllocator, catalog: *D, access: *Access, action: c.DirectTableProtocol.Action, transaction: ?c.DirectTransactionRead.Context) !c.DirectTableProtocol.Result {
         const w = c.DirectTableProtocol;
         const alloc = arena.allocator();
         const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = 3, .principal = 1, .role = null };
-        const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null };
+        const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null, .transaction = transaction };
         const context = try w.Request.context(input, alloc);
         const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .role = null, .audience = 3, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)));
-        const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof };
+        const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof, .transaction = transaction };
         try request.validate(alloc);
-        const result = try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, .{ .context = access, .ddl = ddl, .namespace = namespace });
+        const execution: c.DirectTableDispatch.Execution = .{ .context = access, .ddl = ddl, .namespace = namespace };
+        const result = if (transaction) |value| try c.DirectTransactionRead.apply(alloc, catalog, access.policy(), value, action, execution) else try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, execution);
         const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 1, .login_role = 1, .role = 1, .credential_epoch = 1, .audience = 3, .context = context }, .result = result };
         try c.DirectTableClient.validateResponse(alloc, request, response);
         return result;

@@ -260,8 +260,29 @@ mixed kinds for one object and foreign scopes reject. Table and direct KV target
 support private mutations. Stream/Queue targets participate as retained read
 dependencies and private log work with explicit partition ordinals, as specified
 under [transactional log work](#transactional-stream-and-queue-work).
-Document targets reject before token admission. Server-owned
-`authorized_catalog_tables` discovery remains restricted to accessible Tables.
+Partitioned `document` targets reject before token admission. The current SQL
+row Document profile uses the existing TablePartition owner: its explicit
+physical target is `table` with no ordinal. Server-owned
+`authorized_catalog_tables` discovery includes accessible row Documents under
+that same owner; it does not acquire ordered/tree DocumentPartition resources.
+
+For the versioned SQL row Document profile, `DirectDocument.Revision` binds the
+mandatory current contract definition, exact immutable Document policy and
+`Transaction.StateGuard`. Obtain it from the metadata accompanying the data read,
+not from a later lookup. It covers the whole collection's data frontier; a write
+to another row can invalidate it. Pin/flush bookkeeping alone does not change it.
+The descriptor grants no authority and retains no snapshot. Before acting on a
+prior observation, compare it to the selected participant's retained source in
+a serializable workspace. The common coordinator rechecks that source under its
+final publication fence, including after preparing other participants. A failed
+comparison cannot publish their private changes. `causal_crdt` policy and
+partitioned tree Document guards are not admitted by this adapter.
+
+Document profile and retention belong to the immutable declaration properties,
+participate in its definition digest, and accompany signed metadata. Admission
+or cancellation of an ALTER cannot expose its proposed policy. Only acceptance
+of the successor definition publishes the change; recovery preserves the exact
+accepted policy. Profile changes reject, and rename/drop cannot alter policy.
 
 `DirectCatalog.Options.transaction_limits` caps each requested limit: defaults
 are 16 MiB resident work, 1 GiB workspace, 100,000 participants, 100,000 statements

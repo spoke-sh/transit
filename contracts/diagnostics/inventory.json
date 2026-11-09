@@ -5267,7 +5267,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2877,
+        "try": 2874,
         "catch": 31
       },
       "imports": [
@@ -5673,8 +5673,8 @@
         "InvalidDirectCatalogEntry": 7,
         "InvalidDirectCatalogHistory": 12,
         "InvalidDirectCatalogName": 1,
-        "InvalidDirectCatalogOperation": 13,
-        "InvalidDirectCatalogProperties": 2,
+        "InvalidDirectCatalogOperation": 12,
+        "InvalidDirectCatalogProperties": 3,
         "InvalidDirectCatalogRoot": 6,
         "InvalidNativeBindingKind": 1,
         "UnsupportedKVAlter": 1,
@@ -5747,7 +5747,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 96,
         "catch": 4
       },
       "imports": [
@@ -6269,7 +6269,11 @@
     "packages/zig/transit-catalog/src/DirectDocument.zig": {
       "errors": {
         "DataIdentityConflict": 1,
-        "InvalidCatalogStepBudget": 1
+        "IncompatibleDefinition": 1,
+        "InvalidCatalogStepBudget": 1,
+        "InvalidTransactionGuard": 5,
+        "TransactionConflict": 1,
+        "UnsupportedTransactionParticipant": 2
       },
       "outcomes": {
         "DeclarationRequest.command": [
@@ -6286,11 +6290,17 @@
         "Declaration.intent()": "<inferred>",
         "Declaration.request()": "<inferred>",
         "Declaration.validate()": "<inferred>",
-        "DeclarationRequest.validate()": "<inferred>"
+        "DeclarationRequest.validate()": "<inferred>",
+        "Revision.decode()": "<inferred>",
+        "Revision.encode()": "<inferred>",
+        "Revision.fromRead()": "<inferred>",
+        "Revision.requireWorkspace()": "<inferred>",
+        "Revision.target()": "<inferred>",
+        "Revision.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -9222,7 +9232,7 @@
         "DataIdentityConflict": 3,
         "IncompatibleDefinition": 1,
         "InvalidKVResponse": 1,
-        "InvalidTableResponse": 174
+        "InvalidTableResponse": 175
       },
       "outcomes": {},
       "error_sets": {},

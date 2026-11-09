@@ -78,7 +78,7 @@ pub const Policy = struct {
 pub const View = struct {
     table: P,
     properties: Properties,
-    document: ?c.fuze.DocumentDdl.Policy = null,
+    document: ?c.fuze.DocumentDdl.Policy,
     recovery_state: ?*?P.RecoveryState = null,
     owner_slot: ?*?CachedTable = null,
     seed: ?s.TableDeclaration.Stored = null,
@@ -4485,7 +4485,7 @@ fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransaction
     // Private roots and their temporary allocator must never enter an ordinary
     // Table owner cache or a public recovery hint.
     view.table.deinit();
-    view.* = .{ .table = table, .properties = properties };
+    view.* = .{ .table = table, .properties = properties, .document = properties.document };
 }
 
 fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?View {
@@ -5054,7 +5054,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
             table.index.store = table.objects;
             try table.refreshSince(prior);
             const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-            return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
+            return .{ .table = table, .properties = properties, .document = properties.document, .recovery_state = recovery_slot, .owner_slot = slot, .seed = original_seed };
         }
         if (primary_slot.* != null) {
             if (self.options.table_owners) |extra| {
@@ -5087,7 +5087,7 @@ fn openTransaction(self: *Self, allocator: std.mem.Allocator, target: r.Entry, c
     else
         try table.recover();
     const properties = try Properties.decode(allocator, table.declaration.definition.properties);
-    return .{ .table = table, .properties = properties, .document = target.document, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
+    return .{ .table = table, .properties = properties, .document = properties.document, .recovery_state = recovery_slot, .owner_slot = target_slot, .seed = original_seed };
 }
 
 fn candidate(self: *Self, namespace: u64, name: a.Name) !?r.Name {
@@ -5664,6 +5664,8 @@ fn admissionReason(self: *Self, request: Request, known: bool, existing: ?*View,
     } else if (existing) |view| {
         if (view.table.root.next_lsn == 0 or view.table.root.retired or view.properties.namespace != request.intent.namespace or !std.meta.eql(view.properties.name, request.intent.name) or (view.document != null) != (request.intent.document != null)) return .object_conflict;
         if (!std.meta.eql(request.binding.expected_definition, @as(?d.Definition, view.table.root.interpretation))) return .stale_definition;
+        if (request.intent.action != .alter and !std.meta.eql(view.document, request.intent.document)) return .constraint;
+        if (view.document) |doc| if (doc.profile != request.intent.document.?.profile) return .constraint;
         if (request.binding.expected_data) |expected| {
             if (!expected.unchangedAt(.{ .partition = view.table.root.partition, .next_lsn = view.table.root.next_lsn }, view.table.root.changed_lsn)) return .stale_data;
         }
@@ -5758,18 +5760,14 @@ pub fn admit(self: *Self, request: Request, policy: Policy) !r.Operation {
         operation.reason = reason;
     } else {
         if (request.intent.action == .create) {
-            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null, .document = request.intent.document };
+            const target: r.Entry = .{ .object = object, .partition = next.next_partition, .seed = null, .resource = null, .log = null, .descriptor = null, .connector = null };
             next.next_partition = try std.math.add(u64, next.next_partition, 1);
             next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(target));
             if (request.intent.native_binding) |kind| {
                 const selected: r.Name = .{ .namespace = request.intent.namespace, .name = request.intent.name, .object = object, .reservation = request.binding.identity };
                 next.native_bindings = try self.store.tree().put(next.native_bindings, try r.nameKey(selected.namespace, try .init(kind.name())), try r.pageValue(selected));
             }
-        } else if (request.intent.document) |doc| if (!std.meta.eql(known.?.document, @as(?c.fuze.DocumentDdl.Policy, doc))) {
-            var updated = known.?;
-            updated.document = doc;
-            next.objects = try self.store.tree().put(next.objects, try r.idKey(object), try r.pageValue(updated));
-        };
+        }
         if (request.intent.action == .create or request.intent.action == .rename) {
             const name: r.Name = .{ .namespace = request.intent.namespace, .name = proposed_name, .object = object, .reservation = request.binding.identity };
             next.names = try self.store.tree().put(next.names, try r.nameKey(name.namespace, name.name), try r.pageValue(name));
@@ -5877,7 +5875,7 @@ pub fn attachRegistration(self: *Self, binding: d.Binding, policy: Policy) !Obse
     const native = try policy.registered(policy.context, request.value.intent.authorityKind(), binding.target.object) orelse return error.CatalogRegistrationRequired;
     try a.validateObject(self.config().authority, self.config().scope, request.value.intent.authorityKind(), binding.target.object, a.reference(namespace.authorization), native);
     if (native.owner != request.value.intent.action.create.owner) return error.CatalogIdentityConflict;
-    const properties: Properties = .{ .native_binding = request.value.intent.native_binding, .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
+    const properties: Properties = .{ .document = request.value.intent.document, .native_binding = request.value.intent.native_binding, .namespace = namespace.id, .authorization = native.reference.id, .name = request.value.intent.name };
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     var declaration = try s.TableDeclaration.prepare(self.allocator, .{ .kind = request.value.intent.kind, .object = binding.target, .revision = 1, .schema = request.value.intent.action.create.schema, .properties = try properties.encode(&bytes) });
     defer declaration.deinit();
@@ -5932,6 +5930,7 @@ pub fn perform(self: *Self, binding: d.Binding, policy: Policy) !Observation {
     };
     if (advanced) return self.status(binding, policy);
     var properties = view.properties;
+    properties.document = request.value.intent.document;
     if (request.value.intent.action == .rename) properties.name = request.value.intent.action.rename;
     var bytes: [s.TableDeclaration.max_properties_bytes]u8 = undefined;
     const encoded = try properties.encode(&bytes);

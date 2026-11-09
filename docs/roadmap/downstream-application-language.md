@@ -19,11 +19,14 @@ source framing, ordered program trees and static schema/protected-value checks.
 Those local compiler interfaces do not establish installed Queue execution.
 The remaining runtime and qualification gates below still apply.
 
-The next state slice adds typed KV rows with retained field constraints and
+The state foundations now include typed KV rows with retained field constraints and
 per-key conditional revisions through the shared direct client and transaction
 workspace. Disk recovery, lost replies and stale revisions have focused storage
-coverage. Native browser bindings, Document guards and managed Queue execution
-remain separate work below; these primitives alone do not qualify the consumer.
+coverage. Native browser declarations bind exact schemas to canonical resource
+identities; browser handlers still need to use them. Versioned SQL row Document
+policies now belong to immutable definitions, with a native revision adapter for
+the common transaction's retained read guards. Managed Queue execution and the
+remaining integration below are still required to qualify the consumer.
 
 ## Reviewed inputs and desired experience
 
