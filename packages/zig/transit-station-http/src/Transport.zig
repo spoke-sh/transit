@@ -112,11 +112,14 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     var output_buffer: [tls.Client.min_buffer_len]u8 = undefined;
     var tls_input: [tls.Client.min_buffer_len]u8 = undefined;
     var tls_output: [tls.Client.min_buffer_len]u8 = undefined;
+    defer std.crypto.secureZero(u8, &input_buffer);
     defer std.crypto.secureZero(u8, &output_buffer);
+    defer std.crypto.secureZero(u8, &tls_input);
     defer std.crypto.secureZero(u8, &tls_output);
     var raw_reader = connection.reader(io, &input_buffer);
     var raw_writer = connection.writer(io, &output_buffer);
     var secure: tls.Client = undefined;
+    defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
     var lock: std.Io.RwLock = .init;
     if (endpoint.tls) {
         var entropy: [tls.Client.Options.entropy_len]u8 = undefined;
@@ -131,10 +134,10 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
             .realtime_now = now,
         }) catch |err| return writeCause(readCause(err, &raw_reader, null), &raw_writer);
     }
-    defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
     const writer = if (endpoint.tls) &secure.writer else &raw_writer.interface;
     writer.writeAll(head) catch |err| return writeCause(err, &raw_writer);
     var buffer: [segment_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &buffer);
     var remaining = request.body_bytes;
     while (remaining != 0) {
         const count: usize = @intCast(@min(remaining, buffer.len));
@@ -176,6 +179,7 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     try emit(capture, .response_head, safe.bytes);
     var total: u64 = 0;
     var chunk_buffer: [http.Request.maximum_head_bytes]u8 = undefined;
+    defer std.crypto.secureZero(u8, &chunk_buffer);
     var chunks: Chunked = .{ .input = reader.in, .scratch = &chunk_buffer, .budget = endpoint.response_bytes };
     if (!no_body) {
         const stream = if (response.transfer_encoding == .chunked) null else reader.bodyReader(&.{}, response.transfer_encoding, response.content_length);

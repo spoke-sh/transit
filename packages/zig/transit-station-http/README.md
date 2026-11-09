@@ -13,6 +13,9 @@ Transport-owned routing/framing headers cannot be overridden. Duplicate ordinary
 headers retain order. Capture renders versioned credential references; only an
 explicit executor resolver produces secret-bearing wire bytes. Keep its buffers
 private and discard them after the authorized attempt.
+Transport erases its request, response, TLS and chunk-framing buffers on every
+return, including failed exchanges. Capture owners must erase their own private
+copies separately.
 
 `validateResponse` rejects ambiguous content lengths/transfer coding and unsupported
 compression before capture. `beginSegment` adapts HTTP record kinds to the shared
