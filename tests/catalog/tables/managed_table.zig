@@ -1035,6 +1035,33 @@ const ApplicationHost = struct {
             try t.expectError(error.ApplicationRequestOwnerMismatch, reservation.request(copied, .{ .capability = reservation.reference }));
             const native_secret = try reservation.retain(scope.client.service.http.io, access, .{ .step = scope.step, .node = 2, .arguments = @splat(2) }, .{ .secret = .{ .bytes = "unbound-proof-value", .revision = "unbound-native-revision", .origin = .named, .revision_kind = .native } });
             try t.expectError(error.MissingProgramNativeBinding, reservation.read(access, native_secret, .commitment));
+            // Compose the request factory against this signed claim and both
+            // native transaction modes. The capability fixture is transient;
+            // the retained invocation remains the authority for every read.
+            var requests = try http.ApplicationRequests.init(scope.scratch, scope.client.service.http.io, .{ .active_requests = 1, .request_bytes = 1024, .protected_bytes = 4096, .protected_values = 8, .scratch_bytes = 8192, .resident_bytes = 64 * 1024 });
+            defer requests.deinit();
+            const ticket = try requests.open(scope.input.source, @splat(2), .{ .query = "state=public-state&code=protected-code", .headers = &.{} }, 60_000);
+            var request_factory = try http.ApplicationRequestHost.init(&requests, &.{});
+            const factory = request_factory.host();
+            var request_scope = scope;
+            request_scope.input.environment.values = &.{.{ .instruction = 0, .value = .{ .record = &.{.{ .name = "request", .value = .{ .capability = ticket.reference } }} } }};
+            var request_bound = try factory.bind(factory.context, request_scope);
+            defer request_bound.deinit();
+            const expressions = request_bound.expressions;
+            const public_state = try expressions.evaluate(expressions.context, 1, .{ .function = .http_query_unique }, &.{ .{ .capability = ticket.reference }, .{ .text = "state" } });
+            try t.expectEqualStrings("public-state", public_state.text);
+            const protected_code = try expressions.evaluate(expressions.context, 2, .{ .function = .http_secret_query_unique }, &.{ .{ .capability = ticket.reference }, .{ .text = "code" } });
+            try t.expect(protected_code == .secret);
+            try t.expectEqualDeep(protected_code, try expressions.evaluate(expressions.context, 2, .{ .function = .http_secret_query_unique }, &.{ .{ .capability = ticket.reference }, .{ .text = "code" } }));
+            const commitment = try expressions.evaluate(expressions.context, 3, .{ .function = .commitment }, &.{protected_code});
+            var expected: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash("protected-code", &expected, .{});
+            try t.expectEqualSlices(u8, &expected, commitment.binary);
+            try t.expectError(error.ProtectedProgramValue, expressions.evaluate(expressions.context, 4, .{ .function = .http_query_unique }, &.{ .{ .capability = ticket.reference }, .{ .text = "code" } }));
+            try t.expectError(error.MissingProgramNativeBinding, expressions.evaluate(expressions.context, 5, .{ .function = .secret }, &.{.{ .text = "cookie-key" }}));
+            var wrong_input = request_scope;
+            wrong_input.input.source.ordinal += 1;
+            try t.expectError(error.ApplicationRequestOwnerMismatch, factory.bind(factory.context, wrong_input));
             self.authority_checked[authority_index] = true;
         }
         self.native = .{ .scratch = scope.scratch, .io = scope.client.service.http.io, .scope = scope };

@@ -31468,6 +31468,46 @@
         "transit_catalog"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationRequestHost.zig": {
+      "errors": {
+        "ApplicationReservationExpired": 1,
+        "ApplicationReservationLost": 4,
+        "ClockUnavailable": 1,
+        "DuplicateProgramNativeBinding": 2,
+        "IncompatibleDefinition": 1,
+        "InvalidDirectRecord": 1,
+        "MissingProgramNativeBinding": 4,
+        "ProgramArgumentMismatch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Binding.check()": "<inferred>",
+        "Binding.condition()": "<inferred>",
+        "Binding.evaluate()": "<inferred>",
+        "Binding.lookup()": "<inferred>",
+        "Binding.secretCurrent()": "<inferred>",
+        "Binding.secretLookup()": "<inferred>",
+        "bind()": "<inferred>",
+        "init()": "<inferred>",
+        "requestReference()": "<inferred>",
+        "secret()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 15,
+        "catch": 2
+      },
+      "imports": [
+        "ApplicationAuthority.zig",
+        "ApplicationProtectedHost.zig",
+        "ApplicationRequests.zig",
+        "ApplicationReservation.zig",
+        "ApplicationSecrets.zig",
+        "std",
+        "transit_query_direct"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationRequests.zig": {
       "errors": {
         "ApplicationRequestOwnerMismatch": 2,
@@ -31977,6 +32017,7 @@
       "imports": [
         "ApplicationAuthority.zig",
         "ApplicationProtectedHost.zig",
+        "ApplicationRequestHost.zig",
         "ApplicationRequests.zig",
         "ApplicationReservation.zig",
         "ApplicationSecrets.zig",

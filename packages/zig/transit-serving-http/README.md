@@ -100,6 +100,17 @@ ownership grants no native rights: new and released reservations deny redemption
 until a native binder supplies current scoped authority. Live listener/executor
 composition remains pending.
 
+`ApplicationRequestHost` composes those owners for an explicitly supplied native
+execution context. It selects at most one top-level capability from the original
+input snapshot, borrows that exact Queue record's reservation, and returns a
+`BoundHost` whose cleanup releases only that borrow. Every protected redemption
+checks both the registry's current lifetime and the signed invocation authority.
+Secret mounts match the declared binding's catalog scope and namespace; physical
+placement never grants secret-use rights. Missing or expired reservations still
+allow public failure-handler expressions, while protected operations fail without
+creating replacement material. The managed executor and listener must still be
+wired to this factory with readiness and failure-settlement semantics.
+
 `ApplicationSecrets` supplies the protected host's native lookup/current
 callbacks using the exact canonical secret binding and current fenced client.
 The deployment supplies an open private mount for that namespace. Reads accept
@@ -107,8 +118,8 @@ only bounded regular files, preserve every byte, and verify the declared SHA-256
 commitment before retention. Changed, empty, oversized or unavailable files
 cannot substitute another credential; failed reads erase their private buffer.
 Current checks retain the native transaction read guard and reject a revision
-from another binding. These callbacks still require composition with the live
-request registry and managed executor.
+from another binding. The request host supplies these callbacks for the matching
+trusted mount and the evaluation's exact fenced client/transaction view.
 
 Secret authority provenance remains separate from redemption purpose. Derived
 values and Bearer headers preserve their parent's native revision requirement;
