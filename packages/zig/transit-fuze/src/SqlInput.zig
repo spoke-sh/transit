@@ -3,77 +3,86 @@
 const std = @import("std");
 const sql = @import("Sql.zig");
 pub const Kind = enum { space, comment, word, number, string, quoted, symbol };
-pub const Token = struct { kind: Kind, start: u16, end: u16, closed: bool = true };
+pub const Token = Scan.Token;
+/// File/program lexing has a separate bound from interactive statements. Editor
+/// offsets remain u16; source offsets include the exclusive end of a 64 KiB file.
+pub const max_source_bytes = 64 * 1024;
+pub const SourceScan = Scanner(u32, max_source_bytes);
+pub const Scan = Scanner(u16, sql.max_statement_bytes);
 pub const Range = struct { start: u16, end: u16, quoted: bool = false };
-pub const Scan = struct {
-    text: []const u8,
-    position: usize = 0,
-    pub fn init(text: []const u8) !Scan {
-        if (text.len > sql.max_statement_bytes) return error.StatementTooLarge;
-        if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfAny(u8, text, &.{ 0, 1 }) != null) return error.InvalidSqlEncoding;
-        return .{ .text = text };
-    }
-    pub fn next(self: *Scan) !?Token {
-        const start = self.position;
-        if (start == self.text.len) return null;
-        const rest = self.text[start..];
-        const byte = rest[0];
-        var closed = true;
-        const kind: Kind = if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) value: {
-            self.position += 1;
-            while (self.position < self.text.len and std.mem.indexOfScalar(u8, " \t\r\n", self.text[self.position]) != null) self.position += 1;
-            break :value .space;
-        } else if (std.mem.startsWith(u8, rest, "--")) value: {
-            self.position += std.mem.indexOfAny(u8, rest, "\r\n") orelse rest.len;
-            closed = self.position != self.text.len;
-            break :value .comment;
-        } else if (std.mem.startsWith(u8, rest, "/*")) value: {
-            self.position += 2;
-            var depth: usize = 1;
-            while (self.position < self.text.len and depth > 0) {
-                const remaining = self.text[self.position..];
-                if (std.mem.startsWith(u8, remaining, "/*")) {
-                    depth += 1;
-                    if (depth > sql.max_comment_depth) return error.CommentTooDeep;
-                    self.position += 2;
-                } else if (std.mem.startsWith(u8, remaining, "*/")) {
-                    depth -= 1;
-                    self.position += 2;
-                } else self.position += 1;
-            }
-            closed = depth == 0;
-            break :value .comment;
-        } else if (byte == '\'' or byte == '"') value: {
-            self.position += 1;
-            closed = false;
-            while (self.position < self.text.len) {
-                const current = self.text[self.position];
+fn Scanner(comptime Offset: type, comptime max_bytes: usize) type {
+    return struct {
+        const Self = @This();
+        pub const Token = struct { kind: Kind, start: Offset, end: Offset, closed: bool = true };
+        text: []const u8,
+        position: usize = 0,
+        pub fn init(text: []const u8) !Self {
+            if (text.len > max_bytes) return error.StatementTooLarge;
+            if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfAny(u8, text, &.{ 0, 1 }) != null) return error.InvalidSqlEncoding;
+            return .{ .text = text };
+        }
+        pub fn next(self: *Self) !?Self.Token {
+            const start = self.position;
+            if (start == self.text.len) return null;
+            const rest = self.text[start..];
+            const byte = rest[0];
+            var closed = true;
+            const kind: Kind = if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) value: {
                 self.position += 1;
-                if (current == byte) {
-                    if (self.position < self.text.len and self.text[self.position] == byte) {
-                        self.position += 1;
-                    } else {
-                        closed = true;
-                        break;
+                while (self.position < self.text.len and std.mem.indexOfScalar(u8, " \t\r\n", self.text[self.position]) != null) self.position += 1;
+                break :value .space;
+            } else if (std.mem.startsWith(u8, rest, "--")) value: {
+                self.position += std.mem.indexOfAny(u8, rest, "\r\n") orelse rest.len;
+                closed = self.position != self.text.len;
+                break :value .comment;
+            } else if (std.mem.startsWith(u8, rest, "/*")) value: {
+                self.position += 2;
+                var depth: usize = 1;
+                while (self.position < self.text.len and depth > 0) {
+                    const remaining = self.text[self.position..];
+                    if (std.mem.startsWith(u8, remaining, "/*")) {
+                        depth += 1;
+                        if (depth > sql.max_comment_depth) return error.CommentTooDeep;
+                        self.position += 2;
+                    } else if (std.mem.startsWith(u8, remaining, "*/")) {
+                        depth -= 1;
+                        self.position += 2;
+                    } else self.position += 1;
+                }
+                closed = depth == 0;
+                break :value .comment;
+            } else if (byte == '\'' or byte == '"') value: {
+                self.position += 1;
+                closed = false;
+                while (self.position < self.text.len) {
+                    const current = self.text[self.position];
+                    self.position += 1;
+                    if (current == byte) {
+                        if (self.position < self.text.len and self.text[self.position] == byte) {
+                            self.position += 1;
+                        } else {
+                            closed = true;
+                            break;
+                        }
                     }
                 }
-            }
-            break :value if (byte == '\'') .string else .quoted;
-        } else if (std.ascii.isAlphabetic(byte) or byte == '_') value: {
-            self.position += 1;
-            while (self.position < self.text.len and (std.ascii.isAlphanumeric(self.text[self.position]) or self.text[self.position] == '_')) self.position += 1;
-            break :value .word;
-        } else if (std.ascii.isDigit(byte)) value: {
-            self.position += 1;
-            while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
-            break :value .number;
-        } else value: {
-            self.position += 1;
-            break :value .symbol;
-        };
-        return .{ .kind = kind, .start = @intCast(start), .end = @intCast(self.position), .closed = closed };
-    }
-};
+                break :value if (byte == '\'') .string else .quoted;
+            } else if (std.ascii.isAlphabetic(byte) or byte == '_') value: {
+                self.position += 1;
+                while (self.position < self.text.len and (std.ascii.isAlphanumeric(self.text[self.position]) or self.text[self.position] == '_')) self.position += 1;
+                break :value .word;
+            } else if (std.ascii.isDigit(byte)) value: {
+                self.position += 1;
+                while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
+                break :value .number;
+            } else value: {
+                self.position += 1;
+                break :value .symbol;
+            };
+            return .{ .kind = kind, .start = @intCast(start), .end = @intCast(self.position), .closed = closed };
+        }
+    };
+}
 
 /// Bounded lexical colors with roles supplied by the production parser. Every
 /// statement is parsed by the applicable owners; malformed suffixes retain

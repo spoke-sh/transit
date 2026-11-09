@@ -19511,8 +19511,8 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Scan.init()": "<inferred>",
-        "Scan.next()": "<inferred>",
+        "Scanner().<return>.init()": "<inferred>",
+        "Scanner().<return>.next()": "<inferred>",
         "active()": "<inferred>",
         "classifyTableWithAllocator()": "<inferred>",
         "expectRoles()": "<inferred>",
@@ -19848,6 +19848,35 @@
         "SqlTyped.zig",
         "Types.zig",
         "VectorMetric.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/SqlScript.zig": {
+      "errors": {
+        "SqlNestingTooDeep": 2,
+        "UnbalancedSqlBlock": 3,
+        "UnbalancedSqlParentheses": 3,
+        "UnterminatedSqlToken": 1
+      },
+      "outcomes": {
+        "Block": [
+          "body",
+          "conditional",
+          "expression"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "init()": "<inferred>",
+        "next()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "SqlInput.zig",
         "std"
       ]
     },
@@ -22232,6 +22261,7 @@
         "Sql.zig",
         "SqlDiagnostic.zig",
         "SqlInput.zig",
+        "SqlScript.zig",
         "SqlTyped.zig",
         "SqlTypes.zig",
         "StandardsLedger.zig",
@@ -34163,7 +34193,7 @@
         "AuthorizationStepBudget": 1,
         "ExpectedGatewayRead": 1,
         "GatewayMutationRejected": 1,
-        "InvalidMigrationStepCount": 3,
+        "InvalidMigrationStepCount": 2,
         "InvalidSqlSyntax": 1,
         "MigrationClaimConflict": 2,
         "MigrationOutcomeUnknown": 2,
@@ -34201,7 +34231,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 179,
+        "try": 176,
         "catch": 22
       },
       "imports": [

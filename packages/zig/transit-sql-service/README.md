@@ -14,6 +14,11 @@ receipts bind exact dependencies and control states, while result progress stays
 with the computation owner. See the [migration contract](../../../contracts/MIGRATION_V1.md)
 and [CLI workflow](../../../docs/handbook/reference/cli.md#application-sql-migrations).
 
+Migration source framing uses Fuze's bounded `SqlScript` scanner: files can reach
+64 KiB while executable statements retain their owner's limits. Compound Queue
+dataflow bodies remain whole source steps for diagnostics, but have no installed
+execution owner. Framing cannot turn unsupported program syntax into an operation.
+
 `Registry` owns bounded sessions and retained response batches. `Session` maps
 configured database names to Catalog bindings. `ReadSources` composes cleanup
 for explicitly configured source connections above the database runtime; it

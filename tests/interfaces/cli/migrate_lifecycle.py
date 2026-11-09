@@ -369,6 +369,8 @@ def run(binary):
                 m1_path = migrations_dir / '0001-create-accounts.sql'
                 m1_sql = (
                     "-- Create accounts and seed initial row\n"
+                    + ("-- Source file budget is independent of each SQL statement.\n" * 100)
+                    +
                     "CREATE TABLE accounts (id BIGINT PRIMARY KEY, name TEXT, balance BIGINT);\n"
                     "INSERT INTO accounts (id, name, balance) VALUES (1, 'Ada', 100);\n"
                     "SELECT id, name, balance FROM accounts WHERE id = 1;\n"
