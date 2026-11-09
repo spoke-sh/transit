@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98"
+definition = "6da8e815dec26c458515e34fb6553654d57c77536f652b9258897bf1a513842e"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -718,6 +718,27 @@ token_digest = hashlib.sha256(b"transit.catalog.client-token.v1\0" +
     struct.pack("<4Q", 42, 3, 2**64 - 1, 4) + bytes([11] * 32) + bytes([12] * 16)).digest()
 persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-token-v1.json",
         (json.dumps({"request": token_request, "public_key": public_key, "key_digest": list(token_digest)}, ensure_ascii=False, indent=2) + "\n").encode())
+
+# Service and invocation progress are independent signed request conditions.
+fence = dict(key=token_key, revision=dict(partition=1, next_lsn=3))
+additional = dict(key={**token_key, "token": [14] * 16}, revision=dict(partition=1, next_lsn=4))
+lease_input = {**request_input, "action": {"describe": {}}, "lease": {**fence, "additional": additional}}
+lease_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(lease_input)).digest())}
+with tempfile.TemporaryDirectory(prefix="transit-lease-contract-") as directory:
+    signing_key = Key(Path(directory), "public-test-key", 9)
+    lease_request = {**lease_input, "proof": {"claim": lease_claim,
+        "signature": signing_key.sign(hashlib.sha256(b"transit.authorization.subject.v1\0" + canonical(lease_claim)).digest())}}
+validator.validate(lease_request)
+for field in ("key", "revision", "additional"):
+    invalid = copy.deepcopy(lease_request)
+    del invalid["lease"][field]
+    assert not validator.is_valid(invalid), field
+for field in ("key", "revision"):
+    invalid = copy.deepcopy(lease_request)
+    del invalid["lease"]["additional"][field]
+    assert not validator.is_valid(invalid), field
+persist(root / "packages/zig/transit-catalog/src/fixtures/direct-client-lease-v1.json",
+        (json.dumps({"request": lease_request, "public_key": public_key}, ensure_ascii=False, indent=2) + "\n").encode())
 
 # Transaction-owned records bind the original owner, inner guarded format and
 # immutable payload in the signed native request. Missing/foreign owners reject.

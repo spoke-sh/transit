@@ -302,7 +302,7 @@ fn activate(self: *Self) !void {
     self.ingress.lease = self.lease();
 }
 pub fn lease(self: *Self) c.DirectClientToken.Lease {
-    return .{ .key = self.activation.?.receipt.binding.key, .revision = self.activation.?.revision };
+    return .{ .key = self.activation.?.receipt.binding.key, .revision = self.activation.?.revision, .additional = null };
 }
 pub fn fence(self: *Self, observer: *g.Client) !void {
     return self.checkFence(observer) catch |err| {

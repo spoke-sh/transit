@@ -529,6 +529,7 @@ fn applicationPublication(client: c.DirectTableClient, admin: anytype, role: u64
         .resources = &resources,
         .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536 },
     };
+    try applicationFences(client, try value.inputClaim(client.allocator, 0, .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 731003 }));
     const manager: A = .{ .client = client };
     const original = try manager.publish(value);
     try t.expectEqual(.published, original.head.control.state);
@@ -595,4 +596,33 @@ pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []c
     try t.expect(!reader.complete);
     try t.expectError(error.FailedManagedRevision, reader.next(&output));
     try retained(manager, declaration.value, 1, &.{ 1, 2, 3 });
+}
+
+fn applicationFences(client: c.DirectTableClient, claim: c.protocol.StreamQueue.Claim) !void {
+    const T = c.DirectClientToken;
+    const account: [32]u8 = @splat(73);
+    const record = try c.DirectRecord.stage(client, account, 7, "application fence proof");
+    var fences: [2]T.Fence = undefined;
+    for (&fences, 0..) |*fence, index| {
+        const key: T.Key = .{ .definition = c.protocol.Growth.current_definition, .connection = client.connection, .account = account, .token = @splat(@intCast(index + 1)) };
+        const receipt = try T.bind(client, .{ .key = key, .fingerprint = @splat(@intCast(index + 1)), .intent = .{ .external = .{ .connection = client.connection, .namespace = 1, .operation = 731001 + @as(u64, index), .record = record } } });
+        fence.* = .{ .key = key, .revision = receipt.position };
+    }
+    var caller = client;
+    caller.lease = try T.Lease.combine(try T.Lease.combine(null, fences[0]), fences[1]);
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    _ = try c.DirectQueueClient.apply(&output, caller, .{ .observe = claim.target });
+    for (&fences, 0..) |*fence, index| {
+        const changed = try T.update(client, .{ .key = fence.key, .expected = fence.revision, .pending = true, .cancel = true, .record = null });
+        fence.revision = changed.revision;
+        // Rejection occurs before an original Queue claim can be admitted.
+        try t.expectError(error.Conflict, c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .claim = claim } } }));
+        try t.expect((try c.DirectQueueClient.apply(&output, client, .{ .operation = .{ .claim = claim } })).operation == null);
+        if (index == 0) caller.lease.?.revision = changed.revision else caller.lease.?.additional.?.revision = changed.revision;
+        _ = try c.DirectQueueClient.apply(&output, caller, .{ .observe = claim.target });
+    }
+    for (fences) |fence| _ = try T.update(client, .{ .key = fence.key, .expected = fence.revision, .pending = false, .cancel = true, .record = null });
+    try t.expectError(error.Conflict, c.DirectQueueClient.apply(&output, caller, .{ .mutate = .{ .work = .{ .claim = claim } } }));
+    try t.expect((try c.DirectQueueClient.apply(&output, client, .{ .operation = .{ .claim = claim } })).operation == null);
 }

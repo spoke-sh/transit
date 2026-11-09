@@ -750,10 +750,16 @@ replace it. SQL result reopening uses this native boundary; workload SQL text
 admission and its finite-consumption handoff remain unavailable.
 
 An optional signed request `lease` contains a token key and exact recovery
-revision. Its scope/principal/audience must match the request. The local host
-holds shared Catalog access through execution/disclosure; updates take exclusive
-access. A missing or replaced lease record conflicts before the action executes.
-The lease is a fence, not authorization. Current policy checks remain mandatory.
+revision, plus a mandatory nullable `additional` fence with its own key and
+revision. Both fences must match the request's scope, branch, principal and
+audience; selected roles may differ. They let one request retain its service
+generation fence while also checking an invocation's recovery record. Duplicate
+keys and a third fence reject instead of replacing an existing condition.
+The local host checks both records under shared Catalog access held through
+execution/disclosure; updates take exclusive access. Either missing or replaced
+record conflicts before the action executes. A fence supplies no authorization;
+current policy checks remain mandatory. Omitting `additional` from a non-null
+lease is an incompatible saved request, not an implicit single-fence form.
 
 `commit_saved` accepts a complete staged Table DML reference and returns its
 original row-operation state. INSERT/UPDATE/DELETE evaluate their frozen work and

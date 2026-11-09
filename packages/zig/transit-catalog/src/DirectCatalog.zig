@@ -1942,6 +1942,7 @@ fn intentGuardWithRowState(self: *Self, allocator: std.mem.Allocator, reference:
 /// the original target's current rights before disclosing its reference.
 pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy: Policy) !void {
     try self.requireInitialized();
+    try lease.validate(lease.key.connection);
     if (lease.key.connection.principal != policy.subject.principal()) return error.CatalogDenied;
     var arena = std.heap.ArenaAllocator.init(self.allocator);
     defer arena.deinit();
@@ -1949,6 +1950,10 @@ pub fn requireClientLease(self: *Self, lease: c.DirectClientToken.Lease, policy:
     try check(current);
     const state = (try self.store.clientTokenState(lease.key)) orelse return error.StaleClientLease;
     if (!std.meta.eql(state.revision, lease.revision)) return error.StaleClientLease;
+    if (lease.additional) |additional| {
+        const nested = (try self.store.clientTokenState(additional.key)) orelse return error.StaleClientLease;
+        if (!std.meta.eql(nested.revision, additional.revision)) return error.StaleClientLease;
+    }
     try check(current);
 }
 

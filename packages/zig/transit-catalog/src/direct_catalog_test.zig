@@ -3476,7 +3476,7 @@ test "client account budgets and request fences persist with exact admission" {
     var binding = try tokenBinding(objects.objectStore(), 55, 1);
     binding.budget = .{ .limits = .{ .operations = 2, .pending = 1, .bytes = 9216 }, .bytes = 4608 };
     const receipt = (try catalog.clientToken(.{ .bind = binding }, access.policy())).?;
-    const lease: c.DirectClientToken.Lease = .{ .key = binding.key, .revision = receipt.position };
+    const lease: c.DirectClientToken.Lease = .{ .key = binding.key, .revision = receipt.position, .additional = null };
     try catalog.requireClientLease(lease, access.policy());
     var other = binding;
     other.key.token = @splat(2);
@@ -11808,4 +11808,52 @@ test "catalog properties preserve public fixed array shape and canonical storage
     try t.expectEqualStrings(bytes, try value.encode(&buffer));
     try t.expectEqualDeep(value, try D.Properties.decode(t.allocator, bytes));
     try t.expectError(error.InvalidJsonShape, p.Json.parseFromSliceOwned(D.Properties, t.allocator, "{\"namespace\":1,\"authorization\":2,\"name\":{\"len\":2,\"bytes\":\"xx\"}}"));
+}
+
+test "service and invocation request fences reject either replaced record across disk restart" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var lease: c.DirectClientToken.Lease = undefined;
+    var access: Access = .{};
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.initialize(access.policy());
+        const service = try tokenBinding(objects.objectStore(), 55, 1);
+        const invocation = try tokenBinding(objects.objectStore(), 56, 2);
+        const first = (try catalog.clientToken(.{ .bind = service }, access.policy())).?;
+        const second = (try catalog.clientToken(.{ .bind = invocation }, access.policy())).?;
+        lease = try c.DirectClientToken.Lease.combine(try c.DirectClientToken.Lease.combine(null, .{ .key = service.key, .revision = first.position }), .{ .key = invocation.key, .revision = second.position });
+        try catalog.requireClientLease(lease, access.policy());
+        const before = catalog.store.root;
+        try catalog.requireClientLease(lease, access.policy());
+        try t.expectEqualDeep(before, catalog.store.root);
+    }
+    {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        try catalog.requireClientLease(lease, access.policy());
+        const original = lease;
+        const first = (try catalog.clientProgress(.{ .update = .{ .key = lease.key, .expected = lease.revision, .pending = true, .cancel = true, .record = null } }, access.policy())).state.?;
+        try t.expectError(error.StaleClientLease, catalog.requireClientLease(lease, access.policy()));
+        lease.revision = first.revision;
+        try catalog.requireClientLease(lease, access.policy());
+        const second = (try catalog.clientProgress(.{ .update = .{ .key = lease.additional.?.key, .expected = lease.additional.?.revision, .pending = true, .cancel = true, .record = null } }, access.policy())).state.?;
+        try t.expectError(error.StaleClientLease, catalog.requireClientLease(lease, access.policy()));
+        lease.additional.?.revision = second.revision;
+        try catalog.requireClientLease(lease, access.policy());
+        try catalog.recover();
+        try t.expectError(error.StaleClientLease, catalog.requireClientLease(original, access.policy()));
+        try catalog.requireClientLease(lease, access.policy());
+        access.deny_at = access.calls + 2;
+        try t.expectError(error.CatalogDenied, catalog.requireClientLease(lease, access.policy()));
+    }
 }

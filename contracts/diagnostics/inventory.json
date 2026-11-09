@@ -4818,7 +4818,7 @@
         "SourceDeclarationQuota": 2,
         "SourceReservationRequired": 2,
         "SourceSchemaMismatch": 1,
-        "StaleClientLease": 2,
+        "StaleClientLease": 4,
         "StorageBudgetExceeded": 1,
         "TableBuildBudget": 1,
         "TableDataChanged": 4,
@@ -5269,7 +5269,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2888,
+        "try": 2890,
         "catch": 31
       },
       "imports": [
@@ -6031,7 +6031,7 @@
         "ClientTokenConflict": 3,
         "DataIdentityConflict": 4,
         "IncompatibleDefinition": 1,
-        "InvalidClientToken": 16,
+        "InvalidClientToken": 18,
         "InvalidDocumentSourceState": 2,
         "InvalidOwnedRecord": 2,
         "InvalidSourceCaptureState": 2,
@@ -6064,9 +6064,11 @@
         "Binding.retry()": "<inferred>",
         "Binding.validate()": "<inferred>",
         "Budget.validate()": "<inferred>",
+        "Fence.validate()": "<inferred>",
         "Key.digest()": "<inferred>",
         "Key.requireSame()": "<inferred>",
         "Key.validate()": "<inferred>",
+        "Lease.combine()": "<inferred>",
         "Lease.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
         "Progress.validate()": "<inferred>",
@@ -6089,7 +6091,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 57,
+        "try": 63,
         "catch": 0
       },
       "imports": [
@@ -25497,7 +25499,7 @@
           "deadline"
         ],
         "Definition": [
-          "b48c98e89b0ed7a3c43de8895cf4380245ba56474ef12c70f2eb8f4f1ff4ef98"
+          "@\"6da8e815dec26c458515e34fb6553654d57c77536f652b9258897bf1a513842e\""
         ],
         "Effect.phase": [
           "pending",
