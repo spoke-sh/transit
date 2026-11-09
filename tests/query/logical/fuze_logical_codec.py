@@ -77,6 +77,21 @@ def check(caller, *, capabilities=True):
         assert caps['definition'] == DEFINITION.decode() and caps['logical_json'] and not caps['durable_file_queries']
     count = 0
     documents = []
+    # Capability metadata is inspectable; every ordinary value state refuses.
+    # Keep this distinct from the ordinary value-fixture count below.
+    capability = json.dumps({'definition': DEFINITION.decode(), 'type': {'capability': {}}})
+    cap_type = b'FTY1' + bytes([len(DEFINITION)]) + DEFINITION + bytes([31])
+    cap = caller.call({'type_json': capability})['type']
+    assert cap['bytes'] == cap_type.hex() and not cap['equality'] and not cap['ordering']
+    assert cap['fingerprint'] == hashlib.sha256(cap_type).hexdigest()
+    validators['type'].validate(json.loads(cap['json']))
+    assert caller.call({'type_bytes': cap['bytes']})['type'] == cap
+    caller.call({'bind': {'type_json': capability, 'literal': 'NULL'}}, invalid=True)
+    for state, encoded in [({'null': {}}, b'\1'), ({'value': {'atom': {'capability': [1] * 32}}}, b'\3' + bytes([1]) * 32)]:
+        document = {'definition': DEFINITION.decode(), 'field': {'name': 'value', 'type': {'capability': {}}, 'nullable': True, 'optional': False}, 'cell': state}
+        caller.call({'value_json': json.dumps(document)}, invalid=True)
+        raw = b'FVL1' + struct.pack('<H', len(cap_type)) + cap_type + b'\1' + encoded
+        caller.call({'value_bytes': raw.hex()}, invalid=True)
     for case in json.loads((ROOT / 'packages/zig/transit-fuze/src/fixtures/types.json').read_text())['cases']:
         kind = case['kind']; raw_type = bytes.fromhex(case['type_hex'])
         params = ({'precision': raw_type[-2], 'scale': raw_type[-1]} if kind == 'decimal' else 'utc') if kind in ('decimal', 'timestamp') else {}

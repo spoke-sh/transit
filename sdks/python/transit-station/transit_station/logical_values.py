@@ -6,9 +6,9 @@ import struct
 from typing import Any, Literal, TypeAlias
 
 ScalarKind = Literal['int8', 'int16', 'int32', 'int64', 'int128', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128',
-                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json']
+                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json', 'capability']
 _SCALARS = frozenset(('int8', 'int16', 'int32', 'int64', 'int128', 'uint8', 'uint16', 'uint32', 'uint64', 'uint128',
-                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json'))
+                     'float32', 'float64', 'boolean', 'utf8', 'binary', 'date', 'time', 'interval', 'uuid', 'json', 'capability'))
 
 
 @dataclass(frozen=True, slots=True)

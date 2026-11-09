@@ -19,12 +19,12 @@ public final class Logical {
     public sealed interface Descriptor permits Scalar, Decimal, Timestamp, Structure, Union, ListType, ArrayType, MapType {}
     public enum Scalar implements Descriptor {
         INT8, INT16, INT32, INT64, INT128, UINT8, UINT16, UINT32, UINT64, UINT128,
-        FLOAT32, FLOAT64, BOOLEAN, UTF8, BINARY, DATE, TIME, INTERVAL, UUID, JSON
+        FLOAT32, FLOAT64, BOOLEAN, UTF8, BINARY, DATE, TIME, INTERVAL, UUID, JSON, CAPABILITY
     }
     public enum Kind {
         INT8, INT16, INT32, INT64, INT128, UINT8, UINT16, UINT32, UINT64, UINT128,
         FLOAT32, FLOAT64, DECIMAL, BOOLEAN, UTF8, BINARY, DATE, TIME, TIMESTAMP,
-        INTERVAL, UUID, STRUCTURE, TAGGED_UNION, LIST, ARRAY, MAP, JSON, UNKNOWN, NULL_VALUE, TEXT, CHARACTER
+        INTERVAL, UUID, STRUCTURE, TAGGED_UNION, LIST, ARRAY, MAP, JSON, CAPABILITY, UNKNOWN, NULL_VALUE, TEXT, CHARACTER
     }
     public enum Zone { CIVIL, UTC }
     public record Decimal(int precision, int scale) implements Descriptor {

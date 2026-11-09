@@ -67,7 +67,7 @@ scalars! {
     Int8 => "int8", Int16 => "int16", Int32 => "int32", Int64 => "int64", Int128 => "int128",
     Uint8 => "uint8", Uint16 => "uint16", Uint32 => "uint32", Uint64 => "uint64", Uint128 => "uint128",
     Float32 => "float32", Float64 => "float64", Boolean => "boolean", Utf8 => "utf8", Binary => "binary",
-    Date => "date", Time => "time", Interval => "interval", Uuid => "uuid", Json => "json",
+    Date => "date", Time => "time", Interval => "interval", Uuid => "uuid", Json => "json", Capability => "capability",
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TypeKind {
@@ -649,6 +649,17 @@ impl CellValue {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn capability_metadata_does_not_expose_a_public_atom() {
+        let descriptor = json!({"capability": {}});
+        assert_eq!(
+            Descriptor::parse(&descriptor).unwrap().wire().unwrap(),
+            descriptor
+        );
+        assert!(
+            Atom::decode(&json!({"capability": vec![1; 32]}), &mut Budget::new(65536)).is_err()
+        );
+    }
     #[test]
     fn source_kinds_are_preserved_without_becoming_descriptors() {
         for kind in [

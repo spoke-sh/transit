@@ -28,7 +28,9 @@ export type ScalarKind =
   | "time"
   | "interval"
   | "uuid"
-  | "json";
+  | "json"
+  // Descriptor metadata only; public logical atoms cannot carry this handle.
+  | "capability";
 export interface Field {
   readonly name: string;
   readonly type: Descriptor;
@@ -291,6 +293,7 @@ export function decodeAtom(value: WireAtom, budget = new Budget(65536)): Atom {
     budget.data(16);
     return { kind: "uuid", value: unhex(value.uuid, 16) };
   }
+  if ("capability" in value) throw new TypeError("Protected application handle");
   const [kind, text] = Object.entries(value)[0]!;
   return {
     kind: kind as

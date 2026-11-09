@@ -7,6 +7,7 @@ round = fn kind, value ->
 end
 
 for type <- [
+      :capability,
       {:structure, [%Field{name: "東京", type: {:decimal, 38, 2}, nullable: true}]},
       {:tagged_union, [%Field{name: "value", type: :uuid, optional: true}]},
       {:list, %Element{type: :int128}},

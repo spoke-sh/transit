@@ -23,6 +23,9 @@ def rejects(kind, action):
 
 contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes())
 definition = contract['definition']
+capability = codec.Scalar('capability')
+assert codec.type_from_wire(codec.type_wire(capability)) == capability
+rejects(ValueError, lambda: codec.atom_from_wire({'capability': [1] * 32}))
 scope = m.Scope(ResourceRef(46, 7), (1 << 64) - 1)
 connection = m.Connection(scope, 3)
 authority = m.AuthorityProfile(21, 22, 23, 31, 32, 33, 34, 35, 24, 1, 25)

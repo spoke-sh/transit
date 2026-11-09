@@ -750,6 +750,18 @@
                   "$ref": "#/$defs/T30"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T4"
+                }
+              }
             }
           ]
         },
@@ -1197,6 +1209,18 @@
                   "$ref": "#/$defs/T21"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T11"
+                }
+              }
             }
           ]
         },
@@ -1565,6 +1589,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -1977,6 +2002,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -4983,6 +5009,18 @@
                   "$ref": "#/$defs/T63"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T1"
+                }
+              }
             }
           ]
         },
@@ -5421,6 +5459,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T56"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T46"
                 }
               }
             }
@@ -13352,6 +13402,18 @@
                   "$ref": "#/$defs/T372"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T345"
+                }
+              }
             }
           ]
         },
@@ -13803,6 +13865,18 @@
                   "$ref": "#/$defs/T363"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T353"
+                }
+              }
             }
           ]
         },
@@ -14179,6 +14253,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -14587,6 +14662,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -15748,6 +15824,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -16918,6 +16995,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T468"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T201"
                 }
               }
             }
@@ -20197,6 +20286,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -20435,6 +20525,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -21310,6 +21401,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -24778,6 +24870,18 @@
                   "$ref": "#/$defs/T37"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T10"
+                }
+              }
             }
           ]
         },
@@ -25229,6 +25333,18 @@
                   "$ref": "#/$defs/T28"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T18"
+                }
+              }
             }
           ]
         },
@@ -25605,6 +25721,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -26017,6 +26134,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -27186,6 +27304,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -30793,6 +30912,18 @@
                   "$ref": "#/$defs/T39"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T12"
+                }
+              }
             }
           ]
         },
@@ -31247,6 +31378,18 @@
                   "$ref": "#/$defs/T30"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T20"
+                }
+              }
             }
           ]
         },
@@ -31625,6 +31768,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -32037,6 +32181,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -33210,6 +33355,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -46829,6 +46975,18 @@
                   "$ref": "#/$defs/T41"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T15"
+                }
+              }
             }
           ]
         },
@@ -47271,6 +47429,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T32"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T22"
                 }
               }
             }
@@ -50083,6 +50253,18 @@
                   "$ref": "#/$defs/T43"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T18"
+                }
+              }
             }
           ]
         },
@@ -50528,6 +50710,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T35"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T25"
                 }
               }
             }
@@ -52683,6 +52877,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -52921,6 +53116,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -53837,7 +54033,7 @@
                 "value_bytes"
               ],
               "x-transit-defaults": {
-                "definition": "transit.fuze.types.v1.2026-11-08.program-values",
+                "definition": "transit.fuze.types.v1.2026-11-08.capability-handles",
                 "arrow_definition": "transit.fuze.logical-arrow.v1.2026-11-01.companions",
                 "logical_json": true,
                 "canonical_binary": true,
@@ -55786,6 +55982,18 @@
                   "$ref": "#/$defs/T64"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T2"
+                }
+              }
             }
           ]
         },
@@ -56224,6 +56432,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T55"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T45"
                 }
               }
             }
@@ -58998,6 +59218,18 @@
                   "$ref": "#/$defs/T52"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T27"
+                }
+              }
             }
           ]
         },
@@ -59443,6 +59675,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T44"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T34"
                 }
               }
             }
@@ -60258,6 +60502,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -60496,6 +60741,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -62715,6 +62961,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -64188,6 +64435,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T227"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T214"
                 }
               }
             }
@@ -70826,6 +71085,18 @@
                   "$ref": "#/$defs/T173"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T146"
+                }
+              }
             }
           ]
         },
@@ -71277,6 +71548,18 @@
                   "$ref": "#/$defs/T164"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T154"
+                }
+              }
             }
           ]
         },
@@ -71653,6 +71936,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -72061,6 +72345,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -73222,6 +73507,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -74392,6 +74678,18 @@
               "properties": {
                 "vector": {
                   "$ref": "#/$defs/T269"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T2"
                 }
               }
             }
@@ -84897,6 +85195,18 @@
                   "$ref": "#/$defs/T162"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T135"
+                }
+              }
             }
           ]
         },
@@ -85351,6 +85661,18 @@
                   "$ref": "#/$defs/T153"
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "capability"
+              ],
+              "properties": {
+                "capability": {
+                  "$ref": "#/$defs/T143"
+                }
+              }
             }
           ]
         },
@@ -85729,6 +86051,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -86137,6 +86460,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"
@@ -87302,6 +87626,7 @@
             "range",
             "multirange",
             "vector",
+            "capability",
             "null_value",
             "text",
             "character"

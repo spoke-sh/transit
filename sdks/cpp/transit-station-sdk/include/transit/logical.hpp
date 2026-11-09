@@ -29,7 +29,7 @@ public:
     Kind kind() const { return native().kind; }
     static Type scalar(Kind kind) {
         // Parameterized kinds require their corresponding constructor.
-        if (kind > TRANSIT_LOGICAL_JSON) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); }
+        if (kind > TRANSIT_LOGICAL_JSON && kind != TRANSIT_LOGICAL_CAPABILITY) { transit_sdk_error e{}; e.kind = TRANSIT_SDK_INVALID_ARGUMENT; throw Error(e); }
         transit_logical_type_view out{}; out.kind = kind; return Type(out);
     }
     static Type decimal(uint8_t precision, uint8_t scale) { transit_logical_type_view out{}; out.kind = TRANSIT_LOGICAL_DECIMAL; out.as.decimal = {precision, scale}; return Type(out); }

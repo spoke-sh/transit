@@ -57,8 +57,20 @@ test("lookup preserves direct interpretation, schema and full-width frontier", a
             },
             row_type: {
               structure: [
-                { name: "id", type: { uint128: {} }, nullable: false, optional: false },
-                { name: "値", type: { binary: {} }, nullable: true, optional: false },
+                {
+                  name: "id",
+                  type: { uint128: {} },
+                  nullable: false,
+                  optional: false,
+                  max_characters: null,
+                },
+                {
+                  name: "値",
+                  type: { binary: {} },
+                  nullable: true,
+                  optional: false,
+                  max_characters: null,
+                },
               ],
             },
             collations: ["none", "none"],
@@ -194,7 +206,9 @@ test("Table result cuts remain distinct from native resource versions", async ()
         finished: "source_end",
         chain: Array(32).fill(5),
       },
-      columns: [{ name: "n", type: { uint64: {} }, nullable: false, optional: false }],
+      columns: [
+        { name: "n", type: { uint64: {} }, nullable: false, optional: false, max_characters: null },
+      ],
       ordinal: "0",
       rows: 1,
       ipc: "00",
@@ -264,6 +278,7 @@ test("inspection preserves recursive types and flags beyond the former eight-col
     type: { list: { type: { decimal: { precision: 38, scale: 7 } }, nullable: true } },
     nullable: true,
     optional: false,
+    max_characters: null,
   }));
   await withHost(
     {
@@ -320,7 +335,15 @@ test("unparameterized inspection rejects a bound NULL comparison directly and in
               projection: ["id"],
               limit: null,
               aggregate: "rows",
-              columns: [{ name: "id", type: { uint128: {} }, nullable: false, optional: false }],
+              columns: [
+                {
+                  name: "id",
+                  type: { uint128: {} },
+                  nullable: false,
+                  optional: false,
+                  max_characters: null,
+                },
+              ],
               budgets: { pages: "100", segments: "100", result_bytes: "1048576" },
             },
           },

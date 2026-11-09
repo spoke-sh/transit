@@ -29,6 +29,14 @@ and `packages/` does not depend on SDKs. Board and its browser libraries remain
 runtime components. Shared Zig client, Station and binding implementations stay
 in `packages/zig/`. The Zig SDK re-exports their modules without copying source.
 
+Logical descriptor APIs recognize `CAPABILITY` so callers can inspect application
+Queue schemas. It has no public logical atom constructor. Ordinary logical value
+codecs, casts, comparisons and JSON/Arrow export reject capability values,
+including NULL containers whose declared type contains a capability. Request
+handles require the native application's original ownership and current authority;
+schema inspection grants neither. See the
+[program contract](../contracts/APPLICATION_PROGRAM_V1.md#protected-values).
+
 The root build composes runtime targets and SDK-backed examples. Runtime-only
 builds use `-Dsdk-examples=false`; an attempted example build then fails explicitly.
 The Nix runtime source excludes this directory and SDK example consumers.

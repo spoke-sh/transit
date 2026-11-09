@@ -10,8 +10,8 @@ namespace Transit.Station.Sdk;
 public static class Logical
 {
     internal const int DataBytes = 1024 * 1024;
-    public enum ScalarKind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Boolean, Utf8, Binary, Date, Time, Interval, Uuid, Json }
-    public enum Kind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Decimal, Boolean, Utf8, Binary, Date, Time, Timestamp, Interval, Uuid, Structure, TaggedUnion, List, Array, Map, Json, Unknown, NullValue, Text, Character }
+    public enum ScalarKind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Boolean, Utf8, Binary, Date, Time, Interval, Uuid, Json, Capability }
+    public enum Kind { Int8, Int16, Int32, Int64, Int128, Uint8, Uint16, Uint32, Uint64, Uint128, Float32, Float64, Decimal, Boolean, Utf8, Binary, Date, Time, Timestamp, Interval, Uuid, Structure, TaggedUnion, List, Array, Map, Json, Capability, Unknown, NullValue, Text, Character }
     public enum Zone { Civil, Utc }
     public abstract record Descriptor;
     public sealed record Scalar : Descriptor {

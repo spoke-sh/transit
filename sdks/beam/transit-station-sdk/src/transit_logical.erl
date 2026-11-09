@@ -6,7 +6,7 @@
 -export([type_wire/1,type_from_wire/1,atom_wire/1,atom_from_wire/1,cell_wire/1,cell_from_wire/1]).
 -export_type([descriptor/0,atom_value/0,cell/0,value/0]).
 -type scalar_type() :: int8 | int16 | int32 | int64 | int128 | uint8 | uint16 | uint32 | uint64 | uint128 |
-    float32 | float64 | boolean | utf8 | binary | date | time | interval | uuid | json.
+    float32 | float64 | boolean | utf8 | binary | date | time | interval | uuid | json | capability.
 -type descriptor() :: scalar_type() | {decimal,1..38,0..38} | {timestamp,civil | utc} |
     {structure,[#transit_logical_field{}]} | {tagged_union,[#transit_logical_field{}]} |
     {list,#transit_logical_element{}} | {array,#transit_logical_element{},pos_integer()} |
@@ -43,7 +43,7 @@ variant(V) when is_map(V),map_size(V)=:=1 -> hd(maps:to_list(V));
 variant(_) -> invalid().
 known(V,Allowed) -> case [A || A<-Allowed,atom_to_binary(A,utf8)=:=V] of [A]->A; _->invalid() end.
 enum(V,Allowed) -> check(lists:member(V,Allowed)),atom_to_binary(V,utf8).
-scalars() -> [int8,int16,int32,int64,int128,uint8,uint16,uint32,uint64,uint128,float32,float64,boolean,utf8,binary,date,time,interval,uuid,json].
+scalars() -> [int8,int16,int32,int64,int128,uint8,uint16,uint32,uint64,uint128,float32,float64,boolean,utf8,binary,date,time,interval,uuid,json,capability].
 kinds() -> scalars() ++ [decimal,timestamp,structure,tagged_union,list,array,map].
 source_kinds() -> kinds() ++ [unknown,null_value,text,character].
 budget(Max) -> {0,0,0,Max}.

@@ -3,7 +3,7 @@ module Transit
   module Station
     # Owned language-native logical values; shared Zig owns domain semantics.
     module Logical
-      SCALARS = %i[int8 int16 int32 int64 int128 uint8 uint16 uint32 uint64 uint128 float32 float64 boolean utf8 binary date time interval uuid json].freeze
+      SCALARS = %i[int8 int16 int32 int64 int128 uint8 uint16 uint32 uint64 uint128 float32 float64 boolean utf8 binary date time interval uuid json capability].freeze
       KINDS = (SCALARS + %i[decimal timestamp structure tagged_union list array map]).freeze
       SOURCE_KINDS = (KINDS + %i[unknown null_value text character]).freeze
       Scalar = Data.define(:kind) do

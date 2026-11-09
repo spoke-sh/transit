@@ -7,8 +7,13 @@ import type { Turn } from "./turn.ts";
 import { register, Scope } from "./context.ts";
 import type { Bridge } from "./bridge.ts";
 import type { GrowingEvent, GrowingResult } from "./wire.ts";
+import { encodeType, decodeType, decodeAtom } from "./logical-values.ts";
 import contract from "./contract.json" with { type: "json" };
 const maximum = (1n << 64n) - 1n;
+test("capability metadata does not expose a public logical atom", () => {
+  assert.deepEqual(decodeType(encodeType({ kind: "capability" })), { kind: "capability" });
+  assert.throws(() => decodeAtom({ capability: Array(32).fill(1) } as never), TypeError);
+});
 const resource = new ResourceRef(1, 7);
 const schema = new TableSchema(
   maximum,
