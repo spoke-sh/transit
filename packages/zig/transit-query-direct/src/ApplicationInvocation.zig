@@ -17,6 +17,7 @@ manager: M,
 
 pub const Input = struct {
     definition: p.Growth.Definition,
+    source: p.StreamQueue.RecordIdentity,
     claim: p.StreamQueue.ClaimReceipt,
     lease: p.StreamQueue.Lease,
     environment: a.Environment.Snapshot,
@@ -302,7 +303,7 @@ pub fn acquire(self: Self, value: M.Declaration, progress: T.Progress, work: Wor
         defer index.deinit();
         var env = try a.Environment.init(client.allocator, index, bound, input);
         defer env.deinit();
-        const input_record: Input = .{ .definition = p.Growth.current_definition, .claim = work.receipt.?, .lease = row.lease.original, .environment = env.snapshot(try value.digest(client.allocator)) };
+        const input_record: Input = .{ .definition = p.Growth.current_definition, .source = .{ .target = work.claim.target, .operation = row.operation, .ordinal = row.ordinal }, .claim = work.receipt.?, .lease = row.lease.original, .environment = env.snapshot(try value.digest(client.allocator)) };
         try a.Environment.validate(index, bound, try value.digest(client.allocator), input_record.environment);
         const bytes = p.Json.valueAllocBounded(output.allocator(), input_record, value.limits.continuation_bytes) catch |err| return if (err == error.WriteFailed) error.QueryResultBudget else err;
         const guarded = try R.encodeGuarded(output.allocator(), client.connection, &.{ work.claim.target.interpretation.object, value.object }, bytes);
@@ -352,7 +353,9 @@ pub fn loadInput(self: Self, client: c.DirectTableClient, value: M.Declaration, 
     if (parsed.value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try parsed.value.claim.validate();
     try parsed.value.lease.validate();
+    try parsed.value.source.validate();
     if (work.receipt == null or !std.meta.eql(parsed.value.claim, work.receipt.?) or
+        !std.meta.eql(parsed.value.source.target, work.claim.target) or
         !std.meta.eql(parsed.value.lease.target, work.claim.target) or !std.meta.eql(parsed.value.lease.claim, work.claim.operation) or
         parsed.value.lease.expires_ms != parsed.value.claim.expires_ms) return error.InvalidDirectRecord;
     var bound = try value.bind(client.allocator);

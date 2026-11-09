@@ -600,7 +600,9 @@ fn applicationStep(self: *Self) !bool {
                 if (wire.Client.unavailable(err) or self.background.contended(err) or
                     err == error.InvalidTableResponse or err == error.ManagedTableInitializationPending or
                     err == error.ManagedTableCleanupPending or err == error.ClientOperationPending or err == error.QueueTimeUnavailable) self.retry_pending = true;
+                return true;
             };
+            self.direct_work_failure.store(0, .release);
             return true;
         };
         if (page.next) |next| {
@@ -651,7 +653,6 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
         const owner: g.direct.ApplicationInvocation = .{ .manager = manager };
         if (try owner.start(declared.value, 0) != null) self.application_pending = true;
     }
-    self.direct_work_failure.store(0, .release);
 }
 fn finishSweep(self: *Self, retry: bool) void {
     self.work.finish(self.io, self.sweep.?, retry);

@@ -8,6 +8,7 @@ pub const Types = @import("ApplicationProgramTypes.zig");
 pub const Codec = @import("ApplicationProgramCodec.zig");
 pub const Values = @import("ApplicationValue.zig");
 pub const Evaluation = @import("ApplicationExpression.zig");
+pub const Json = @import("ApplicationJson.zig");
 pub const Cursor = @import("ApplicationCursor.zig");
 pub const Environment = @import("ApplicationEnvironment.zig");
 pub const Step = @import("ApplicationStep.zig");

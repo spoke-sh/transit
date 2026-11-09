@@ -66,6 +66,28 @@ pub const Revision = struct {
         try self.guard.requireUnchanged(workspace.source);
     }
 
+    /// Identity of the logical collection state. Snapshot pins and maintenance
+    /// may advance acceptance without changing the data. Their position remains
+    /// in the guard, but must not make equal application revisions unequal.
+    /// This digest neither retains a snapshot nor authorizes a state change.
+    pub fn stateFingerprint(self: Revision) ![32]u8 {
+        try self.validate();
+        var bytes: [max_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        var json: std.json.Stringify = .{ .writer = &writer };
+        try p.Json.write(.{
+            .definition = self.definition,
+            .policy = self.policy,
+            .interpretation = self.guard.source.interpretation,
+            .partition = self.guard.source.accepted.partition,
+            .changed_lsn = self.guard.changed_lsn,
+        }, &json);
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.document.state.v1\x00");
+        hash.update(writer.buffered());
+        return hash.finalResult();
+    }
+
     pub fn encode(self: Revision, buffer: []u8) ![]const u8 {
         try self.validate();
         var writer: std.Io.Writer = .fixed(buffer[0..@min(buffer.len, max_bytes)]);

@@ -173,29 +173,70 @@ pub fn select(output: std.mem.Allocator, scratch: *std.heap.ArenaAllocator, driv
         const evaluation = driver.evaluator();
         if (query.predicate) |predicate| if (!try evaluation.condition(try evaluation.evaluate(predicate))) continue;
         if (result != .null) return error.ProgramCardinalityMismatch;
-        var revision_buffer: [c.DirectDocument.Revision.max_bytes]u8 = undefined;
-        const revision: []const u8 = if (expected.document) |policy| blk: {
-            const basis = scan.reader.basis;
-            const guard: p.Transaction.StateGuard = if (basis.workspace) |view| guard: {
-                if (view.cut.begin.mode != .serializable) return error.InvalidTransactionGuard;
-                break :guard view.source;
-            } else .{ .source = .{ .interpretation = basis.interpretation.interpretation, .accepted = basis.accepted }, .changed_lsn = basis.changed_lsn };
-            break :blk try (c.DirectDocument.Revision{ .definition = p.Growth.current_definition, .policy = policy, .guard = guard }).encode(&revision_buffer);
-        } else blk: {
-            revision_buffer[0..32].* = try scan.reader.basis.fingerprint();
-            break :blk revision_buffer[0..32];
-        };
+        const revision = if (expected.document) |policy|
+            try (try documentRevision(scan.reader.basis, policy)).stateFingerprint()
+        else
+            try scan.reader.basis.fingerprint();
         // Bound the actual selected representation before retaining it. The
         // public encoding contains only ordinary data and observation evidence.
-        const selected = try rowValue(scratch.allocator(), schema, cells, query.columns, revision);
+        const selected = try rowValue(scratch.allocator(), schema, cells, query.columns, &revision);
         _ = p.Json.valueAllocBounded(scratch.allocator(), selected, @intCast(@min(limits.result_bytes, a.Codec.max_bytes))) catch |err| switch (err) {
             error.WriteFailed => return error.QueryResultBudget,
             else => return err,
         };
-        result = try rowValue(output, schema, cells, query.columns, revision);
+        result = try rowValue(output, schema, cells, query.columns, &revision);
     }
     try scan.validateCurrent();
     return result;
+}
+fn documentRevision(basis: c.DirectTableReader.Basis, policy: c.DirectDocument.Policy) !c.DirectDocument.Revision {
+    const guard: p.Transaction.StateGuard = if (basis.workspace) |view| blk: {
+        if (view.cut.begin.mode != .serializable) return error.InvalidTransactionGuard;
+        break :blk view.source;
+    } else .{ .source = .{ .interpretation = basis.interpretation.interpretation, .accepted = basis.accepted }, .changed_lsn = basis.changed_lsn };
+    return .{ .definition = p.Growth.current_definition, .policy = policy, .guard = guard };
+}
+
+/// Point lookup over the bound Document's one-column primary key. Inside an
+/// atomic block this observes the same serializable workspace and read guard
+/// as SELECT. Outside a block, a changed basis is a refusal, never a new cut
+/// silently substituted for the key read. Absence has no revision.
+pub fn currentRevision(output: std.mem.Allocator, client: c.DirectTableClient, binding: q.ApplicationBinding, key: Value) !Value {
+    if (binding.kind() != .document) return error.ProgramResourceKindMismatch;
+    try key.public();
+    const response = try client.call(.{ .document_lookup = .{ .namespace = binding.namespace(), .name = binding.name().slice() } });
+    defer response.deinit();
+    const metadata = try q.ApplicationTransaction.tableMetadata(response.value.result);
+    if (!std.meta.eql(metadata.interpretation.interpretation, binding.interpretation())) return error.TableDefinitionChanged;
+    const policy = metadata.document orelse return error.ProgramResourceKindMismatch;
+    var schema = try f.TableSchema.decode(output, try metadata.schema.decode(output, f.TableSchema.max_bytes));
+    defer schema.deinit();
+    if (schema.schema.primary_key.len != 1) return error.ProgramTypeMismatch;
+    const column = schema.schema.columns[try schema.schema.index(schema.schema.primary_key[0])];
+    const cell = try intoCell(output, column.field(), key);
+    const key_buffer = try output.alloc(u8, f.Collation.max_sort_key_bytes);
+    const encoded_key = try f.Collation.encodePrimaryKeySortKey(schema.schema, &.{cell}, false, key_buffer);
+    const revision: c.DirectDocument.Revision = if (client.transaction != null) blk: {
+        var reader = try c.DirectTableReader.open(client.allocator, client, try q.ApplicationTransaction.snapshot(metadata));
+        defer reader.deinit();
+        if (!std.meta.eql(reader.basis.interpretation, metadata.interpretation)) return error.TableDefinitionChanged;
+        var row = try reader.readKey(client, encoded_key);
+        defer if (row) |*found| found.deinit();
+        try reader.check(client);
+        if (row == null) return .null;
+        break :blk try documentRevision(reader.basis, policy);
+    } else blk: {
+        const read = try client.call(.{ .read_current = .{
+            .namespace = binding.namespace(),
+            .interpretation = binding.interpretation(),
+            .expected = metadata.position,
+            .selection = .{ .key = try c.DirectTableProtocol.Binary.encode(output, encoded_key) },
+        } });
+        defer read.deinit();
+        if (read.value.result.current_read.selection.key == null) return .null;
+        break :blk try c.DirectDocument.Revision.fromRead(read.value.result.current_read.definition);
+    };
+    return .{ .binary = try output.dupe(u8, &try revision.stateFingerprint()) };
 }
 const RowContext = struct {
     parent: a.Evaluation.Host,

@@ -7,12 +7,15 @@ const V = a.Values.Value;
 const Self = @This();
 scratch: std.mem.Allocator,
 io: std.Io,
+scope: ?q.ApplicationExecution.Context = null,
 
 pub fn recovery(self: *Self) q.ApplicationRecovery.Host {
     return .{ .context = self, .bind = bind };
 }
-fn bind(context: *anyopaque, _: q.ManagedApplication.Declaration, _: q.ApplicationInvocation.Work) !a.Evaluation.Host {
+fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
     const self: *Self = @ptrCast(@alignCast(context));
+    self.scope = scope;
+    self.scratch = scope.scratch;
     return self.host();
 }
 pub fn host(self: *Self) a.Evaluation.Host {
@@ -36,8 +39,38 @@ fn bytes(value: V) ![]const u8 {
         else => error.ProgramTypeMismatch,
     };
 }
+/// Constant work for equal-length byte strings, without a matching-prefix exit.
+/// Length is checked separately; NULL handling belongs to the typed helper.
+pub fn secureEqual(left: []const u8, right: []const u8) bool {
+    return left.len == right.len and std.crypto.timing_safe.compare(u8, left, right, .big) == .eq;
+}
 fn function(self: *Self, name: a.Function, args: []const V) !V {
     switch (name) {
+        .json_object => return a.Json.object(self.scratch, args),
+        .json_value, .json_integer => {
+            if (args.len != 2 or args[1] != .text) return error.ProgramArgumentMismatch;
+            if (args[0] == .null) return .null;
+            if (args[0] != .json) return error.ProgramTypeMismatch;
+            return a.Json.project(self.scratch, args[0].json, args[1].text, if (name == .json_integer) .integer else .text);
+        },
+        .url => {
+            if (args.len != 2 or args[0] != .text or args[1] != .json) return error.ProgramArgumentMismatch;
+            return a.Json.url(self.scratch, args[0].text, args[1].json);
+        },
+        .secure_equal => {
+            if (args.len != 2) return error.ProgramArgumentMismatch;
+            if (args[0] == .null or args[1] == .null) return .{ .boolean = false };
+            return .{ .boolean = secureEqual(try bytes(args[0]), try bytes(args[1])) };
+        },
+        .current_revision => {
+            if (args.len != 2 or args[0] != .text) return error.ProgramArgumentMismatch;
+            const scope = self.scope orelse return error.InvalidTransactionGuard;
+            for (scope.declaration.resources) |binding| {
+                if (std.mem.eql(u8, binding.name().slice(), args[0].text))
+                    return q.ApplicationData.currentRevision(self.scratch, scope.client, binding, args[1]);
+            }
+            return error.UnknownProgramResource;
+        },
         .now => {
             if (args.len != 0) return error.ProgramArgumentMismatch;
             const value = std.Io.Clock.real.now(self.io).toMicroseconds();
@@ -120,4 +153,12 @@ test "application public observations have exact units and canonical identities"
     try t.expectEqual(@as(u8, 8), first.uuid[6] >> 4);
     try t.expectEqual(@as(u8, 2), first.uuid[8] >> 6);
     try t.expectError(error.ProtectedProgramValue, host_.evaluate(host_.context, 1, .{ .function = .digest }, &.{.{ .capability = .{ .id = @splat(1) } }}));
+    const payload = try host_.evaluate(host_.context, 1, .{ .function = .json_object }, &.{ .{ .text = "authenticated" }, .{ .boolean = false } });
+    try t.expectEqualStrings("{\"authenticated\":false}", payload.json);
+    try t.expectEqualStrings("false", (try host_.evaluate(host_.context, 1, .{ .function = .json_value }, &.{ payload, .{ .text = "$.authenticated" } })).text);
+    try t.expectEqualStrings("https://example.test/?authenticated=false", (try host_.evaluate(host_.context, 1, .{ .function = .url }, &.{ .{ .text = "https://example.test/" }, payload })).text);
+    try t.expect((try host_.evaluate(host_.context, 1, .{ .function = .secure_equal }, &.{ digest, digest })).boolean);
+    try t.expect(!secureEqual("abc", "abd"));
+    try t.expect(!secureEqual("abc", "abcd"));
+    try t.expect(secureEqual("", ""));
 }

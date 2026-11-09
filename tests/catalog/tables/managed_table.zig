@@ -903,7 +903,7 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
         defer saved.deinit();
         // Input ownership remains attached until its read has been released.
         if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
-        const runner: q.ApplicationExecution = .{ .owner = owner, .native = host.host() };
+        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind } };
         const next = try runner.tick(value, progress, saved.value);
         if (!next.pending) {
             try t.expectEqual(.closed, next.original.?.phase);
@@ -978,12 +978,17 @@ fn applicationCancelAcquisition(client: c.DirectTableClient, published: q.Manage
 const ApplicationHost = struct {
     digest: [32]u8 = undefined,
     evaluations: u32 = 0,
+    native: ?q.ApplicationHost = null,
     const a = q.fuze.ApplicationProgram;
     fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
         return error.UnknownProgramVariable;
     }
     fn evaluate(context: *anyopaque, _: a.Id, operation: a.Evaluation.Operation, arguments: []const a.Values.Value) anyerror!a.Values.Value {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        if (operation == .function and operation.function != .digest) {
+            const host_ = (if (self.native) |*native| native else return error.UnexpectedHostOperation).host();
+            return host_.evaluate(host_.context, 1, operation, arguments);
+        }
         if (operation != .function or operation.function != .digest or arguments.len != 1 or arguments[0] != .text) return error.UnexpectedHostOperation;
         self.evaluations += 1;
         std.crypto.hash.sha2.Sha256.hash(arguments[0].text, &self.digest, .{});
@@ -995,8 +1000,12 @@ const ApplicationHost = struct {
     fn host(self: *ApplicationHost) a.Evaluation.Host {
         return .{ .context = self, .lookup = lookup, .evaluate = evaluate, .condition = condition };
     }
-    fn bind(context: *anyopaque, _: q.ManagedApplication.Declaration, _: q.ApplicationInvocation.Work) !a.Evaluation.Host {
+    fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        try scope.input.source.validate();
+        try t.expectEqualDeep(scope.work.claim.target, scope.input.source.target);
+        try t.expectEqualDeep(scope.client.transaction != null, scope.work.execution.transaction != null);
+        self.native = .{ .scratch = scope.scratch, .io = scope.client.service.http.io, .scope = scope };
         return self.host();
     }
 };
@@ -1009,6 +1018,24 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     defer table.deinit();
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
+    var document_ddl = try c.DirectDocumentPreparedDdl.prepare(client.allocator, client, 1, "CREATE DOCUMENT application_policy (id BIGINT PRIMARY KEY, enabled BOOLEAN NOT NULL) WITH (profile = 'versioned')", .transit, null);
+    defer document_ddl.deinit();
+    var document_work = try document_ddl.bind(client.allocator, client, 733013, 733014);
+    defer document_work.deinit();
+    const document_reference = try document_work.document.stage(client, @splat(3));
+    (try document_reference.admit(client)).deinit();
+    const document_result = try document_reference.operation(client, .execute, 64);
+    defer document_result.deinit();
+    try t.expect(document_result.value.result.document_declaration.operation == .committed);
+    try dml(client, "INSERT INTO application_policy VALUES (1, TRUE)", 733015);
+    const policy = try client.call(.{ .document_lookup = .{ .namespace = 1, .name = "application_policy" } });
+    defer policy.deinit();
+    const policy_binding: q.ApplicationBinding = .table(policy.value.result.document_lookup.?.definition);
+    const revision = try q.ApplicationData.currentRevision(output.allocator(), client, policy_binding, .{ .integer = 1 });
+    try t.expect(revision == .binary);
+    try t.expectEqualSlices(u8, &try (try c.DirectDocument.Revision.fromRead(policy.value.result.document_lookup.?.definition)).stateFingerprint(), revision.binary);
+    try t.expectEqual(.null, try q.ApplicationData.currentRevision(output.allocator(), client, policy_binding, .{ .integer = 999 }));
+    try t.expectError(error.ProgramTypeMismatch, q.ApplicationData.currentRevision(output.allocator(), client, policy_binding, .{ .text = "1" }));
     const kv = try c.DirectKVClient.prepareDeclaration(client.allocator, .{
         .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733011 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 733011 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) },
         .namespace = 1,
@@ -1029,7 +1056,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     _ = try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } });
     const stream_metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_events" } });
     defer stream_metadata.deinit();
-    const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } } };
+    const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } }, policy_binding };
     const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
         .executor_role = role,
@@ -1039,7 +1066,10 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
         .source =
         \\CREATE DATAFLOW application_execution FROM QUEUE application_input AS event WHERE id < 10 AS BEGIN
         \\  LET key = DIGEST(CAST(event.id AS TEXT));
+        \\  LET policy = SELECT * FROM application_policy WHERE id = 1;
         \\  BEGIN ATOMIC
+        \\    REQUIRE CURRENT_REVISION(application_policy, 1) = policy._revision
+        \\      AND CURRENT_REVISION(application_policy, 999) IS NULL ELSE 'PolicyChanged';
         \\    PUT INTO application_state KEY key VALUE ROW(event.id) IF ABSENT;
         \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
         \\    PRODUCE INTO application_events VALUES (event.id);
@@ -1142,6 +1172,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                 defer final.deinit();
                 try t.expectEqual(.complete, final.value.execution.phase);
                 try t.expect(final.value.execution.acknowledged);
+                errdefer std.debug.print("Application terminal failure: {any}\n", .{final.value.execution.failure});
                 try t.expectEqual(id != 7, final.value.execution.failure != null);
                 complete = true;
                 break;

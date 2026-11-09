@@ -12,14 +12,7 @@ const Self = @This();
 
 /// Exact ingress or committed handoff row. Copying a handle into another Queue
 /// record cannot copy this binding, even when the payload/request UUID matches.
-pub const Input = struct {
-    target: p.StreamQueue.Partition,
-    operation: p.DataLifecycle.Operation,
-    ordinal: u32,
-    pub fn validate(self: Input) !void {
-        try self.target.requireOperation(self.operation);
-    }
-};
+pub const Input = p.StreamQueue.RecordIdentity;
 pub const Access = struct {
     owner: Key,
     input: Input,

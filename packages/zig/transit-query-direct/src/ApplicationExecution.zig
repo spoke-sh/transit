@@ -16,7 +16,24 @@ const Native = q.ApplicationTransaction;
 const Self = @This();
 pub const candidate_format: u32 = R.guarded_bit | 0x41504331; // protected APC1
 owner: I,
-native: a.Evaluation.Host,
+native: Host,
+
+/// A binding lives only through one evaluation and its retained candidate. All
+/// fields borrow that evaluation; hosts must not retain clients or scratch
+/// pointers across a native call or use a previous progress/transaction fence.
+pub const Context = struct {
+    client: c.DirectTableClient,
+    declaration: M.Declaration,
+    work: I.Work,
+    invocation: T.Key,
+    input: I.Input,
+    step: u32,
+    scratch: std.mem.Allocator,
+};
+pub const Host = struct {
+    context: *anyopaque,
+    bind: *const fn (*anyopaque, Context) anyerror!a.Evaluation.Host,
+};
 
 pub const Transaction = struct {
     key: T.Key,
@@ -365,11 +382,24 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         candidate.action = .{ .failure = failure };
         return self.adopt(work, try self.store(client, value, work.*, candidate), candidate);
     }
-    var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = self.native };
+    const private = if (work.execution.transaction) |transaction| try Native.privateClient(client, transaction.key) else client;
+    // Load the original acquisition even after the environment has advanced.
+    // The current checkpoint alone cannot prove ownership of a request handle.
+    const original_input = if (saved == .input) null else try self.owner.loadInput(client, value, work.*, work.environment orelse return error.InvalidDirectRecord);
+    defer if (original_input) |input| input.deinit();
+    const host = try self.native.bind(self.native.context, .{
+        .client = private,
+        .declaration = value,
+        .work = work.*,
+        .invocation = candidate.invocation,
+        .input = if (original_input) |input| input.value else saved.input.value,
+        .step = env.cursor.step,
+        .scratch = allocator,
+    });
+    var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = host };
     const step = try driver.prepare();
     candidate.instruction = step.instruction;
     var outcome: a.Step.Outcome = .applied;
-    const private = if (work.execution.transaction) |transaction| try Native.privateClient(client, transaction.key) else client;
     if (private.transaction) |transaction| {
         candidate.basis = transaction.revision;
         candidate.sequence = work.execution.transaction.?.sequence + 1;
@@ -507,8 +537,16 @@ fn refuse(self: Self, value: M.Declaration, progress: T.Progress, original: I.Wo
         error.QueueLeaseExpired => .lease_expired,
         error.TableDefinitionChanged, error.DataflowSourceChanged => .source_changed,
         error.ProgramRowAssertionFailed => .row_assertion,
-        error.ProgramCardinalityMismatch, error.Overflow, error.ProgramTypeMismatch => .execution,
-        error.QueryResultBudget, error.QueryPageBudget, error.TransactionCapacity => .budget,
+        error.ProgramCardinalityMismatch,
+        error.Overflow,
+        error.ProgramTypeMismatch,
+        error.ProgramArgumentMismatch,
+        error.InvalidProgramJson,
+        error.DuplicateProgramField,
+        error.ProtectedProgramValue,
+        error.ProgramNullabilityMismatch,
+        => .execution,
+        error.QueryResultBudget, error.QueryPageBudget, error.TransactionCapacity, error.ProgramTooComplex, error.ProgramTooDeep => .budget,
         error.OwnedRecordClosed => .original_lost,
         else => return err,
     };

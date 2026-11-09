@@ -29,6 +29,19 @@ pub const Partition = struct {
     }
 };
 
+/// One original row in a frozen append. This identity survives acquisition and
+/// handoff; a copied payload or application UUID does not identify that row.
+/// Validation establishes shape only, never acceptance or current authority.
+pub const RecordIdentity = struct {
+    target: Partition,
+    operation: d.Operation,
+    ordinal: u32,
+
+    pub fn validate(self: RecordIdentity) !void {
+        try self.target.requireOperation(self.operation);
+    }
+};
+
 /// Sequence identifies one batch, not one row. Producer fencing is independent
 /// of worker activation and the operation token. The owner retains sequence
 /// floors even after detailed duplicate receipts become eligible for expiry.

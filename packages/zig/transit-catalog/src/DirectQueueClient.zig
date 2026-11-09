@@ -19,7 +19,7 @@ pub const Action = union(enum) {
         };
     }
 };
-pub const Row = struct { lease: p.QueueRead.LeaseObservation, operation: p.DataLifecycle.Operation, visible_ms: u64, value: c.fuze.TableRow.Row };
+pub const Row = struct { lease: p.QueueRead.LeaseObservation, operation: p.DataLifecycle.Operation, ordinal: u32, visible_ms: u64, value: c.fuze.TableRow.Row };
 pub const Page = struct {
     source: c.DirectLogClient.Metadata,
     basis: p.QueueRead.Basis,
@@ -86,7 +86,7 @@ pub fn apply(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, acti
                 _ = scratch.reset(.retain_capacity);
                 const bytes = try encoded.encoded.decode(scratch.allocator(), c.fuze.TableRow.max_bytes);
                 const decoded = try c.fuze.TableRow.decodeInto(output.allocator(), schema, bytes);
-                row.* = .{ .lease = encoded.lease, .operation = encoded.operation, .visible_ms = encoded.visible_ms, .value = decoded.row() };
+                row.* = .{ .lease = encoded.lease, .operation = encoded.operation, .ordinal = encoded.ordinal, .visible_ms = encoded.visible_ms, .value = decoded.row() };
             }
             break :blk .{ .page = .{ .source = .{ .declaration = page.source.declaration, .schema = schema }, .basis = page.basis, .rows = rows, .cursor = page.cursor, .encoded_bytes = page.encoded_bytes } };
         },

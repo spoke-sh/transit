@@ -6,12 +6,7 @@ const c = q.catalog;
 const I = q.ApplicationInvocation;
 const M = q.ManagedApplication;
 const T = c.DirectClientToken;
-const a = q.fuze.ApplicationProgram;
-
-pub const Host = struct {
-    context: *anyopaque,
-    bind: *const fn (*anyopaque, M.Declaration, I.Work) anyerror!a.Evaluation.Host,
-};
+pub const Host = q.ApplicationExecution.Host;
 pub const Result = enum {
     complete,
     /// A native phase advanced. Another fair sweep can run immediately.
@@ -36,7 +31,7 @@ pub fn step(manager: M, token: T.Key, host: Host) !Result {
     if (original.phase != .attached) {
         progress = try owner.resumeAttachment(declared.value, progress, loaded.value) orelse return .complete;
     }
-    const execution: q.ApplicationExecution = .{ .owner = owner, .native = try host.bind(host.context, declared.value, loaded.value) };
+    const execution: q.ApplicationExecution = .{ .owner = owner, .native = host };
     const next = try execution.tick(declared.value, progress, loaded.value);
     if (next.original == null) return error.InvalidDirectRecord;
     if (next.original.?.phase == .closed) return .complete;

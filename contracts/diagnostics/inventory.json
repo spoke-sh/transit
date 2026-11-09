@@ -6300,12 +6300,13 @@
         "Revision.encode()": "<inferred>",
         "Revision.fromRead()": "<inferred>",
         "Revision.requireWorkspace()": "<inferred>",
+        "Revision.stateFingerprint()": "<inferred>",
         "Revision.target()": "<inferred>",
         "Revision.validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -15215,6 +15216,51 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationJson.zig": {
+      "errors": {
+        "DuplicateProgramField": 1,
+        "InvalidProgramJson": 1,
+        "InvalidSqlEncoding": 1,
+        "JsonByteBudgetExceeded": 1,
+        "JsonDepthExceeded": 1,
+        "JsonFieldBudgetExceeded": 1,
+        "JsonTokenBudgetExceeded": 1,
+        "OutOfMemory": 1,
+        "ProgramArgumentMismatch": 8,
+        "ProgramTooComplex": 3,
+        "ProgramTypeMismatch": 11,
+        "WriteFailed": 2
+      },
+      "outcomes": {
+        "Projection": [
+          "text",
+          "integer",
+          "string"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "component()": "<inferred>",
+        "object()": "<inferred>",
+        "objectBounded()": "<inferred>",
+        "parse()": "<inferred>",
+        "project()": "<inferred>",
+        "url()": "<inferred>",
+        "urlBounded()": "<inferred>",
+        "validatePath()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 27,
+        "catch": 4
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "ApplicationValue.zig",
+        "BoundedJson.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-fuze/src/ApplicationPredicate.zig": {
       "errors": {
         "InvalidQueuePredicate": 6,
@@ -15363,6 +15409,7 @@
         "ApplicationCursor.zig",
         "ApplicationEnvironment.zig",
         "ApplicationExpression.zig",
+        "ApplicationJson.zig",
         "ApplicationPredicate.zig",
         "ApplicationProgramCodec.zig",
         "ApplicationProgramParser.zig",
@@ -15484,7 +15531,7 @@
         "ProgramResourceKindMismatch": 2,
         "ProgramTooComplex": 2,
         "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 17,
+        "ProgramTypeMismatch": 18,
         "ProtectedProgramValue": 4,
         "UnknownProgramField": 2,
         "UnknownProgramResource": 1,
@@ -15536,7 +15583,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 139,
+        "try": 140,
         "catch": 0
       },
       "imports": [
@@ -26644,6 +26691,7 @@
         "ProducerState.forgetThrough()": "<inferred>",
         "ProducerState.initial()": "<inferred>",
         "ProducerState.validate()": "<inferred>",
+        "RecordIdentity.validate()": "<inferred>",
         "Settlement.requireLive()": "<inferred>",
         "Settlement.requireSame()": "<inferred>",
         "Settlement.validate()": "<inferred>",
@@ -26652,7 +26700,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 76,
+        "try": 77,
         "catch": 2
       },
       "imports": [
@@ -27207,14 +27255,14 @@
         "InvalidTransactionGuard": 4,
         "Overflow": 2,
         "ProgramCardinalityMismatch": 1,
-        "ProgramResourceKindMismatch": 1,
+        "ProgramResourceKindMismatch": 3,
         "ProgramRowAssertionFailed": 2,
         "ProgramTooComplex": 3,
         "ProgramTooDeep": 3,
-        "ProgramTypeMismatch": 26,
+        "ProgramTypeMismatch": 27,
         "ProtectedProgramValue": 1,
         "QueryResultBudget": 2,
-        "TableDefinitionChanged": 5,
+        "TableDefinitionChanged": 7,
         "UnknownProgramField": 2,
         "WriteFailed": 1
       },
@@ -27227,6 +27275,8 @@
         "assertSameRow()": "<inferred>",
         "bindField()": "<inferred>",
         "bindType()": "anyerror",
+        "currentRevision()": "<inferred>",
+        "documentRevision()": "<inferred>",
         "fromCell()": "<inferred>",
         "fromValidated()": "anyerror",
         "get()": "<inferred>",
@@ -27243,7 +27293,7 @@
       },
       "open_error_set_uses": 7,
       "propagation": {
-        "try": 76,
+        "try": 96,
         "catch": 1
       },
       "imports": [
@@ -27292,18 +27342,25 @@
         "DataflowIdentityConflict": 1,
         "DataflowLeaseFenced": 2,
         "DataflowSourceChanged": 1,
+        "DuplicateProgramField": 1,
         "IncompatibleDefinition": 1,
-        "InvalidDirectRecord": 41,
+        "InvalidDirectRecord": 42,
+        "InvalidProgramJson": 1,
         "InvalidProgramNode": 2,
         "InvalidQueueResponse": 3,
         "InvalidTransactionGuard": 4,
         "NestedAtomicProgram": 2,
         "Overflow": 1,
         "OwnedRecordClosed": 4,
+        "ProgramArgumentMismatch": 1,
         "ProgramCardinalityMismatch": 1,
+        "ProgramNullabilityMismatch": 1,
         "ProgramResourceKindMismatch": 4,
         "ProgramRowAssertionFailed": 1,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 1,
         "ProgramTypeMismatch": 1,
+        "ProtectedProgramValue": 1,
         "QueryPageBudget": 1,
         "QueryResultBudget": 5,
         "QueueLeaseExpired": 1,
@@ -27376,6 +27433,7 @@
       "error_returns": {
         "Failure.code()": "<inferred>",
         "Failure.validate()": "<inferred>",
+        "Host.bind()": "anyerror",
         "State.validate()": "<inferred>",
         "abort()": "<inferred>",
         "adopt()": "<inferred>",
@@ -27395,9 +27453,9 @@
         "storeCheckpoint()": "<inferred>",
         "tick()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 2,
       "propagation": {
-        "try": 134,
+        "try": 136,
         "catch": 5
       },
       "imports": [
@@ -27407,11 +27465,13 @@
     },
     "packages/zig/transit-query-direct/src/ApplicationHost.zig": {
       "errors": {
+        "InvalidTransactionGuard": 1,
         "Overflow": 1,
-        "ProgramArgumentMismatch": 7,
+        "ProgramArgumentMismatch": 11,
         "ProgramResourceKindMismatch": 1,
-        "ProgramTypeMismatch": 3,
+        "ProgramTypeMismatch": 4,
         "ProtectedProgramValue": 2,
+        "UnknownProgramResource": 1,
         "UnknownProgramVariable": 1
       },
       "outcomes": {},
@@ -27426,7 +27486,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 11,
         "catch": 0
       },
       "imports": [
@@ -27476,7 +27536,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 90,
+        "try": 91,
         "catch": 3
       },
       "imports": [
@@ -27500,12 +27560,11 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Host.bind()": "anyerror",
         "step()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 0,
       "propagation": {
-        "try": 7,
+        "try": 6,
         "catch": 0
       },
       "imports": [
@@ -31297,7 +31356,6 @@
       "error_sets": {},
       "error_returns": {
         "Authority.check()": "anyerror",
-        "Input.validate()": "<inferred>",
         "Proof.check()": "<inferred>",
         "authorize()": "<inferred>",
         "copy()": "<inferred>",
@@ -31314,7 +31372,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 32,
+        "try": 31,
         "catch": 1
       },
       "imports": [

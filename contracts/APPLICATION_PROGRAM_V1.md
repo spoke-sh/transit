@@ -72,19 +72,21 @@ with the service generation fence, so replacing either record excludes delayed
 calls before native admission. A failed control-row CAS may leave that original
 invocation cancelled; retrying the saved control never cancels a newer invocation.
 A control row cannot select a different role from the
-immutable declaration. These typed lifecycle operations do not yet install a SQL
-service worker or prove an invocation has run.
+immutable declaration. Service discovery schedules these typed declarations;
+publication and activation alone do not prove an invocation has completed.
 
 Input acquisition attaches an immutable work record before its original claim.
 A bounded nonempty wait preserves that claim identity on timeout. The claim
 receipt is retained before reading its original selection. An initial environment
-is stored in an immutable owned record guarded by current input and control KV
+is stored with the original enqueue operation, row ordinal and exact Queue
+partition in an immutable owned record guarded by current input and control KV
 read rights, then referenced from the work's recovery metadata. Recovery can use
 that retained input if the reply was lost before the reference advanced. Safe
 work metadata contains identities, receipts and references, without payloads.
 Acquiring or retaining input does not ACK it, execute instructions or complete an
-invocation. The low-level caller selects the partition; service partition fairness
-and transaction/response settlement are still required integration work.
+invocation. The low-level caller selects the partition; automatic service
+scheduling currently requires a single-partition input Queue. Response settlement
+remains required integration work.
 
 The compiler accepts one `CREATE DATAFLOW name FROM QUEUE name AS input`
 declaration. A block contains immutable `LET` bindings, TRUE-only `REQUIRE`,
@@ -197,6 +199,44 @@ eight-byte big-endian label length and the UTF-8 label. Its first 16 digest byte
 carry UUID version 8 and the RFC variant. Host observations remain proposals
 until their original candidate is retained; recovery never replaces a retained
 observation. Protected helpers require their separate native redemption owner.
+
+Public JSON helpers use the shared lossless, duplicate-rejecting parser and a
+64 KiB result/input budget, with bounded depth, fields and tokens. Paths contain
+one to sixteen dot-separated ASCII identifiers after `$.`; array subscripts and
+wildcards are outside this profile. Missing fields and JSON null return NULL.
+`JSON_VALUE` returns scalar text, preserving number lexemes; containers refuse.
+`JSON_INTEGER` accepts decimal integer tokens within signed 64-bit range and
+never passes through floating point. Fractional, exponent and quoted-number
+representations refuse. The protected-body projection restriction above remains
+independent of these conversion rules.
+
+`JSON_OBJECT` accepts unique text keys and public NULL, Boolean, integer, text or
+JSON values. It validates the complete composed value, including nested JSON;
+other implicit coercions refuse. `URL` accepts an HTTPS base without credentials,
+query, fragment or controls and a JSON object of scalar query parameters. It
+percent-encodes each UTF-8 key/value independently, omits NULL members and rejects
+containers. Construction grants no permission to dispatch or deliver a redirect.
+`SECURE_EQUAL` compares equal-length byte/text values without a matching-prefix
+exit; unequal lengths and NULL operands return false.
+
+`CURRENT_REVISION(document, key)` reads the exact bound versioned row Document
+through its single-column primary key. Missing keys return NULL; wrong key types
+and multi-column keys refuse. Inside an atomic block it uses the existing
+serializable workspace and its retained source guard. Both this helper and
+SELECT's `_revision` return the same 32-byte state fingerprint. The native
+decision rechecks the full retained guard. Outside a block the helper
+uses a current point read bound to the observed definition and data frontier;
+a changed frontier refuses instead of silently choosing another observation.
+The fingerprint binds the native definition, Document policy, exact resource
+interpretation, storage partition and logical change LSN. Snapshot pinning and
+maintenance may advance acceptance without changing this identity. It identifies
+collection state, not a per-key counter, snapshot pin or authorization grant.
+
+Each expression host is bound after the execution owner opens the current native
+transaction view. The binding carries the original input record, invocation,
+step, frozen declaration and fenced client. These values borrow the current
+evaluation and are invalid after it returns. A host must not reuse a prior
+client fence or substitute a checkpoint's payload for original input provenance.
 
 ## Service discovery
 

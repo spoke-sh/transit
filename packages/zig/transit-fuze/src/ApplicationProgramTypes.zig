@@ -268,7 +268,7 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
         if (arguments.len != 2 or arguments[0].value != .name) return error.ProgramArgumentMismatch;
         _ = try self.resource(arguments[0].value.name, .document, .{ .resource = 0, .read = true, .guard = true });
         try public(try self.expression(arguments[1]));
-        return Value.public(.binary);
+        return .{ .kind = .binary, .nullable = true };
     }
     var values: [ast.max_arguments]Value = undefined;
     if (arguments.len > values.len) return error.ProgramArgumentMismatch;
@@ -358,6 +358,7 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
             if (args[0].kind != .protected_json and args[0].kind != .json) return error.ProgramTypeMismatch;
             if (arguments[1].value != .text) return error.ProgramArgumentMismatch;
             const path = arguments[1].value.text;
+            try ast.Json.validatePath(path);
             if (args[0].kind == .protected_json and function == .json_integer and !std.mem.eql(u8, path, "$.id")) return error.ProtectedProgramValue;
             return .{ .kind = if (function == .secret_json_value) .secret else if (function == .json_integer) .integer else .text, .nullable = true, .protected = function == .secret_json_value or (function == .json_value and args[0].kind == .protected_json) };
         },
@@ -370,6 +371,10 @@ fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression)
             for (args, 0..) |arg, index| {
                 if (index % 2 == 0) try requireKind(arg, .text);
                 try public(arg);
+                if (index % 2 != 0) switch (arg.kind) {
+                    .null, .boolean, .integer, .text, .json => {},
+                    else => return error.ProgramTypeMismatch,
+                };
             }
             return Value.public(.json);
         },

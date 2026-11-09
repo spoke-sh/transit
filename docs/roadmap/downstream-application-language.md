@@ -59,6 +59,13 @@ capacity refusal and erases protected bytes on expiry/loss. These component
 checks do not yet establish the live native verifier, HTTP source/sink execution
 or browser authority cutover; those remain part of the complete PR.
 
+The native expression host now binds each evaluation to its original enqueue
+operation/row, current invocation fence and transaction view. Document
+`CURRENT_REVISION` uses the existing primary-key point owner and common read
+guard. Public JSON/URL helpers preserve integer tokens and reject ambiguous,
+oversized or protected inputs. These additions still require the live protected
+host, effect dispatch, response settlement and canonical browser integration.
+
 ## Reviewed inputs and desired experience
 
 Transit baseline: `6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`.

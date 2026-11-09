@@ -9,8 +9,14 @@ values, KV point reads and exact revision-guarded mutations, retained single-row
 SELECTs, Table row assertions and Stream/Queue append preparation. SELECT keeps
 the caller's original snapshot, bounds scanned rows and requests, rejects a
 second matching row and checks current read authority after buffering. A
-Document result carries the native collection guard; a Table result carries
+Document result carries the native collection state fingerprint; a Table result carries
 its exact source fingerprint. KV revisions remain point-value identities.
+`CURRENT_REVISION` performs a one-key lookup on a versioned row Document. A
+missing key returns NULL. Inside an atomic block its collection revision uses
+the same retained serializable guard as SELECT. Its fingerprint excludes
+acceptance advances caused only by pinning or maintenance; the native decision
+still rechecks the full guard. Outside, the point read refuses a changed basis.
+Neither path silently moves to another data cut.
 `DO ASSERT SAME ROW` compares every typed value in a serializable transaction;
 an existing key alone cannot satisfy it. Prepared mutations preserve the original
 operation and use the existing common transaction API. These adapters do not
@@ -28,8 +34,9 @@ typed operations do not yet supply installed SQL execution.
 
 `ApplicationInvocation` attaches original work before Queue acquisition and
 retains the original claim receipt before reading its input. An immutable input
-record contains the initial typed environment behind current input/control read
-guards. Recovery metadata contains only identities, receipts and references.
+record contains the initial typed environment and original enqueue operation,
+row ordinal and Queue partition behind current input/control read guards.
+Recovery metadata contains only identities, receipts and references.
 Every data call composes the invocation progress fence with the service lease;
 suspend and retire cancel the saved pending token before changing the head.
 Input retention does not ACK the Queue message or execute the program.
@@ -37,6 +44,9 @@ Input retention does not ACK the Queue message or execute the program.
 `ApplicationExecution.tick` advances one persisted invocation phase with a
 caller-supplied native expression host. It retains proposed successor values
 before dispatching native work. A proposal is not a committed checkpoint.
+The host binds separately for each evaluation, after opening any transaction
+view, with the current fenced client, original input, invocation and step.
+Borrowed binding values cannot outlive that evaluation.
 `ApplicationTransaction` selects exact Table, row Document, KV and log partitions
 under the existing serializable transaction owner; read access is required for
 write participants as well as declared reads. Native provisional statement
@@ -63,8 +73,12 @@ expansion; it is not a count of transport retries. These typed owners currently
 execute data instructions and failure continuations. `ApplicationRecovery`
 reopens frozen declarations and invocations for bounded service scheduling,
 including interrupted final closure and defeated attachment cleanup.
-`ApplicationHost` supplies native public time, entropy, duration and digest
-observations; the runner retains their original candidate before advancing.
+`ApplicationHost` supplies native public time, entropy, duration, digest and
+Document revision observations; the runner retains their original candidate
+before advancing. Its JSON/URL helpers share Fuze's bounded lossless parser,
+reject duplicate fields and protected values, and preserve exact integer tokens.
+See the [program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
+for admitted JSON paths, conversions and URL construction.
 SQL installation, HTTP effects and response/capability operations remain
 integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
 

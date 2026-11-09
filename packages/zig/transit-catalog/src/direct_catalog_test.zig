@@ -795,6 +795,15 @@ test "Document policy revision guards the original common decision across data a
         var bytes: [c.DirectDocument.Revision.max_bytes]u8 = undefined;
         try t.expectEqualDeep(revision, try c.DirectDocument.Revision.decode(try revision.encode(&bytes)));
         try t.expectError(error.MissingField, c.DirectDocument.Revision.decode("{}"));
+        var maintained = revision;
+        maintained.guard.source.accepted.next_lsn += 1;
+        try revision.guard.requireUnchanged(maintained.guard);
+        try t.expectEqual(try revision.stateFingerprint(), try maintained.stateFingerprint());
+        maintained.guard.changed_lsn += 1;
+        try t.expect(!std.mem.eql(u8, &try revision.stateFingerprint(), &try maintained.stateFingerprint()));
+        maintained = revision;
+        maintained.guard.source.accepted.partition += 1;
+        try t.expect(!std.mem.eql(u8, &try revision.stateFingerprint(), &try maintained.stateFingerprint()));
         var unsupported = revision;
         unsupported.policy.profile = .causal_crdt;
         try t.expectError(error.UnsupportedTransactionParticipant, unsupported.target());
