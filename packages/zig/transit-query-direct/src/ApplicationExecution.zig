@@ -29,10 +29,36 @@ pub const Context = struct {
     input: I.Input,
     step: u32,
     scratch: std.mem.Allocator,
+
+    /// Recheck a trusted native host's already verified original input against
+    /// current invocation/control fences and registered dependency privileges.
+    /// The control read is current even while data helpers use a private cut.
+    /// This is an observation, never a dispatch permit or retained authority.
+    pub fn requireCurrent(self: Context) !void {
+        const lease = self.client.lease orelse return error.DataflowLeaseFenced;
+        try lease.validate(self.client.connection);
+        if (!std.meta.eql(lease.key, self.invocation) and
+            (lease.additional == null or !std.meta.eql(lease.additional.?.key, self.invocation))) return error.DataflowLeaseFenced;
+        try self.input.source.validate();
+        if (self.input.definition != p.Growth.current_definition or self.work.phase != .ready or
+            self.work.receipt == null or self.work.input_lease == null or
+            !std.meta.eql(self.input.claim, self.work.receipt.?) or !std.meta.eql(self.input.lease, self.work.input_lease.?) or
+            !std.meta.eql(self.input.source.target, self.work.claim.target)) return error.InvalidDirectRecord;
+        var control = self.client;
+        control.transaction = null;
+        const observed = try M.inspectExecutor(control, self.declaration);
+        try self.work.lease.requireCurrent(try self.declaration.interpretation(control.allocator), observed.head.control, observed.head.attempt);
+        if (self.work.execution.cancelled or observed.head.pending == null or
+            !std.meta.eql(observed.head.pending.?, self.invocation)) return error.DataflowLeaseFenced;
+        try M.requireExecutorDependencies(control, self.declaration, observed);
+    }
 };
 pub const Host = struct {
     context: *anyopaque,
     bind: *const fn (*anyopaque, Context) anyerror!a.Evaluation.Host,
+    /// Release a successful binding after evaluation/candidate retention,
+    /// including failures. A failed bind must release its own partial borrow.
+    finish: ?*const fn (*anyopaque) void = null,
 };
 
 pub const Transaction = struct {
@@ -396,6 +422,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         .step = env.cursor.step,
         .scratch = allocator,
     });
+    defer if (self.native.finish) |finish| finish(self.native.context);
     var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = host };
     const step = try driver.prepare();
     candidate.instruction = step.instruction;

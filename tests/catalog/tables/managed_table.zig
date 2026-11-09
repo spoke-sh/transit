@@ -638,7 +638,7 @@ fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplic
     defer client.allocator.free(retire);
     _ = try manager.applyControl(retire);
     var host: ApplicationHost = .{};
-    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }));
+    try t.expectEqual(.complete, try q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish }));
     const closed = (try T.inspect(client, token)).?;
     try t.expectEqual(.closed, closed.original.?.phase);
     try t.expect(!closed.pending);
@@ -903,7 +903,7 @@ fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplicat
         defer saved.deinit();
         // Input ownership remains attached until its read has been released.
         if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
-        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind } };
+        const runner: q.ApplicationExecution = .{ .owner = owner, .native = .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish } };
         const next = try runner.tick(value, progress, saved.value);
         if (!next.pending) {
             try t.expectEqual(.closed, next.original.?.phase);
@@ -979,6 +979,8 @@ const ApplicationHost = struct {
     digest: [32]u8 = undefined,
     evaluations: u32 = 0,
     native: ?q.ApplicationHost = null,
+    bindings: usize = 0,
+    finishes: usize = 0,
     const a = q.fuze.ApplicationProgram;
     fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
         return error.UnknownProgramVariable;
@@ -1002,11 +1004,26 @@ const ApplicationHost = struct {
     }
     fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
         const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        try t.expectEqual(self.bindings, self.finishes);
+        try t.expect(self.native == null);
         try scope.input.source.validate();
         try t.expectEqualDeep(scope.work.claim.target, scope.input.source.target);
         try t.expectEqualDeep(scope.client.transaction != null, scope.work.execution.transaction != null);
+        try scope.requireCurrent();
+        var invalid = scope;
+        invalid.client.lease = null;
+        try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
+        invalid = scope;
+        invalid.invocation.token[0] ^= 1;
+        try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
         self.native = .{ .scratch = scope.scratch, .io = scope.client.service.http.io, .scope = scope };
+        self.bindings += 1;
         return self.host();
+    }
+    fn finish(context: *anyopaque) void {
+        const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        self.native = null;
+        self.finishes += 1;
     }
 };
 
@@ -1157,7 +1174,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                     }
                 }
             }
-            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind }) catch |err| {
+            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .bind = ApplicationHost.bind, .finish = ApplicationHost.finish }) catch |err| {
                 // The proxy loses accepted replies at native and continuation
                 // boundaries. Reload the same token on the next iteration.
                 if (err == error.InvalidTableResponse) continue;
@@ -1201,6 +1218,9 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     // One body observation per input, plus the two failure-handler observations.
     // An accepted candidate with a lost reply must never rerun its host helper.
     try t.expectEqual(@as(u32, 5), host.evaluations);
+    try t.expect(host.bindings > 0);
+    try t.expectEqual(host.bindings, host.finishes);
+    try t.expect(host.native == null);
     const result = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } });
     defer result.deinit();
     const rows = result.value.result.lookup.?;

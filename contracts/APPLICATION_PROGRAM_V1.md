@@ -248,6 +248,13 @@ transaction view. The binding carries the original input record, invocation,
 step, frozen declaration and fenced client. These values borrow the current
 evaluation and are invalid after it returns. A host must not reuse a prior
 client fence or substitute a checkpoint's payload for original input provenance.
+The binding's `requireCurrent` operation checks the original invocation fence,
+active head/pending key and all registered dependency privileges through the
+declared executor role. Control observations use current committed state while
+data helpers retain the original private transaction cut. A release callback,
+when supplied, runs once after every successful bind, including evaluation or
+retention failure. Failed binds clean up their own partial borrows. These checks
+do not establish honest host computation or a reusable dispatch permit.
 
 ## Service discovery
 

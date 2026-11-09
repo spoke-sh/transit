@@ -27388,11 +27388,11 @@
       "errors": {
         "AccessDenied": 1,
         "DataflowIdentityConflict": 1,
-        "DataflowLeaseFenced": 2,
+        "DataflowLeaseFenced": 5,
         "DataflowSourceChanged": 1,
         "DuplicateProgramField": 1,
         "IncompatibleDefinition": 1,
-        "InvalidDirectRecord": 42,
+        "InvalidDirectRecord": 43,
         "InvalidProgramJson": 1,
         "InvalidProgramNode": 2,
         "InvalidQueueResponse": 3,
@@ -27479,6 +27479,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Context.requireCurrent()": "<inferred>",
         "Failure.code()": "<inferred>",
         "Failure.validate()": "<inferred>",
         "Host.bind()": "anyerror",
@@ -27503,7 +27504,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 136,
+        "try": 142,
         "catch": 5
       },
       "imports": [
@@ -27914,7 +27915,7 @@
     "packages/zig/transit-query-direct/src/ManagedApplication.zig": {
       "errors": {
         "ClientOperationMissing": 2,
-        "DataflowIdentityConflict": 10,
+        "DataflowIdentityConflict": 12,
         "DataflowLeaseFenced": 1,
         "DataflowSourceChanged": 1,
         "IncompatibleDefinition": 2,
@@ -27938,16 +27939,20 @@
         "find()": "<inferred>",
         "initialize()": "<inferred>",
         "inspect()": "<inferred>",
+        "inspectExecutor()": "<inferred>",
         "load()": "<inferred>",
         "mutation()": "<inferred>",
         "prepareControl()": "<inferred>",
         "publish()": "<inferred>",
+        "readHead()": "<inferred>",
         "requireCaller()": "<inferred>",
-        "requireDependencies()": "<inferred>"
+        "requireDependencies()": "<inferred>",
+        "requireExecutor()": "<inferred>",
+        "requireExecutorDependencies()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 78,
+        "try": 81,
         "catch": 0
       },
       "imports": [

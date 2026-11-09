@@ -54,6 +54,13 @@ before dispatching native work. A proposal is not a committed checkpoint.
 The host binds separately for each evaluation, after opening any transaction
 view, with the current fenced client, original input, invocation and step.
 Borrowed binding values cannot outlive that evaluation.
+`Context.requireCurrent` rechecks the invocation fence, active control head and
+registered dependency rights through the exact executor role. Control checks
+observe current state even during an atomic block; data helpers keep their
+private transaction view. An optional release callback runs for successful host
+bindings after candidate retention or any failure, so a host can release its
+borrowed request state. A current observation does not authorize later dispatch
+or disclosure without another check.
 `ApplicationTransaction` selects exact Table, row Document, KV and log partitions
 under the existing serializable transaction owner; read access is required for
 write participants as well as declared reads. Native provisional statement

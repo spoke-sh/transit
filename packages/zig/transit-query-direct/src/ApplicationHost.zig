@@ -10,7 +10,11 @@ io: std.Io,
 scope: ?q.ApplicationExecution.Context = null,
 
 pub fn recovery(self: *Self) q.ApplicationRecovery.Host {
-    return .{ .context = self, .bind = bind };
+    return .{ .context = self, .bind = bind, .finish = finish };
+}
+fn finish(context: *anyopaque) void {
+    const self: *Self = @ptrCast(@alignCast(context));
+    self.scope = null;
 }
 fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !a.Evaluation.Host {
     const self: *Self = @ptrCast(@alignCast(context));

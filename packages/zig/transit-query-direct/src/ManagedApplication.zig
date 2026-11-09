@@ -172,15 +172,30 @@ pub fn initialize(self: Self, value: Declaration, key: c.DirectClientToken.Key) 
 }
 pub fn inspect(self: Self, value: Declaration) !Observation {
     try self.requireCaller(value);
-    var output: std.heap.ArenaAllocator = .init(self.client.allocator);
+    return readHead(self.client, value);
+}
+/// Native helpers observe the same control owner through the declared executor
+/// role. This does not mint an executor identity or bypass any read grant.
+pub fn inspectExecutor(client: c.DirectTableClient, value: Declaration) !Observation {
+    try requireExecutor(client, value);
+    return readHead(client, value);
+}
+fn requireExecutor(client: c.DirectTableClient, value: Declaration) !void {
+    try value.validate(client.allocator);
+    var expected = value.connection;
+    expected.role = value.executor_role;
+    if (!std.meta.eql(client.connection, expected) or client.transaction != null) return error.DataflowIdentityConflict;
+}
+fn readHead(client: c.DirectTableClient, value: Declaration) !Observation {
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
-    const read = (try KV.apply(&output, self.client, .{ .get = .{ .object = value.object, .key = head_key } })).value;
+    const read = (try KV.apply(&output, client, .{ .get = .{ .object = value.object, .key = head_key } })).value;
     const cell = read.value orelse return error.ManagedTableInitializationPending;
     if (cell != .value or cell.value != .atom or cell.value.atom != .bytes) return error.InvalidDirectRecord;
-    const parsed = try p.Json.parseFromSlice(Head, self.client.allocator, cell.value.atom.bytes);
+    const parsed = try p.Json.parseFromSlice(Head, client.allocator, cell.value.atom.bytes);
     defer parsed.deinit();
     try parsed.value.validate();
-    if (!std.mem.eql(u8, &parsed.value.declaration, &try value.digest(self.client.allocator)) or
+    if (!std.mem.eql(u8, &parsed.value.declaration, &try value.digest(client.allocator)) or
         (parsed.value.executor_role != null and parsed.value.executor_role.? != value.executor_role)) return error.DataflowIdentityConflict;
     return .{ .head = parsed.value, .storage = read.interpretation.interpretation, .position = read.position };
 }
@@ -198,12 +213,17 @@ pub fn executor(self: Self, value: Declaration, observed: Observation) !c.Direct
     return result;
 }
 pub fn requireDependencies(self: Self, value: Declaration, observed: Observation) !void {
-    var bound = try value.bind(self.client.allocator);
+    return requireExecutorDependencies(try self.executor(value, observed), value, observed);
+}
+pub fn requireExecutorDependencies(client: c.DirectTableClient, value: Declaration, observed: Observation) !void {
+    try requireExecutor(client, value);
+    if (observed.head.executor_role != value.executor_role) return error.DataflowIdentityConflict;
+    var bound = try value.bind(client.allocator);
     defer bound.deinit();
     var checks: [Declaration.max_resources + 1]c.DirectTableProtocol.ReadCheck = undefined;
     for (bound.uses, checks[0..bound.uses.len]) |use, *check| check.* = .{ .dependency = try edge(value, observed.storage, use) };
     checks[bound.uses.len] = .{ .dependency = try edge(value, observed.storage, null) };
-    const response = try (try self.executor(value, observed)).call(.{ .check_set = checks[0 .. bound.uses.len + 1] });
+    const response = try client.call(.{ .check_set = checks[0 .. bound.uses.len + 1] });
     response.deinit();
 }
 pub const SavedControl = struct {
