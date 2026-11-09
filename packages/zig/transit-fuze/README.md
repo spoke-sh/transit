@@ -27,6 +27,14 @@ expressions with checked arithmetic, nullable field access, SQL three-valued
 conditions and short-circuit control flow. It delegates native observations to
 an explicit host and checks every returned value against its bound type.
 
+`ApplicationProgram.Cursor` and `Environment` retain bounded control flow and
+live typed bindings. Restoration checks the exact binding digest, branch stack,
+local identities and types; closed scopes cannot leak into a continuation.
+`ApplicationProgram.Step` produces typed instruction operands with explicit
+native reads, mutations, effects and transaction decisions. Its local completion
+checks do not establish durable acceptance. The execution owner retains original
+observations and resolves common decisions before publishing a successor.
+
 `ApplicationProgram.Values` represents secrets, protected JSON and capabilities
 as non-authorizing references. Protected scalar projections also stay behind
 references, including values selected by a protected condition. No credential

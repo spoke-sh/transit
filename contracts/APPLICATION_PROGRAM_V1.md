@@ -7,7 +7,8 @@ authority, transaction log or effect ledger.
 
 **Implementation status:** bounded source framing, instruction parsing, retained
 instruction encoding and local schema binding are implemented in Fuze's
-`ApplicationProgram`, together with its host-driven expression evaluator.
+`ApplicationProgram`, together with its host-driven expression evaluator,
+scoped continuation codec and typed instruction operands.
 Catalog binding,
 publication, activation, execution and recovery remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
@@ -58,6 +59,23 @@ record produces NULL. Conditions follow SQL three-valued Boolean semantics;
 only TRUE satisfies `REQUIRE` or selects an IF branch. A required target field
 rejects NULL at the authoritative write boundary.
 
+`ApplicationProgram.Cursor` advances explicit branch and atomic-block frames.
+`Environment` retains only live lexical bindings and validates their instruction
+identities, types and scope against the frozen definition when restored. Its
+canonical encoding includes the mandatory native definition and an exact
+binding digest, with a 1 MiB ceiling. Decoding owns its bytes; prepared operands
+borrow the input, definition or caller's reusable turn arena. The host must
+retain the successor before resetting that arena. A continuation is not an
+authorization ticket or evidence of a committed transaction.
+
+`ApplicationProgram.Step` evaluates one instruction into typed operands. Reads,
+mutations, effects, response operations and common transaction entry/commit are
+explicit host actions. A LET cannot advance without a type-checked result; a
+stale local completion cannot advance a newer cursor. Failure entry discards body
+locals and is refused while an atomic block remains active. The native owner
+must resolve that block's original decision first. These local checks do not
+replace durable fencing, transaction recovery or dispatch authorization.
+
 ## Protected values
 
 Secret bytes, protected JSON and response/request capabilities have separate
@@ -95,6 +113,8 @@ Time and randomness enter through native observations. Public observations and
 their step identities are retained where continuation requires them. Secret
 random material remains transient. Replay cannot generate a replacement secret
 to disguise the loss of an original outcome.
+Program timestamps use SQL's UTC microseconds since epoch; durations use signed
+microseconds. Seconds conversion and timestamp arithmetic must reject overflow.
 
 ## Atomic decisions and continuation
 

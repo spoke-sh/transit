@@ -13,8 +13,9 @@ pub const Value = union(enum) {
     text: []const u8,
     binary: []const u8,
     uuid: [16]u8,
-    /// Milliseconds in the native trusted-time domain. Arithmetic is checked.
+    /// UTC microseconds since epoch, matching the SQL timestamp representation.
     timestamp: i64,
+    /// Signed microseconds. Arithmetic and native seconds conversion are checked.
     duration: i64,
     json: []const u8,
     record: []const Field,

@@ -8,6 +8,9 @@ pub const Types = @import("ApplicationProgramTypes.zig");
 pub const Codec = @import("ApplicationProgramCodec.zig");
 pub const Values = @import("ApplicationValue.zig");
 pub const Evaluation = @import("ApplicationExpression.zig");
+pub const Cursor = @import("ApplicationCursor.zig");
+pub const Environment = @import("ApplicationEnvironment.zig");
+pub const Step = @import("ApplicationStep.zig");
 pub const max_source_bytes = @import("SqlInput.zig").max_source_bytes;
 pub const max_nodes = 4096;
 pub const max_depth = 32;
@@ -145,6 +148,9 @@ test {
     _ = Codec;
     _ = Values;
     _ = Evaluation;
+    _ = Cursor;
+    _ = Environment;
+    _ = Step;
 }
 
 test "application program preserves guarded effects and atomic control flow" {

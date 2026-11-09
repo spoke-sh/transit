@@ -15074,6 +15074,93 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationCursor.zig": {
+      "errors": {
+        "InvalidProgramNode": 28,
+        "NestedAtomicProgram": 1
+      },
+      "outcomes": {
+        "Advance": [
+          "instruction",
+          "enter_atomic",
+          "branch",
+          "leave",
+          "page"
+        ],
+        "Branch": [
+          "body",
+          "failure",
+          "atomic",
+          "yes",
+          "no"
+        ],
+        "Event": [
+          "instruction",
+          "enter_atomic",
+          "leave_atomic",
+          "leave_scope",
+          "page",
+          "complete"
+        ],
+        "Phase": [
+          "body",
+          "failure",
+          "complete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Index.bindings()": "<inferred>",
+        "Index.block()": "<inferred>",
+        "Index.init()": "<inferred>",
+        "Index.instruction()": "<inferred>",
+        "advance()": "<inferred>",
+        "bindings()": "<inferred>",
+        "enter()": "<inferred>",
+        "fail()": "<inferred>",
+        "next()": "<inferred>",
+        "restore()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationEnvironment.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidProgramNode": 13,
+        "UnknownProgramVariable": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "advance()": "<inferred>",
+        "bind()": "<inferred>",
+        "decode()": "<inferred>",
+        "encode()": "<inferred>",
+        "fail()": "<inferred>",
+        "init()": "<inferred>",
+        "lookup()": "<inferred>",
+        "restore()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 25,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/ApplicationExpression.zig": {
       "errors": {
         "InvalidProgramNode": 2,
@@ -15231,10 +15318,13 @@
         "catch": 0
       },
       "imports": [
+        "ApplicationCursor.zig",
+        "ApplicationEnvironment.zig",
         "ApplicationExpression.zig",
         "ApplicationProgramCodec.zig",
         "ApplicationProgramParser.zig",
         "ApplicationProgramTypes.zig",
+        "ApplicationStep.zig",
         "ApplicationValue.zig",
         "SqlInput.zig",
         "std"
@@ -15265,11 +15355,12 @@
         "Validator.text()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateEncoding()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 74,
+        "try": 75,
         "catch": 0
       },
       "imports": [
@@ -15408,6 +15499,69 @@
       "imports": [
         "ApplicationProgram.zig",
         "Sql.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationStep.zig": {
+      "errors": {
+        "InvalidProgramNode": 1,
+        "ProgramTypeMismatch": 3,
+        "UnknownProgramVariable": 1
+      },
+      "outcomes": {
+        "Action": [
+          "bind",
+          "advance",
+          "begin",
+          "commit",
+          "get",
+          "select",
+          "effect",
+          "put",
+          "insert",
+          "append",
+          "handoff",
+          "respond",
+          "respond_error",
+          "page",
+          "refused",
+          "complete"
+        ],
+        "Action.effect.kind": [
+          "form",
+          "headers"
+        ],
+        "Action.put.expected": [
+          "absent",
+          "revision"
+        ],
+        "Outcome": [
+          "value",
+          "applied"
+        ],
+        "Response.body": [
+          "empty",
+          "json",
+          "location"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "condition()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "fields()": "<inferred>",
+        "finish()": "<inferred>",
+        "lookup()": "<inferred>",
+        "prepare()": "<inferred>",
+        "values()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 37,
+        "catch": 1
+      },
+      "imports": [
+        "ApplicationProgram.zig",
         "std"
       ]
     },

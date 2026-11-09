@@ -30,6 +30,7 @@ pub const Use = struct {
 };
 pub const Bound = struct {
     arena: std.heap.ArenaAllocator,
+    input: Value,
     values: []const ?Value,
     uses: []const Use,
     pub fn deinit(self: *Bound) void {
@@ -87,7 +88,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         try self.define(failure.name, .{ .kind = .failure, .fields = &.{.{ .name = "effect_outcome", .value = Value.public(.text) }} });
         try self.block(failure.instructions);
     }
-    return .{ .arena = arena, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator) };
+    return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator) };
 }
 fn cloneFields(allocator: std.mem.Allocator, fields: []const Field, depth: usize) ![]const Field {
     if (depth == ast.max_depth or fields.len > ast.max_arguments) return error.ProgramTooComplex;
@@ -406,6 +407,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                         break :blk Value{ .kind = .record, .fields = &.{ .{ .name = "status", .value = Value.public(.integer) }, .{ .name = "body", .value = .{ .kind = .protected_json, .protected = true } } } };
                     },
                 };
+                self.values[instruction.id] = value;
                 try self.define(binding.name, value);
             },
             .require => |check| try requireKind(try self.expression(check.condition), .boolean),

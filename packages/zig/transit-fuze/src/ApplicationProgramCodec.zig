@@ -26,7 +26,7 @@ pub fn encode(allocator: std.mem.Allocator, program: a.Program, source_digest: [
     return p.Json.valueAllocBounded(allocator, Envelope{ .definition = p.Growth.current_definition, .source_digest = source_digest, .program = program }, max_bytes);
 }
 
-pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
+pub fn validateEncoding(bytes: []const u8) !void {
     // Bound the JSON syntax before its recursive typed decoder allocates or
     // descends. Escaped strings cannot hide structural depth from the scanner.
     if (bytes.len == 0 or bytes.len > max_bytes) return error.ProgramTooComplex;
@@ -53,6 +53,10 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
             else => {},
         }
     }
+}
+
+pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Owned {
+    try validateEncoding(bytes);
     var arena = std.heap.ArenaAllocator.init(allocator);
     errdefer arena.deinit();
     const value = try std.json.parseFromSliceLeaky(Envelope, arena.allocator(), bytes, .{ .allocate = .alloc_always, .max_value_len = max_bytes });
