@@ -2,6 +2,7 @@
 //! never enter this representation: references name transient, purpose-bound
 //! reservations and confer no authority to redeem them.
 const std = @import("std");
+const p = @import("transit_protocol");
 const a = @import("ApplicationProgram.zig");
 pub const Kind = a.Types.Kind;
 pub const Reference = struct { id: [32]u8 };
@@ -26,6 +27,42 @@ pub const Value = union(enum) {
     /// A protected scalar projection, such as JSON_VALUE(token.body, '$.error').
     /// Its logical kind remains visible to binding; its bytes stay in the host.
     sealed: struct { kind: Kind, reference: Reference },
+
+    /// Binary values always use lowercase hex strings, including valid UTF-8
+    /// and empty bytes. The host JSON shape remains a string in every case.
+    pub fn jsonStringify(self: Value, out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try out.beginObject();
+        switch (self) {
+            inline else => |item, tag| {
+                try out.objectField(@tagName(tag));
+                switch (tag) {
+                    .binary => try out.write(Hex{ .bytes = item }),
+                    .secret => try p.Json.write(Secret{ .reference = item.reference, .revision = .{ .bytes = item.revision } }, out),
+                    else => try p.Json.write(item, out),
+                }
+            },
+        }
+        try out.endObject();
+    }
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Value {
+        return jsonParseFromValue(allocator, try std.json.innerParse(std.json.Value, allocator, source, options), options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, node: std.json.Value, options: std.json.ParseOptions) std.json.ParseFromValueError!Value {
+        p.Json.validateShape(Value, node) catch return error.UnexpectedToken;
+        const info = @typeInfo(Value).@"union";
+        inline for (info.field_names, info.field_types) |name, T| {
+            if (node.object.get(name)) |item| {
+                if (T == void) return .null;
+                if (comptime std.mem.eql(u8, name, "binary")) return .{ .binary = (try Hex.jsonParseFromValue(allocator, item, options)).bytes };
+                if (comptime std.mem.eql(u8, name, "secret")) {
+                    const secret = try std.json.innerParseFromValue(Secret, allocator, item, options);
+                    return .{ .secret = .{ .reference = secret.reference, .revision = secret.revision.bytes } };
+                }
+                return @unionInit(Value, name, try std.json.innerParseFromValue(T, allocator, item, options));
+            }
+        }
+        return error.UnknownField;
+    }
 
     pub fn kind(self: Value) Kind {
         return switch (self) {
@@ -124,6 +161,53 @@ pub const Value = union(enum) {
         };
     }
 };
+
+const Secret = struct { reference: Reference, revision: Hex };
+const Hex = struct {
+    bytes: []const u8,
+    pub fn jsonStringify(self: Hex, out: *std.json.Stringify) std.Io.Writer.Error!void {
+        if (self.bytes.len > 1024 * 1024) return error.WriteFailed;
+        try out.print("\"{x}\"", .{self.bytes});
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, node: std.json.Value, _: std.json.ParseOptions) std.json.ParseFromValueError!Hex {
+        if (node != .string) return error.UnexpectedToken;
+        const text = node.string;
+        if (text.len > 2 * 1024 * 1024) return error.LengthMismatch;
+        if (text.len % 2 != 0) return error.InvalidCharacter;
+        for (text) |byte| if (!(byte >= '0' and byte <= '9') and !(byte >= 'a' and byte <= 'f')) return error.InvalidCharacter;
+        const bytes = try allocator.alloc(u8, text.len / 2);
+        errdefer allocator.free(bytes);
+        _ = std.fmt.hexToBytes(bytes, text) catch return error.InvalidCharacter;
+        return .{ .bytes = bytes };
+    }
+};
+
+test "application binary values have one owned encoding for every byte and nested revision" {
+    const t = std.testing;
+    var bytes: [256]u8 = undefined;
+    for (&bytes, 0..) |*byte, index| byte.* = @intCast(index);
+    const nested: Value = .{ .record = &.{
+        .{ .name = "digest", .value = .{ .binary = &bytes } },
+        .{ .name = "credential", .value = .{ .secret = .{ .reference = .{ .id = @splat(1) }, .revision = &bytes } } },
+    } };
+    const encoded = try p.Json.valueAlloc(t.allocator, nested);
+    const parsed = try p.Json.parseFromSliceOwned(Value, t.allocator, encoded);
+    t.allocator.free(encoded);
+    defer parsed.deinit();
+    @memset(&bytes, 0);
+    for ((try parsed.value.field("digest")).binary, 0..) |byte, index| try t.expectEqual(@as(u8, @intCast(index)), byte);
+    for ((try parsed.value.field("credential")).secret.revision, 0..) |byte, index| try t.expectEqual(@as(u8, @intCast(index)), byte);
+    for ([_][]const u8{ "", "ASCII", "\xc3\xa9" }, [_][]const u8{ "{\"binary\":\"\"}", "{\"binary\":\"4153434949\"}", "{\"binary\":\"c3a9\"}" }) |input, expected| {
+        const wire = try p.Json.valueAlloc(t.allocator, Value{ .binary = input });
+        defer t.allocator.free(wire);
+        try t.expectEqualStrings(expected, wire);
+        const decoded = try p.Json.parseFromSliceOwned(Value, t.allocator, wire);
+        defer decoded.deinit();
+        try t.expectEqualSlices(u8, input, decoded.value.binary);
+    }
+    for ([_][]const u8{ "{\"binary\":[]}", "{\"binary\":[0,255]}", "{\"binary\":null}", "{\"integer\":\"1\"}", "{\"uuid\":\"0123456789012345\"}" }) |invalid| try t.expectError(error.InvalidJsonShape, p.Json.parseFromSliceOwned(Value, t.allocator, invalid));
+    for ([_][]const u8{ "{\"binary\":\"f\"}", "{\"binary\":\"FF\"}", "{\"binary\":\"gg\"}" }) |invalid| try t.expectError(error.InvalidCharacter, p.Json.parseFromSliceOwned(Value, t.allocator, invalid));
+}
 
 test "application values retain protected handles without admitting ordinary persistence" {
     const t = std.testing;

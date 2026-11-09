@@ -120,7 +120,9 @@ rejects NULL at the authoritative write boundary.
 `Environment` retains only live lexical bindings and validates their instruction
 identities, types and scope against the frozen definition when restored. Its
 canonical encoding includes the mandatory native definition and an exact
-binding digest, with a 1 MiB ceiling. Decoding owns its bytes; prepared operands
+binding digest, with a 1 MiB ceiling. Binary values and secret revision identifiers
+use lowercase hex strings, independent of whether those bytes form valid UTF-8.
+Decoding owns its bytes. Prepared operands
 borrow the input, definition or caller's reusable turn arena. The host must
 retain the successor before resetting that arena. A continuation is not an
 authorization ticket or evidence of a committed transaction.
