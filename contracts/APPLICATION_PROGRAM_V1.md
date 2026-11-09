@@ -289,6 +289,18 @@ then the public state and label, each prefixed by its little-endian u64 byte
 length. Its 32-byte result is encoded as unpadded base64url. Commitments and S256
 hash these exact encoded bytes, matching cookie extraction. Bearer construction
 admits nonempty token68 bytes and keeps the resulting header protected.
+Native secret revision authority is retained separately from the transformed
+value's purpose. Derivation and Bearer formatting preserve it; random, request
+and provider material retain transient observation identities. Redemption
+evidence obtains this distinction from the reservation, never from a caller's
+handle. A derived transient value cannot acquire native secret-current semantics.
+
+`ApplicationSecrets` implements scoped lookup/current callbacks over
+`DirectSecret` and an open trusted private mount. It accepts nonempty regular
+files up to 64 KiB, detects short/growing reads, checks the exact content
+commitment and erases a failed private read. Current checks reject foreign
+bindings and use the current transaction client. Wiring these components into
+the live request registry and executor remains separate work.
 
 Protected scalar operators reuse the public evaluator's arithmetic, comparison
 and NULL rules inside the private host and seal the result again. Request fields

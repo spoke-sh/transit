@@ -73,9 +73,10 @@ proofs cover duplicate request fields, revocation, protected scalar operations,
 cookie/header purposes and capacity refusal. Canonical secret-reference metadata
 now uses an exact native KV schema and separate `use_secret` privilege. Program
 declarations include its implicit read dependency, and common-decision tests
-cover rotation, disable and privilege revocation after preparation. Private
-mount loading, live secret callbacks, effect ownership and HTTP composition
-remain unfinished.
+cover rotation, disable and privilege revocation after preparation. A private
+mount adapter now supplies scoped secret callbacks, checks exact content and
+erases failed reads. Live registry/executor composition, effect ownership and
+HTTP integration remain unfinished.
 
 ## Reviewed inputs and desired experience
 

@@ -87,6 +87,22 @@ credential or protected-response bytes through ordinary values. See the
 [application program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
 for helper algorithms, bounds and the remaining live verifier/dispatch work.
 
+`ApplicationSecrets` supplies the protected host's native lookup/current
+callbacks using the exact canonical secret binding and current fenced client.
+The deployment supplies an open private mount for that namespace. Reads accept
+only bounded regular files, preserve every byte, and verify the declared SHA-256
+commitment before retention. Changed, empty, oversized or unavailable files
+cannot substitute another credential; failed reads erase their private buffer.
+Current checks retain the native transaction read guard and reject a revision
+from another binding. These callbacks still require composition with the live
+request registry and managed executor.
+
+Secret authority provenance remains separate from redemption purpose. Derived
+values and Bearer headers preserve their parent's native revision requirement;
+random/request/provider material carries a transient observation identity.
+The reservation supplies that distinction to the authority verifier from its
+retained slot, so a public handle cannot alter it.
+
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native

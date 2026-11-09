@@ -32,7 +32,7 @@ pub const Evidence = union(enum) {
     access: Access,
     /// The native owner additionally checks any referenced secret/sink policy
     /// for this particular use. No protected bytes enter this evidence.
-    redemption: struct { access: Access, handle: V, use: Use },
+    redemption: struct { access: Access, handle: V, use: Use, revision_kind: ?RevisionKind },
     /// Observe the original committed common transaction and its exact handoff,
     /// enqueue, input ACK and checkpoint. Unknown/aborted decisions must reject.
     transfer: Transfer,
@@ -49,13 +49,16 @@ pub const Observation = struct {
     arguments: [32]u8,
 };
 pub const Material = union(enum) {
-    secret: struct { bytes: []const u8, revision: []const u8, origin: Origin },
+    secret: struct { bytes: []const u8, revision: []const u8, origin: Origin, revision_kind: RevisionKind },
     json: []const u8,
     /// Scalar bytes/values remain inside this reservation, including protected
     /// conditions. Records and references cannot be nested in a sealed scalar.
     scalar: V,
 };
 pub const Origin = enum { named, request_query, request_cookie, derived, random, provider_token, bearer };
+/// Authority provenance is independent of the transformed value's purpose.
+/// Derivation/header formatting must preserve a named secret's current guard.
+pub const RevisionKind = enum { native, transient };
 pub const Use = enum { current, commitment, comparison, derive, s256, bearer, form, header, cookie, json_projection, scalar };
 pub const Slot = struct {
     owner: Key,
@@ -177,7 +180,7 @@ pub fn read(self: *Self, access: Access, handle: V, use: Use) !Material {
         if (handle == .secret and !std.mem.eql(u8, handle.secret.revision, expected.secret.revision)) return error.ProtectedObservationChanged;
         if (handle == .sealed and handle.sealed.kind != expected.sealed.kind) return error.ProtectedProgramValue;
         try purpose(slot.material, use);
-        try self.authority.check(self.authority.context, .{ .redemption = .{ .access = access, .handle = handle, .use = use } });
+        try self.authority.check(self.authority.context, .{ .redemption = .{ .access = access, .handle = handle, .use = use, .revision_kind = if (slot.material == .secret) slot.material.secret.revision_kind else null } });
         return slot.material;
     }
     return error.ApplicationReservationLost;
@@ -215,7 +218,13 @@ fn copy(self: *Self, material: Material) !Material {
     return switch (material) {
         .secret => |secret| blk: {
             if (secret.bytes.len == 0 or secret.revision.len == 0 or secret.revision.len > 2048) return error.InvalidApplicationReservation;
-            break :blk .{ .secret = .{ .bytes = try allocator.dupe(u8, secret.bytes), .revision = try allocator.dupe(u8, secret.revision), .origin = secret.origin } };
+            const valid = switch (secret.origin) {
+                .named => secret.revision_kind == .native,
+                .derived, .bearer => true,
+                else => secret.revision_kind == .transient,
+            };
+            if (!valid) return error.InvalidApplicationReservation;
+            break :blk .{ .secret = .{ .bytes = try allocator.dupe(u8, secret.bytes), .revision = try allocator.dupe(u8, secret.revision), .origin = secret.origin, .revision_kind = secret.revision_kind } };
         },
         .json => |bytes| .{ .json = try allocator.dupe(u8, bytes) },
         .scalar => |scalar| .{ .scalar = switch (scalar) {
@@ -230,7 +239,7 @@ fn copy(self: *Self, material: Material) !Material {
 fn same(left: Material, right: Material) bool {
     if (std.meta.activeTag(left) != std.meta.activeTag(right)) return false;
     return switch (left) {
-        .secret => |secret| secret.origin == right.secret.origin and std.mem.eql(u8, secret.bytes, right.secret.bytes) and std.mem.eql(u8, secret.revision, right.secret.revision),
+        .secret => |secret| secret.origin == right.secret.origin and secret.revision_kind == right.secret.revision_kind and std.mem.eql(u8, secret.bytes, right.secret.bytes) and std.mem.eql(u8, secret.revision, right.secret.revision),
         .json => |bytes| std.mem.eql(u8, bytes, right.json),
         .scalar => |scalar| blk: {
             if (std.meta.activeTag(scalar) != std.meta.activeTag(right.scalar)) break :blk false;
@@ -245,7 +254,7 @@ fn same(left: Material, right: Material) bool {
 fn purpose(material: Material, use: Use) !void {
     const allowed = switch (material) {
         .secret => |secret| switch (use) {
-            .current => secret.origin == .named or secret.origin == .derived,
+            .current => secret.revision_kind == .native and (secret.origin == .named or secret.origin == .derived),
             .commitment, .comparison, .derive, .s256, .bearer, .form => true,
             .header => secret.origin == .bearer,
             // Cookie delivery cannot declassify a mounted provider credential,
@@ -307,7 +316,7 @@ test "protected application reservation binds original input and rechecks author
     try t.expectError(error.ApplicationRequestOwnerMismatch, self.request(access, .{ .binary = &self.reference.id }));
     const site: Observation = .{ .step = 0, .node = 1, .arguments = @splat(2) };
     var bytes = "private credential".*;
-    const secret = try self.retain(t.io, access, site, .{ .secret = .{ .bytes = &bytes, .revision = "r1", .origin = .named } });
+    const secret = try self.retain(t.io, access, site, .{ .secret = .{ .bytes = &bytes, .revision = "r1", .origin = .named, .revision_kind = .native } });
     @memset(&bytes, 0);
     try t.expectEqualStrings("private credential", (try self.read(access, secret, .commitment)).secret.bytes);
     try t.expectError(error.ProtectedProgramValue, self.read(access, secret, .cookie));
@@ -317,9 +326,13 @@ test "protected application reservation binds original input and rechecks author
     try t.expectEqualDeep(secret, (try self.find(access, site)).?);
     proof.redemption_allowed = true;
     try t.expectEqualDeep(secret, (try self.find(access, site)).?);
-    try t.expectEqualDeep(secret, try self.retain(t.io, access, site, .{ .secret = .{ .bytes = "private credential", .revision = "r1", .origin = .named } }));
+    try t.expectEqualDeep(secret, try self.retain(t.io, access, site, .{ .secret = .{ .bytes = "private credential", .revision = "r1", .origin = .named, .revision_kind = .native } }));
     try t.expectEqual(@as(usize, 1), self.used);
-    try t.expectError(error.ProtectedObservationChanged, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "changed", .revision = "r1", .origin = .named } }));
+    const invalid_site: Observation = .{ .step = 0, .node = 2, .arguments = @splat(2) };
+    try t.expectError(error.InvalidApplicationReservation, self.retain(t.io, access, invalid_site, .{ .secret = .{ .bytes = "private", .revision = "r1", .origin = .named, .revision_kind = .transient } }));
+    try t.expectError(error.InvalidApplicationReservation, self.retain(t.io, access, invalid_site, .{ .secret = .{ .bytes = "private", .revision = "r1", .origin = .random, .revision_kind = .native } }));
+    try t.expectEqual(@as(usize, 1), self.used);
+    try t.expectError(error.ProtectedObservationChanged, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "changed", .revision = "r1", .origin = .named, .revision_kind = .native } }));
     var changed = site;
     changed.arguments[0] += 1;
     try t.expectError(error.ProtectedObservationChanged, self.find(access, changed));
@@ -331,7 +344,7 @@ test "protected application reservation binds original input and rechecks author
     const before = proof.checks;
     try t.expectError(error.AccessDenied, self.read(access, secret, .commitment));
     try t.expectError(error.AccessDenied, self.find(access, site));
-    try t.expectError(error.AccessDenied, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "private credential", .revision = "r1", .origin = .named } }));
+    try t.expectError(error.AccessDenied, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "private credential", .revision = "r1", .origin = .named, .revision_kind = .native } }));
     try t.expectEqual(before + 3, proof.checks);
     proof.allowed = true;
     var expired = access;
@@ -340,7 +353,7 @@ test "protected application reservation binds original input and rechecks author
     try t.expect(std.mem.allEqual(u8, &memory, 0));
     try t.expect(std.mem.allEqual(u8, std.mem.sliceAsBytes(&slots), 0));
     try t.expectError(error.ApplicationReservationLost, self.find(access, site));
-    try t.expectError(error.ApplicationReservationLost, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "replacement", .revision = "r1", .origin = .named } }));
+    try t.expectError(error.ApplicationReservationLost, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "replacement", .revision = "r1", .origin = .named, .revision_kind = .native } }));
 }
 
 test "protected application handoff requires observed commit and cannot rewind the destination owner" {
@@ -353,7 +366,7 @@ test "protected application handoff requires observed commit and cannot rewind t
     defer self.deinit();
     const capability: V = .{ .capability = self.reference };
     try self.request(source, capability);
-    const secret = try self.retain(t.io, source, .{ .step = 0, .node = 1, .arguments = @splat(1) }, .{ .secret = .{ .bytes = "source-only", .revision = "r1", .origin = .named } });
+    const secret = try self.retain(t.io, source, .{ .step = 0, .node = 1, .arguments = @splat(1) }, .{ .secret = .{ .bytes = "source-only", .revision = "r1", .origin = .named, .revision_kind = .native } });
     var destination = source;
     destination.owner.token[0] += 1;
     destination.input.target.interpretation.object.object += 1;
@@ -387,9 +400,9 @@ test "protected application capacity refusal erases partial material without evi
     defer self.deinit();
     const first: Observation = .{ .step = 0, .node = 1, .arguments = @splat(1) };
     const second: Observation = .{ .step = 1, .node = 2, .arguments = @splat(2) };
-    const secret = try self.retain(t.io, access, first, .{ .secret = .{ .bytes = "kept", .revision = "r1", .origin = .named } });
+    const secret = try self.retain(t.io, access, first, .{ .secret = .{ .bytes = "kept", .revision = "r1", .origin = .named, .revision_kind = .native } });
     const before = self.memory.end_index;
-    try t.expectError(error.ApplicationReservationCapacity, self.retain(t.io, access, second, .{ .secret = .{ .bytes = "partial", .revision = "too long to fit", .origin = .named } }));
+    try t.expectError(error.ApplicationReservationCapacity, self.retain(t.io, access, second, .{ .secret = .{ .bytes = "partial", .revision = "too long to fit", .origin = .named, .revision_kind = .native } }));
     try t.expectEqual(before, self.memory.end_index);
     try t.expect(std.mem.allEqual(u8, memory[before..], 0));
     try t.expectEqualStrings("kept", (try self.read(access, secret, .commitment)).secret.bytes);

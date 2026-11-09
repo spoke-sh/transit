@@ -8,6 +8,7 @@ const telemetry = s.client.observability.telemetry;
 pub const BrowserRuntime = @import("BrowserRuntime.zig");
 pub const ApplicationReservation = @import("ApplicationReservation.zig");
 pub const ApplicationProtectedHost = @import("ApplicationProtectedHost.zig");
+pub const ApplicationSecrets = @import("ApplicationSecrets.zig");
 pub const Caller = struct { principal: u64, public_key: [32]u8 };
 pub const Gateway = struct {
     service: u64,

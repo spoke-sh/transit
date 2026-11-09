@@ -31411,7 +31411,7 @@
         "ApplicationReservationExpired": 1,
         "ApplicationReservationLost": 2,
         "ClientOperationPending": 1,
-        "InvalidApplicationReservation": 3,
+        "InvalidApplicationReservation": 4,
         "OutOfMemory": 1,
         "ProtectedObservationChanged": 3,
         "ProtectedProgramValue": 5
@@ -31435,6 +31435,10 @@
           "random",
           "provider_token",
           "bearer"
+        ],
+        "RevisionKind": [
+          "native",
+          "transient"
         ],
         "Use": [
           "current",
@@ -31473,6 +31477,37 @@
         "catch": 1
       },
       "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/ApplicationSecrets.zig": {
+      "errors": {
+        "Canceled": 3,
+        "InvalidSecretContent": 1,
+        "InvalidSecretReference": 1,
+        "ReadFailed": 1,
+        "SecretContentChanged": 1,
+        "SecretDisabled": 1,
+        "SecretNotFound": 1,
+        "SecretUnavailable": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "current()": "<inferred>",
+        "isCurrent()": "<inferred>",
+        "load()": "<inferred>",
+        "lookup()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 3
+      },
+      "imports": [
+        "ApplicationProtectedHost.zig",
+        "ApplicationReservation.zig",
         "std",
         "transit_catalog"
       ]
@@ -31831,6 +31866,7 @@
       "imports": [
         "ApplicationProtectedHost.zig",
         "ApplicationReservation.zig",
+        "ApplicationSecrets.zig",
         "BrowserRuntime.zig",
         "PrivateClient.zig",
         "ReactiveTransport.zig",

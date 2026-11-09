@@ -84,8 +84,8 @@ fn protect(self: *Self, site: R.Observation, value: V) !V {
     if (value == .null) return .null;
     return self.reservation.retain(self.io, self.access, site, .{ .scalar = value });
 }
-fn secret(self: *Self, site: R.Observation, bytes: []const u8, revision: []const u8, origin: R.Origin) !V {
-    return self.reservation.retain(self.io, self.access, site, .{ .secret = .{ .bytes = bytes, .revision = revision, .origin = origin } });
+fn secret(self: *Self, site: R.Observation, bytes: []const u8, revision: []const u8, origin: R.Origin, revision_kind: R.RevisionKind) !V {
+    return self.reservation.retain(self.io, self.access, site, .{ .secret = .{ .bytes = bytes, .revision = revision, .origin = origin, .revision_kind = revision_kind } });
 }
 fn evaluate(context: *anyopaque, node: a.Id, operation: a.Evaluation.Operation, args: []const V) !V {
     const self: *Self = @ptrCast(@alignCast(context));
@@ -129,7 +129,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
             if (args[0].text.len == 0 or args[0].text.len > 255 or !std.unicode.utf8ValidateSlice(args[0].text)) return error.ProgramArgumentMismatch;
             if (try self.cached(site)) |value| return value;
             const material = try self.secrets.lookup(self.secrets.context, scratch, args[0].text);
-            if (material != .secret or material.secret.origin != .named) return error.ProtectedProgramValue;
+            if (material != .secret or material.secret.origin != .named or material.secret.revision_kind != .native) return error.ProtectedProgramValue;
             return self.reservation.retain(self.io, self.access, site, material);
         },
         .secret_current => {
@@ -146,7 +146,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
             try self.io.randomSecure(selected);
             const encoder = std.base64.url_safe_no_pad.Encoder;
             const bytes = try scratch.alloc(u8, encoder.calcSize(selected.len));
-            return self.secret(site, encoder.encode(bytes, selected), &site.arguments, .random);
+            return self.secret(site, encoder.encode(bytes, selected), &site.arguments, .random, .transient);
         },
         .derive_secret => {
             if (args.len != 3 or args[0] != .secret or args[1] != .text or args[2] != .text) return error.ProgramArgumentMismatch;
@@ -165,7 +165,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
             hmac.final(&digest);
             var encoded: [43]u8 = undefined;
             defer std.crypto.secureZero(u8, &encoded);
-            return self.secret(site, std.base64.url_safe_no_pad.Encoder.encode(&encoded, &digest), parent.revision, .derived);
+            return self.secret(site, std.base64.url_safe_no_pad.Encoder.encode(&encoded, &digest), parent.revision, .derived, parent.revision_kind);
         },
         .commitment, .s256 => {
             if (args.len != 1) return error.ProgramArgumentMismatch;
@@ -202,7 +202,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
                 if (!std.unicode.utf8ValidateSlice(bytes)) return error.ProgramTypeMismatch;
                 return .{ .text = try self.output.dupe(u8, bytes) };
             }
-            return self.secret(site, bytes, &site.arguments, if (function == .http_secret_cookie_unique) .request_cookie else .request_query);
+            return self.secret(site, bytes, &site.arguments, if (function == .http_secret_cookie_unique) .request_cookie else .request_query, .transient);
         },
         .json_value, .json_integer, .secret_json_value => {
             if (args.len != 2 or args[1] != .text) return error.ProgramArgumentMismatch;
@@ -218,7 +218,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
             if (function == .json_integer and !std.mem.eql(u8, args[1].text, "$.id")) return error.ProtectedProgramValue;
             const result = try a.Json.project(scratch, bytes, args[1].text, if (function == .json_integer) .integer else if (function == .secret_json_value) .string else .text);
             if (result == .null or function == .json_integer) return result;
-            if (function == .secret_json_value) return self.secret(site, result.text, &site.arguments, .provider_token);
+            if (function == .secret_json_value) return self.secret(site, result.text, &site.arguments, .provider_token, .transient);
             return self.protect(site, result);
         },
         .bearer => {
@@ -226,7 +226,7 @@ fn run(self: *Self, scratch: std.mem.Allocator, node: a.Id, operation: a.Evaluat
             const parent = (try self.reservation.read(self.access, args[0], .bearer)).secret;
             if (!validBearer(parent.bytes)) return error.ProtectedProgramValue;
             if (try self.cached(site)) |value| return value;
-            return self.secret(site, try std.mem.concat(scratch, u8, &.{ "Bearer ", parent.bytes }), parent.revision, .bearer);
+            return self.secret(site, try std.mem.concat(scratch, u8, &.{ "Bearer ", parent.bytes }), parent.revision, .bearer, parent.revision_kind);
         },
         .length => if (args.len == 1 and args[0] == .sealed) {
             const value = try self.scalar(args[0]);
@@ -253,16 +253,20 @@ const Proof = struct {
     allowed: bool = true,
     current: bool = true,
     lookups: usize = 0,
+    native_redemptions: usize = 0,
     fn check(context: *anyopaque, evidence: R.Evidence) !void {
         const self: *@This() = @ptrCast(@alignCast(context));
         if (!self.allowed) return error.AccessDenied;
-        if (evidence == .redemption and evidence.redemption.use != .current and !self.current) return error.AccessDenied;
+        if (evidence == .redemption and evidence.redemption.revision_kind == .native) {
+            self.native_redemptions += 1;
+            if (evidence.redemption.use != .current and !self.current) return error.AccessDenied;
+        }
     }
     fn named(context: *anyopaque, _: std.mem.Allocator, name: []const u8) !R.Material {
         const self: *@This() = @ptrCast(@alignCast(context));
         if (!std.mem.eql(u8, name, "browser.cookie_key")) return error.UnknownProgramResource;
         self.lookups += 1;
-        return .{ .secret = .{ .bytes = "testing-cookie-key", .revision = "native-secret-revision", .origin = .named } };
+        return .{ .secret = .{ .bytes = "testing-cookie-key", .revision = "native-secret-revision", .origin = .named, .revision_kind = .native } };
     }
     fn isCurrent(context: *anyopaque, revision: []const u8) !bool {
         const self: *@This() = @ptrCast(@alignCast(context));
@@ -325,9 +329,18 @@ test "protected application helpers retain original entropy and domain separated
     try t.expectEqual(retained, reservation.used);
     try t.expectEqual(@as(usize, 43), (try reservation.read(self.access, random, .cookie)).secret.bytes.len);
     try t.expectError(error.ProtectedObservationChanged, evaluate(&self, 4, .{ .function = .random_secret }, &.{.{ .integer = 16 }}));
+    const header = try evaluate(&self, 6, .{ .function = .bearer }, &.{derived});
+    try t.expectEqual(.native, (try reservation.read(self.access, header, .header)).secret.revision_kind);
+    const local = try evaluate(&self, 7, .{ .function = .derive_secret }, &.{ random, .{ .text = "state" }, .{ .text = "local" } });
+    try t.expectEqual(.transient, (try reservation.read(self.access, local, .cookie)).secret.revision_kind);
+    try t.expectError(error.ProtectedProgramValue, evaluate(&self, 8, .{ .function = .secret_current }, &.{local}));
+    try t.expect(proof.native_redemptions > 0);
     try t.expect((try evaluate(&self, 5, .{ .function = .secret_current }, &.{secret_})).boolean);
     proof.current = false;
     try t.expect(!(try evaluate(&self, 5, .{ .function = .secret_current }, &.{secret_})).boolean);
+    try t.expectError(error.AccessDenied, reservation.read(self.access, header, .header));
+    try t.expectError(error.AccessDenied, reservation.read(self.access, derived, .cookie));
+    _ = try reservation.read(self.access, local, .cookie);
     try t.expectError(error.AccessDenied, evaluate(&self, 1, .{ .function = .secret }, &.{.{ .text = "browser.cookie_key" }}));
     try t.expect(std.mem.allEqual(u8, private, 0));
     reservation.close();
