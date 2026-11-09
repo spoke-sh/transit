@@ -32,8 +32,37 @@ record contains the initial typed environment behind current input/control read
 guards. Recovery metadata contains only identities, receipts and references.
 Every data call composes the invocation progress fence with the service lease;
 suspend and retire cancel the saved pending token before changing the head.
-Input retention does not ACK the Queue message or execute the program. Instruction
-transactions, terminal settlement and service scheduling remain in progress.
+Input retention does not ACK the Queue message or execute the program.
+
+`ApplicationExecution.tick` advances one persisted invocation phase with a
+caller-supplied native expression host. It retains proposed successor values
+before dispatching native work. A proposal is not a committed checkpoint.
+`ApplicationTransaction` selects exact Table, row Document, KV and log partitions
+under the existing serializable transaction owner; read access is required for
+write participants as well as declared reads. Native provisional statement
+completions and terminal decisions remain the evidence for their original work.
+The first committed boundary includes the exact input ACK and a transaction-owned
+checkpoint. Later boundaries retain that checkpoint without another ACK.
+Single-record SELECT outside an atomic block uses a bounded original read
+transaction and releases it before adopting the retained observation.
+
+Failure entry follows verified native abort and drops the failed body's locals.
+A failed failure handler terminates without recursive entry. Cancellation resolves
+the original transaction before deciding whether it committed; it cannot replace
+a committed success with refusal. The control head retains its pending invocation
+until the original input read is released, so retirement cannot remove its
+dependencies early. Cancelled acquisition closes the original claim and releases
+any accepted read without ACKing its input. Terminal progress retains native
+decision evidence; hosts must retry closing an attached original even when its
+progress already says `pending = false`.
+
+Frozen limits bound each SELECT's requests/scanned rows/result bytes, native
+transaction participants/statements/work, each continuation payload and cumulative
+retained input/proposal/checkpoint bytes. The request limit also bounds partition
+expansion; it is not a count of transport retries. These typed owners currently
+execute data instructions and failure continuations. SQL installation, automatic
+service scheduling, HTTP effects and response/capability operations remain
+integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
 
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded

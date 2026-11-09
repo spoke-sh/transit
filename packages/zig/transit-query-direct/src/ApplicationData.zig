@@ -254,7 +254,7 @@ pub fn prepareInsert(scratch: std.mem.Allocator, client: c.DirectTableClient, ex
         return null;
     }
     try reader.check(client);
-    return try c.DirectTableIntent.fromDml(client.allocator, client.connection, expected, operation, .{ .name = insert.target, .schema = schema, .action = .{ .insert = &.{cells} } }, .point);
+    return try c.DirectTableIntent.fromDml(client.allocator, client.connection, expected, operation, .{ .name = insert.target, .schema = schema, .action = .{ .insert = &.{cells} } }, .bulk);
 }
 fn assertSameRow(scratch: std.mem.Allocator, schema: f.TableSchema.Schema, existing: f.TableRow.Row, cells: []const Cell) !void {
     const expected: f.TableRow.Row = .{ .identity = existing.identity, .cells = cells };

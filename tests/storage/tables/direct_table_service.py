@@ -1,6 +1,7 @@
 """Real local Table HTTP owner, public typed caller, reply fault and disk restart."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
 import hashlib
 import json
 import os
@@ -23,6 +24,75 @@ class FaultProxy(ThreadingHTTPServer):
     # Join in-flight handlers before closing their evidence log or leaving the
     # interpreter, including when the caller times out during an upstream request.
     daemon_threads = False
+
+
+class ApplicationFaults:
+    """Lose original replies and crash the native owner at common decisions."""
+
+    expected = {"claim", "candidate", "kv", "table", "append", "ack",
+                "checkpoint", "atomic_commit", "final_commit", "execute", "complete"}
+
+    def __init__(self):
+        self.claim = None
+        self.transactions = {}
+        self.passed = set()
+
+    def select(self, envelope, data):
+        action = envelope.get("action", {})
+        if not isinstance(action, dict):
+            return None
+        progress = action.get("client_progress", {})
+        work = progress.get("advance") or progress.get("stage_original")
+        phase = None
+        if work and work.get("format") == 0x41505731:
+            payload = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
+            if payload["lease"]["target"]["object"]["object"] == 733020 and payload["lease"]["epoch"] == 1:
+                self.claim = payload["claim"]
+                execution = payload["execution"]
+                transaction = execution["transaction"]
+                if transaction:
+                    self.transactions[tuple(transaction["key"]["token"])] = transaction["kind"]
+                if "advance" in progress and execution["phase"] in ("execute", "complete"):
+                    phase = execution["phase"]
+        if self.claim is None:
+            return None
+        parsed = json.loads(data)
+        queue_wait = action.get("queue", {}).get("wait")
+        if queue_wait and queue_wait["claim"] == self.claim:
+            accepted = parsed["result"]["queue"].get("operation")
+            if accepted and "claim" in accepted:
+                assert accepted["claim"]["rows"] == 1
+                phase = "claim"
+        original = progress.get("stage_original")
+        if original and original["format"] == 0xC1504331:
+            assert parsed["result"]["client_progress"]["state"]["original"]["phase"] == "ready"
+            phase = "candidate"
+        record = action.get("record", {}).get("stage_transaction")
+        if record and record["format"] == 0xC1504331:
+            assert parsed["result"]["record"]["reference"]["format"] == 0x54585231
+            phase = "checkpoint"
+        transaction = action.get("transaction", {})
+        for tag in ("statement", "log_statement"):
+            statement = transaction.get(tag)
+            if statement and statement["execute"] and tuple(statement["key"]["token"]) in self.transactions:
+                request = statement["request"]
+                if tag == "log_statement":
+                    kind = next(iter(request["work"]))
+                    phase = {"append": "append", "queue_ack": "ack"}.get(kind)
+                else:
+                    phase = "kv" if request["binding"]["target"]["object"] == 733011 else "table"
+                assert "provisional" in parsed["result"]["transaction"][tag]
+        settlement = transaction.get("settle")
+        if settlement:
+            kind = self.transactions.get(tuple(settlement["key"]["token"]))
+            status = parsed["result"]["transaction"].get("status", {})
+            decision = status.get("observation", {}).get("decided")
+            if kind in ("atomic", "final") and decision and decision["outcome"] == "committed":
+                phase = kind + "_commit"
+        if phase and phase not in self.passed:
+            self.passed.add(phase)
+            return phase
+        return None
 
 
 def run(node, caller, mode="tables", *artifacts):
@@ -102,6 +172,7 @@ def run(node, caller, mode="tables", *artifacts):
         capture_pressure_scan = False
         board_fault = {"next": None, "accepted": []}
         managed_fault = {"pages_before_failure": None, "failed": False, "staging_reply_lost": False, "attachments_withheld": 0}
+        application_faults = ApplicationFaults() if mode in ("managed", "managed-board", "managed-board-browser") else None
         managed_pages = set()
         computation_reads = []
         computation_inspecting = False
@@ -119,7 +190,7 @@ def run(node, caller, mode="tables", *artifacts):
                 pass
 
             def do_POST(self):
-                nonlocal growth_sequence
+                nonlocal growth_sequence, authority
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 if computation_inspecting and self.path == "/table/v1":
@@ -203,6 +274,18 @@ def run(node, caller, mode="tables", *artifacts):
                     connection.request("POST", self.path, body, headers)
                     response = connection.getresponse()
                     data = response.read()
+                    if application_faults is not None and response.status == 200:
+                        application_phase = application_faults.select(envelope, data)
+                        if application_phase:
+                            if application_phase.endswith("_commit"):
+                                authority.kill()
+                                assert authority.wait(timeout=15) == -signal.SIGKILL
+                                authority = start()
+                            # The accepted reply cannot establish caller
+                            # completion. Recovery observes the same work key.
+                            parsed = json.loads(data)
+                            parsed["context"][0] ^= 1
+                            data = json.dumps(parsed).encode()
                     owned = record.get("stage_transaction") if record else None
                     if mode in ("managed", "managed-board", "managed-board-browser") and owned and response.status == 200:
                         reference = json.loads(data)["result"]["record"]["reference"]
@@ -775,6 +858,9 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
+                assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
+                print("Application invocation: exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
+                      "11 original lost replies, two native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
                 if mode != "managed":
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)
                     from interfaces.board.computations import exercise

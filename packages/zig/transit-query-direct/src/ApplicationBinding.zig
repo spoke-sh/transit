@@ -140,14 +140,16 @@ pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection)
 
 /// Required actions are descriptive inputs to the existing dependency owner.
 /// Registering them or retaining a binding never caches a permission grant.
+/// The current common transaction owner acquires a read cut for write targets
+/// too; readiness must expose those native requirements before execution.
 pub fn privileges(self: Self, use: a.Types.Use) !u64 {
     if (use.dispatch or (use.consume and self.kind() != .queue)) return error.ProgramResourceKindMismatch;
     return switch (self.kind()) {
-        .table, .document => (if (use.read or use.guard) @as(u64, c.TableAuthority.select) else 0) |
+        .table, .document => (if (use.read or use.guard or use.write) @as(u64, c.TableAuthority.select) else 0) |
             (if (use.write) @as(u64, c.TableAuthority.insert) else 0),
-        .kv => (if (use.read or use.guard) @as(u64, c.KVAuthority.read) else 0) |
+        .kv => (if (use.read or use.guard or use.write) @as(u64, c.KVAuthority.read) else 0) |
             (if (use.write) @as(u64, c.KVAuthority.write) else 0),
-        .queue, .stream => (if (use.read) @as(u64, c.LogAuthority.read) else 0) |
+        .queue, .stream => (if (use.read or use.write) @as(u64, c.LogAuthority.read) else 0) |
             (if (use.write) @as(u64, c.LogAuthority.append) else 0) |
             (if (use.consume) @as(u64, c.LogAuthority.acquire | c.LogAuthority.settle) else 0),
         .sink => unreachable,

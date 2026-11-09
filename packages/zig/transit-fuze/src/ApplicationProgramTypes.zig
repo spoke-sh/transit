@@ -445,7 +445,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 if (put.expected == .revision) try requireKind(try self.expression(put.expected.revision), .binary);
             },
             .insert => |insert| {
-                const target = try self.resource(insert.target, .table, .{ .resource = 0, .write = true });
+                const target = try self.resource(insert.target, .table, .{ .resource = 0, .read = true, .write = true });
                 if (insert.values.len != target.fields.len or insert.conflict_columns.len != target.key.len) return error.ProgramTypeMismatch;
                 for (target.key, insert.conflict_columns) |expected, actual| if (!std.mem.eql(u8, expected, actual)) return error.ProgramTypeMismatch;
                 for (target.fields, insert.values) |expected, actual| try stored(expected.value, try self.expression(actual), false);

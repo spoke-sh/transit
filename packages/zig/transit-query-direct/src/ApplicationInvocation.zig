@@ -32,8 +32,24 @@ pub const Work = struct {
     input_lease: ?p.StreamQueue.Lease,
     environment: ?R.Reference,
     phase: enum { claiming, reading, ready },
+    execution: q.ApplicationExecution.State,
     pub fn validate(self: Work, value: M.Declaration, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
+        try self.execution.validate();
+        if (self.execution.retained_bytes > value.limits.retained_bytes) return error.InvalidDirectRecord;
+        if (self.execution.transaction) |transaction| {
+            if (transaction.step > @as(u32, value.program.nodes) * 3 or transaction.sequence > value.limits.transaction.statements) return error.InvalidDirectRecord;
+            var connection = value.connection;
+            connection.role = value.executor_role;
+            if (!std.meta.eql(transaction.key.connection, connection)) return error.InvalidDirectRecord;
+        }
+        if (self.phase != .ready and !std.meta.eql(self.execution, q.ApplicationExecution.State.initial())) {
+            if (!self.execution.cancelled or self.execution.current != null or self.execution.candidate != null or self.execution.transaction != null or self.execution.checkpoint != null) return error.InvalidDirectRecord;
+            switch (self.execution.phase) {
+                .closing, .release, .detach, .complete => {},
+                else => return error.InvalidDirectRecord,
+            }
+        }
         try self.declaration.validate();
         try self.lease.validate();
         try self.claim.validate();
@@ -111,6 +127,8 @@ pub fn load(self: Self, reference: R.Reference) !std.json.Parsed(Work) {
         else => return error.InvalidDirectRecord,
     };
     defer client.allocator.free(binary);
+    if (binary.len > 64 * 1024) return error.InvalidDirectRecord;
+    try a.Codec.validateEncoding(binary);
     return p.Json.parseFromSliceOwned(Work, client.allocator, binary);
 }
 
@@ -160,6 +178,7 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
         .input_lease = null,
         .environment = null,
         .phase = .claiming,
+        .execution = .initial(),
     };
     try work.validate(value, m.client.allocator);
     const bytes = try p.Json.valueAllocBounded(scratch.allocator(), work, 64 * 1024);
@@ -186,7 +205,7 @@ pub fn advance(self: Self, value: M.Declaration, progress: T.Progress, work: Wor
     defer self.manager.client.allocator.free(bytes);
     const binary = try c.DirectTableProtocol.Binary.encode(self.manager.client.allocator, bytes);
     defer self.manager.client.allocator.free(binary.base64);
-    return c.DirectProgressRecord.advance(self.manager.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = true, .cancel = progress.cancel, .format = work_format, .bytes = binary });
+    return c.DirectProgressRecord.advance(self.manager.client, .{ .key = progress.receipt.binding.key, .expected = progress.revision, .pending = work.execution.phase != .complete, .cancel = progress.cancel, .format = work_format, .bytes = binary });
 }
 
 pub fn executor(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !c.DirectTableClient {
@@ -232,6 +251,8 @@ pub fn acquire(self: Self, value: M.Declaration, progress: T.Progress, work: Wor
                 defer input.deinit();
                 _ = try retainInput(client, input_key, stored);
                 next.environment = stored.receipt.binding.intent.external.record;
+                if (next.environment.?.content.bytes > value.limits.retained_bytes) return error.QueryResultBudget;
+                next.execution.retained_bytes = next.environment.?.content.bytes;
                 next.input_lease = input.value.lease;
                 next.phase = .ready;
                 return self.advance(value, progress, next);
@@ -258,14 +279,18 @@ pub fn acquire(self: Self, value: M.Declaration, progress: T.Progress, work: Wor
         defer env.deinit();
         const input_record: Input = .{ .definition = p.Growth.current_definition, .claim = work.receipt.?, .lease = row.lease.original, .environment = env.snapshot(try value.digest(client.allocator)) };
         try a.Environment.validate(index, bound, try value.digest(client.allocator), input_record.environment);
-        const bytes = try p.Json.valueAllocBounded(output.allocator(), input_record, value.limits.continuation_bytes);
+        const bytes = p.Json.valueAllocBounded(output.allocator(), input_record, value.limits.continuation_bytes) catch |err| return if (err == error.WriteFailed) error.QueryResultBudget else err;
         const guarded = try R.encodeGuarded(output.allocator(), client.connection, &.{ work.claim.target.interpretation.object, value.object }, bytes);
+        const binary = try c.DirectTableProtocol.Binary.encode(output.allocator(), guarded);
+        const encoded = try c.DirectOwnedRecord.encode(output.allocator(), input_key, input_format, binary);
+        if (encoded.len > value.limits.retained_bytes) return error.QueryResultBudget;
         var fingerprint: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(guarded, &fingerprint, .{});
         const stored = try c.DirectOwnedRecord.stage(client, input_key, value.namespace, self.manager.operation(value, "input", work.lease.epoch).operation, fingerprint, .{ .bytes = 4 * @as(u64, value.limits.continuation_bytes) + 4096 }, input_format, guarded);
         if (stored.original.?.phase == .closed or stored.cancel) return error.OwnedRecordClosed;
         _ = try retainInput(client, input_key, stored);
         next.environment = stored.receipt.binding.intent.external.record;
+        next.execution.retained_bytes = next.environment.?.content.bytes;
         next.input_lease = row.lease.original;
         next.phase = .ready;
     }
@@ -296,6 +321,7 @@ pub fn loadInput(self: Self, client: c.DirectTableClient, value: M.Declaration, 
         !std.meta.eql(guarded.value.objects[1], value.object)) return error.InvalidDirectRecord;
     const payload = try guarded.value.payload.decode(client.allocator, value.limits.continuation_bytes);
     defer client.allocator.free(payload);
+    try a.Codec.validateEncoding(payload);
     const parsed = try p.Json.parseFromSliceOwned(Input, client.allocator, payload);
     errdefer parsed.deinit();
     if (parsed.value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -322,7 +348,7 @@ test "application invocation rejects invalid declarations before native acquisit
     const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = null };
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = undefined, .service = undefined, .connection = connection, .key = undefined };
     const owner: Self = .{ .manager = .{ .client = client } };
-    const invalid: M.Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0 } };
+    const invalid: M.Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
     try t.expectError(error.InvalidQueryBudget, owner.start(invalid, 0));
     try t.expectError(error.InvalidQueryBudget, owner.acquire(invalid, undefined, undefined));
     try t.expect(!std.meta.eql(owner.key(invalid, 1, "work"), owner.key(invalid, 2, "work")));

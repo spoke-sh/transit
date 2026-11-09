@@ -15084,7 +15084,7 @@
     },
     "packages/zig/transit-fuze/src/ApplicationCursor.zig": {
       "errors": {
-        "InvalidProgramNode": 28,
+        "InvalidProgramNode": 29,
         "NestedAtomicProgram": 1
       },
       "outcomes": {
@@ -15127,11 +15127,12 @@
         "enter()": "<inferred>",
         "fail()": "<inferred>",
         "next()": "<inferred>",
+        "refuse()": "<inferred>",
         "restore()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 13,
         "catch": 0
       },
       "imports": [
@@ -15142,7 +15143,7 @@
     "packages/zig/transit-fuze/src/ApplicationEnvironment.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
-        "InvalidProgramNode": 13,
+        "InvalidProgramNode": 14,
         "UnknownProgramVariable": 1
       },
       "outcomes": {},
@@ -15150,17 +15151,19 @@
       "error_returns": {
         "advance()": "<inferred>",
         "bind()": "<inferred>",
+        "clone()": "<inferred>",
         "decode()": "<inferred>",
         "encode()": "<inferred>",
         "fail()": "<inferred>",
         "init()": "<inferred>",
         "lookup()": "<inferred>",
+        "refuse()": "<inferred>",
         "restore()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -15593,11 +15596,13 @@
         "finish()": "<inferred>",
         "lookup()": "<inferred>",
         "prepare()": "<inferred>",
+        "propose()": "<inferred>",
+        "transition()": "<inferred>",
         "values()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 37,
+        "try": 40,
         "catch": 1
       },
       "imports": [
@@ -15607,13 +15612,18 @@
     },
     "packages/zig/transit-fuze/src/ApplicationValue.zig": {
       "errors": {
+        "InvalidCharacter": 3,
         "InvalidSqlEncoding": 1,
+        "LengthMismatch": 1,
         "ProgramNullabilityMismatch": 1,
         "ProgramTooComplex": 3,
         "ProgramTooDeep": 3,
         "ProgramTypeMismatch": 7,
         "ProtectedProgramValue": 2,
-        "UnknownProgramField": 1
+        "UnexpectedToken": 2,
+        "UnknownField": 1,
+        "UnknownProgramField": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Value": [
@@ -15636,7 +15646,12 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Hex.jsonParseFromValue()": "std . json . ParseFromValueError",
+        "Hex.jsonStringify()": "std . Io . Writer . Error",
         "Value.field()": "<inferred>",
+        "Value.jsonParse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
+        "Value.jsonParseFromValue()": "std . json . ParseFromValueError",
+        "Value.jsonStringify()": "std . Io . Writer . Error",
         "Value.public()": "anyerror",
         "Value.publicDepth()": "anyerror",
         "Value.reference()": "<inferred>",
@@ -15646,12 +15661,13 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 11,
-        "catch": 0
+        "try": 23,
+        "catch": 2
       },
       "imports": [
         "ApplicationProgram.zig",
-        "std"
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-fuze/src/AuthorizationSql.zig": {
@@ -27244,8 +27260,127 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 30,
         "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationExecution.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "DataflowIdentityConflict": 1,
+        "DataflowLeaseFenced": 2,
+        "DataflowSourceChanged": 1,
+        "IncompatibleDefinition": 1,
+        "InvalidDirectRecord": 41,
+        "InvalidProgramNode": 2,
+        "InvalidQueueResponse": 3,
+        "InvalidTransactionGuard": 4,
+        "NestedAtomicProgram": 2,
+        "Overflow": 1,
+        "OwnedRecordClosed": 4,
+        "ProgramCardinalityMismatch": 1,
+        "ProgramResourceKindMismatch": 4,
+        "ProgramRowAssertionFailed": 1,
+        "ProgramTypeMismatch": 1,
+        "QueryPageBudget": 1,
+        "QueryResultBudget": 5,
+        "QueueLeaseExpired": 1,
+        "TableDefinitionChanged": 3,
+        "TableNotFound": 2,
+        "TransactionCapacity": 1,
+        "UnknownProgramResource": 1,
+        "WriteFailed": 2
+      },
+      "outcomes": {
+        "Candidate.action": [
+          "advance",
+          "state",
+          "kv",
+          "log",
+          "boundary",
+          "failure"
+        ],
+        "Candidate.action.boundary": [
+          "atomic",
+          "final"
+        ],
+        "Environment": [
+          "input",
+          "candidate"
+        ],
+        "Failure.reason": [
+          "none",
+          "authorization",
+          "budget",
+          "source_changed",
+          "row_assertion",
+          "lease_expired",
+          "lease_fenced",
+          "original_lost",
+          "execution"
+        ],
+        "State.boundary": [
+          "atomic",
+          "final"
+        ],
+        "State.phase": [
+          "evaluate",
+          "begin",
+          "acquire",
+          "stage",
+          "execute",
+          "ack",
+          "checkpoint",
+          "settle",
+          "abort",
+          "fail",
+          "closing",
+          "release",
+          "detach",
+          "complete"
+        ],
+        "State.purpose": [
+          "instruction",
+          "ack",
+          "checkpoint"
+        ],
+        "Transaction.kind": [
+          "atomic",
+          "read",
+          "final"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Failure.code()": "<inferred>",
+        "Failure.validate()": "<inferred>",
+        "State.validate()": "<inferred>",
+        "abort()": "<inferred>",
+        "adopt()": "<inferred>",
+        "advance()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "closeInput()": "<inferred>",
+        "closeOriginal()": "<inferred>",
+        "committed()": "<inferred>",
+        "detach()": "<inferred>",
+        "environment()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "load()": "<inferred>",
+        "refuse()": "<inferred>",
+        "resource()": "<inferred>",
+        "startTransaction()": "<inferred>",
+        "store()": "<inferred>",
+        "storeCheckpoint()": "<inferred>",
+        "tick()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 134,
+        "catch": 5
       },
       "imports": [
         "root.zig",
@@ -27258,13 +27393,15 @@
         "DataflowIdentityConflict": 1,
         "DataflowLeaseFenced": 2,
         "IncompatibleDefinition": 2,
-        "InvalidDirectRecord": 20,
+        "InvalidDirectRecord": 26,
         "InvalidProgramNode": 1,
         "InvalidQueueResponse": 3,
         "OwnedRecordClosed": 3,
+        "QueryResultBudget": 3,
         "QueueLeaseExpired": 1,
         "QueueTimeUnavailable": 1,
-        "TableDefinitionChanged": 1
+        "TableDefinitionChanged": 1,
+        "WriteFailed": 1
       },
       "outcomes": {
         "Work.phase": [
@@ -27287,7 +27424,38 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 82,
+        "try": 86,
+        "catch": 1
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationTransaction.zig": {
+      "errors": {
+        "DataflowIdentityConflict": 1,
+        "InvalidTableResponse": 1,
+        "InvalidTransactionRead": 2,
+        "ProgramResourceKindMismatch": 1,
+        "TableDefinitionChanged": 1,
+        "TableNotFound": 2,
+        "TransactionCapacity": 1,
+        "TransactionCutNotAcquired": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "execute()": "<inferred>",
+        "prepareBegin()": "<inferred>",
+        "privateClient()": "<inferred>",
+        "snapshot()": "<inferred>",
+        "table()": "<inferred>",
+        "tableMetadata()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -27562,7 +27730,7 @@
         "DataflowLeaseFenced": 1,
         "DataflowSourceChanged": 1,
         "IncompatibleDefinition": 2,
-        "InvalidDataflowControl": 2,
+        "InvalidDataflowControl": 3,
         "InvalidDataflowTransition": 4,
         "InvalidDirectRecord": 7,
         "InvalidKVResponse": 1,
@@ -27591,7 +27759,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 77,
+        "try": 78,
         "catch": 0
       },
       "imports": [
@@ -27912,7 +28080,9 @@
         "ApplicationBinding.zig",
         "ApplicationData.zig",
         "ApplicationDeclaration.zig",
+        "ApplicationExecution.zig",
         "ApplicationInvocation.zig",
+        "ApplicationTransaction.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
         "DirectRelationalQuery.zig",

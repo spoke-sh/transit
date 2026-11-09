@@ -21,11 +21,12 @@ pub const Head = struct {
     executor_role: ?u64,
     attempt: u64,
     pending: ?c.DirectClientToken.Key,
+    checkpoint: ?c.DirectRecord.Reference,
     completed: u64,
     refused: u64,
     retirement_complete: bool,
     pub fn initial(digest: [32]u8) Head {
-        return .{ .definition = p.Growth.current_definition, .declaration = digest, .control = .initial(), .executor_role = null, .attempt = 0, .pending = null, .completed = 0, .refused = 0, .retirement_complete = false };
+        return .{ .definition = p.Growth.current_definition, .declaration = digest, .control = .initial(), .executor_role = null, .attempt = 0, .pending = null, .checkpoint = null, .completed = 0, .refused = 0, .retirement_complete = false };
     }
     pub fn validate(self: Head) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -35,9 +36,16 @@ pub const Head = struct {
             ((self.control.state == .authorized or self.control.state == .active or self.control.state == .suspended) and self.executor_role == null) or
             (self.retirement_complete and (self.control.state != .retired or self.pending != null)) or
             self.completed > self.attempt or self.refused > self.attempt - self.completed) return error.InvalidDataflowControl;
+        if (self.checkpoint) |reference| {
+            try reference.validate();
+            if (reference.format != c.DirectTransactionRecord.format) return error.InvalidDataflowControl;
+        }
         if (self.pending) |key| {
             try key.validate();
-            if (self.attempt == 0 or self.attempt == self.completed + self.refused) return error.InvalidDataflowControl;
+            // A verified terminal decision can precede claim-read cleanup.
+            // Keep pending attached until cleanup, so retirement cannot remove
+            // dependencies and new work cannot overtake its original owner.
+            if (self.attempt == 0) return error.InvalidDataflowControl;
         }
     }
 };
@@ -329,7 +337,7 @@ test "managed application control requires explicit executor and preserves pendi
     const client: c.DirectTableClient = .{ .allocator = t.allocator, .authority = undefined, .service = undefined, .connection = undefined, .key = undefined };
     const manager: Self = .{ .client = client };
     const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = null };
-    const invalid: Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0 } };
+    const invalid: Declaration = .{ .definition = p.Growth.current_definition, .connection = connection, .executor_role = 6, .namespace = 1, .name = try .init("invalid"), .object = .{ .scope = connection.scope, .branch = 1, .object = 7 }, .operation = .{ .scope = connection.scope, .principal = 4, .operation = 8 }, .source_digest = @splat(1), .program = undefined, .resources = &.{}, .limits = .{ .requests = 0, .scan_rows = 0, .result_bytes = 0, .continuation_bytes = 0, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits } };
     try t.expectError(error.InvalidQueryBudget, manager.publish(invalid));
     try t.expectError(error.InvalidQueryBudget, manager.prepareControl(invalid, undefined, null));
     try t.expectError(error.InvalidDataflowTransition, manager.executor(invalid, .{ .head = initial, .storage = undefined, .position = undefined }));

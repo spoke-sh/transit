@@ -18,9 +18,12 @@ pub const Limits = struct {
     scan_rows: u64,
     result_bytes: u32,
     continuation_bytes: u32,
+    retained_bytes: u64,
+    transaction: p.Transaction.Limits,
     pub fn validate(self: Limits) !void {
         if (self.requests == 0 or self.scan_rows == 0 or self.result_bytes == 0 or self.result_bytes > a.Codec.max_bytes or
-            self.continuation_bytes == 0 or self.continuation_bytes > a.Codec.max_bytes) return error.InvalidQueryBudget;
+            self.continuation_bytes == 0 or self.continuation_bytes > a.Codec.max_bytes or self.retained_bytes < self.continuation_bytes) return error.InvalidQueryBudget;
+        try self.transaction.validate();
     }
 };
 definition: p.Growth.Definition,
@@ -185,7 +188,7 @@ test "application declarations retain exact typed programs and consume rights wi
         .source_digest = source_digest,
         .program = parsed.program,
         .resources = &resources,
-        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536 },
+        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits },
     };
     const bytes = try declaration.encode(t.allocator);
     defer t.allocator.free(bytes);
@@ -204,7 +207,7 @@ test "application declarations retain exact typed programs and consume rights wi
     var bound = try restored.value.bind(t.allocator);
     defer bound.deinit();
     try t.expectEqual(c.LogAuthority.read | c.LogAuthority.acquire | c.LogAuthority.settle, try restored.value.resources[0].privileges(bound.uses[0]));
-    try t.expectEqual(c.LogAuthority.append, try resources[0].privileges(.{ .resource = 0, .write = true }));
+    try t.expectEqual(c.LogAuthority.read | c.LogAuthority.append, try resources[0].privileges(.{ .resource = 0, .write = true }));
     var changed = declaration;
     changed.connection.role = 7;
     try t.expect(!std.meta.eql(try declaration.digest(t.allocator), try changed.digest(t.allocator)));

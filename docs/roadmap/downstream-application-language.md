@@ -40,8 +40,12 @@ The invocation input owner now attaches work before acquisition, retains exact
 Queue claim receipts and protects initial environments with native read guards.
 Service and invocation progress fences compose on native requests. Saved suspend
 and retire controls fence the original pending invocation before updating its
-head. Instruction transactions, input ACK, effect/response settlement and service
-scheduling remain unfinished; this does not qualify the downstream journey.
+head. The typed invocation runner now composes Table/KV/Stream instructions,
+original input ACK and guarded checkpoints through native serializable
+transactions. Signed component coverage includes mixed commit/abort, failure
+handler termination and cancellation cleanup. Effect/response settlement, service
+scheduling and the remaining installation/browser phases are unfinished; this
+does not qualify the downstream journey.
 
 ## Reviewed inputs and desired experience
 

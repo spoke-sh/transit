@@ -14,8 +14,13 @@ read/mutation preparation for these operands.
 Native resource binding and typed publication/control are implemented in
 `ApplicationBinding`, `ApplicationDeclaration` and `ManagedApplication`.
 `ApplicationInvocation` attaches original work, acquires Queue input and retains
-its initial protected environment. SQL publication, instruction execution and
-service scheduling remain integration work tracked
+its initial protected environment. `ApplicationExecution` composes data
+instructions, exact input ACK, guarded checkpoints and bounded failure
+continuations through native serializable transactions. The signed component
+proof covers mixed Table/KV/Stream commit/abort, original lost replies, native
+process replacement and cancellation cleanup; it does
+not qualify the complete browser application. SQL publication, automatic service
+scheduling, native HTTP effects and response operations remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
 
@@ -180,6 +185,22 @@ Program timestamps use SQL's UTC microseconds since epoch; durations use signed
 microseconds. Seconds conversion and timestamp arithmetic must reject overflow.
 
 ## Atomic decisions and continuation
+
+The implemented typed execution owner retains proposed successors as guarded
+owned records and publishes checkpoints as transaction-owned records. Native
+statement completion is provisional until its common decision commits. Original
+input, proposals and checkpoints count against the declaration's retained-byte
+budget; each payload also has a separate continuation limit. Read request budgets
+apply per SELECT, while native transaction limits bound participant expansion,
+statement count and work. Transport retries do not receive new operation IDs.
+
+The first committed boundary ACKs the exact original input lease. Subsequent
+boundaries retain continuation progress without repeating that ACK. Final counts
+commit with the terminal checkpoint, but the control head keeps the invocation
+attached until input-read cleanup completes. Suspension during acquisition closes
+the original claim and releases an accepted read without settling the message.
+Cancellation arriving after a common committed decision preserves that decision,
+including when the invocation has not yet observed its completion.
 
 An atomic block uses the common direct transaction owner. It freezes exact
 Table/KV/Document read guards and composes state writes, Stream/Queue outputs,

@@ -527,7 +527,7 @@ fn applicationPublication(client: c.DirectTableClient, admin: anytype, role: u64
         .source_digest = digest,
         .program = program.program,
         .resources = &resources,
-        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536 },
+        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits },
     };
     try applicationFences(client, try value.inputClaim(client.allocator, 0, .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 731003 }));
     const manager: A = .{ .client = client };
@@ -579,6 +579,7 @@ fn applicationPublication(client: c.DirectTableClient, admin: anytype, role: u64
     _ = try manager.applyControl(activated);
     try t.expectEqual(.retired, (try manager.inspect(value)).head.control.state);
     try applicationAcquisition(client, value, admin, role);
+    try applicationExecution(client, value, role);
 }
 
 pub fn incomplete(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
@@ -708,4 +709,306 @@ fn applicationAcquisition(client: c.DirectTableClient, published: q.ManagedAppli
     try t.expectError(error.Conflict, c.DirectQueueClient.apply(&output, executor, .{ .observe = ready.value.claim.target }));
     try t.expectError(error.DataflowLeaseFenced, owner.acquire(value, progress, ready.value));
     try t.expectEqualDeep(token, (try manager.inspect(value)).head.pending.?);
+    try applicationCancelled(owner, value, token);
+    try applicationCancelAcquisition(client, published, role, false);
+    try applicationCancelAcquisition(client, published, role, true);
+}
+
+fn applicationCancelled(owner: q.ApplicationInvocation, value: q.ManagedApplication.Declaration, token: c.DirectClientToken.Key) !void {
+    const T = c.DirectClientToken;
+    const client = owner.manager.client;
+    var host: ApplicationHost = .{};
+    for (0..16) |_| {
+        const progress = (try T.inspect(client, token)).?;
+        const saved = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+        defer saved.deinit();
+        // Input ownership remains attached until its read has been released.
+        if (saved.value.execution.phase != .complete) try t.expectEqualDeep(token, (try owner.manager.inspect(value)).head.pending.?);
+        const runner: q.ApplicationExecution = .{ .owner = owner, .native = host.host() };
+        const next = try runner.tick(value, progress, saved.value);
+        if (!next.pending) {
+            try t.expectEqual(.closed, next.original.?.phase);
+            const final = try owner.load(next.record.?);
+            defer final.deinit();
+            try t.expectEqual(.complete, final.value.execution.phase);
+            try t.expect(final.value.execution.cancelled);
+            try t.expect(!final.value.execution.acknowledged);
+            const head = (try owner.manager.inspect(value)).head;
+            try t.expect(head.pending == null);
+            try t.expectEqual(@as(u64, 0), head.completed);
+            try t.expectEqual(@as(u64, 1), head.refused);
+            // Replaying the terminal owner only closes the same original.
+            try t.expectEqualDeep(next, try runner.tick(value, next, final.value));
+            return;
+        }
+    }
+    return error.ApplicationCleanupIncomplete;
+}
+
+fn applicationCancelAcquisition(client: c.DirectTableClient, published: q.ManagedApplication.Declaration, role: u64, claimed: bool) !void {
+    const p = c.protocol;
+    const operation: u64 = if (claimed) 732200 else 732100;
+    const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .executor_role = role,
+        .namespace = 1,
+        .object = operation + 20,
+        .operation = operation,
+        .source = if (claimed) "CREATE DATAFLOW application_cancel_read FROM QUEUE application_input AS event WHERE id = 43 AS BEGIN REQUIRE TRUE ELSE 'Unused'; END;" else "CREATE DATAFLOW application_cancel_empty FROM QUEUE application_input AS event WHERE id < 0 AS BEGIN REQUIRE TRUE ELSE 'Unused'; END;",
+        .resources = published.resources,
+        .limits = published.limits,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation + 1 + index }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    if (claimed) {
+        var metadata = try c.DirectLogProtocol.decodeMetadata(client.allocator, client.connection, value.resources[0].value.log);
+        defer metadata.deinit();
+        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = value.resources[0].value.log.declaration, .schema = metadata.definition.schema }, operation + 3, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = 43 }} });
+        const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+        _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } });
+    }
+    const token = (try owner.start(value, 0)).?;
+    const progress = (try c.DirectClientToken.inspect(client, token)).?;
+    const initial = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+    defer initial.deinit();
+    const acquired = try owner.acquire(value, progress, initial.value);
+    if (claimed) {
+        const saved = try owner.load(acquired.record.?);
+        defer saved.deinit();
+        try t.expectEqual(.reading, saved.value.phase);
+        try t.expect(saved.value.environment == null);
+    } else try t.expectEqualDeep(progress, acquired);
+    observed = try manager.inspect(value);
+    const suspend_request = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = operation + 4 }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = .suspend_computation }, null);
+    defer client.allocator.free(suspend_request);
+    _ = try manager.applyControl(suspend_request);
+    try applicationCancelled(owner, value, token);
+}
+
+const ApplicationHost = struct {
+    digest: [32]u8 = undefined,
+    evaluations: u32 = 0,
+    const a = q.fuze.ApplicationProgram;
+    fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
+        return error.UnknownProgramVariable;
+    }
+    fn evaluate(context: *anyopaque, _: a.Id, operation: a.Evaluation.Operation, arguments: []const a.Values.Value) anyerror!a.Values.Value {
+        const self: *ApplicationHost = @ptrCast(@alignCast(context));
+        if (operation != .function or operation.function != .digest or arguments.len != 1 or arguments[0] != .text) return error.UnexpectedHostOperation;
+        self.evaluations += 1;
+        std.crypto.hash.sha2.Sha256.hash(arguments[0].text, &self.digest, .{});
+        return .{ .binary = &self.digest };
+    }
+    fn condition(_: *anyopaque, _: a.Values.Value) anyerror!bool {
+        return error.UnexpectedProtectedCondition;
+    }
+    fn host(self: *ApplicationHost) a.Evaluation.Host {
+        return .{ .context = self, .lookup = lookup, .evaluate = evaluate, .condition = condition };
+    }
+};
+
+fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplication.Declaration, role: u64) !void {
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    try ddl(client, "CREATE TABLE application_rows (id BIGINT PRIMARY KEY)", 733001, 733010);
+    const table = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } });
+    defer table.deinit();
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    const kv = try c.DirectKVClient.prepareDeclaration(client.allocator, .{
+        .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733011 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 733011 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = @splat(0) },
+        .namespace = 1,
+        .name = try .init("application_state"),
+        .action = .{ .create = .{ .owner = role, .spec = .{ .value_type = .row, .nullable = false, .fields = &.{.{ .name = "id", .type = .int64, .nullable = false }} } } },
+    });
+    _ = try c.DirectKVClient.apply(&output, client, .{ .declaration = .{ .declaration = kv, .command = .admit, .steps = 1 } });
+    _ = try c.DirectKVClient.apply(&output, client, .{ .declaration = .{ .declaration = kv, .command = .execute, .steps = 16 } });
+    const kv_metadata = try client.call(.{ .kv_lookup = .{ .namespace = 1, .name = "application_state" } });
+    defer kv_metadata.deinit();
+    var stream = try q.fuze.LogDdl.compile(client.allocator, "CREATE STREAM application_events (id BIGINT NOT NULL)", .transit, null);
+    defer stream.deinit();
+    const schema = try stream.statement.action.create.bind(733012);
+    const configured = try stream.statement.configure(null, schema);
+    const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init("application_events"), .action = .{ .create = .{ .owner = role, .schema = schema, .configuration = configured.configuration, .limits = configured.limits } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733012 }, .target = .{ .scope = client.connection.scope, .branch = client.connection.branch, .object = 733012 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(client.allocator) } };
+    _ = try c.DirectLogClient.apply(&output, client, .{ .admit = request });
+    _ = try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } });
+    const stream_metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_events" } });
+    defer stream_metadata.deinit();
+    const resources = [_]q.ApplicationBinding{ published.resources[0], .table(table.value.result.lookup.?), .kv(kv_metadata.value.result.kv_lookup.?), .{ .value = .{ .log = stream_metadata.value.result.log_lookup.? } } };
+    const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .executor_role = role,
+        .namespace = 1,
+        .object = 733020,
+        .operation = 733002,
+        .source =
+        \\CREATE DATAFLOW application_execution FROM QUEUE application_input AS event WHERE id < 10 AS BEGIN
+        \\  LET key = DIGEST(CAST(event.id AS TEXT));
+        \\  BEGIN ATOMIC
+        \\    PUT INTO application_state KEY key VALUE ROW(event.id) IF ABSENT;
+        \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\    PRODUCE INTO application_events VALUES (event.id);
+        \\    REQUIRE event.id = 7 ELSE 'AbortBody';
+        \\  END;
+        \\  LET observed = SELECT * FROM application_rows WHERE id = event.id;
+        \\  REQUIRE observed.id = event.id ELSE 'MissingCommittedRow';
+        \\  LET state = GET FROM application_state KEY key;
+        \\  REQUIRE state.id = event.id ELSE 'MissingCommittedKV';
+        \\ON FAILURE failure
+        \\  LET failure_key = DIGEST(CAST(event.id AS TEXT));
+        \\  BEGIN ATOMIC
+        \\    PUT INTO application_state KEY failure_key VALUE ROW(-event.id) IF ABSENT;
+        \\    INSERT INTO application_rows VALUES (-event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\    PRODUCE INTO application_events VALUES (-event.id);
+        \\    REQUIRE event.id = 8 ELSE 'AbortFailureHandler';
+        \\  END;
+        \\END;
+        ,
+        .resources = &resources,
+        .limits = published.limits,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733003 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+
+    var metadata = try c.DirectLogProtocol.decodeMetadata(client.allocator, client.connection, value.resources[0].value.log);
+    defer metadata.deinit();
+    var host: ApplicationHost = .{};
+    for ([_]i64{ 7, 8, 9 }, 0..) |id, ordinal| {
+        _ = output.reset(.retain_capacity);
+        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = value.resources[0].value.log.declaration, .schema = metadata.definition.schema }, 733100 + ordinal, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = id }} });
+        const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+        _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } });
+        const token = (try owner.start(value, 0)).?;
+        var complete = false;
+        var cancellation: ?[]u8 = null;
+        defer if (cancellation) |bytes| client.allocator.free(bytes);
+        var cancelled_after_commit = false;
+        for (0..200) |_| {
+            // A fresh owner and decoded progress on every iteration must resume
+            // the same instruction/native operation, with no host cursor cache.
+            const progress = (try T.inspect(client, token)).?;
+            const saved = try owner.load(progress.record orelse progress.receipt.binding.intent.external.record);
+            defer saved.deinit();
+            const execution = saved.value.execution;
+            errdefer std.debug.print("Application input {d}, phase {s}, transaction {s}\n", .{ id, @tagName(execution.phase), if (execution.transaction) |transaction| @tagName(transaction.kind) else "none" });
+            if (id == 7 and execution.transaction != null and execution.transaction.?.kind == .final) {
+                if (execution.phase == .checkpoint and execution.checkpoint != null and cancellation == null) {
+                    const head = try manager.inspect(value);
+                    cancellation = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733200 }, .target = try value.interpretation(client.allocator), .expected = head.head.control, .command = .suspend_computation }, null);
+                }
+                if (execution.phase == .settle and !cancelled_after_commit) {
+                    var executor = client;
+                    executor.connection.role = role;
+                    const transaction: c.DirectTransactionClient = .{ .catalog = executor };
+                    const status = try transaction.inspect(execution.transaction.?.key);
+                    if (status.observation == .decided and status.observation.decided.outcome == .committed) {
+                        // Finish native participant cleanup before the control
+                        // authority check; the invocation has not observed the
+                        // original commit or retained its terminal evidence yet.
+                        const settled = try transaction.settle(execution.transaction.?.key, status.attempt.?.operation, .commit, 64);
+                        try t.expect(settled.cleanup_complete);
+                        // The saved control cancels the invocation before its
+                        // stale head mutation refuses. The original commit wins.
+                        try t.expectError(error.Conflict, manager.applyControl(cancellation.?));
+                        try t.expect((try T.inspect(client, token)).?.cancel);
+                        cancelled_after_commit = true;
+                        continue;
+                    }
+                }
+            }
+            const runner: q.ApplicationExecution = .{ .owner = owner, .native = host.host() };
+            const next = runner.tick(value, progress, saved.value) catch |err| {
+                // The proxy loses accepted replies at native and continuation
+                // boundaries. Reload the same token on the next iteration.
+                if (err == error.InvalidTableResponse) continue;
+                std.debug.print("Application phase {s}, input phase {s}, native rejection {any}: {s}\n", .{ @tagName(saved.value.execution.phase), @tagName(saved.value.phase), client.service.last_rejection, @errorName(err) });
+                return err;
+            };
+            if (!next.pending) {
+                const final = try owner.load(next.record.?);
+                defer final.deinit();
+                try t.expectEqual(.complete, final.value.execution.phase);
+                try t.expect(final.value.execution.acknowledged);
+                try t.expectEqual(id != 7, final.value.execution.failure != null);
+                complete = true;
+                break;
+            }
+        }
+        try t.expect(complete);
+        if (id == 7) try t.expect(cancelled_after_commit);
+        observed = try manager.inspect(value);
+        try t.expect(observed.head.pending == null);
+        try t.expectEqual(@as(u64, 1), observed.head.completed);
+        try t.expectEqual(@as(u64, ordinal), observed.head.refused);
+        const reference = observed.head.checkpoint.?;
+        try t.expectEqual(c.DirectTransactionRecord.format, reference.format);
+        var executor = client;
+        executor.connection.role = role;
+        const bytes = try c.DirectRecord.read(client.allocator, executor, reference);
+        defer client.allocator.free(bytes);
+        const checkpoint = try p.Json.parseFromSlice(c.DirectTransactionRecord.Envelope, client.allocator, bytes);
+        defer checkpoint.deinit();
+        try checkpoint.value.validate(reference);
+        const tx: c.DirectTransactionClient = .{ .catalog = executor };
+        const status = try tx.inspect(checkpoint.value.transaction);
+        try t.expectEqual(.committed, status.observation.decided.outcome);
+        try t.expect(status.cleanup_complete);
+    }
+    // One body observation per input, plus the two failure-handler observations.
+    // An accepted candidate with a lost reply must never rerun its host helper.
+    try t.expectEqual(@as(u32, 5), host.evaluations);
+    const result = try client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } });
+    defer result.deinit();
+    const rows = result.value.result.lookup.?;
+    try t.expectEqual(@as(u64, 2), rows.row_count);
+    const pinned = try client.call(.{ .pin = .{ .object = rows.interpretation.interpretation.object, .owner = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733302 }, .expected = rows.position } });
+    defer pinned.deinit();
+    const snapshot: c.DirectTableProtocol.Snapshot = .{ .object = rows.interpretation.interpretation.object, .handle = pinned.value.result.pin };
+    var query = try q.DirectTableQuery.openRetained(client.allocator, client, snapshot, "application_rows", "SELECT id FROM application_rows", .{ .requests = 100, .rows = 8, .result_bytes = 8192 }, null, null, .{});
+    defer query.deinit();
+    var batch = try query.nextBatch(8);
+    defer batch.deinit();
+    try t.expect(batch.complete);
+    try t.expectEqual(@as(usize, 2), batch.len);
+    var ids: [2]i64 = undefined;
+    for (batch.rows[0..batch.len], &ids) |row, *id| id.* = @intCast(row.?.cells[0].value.atom.signed);
+    std.mem.sort(i64, &ids, {}, std.sort.asc(i64));
+    try t.expectEqualSlices(i64, &.{ -8, 7 }, &ids);
+    (try client.call(.{ .release = snapshot })).deinit();
+    for ([_][]const u8{ "7", "8", "9" }, [_]?i64{ 7, -8, null }) |key_text, expected| {
+        var key: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(key_text, &key, .{});
+        const read = (try c.DirectKVClient.apply(&output, client, .{ .get = .{ .object = kv.binding.target, .key = &key } })).value;
+        const row = try q.ApplicationData.kvValue(output.allocator(), read);
+        if (expected) |id| try t.expectEqual(id, (try row.field("id")).integer) else try t.expect(row == .null);
+    }
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = resources[3].interpretation(), .partition = 0 };
+    const consumed = (try c.DirectStreamClient.apply(&output, client, .{ .mutate = .{ .work = .{ .consume = .{ .target = target, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733300 }, .group = null, .from = 0, .until = null, .timestamp = null } } } })).operation.?.consume;
+    const cursor = (try c.DirectStreamClient.apply(&output, client, .{ .cursor = .{ .target = target, .read = consumed.handle() } })).cursor;
+    const page = (try c.DirectStreamClient.apply(&output, client, .{ .page = .{ .cursor = cursor, .limits = .{ .rows = 8, .encoded_bytes = 8192, .scanned_rows = 8 } } })).page;
+    try t.expect(page.cursor.coverage.complete);
+    try t.expectEqual(@as(usize, 2), page.rows.len);
+    for (page.rows, [_]i64{ 7, -8 }) |row, expected| try t.expectEqual(expected, row.value.cells[0].value.atom.signed);
+    _ = try c.DirectStreamClient.apply(&output, client, .{ .mutate = .{ .work = .{ .release = .{ .target = target, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733301 }, .read = consumed.handle() } } } });
 }
