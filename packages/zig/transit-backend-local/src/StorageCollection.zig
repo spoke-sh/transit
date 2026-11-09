@@ -40,7 +40,8 @@ pub fn current(self: *Self) !?State {
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(body, &digest, .{});
     if (!std.mem.eql(u8, encoded[body.len..], &digest)) return error.InvalidStorageCollection;
-    const parsed = try std.json.parseFromSlice(State, self.backend.allocator, body, .{});
+    var memory: @import("transit_fuze").MemoryBudget = .{ .parent = self.backend.allocator, .quota = self.backend.collection_quota, .limit = @import("DataCollection.zig").step_resident_bytes };
+    const parsed = std.json.parseFromSlice(State, memory.allocator(), body, .{}) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.StorageMaintenanceBudget else err;
     defer parsed.deinit();
     const state = parsed.value;
     if ((state.pending != null) != (state.phase == .deleting) or state.cut.storage_epoch < 2 or state.cut.history_floor >= state.cut.position or state.source_activity > state.inventory_end) return error.InvalidStorageCollection;

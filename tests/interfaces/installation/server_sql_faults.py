@@ -11,7 +11,6 @@ import sys
 from interfaces.installation.server_application_faults import publish_evidence, wait_file
 from interfaces.installation.server_direct_boundary import Boundary
 from interfaces.installation.server_sql import SQLFixture, account, apply, call, freeze, wait_status
-from harness.services import free_port
 
 
 def run(cli, node, host, board, gateway):
@@ -22,8 +21,8 @@ def run(cli, node, host, board, gateway):
     freeze(fixture)
     fixture.boundary = Boundary(fixture)
     fixture.config['sql'] = {'native': {'local': False}}
-    fixture.config['applications'] = {'port': free_port()}
-    fixture.config['board'] = {'port': free_port()}
+    fixture.config['applications'] = {'port': fixture.reserve_port()}
+    fixture.config['board'] = {'port': fixture.reserve_port()}
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     print(f'Local SQL fault proof: {fixture.root}', flush=True)
@@ -33,7 +32,7 @@ def run(cli, node, host, board, gateway):
         fixture.start(); fixture.ready(); fixture.stop()
         password = fixture.root / 'owner.password'
         password.write_text('local-sql-isolated-fault-proof'); password.chmod(0o600)
-        fixture.config['sql'] = dict(native={'local': False}, postgres={'port': free_port()}, health_port=free_port(),
+        fixture.config['sql'] = dict(native={'local': False}, postgres={'port': fixture.reserve_port()}, health_port=fixture.reserve_port(),
             drain_ms=1000, accounts=[dict(name='owner', role='local_owner', password_file=str(password))])
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start(); fixture.ready(timeout=300)

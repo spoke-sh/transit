@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 from harness.local_installation import LocalInstallation, freeze_executables
 from interfaces.installation.server import Fixture
+from interfaces.installation.server_board import Board
 from interfaces.cli.console_terminal import Terminal
 
 
@@ -151,6 +152,24 @@ while True: time.sleep(.1)
                     fixture.ready(timeout=1)
             finally:
                 fixture.cleanup()
+
+    def test_reserved_ports_stay_distinct_across_application_and_board_fixtures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cli, node, host = self.binaries(root, "import sys\nsys.exit(0)\n")
+            board = root / 'transit-board'
+            # Include default server ports and repeated ephemeral ports, including
+            # sql.health_port (41003) and applications.port (41004) collisions.
+            discovered = [19106, 19107, 41001, 41001, 41002, 41003, 41003, 41004, 41003, 41004, 41005]
+            with patch('harness.local_installation.free_port', side_effect=discovered):
+                fixture = Board(cli, node, host, board, parent=root)
+                try:
+                    self.assertEqual(fixture.config['ports'], {'node': 41001, 'gateway': 41002})
+                    self.assertEqual(fixture.config['sql']['health_port'], 41003)
+                    self.assertEqual(fixture.config['applications']['port'], 41004)
+                    self.assertEqual(fixture.config['board']['port'], 41005)
+                finally:
+                    fixture.cleanup()
 
 
 if __name__ == '__main__':

@@ -121,6 +121,15 @@ def foreground(caller, endpoint, profile, root, phase, owner, records, request_m
             assert child.returncode == 0, err.read_text()[-12000:]
             after = process_usage(owner())
             assert (before['pid'], before['start_ticks']) == (after['pid'], after['start_ticks'])
+            from interfaces.http.serving import Key
+            from interfaces.installation.server_application_faults import native, post
+            key = Key(root, 'measurement-root', 17)
+            observation = post(settings['port'], '/v1/query', native(key, 42, 0, {'storage': {}}))['body']['storage']
+            admission = observation['admission']
+            assert admission['data']['memory']['used'] > 0
+            for pool in admission.values():
+                memory = pool['memory']
+                assert memory['used'] <= memory['peak'] <= memory['limit']
             samples = [json.loads(line) for line in out.read_text().splitlines()]
             assert len(samples) == 16, samples
             assert all(row['sample'] == i and row['rows'] == 258 and row['elapsed_ns'] > 0
@@ -128,7 +137,7 @@ def foreground(caller, endpoint, profile, root, phase, owner, records, request_m
             records.append(dict(phase=phase, configuration=configuration,
                                 elapsed_seconds=time.monotonic() - started,
                                 node_before=before, node_after=after, reads=samples,
-                                request_memory=request_memory.snapshot()))
+                                request_memory=request_memory.snapshot(), admission=admission))
         finally:
             if child.poll() is None:
                 child.kill()
@@ -360,6 +369,8 @@ def exercise(caller, endpoint, profile, root, restart, owner, node, request_memo
         inspection=json.loads(accepted_inspections[0][0]), expected=accepted_inspections[0][1])))
     restart(True, True, pressure=True)
     request_pressure(port, root, owner, accepted_inspections[0], require_maintenance=True)
+    restart(True, True, aggregate=True)
+    request_pressure(port, root, owner, accepted_inspections[0], require_maintenance=True, aggregate=True)
     restart(False)
     recovered = [json.loads(line) for line in call('recover-writes').stdout.splitlines()]
     assert [row['receipt'] for row in recovered] == [row['receipt'] for row in samples], \
@@ -376,7 +387,7 @@ def exercise(caller, endpoint, profile, root, restart, owner, node, request_memo
           'all receipts and original/new cuts survive owner restart.', flush=True)
 
 
-def request_pressure(port, root, owner, saved_inspection, require_maintenance=False):
+def request_pressure(port, root, owner, saved_inspection, require_maintenance=False, aggregate=False):
     """Real concurrent body readers exhaust bytes while exact recovery remains usable."""
     import select
     import socket
@@ -389,8 +400,12 @@ def request_pressure(port, root, owner, saved_inspection, require_maintenance=Fa
         return post(port, '/v1/query', query)['body']['storage']
     def memory():
         value = observed()['data_requests']
-        assert value['used'] <= value['peak'] <= value['limit'] == 1048576, value
+        assert value['used'] <= value['peak'] <= value['limit'] == (268435456 if aggregate else 1048576), value
         return value
+    baseline = observed()['admission']
+    if aggregate:
+        assert baseline['data']['memory']['limit'] == 8 * 1024 * 1024
+        assert baseline['data']['memory']['used'] > 0, 'Resident allocations bypass aggregate admission'
     before = process_usage(owner())
     observations = []
     for closure in ('disconnect', 'deadline'):
@@ -402,11 +417,11 @@ def request_pressure(port, root, owner, saved_inspection, require_maintenance=Fa
             # Both partial bodies have identical bounded prefixes; neither can
             # reach authentication or durable admission. Alternate equal chunks
             # until their aggregate allocation, not the active-lane count, refuses.
-            for _ in range(8):
+            for _ in range(31 if aggregate else 8):
                 for connection in held:
-                    connection.sendall(b' ' * 65536)
-                    time.sleep(.05)
-                    ready, _, _ = select.select(held, [], [], .05)
+                    connection.sendall(b' ' * (262144 if aggregate else 65536))
+                    time.sleep(.01 if aggregate else .05)
+                    ready, _, _ = select.select(held, [], [], .01 if aggregate else .05)
                     if ready:
                         # HTTPResponse only parses; it dispatches no new request.
                         from http.client import HTTPResponse
@@ -417,7 +432,16 @@ def request_pressure(port, root, owner, saved_inspection, require_maintenance=Fa
                     break
             assert failure == (503, {'err': 'StorageQuota'}), failure
             live = memory()
-            active = observed()['maintenance']
+            current = observed()
+            active = current['maintenance']
+            admission = current['admission']
+            for pool in admission.values():
+                values = pool['memory']
+                assert values['used'] <= values['peak'] <= values['limit']
+            if aggregate:
+                assert admission['data']['refusals'] > baseline['data']['refusals']
+                assert admission['data']['memory']['used'] > live['used'], 'Idle residents lost their charge'
+                assert live['peak'] < live['limit'], 'Leaf capacity, rather than aggregate capacity, refused work'
             assert live['used'] > 0, 'No concurrent partial request remained charged'
             original, expected = saved_inspection
             recovered = post(port, '/table/v1', json.loads(original), headers={'X-Transit-Control': 'table'})
@@ -441,7 +465,10 @@ def request_pressure(port, root, owner, saved_inspection, require_maintenance=Fa
             while memory()['used']:
                 assert time.monotonic() < deadline, 'Joined body termination retained request bytes'
                 time.sleep(.05)
+            if aggregate:
+                assert observed()['admission']['data']['memory']['used'] == baseline['data']['memory']['used']
             observations.append(dict(closure=closure, refused=failure[1]['err'],
+                                     aggregate=aggregate, admission=admission,
                                      ordinary=live, control=control, original_recovery=True,
                                      maintenance_progress_required=require_maintenance,
                                      released=memory()['used']))

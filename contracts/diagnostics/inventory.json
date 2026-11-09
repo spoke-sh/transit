@@ -1415,7 +1415,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 45,
-        "catch": 18
+        "catch": 19
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2530,6 +2530,7 @@
         "Store.zig",
         "std",
         "transit_core",
+        "transit_fuze",
         "transit_storage"
       ]
     },
@@ -2615,8 +2616,8 @@
         "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 1,
         "NoStorageFence": 3,
-        "OutOfMemory": 1,
-        "StorageMaintenanceBudget": 3,
+        "OutOfMemory": 3,
+        "StorageMaintenanceBudget": 5,
         "WalHistoryTrimmed": 1
       },
       "outcomes": {
@@ -2643,8 +2644,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 60,
-        "catch": 4
+        "try": 58,
+        "catch": 6
       },
       "imports": [
         "Backend.zig",
@@ -2676,7 +2677,8 @@
       "error_sets": {},
       "error_returns": {
         "init()": "<inferred>",
-        "next()": "<inferred>"
+        "next()": "<inferred>",
+        "nextWithAllocator()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -2977,7 +2979,8 @@
         "InvalidStorageCollection": 9,
         "InvalidStorageGraph": 2,
         "NoStorageFence": 3,
-        "StorageMaintenanceBudget": 1
+        "OutOfMemory": 1,
+        "StorageMaintenanceBudget": 2
       },
       "outcomes": {
         "State.phase": [
@@ -3005,17 +3008,19 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 67,
-        "catch": 4
+        "try": 66,
+        "catch": 5
       },
       "imports": [
         "Backend.zig",
+        "DataCollection.zig",
         "LocalFiles.zig",
         "NativeAllocations.zig",
         "PageStore.zig",
         "Store.zig",
         "std",
-        "transit_core"
+        "transit_core",
+        "transit_fuze"
       ]
     },
     "packages/zig/transit-backend-local/src/Store.zig": {
@@ -4674,7 +4679,7 @@
         "ClientOperationPending": 11,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
-        "ClientTokenConflict": 10,
+        "ClientTokenConflict": 11,
         "ColumnReferencedByCheckConstraint": 1,
         "ColumnReferencedByForeignKey": 1,
         "ConflictingRetry": 1,
@@ -4818,6 +4823,7 @@
         "TransactionControlConflict": 1,
         "TransactionControlPending": 6,
         "TransactionCutNotAcquired": 3,
+        "TransactionDeadlineElapsed": 1,
         "TransactionFrozen": 1,
         "TransactionIdentityConflict": 16,
         "TransactionMemoryLimit": 11,
@@ -9544,7 +9550,9 @@
     },
     "packages/zig/transit-catalog/src/DirectTransactionClient.zig": {
       "errors": {
-        "CatalogIdentityConflict": 1
+        "CatalogIdentityConflict": 1,
+        "Rejected": 1,
+        "TransactionDeadlineElapsed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -9571,8 +9579,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
-        "catch": 0
+        "try": 19,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -9783,7 +9791,7 @@
     "packages/zig/transit-catalog/src/DirectTransactionRequest.zig": {
       "errors": {
         "InvalidClientToken": 1,
-        "InvalidTableResponse": 13,
+        "InvalidTableResponse": 14,
         "InvalidTransactionBegin": 1,
         "InvalidTransactionWork": 8,
         "TransactionCapacity": 1
@@ -9832,7 +9840,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 39,
         "catch": 0
       },
       "imports": [
@@ -23634,12 +23642,13 @@
         ]
       },
       "error_returns": {
+        "Allocator.create()": "<inferred>",
         "reserve()": "error { MemoryBudgetExceeded }"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 0,
-        "catch": 2
+        "try": 1,
+        "catch": 5
       },
       "imports": [
         "std"
@@ -25681,7 +25690,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"6da8e815dec26c458515e34fb6553654d57c77536f652b9258897bf1a513842e\""
+          "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb"
         ],
         "Effect.phase": [
           "pending",
@@ -26633,8 +26642,8 @@
     },
     "packages/zig/transit-protocol/src/Storage.zig": {
       "errors": {
-        "InvalidStorageBudget": 5,
-        "InvalidStorageObservation": 9,
+        "InvalidStorageBudget": 6,
+        "InvalidStorageObservation": 11,
         "UnexpectedToken": 3,
         "WriteFailed": 1
       },
@@ -26662,6 +26671,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Admission.validate()": "<inferred>",
+        "AdmissionObservation.validate()": "<inferred>",
+        "AdmissionPool.validate()": "<inferred>",
         "Archive.validate()": "<inferred>",
         "Flush.validate()": "<inferred>",
         "Limits.validate()": "<inferred>",
@@ -26678,7 +26690,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 14,
         "catch": 3
       },
       "imports": [
@@ -26951,6 +26963,7 @@
         "IncompleteTransactionCut": 1,
         "InvalidTransactionAttempt": 1,
         "InvalidTransactionBegin": 1,
+        "InvalidTransactionDeadline": 1,
         "InvalidTransactionDecision": 1,
         "InvalidTransactionGuard": 3,
         "InvalidTransactionHandle": 2,
@@ -27048,6 +27061,7 @@
         "Begin.requireSame()": "<inferred>",
         "Begin.validate()": "<inferred>",
         "Cut.validate()": "<inferred>",
+        "Deadline.validate()": "<inferred>",
         "Decision.requireAttempt()": "<inferred>",
         "Decision.validate()": "<inferred>",
         "Directory.validate()": "<inferred>",
@@ -27080,7 +27094,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 87,
+        "try": 88,
         "catch": 0
       },
       "imports": [

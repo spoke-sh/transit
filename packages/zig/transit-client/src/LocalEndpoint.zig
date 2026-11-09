@@ -14,6 +14,10 @@ routes: ?[]const []const u8 = null,
 /// waiter; callers join waits before releasing the endpoint. Hints confer no
 /// authority and cannot replace discovery after process replacement.
 changes: ?*Changes = null,
+/// Optional host-owned backing allocator for owned responses. The returned
+/// allocator must outlive every returned Parsed arena, including client close.
+/// This admission hint grants no authority; invoke still validates the action.
+response_allocator: ?*const fn (*anyopaque, []const u8, bool, std.mem.Allocator) std.mem.Allocator = null,
 
 pub const Changes = struct {
     mutex: std.Io.Mutex = .init,
@@ -99,8 +103,14 @@ test "local refusal preserves public conflict evidence without remote fallback" 
 
 test "local deadline joins its producer and frees partial owned output" {
     const t = std.testing;
+    const m = @import("transit_memory");
     const Host = struct {
+        backing: m.Quota.Allocator,
         joined: std.atomic.Value(bool) = .init(false),
+        fn select(raw: *anyopaque, _: []const u8, _: bool, _: std.mem.Allocator) std.mem.Allocator {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return self.backing.allocator();
+        }
         fn run(raw: *anyopaque, invocation: *Invocation) !void {
             const self: *@This() = @ptrCast(@alignCast(raw));
             defer self.joined.store(true, .release);
@@ -108,13 +118,62 @@ test "local deadline joins its producer and frees partial owned output" {
             try invocation.client.http.io.sleep(.fromSeconds(60), .awake);
         }
     };
-    var host: Host = .{};
+    var quota: m.Quota = .{ .limit = 16384 };
+    var host: Host = .{ .backing = .{ .parent = t.allocator, .quota = &quota } };
     var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer client.deinit();
     client.deadline = .init(t.io, 50, null);
-    client.local = .{ .context = &host, .invoke = Host.run };
+    client.local = .{ .context = &host, .invoke = Host.run, .response_allocator = Host.select };
     try t.expectError(error.AuthorityTimeout, client.callOwned(u64, "/local", .{}, .{}));
     try t.expect(host.joined.load(.acquire));
+    try t.expect(quota.peak.load(.acquire) > 4096);
+    try t.expectEqual(0, quota.used.load(.acquire));
+}
+
+test "hosted response backing remains charged after dispatch and client close" {
+    const t = std.testing;
+    const m = @import("transit_memory");
+    const Host = struct {
+        backing: m.Quota.Allocator,
+        fail: bool = false,
+        fn select(raw: *anyopaque, _: []const u8, _: bool, _: std.mem.Allocator) std.mem.Allocator {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            return self.backing.allocator();
+        }
+        fn run(raw: *anyopaque, invocation: *Invocation) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const bytes = try invocation.allocator.dupe(u8, "held response");
+            if (self.fail) return error.TestAfterOutput;
+            try invocation.respond(@as([]const u8, bytes));
+        }
+    };
+    var quota: m.Quota = .{ .limit = 4096 };
+    var host: Host = .{ .backing = .{ .parent = t.allocator, .quota = &quota } };
+    var client = @import("root.zig").Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    var closed = false;
+    defer if (!closed) client.deinit();
+    client.local = .{ .context = &host, .invoke = Host.run, .response_allocator = Host.select };
+    // Deliberately bypass the host adapter: the same response does not charge
+    // the owner. This control detects accidentally falling back to the client.
+    client.local.?.response_allocator = null;
+    const uncharged = try client.callOwned([]const u8, "/local", .{}, .{});
+    try t.expectEqual(0, quota.used.load(.acquire));
+    uncharged.deinit();
+    client.local.?.response_allocator = Host.select;
+    host.fail = true;
+    try t.expectError(error.TestAfterOutput, client.callOwned([]const u8, "/local", .{}, .{}));
+    try t.expectEqual(0, quota.used.load(.acquire));
+    host.fail = false;
+    const response = try client.callOwned([]const u8, "/local", .{}, .{});
+    const held = quota.used.load(.acquire);
+    try t.expect(held > response.value.len);
+    client.deinit();
+    closed = true;
+    try t.expectEqual(held, quota.used.load(.acquire));
+    try t.expectEqualStrings("held response", response.value);
+    // The descriptor and all backing blocks release through the stable host.
+    response.deinit();
+    try t.expectEqual(0, quota.used.load(.acquire));
 }
 
 test "inherited expiry never dispatches or retains refusal evidence and the client is reusable" {

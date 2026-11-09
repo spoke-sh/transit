@@ -1,5 +1,14 @@
 # SQL reference
 
+This reference describes executable Transit SQL and explicitly labeled proposals.
+The [planned `.transit` source dialect](applications.md#planned-source-language-and-build-model)
+adds typed, recursively composable modules and uses the same language in
+`build.transit`. Its proposed compiler emits `.sql` for ordinary statement or
+migration execution. Source imports and build operations are compile-time forms;
+they do not become commands accepted by SQL sessions merely by appearing in a
+source file. Runtime SQL support remains defined by each statement's owning
+contract and the [grammar inventory](sql/grammar-surface.md).
+
 Transit executes finite `SELECT` queries through Fuze and bounded Table writes
 through the shared SQL service, accessed by native console sessions or optional
 PostgreSQL/MySQL adapters. The service maps accounts and databases to catalogs;

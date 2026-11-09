@@ -21,8 +21,10 @@ proof covers mixed Table/KV/Stream commit/abort, original lost replies, native
 process replacement and cancellation cleanup; it does
 not qualify the complete browser application. `ApplicationRecovery` reopens
 original invocations for the database service's bounded discovery sweeps.
-SQL publication, native HTTP effects and response operations remain integration work tracked
-by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
+An explicitly composed physical HTTP effect worker is implemented in
+`transit-serving-http.ApplicationEffectRuntime`. SQL publication, deployed host
+composition, ingress and response operations remain integration work tracked by
+[#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
 
 ## Definition and compilation
@@ -217,6 +219,13 @@ time. Rechecks only shorten the budget; the sink timeout and transient request
 expiry may shorten it further. Missing/regressing clocks or expiry refuse work.
 This component does not itself activate HTTP execution or authorize dispatch;
 the enclosing worker must bound and join its I/O and repeat current guards.
+The default application host does not advertise deadline support. The explicit
+HTTP worker bounds the exchange; the whole-program path across native preflight
+and successive atomic blocks remains unqualified. Generic native transaction
+deadlines do not establish that integration.
+
+`NOW()` currently observes the host wall clock and retains its original candidate.
+It is not the native Queue clock interval or a trusted policy-time observation.
 
 The native public helper owner implements host time, secure random public tokens,
 checked seconds conversion, Unicode code-point length, SHA-256 digests and
@@ -477,9 +486,12 @@ The host retains a completed attempt until native settlement is observed, even
 after joining it or losing a completion reply. Cancellation withdraws and joins
 the original task before protected reads or native cleanup. Revocation can leave
 settlement unresolved but cannot justify keeping a withdrawn local task alive.
-Failure continuations retain the actual native effect outcome. Physical HTTP
-worker, current dispatch authority and service integration remain unfinished;
-the default host continues to refuse effect programs at readiness.
+Failure continuations retain the actual native effect outcome. The explicit
+physical worker checks sink-selected dispatch authority, protected operands and
+coherent read sets after TLS and before the first request write. Its task-local
+clients and memory remain owned until joined cleanup. The default host continues
+to refuse effect programs without this explicit composition. Deployed service
+integration and whole-program deadlines remain unfinished.
 
 A request has one response owner. Handoff transfers that owner with its commit.
 Responses inside atomic blocks remain buffered until the decision commits.

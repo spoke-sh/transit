@@ -16,12 +16,290 @@ Extend the [declarative data lifecycle](01-declarative-data-lifecycle.md) and
 [storage internals](../handbook/internals/storage-runtime.md) document the
 live execution profile and measured latency bounds.
 
-The next [statement-result milestone](04-statement-results-and-consumption.md)
+The delivered [statement-result milestone](04-statement-results-and-consumption.md)
 owns the shared command/result lifecycle, client readers and bounded console
-presentation. Coordinate its batch ownership and disclosure contracts with this
+presentation. Preserve its batch ownership and disclosure contracts through this
 cutover; existing safe bounded-read and performance gates remain here. Replication
 and operational recovery precede later automatic placement and do not replace
 this milestone's installed restart and accepted-operation recovery evidence.
+
+Start with the [next slice below](#next-slice-implementation-plan--2026-11-08).
+It refines P4.4 and the supporting P0/P5/P6/P8 gates against current source;
+the October plan and its delivered evidence retain their original scope.
+
+## Next slice implementation plan — 2026-11-08
+
+**Implementation status: the allocation boundary is delivered; broader combined
+qualification remains open.** The planning source was main
+`6f92f32f44d7b26d9c2028e8b7229fd9ad81085d`, including the unified storage
+roadmap review and predicate-aware Queue acquisition. The implemented boundary
+and exclusions belong to the [storage reference](../handbook/reference/storage.md#direct-storage-allocation-admission)
+and [allocation ledger](../handbook/internals/storage-runtime.md#local-direct-storage-allocation-ledger).
+The [executed qualification account](../history/qualification/storage.md#aggregate-local-storage-allocation-admission--2026-11-08)
+records exact sources, paired measurements, pressure/recovery results and failed
+attempts. The current-v1 definition becomes
+`936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49`.
+Milestone 3 remains **In Progress**; neither this allocation increment nor the
+earlier dated approvals close its full P4/P5/P6/P8 gates.
+
+**Delivered outcome: compose direct-storage allocation admission and prove recovery
+under simultaneous foreground and maintenance pressure.** An application can
+keep its declared data, retained reads and original operation outcomes while
+ordinary allocation capacity is exhausted. An authorized operator can inspect
+the refusal and recover or release the original work; admitted maintenance can
+resume without losing accepted progress. Capacity refusal never authorizes
+history expiry, releases a durable pin, or turns an uncertain write into a new
+operation.
+
+This is the next bounded increment of P4.4, with pressure/recovery regressions
+from P4.2/P4.3/P4.5, baseline work from P0/P5 and the minimum shared observation
+needed from P6. Recent workload and result-lifetime additions make this a useful
+prerequisite for further resident-cache reuse: the installed owner needs one
+account of simultaneous retained and active work before extending those caches.
+Complete the allocation boundary first, then use its installed evidence to
+select P5's next measured bottleneck and P6's broader workload projections.
+
+### Owners and gap at the planning source
+
+The [storage reference](../handbook/reference/storage.md),
+[retention rules](../handbook/reference/retention.md),
+[node limits](../../apps/transit-node/docs/growing.md#public-surface-and-limits),
+[service contract](../../contracts/SERVICE_V1.md#authorization-and-reads) and
+[direct contract](../../contracts/DIRECT_TABLE_V1.md) own current behavior.
+Preserve the completed M1/M2 foundation and P1–P3/P7 deliveries; an older unchecked
+item is not evidence that its entire implementation is missing.
+
+| Boundary at this source | Existing implementation | Work in this slice |
+| --- | --- | --- |
+| HTTP request lifetime | [`DirectRequestMemory`](../../apps/transit-node/DirectRequestMemory.zig) charges parsing, scratch and held HTTP responses; ordinary requests default to 256 MiB total/128 MiB each, with a separate 64 MiB control pool | Compose concurrent requests with retained work and maintenance admission; keep output charged through joined HTTP delivery |
+| Typed local results | [`NativeServer.localWork`](../../apps/transit-node/NativeServer.zig) budgets Table scratch but passes `invocation.allocator` to typed response cloning; the caller owns those output bytes | Charge co-hosted caller output through its actual result lifetime, rather than treating return from local dispatch as release |
+| Retained owners | [`LocalTableHost`](../../apps/transit-node/LocalTableHost.zig) has ten ordinary resident slots and two control slots, with separate 256 MiB/64 MiB pools | Charge retained capacity for its full lifetime, including idle owners; preserve exact-root recovery and disposal after uncertainty |
+| Scheduled maintenance | [`LocalTableMaintenance`](../../apps/transit-node/LocalTableMaintenance.zig) rotates Table, Stream, Queue and DLQ-transfer work under one default 128 MiB private budget, including retained log workspaces | Attach that budget to shared admission without discarding accepted targets or starving control; retain bounded class/partition rotation |
+| Collection | [`DataCollection`](../../packages/zig/transit-backend-local/src/DataCollection.zig) bounds graph/index work separately at 64 MiB per step; [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) traverses Tables, KV, logs, Documents and owned records | Account for collector work alongside retained maintenance workspaces and foreground owners; audit decode, provider and fixed-buffer costs outside the graph allocator |
+| Shared primitives | [`transit-memory`](../../packages/zig/transit-memory/README.md) already supplies concurrent ancestor `Quota`s, borrower `Budget`s and allocation probes | Compose existing primitives at the node lifetime; do not introduce another allocator framework or an eager installation-sized slab |
+| Public observation | Native storage inspection and SQL `SHOW STORAGE` already expose backend/root, physical admission bytes, request counters and maintenance activity; `SHOW STORAGE FOR table` exposes accepted Table progress | Extend those operations with scoped aggregate admission evidence; do not reimplement the delivered node observation or invent per-workload physical counts |
+
+At the planning source, request pools, resident pools and private maintenance
+limits described different allocation boundaries. Adding their separate
+high-water marks does not measure simultaneous memory. Provider/engine caches,
+native requests, co-hosted SQL buffers, stacks, sockets and kernel cache also
+prevent a whole-process RSS claim. The first review must make those exclusions
+and their independent bounds explicit before choosing the aggregate default.
+
+### Recent milestones and upcoming handoffs
+
+The [November 8 storage review](README.md#unified-lsm-tseg-format-branching-and-provider-cost-review--2026-11-08)
+expands P4 qualification across active workload owners while retaining Decision
+D1. Use the following boundaries when implementing and reviewing this slice.
+
+| Milestone | Consequence for this slice |
+| --- | --- |
+| [M1](01-declarative-data-lifecycle.md), [M2](02-storage-and-query-performance.md) | Reuse stable object/definition identities, exact original operations, paged roots, verified segments and recovery/collection gates. Keep WAL-published `TablePartitionRecord.Root` and `TreeStore`; no standalone latest-manifest authority |
+| [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Shared result readers and the selected local Table transaction profile are delivered. Preserve borrowed batch lifetime, verified completion, prepared participants, common decisions, savepoints and original commit recovery under pressure |
+| [M6](06-streams-queues-and-durable-runtime.md#roadmap-reconciliation-after-427--2026-11-08) | Include delivered direct KV, Stream/Queue operations, mixed native decisions, predicates, `.tack`, timing runs and transfer discovery. Stream system-column sealing and Queue checkpoint redesign remain M6 work; preserve their current object-publication dependencies |
+| [M7](07-document-storage-and-station-decoupling.md) | Include delivered Document partitions, retained revisions and protected source staging in ownership/collection tests. Do not assume its pending Document transaction participant or completed Station migration |
+| [M8](08-gateway-architecture-and-protocol-ingress.md#next-slice--inherited-command-deadlines-and-cancellation), [M9](09-client-foundation-and-language-apis.md) | LocalEndpoint and HTTP must use the same admission classification, inherited deadline and joined cancellation. Preserve saved caller identity and control capacity; resumable hosting, CPU-based worker sizing and broader client handles remain with these owners |
+| [M10](10-standards-and-catalogs.md), [M13](13-sql-and-dataflows.md), [M21](21-branches-merges-and-restore.md) | Retain historical interpretation, immutable Table branch/fork pins, managed results and owned `TXR1`/`CPR1`/`SOR1`/`DFR1` dependencies. Test delivered roots; do not claim writable multi-model branches or complete managed scheduling |
+| [M11](11-indexing-and-access-paths.md), [M14](14-data-structures-and-performance.md), [M24](24-storage-providers-and-concurrency.md) | Sparse fence/Bloom footers, the Table/KV LSM transition, WiscKey separation, general cache replacement and provider cost targets are later work. Their absence cannot defer this installed allocation/recovery gate |
+| [M31](31-board-reimplementation.md) | Shared typed observations may be projected by Board with its existing read-only authority. A new storage workbench and complete six-workload presentation are outside this slice |
+
+### Implementation order and review exits
+
+The ordered changes below refine the existing P0–P8 plan. Checked items describe
+the delivered allocation increment and its executed evidence. The many-workload
+combined fixture, broader pressure/fault combinations and simultaneous cohosted
+SQL/collection campaign remain unchecked. Separate component and installed
+schedules do not establish those combined claims.
+
+**A. Freeze the allocation ledger and mixed-workload baseline (P0/P4/P5).**
+
+- [x] Trace allocation ownership from `Local.runOwner` through
+  `NativeServer`, `LocalTableHost`, local dispatch, `LocalTableMaintenance`,
+  native/direct collectors and backend I/O. Record each allocator's parent,
+  limit, concurrency, retained lifetime and cleanup owner. Include structures,
+  decode buffers and provider temporaries which bypass private operator budgets.
+- [x] Inventory every active `DirectStorageGraph` work variant, including
+  Queue predicates/results, `.tack` and `QueueTimeRun`, Document staging,
+  transaction preparation, progress records and captures. Classify each as
+  foreground work, scheduled maintenance, retained state or graph traversal;
+  graph membership does not imply an automatic maintenance implementation.
+- [x] Extend the existing
+  [installed maintenance fixture](../../tests/storage/tables/maintenance.md)
+  and [direct service fixture](../../tests/storage/tables/direct_table_service.py)
+  with a frozen pressure schedule. Record source/definition, binary hashes,
+  toolchain, build profile, configuration, dataset and raw outcomes before
+  changing admission. Keep default-maintenance and deliberately constrained
+  budget arms distinct. Reuse the M6/M8 latency controls rather than introducing
+  another incompatible scorecard.
+
+**Exit:** an auditable ledger and baseline identify simultaneous charges,
+retained overhead, unmetered allocations and the exact refusal/recovery boundary.
+Do not use earlier Table-only observations to qualify the expanded graph.
+
+**B. Specify admission, settings and observation before wiring (P0/P6).**
+
+- [x] Define a node-owned direct-storage allocation envelope with separate
+  ordinary, maintenance and recovery reservations. Ordinary work must never
+  borrow the latter two. Bound retained maintenance work and collector scratch
+  together while reserving enough collector capacity for one bounded unit.
+  Define the lock/admission order and refusal behavior without waiting for
+  memory while holding catalog, partition or publication locks.
+- [x] Preserve existing request/per-owner limits as leaf ceilings. Derive the
+  proposed default envelope from the ledger and existing maxima, accounting for
+  work that remains live while another class runs; freeze exact byte defaults
+  and valid combinations in this review. Do not silently reinterpret
+  `storage.requests.data_bytes` as a whole-node setting or increase quotas to
+  hide failed controls. An ordinary leaf may exceed its parent's available
+  capacity and refuse; the configured control reserve must remain usable.
+- [x] Add restart-scoped settings through
+  [`Storage.zig`](../../packages/zig/transit-protocol/src/Storage.zig) and the
+  existing configuration registry. Specify accounted categories, limit/use/peak,
+  refusal categories and unavailable observations through the existing native
+  storage response and SQL result projection. Preserve realm-wide inspection
+  for paths/aggregate counters and object-specific rights for Table details.
+  Live counters remain distinct from durable roots and are not an atomic sample.
+- [x] Map every changed public field to its generated schema, native/SQL client,
+  binding validator and consumer. Replace the shared current-v1 definition for
+  incompatible settings/response semantics; regenerate independent fixtures and
+  prove foreign/missing definitions reject. This slice need not change stored
+  partition formats, SQL grammar or result protocol.
+
+**Exit:** contracts fix what is bounded, who may consume the reserve and what
+operators can infer. Runtime integration cannot choose conflicting semantics.
+
+**C. Compose quotas at the exclusive owner lifetime (P4.4).**
+
+- [x] Initialize stable ancestor quotas before constructing request pools,
+  resident owners or maintenance; destroy them only after all request, SQL and
+  maintenance tasks join. Use existing `Quota`/`Budget` ancestry. Charge backing
+  allocations once; nested logical usage and an arena's reserved bytes are not
+  two physical allocations. Include aligned capacity and idle retained storage.
+- [x] Wire both HTTP and typed local request/result paths, resident creation and
+  eviction, Table/log/transfer maintenance and collector graph work to the
+  envelope. Route any newly covered provider/decode allocation through the
+  owning budget without reversing backend/catalog dependencies. Keep separately
+  bounded exclusions visible; a remaining bypass blocks the claimed boundary.
+- [x] Attach local output admission to the co-hosted caller/result owner's
+  allocator lifetime. A stack-local dispatch budget cannot own a response that
+  outlives `invoke`; retain its charge until the result arena or reader releases
+  the bytes. Preserve the shared client's owned-response cleanup and M4 batch
+  lifetimes, including failed final disclosure and early close.
+- [x] Preserve scratch/output separation, partial-construction cleanup,
+  failed allocation/resize/remap rollback, slow response ownership, early reader
+  close and cancellation joins. Retain current `StorageQuota`,
+  `ControlCapacity` and `StorageMaintenanceBudget` distinctions as applicable;
+  distinguish configured exhaustion from a backing allocator failure.
+- [x] Admit controls only through the existing validated operation class and
+  current authorization. Exhausted data cannot prevent the qualified original
+  receipt inspection/cancellation or pin release. Do not relabel arbitrary DML,
+  Queue claims or a whole transaction execution as reserved control work.
+
+**Exit:** deterministic owner tests show the aggregate ceiling and independent
+reserve hold under concurrency, including held responses and retained owners;
+joined shutdown returns all charges to zero. Add a deliberate uncharged-parent
+negative control so the measurement cannot pass while missing a covered path.
+
+**D. Preserve bounded maintenance and retained obligations (P4.2–P4.5).**
+
+- [x] Preserve independently advancing class/partition cursors, fixed accepted
+  targets and resumable collection progress. Capacity failure backs off through
+  the existing scheduler; it cannot spin, erase a target, start a replacement
+  pass or grow a resident queue with durable population. Recoverable log owners
+  can be evicted only after releasing volatile state, never durable obligations.
+- [ ] Exercise a many-partition fixture beyond resident slots/caches: mixed
+  WAL/segment Tables with lazy ALTER and old pins; direct KV; Stream progress
+  and retained reads; Queue leases, predicates, renewal, timing runs and DLQ;
+  Document revisions/staging; retained transaction and computation records.
+  Use actual typed owners where SQL lifecycle support is incomplete.
+- [x] Under the shared envelope, run complete graph marking and continued
+  collection of a known orphan while independently verifying protected roots.
+  Include historical catalogs, independent branch pins, captures, pending and
+  committed decisions and original receipts. Retain epoch/reuse fences, trusted
+  time and the full reader grace; a smaller object count alone is not proof.
+- [ ] Inject exhaustion and I/O failure before and after acceptance, during
+  checkpoint/trim and persisted collection progress, then kill/reopen the
+  installed owner. Check missing/corrupt required data and unavailable clocks
+  refuse safely. Archive coverage, checkpoint acceptance, WAL trimming, logical
+  expiry and physical deletion retain their separate authority checks.
+
+**Exit:** ordinary refusal preserves exact values, original outcomes and read
+bases; eligible work resumes after capacity is released. Physical maintenance
+changes no logical frontier or computation freshness. Finite convergence assumes
+available storage, authority and trusted time where required.
+
+**E. Qualify the installed boundary and publish evidence (P5/P6/P8).**
+
+- [ ] Run slow/incomplete HTTP input, blocked response delivery and co-hosted
+  SQL/typed requests concurrently with active maintenance and collection.
+  Demonstrate reserved control progress during observed saturation, not only
+  before or after it. Include deadline expiry, disconnect, post-buffer
+  revocation, empty/terminal results and repeated reads.
+- [x] After lost replies or response-allocation failure, recover the saved
+  operation/transaction identity and independently verify its original result.
+  Do not rerun SQL or allocate another token to make the fixture pass. Preserve
+  failed installations and uncertain outcomes for their owning investigation.
+- [x] Compare matched baseline/candidate runs with identical durability,
+  retention, data, limits and physical storage. Record aggregate live/peak
+  backing bytes and allocation attempts, CPU, I/O operations/bytes, WAL syncs,
+  object writes, foreground latency, maintenance convergence and restart cost.
+  Keep RSS, stacks, provider buffers and kernel cache separate; missing counters
+  remain unavailable. Freeze regression budgets before candidate measurements,
+  and report failures rather than dropping samples. Run no heavy builds during
+  measurement windows.
+- [x] Extend `SHOW STORAGE` and affected typed consumers with the agreed
+  counters; verify current inspection after buffering and distinguish capacity,
+  policy, clock and storage failures. Update public storage/configuration/node
+  owners with exact supported limits and add source-attributed results to the
+  [storage qualification account](../history/qualification/storage.md).
+
+**Exit:** installed evidence demonstrates the configured direct-storage
+allocation boundary, control isolation, recovery and maintenance progress at
+one candidate definition. The minimum observation is usable through existing
+public operations. Timing regressions remain explicit blockers to any claimed
+performance improvement.
+
+### Validation and completion accounting
+
+Extend existing owners and register changed scenarios in
+[`suite.json`](../../tests/runner/suite.json), avoiding duplicate launchers.
+The implementation's required proof selection is:
+
+| Boundary | Owning checks and required assertions |
+| --- | --- |
+| Allocation and lifetime | `transit-memory`, node and local-backend package checks; `just test local-catalog`, `just test node-concurrency`; concurrency, failed growth rollback, no fallback, held output and joined cleanup |
+| Installed admission | `just test direct-table-service`, `just test direct-table-maintenance`; extend existing pressure schedules with mixed owners, simultaneous maintenance and actual control progress |
+| Retention and recovery | `just test local-data-collection`, `just test local-storage-faults`, `just test storage-io-faults`; extend applicable process-death, corrupt-root, clock and epoch controls without shortening reader grace |
+| Added workload roots | `just test direct-kv`, `just test direct-mixed-transaction`, `just test direct-automatic-queue-transfer`, `just test document-local`, `just test managed-tables`, `just test source-declarations`; verify current graph coverage and exact retained results |
+| SQL, configuration and installed recovery | `just test server`, `just test server-direct-faults`, `just test server-sql-lifetimes`, `just test server-sql-local`, `just test server-sql-types`; retain M4 completion/authorization and M5 original-decision semantics |
+| Compatibility and dependent consumers | `just check contracts`, dependent caller/binding checks and affected SQL gateway slices; if browser contracts change, `just transit-board::check` and affected browser proofs |
+
+Before each implementation PR, run the repository baseline from its root:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+nix develop .#ci-experience --command just test console-latency-gate
+nix develop .#ci-experience --command just test server-sql-types
+```
+
+Before pushing implementation or test infrastructure, run affected committed-HEAD
+clean lanes from the current inventory: at least `core`, `storage-query` and
+`installation-ui`, plus affected interface, binding, formal and browser lanes
+selected by changed contracts/owners. Record exact commands, sources, outcomes
+and omissions. Dependency installation, task discovery and a partial run are
+not passes. A documentation-only plan requires the documentation/baseline checks,
+not execution of the proposed runtime matrix.
+
+Completion of A–E closes only the measured aggregate-allocation increment.
+Keep P4.4 open until its remaining CPU/I/O and whole-owner resource requirements
+are established; P4.2/P4.3/P4.5 retain their broader lifetime/failure matrices.
+P5 still owns measured catalog token/progress isolation, complete read-path costs
+and its idle/wait handoff. P6 still owns a uniform physical projection across six
+workloads and complete CLI/Board presentation. P8 still requires final
+common-revision qualification and milestone closure. Preserve existing historical
+results and failures; update completion checkboxes only against the exact new
+evidence, and leave the milestone/index status unchanged for this plan.
 
 ## Implementation plan — 2026-10-27
 
@@ -95,7 +373,7 @@ executables may remain supported deployment entry points over the same modules;
 the default local profile must no longer need them beside `transit`. Application
 workers and external connectors remain separately installed applications.
 Release signing, platform expansion and distribution channels remain in
-[milestone 45](45-releases.md).
+[milestone 45](46-releases.md).
 
 **D3 — Limit lazy evolution to edits with a proved projection.** Include
 non-key column rename, nullable/constant-default ADD COLUMN and supported
@@ -116,9 +394,9 @@ default. Physical WAL trimming needs recoverable archive/checkpoint coverage;
 logical expiry needs explicit policy; deletion additionally needs a complete
 retained graph and read-lifetime fences. These are separate transitions.
 Automatic computation activation stays in
-[milestone 12](12-sql-and-dataflows.md), distributed providers/writers in
-[23](23-storage-providers-and-concurrency.md), and general cache/index/group-commit
-optimization in [13](13-data-structures-and-performance.md).
+[milestone 12](13-sql-and-dataflows.md), distributed providers/writers in
+[23](24-storage-providers-and-concurrency.md), and general cache/index/group-commit
+optimization in [13](14-data-structures-and-performance.md).
 
 The existing [SQL session contract](../../contracts/SQL_SESSION_V1.md) remains
 the result boundary. Fix storage/read ownership, current-policy disclosure and
@@ -193,7 +471,7 @@ close-out must:
   samples, source/build identities and unresolved limits before closing P4/P5/P8.
 
 The broader allocator, buffer-manager, provider and query-engine replacements
-retain their [performance roadmap owners](13-data-structures-and-performance.md).
+retain their [performance roadmap owners](14-data-structures-and-performance.md).
 Storage measurement and focused fixes required for this installed cutover remain
 here; neither the later roadmap nor SQL decoupling substitutes for them.
 
@@ -685,7 +963,7 @@ and the backend's native/direct/payload maintenance owners.
   (`TDIX`) B-tree row indexes to a leveled LSM `.tseg` manifest with sparse
   fence footers, Split-Block Bloom filters and WiscKey value separation is owned
   by [Milestone 11](11-indexing-and-access-paths.md) and
-  [Milestone 13](13-data-structures-and-performance.md).
+  [Milestone 14](14-data-structures-and-performance.md).
 - [ ] P4.5 Exercise process death at accepted archive/checkpoint/flush/compaction
   and delete-progress boundaries, racing policy changes, pin release, new
   allocation/reuse, corrupt metadata, clock failure and injected I/O/quota errors.
@@ -1497,7 +1775,7 @@ to this installed integration owner. Preserve #108's original acceptance gates:
   identities, requested lifetime, actual result evidence and data-source
   freshness. SQL/SDK and Board projections reuse qualified operations; reading
   or explaining a declaration activates no work. Automatic scheduling stays
-  with [managed computations](12-sql-and-dataflows.md).
+  with [managed computations](13-sql-and-dataflows.md).
 
 Original lifecycle acceptance, retained from milestone 1:
 
@@ -1520,7 +1798,7 @@ Original lifecycle acceptance, retained from milestone 1:
   These are review questions; the implementation must define exact status types.
 
 Distributed-provider and concurrent-writer integration transfers explicitly to
-[milestone 23](23-storage-providers-and-concurrency.md), retaining #117/#121 and
+[milestone 23](24-storage-providers-and-concurrency.md), retaining #117/#121 and
 their #124 proof gates. This milestone remains In Progress. #108's delivered
 lifecycle acceptance is recorded separately; #110 retains the remaining installed
 storage, maintenance and performance obligations. Neither the split nor the
@@ -1626,7 +1904,7 @@ paged-manifest clarification of the original artifact gate.
 Record installed local baselines for durable data operations and native runtime
 work, separating admission, WAL sync, execution/turn commit, recovery and result
 delivery. Include candidate segments, range-read bytes and peak resident memory.
-The later [performance scorecard](13-data-structures-and-performance.md) extends
+The later [performance scorecard](14-data-structures-and-performance.md) extends
 these measurements; it cannot replace this cutover's existing matched controls
 with library-only timings or defer a missing bounded access path.
 

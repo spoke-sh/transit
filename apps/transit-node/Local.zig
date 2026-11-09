@@ -38,6 +38,7 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     try config.storage.maintenance.validate();
     try config.storage.requests.validate();
+    try config.storage.admission.validate();
     const physical = config.storage.maintenance;
     if ((physical.flush.enabled or physical.archive.enabled or physical.compact) and (config.table == null or config.maintenance == null)) return error.LocalTableMaintenanceRequiresOwner;
     if (config.table) |table| if (table.queue_transfers != null and config.maintenance == null) return error.LocalTableMaintenanceRequiresOwner;
@@ -71,8 +72,12 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
 }
 
 fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !void {
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(init.gpa, config.storage);
+    defer admission.deinit();
     var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
     defer owner.deinit();
+    owner.collection_quota = &admission.collection;
     owner.maintenance_settings = config.storage.maintenance;
     if (config.maintenance) |maintenance| owner.maintenance_activity = .{
         .enabled = true,
@@ -106,9 +111,13 @@ fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: 
     var snapshot_epoch: [16]u8 = undefined;
     try init.io.randomSecure(&snapshot_epoch);
     engine.snapshot_epoch = snapshot_epoch;
-    var table: ?TableHost = if (config.table) |configured| try TableHost.init(init.gpa, init.io, configured, &engine) else null;
+    var table: ?TableHost = if (config.table) |configured| try TableHost.init(admission.allocator(false), init.io, configured, &engine) else null;
     defer if (table) |*host| host.deinit();
-    if (table) |*host| try host.warm(&engine);
+    if (table) |*host| {
+        host.admission = &admission;
+        host.resident_memory.attach(&admission);
+        try host.warm(&engine);
+    }
     const lanes = try init.gpa.alloc(Lane, TableHost.request_owners);
     defer init.gpa.free(lanes);
     var initialized: usize = 0;

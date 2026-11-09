@@ -14,6 +14,77 @@ for successive complete results. The physical mechanisms below preserve those
 semantics. Typed maintained owners require explicit host activation and wakeups;
 they do not establish an automatic SQL materialized-view service.
 
+## Planned source-to-SQL compilation
+
+The design question is how recursive source composition can preserve the meaning
+of data definitions, queries and durable operations when its output is executed
+without the source compiler. This section analyzes the
+[proposed `.transit` language](../reference/applications.md#planned-source-language-and-build-model);
+it records no implementation or executed equivalence proof. The existing
+[SQL compiler boundary](../../../contracts/sql/README.md),
+[migration contract](../../../contracts/MIGRATION_V1.md) and
+[definition identities](../reference/data-model.md#describe-definitions-data-and-dependencies-separately)
+constrain the design.
+
+Let a build input consist of source contents, a resolved dependency graph,
+compiler/contract identity, explicit target options and module-instance bindings.
+The compiler evaluates `build.transit` and its imported `.transit` modules in the
+same higher-order SQL dialect, producing a typed graph and canonical `.sql`.
+Runtime execution prepares that SQL through the ordinary statement owners. Fuze
+plans and Catalog descriptors remain internal shared representations; generated
+SQL must carry the complete executable meaning rather than depend on a separate
+source interpreter or privileged build-time result.
+
+The proposed equivalence condition is that preparing generated SQL produces the
+same bound definitions, expression semantics and operation boundaries as the
+compiler's checked expansion under the same declared basis. Source locations and
+build provenance may differ from runtime plan bytes, but must remain attributable.
+Current authorization, accepted identities and runtime observations are still
+checked at execution. Offline compilation does not reserve names, acquire a live
+snapshot or prove that a deployment still matches its declared basis.
+
+Recursive composition follows module interfaces rather than repository layout.
+Modules may accept other modules and export constructors or composed modules;
+parent and child builds use the same mechanism. Import cycles reject, while
+terminating compile-time recursion is evaluated under explicit work, depth,
+memory and output budgets. Hygienic name binding prevents a dependency's helper
+names from capturing its caller's names. Namespace and object-instance bindings
+must remain stable independently of filesystem paths, import aliases and package
+versions. Pure module reuse and a second instance of durable state are separate
+decisions.
+
+With all inputs pinned and dependency fetching completed, evaluation should be
+deterministic and offline. Cache keys must include the transitive input closure
+and instance bindings; an undeclared environment read or live catalog lookup
+would falsify that claim. Build operations are consumed at compile time, while
+SQL retains runtime settings, secret references, guards and transactions. A
+visibility rule intended to protect runtime access cannot be implemented solely
+by erasing private source symbols during emission.
+
+Migration synthesis has an additional explicit input: the prior definition graph
+and any required data transforms. The existing migration owner executes the
+resulting immutable SQL and retains original outcomes. Recompiling source during
+recovery would replace that authority with a new interpretation. Plain statement
+execution and ledger-backed migration execution share statement semantics but
+have different ordering, retry and recovery contracts.
+
+The design favors inspectable SQL over a mandatory opaque compiled bundle, and
+typed composition over text substitution. This adds emission, reparsing and
+source-map costs, but keeps generated and handwritten SQL on the same admission
+and execution path. Optional AOT artifacts must retain correspondence with that
+SQL and its exact definitions; they do not replace its lifecycle contracts.
+
+Required evidence includes deterministic cold/cached/offline builds, nested
+monorepo and remote-package composition, hygienic repeated instantiation,
+resource-budget failures, unsupported-target rejection and generated SQL executed
+through ordinary clients without source files. Compare bound definitions and
+ordered outcomes against hand-expanded SQL, then test migration replay after
+source/dependency changes and revocation between compilation and execution.
+`transit test` must exercise the same emitter and real database components, with
+explicit test-only clock/effect controls. These are proposed checks; current
+[qualification evidence](../../history/qualification/README.md) does not establish
+this source language, its performance or external-provider recovery.
+
 ## Original Stream and Queue wait attempts
 
 The SQL workload binder saves the exact native request, Fuze projection and

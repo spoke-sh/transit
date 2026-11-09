@@ -1108,7 +1108,7 @@ def run(node, caller, mode="tables", *artifacts):
                 print("Direct Queue HTTP: FIFO heads, wait admission/timeout, original empty claims, four lost replies including wait acceptance, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
                 return
             if mode in ("maintenance", "stream-maintenance"):
-                def restart(flush, physical=False, pressure=False, foreground=False):
+                def restart(flush, physical=False, pressure=False, foreground=False, aggregate=False):
                     nonlocal authority
                     authority.kill()
                     authority.wait(timeout=15)
@@ -1119,9 +1119,11 @@ def run(node, caller, mode="tables", *artifacts):
                                                            "compact": physical}}
                     if foreground:
                         settings["storage"]["maintenance"]["flush"]["rows"] = 1
-                    settings["request_timeout_ms"] = 5000 if pressure else 60000
+                    settings["request_timeout_ms"] = 5000 if pressure or aggregate else 60000
                     if pressure:
                         settings["storage"]["requests"] = {"request_bytes": 1048576, "data_bytes": 1048576}
+                    if aggregate:
+                        settings["storage"]["admission"] = {"data_bytes": 8 * 1024 * 1024}
                     config.write_text(json.dumps(settings))
                     authority = start()
                 if mode == "stream-maintenance":

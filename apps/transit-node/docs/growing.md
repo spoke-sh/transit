@@ -189,8 +189,9 @@ budget.
 Retained catalog/Table owners and their private work use separate fixed budgets:
 256 MiB across ordinary owners and 64 MiB across control owners, with 128 MiB and
 64 MiB per-owner limits respectively. These budgets survive request completion
-and are released on workspace eviction or joined owner shutdown. They exclude
-fixed owner metadata and provider I/O buffers.
+and are released on workspace eviction or joined owner shutdown. Their child counters exclude fixed owner metadata and provider I/O buffers.
+The shared admission parent additionally includes the resident metadata and
+retained wait-registration owner.
 
 Request limits exclude those workspaces, independently owned engine/provider
 caches, native requests, connection buffers, worker stacks and the kernel page
@@ -199,6 +200,24 @@ has its separate `storage.maintenance.resident_bytes` budget and one executor;
 it includes Stream workspaces retained between bounded recovery turns and does
 not consume the request control reserve. The limits bound this allocation
 boundary, not total node RSS or storage I/O latency.
+
+All direct request and retained-owner budgets attach to stable ordinary/control
+parents owned by the exclusive local installation. The restart settings
+`storage.admission.data_bytes` (1–512 MiB, default 512 MiB) and
+`storage.admission.control_bytes` (1–128 MiB, default 128 MiB) bound their combined
+live charges. Automatic maintenance has its existing independent reservation,
+and collector decoding/graph work has a fixed 64 MiB reserve. The default total
+is 832 MiB. Collection can overlap retained log recovery allocations without
+spending request/control capacity. See the
+[allocation ledger](../../../docs/handbook/internals/storage-runtime.md#local-direct-storage-allocation-ledger)
+for coverage and exclusions.
+
+Typed local responses remain charged through destruction of their returned
+arenas. The hosting context must outlive all returned arenas and join SQL,
+browser, HTTP and maintenance tasks before the exclusive owner closes. Local
+response materialization has its own client limit; its backing blocks share the
+request and aggregate quotas. An allocation error after publication requires
+inspection of the original operation, just like a lost HTTP response.
 
 Direct requests use the listener's ordinary request lanes. `X-Transit-Control: table` uses
 reserved admission only for exact operation inspection/cancellation and pin
@@ -434,7 +453,10 @@ actual request limits and current/peak charged request bytes. Their counters
 include responses held by slow clients until the write is joined. They exclude
 retained-owner workspaces, whose fixed budgets are independent of these settings;
 optional `owner_memory` diagnostics observe that workspace allocation boundary.
-These counters do not measure process RSS.
+The separate `admission` observation includes requests, resident owners,
+maintenance and collection under the limits above, with live/peak reservations
+and failed quota-reservation attempts. Counters are independent samples and reset
+on owner reopen. These counters do not measure process RSS.
 
 The Table host exposes `table.transaction_limits` for each begin and
 `table.transaction_account_limits` for aggregate durable reservations. Per-begin

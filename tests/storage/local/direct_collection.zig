@@ -163,6 +163,10 @@ test "protected Document sources survive real collection cuts and closure surviv
 }
 
 const Fixture = struct {
+    aggregate: f.memory.Quota = .{ .limit = 65 * 1024 * 1024 },
+    collection: f.memory.Quota = .{ .limit = 64 * 1024 * 1024 },
+    foreground: f.memory.Budget = .{ .parent = undefined, .limit = 1024 * 1024 },
+    held: []u8 = undefined,
     owner: local.Backend = undefined,
     pages: local.PageStore = undefined,
     journal: local.Store = undefined,
@@ -182,7 +186,11 @@ const Fixture = struct {
         return s.LogTime.Sample.exact(@as(*Fixture, @ptrCast(@alignCast(raw))).now);
     }
     fn open(self: *Fixture, directory: std.Io.Dir, fresh: bool) !void {
+        self.collection.parent = &self.aggregate;
+        self.foreground = .{ .parent = t.allocator, .quota = &self.aggregate, .limit = 1024 * 1024 };
+        self.held = try self.foreground.allocator().alloc(u8, self.foreground.limit);
         self.owner = try local.Backend.open(t.allocator, t.io, directory, "native", .{});
+        self.owner.collection_quota = &self.collection;
         self.pages = try local.PageStore.init(&self.owner, 1);
         self.journal = .{ .backend = &self.owner };
         self.data = .{ .backend = &self.owner };
@@ -196,6 +204,8 @@ const Fixture = struct {
         self.table.deinit();
         self.pages.deinit();
         self.owner.deinit();
+        self.foreground.allocator().free(self.held);
+        std.debug.assert(self.aggregate.used.load(.acquire) == 0);
     }
     fn fence(self: *Fixture) !u64 {
         return self.engine.submit(try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = (try self.engine.principal(0)).sequence + 1, .command = .{ .storage_fence = {} } }, try keyPair()));
@@ -214,6 +224,11 @@ const Fixture = struct {
     fn collect(self: *Fixture) !Collection.State {
         var collector: Collection = .{ .backend = &self.owner };
         try collector.start(&self.engine, try self.fence());
+        const before_pressure = (try collector.current()).?;
+        try self.collection.reserve(self.collection.limit);
+        try t.expectError(error.StorageMaintenanceBudget, collector.step(&self.engine, .{ .unix_ms = self.now }));
+        self.collection.release(self.collection.limit);
+        try t.expectEqualDeep(before_pressure, (try collector.current()).?);
         var steps: usize = 0;
         while ((try collector.current()).?.phase != .wait) : (steps += 1) {
             if (steps == 100_000) return error.FixtureBudget;
@@ -226,6 +241,8 @@ const Fixture = struct {
             try t.expect(try collector.step(&self.engine, .{ .unix_ms = self.now }));
         }
         const state = (try collector.current()).?;
+        try t.expect(self.collection.peak.load(.acquire) > 0);
+        try t.expectEqual(self.foreground.used, self.aggregate.used.load(.acquire));
         try t.expect(!state.aborted and state.reclaimed_objects > 0);
         std.debug.print("direct Table collection: {d} steps, {d} allocations reclaimed\n", .{ steps, state.reclaimed_objects });
         return state;

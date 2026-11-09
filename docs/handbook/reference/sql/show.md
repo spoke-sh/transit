@@ -49,6 +49,9 @@ DATABASES and SCHEMAS emit name rows. The SQL adapters emit typed name rows. The
 `SHOW STORAGE` returns the local node's backend, resolved data root, conservative
 storage admission bytes and limits, direct request/control allocation use and
 peaks, and maintenance executor state, counters, limit and last failure category.
+The `admission_<pool>_*` columns expose total, ordinary, control, maintenance and
+collection limits, live/peak backing reservations and refusal attempts through
+the [shared storage observation](../storage.md#direct-storage-allocation-admission).
 It requires realm-wide native inspection rights as well as the SQL session's
 database/schema access in a direct catalog session. Query-source-only and Flight
 SELECT interfaces do not accept it. Unavailable fields are NULL. These live counters are

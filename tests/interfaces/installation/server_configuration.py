@@ -156,8 +156,7 @@ def run(fixture):
         assert settings.returncode == 0, settings
         assert [row['value'] for value in results(map(json.loads, settings.stdout.splitlines())) if 'schema' in value for row in records(value) if 'value' in row] == ['2000', '5000'], settings
         sql("SET query.statement_timeout = '11s'", ok=False)
-        from harness.services import free_port
-        fixture.config['ports']['gateway'] = free_port()
+        fixture.config['ports']['gateway'] = fixture.reserve_port()
         fixture.config['startup'] = {'require_existing': True}
         fixture.config['storage'] = dict(
             limits=dict(bytes='4GiB', control_bytes='32MiB', candidate_bytes='4MiB'),

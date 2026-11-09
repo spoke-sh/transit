@@ -62,6 +62,22 @@ they do not imply one implemented catalog or reconciliation service.
 | Policy | An owned rule governing access, lifetime or permitted work; separate policy owners do not form one atomic transaction |
 | Lifecycle evidence | Attributed definitions, operation outcomes, source bases and progress used to assess a declaration; no single catalog-wide health API is implied |
 
+## Planned source language and composition
+
+These terms describe the [proposed build model](applications.md#planned-source-language-and-build-model),
+not implemented commands or grammar.
+
+| Term | Meaning |
+| --- | --- |
+| `.transit` source | Higher-order Transit SQL source combining ordinary SQL with typed modules, imports and compile-time composition |
+| `build.transit` | A build program in the same `.transit` dialect, declaring target compositions and tests |
+| Source module | An encapsulated, recursively composable unit with typed parameters, imports and exports; distinct from a SQL schema |
+| Source package | A distributable collection of modules with declared dependencies; repository revision and content identity are separate from runtime definition revisions |
+| Workspace | Packages and build targets developed together, including monorepos |
+| Build target | A selected module composition producing executable SQL or an isolated test suite |
+| Module instance | An explicit binding of a reusable module's parameters and, where stateful, catalog namespace and durable identities |
+| Generated SQL | Canonical executable Transit `.sql`, with source-only constructs lowered away; usable through ordinary statement owners or the migration lifecycle |
+
 ## Processes, actors, and execution
 
 | Term | Meaning |

@@ -13,10 +13,11 @@ program; they do not rerun migrations. Platform's GitHub sign-in and surface
 publication are the first complete acceptance journey.
 
 This supporting plan coordinates existing milestones; it adds no milestone or
-completion claim. Implementation is proceeding in logical commits toward one
-PR for the complete application runtime. The initial compiler work adds bounded
-source framing, ordered program trees and static schema/protected-value checks.
-Those local compiler interfaces do not establish installed Queue execution.
+completion claim. The reviewed delivery scope is a foundation PR, followed by
+the remaining application runtime tracked in #430. The foundation includes bounded
+source framing, ordered program trees, static schema/protected-value checks,
+typed transactional Queue execution and an explicitly composed HTTP effect worker.
+It does not install or run the complete consumer through the SQL service.
 The remaining runtime and qualification gates below still apply.
 
 The state foundations now include typed KV rows with retained field constraints and
@@ -75,8 +76,19 @@ now uses an exact native KV schema and separate `use_secret` privilege. Program
 declarations include its implicit read dependency, and common-decision tests
 cover rotation, disable and privilege revocation after preparation. A private
 mount adapter now supplies scoped secret callbacks, checks exact content and
-erases failed reads. Live registry/executor composition, effect ownership and
-HTTP integration remain unfinished.
+erases failed reads. A bounded effect pool and physical HTTP worker now preserve
+original dispatch/outcome identity, final current-authority checks and joined
+cleanup. Native transactions also accept an immutable optional commit deadline.
+Whole-program deadline enforcement, including native preflight and successive
+atomic blocks, remains unfinished; it is not enabled by the default application
+host. The experimental five-second two-block proof has not passed and is outside
+this foundation PR.
+
+Remaining work in #430 includes SQL/node host composition, ingress publication,
+atomic response handoff and post-commit disclosure, canonical browser runtime
+state, migration/publication integration, retained dispatch-role evidence and
+the complete downstream journey. This PR does not close the tracker or authorize
+Platform adoption. The protected effect components remain explicit host APIs.
 
 ## Reviewed inputs and desired experience
 
@@ -393,10 +405,10 @@ still qualify the complete changes against committed HEAD.
 | [M5 transactions](05-transactions-and-atomic-composition.md) / [M6 streams, queues and runtime](06-streams-queues-and-durable-runtime.md) | Common decision, lease settlement and continuation recovery; reuse delivered mixed participant work |
 | [M7 Documents](07-document-storage-and-station-decoupling.md) | Exact policy revision/read-guard integration; no requirement to finish every Document format |
 | [M8 gateway](08-gateway-architecture-and-protocol-ingress.md) / [M9 clients](09-client-foundation-and-language-apis.md) | Cohosted ingress, shared operation/results and public caller surfaces |
-| [M12 managed computations](12-sql-and-dataflows.md) | Primary coordination for installed programs, sources/sinks, lifecycle and migration integration |
-| [M27 control and policy](27-control-and-policy-plane.md) | Protected credentials, canonical identity/session policy and separate execution/dispatch rights |
-| [M28 publication](28-published-resources-and-investigations.md) | SQL projection publication and current-authority snapshot/watch disclosure |
-| [M34 programming model](34-programming-model.md) / [M43 grammar](43-sql-grammar-and-dialect-ergonomics.md) | Shared typed language semantics and later host-language composition; broad SDK expansion is not an initial prerequisite |
+| [M13 managed computations](13-sql-and-dataflows.md) | Primary coordination for installed programs, sources/sinks, lifecycle and migration integration |
+| [M28 control and policy](28-control-and-policy-plane.md) | Protected credentials, canonical identity/session policy and separate execution/dispatch rights |
+| [M29 publication](29-published-resources-and-investigations.md) | SQL projection publication and current-authority snapshot/watch disclosure |
+| [M35 programming model](35-programming-model.md) / [M44 grammar](44-sql-grammar-and-dialect-ergonomics.md) | Shared typed language semantics and later host-language composition; broad SDK expansion is not an initial prerequisite |
 
 [Platform #120](https://github.com/spoke-sh/platform/issues/120) owns downstream
 delivery and adoption. [Transit #284](https://github.com/spoke-sh/transit/issues/284)

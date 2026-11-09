@@ -29,6 +29,22 @@ export function validateStorage(value: unknown): value is StorageResponse {
     if (memory && (memory.limit === 0 || memory.used > memory.peak || memory.peak > memory.limit))
       return false;
   if (limit !== null && (limit === 0 || limit > data!.limit)) return false;
+  const admission = observed.admission;
+  if (admission !== null) {
+    for (const pool of Object.values(admission)) {
+      const memory = pool.memory;
+      if (memory.limit === 0 || memory.used > memory.peak || memory.peak > memory.limit)
+        return false;
+    }
+    if (
+      admission.total.memory.limit !==
+      admission.data.memory.limit +
+        admission.control.memory.limit +
+        admission.maintenance.memory.limit +
+        admission.collection.memory.limit
+    )
+      return false;
+  }
   if (
     maintenance &&
     (maintenance.enabled !== (maintenance.state !== "disabled") ||

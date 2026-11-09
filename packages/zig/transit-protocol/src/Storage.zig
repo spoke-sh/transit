@@ -54,7 +54,18 @@ pub const Requests = struct {
             self.control_bytes < 1024 * 1024 or self.control_bytes > 64 * 1024 * 1024) return error.InvalidStorageBudget;
     }
 };
-pub const Settings = struct { limits: Limits = .{}, maintenance: Maintenance = .{}, requests: Requests = .{} };
+/// Aggregate direct-storage backing allocations. Maintenance retains its own
+/// workspace limit plus a fixed collector reserve; these are not RSS limits.
+pub const Admission = struct {
+    data_bytes: u32 = 512 * 1024 * 1024,
+    control_bytes: u32 = 128 * 1024 * 1024,
+    pub const collection_bytes = 64 * 1024 * 1024;
+    pub fn validate(self: Admission) !void {
+        if (self.data_bytes < 1024 * 1024 or self.data_bytes > 512 * 1024 * 1024 or
+            self.control_bytes < 1024 * 1024 or self.control_bytes > 128 * 1024 * 1024) return error.InvalidStorageBudget;
+    }
+};
+pub const Settings = struct { limits: Limits = .{}, maintenance: Maintenance = .{}, requests: Requests = .{}, admission: Admission = .{} };
 
 /// Owned native response text. No borrowed filesystem buffer crosses a read.
 pub const Path = struct {
@@ -101,6 +112,28 @@ pub const Memory = struct {
     }
 };
 pub const Failure = enum { capacity, denied, clock, timeout, recovery, storage, other };
+pub const AdmissionPool = struct {
+    memory: Memory,
+    refusals: u64,
+    pub fn validate(self: AdmissionPool) !void {
+        try self.memory.validate();
+        if (self.refusals > p.max_counter) return error.InvalidStorageObservation;
+    }
+};
+pub const AdmissionObservation = struct {
+    total: AdmissionPool,
+    data: AdmissionPool,
+    control: AdmissionPool,
+    maintenance: AdmissionPool,
+    collection: AdmissionPool,
+    pub fn validate(self: AdmissionObservation) !void {
+        inline for (.{ self.total, self.data, self.control, self.maintenance, self.collection }) |pool| try pool.validate();
+        if (self.total.memory.limit != self.data.memory.limit + self.control.memory.limit + self.maintenance.memory.limit + self.collection.memory.limit)
+            return error.InvalidStorageObservation;
+        // Live counters are sampled independently; do not require their uses
+        // or peaks to add up to one simultaneous observation.
+    }
+};
 pub const Activity = struct {
     enabled: bool,
     state: enum { disabled, waiting, running, failed },
@@ -122,8 +155,9 @@ pub const Observation = struct {
     request_limit_bytes: ?u64,
     maintenance: ?Activity,
     settings: ?Maintenance,
+    admission: ?AdmissionObservation,
 
-    pub const unavailable: Observation = .{ .backend = .unavailable, .root = null, .allocated_bytes = null, .limits = null, .data_requests = null, .control_requests = null, .request_limit_bytes = null, .maintenance = null, .settings = null };
+    pub const unavailable: Observation = .{ .backend = .unavailable, .root = null, .allocated_bytes = null, .limits = null, .data_requests = null, .control_requests = null, .request_limit_bytes = null, .maintenance = null, .settings = null, .admission = null };
     pub fn validate(self: Observation) !void {
         if (self.backend == .unavailable and !std.meta.eql(self, unavailable)) return error.InvalidStorageObservation;
         if (self.allocated_bytes) |value| if (value > p.max_counter) return error.InvalidStorageObservation;
@@ -135,6 +169,7 @@ pub const Observation = struct {
             (self.data_requests == null) != (self.request_limit_bytes == null)) return error.InvalidStorageObservation;
         if (self.request_limit_bytes) |limit| if (limit == 0 or limit > self.data_requests.?.limit) return error.InvalidStorageObservation;
         if (self.settings) |settings| try settings.validate();
+        if (self.admission) |admission| try admission.validate();
         if (self.maintenance) |activity| {
             if (activity.completed_steps > p.max_counter or activity.failed_steps > p.max_counter or
                 activity.enabled != (activity.state != .disabled) or
@@ -172,4 +207,26 @@ test "request capacity validates the total ordinary and independent control boun
     try t.expectError(error.InvalidStorageBudget, (Requests{ .data_bytes = 1048576 }).validate());
     try t.expectError(error.InvalidStorageBudget, (Requests{ .control_bytes = 0 }).validate());
     try t.expectError(error.InvalidStorageBudget, (Requests{ .data_bytes = 268435457 }).validate());
+}
+
+test "aggregate admission validates settings and independently sampled pools" {
+    const t = std.testing;
+    try (Admission{}).validate();
+    try t.expectError(error.InvalidStorageBudget, (Admission{ .data_bytes = 0 }).validate());
+    try t.expectError(error.InvalidStorageBudget, (Admission{ .control_bytes = 134217729 }).validate());
+    const pool: AdmissionPool = .{ .memory = .{ .limit = 16, .used = 7, .peak = 8 }, .refusals = 3 };
+    var observation: AdmissionObservation = .{ .total = pool, .data = pool, .control = pool, .maintenance = pool, .collection = pool };
+    observation.total.memory.limit = 64;
+    // Independent samples and peaks need not sum to the total sample.
+    try observation.validate();
+    observation.total.memory.limit = 65;
+    try t.expectError(error.InvalidStorageObservation, observation.validate());
+    observation.total.memory.limit = 64;
+    observation.data.refusals = p.max_counter + 1;
+    try t.expectError(error.InvalidStorageObservation, observation.validate());
+    // A changed response field is required: old persisted responses cannot
+    // silently acquire a current observation through a default.
+    try t.expectError(error.MissingField, std.json.parseFromSlice(Observation, t.allocator,
+        \\{"backend":"unavailable","root":null,"allocated_bytes":null,"limits":null,"data_requests":null,"control_requests":null,"request_limit_bytes":null,"maintenance":null,"settings":null}
+    , .{}));
 }

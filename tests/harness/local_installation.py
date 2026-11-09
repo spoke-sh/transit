@@ -57,7 +57,7 @@ class LocalInstallation:
                 executables[key] = str(role_path)
             else:
                 executables[key] = str(resolved)
-        self.reserved_ports = set()
+        self.reserved_ports = {19104, 19105, 19106, 19107, 19108, 19109}
         ports = [self.reserve_port() for _ in range(3)]
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
             "ports": dict(zip(("node", "gateway"), ports[:2])),

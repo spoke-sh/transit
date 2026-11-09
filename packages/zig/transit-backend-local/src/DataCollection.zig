@@ -50,7 +50,8 @@ pub fn Collector(comptime Graph: type) type {
             var digest: [32]u8 = undefined;
             std.crypto.hash.sha2.Sha256.hash(body, &digest, .{});
             if (!std.mem.eql(u8, encoded[body.len..], &digest)) return error.InvalidStorageCollection;
-            const parsed = try std.json.parseFromSlice(State, self.backend.allocator, body, .{});
+            var memory: MemoryBudget = .{ .parent = self.backend.allocator, .quota = self.backend.collection_quota, .limit = step_resident_bytes };
+            const parsed = std.json.parseFromSlice(State, memory.allocator(), body, .{}) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.StorageMaintenanceBudget else err;
             defer parsed.deinit();
             const state = parsed.value;
             try state.work.validate();
@@ -127,7 +128,7 @@ pub fn Collector(comptime Graph: type) type {
             if (state.active == null) state.active = try workspace.take(allocator);
             if (state.active) |*work| {
                 if (try Graph.step(allocator, index, data.log(), work, &workspace)) state.active = null;
-            } else switch (try state.cuts.next(self.backend)) {
+            } else switch (try state.cuts.nextWithAllocator(self.backend, allocator)) {
                 .progress => {},
                 .complete => state.phase = .wait,
                 .cut => |cut| {
@@ -229,9 +230,9 @@ pub fn Collector(comptime Graph: type) type {
             try engine.validateTime(now);
             var state = (try self.current()) orelse return false;
             if (!std.mem.eql(u8, &state.cut.genesis, &engine.head.genesis) or state.cut.storage_epoch > engine.head.storage_epoch) return error.InvalidStorageCollection;
-            var data: DataStore = .{ .backend = self.backend, .control = true, .track_activity = false };
-            var memory: MemoryBudget = .{ .parent = self.backend.allocator, .limit = step_resident_bytes };
-            var index = try storage.TreeStore.init(memory.allocator(), data.objects(), 64);
+            var memory: MemoryBudget = .{ .parent = self.backend.allocator, .quota = self.backend.collection_quota, .limit = step_resident_bytes };
+            var data: DataStore = .{ .backend = self.backend, .scratch_allocator = memory.allocator(), .control = true, .track_activity = false };
+            var index = storage.TreeStore.init(memory.allocator(), data.objects(), 64) catch |err| return if (err == error.OutOfMemory and memory.exhausted) error.StorageMaintenanceBudget else err;
             defer index.deinit();
             switch (state.phase) {
                 .complete => return !try self.trim(),

@@ -69,7 +69,13 @@ fn call(self: Self, request: w.Request) !w.Result {
     if (!std.meta.eql(request.key().connection, self.catalog.connection)) return error.CatalogIdentityConflict;
     var caller = self.catalog;
     caller.transaction = null;
-    const response = try caller.call(.{ .transaction = request });
+    const response = caller.call(.{ .transaction = request }) catch |err| {
+        // Preserve the native commit constraint as a typed refusal. Transport
+        // timeout/EOF cannot establish expiry or decide the original attempt.
+        if (err == error.Rejected and caller.service.last_rejection == .DeadlineExpired)
+            return error.TransactionDeadlineElapsed;
+        return err;
+    };
     defer response.deinit();
     // Result contains only owned fixed-size values, no response-arena slices.
     return response.value.result.transaction;

@@ -1,5 +1,5 @@
 {
-  "definition": "6da8e815dec26c458515e34fb6553654d57c77536f652b9258897bf1a513842e",
+  "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
   "settings": [
     {
       "name": "version",
@@ -231,6 +231,38 @@
       "sensitive": false,
       "minimum": 1048576,
       "maximum": 67108864,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.admission.data_bytes",
+      "description": "Shared backing allocation for ordinary direct storage requests, retained responses and resident owners",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "536870912",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 536870912,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.admission.control_bytes",
+      "description": "Independent shared backing allocation for direct storage recovery requests, retained responses and control residents",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "134217728",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1048576,
+      "maximum": 134217728,
       "values": [],
       "items_schema": null
     },
@@ -1868,6 +1900,46 @@
                 "x-transit-owner": "node",
                 "x-transit-change": "restart",
                 "default": 67108864
+              }
+            }
+          },
+          "admission": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "data_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 536870912
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Shared backing allocation for ordinary direct storage requests, retained responses and resident owners",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 536870912
+              },
+              "control_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1048576,
+                    "maximum": 134217728
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Independent shared backing allocation for direct storage recovery requests, retained responses and control residents",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 134217728
               }
             }
           },

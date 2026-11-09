@@ -148,8 +148,7 @@ def closing_gateway_response(fixture):
     with socketserver.ThreadingTCPServer(('127.0.0.1', 0), Dropped) as upstream:
         thread = threading.Thread(target=upstream.serve_forever, daemon=True)
         thread.start()
-        from harness.services import free_port
-        port = free_port()
+        port = fixture.reserve_port()
         config = fixture.root / 'closing-gateway.json'
         config.write_text(json.dumps({'port': port, 'upstream': f'http://127.0.0.1:{upstream.server_address[1]}'}))
         with (fixture.root / 'closing-gateway.stderr').open('wb') as log:

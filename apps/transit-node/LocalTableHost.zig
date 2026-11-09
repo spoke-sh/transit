@@ -41,6 +41,7 @@ control_residents: [2]ResidentSlot = @splat(.{}),
 /// Retained caches and owner work have a separate aggregate bound from parsed
 /// requests/responses. Data exhaustion cannot consume the control reserve.
 resident_memory: @import("DirectRequestMemory.zig") = .{},
+admission: ?*@import("DirectStorageMemory.zig") = null,
 log_waits: ?*LogWaits = null,
 queue_transfers: ?@import("LocalQueueTransfers.zig").Identity = null,
 
@@ -85,11 +86,15 @@ pub fn notifyLogs(self: *Self) void {
 pub fn warm(self: *Self, engine: *backend.DataAuthority.Engine) !void {
     const owner = engine.journal.backend;
     if (self.residents[0].value == null) {
-        self.residents[0].value = try Service.Resident.create(owner.allocator, self.resident_memory.request(owner.allocator, false), owner, self.configuration, self.options, self.recovery);
+        self.residents[0].value = try Service.Resident.create(owner.allocator, self.ownerAdapter(false), self.resident_memory.request(owner.allocator, false), owner, self.configuration, self.options, self.recovery);
     }
     if (self.control_residents[0].value == null) {
-        self.control_residents[0].value = try Service.Resident.create(owner.allocator, self.resident_memory.request(owner.allocator, true), owner, self.configuration, self.options, self.recovery);
+        self.control_residents[0].value = try Service.Resident.create(owner.allocator, self.ownerAdapter(true), self.resident_memory.request(owner.allocator, true), owner, self.configuration, self.options, self.recovery);
     }
+}
+fn ownerAdapter(self: *Self, control: bool) ?*@import("transit_memory").Quota.Allocator {
+    const owner = self.admission orelse return null;
+    return if (control) &owner.control_allocator else &owner.data_allocator;
 }
 fn exclusive(action: w.Action) bool {
     return switch (action) {
@@ -298,7 +303,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     const resident = try acquireResident(io, slots, request.action);
     defer resident.mutex.unlock(io);
     if (parent) |cap| try cap.check(io);
-    if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+    if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.ownerAdapter(control), self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
     var discard_on_error = true;
     errdefer if (discard_on_error) {
         if (resident.value) |value| value.destroy();
@@ -319,7 +324,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
                 } else value.probe.begin(false);
             }
             if (resident.value == null) {
-                resident.value = Service.Resident.create(engine.journal.backend.allocator, self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+                resident.value = Service.Resident.create(engine.journal.backend.allocator, self.ownerAdapter(control), self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
             }
         }
         var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };

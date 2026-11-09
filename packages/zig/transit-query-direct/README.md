@@ -166,8 +166,10 @@ before advancing. Its JSON/URL helpers share Fuze's bounded lossless parser,
 reject duplicate fields and protected values, and preserve exact integer tokens.
 See the [program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#protected-values)
 for admitted JSON paths, conversions and URL construction.
-SQL installation, HTTP effects and response/capability operations remain
-integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
+An explicit physical HTTP effect host is available from `transit-serving-http`.
+SQL installation, deployment composition, ingress and response/handoff operations
+remain integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
+`NOW()` uses the host wall clock; it does not supply trusted native policy time.
 
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.
 `DirectTableQuery` executes it over an explicitly retained snapshot with bounded

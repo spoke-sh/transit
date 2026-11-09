@@ -13,6 +13,7 @@ pub const Response = struct {
     data_requests: ?s.Memory,
     control_requests: ?s.Memory,
     request_limit_bytes: ?u64,
+    admission: ?s.AdmissionObservation,
     maintenance: ?s.Activity,
     settings: ?s.Maintenance,
 };
@@ -31,6 +32,7 @@ pub fn project(allocator: std.mem.Allocator, response: p.Growth.Response) !Respo
         .data_requests = observed.data_requests,
         .control_requests = observed.control_requests,
         .request_limit_bytes = observed.request_limit_bytes,
+        .admission = observed.admission,
         .maintenance = observed.maintenance,
         .settings = observed.settings,
     };

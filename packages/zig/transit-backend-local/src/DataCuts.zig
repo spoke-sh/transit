@@ -32,6 +32,9 @@ pub fn init(head: core.growing.Head) !Self {
 /// Errors preserve the cursor. Required history disappearing aborts traversal;
 /// it must never be interpreted as an empty owner or complete mark pass.
 pub fn next(self: *Self, backend: *Backend) !Step {
+    return self.nextWithAllocator(backend, backend.allocator);
+}
+pub fn nextWithAllocator(self: *Self, backend: *Backend, allocator: std.mem.Allocator) !Step {
     const before = self.*;
     errdefer self.* = before;
     try backend.mutex.lock(backend.io);
@@ -43,7 +46,7 @@ pub fn next(self: *Self, backend: *Backend) !Step {
     if (self.next_lsn) |next_lsn| {
         if (next_lsn == 0) return error.InvalidStorageCollection;
         const lsn = next_lsn - 1;
-        var batch = try backend.wal.readFrames(backend.allocator, self.partition, lsn, 1);
+        var batch = try backend.wal.readFrames(allocator, self.partition, lsn, 1);
         defer batch.deinit();
         if (batch.frames.len != 1) return error.IncompleteHistory;
         const frame = batch.frames[0];
