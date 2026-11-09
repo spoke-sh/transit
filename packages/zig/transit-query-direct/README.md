@@ -117,8 +117,23 @@ unknown but cannot authorize another send. An interrupted outcome publication
 resumes its exact saved bytes; missing bytes remain unresolved. Closing an
 unretained original races retention under the native revision and establishes
 that no fresh attempt escaped only when closure wins. The host must withdraw
-and join the live task before using that closure path. Ordered execution and
-HTTP worker integration remain required before this owner runs application effects.
+and join the live task before using that closure path.
+
+The ordered runner retains each effect's pre-step environment and typed operands
+before admitting a task. Recovery reconstructs the instruction from that frozen
+request without evaluating entropy or protected operands again. A task receives
+fixed native references and the exact invocation/service fences; `openEffect`
+reopens and validates those originals. Waiting leaves the progress revision
+unchanged. A separate result candidate advances the environment only after native
+settlement and verification of its protected response handle.
+
+The deployment supplies nonblocking poll, withdrawal/join, release and protected
+response callbacks. It must keep a known completion through lost native replies
+and release it only after joined, terminal settlement. Cancellation joins the
+task before trying to reopen protected operands. An abandoned task becomes
+unsent only when native evidence excludes a dispatch; a retained dispatch becomes
+unknown. Failure handlers receive that original outcome. These interfaces do not
+supply a physical HTTP worker or enable service effect readiness by themselves.
 
 Frozen limits bound each SELECT's requests/scanned rows/result bytes, native
 transaction participants/statements/work, each continuation payload and cumulative

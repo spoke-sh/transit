@@ -441,8 +441,23 @@ Recovery after replacement of a worker fence records unknown without another
 dispatch. An unfinished native completion publication resumes the exact saved
 outcome; absent publication bytes remain unresolved. Native closure can prove
 that admission did not escape only while the original is unretained; the host
-must first withdraw and join its live task. This component remains separate from
-the unfinished ordered-runner and HTTP transport integration.
+must first withdraw and join its live task.
+
+The ordered runner freezes the pre-effect environment, typed request operands and
+immutable instruction identity in a guarded candidate before task admission.
+Recovering it never reevaluates random or protected operands. Task metadata binds
+that candidate, the declaration and exact service/invocation fences. A waiting
+task does not advance the invocation revision. After native effect settlement,
+a separate guarded result candidate advances the environment once; adopting a
+protected body requires the host to verify its original response observation.
+
+The host retains a completed attempt until native settlement is observed, even
+after joining it or losing a completion reply. Cancellation withdraws and joins
+the original task before protected reads or native cleanup. Revocation can leave
+settlement unresolved but cannot justify keeping a withdrawn local task alive.
+Failure continuations retain the actual native effect outcome. Physical HTTP
+worker, current dispatch authority and service integration remain unfinished;
+the default host continues to refuse effect programs at readiness.
 
 A request has one response owner. Handoff transfers that owner with its commit.
 Responses inside atomic blocks remain buffered until the decision commits.

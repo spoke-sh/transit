@@ -144,6 +144,16 @@ and the same client fence/transaction view. Rotation can produce a false
 currently rejects all handoffs until the native common-commit proof owner is
 connected. It does not enable live ingress or effect dispatch by itself.
 
+`ApplicationEffectHttp` renders frozen effect operands into caller-owned private
+buffers. Form values use exact UTF-8 percent encoding; Bearer headers retain typed
+secret references until the transport resolver rechecks their purpose and current
+authority. Sink-owned headers cannot be replaced by request fields. Prepared form
+bytes still require current redemption before sending. Capacity and rendering
+failures erase partial bodies. Response capture retains at most 64 KiB privately
+and creates status/count/digest metadata only from a complete transport result;
+the protected body must be sealed separately in the original reservation.
+This adapter supplies neither dispatch authority nor a service worker.
+
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native

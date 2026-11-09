@@ -16,6 +16,13 @@ pub const Value = struct {
     }
 };
 pub const Field = struct { name: []const u8, value: Value };
+// These nested descriptors outlive bind() and every recursive block call.
+// Keep their storage static instead of borrowing a runtime array literal.
+const failure_value: Value = .{ .kind = .failure, .fields = &.{.{ .name = "effect_outcome", .value = Value.public(.text) }} };
+const effect_value: Value = .{ .kind = .record, .fields = &.{
+    .{ .name = "status", .value = Value.public(.integer) },
+    .{ .name = "body", .value = .{ .kind = .protected_json, .protected = true } },
+} };
 pub const Resource = struct {
     name: []const u8,
     kind: enum { table, document, kv, stream, queue, sink },
@@ -114,7 +121,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         // A failure continuation may run after loss/restart. Its environment is
         // the original input and typed failure, never a partially executed LET.
         self.symbols.shrinkRetainingCapacity(1);
-        try self.define(failure.name, .{ .kind = .failure, .fields = &.{.{ .name = "effect_outcome", .value = Value.public(.text) }} });
+        try self.define(failure.name, failure_value);
         try self.block(failure.instructions);
     }
     for (values) |selected| if (selected) |value_| self.requirements.value(value_);
@@ -446,7 +453,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                             const value_ = try self.expression(entry.value);
                             if (value_.kind != .text and value_.kind != .secret) return error.ProgramTypeMismatch;
                         }
-                        break :blk Value{ .kind = .record, .fields = &.{ .{ .name = "status", .value = Value.public(.integer) }, .{ .name = "body", .value = .{ .kind = .protected_json, .protected = true } } } };
+                        break :blk effect_value;
                     },
                 };
                 self.values[instruction.id] = value;

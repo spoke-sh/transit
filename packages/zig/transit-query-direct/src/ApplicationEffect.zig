@@ -337,6 +337,25 @@ pub fn closeUnretained(self: Self) !Observation {
     const next = try c.DirectOwnedRecord.call(self.scope.client, .{ .close_original = .{ .key = key, .expected = previous.revision } });
     return self.observation(next);
 }
+/// After withdrawal/join, a replaced invocation fence excludes admission by
+/// that task. If no effect was admitted, retain the original unsent outcome.
+/// This recovery operation grants no dispatch permission and needs current
+/// native recovery rights independently of the retired task's lease.
+pub fn recoverUnstarted(self: Self, withdrawn: T.Fence) !Observation {
+    try withdrawn.key.requireSame(self.descriptor.invocation);
+    if (!try self.fenced(withdrawn)) return error.ApplicationEffectPending;
+    var previous = (try self.observe()) orelse blk: {
+        try self.requireRequest();
+        break :blk try self.admit(.{ .definition = p.Growth.current_definition, .descriptor = self.descriptor, .phase = .finished, .dispatch = null, .outcome = .{ .not_dispatched = .incomplete_dispatch } });
+    };
+    if (previous.state.phase != .finished or !previous.progress.pending) return previous;
+    if (previous.state.outcome.? != .not_dispatched) return error.ClientOperationPending;
+    if (previous.progress.original.?.phase == .ready)
+        previous = try self.observation(try c.DirectOwnedRecord.call(self.scope.client, .{ .retain_original = .{ .key = try self.descriptor.key(), .expected = previous.progress.revision } }));
+    if (previous.progress.pending)
+        previous = try self.advance(if (previous.progress.staged) |staged| staged.expected else previous.progress.revision, previous.progress.cancel, previous.state);
+    return previous;
+}
 fn fenced(self: Self, fence: T.Fence) !bool {
     try fence.validate(self.scope.client.connection);
     // The invocation/coordinator token belongs to its original role, which can

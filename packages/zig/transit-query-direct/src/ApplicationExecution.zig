@@ -13,6 +13,8 @@ const M = q.ManagedApplication;
 const I = q.ApplicationInvocation;
 const Tx = c.DirectTransactionClient;
 const Native = q.ApplicationTransaction;
+const E = q.ApplicationEffect;
+const EffectRequest = q.ApplicationEffectRequest;
 const Self = @This();
 pub const candidate_format: u32 = R.guarded_bit | 0x41504331; // protected APC1
 owner: I,
@@ -74,6 +76,63 @@ pub const Host = struct {
     /// The returned context lives through candidate retention. A failed bind
     /// releases its own partial borrow; every successful bind returns cleanup.
     bind: *const fn (*anyopaque, Context) anyerror!BoundHost,
+    effects: ?Effects = null,
+};
+
+/// Fixed task metadata. The deployment owns the worker's clients and I/O and
+/// reopens these exact native records; no evaluation borrow escapes into a task.
+pub const EffectJob = struct {
+    declaration: R.Reference,
+    descriptor: E.Descriptor,
+    revision: d.Position,
+    lease: T.Lease,
+    pub fn validate(self: EffectJob) !void {
+        try self.declaration.validate();
+        try self.descriptor.validate();
+        try self.revision.validate();
+        try self.lease.validate(self.descriptor.request.scope.connection);
+        if (self.declaration.format != c.DirectOwnedRecord.format or
+            !std.meta.eql(self.declaration.scope.connection, self.descriptor.invocation.connection)) return error.InvalidApplicationEffect;
+        const fence = if (std.meta.eql(self.lease.key, self.descriptor.invocation)) self.lease.primary() else self.lease.additional orelse return error.InvalidApplicationEffect;
+        try fence.key.requireSame(self.descriptor.invocation);
+        if (!std.meta.eql(fence.revision, self.revision)) return error.InvalidApplicationEffect;
+    }
+    /// Remove only this job's invocation restriction before reopening its
+    /// original manager. executor() then recomposes and verifies the exact pair.
+    fn serviceLease(self: EffectJob) !?T.Lease {
+        try self.validate();
+        if (std.meta.eql(self.lease.key, self.descriptor.invocation)) {
+            if (self.lease.additional != null) return error.InvalidApplicationEffect;
+            return null;
+        }
+        return .{ .key = self.lease.key, .revision = self.lease.revision, .additional = null };
+    }
+};
+pub const EffectCompletion = struct { attempt: E.Attempt, outcome: E.Outcome };
+pub const EffectPoll = union(enum) { waiting, abandoned, completed: EffectCompletion };
+pub const EffectJoin = union(enum) { waiting, joined: ?EffectCompletion };
+pub const Effects = struct {
+    context: *anyopaque,
+    /// Schedule or observe this original task without blocking on remote I/O.
+    /// A completion remains owned until release, including across lost native replies.
+    poll: *const fn (*anyopaque, EffectJob) anyerror!EffectPoll,
+    /// Withdraw and join any task for the descriptor, including an older fence.
+    /// Only joined establishes that no live local attempt can still escape.
+    join: *const fn (*anyopaque, E.Descriptor) anyerror!EffectJoin,
+    /// Called only after join and verified native settlement. Forgetting a
+    /// known response at join would lose it if its native publication then failed.
+    release: *const fn (*anyopaque, E.Descriptor) void,
+    /// Verify that the protected body belongs to this recorded response before
+    /// adopting its handle. The context is borrowed for this call only.
+    response: *const fn (*anyopaque, Context, E.Descriptor, E.Response) anyerror!void,
+};
+pub const EffectResult = struct {
+    descriptor: E.Descriptor,
+    outcome: E.Outcome,
+    pub fn validate(self: EffectResult) !void {
+        try self.descriptor.validate();
+        if (self.outcome == .response) try self.outcome.response.validate();
+    }
 };
 
 pub const Transaction = struct {
@@ -84,12 +143,13 @@ pub const Transaction = struct {
 };
 pub const Failure = struct {
     refusal: ?a.Id,
-    reason: enum { none, authorization, budget, source_changed, row_assertion, lease_expired, lease_fenced, original_lost, request_lost, request_expired, execution },
+    reason: enum { none, authorization, budget, source_changed, row_assertion, lease_expired, lease_fenced, original_lost, request_lost, request_expired, effect_unknown, execution },
     evidence: ?struct {
         transaction: T.Key,
         statement: ?c.DirectTransactionWorkspace.StatementCompletion,
         decision: ?p.Transaction.Decision,
     },
+    effect: ?EffectResult,
     pub fn validate(self: Failure) !void {
         if ((self.refusal != null) != (self.reason == .none)) return error.InvalidDirectRecord;
         if (self.evidence) |evidence| {
@@ -97,6 +157,7 @@ pub const Failure = struct {
             if (evidence.statement) |statement| try statement.validate();
             if (evidence.decision) |decision| try decision.validate();
         }
+        if (self.effect) |effect| try effect.validate();
     }
     pub fn code(self: Failure, index: a.Cursor.Index) ![]const u8 {
         try self.validate();
@@ -120,12 +181,13 @@ pub const Failure = struct {
             .original_lost => "OriginalInputLost",
             .request_lost => "ApplicationReservationLost",
             .request_expired => "ApplicationReservationExpired",
+            .effect_unknown => "ApplicationEffectUnknown",
             .execution => "ProgramExecutionFailed",
         };
     }
 };
 pub const State = struct {
-    phase: enum { evaluate, begin, acquire, stage, execute, ack, checkpoint, settle, abort, fail, closing, release, detach, complete },
+    phase: enum { evaluate, effect, effect_closing, begin, acquire, stage, execute, ack, checkpoint, settle, abort, fail, closing, release, detach, complete },
     current: ?R.Reference,
     candidate: ?R.Reference,
     transaction: ?Transaction,
@@ -142,8 +204,13 @@ pub const State = struct {
     aborting: ?Failure,
     completion: ?c.DirectTransactionWorkspace.StatementCompletion,
     cancelled: bool,
+    effect: ?struct { descriptor: E.Descriptor, outcome: ?E.Outcome, withdrawn: ?T.Fence },
     pub fn initial() State {
-        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .failure = null, .aborting = null, .completion = null, .cancelled = false };
+        return .{ .phase = .evaluate, .current = null, .candidate = null, .transaction = null, .statement = null, .purpose = .instruction, .basis = null, .checkpoint = null, .boundary = null, .atomic_aborted = false, .acknowledged = false, .terminal = null, .retained_bytes = 0, .failure = null, .aborting = null, .completion = null, .cancelled = false, .effect = null };
+    }
+    fn effectEvidence(self: State) !?EffectResult {
+        const effect = self.effect orelse return null;
+        return .{ .descriptor = effect.descriptor, .outcome = effect.outcome orelse return error.ApplicationEffectPending };
     }
     pub fn validate(self: State) !void {
         if (self.current) |reference| try reference.validate();
@@ -159,6 +226,18 @@ pub const State = struct {
         switch (self.phase) {
             .begin, .acquire, .stage, .execute, .ack, .checkpoint, .settle, .abort => if (self.transaction == null) return error.InvalidDirectRecord,
             .evaluate, .fail, .closing, .release, .detach, .complete => {},
+            .effect, .effect_closing => if (self.transaction != null or self.effect == null or self.candidate == null) return error.InvalidDirectRecord,
+        }
+        if (self.effect) |effect| {
+            try effect.descriptor.validate();
+            if (effect.withdrawn) |fence| {
+                try fence.validate(effect.descriptor.request.scope.connection);
+                try fence.key.requireSame(effect.descriptor.invocation);
+            }
+            if (self.phase == .effect_closing and effect.withdrawn == null) return error.InvalidDirectRecord;
+            if (effect.outcome) |outcome| {
+                try (EffectResult{ .descriptor = effect.descriptor, .outcome = outcome }).validate();
+            } else if (self.phase != .effect and self.phase != .effect_closing) return error.InvalidDirectRecord;
         }
         if (self.terminal) |decision| {
             try decision.validate();
@@ -196,14 +275,28 @@ pub const Candidate = struct {
         log: q.ApplicationData.Append,
         boundary: enum { atomic, final },
         failure: Failure,
+        effect: EffectRequest,
+        effect_result: EffectResult,
     },
 };
 
-fn candidateKey(self: Self, value: M.Declaration, work: I.Work, step: u32, failure: bool, client: c.DirectTableClient) T.Key {
+const CandidateKind = enum { step, failure, effect_result };
+fn candidateKind(candidate: Candidate) CandidateKind {
+    return switch (candidate.action) {
+        .failure => .failure,
+        .effect_result => .effect_result,
+        else => .step,
+    };
+}
+fn candidateKey(self: Self, value: M.Declaration, work: I.Work, step: u32, kind: CandidateKind, client: c.DirectTableClient) T.Key {
     var label: [32]u8 = undefined;
     @memcpy(label[0..24], "transit.application.step");
     std.mem.writeInt(u64, label[24..32], step, .big);
-    label[0] = if (failure) 'f' else 't';
+    label[0] = switch (kind) {
+        .step => 't',
+        .failure => 'f',
+        .effect_result => 'r',
+    };
     var key = self.owner.key(value, work.lease.epoch, &label);
     std.crypto.hash.sha2.Sha256.hash("transit.application.continuations.v1", &key.account, .{});
     key.connection = client.connection;
@@ -221,7 +314,7 @@ fn store(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.
     var guards: [M.Declaration.max_resources + 1]d.Object = undefined;
     const guarded = try R.encodeGuarded(client.allocator, client.connection, objects(value, &guards), bytes);
     defer client.allocator.free(guarded);
-    const key = self.candidateKey(value, work, candidate.step, candidate.action == .failure, client);
+    const key = self.candidateKey(value, work, candidate.step, candidateKind(candidate), client);
     const binary = try c.DirectTableProtocol.Binary.encode(client.allocator, guarded);
     defer client.allocator.free(binary.base64);
     const encoded = try c.DirectOwnedRecord.encode(client.allocator, key, candidate_format, binary);
@@ -229,7 +322,11 @@ fn store(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.
     if (encoded.len > value.limits.retained_bytes -| work.execution.retained_bytes) return error.QueryResultBudget;
     var fingerprint: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(guarded, &fingerprint, .{});
-    const original_operation = self.operation(value, work, candidate.step, if (candidate.action == .failure) "failure-candidate" else "candidate");
+    const original_operation = self.operation(value, work, candidate.step, switch (candidateKind(candidate)) {
+        .step => "candidate",
+        .failure => "failure-candidate",
+        .effect_result => "effect-result",
+    });
     var progress = try c.DirectOwnedRecord.stage(client, key, value.namespace, original_operation.operation, fingerprint, .{ .bytes = 4 * @as(u64, value.limits.continuation_bytes) + 4096 }, candidate_format, guarded);
     if (progress.cancel or progress.original.?.phase == .closed) return error.OwnedRecordClosed;
     progress = try c.DirectOwnedRecord.call(client, .{ .retain_original = .{ .key = key, .expected = progress.revision } });
@@ -285,13 +382,31 @@ fn load(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.W
     const candidate = parsed.value;
     if (candidate.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try candidate.invocation.requireSame(self.owner.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"));
-    if (original_key) |key| try key.requireSame(self.candidateKey(value, work, candidate.step, candidate.action == .failure, client));
+    if (original_key) |key| try key.requireSame(self.candidateKey(value, work, candidate.step, candidateKind(candidate), client));
     if (transaction_key) |key| try key.requireSame(candidate.transaction orelse return error.InvalidDirectRecord);
     var bound = try value.bind(client.allocator);
     defer bound.deinit();
     var index = try a.Cursor.Index.init(client.allocator, &value.program);
     defer index.deinit();
     try a.Environment.validate(index, bound, try value.digest(client.allocator), candidate.environment);
+    switch (candidate.action) {
+        .effect => |request| {
+            if (candidate.transaction != null or candidate.basis != null or candidate.sequence != 0 or
+                candidate.environment.cursor.step != candidate.step) return error.InvalidApplicationEffect;
+            const cursor = try a.Cursor.restore(index, candidate.environment.cursor);
+            const event = try cursor.next(index);
+            if (event != .instruction or event.instruction.id != candidate.instruction) return error.InvalidApplicationEffect;
+            _ = try request.expression(index, bound, candidate.instruction);
+        },
+        .effect_result => |result| {
+            try result.validate();
+            if (candidate.transaction != null or candidate.basis != null or candidate.sequence != 0 or
+                result.descriptor.step != candidate.step or result.descriptor.instruction != candidate.instruction or
+                result.outcome != .response or result.outcome.response.body == null or
+                candidate.environment.cursor.step != candidate.step + 1) return error.InvalidApplicationEffect;
+        },
+        else => {},
+    }
     return parsed;
 }
 
@@ -348,12 +463,16 @@ fn startTransaction(self: Self, client: c.DirectTableClient, value: M.Declaratio
     work.execution.completion = null;
     work.execution.phase = .begin;
 }
-fn adopt(self: Self, work: *I.Work, reference: R.Reference, candidate: Candidate) !void {
-    _ = self;
+fn adopt(self: Self, client: c.DirectTableClient, value: M.Declaration, work: *I.Work, reference: R.Reference, candidate: Candidate) !void {
     if (!std.meta.eql(candidate.previous, work.execution.current)) return error.InvalidDirectRecord;
     work.execution.retained_bytes = try std.math.add(u64, work.execution.retained_bytes, reference.content.bytes);
     switch (candidate.action) {
-        .advance, .failure => {
+        .advance, .failure, .effect_result => {
+            if (candidate.action == .effect_result) {
+                const effect = work.execution.effect orelse return error.InvalidApplicationEffect;
+                if (!std.meta.eql(effect.descriptor, candidate.action.effect_result.descriptor) or
+                    !std.meta.eql(effect.outcome, @as(?E.Outcome, candidate.action.effect_result.outcome))) return error.InvalidApplicationEffect;
+            }
             if (work.execution.transaction) |transaction| if (transaction.kind == .read) {
                 work.execution.candidate = reference;
                 work.execution.phase = .abort;
@@ -375,7 +494,247 @@ fn adopt(self: Self, work: *I.Work, reference: R.Reference, candidate: Candidate
             work.execution.basis = candidate.basis orelse return error.InvalidDirectRecord;
             work.execution.phase = if (work.execution.acknowledged) .checkpoint else .ack;
         },
+        .effect => |request| {
+            if (work.execution.transaction != null or candidate.transaction != null) return error.EffectInsideAtomic;
+            var scope = try self.effectScope(client, value, work.*, reference, candidate.step, candidate.instruction, request);
+            defer scope.deinit();
+            const retained = try std.math.add(u64, work.execution.retained_bytes, E.reserved_bytes);
+            if (retained > value.limits.retained_bytes) return error.QueryResultBudget;
+            work.execution.retained_bytes = retained;
+            work.execution.candidate = reference;
+            work.execution.effect = .{ .descriptor = scope.effect.descriptor, .outcome = null, .withdrawn = null };
+            work.execution.phase = .effect;
+        },
     }
+}
+
+const EffectScope = struct {
+    input: std.json.Parsed(I.Input),
+    effect: E,
+    fn deinit(self: EffectScope) void {
+        self.input.deinit();
+    }
+};
+fn effectScope(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.Work, request: R.Reference, step: u32, instruction: a.Id, operands: EffectRequest) !EffectScope {
+    const input = try self.owner.loadInput(client, value, work, work.environment orelse return error.InvalidDirectRecord);
+    errdefer input.deinit();
+    const scope: Context = .{ .client = client, .declaration = value, .work = work, .invocation = self.owner.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"), .input = input.value, .step = step, .scratch = client.allocator };
+    return .{ .input = input, .effect = try E.init(scope, request, instruction, operands.sink, operands.operation) };
+}
+
+/// Owned decoded inputs for a physical task. Its client transport and allocator
+/// remain caller-owned and must outlive this value. No coordinator borrow is used.
+pub const EffectWorker = struct {
+    declaration: std.json.Parsed(M.Declaration),
+    invocation: std.json.Parsed(I.Work),
+    request: std.json.Parsed(Candidate),
+    input: std.json.Parsed(I.Input),
+    owner: E,
+
+    pub fn deinit(self: EffectWorker) void {
+        self.input.deinit();
+        self.request.deinit();
+        self.invocation.deinit();
+        self.declaration.deinit();
+    }
+    /// Recheck the original guard against the frozen pre-step environment.
+    /// This method never evaluates request operands or performs HTTP I/O.
+    pub fn guard(self: EffectWorker, host: Host) !bool {
+        try self.owner.scope.requireCurrent();
+        const allocator = self.owner.scope.scratch;
+        const value = self.declaration.value;
+        var index = try a.Cursor.Index.init(allocator, &value.program);
+        defer index.deinit();
+        var bound = try value.bind(allocator);
+        defer bound.deinit();
+        var env = try a.Environment.restore(allocator, index, bound, try value.digest(allocator), self.request.value.environment);
+        defer env.deinit();
+        var native = try host.bind(host.context, self.owner.scope);
+        defer native.deinit();
+        var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = native.expressions };
+        const expression = try self.request.value.action.effect.expression(index, bound, self.request.value.instruction);
+        const evaluation = driver.evaluator();
+        return evaluation.condition(try evaluation.evaluate(expression.guard));
+    }
+};
+pub fn openEffect(manager_: M, job: EffectJob) !EffectWorker {
+    try job.validate();
+    if (!std.meta.eql(manager_.client.connection, job.declaration.scope.connection) or manager_.client.transaction != null) return error.InvalidApplicationEffect;
+    var manager = manager_;
+    const service_lease = try job.serviceLease();
+    if (manager.client.lease != null and !std.meta.eql(manager.client.lease, service_lease)) return error.DataflowLeaseFenced;
+    manager.client.lease = service_lease;
+    const owner: I = .{ .manager = manager };
+    const progress = try T.inspect(manager.client, job.descriptor.invocation) orelse return error.ClientOperationMissing;
+    if (!std.meta.eql(progress.revision, job.revision)) return error.DataflowLeaseFenced;
+    const work = try owner.load(progress);
+    errdefer work.deinit();
+    try work.value.declaration.requireSame(job.declaration);
+    if (work.value.phase != .ready or work.value.execution.phase != .effect or work.value.execution.cancelled or
+        work.value.execution.effect == null or !std.meta.eql(work.value.execution.effect.?.descriptor, job.descriptor)) return error.DataflowLeaseFenced;
+    const value = try manager.load(job.declaration);
+    errdefer value.deinit();
+    try work.value.validate(value.value, manager.client.allocator);
+    const client = try owner.executor(value.value, progress, work.value);
+    if (!std.meta.eql(client.lease, @as(?T.Lease, job.lease))) return error.DataflowLeaseFenced;
+    var ordinary: q.ApplicationHost = .{ .scratch = client.allocator, .io = client.service.http.io };
+    const execution: Self = .{ .owner = owner, .native = ordinary.recovery() };
+    const reference = work.value.execution.candidate orelse return error.InvalidApplicationEffect;
+    try reference.requireSame(job.descriptor.request);
+    const request = try execution.load(client, value.value, work.value, reference);
+    errdefer request.deinit();
+    if (request.value.action != .effect) return error.InvalidApplicationEffect;
+    const scope = try execution.effectScope(client, value.value, work.value, reference, request.value.step, request.value.instruction, request.value.action.effect);
+    errdefer scope.deinit();
+    if (!std.meta.eql(scope.effect.descriptor, job.descriptor)) return error.InvalidApplicationEffect;
+    return .{ .declaration = value, .invocation = work, .request = request, .input = scope.input, .owner = scope.effect };
+}
+
+fn withdrawEffect(client: c.DirectTableClient, work: *I.Work) !void {
+    const lease = client.lease orelse return error.DataflowLeaseFenced;
+    const invocation = work.execution.effect.?.descriptor.invocation;
+    const fence = if (std.meta.eql(lease.key, invocation)) lease.primary() else lease.additional orelse return error.DataflowLeaseFenced;
+    try fence.key.requireSame(invocation);
+    work.execution.effect.?.withdrawn = fence;
+    work.execution.phase = .effect_closing;
+}
+
+fn advanceEffect(self: Self, client: c.DirectTableClient, value: M.Declaration, work: *I.Work) !void {
+    const facilities = self.native.effects orelse return error.ApplicationHostUnavailable;
+    // Withdrawal cannot depend on permission to reopen protected operands.
+    // Revocation may block native settlement, but must not keep a local task live.
+    const withdrawal: ?EffectJoin = if (work.execution.phase == .effect_closing)
+        try facilities.join(facilities.context, work.execution.effect.?.descriptor)
+    else
+        null;
+    if (withdrawal != null and withdrawal.? == .waiting) return;
+    const reference = work.execution.candidate orelse return error.InvalidApplicationEffect;
+    const loaded = try self.load(client, value, work.*, reference);
+    defer loaded.deinit();
+    const candidate = loaded.value;
+    if (candidate.action != .effect or candidate.transaction != null or
+        !std.meta.eql(candidate.previous, work.execution.current)) return error.InvalidApplicationEffect;
+    var scope = try self.effectScope(client, value, work.*, reference, candidate.step, candidate.instruction, candidate.action.effect);
+    defer scope.deinit();
+    const owner = scope.effect;
+    if (!std.meta.eql(owner.descriptor, work.execution.effect.?.descriptor)) return error.InvalidApplicationEffect;
+    var observed: ?E.Observation = null;
+    if (work.execution.phase == .effect_closing) {
+        if (withdrawal.?.joined) |completed| {
+            observed = try owner.finish(completed.attempt, completed.outcome);
+        } else {
+            const original = try T.inspect(client, try owner.descriptor.key());
+            if (original == null) {
+                observed = try owner.recoverUnstarted(work.execution.effect.?.withdrawn.?);
+            } else if (original.?.original == null) {
+                return error.InvalidApplicationEffect;
+            } else if (original.?.original.?.phase == .reserved or original.?.original.?.phase == .ready) {
+                observed = try owner.closeUnretained();
+            } else {
+                observed = try owner.recoverFenced();
+                if (observed.?.state.phase == .finished and observed.?.progress.pending)
+                    observed = try owner.recoverUnstarted(work.execution.effect.?.withdrawn.?);
+            }
+        }
+    } else {
+        observed = owner.observe() catch |err| switch (err) {
+            error.OwnedRecordPending => null,
+            else => return err,
+        };
+        if (observed == null or observed.?.state.phase != .finished or observed.?.progress.pending) {
+            const lease = client.lease orelse return error.DataflowLeaseFenced;
+            const fence = if (std.meta.eql(lease.key, owner.descriptor.invocation)) lease.primary() else lease.additional orelse return error.DataflowLeaseFenced;
+            try fence.key.requireSame(owner.descriptor.invocation);
+            switch (try facilities.poll(facilities.context, .{ .declaration = work.declaration, .descriptor = owner.descriptor, .revision = fence.revision, .lease = lease })) {
+                .waiting => return,
+                .abandoned => return withdrawEffect(client, work),
+                .completed => |completed| observed = try owner.finish(completed.attempt, completed.outcome),
+            }
+        }
+        const joined = try facilities.join(facilities.context, owner.descriptor);
+        if (joined == .waiting) return;
+        if (joined.joined) |completed| observed = try owner.finish(completed.attempt, completed.outcome);
+    }
+    const terminal = observed orelse return error.InvalidApplicationEffect;
+    if (terminal.state.phase != .finished or terminal.progress.pending) return error.ApplicationEffectPending;
+    facilities.release(facilities.context, owner.descriptor);
+    const outcome = terminal.state.outcome.?;
+    work.execution.effect.?.outcome = outcome;
+    if (work.execution.aborting) |reason| {
+        var failure = reason;
+        failure.effect = try work.execution.effectEvidence();
+        work.execution.failure = failure;
+        work.execution.aborting = null;
+        work.execution.candidate = null;
+        work.execution.phase = if (work.execution.cancelled) .closing else .fail;
+        return;
+    }
+    if (outcome != .response or outcome.response.body == null) {
+        var failure: Failure = .{ .refusal = null, .reason = .execution, .evidence = null, .effect = try work.execution.effectEvidence() };
+        switch (outcome) {
+            .unknown => failure.reason = .effect_unknown,
+            .response => failure.reason = .request_lost,
+            .not_dispatched => |reason| switch (reason) {
+                .guard => {
+                    failure.reason = .none;
+                    failure.refusal = candidate.instruction;
+                },
+                .authority => {
+                    failure.reason = .authorization;
+                    work.execution.cancelled = true;
+                },
+                .deadline => failure.reason = .request_expired,
+                .request_lost => failure.reason = .request_lost,
+                .budget => failure.reason = .budget,
+                .incomplete_dispatch => {},
+            },
+        }
+        work.execution.failure = failure;
+        work.execution.candidate = null;
+        work.execution.phase = if (work.execution.cancelled) .closing else .fail;
+        return;
+    }
+    if (work.execution.phase == .effect_closing) {
+        // Cleanup used current recovery rights. Re-enter the normal executor
+        // boundary before adopting a protected response into application state.
+        work.execution.phase = .effect;
+        work.execution.effect.?.withdrawn = null;
+        return;
+    }
+    // A response candidate has its own permanent key. Recover it before any
+    // protected host access; its predecessor remains the frozen pre-effect env.
+    const key = self.candidateKey(value, work.*, candidate.step, .effect_result, client);
+    if (try T.inspect(client, key)) |known| {
+        const original = known.original orelse return error.InvalidDirectRecord;
+        if (original.phase == .reserved) {
+            _ = try c.DirectOwnedRecord.call(client, .{ .close_original = .{ .key = key, .expected = known.revision } });
+            return error.OwnedRecordClosed;
+        }
+        if (original.phase == .closed) return error.OwnedRecordClosed;
+        const result = try self.load(client, value, work.*, known.receipt.binding.intent.external.record);
+        defer result.deinit();
+        if (result.value.step != candidate.step or result.value.action != .effect_result) return error.InvalidApplicationEffect;
+        var retained = try c.DirectOwnedRecord.call(client, .{ .retain_original = .{ .key = key, .expected = known.revision } });
+        if (retained.pending) retained = try T.update(client, .{ .key = key, .expected = retained.revision, .pending = false, .cancel = false, .record = null });
+        return self.adopt(client, value, work, retained.receipt.binding.intent.external.record, result.value);
+    }
+    try facilities.response(facilities.context, owner.scope, owner.descriptor, outcome.response);
+    var index = try a.Cursor.Index.init(client.allocator, &value.program);
+    defer index.deinit();
+    var bound = try value.bind(client.allocator);
+    defer bound.deinit();
+    const digest = try value.digest(client.allocator);
+    var environment_ = try a.Environment.restore(client.allocator, index, bound, digest, candidate.environment);
+    defer environment_.deinit();
+    var ordinary: q.ApplicationHost = .{ .scratch = client.allocator, .io = client.service.http.io, .scope = owner.scope };
+    const driver: a.Step = .{ .index = index, .bound = bound, .environment = &environment_, .scratch = client.allocator, .native = ordinary.host() };
+    const response: a.Values.Value = .{ .record = &.{ .{ .name = "status", .value = .{ .integer = outcome.response.status } }, .{ .name = "body", .value = .{ .protected_json = outcome.response.body.? } } } };
+    var proposed = try driver.propose(client.allocator, try candidate.action.effect.prepared(index, bound, candidate.step, candidate.instruction), .{ .value = response });
+    defer proposed.deinit();
+    var result = candidate;
+    result.environment = proposed.snapshot(digest);
+    result.action = .{ .effect_result = .{ .descriptor = owner.descriptor, .outcome = outcome } };
+    return self.adopt(client, value, work, try self.store(client, value, work.*, result), result);
 }
 
 fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work: *I.Work) !void {
@@ -390,7 +749,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
     defer env.deinit();
     // Resolve an already retained candidate before evaluating host operations
     // (including NOW/random) again. Missing reserved bytes are explicit loss.
-    const key = self.candidateKey(value, work.*, env.cursor.step, work.execution.phase == .fail, client);
+    const key = self.candidateKey(value, work.*, env.cursor.step, if (work.execution.phase == .fail) .failure else .step, client);
     if (try T.inspect(client, key)) |known| {
         const original = known.original orelse return error.InvalidDirectRecord;
         if (original.phase == .reserved) {
@@ -403,7 +762,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         if (previous.value.step != env.cursor.step) return error.InvalidProgramNode;
         var retained = try c.DirectOwnedRecord.call(client, .{ .retain_original = .{ .key = key, .expected = known.revision } });
         if (retained.pending) retained = try T.update(client, .{ .key = key, .expected = retained.revision, .pending = false, .cancel = false, .record = null });
-        return self.adopt(work, retained.receipt.binding.intent.external.record, previous.value);
+        return self.adopt(client, value, work, retained.receipt.binding.intent.external.record, previous.value);
     }
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
@@ -424,10 +783,10 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
     };
     if (work.execution.phase == .fail) {
         const failure = work.execution.failure orelse return error.InvalidDirectRecord;
-        try env.refuse(index, env.cursor.step, .{ .failure = .{ .code = try failure.code(index), .effect_outcome = "not_dispatched" } }, work.execution.atomic_aborted);
+        try env.refuse(index, env.cursor.step, .{ .failure = .{ .code = try failure.code(index), .effect_outcome = if (failure.effect) |effect| @tagName(effect.outcome) else "not_dispatched" } }, work.execution.atomic_aborted);
         candidate.environment = env.snapshot(digest);
         candidate.action = .{ .failure = failure };
-        return self.adopt(work, try self.store(client, value, work.*, candidate), candidate);
+        return self.adopt(client, value, work, try self.store(client, value, work.*, candidate), candidate);
     }
     const private = if (work.execution.transaction) |transaction| try Native.privateClient(client, transaction.key) else client;
     // Load the original acquisition even after the environment has advanced.
@@ -463,7 +822,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
             if (work.execution.transaction.?.kind != .final) return error.InvalidDirectRecord;
             candidate.action = .{ .boundary = .final };
             candidate.environment = env.snapshot(digest);
-            return self.adopt(work, try self.store(client, value, work.*, candidate), candidate);
+            return self.adopt(client, value, work, try self.store(client, value, work.*, candidate), candidate);
         },
         .commit => {
             if (work.execution.transaction == null or work.execution.transaction.?.kind != .atomic) return error.InvalidTransactionGuard;
@@ -471,7 +830,9 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         },
         .bind, .advance => {},
         .refused => {
-            const refusal: Failure = .{ .refusal = step.instruction, .reason = .none, .evidence = null };
+            const instruction = try index.instruction(step.instruction);
+            const new_effect = instruction.value == .let and instruction.value.let.value == .effect;
+            const refusal: Failure = .{ .refusal = step.instruction, .reason = .none, .evidence = null, .effect = if (new_effect) null else try work.execution.effectEvidence() };
             if (work.execution.transaction != null) work.execution.aborting = refusal else work.execution.failure = refusal;
             work.execution.phase = if (work.execution.transaction != null) .abort else .fail;
             return;
@@ -525,13 +886,20 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
             defer metadata.deinit();
             candidate.action = .{ .log = try q.ApplicationData.prepareAppend(allocator, client.connection, .{ .declaration = binding.value.log.declaration, .schema = metadata.definition.schema }, self.operation(value, work.*, step.step, "append").operation, append) };
         },
-        .effect, .handoff, .respond, .respond_error, .page => return error.ProgramResourceKindMismatch,
+        .effect => {
+            if (work.execution.transaction != null) return error.EffectInsideAtomic;
+            if (self.native.effects == null) return error.ApplicationHostUnavailable;
+            candidate.action = .{ .effect = try EffectRequest.freeze(index, bound, step) };
+            candidate.environment = env.snapshot(digest);
+            return self.adopt(client, value, work, try self.store(client, value, work.*, candidate), candidate);
+        },
+        .handoff, .respond, .respond_error, .page => return error.ProgramResourceKindMismatch,
     }
     var proposed = try driver.propose(client.allocator, step, outcome);
     defer proposed.deinit();
     candidate.environment = proposed.snapshot(digest);
     const reference = try self.store(client, value, work.*, candidate);
-    try self.adopt(work, reference, candidate);
+    try self.adopt(client, value, work, reference, candidate);
 }
 
 /// Advance one persisted phase. Settlement/cleanup resolve their original
@@ -542,6 +910,7 @@ pub fn tick(self: Self, value: M.Declaration, progress: T.Progress, original: I.
     try value.validate(self.owner.manager.client.allocator);
     try original.validate(value, self.owner.manager.client.allocator);
     try progress.receipt.binding.key.requireSame(self.owner.key(value, original.lease.epoch, "transit.application.invocation.v1\x00"));
+    if (original.execution.effect) |selected| try selected.descriptor.invocation.requireSame(progress.receipt.binding.key);
     if (!std.meta.eql(original.lease.owner, self.owner.manager.operation(value, "worker", original.lease.epoch)) or
         !std.meta.eql(original.claim.operation, self.owner.manager.operation(value, "queue-claim", original.lease.epoch))) return error.DataflowIdentityConflict;
     var executor_identity = self.owner.manager.client;
@@ -554,19 +923,28 @@ pub fn tick(self: Self, value: M.Declaration, progress: T.Progress, original: I.
     if (progress.cancel and !work.execution.cancelled) {
         work.execution.cancelled = true;
         if (work.execution.terminal != null) return self.owner.advance(value, progress, work);
-        work.execution.aborting = .{ .refusal = null, .reason = .lease_fenced, .evidence = null };
-        work.execution.phase = if (work.execution.transaction != null) .abort else .closing;
+        work.execution.aborting = .{ .refusal = null, .reason = .lease_fenced, .evidence = null, .effect = null };
+        if (work.execution.phase == .effect or work.execution.phase == .effect_closing) {
+            work.execution.phase = .effect_closing;
+            work.execution.effect.?.withdrawn = .{ .key = progress.receipt.binding.key, .revision = progress.revision };
+        } else {
+            work.execution.aborting.?.effect = try work.execution.effectEvidence();
+            work.execution.phase = if (work.execution.transaction != null) .abort else .closing;
+        }
         return self.owner.advance(value, progress, work);
     }
     if (work.phase != .ready and work.execution.phase == .evaluate) return self.owner.acquire(value, progress, work) catch |err| self.refuse(value, progress, work, err);
     var client = self.owner.manager.client;
     client.connection.role = work.executor_role;
     switch (work.execution.phase) {
-        .abort, .closing, .release, .detach => {},
+        .abort, .closing, .release, .detach, .effect_closing => {},
         .settle => client.lease = try T.Lease.combine(client.lease, .{ .key = progress.receipt.binding.key, .revision = progress.revision }),
         else => client = self.owner.executor(value, progress, work) catch |err| return self.refuse(value, progress, work, err),
     }
     self.advance(client, value, &work) catch |err| return self.refuse(value, progress, work, err);
+    // Publishing identical waiting progress would fence the asynchronous task.
+    if ((work.execution.phase == .effect or work.execution.phase == .effect_closing) and
+        std.meta.eql(work.execution, original.execution)) return progress;
     const next = try self.owner.advance(value, progress, work);
     return if (next.pending) next else self.closeOriginal(next);
 }
@@ -604,14 +982,23 @@ fn refuse(self: Self, value: M.Declaration, progress: T.Progress, original: I.Wo
         error.ApplicationReservationLost => .request_lost,
         error.ApplicationReservationExpired => .request_expired,
         error.ApplicationRequestOwnerMismatch => .authorization,
+        error.ApplicationEffectUnknown => .effect_unknown,
         else => return err,
     };
-    if (original.execution.phase == .abort or original.execution.phase == .closing or original.execution.phase == .release or original.execution.phase == .detach) return err;
+    if (original.execution.phase == .abort or original.execution.phase == .closing or original.execution.phase == .release or original.execution.phase == .detach or original.execution.phase == .effect_closing) return err;
     var work = original;
-    if (work.execution.transaction != null) work.execution.aborting = .{ .refusal = null, .reason = reason, .evidence = null } else work.execution.failure = .{ .refusal = null, .reason = reason, .evidence = null };
+    if (work.execution.transaction != null) work.execution.aborting = .{ .refusal = null, .reason = reason, .evidence = null, .effect = null } else work.execution.failure = .{ .refusal = null, .reason = reason, .evidence = null, .effect = null };
     if (original.phase != .ready or reason == .authorization or reason == .lease_fenced or reason == .lease_expired or reason == .source_changed or reason == .original_lost or (reason == .budget and original.execution.phase == .fail))
         work.execution.cancelled = true;
-    work.execution.phase = if (work.execution.transaction != null) .abort else if (work.execution.cancelled) .closing else .fail;
+    if (work.execution.phase == .effect) {
+        work.execution.aborting = work.execution.failure;
+        work.execution.failure = null;
+        work.execution.effect.?.withdrawn = .{ .key = progress.receipt.binding.key, .revision = progress.revision };
+        work.execution.phase = .effect_closing;
+    } else {
+        if (work.execution.transaction != null) work.execution.aborting.?.effect = try work.execution.effectEvidence() else work.execution.failure.?.effect = try work.execution.effectEvidence();
+        work.execution.phase = if (work.execution.transaction != null) .abort else if (work.execution.cancelled) .closing else .fail;
+    }
     return self.owner.advance(value, progress, work);
 }
 
@@ -619,6 +1006,7 @@ fn advance(self: Self, client: c.DirectTableClient, value: M.Declaration, work: 
     const tx: Tx = .{ .catalog = client };
     switch (work.execution.phase) {
         .evaluate, .fail => return self.evaluate(client, value, work),
+        .effect, .effect_closing => return self.advanceEffect(client, value, work),
         .begin => {
             const transaction = work.execution.transaction.?;
             const request = try Native.prepareBegin(client.allocator, value, work.executor_role, work.claim, transaction.key, self.operation(value, work.*, transaction.step, "begin"));
@@ -664,7 +1052,7 @@ fn advance(self: Self, client: c.DirectTableClient, value: M.Declaration, work: 
             work.execution.transaction.?.sequence = completion.request().statement().sequence;
             work.execution.statement = null;
             if (reason) |why| {
-                work.execution.aborting = .{ .refusal = null, .reason = why, .evidence = .{ .transaction = transaction.key, .statement = completion, .decision = null } };
+                work.execution.aborting = .{ .refusal = null, .reason = why, .evidence = .{ .transaction = transaction.key, .statement = completion, .decision = null }, .effect = try work.execution.effectEvidence() };
                 work.execution.cancelled = why == .lease_fenced or why == .lease_expired;
                 work.execution.phase = .abort;
                 return;
@@ -698,7 +1086,7 @@ fn advance(self: Self, client: c.DirectTableClient, value: M.Declaration, work: 
             const status = try tx.settle(transaction.key, self.operation(value, work.*, transaction.step, "commit"), .commit, 1);
             if (status.observation != .decided or !status.cleanup_complete) return;
             if (status.observation.decided.outcome == .committed) return self.committed(client, value, work, status.observation.decided);
-            work.execution.aborting = .{ .refusal = null, .reason = .execution, .evidence = .{ .transaction = transaction.key, .statement = work.execution.completion, .decision = status.observation.decided } };
+            work.execution.aborting = .{ .refusal = null, .reason = .execution, .evidence = .{ .transaction = transaction.key, .statement = work.execution.completion, .decision = status.observation.decided }, .effect = try work.execution.effectEvidence() };
             work.execution.phase = .abort;
         },
         .abort => return self.abort(client, value, work),
@@ -869,9 +1257,9 @@ test "application execution validates safe original progress before data calls" 
     state = .initial();
     state.phase = .execute;
     try t.expectError(error.InvalidDirectRecord, state.validate());
-    try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = null, .reason = .none, .evidence = null }).validate());
-    try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = 4, .reason = .execution, .evidence = null }).validate());
-    try (Failure{ .refusal = null, .reason = .execution, .evidence = null }).validate();
+    try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = null, .reason = .none, .evidence = null, .effect = null }).validate());
+    try t.expectError(error.InvalidDirectRecord, (Failure{ .refusal = 4, .reason = .execution, .evidence = null, .effect = null }).validate());
+    try (Failure{ .refusal = null, .reason = .execution, .evidence = null, .effect = null }).validate();
 }
 
 test "application refusal codes preserve effect and response guards" {
@@ -889,11 +1277,11 @@ test "application refusal codes preserve effect and response guards" {
     var index = try a.Cursor.Index.init(t.allocator, &parsed.program);
     defer index.deinit();
     for ([_][]const u8{ "RejectedInput", "EffectGuardRefused", "ResponseGuardRefused" }, parsed.program.body.instructions[0..3]) |expected, instruction| {
-        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null };
+        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null, .effect = null };
         try t.expectEqualStrings(expected, try failure.code(index));
     }
     for (parsed.program.body.instructions[3..]) |instruction| {
-        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null };
+        const failure: Failure = .{ .refusal = instruction.id, .reason = .none, .evidence = null, .effect = null };
         try t.expectError(error.InvalidProgramNode, failure.code(index));
     }
 }

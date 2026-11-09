@@ -797,6 +797,191 @@ fn applicationEffects(init: std.process.Init, client: c.DirectTableClient, limit
     defer client.allocator.free(suspension);
     _ = try manager.applyControl(suspension);
     try applicationCancelled(owner, value, token);
+    try applicationOrderedEffects(init, client, limits, role, resources[1]);
+}
+
+/// Native ordered-runner proof with a deterministic physical-task boundary.
+/// No HTTP is sent here; the provider transport has a separate owning proof.
+fn applicationOrderedEffects(init: std.process.Init, client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, role: u64, sink: q.ApplicationBinding) !void {
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    const X = q.ApplicationExecution;
+    const E = q.ApplicationEffect;
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    const allocator = output.allocator();
+    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_ordered_effect_input (id UUID NOT NULL)", .transit, null);
+    defer queue.deinit();
+    const schema = try queue.statement.action.create.bind(737040);
+    const configured = try queue.statement.configure(null, schema);
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("application_ordered_effect_input"), .action = .{ .create = .{ .owner = role, .schema = schema, .configuration = configured.configuration, .limits = configured.limits } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{
+        .definition = p.Growth.current_definition,
+        .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737040 },
+        .target = .{ .scope = client.connection.scope, .branch = 1, .object = 737040 },
+        .action = .create,
+        .expected_definition = null,
+        .expected_data = null,
+        .intent = try intent.digest(client.allocator),
+    } };
+    _ = try c.DirectLogClient.apply(&output, client, .{ .admit = request });
+    try t.expectEqual(.complete, (try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation.phase);
+    const metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_ordered_effect_input" } });
+    defer metadata.deinit();
+    const resources = [_]q.ApplicationBinding{ .{ .value = .{ .log = metadata.value.result.log_lookup.? } }, sink };
+    const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .namespace = 1,
+        .object = 737041,
+        .operation = 737041,
+        .source =
+        \\CREATE DATAFLOW application_ordered_effects FROM QUEUE application_ordered_effect_input AS event AS BEGIN
+        \\  LET response = EXECUTE SINK application_effect_sink EFFECT event.id GUARD TRUE
+        \\    FORM (nonce = RANDOM_TOKEN(16)) ON REPLAY OBSERVE ONLY;
+        \\  REQUIRE response.status = 201 ELSE 'UnexpectedStatus';
+        \\ON FAILURE failure
+        \\  REQUIRE failure.effect_outcome = 'unknown' OR failure.effect_outcome = 'not_dispatched' ELSE 'LostOriginalOutcome';
+        \\END;
+        ,
+        .resources = &resources,
+        .limits = limits,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737042 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    const Factory = struct {
+        manager: q.ManagedApplication,
+        ordinary: q.ApplicationHost,
+        mode: usize,
+        polls: usize = 0,
+        dispatches: usize = 0,
+        responses: usize = 0,
+        revision: ?p.DataLifecycle.Position = null,
+        nonce: ?[32]u8 = null,
+        completion: ?X.EffectCompletion = null,
+        descriptor: ?E.Descriptor = null,
+        fn host(self: *@This()) X.Host {
+            return .{ .context = self, .ready = ready, .bind = bind, .effects = .{ .context = self, .poll = poll, .join = join, .release = release, .response = response } };
+        }
+        fn ready(_: *anyopaque, a: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) !void {
+            var bound = try declaration.bind(a);
+            defer bound.deinit();
+            var available = q.ApplicationHost.available();
+            available.features.insert(.effects);
+            available.features.insert(.protected_values);
+            try bound.requirements.requireAvailable(available);
+        }
+        fn bind(context: *anyopaque, scope: X.Context) !X.BoundHost {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            const native = self.ordinary.recovery();
+            return native.bind(native.context, scope);
+        }
+        fn poll(context: *anyopaque, job: X.EffectJob) !X.EffectPoll {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try job.validate();
+            if (self.revision) |revision| try t.expectEqualDeep(revision, job.revision) else self.revision = job.revision;
+            var worker = try X.openEffect(self.manager, job);
+            defer worker.deinit();
+            try t.expect(try worker.guard(self.host()));
+            var digest: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(worker.request.value.action.effect.fields[0].value.text, &digest, .{});
+            if (self.nonce) |nonce| try t.expectEqualSlices(u8, &nonce, &digest) else self.nonce = digest;
+            self.polls += 1;
+            self.descriptor = job.descriptor;
+            if (self.polls == 1) return .waiting;
+            if (self.completion) |completion| return .{ .completed = completion };
+            if (self.mode == 1) return .abandoned;
+            const begin = try worker.owner.begin(self.ordinary.io);
+            try t.expectEqual(.fresh, std.meta.activeTag(begin));
+            self.dispatches += 1;
+            if (self.mode == 2) return .abandoned;
+            var sha: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash("{}", &sha, .{});
+            self.completion = .{ .attempt = begin.fresh, .outcome = .{ .response = .{ .status = 201, .bytes = 2, .sha256 = sha, .body = .{ .id = @splat(0x74) } } } };
+            return if (self.mode == 3) .waiting else .{ .completed = self.completion.? };
+        }
+        fn join(context: *anyopaque, descriptor: E.Descriptor) !X.EffectJoin {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            if (self.descriptor) |previous| try t.expectEqualDeep(previous, descriptor);
+            return .{ .joined = self.completion };
+        }
+        fn release(context: *anyopaque, _: E.Descriptor) void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            self.completion = null;
+        }
+        fn response(context: *anyopaque, scope: X.Context, descriptor: E.Descriptor, result: E.Response) !void {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try scope.requireCurrent();
+            try t.expectEqualDeep(self.descriptor.?, descriptor);
+            try t.expectEqual(@as(u16, 201), result.status);
+            try t.expectEqualSlices(u8, &@as([32]u8, @splat(0x74)), &result.body.?.id);
+            self.responses += 1;
+        }
+    };
+    var completion_replies_lost: usize = 0;
+    for (0..4) |mode| {
+        errdefer std.debug.print("Ordered application effect mode {d} failed\n", .{mode});
+        const append = try q.ApplicationData.prepareAppend(allocator, client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = schema }, 737400 + mode, .{ .kind = .queue, .target = "application_ordered_effect_input", .values = &.{.{ .uuid = @splat(@intCast(mode + 21)) }} });
+        const bytes = try append.payload.decode(allocator, c.DirectTableProtocol.max_work_bytes);
+        _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = bytes } });
+        var factory: Factory = .{ .manager = manager, .ordinary = .{ .scratch = allocator, .io = init.io }, .mode = mode };
+        const host = factory.host();
+        try host.ready(host.context, allocator, value);
+        const execution: X = .{ .owner = owner, .native = host };
+        const token = (try owner.start(value, 0)).?;
+        var progress = (try T.inspect(client, token)).?;
+        var cancelled = false;
+        for (0..100) |_| {
+            if (mode == 3 and factory.completion != null and !cancelled) {
+                const suspend_control = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 737450 }, .target = try value.interpretation(client.allocator), .expected = (try manager.inspect(value)).head.control, .command = .suspend_computation }, null);
+                defer client.allocator.free(suspend_control);
+                _ = try manager.applyControl(suspend_control);
+                progress = (try T.inspect(client, token)).?;
+                cancelled = true;
+            }
+            const current = try owner.load(progress);
+            defer current.deinit();
+            const before_polls = factory.polls;
+            const next = execution.tick(value, progress, current.value) catch |err| {
+                if (err != error.InvalidTableResponse or mode != 0 or factory.completion == null or completion_replies_lost != 0) return err;
+                completion_replies_lost += 1;
+                // The original response remains owned until its native finish
+                // is observed. Reopen the same invocation; never repeat HTTP.
+                progress = (try T.inspect(client, token)).?;
+                continue;
+            };
+            if (before_polls == 0 and factory.polls == 1) try t.expectEqualDeep(progress.revision, next.revision);
+            progress = next;
+            if (!progress.pending) break;
+        }
+        try t.expect(!progress.pending and progress.original.?.phase == .closed);
+        const final = try owner.load(progress);
+        defer final.deinit();
+        const outcome = final.value.execution.effect.?.outcome.?;
+        try t.expectEqual(if (mode == 1) @as(usize, 0) else 1, factory.dispatches);
+        if (mode == 0 or mode == 3) {
+            try t.expectEqual(.response, std.meta.activeTag(outcome));
+            try t.expectEqual(@as(u16, 201), outcome.response.status);
+            try t.expectEqual(if (mode == 0) @as(usize, 1) else 0, factory.responses);
+        } else {
+            try t.expectEqual(if (mode == 1) @as(std.meta.Tag(E.Outcome), .not_dispatched) else .unknown, std.meta.activeTag(outcome));
+            try t.expectEqualDeep(outcome, final.value.execution.failure.?.effect.?.outcome);
+        }
+        try t.expect(factory.completion == null);
+        try t.expectEqual(mode == 3, final.value.execution.cancelled);
+    }
+    try t.expectEqual(@as(usize, 1), completion_replies_lost);
+    observed = try manager.inspect(value);
+    try t.expectEqual(@as(u64, 1), observed.head.completed);
+    try t.expectEqual(@as(u64, 3), observed.head.refused);
 }
 
 fn applicationAttachment(client: c.DirectTableClient, published: q.ManagedApplication.Declaration, role: u64) !void {

@@ -64,6 +64,16 @@ pub const Work = struct {
         if (self.executor_role == 0) return error.InvalidAuthorizationRole;
         try self.execution.validate();
         if (self.execution.retained_bytes > value.limits.retained_bytes) return error.InvalidDirectRecord;
+        if (self.execution.effect) |effect| {
+            var connection = value.connection;
+            connection.role = self.executor_role;
+            if (!std.meta.eql(effect.descriptor.program, try value.interpretation(allocator)) or
+                effect.descriptor.namespace != value.namespace or
+                !std.meta.eql(effect.descriptor.invocation.connection, value.connection) or
+                !std.meta.eql(effect.descriptor.request.scope.connection, connection)) return error.InvalidApplicationEffect;
+            if (self.execution.phase == .effect or self.execution.phase == .effect_closing)
+                try effect.descriptor.request.requireSame(self.execution.candidate orelse return error.InvalidApplicationEffect);
+        }
         if (self.execution.transaction) |transaction| {
             if (transaction.step > @as(u32, value.program.nodes) * 3 or transaction.sequence > value.limits.transaction.statements) return error.InvalidDirectRecord;
             var connection = value.connection;

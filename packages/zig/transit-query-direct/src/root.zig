@@ -20,6 +20,7 @@ pub const ApplicationBinding = @import("ApplicationBinding.zig");
 pub const ApplicationDeclaration = @import("ApplicationDeclaration.zig");
 pub const ApplicationExecution = @import("ApplicationExecution.zig");
 pub const ApplicationEffect = @import("ApplicationEffect.zig");
+pub const ApplicationEffectRequest = @import("ApplicationEffectRequest.zig");
 pub const ApplicationRecovery = @import("ApplicationRecovery.zig");
 pub const ApplicationHost = @import("ApplicationHost.zig");
 pub const ApplicationTransaction = @import("ApplicationTransaction.zig");

@@ -31,7 +31,7 @@ class ApplicationFaults:
 
     expected = {"attachment", "claim", "candidate", "kv", "table", "append", "ack",
                 "checkpoint", "atomic_commit", "final_commit", "execute", "complete",
-                "effect_admission", "effect_completion"}
+                "effect_admission", "effect_completion", "ordered_effect_completion"}
 
     def __init__(self):
         self.claim = None
@@ -49,9 +49,16 @@ class ApplicationFaults:
         if work and work.get("format") == 0xC1454631:
             guarded = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
             effect = json.loads(base64.b64decode(guarded["payload"]["base64"], validate=True))
-            assert effect["descriptor"]["program"]["object"]["object"] == 737020
+            program = effect["descriptor"]["program"]["object"]["object"]
+            assert program in (737020, 737041)
             native = json.loads(data)["result"]["client_progress"]["state"]
-            if "stage_original" in progress and effect["descriptor"]["step"] == 1:
+            if program == 737041:
+                if ("advance" in progress and effect["descriptor"]["operation"][0] == 21
+                        and effect["phase"] == "finished"):
+                    assert not native["pending"]
+                    assert effect["outcome"]["response"]["status"] == 201
+                    phase = "ordered_effect_completion"
+            elif "stage_original" in progress and effect["descriptor"]["step"] == 1:
                 assert native["original"]["phase"] == "ready"
                 phase = "effect_admission"
             elif "advance" in progress and effect["descriptor"]["step"] == 0:
@@ -884,6 +891,7 @@ def run(node, caller, mode="tables", *artifacts):
                 assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
                 print("Application invocation: service discovery/coordinator replacement, empty acquisition, defeated attachment, "
                       "exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
+                      "ordered effect response/unsent/unknown recovery and retained completion after cancellation, "
                       f"{len(ApplicationFaults.expected)} original lost replies, three native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
                 if mode != "managed":
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)

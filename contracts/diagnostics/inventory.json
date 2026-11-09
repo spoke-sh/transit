@@ -27434,9 +27434,10 @@
     },
     "packages/zig/transit-query-direct/src/ApplicationEffect.zig": {
       "errors": {
+        "ApplicationEffectPending": 1,
         "ClientOperationConflict": 2,
         "ClientOperationMissing": 5,
-        "ClientOperationPending": 1,
+        "ClientOperationPending": 2,
         "ClientTokenConflict": 1,
         "DataflowLeaseFenced": 1,
         "EffectInsideAtomic": 1,
@@ -27489,13 +27490,40 @@
         "observation()": "<inferred>",
         "observe()": "<inferred>",
         "recoverFenced()": "<inferred>",
+        "recoverUnstarted()": "<inferred>",
         "refuse()": "<inferred>",
         "requireGuards()": "<inferred>",
         "requireRequest()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 94,
+        "try": 103,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationEffectRequest.zig": {
+      "errors": {
+        "InvalidApplicationEffect": 7
+      },
+      "outcomes": {
+        "kind": [
+          "form",
+          "headers"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "expression()": "<inferred>",
+        "freeze()": "<inferred>",
+        "prepared()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 4,
         "catch": 0
       },
       "imports": [
@@ -27506,25 +27534,32 @@
     "packages/zig/transit-query-direct/src/ApplicationExecution.zig": {
       "errors": {
         "AccessDenied": 1,
+        "ApplicationEffectPending": 2,
+        "ApplicationEffectUnknown": 1,
+        "ApplicationHostUnavailable": 2,
         "ApplicationRequestOwnerMismatch": 1,
         "ApplicationReservationCapacity": 1,
         "ApplicationReservationExpired": 1,
         "ApplicationReservationLost": 1,
+        "ClientOperationMissing": 1,
         "DataflowIdentityConflict": 1,
-        "DataflowLeaseFenced": 6,
+        "DataflowLeaseFenced": 14,
         "DataflowSourceChanged": 1,
         "DuplicateBrowserParameter": 1,
         "DuplicateOrEmptyCookie": 1,
         "DuplicateProgramField": 1,
+        "EffectInsideAtomic": 2,
         "IncompatibleDefinition": 1,
-        "InvalidDirectRecord": 43,
+        "InvalidApplicationEffect": 19,
+        "InvalidDirectRecord": 48,
         "InvalidProgramJson": 1,
         "InvalidProgramNode": 4,
         "InvalidQueueResponse": 3,
         "InvalidTransactionGuard": 4,
         "NestedAtomicProgram": 2,
         "Overflow": 1,
-        "OwnedRecordClosed": 4,
+        "OwnedRecordClosed": 6,
+        "OwnedRecordPending": 1,
         "ProgramArgumentMismatch": 1,
         "ProgramCardinalityMismatch": 1,
         "ProgramNullabilityMismatch": 1,
@@ -27535,7 +27570,7 @@
         "ProgramTypeMismatch": 1,
         "ProtectedProgramValue": 1,
         "QueryPageBudget": 1,
-        "QueryResultBudget": 5,
+        "QueryResultBudget": 6,
         "QueueLeaseExpired": 1,
         "TableDefinitionChanged": 3,
         "TableNotFound": 2,
@@ -27550,11 +27585,27 @@
           "kv",
           "log",
           "boundary",
-          "failure"
+          "failure",
+          "effect",
+          "effect_result"
         ],
         "Candidate.action.boundary": [
           "atomic",
           "final"
+        ],
+        "CandidateKind": [
+          "step",
+          "failure",
+          "effect_result"
+        ],
+        "EffectJoin": [
+          "waiting",
+          "joined"
+        ],
+        "EffectPoll": [
+          "waiting",
+          "abandoned",
+          "completed"
         ],
         "Environment": [
           "input",
@@ -27571,6 +27622,7 @@
           "original_lost",
           "request_lost",
           "request_expired",
+          "effect_unknown",
           "execution"
         ],
         "State.boundary": [
@@ -27579,6 +27631,8 @@
         ],
         "State.phase": [
           "evaluate",
+          "effect",
+          "effect_closing",
           "begin",
           "acquire",
           "stage",
@@ -27607,33 +27661,45 @@
       "error_sets": {},
       "error_returns": {
         "Context.requireCurrent()": "<inferred>",
+        "EffectJob.serviceLease()": "<inferred>",
+        "EffectJob.validate()": "<inferred>",
+        "EffectResult.validate()": "<inferred>",
+        "EffectWorker.guard()": "<inferred>",
+        "Effects.join()": "anyerror",
+        "Effects.poll()": "anyerror",
+        "Effects.response()": "anyerror",
         "Failure.code()": "<inferred>",
         "Failure.validate()": "<inferred>",
         "Host.bind()": "anyerror",
         "Host.ready()": "anyerror",
+        "State.effectEvidence()": "<inferred>",
         "State.validate()": "<inferred>",
         "abort()": "<inferred>",
         "adopt()": "<inferred>",
         "advance()": "<inferred>",
+        "advanceEffect()": "<inferred>",
         "checkpoint()": "<inferred>",
         "closeInput()": "<inferred>",
         "closeOriginal()": "<inferred>",
         "committed()": "<inferred>",
         "detach()": "<inferred>",
+        "effectScope()": "<inferred>",
         "environment()": "<inferred>",
         "evaluate()": "<inferred>",
         "load()": "<inferred>",
+        "openEffect()": "<inferred>",
         "refuse()": "<inferred>",
         "resource()": "<inferred>",
         "startTransaction()": "<inferred>",
         "store()": "<inferred>",
         "storeCheckpoint()": "<inferred>",
-        "tick()": "<inferred>"
+        "tick()": "<inferred>",
+        "withdrawEffect()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 143,
-        "catch": 5
+        "try": 224,
+        "catch": 6
       },
       "imports": [
         "root.zig",
@@ -27679,6 +27745,7 @@
         "DataflowIdentityConflict": 2,
         "DataflowLeaseFenced": 3,
         "IncompatibleDefinition": 2,
+        "InvalidApplicationEffect": 2,
         "InvalidAuthorizationRole": 1,
         "InvalidDataflowTransition": 1,
         "InvalidDirectRecord": 29,
@@ -27718,7 +27785,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 109,
+        "try": 111,
         "catch": 3
       },
       "imports": [
@@ -28409,6 +28476,7 @@
         "ApplicationData.zig",
         "ApplicationDeclaration.zig",
         "ApplicationEffect.zig",
+        "ApplicationEffectRequest.zig",
         "ApplicationExecution.zig",
         "ApplicationHost.zig",
         "ApplicationInvocation.zig",
@@ -31523,6 +31591,44 @@
         "transit_query_direct"
       ]
     },
+    "packages/zig/transit-serving-http/src/ApplicationEffectHttp.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "DuplicateProgramField": 1,
+        "HttpHeadersOversize": 1,
+        "HttpResponseTooLarge": 1,
+        "IncompleteHttpBody": 1,
+        "InvalidHttpSecret": 2,
+        "InvalidSinkEncoding": 1,
+        "InvalidSinkHeader": 2,
+        "ProtectedProgramValue": 3
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Capture.response()": "<inferred>",
+        "Capture.segment()": "<inferred>",
+        "Proof.check()": "<inferred>",
+        "distinct()": "<inferred>",
+        "encode()": "<inferred>",
+        "header()": "<inferred>",
+        "init()": "<inferred>",
+        "requireCurrent()": "<inferred>",
+        "resolve()": "<inferred>",
+        "value()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationReservation.zig",
+        "std",
+        "transit_query_direct",
+        "transit_station_http"
+      ]
+    },
     "packages/zig/transit-serving-http/src/ApplicationProtectedHost.zig": {
       "errors": {
         "AccessDenied": 2,
@@ -32122,6 +32228,7 @@
       },
       "imports": [
         "ApplicationAuthority.zig",
+        "ApplicationEffectHttp.zig",
         "ApplicationProtectedHost.zig",
         "ApplicationRequestHost.zig",
         "ApplicationRequests.zig",
