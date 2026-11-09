@@ -27387,20 +27387,53 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationHost.zig": {
+      "errors": {
+        "Overflow": 1,
+        "ProgramArgumentMismatch": 7,
+        "ProgramResourceKindMismatch": 1,
+        "ProgramTypeMismatch": 3,
+        "ProtectedProgramValue": 2,
+        "UnknownProgramVariable": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bind()": "<inferred>",
+        "bytes()": "<inferred>",
+        "condition()": "<inferred>",
+        "evaluate()": "<inferred>",
+        "function()": "<inferred>",
+        "lookup()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ApplicationInvocation.zig": {
       "errors": {
         "ClientOperationMissing": 1,
+        "Conflict": 1,
         "DataflowIdentityConflict": 1,
         "DataflowLeaseFenced": 2,
         "IncompatibleDefinition": 2,
-        "InvalidDirectRecord": 26,
+        "InvalidDirectRecord": 27,
         "InvalidProgramNode": 1,
         "InvalidQueueResponse": 3,
+        "OwnedRecordAttached": 1,
         "OwnedRecordClosed": 3,
+        "OwnedRecordPending": 1,
         "QueryResultBudget": 3,
         "QueueLeaseExpired": 1,
         "QueueTimeUnavailable": 1,
-        "TableDefinitionChanged": 1,
+        "TableDataChanged": 1,
+        "TableDefinitionChanged": 2,
         "WriteFailed": 1
       },
       "outcomes": {
@@ -27419,13 +27452,43 @@
         "executor()": "<inferred>",
         "load()": "<inferred>",
         "loadInput()": "<inferred>",
+        "resumeAttachment()": "<inferred>",
         "retainInput()": "<inferred>",
         "start()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
-        "catch": 1
+        "try": 90,
+        "catch": 3
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-query-direct/src/ApplicationRecovery.zig": {
+      "errors": {
+        "ClientOperationMissing": 1,
+        "DataflowIdentityConflict": 1,
+        "InvalidDirectRecord": 2,
+        "OwnedRecordPending": 1
+      },
+      "outcomes": {
+        "Result": [
+          "complete",
+          "progressed",
+          "waiting"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Host.bind()": "anyerror",
+        "step()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 7,
+        "catch": 0
       },
       "imports": [
         "root.zig",
@@ -28081,7 +28144,9 @@
         "ApplicationData.zig",
         "ApplicationDeclaration.zig",
         "ApplicationExecution.zig",
+        "ApplicationHost.zig",
         "ApplicationInvocation.zig",
+        "ApplicationRecovery.zig",
         "ApplicationTransaction.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
@@ -36145,10 +36210,11 @@
     "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Canceled": 4,
-        "Cancelled": 4,
+        "Canceled": 5,
+        "Cancelled": 5,
         "CatalogIdentityConflict": 1,
         "ClientOperationConflict": 1,
+        "ClientOperationPending": 1,
         "Conflict": 3,
         "DuplicateBatchKey": 2,
         "DuplicatePrimaryKey": 2,
@@ -36160,13 +36226,19 @@
         "GatewayOwnerUnavailable": 1,
         "GatewayRecordTooLarge": 1,
         "GatewayWaitCancelled": 1,
+        "InvalidDirectRecord": 2,
         "InvalidGatewayConfiguration": 1,
         "InvalidGatewayTerminal": 1,
+        "InvalidLogPartitioning": 1,
         "InvalidManagedTableRecord": 3,
         "InvalidSqlReadRecovery": 1,
+        "InvalidTableResponse": 1,
         "KVRevisionChanged": 2,
+        "ManagedTableCleanupPending": 1,
+        "ManagedTableInitializationPending": 1,
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
+        "QueueTimeUnavailable": 1,
         "StaleGatewayCoordinator": 6,
         "TableDataChanged": 2,
         "TableDefinitionChanged": 2,
@@ -36183,6 +36255,8 @@
         "admit()": "<inferred>",
         "admitWithWake()": "<inferred>",
         "advance()": "<inferred>",
+        "applicationOne()": "<inferred>",
+        "applicationStep()": "<inferred>",
         "attachReadCache()": "<inferred>",
         "available()": "<inferred>",
         "cancel()": "<inferred>",
@@ -36220,8 +36294,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 152,
-        "catch": 23
+        "try": 160,
+        "catch": 24
       },
       "imports": [
         "root.zig",

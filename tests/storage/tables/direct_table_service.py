@@ -29,11 +29,12 @@ class FaultProxy(ThreadingHTTPServer):
 class ApplicationFaults:
     """Lose original replies and crash the native owner at common decisions."""
 
-    expected = {"claim", "candidate", "kv", "table", "append", "ack",
+    expected = {"attachment", "claim", "candidate", "kv", "table", "append", "ack",
                 "checkpoint", "atomic_commit", "final_commit", "execute", "complete"}
 
     def __init__(self):
         self.claim = None
+        self.invocation = None
         self.transactions = {}
         self.passed = set()
 
@@ -48,6 +49,7 @@ class ApplicationFaults:
             payload = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
             if payload["lease"]["target"]["object"]["object"] == 733020 and payload["lease"]["epoch"] == 1:
                 self.claim = payload["claim"]
+                self.invocation = work["binding"]["key"] if "stage_original" in progress else work["key"]
                 execution = payload["execution"]
                 transaction = execution["transaction"]
                 if transaction:
@@ -57,6 +59,10 @@ class ApplicationFaults:
         if self.claim is None:
             return None
         parsed = json.loads(data)
+        attachment = progress.get("attach_original")
+        if attachment and attachment["key"] == self.invocation:
+            assert parsed["result"]["client_progress"]["state"]["original"]["phase"] == "attached"
+            phase = "attachment"
         queue_wait = action.get("queue", {}).get("wait")
         if queue_wait and queue_wait["claim"] == self.claim:
             accepted = parsed["result"]["queue"].get("operation")
@@ -859,8 +865,9 @@ def run(node, caller, mode="tables", *artifacts):
                 authority = start()
                 subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
                 assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
-                print("Application invocation: exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
-                      "11 original lost replies, two native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
+                print("Application invocation: service discovery/coordinator replacement, empty acquisition, defeated attachment, "
+                      "exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "
+                      f"{len(ApplicationFaults.expected)} original lost replies, two native SIGKILL/restarts and committed-outcome cancellation race passed.", flush=True)
                 if mode != "managed":
                     subprocess.run([caller, endpoint, "board-inspector", str(profile)], check=True, timeout=60)
                     from interfaces.board.computations import exercise

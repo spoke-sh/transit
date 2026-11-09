@@ -19,8 +19,9 @@ instructions, exact input ACK, guarded checkpoints and bounded failure
 continuations through native serializable transactions. The signed component
 proof covers mixed Table/KV/Stream commit/abort, original lost replies, native
 process replacement and cancellation cleanup; it does
-not qualify the complete browser application. SQL publication, automatic service
-scheduling, native HTTP effects and response operations remain integration work tracked
+not qualify the complete browser application. `ApplicationRecovery` reopens
+original invocations for the database service's bounded discovery sweeps.
+SQL publication, native HTTP effects and response operations remain integration work tracked
 by [#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
 does not establish that a SQL service can install or run a program.
 
@@ -183,6 +184,39 @@ random material remains transient. Replay cannot generate a replacement secret
 to disguise the loss of an original outcome.
 Program timestamps use SQL's UTC microseconds since epoch; durations use signed
 microseconds. Seconds conversion and timestamp arithmetic must reject overflow.
+
+The native public helper owner implements host time, secure random public tokens,
+checked seconds conversion, Unicode code-point length, SHA-256 digests and
+unpadded base64url S256. `RANDOM_TOKEN(n)` encodes `n` random bytes, with
+`16 <= n <= 64`. `IDENTITY_DIGEST` uses the browser identity owner's
+domain-separated, length-prefixed issuer/client/subject digest and renders it as
+lowercase hex. `OPERATION_ID` hashes the domain
+`transit.application.operation-id.v1\0`, the 16 input UUID bytes, an unsigned
+eight-byte big-endian label length and the UTF-8 label. Its first 16 digest bytes
+carry UUID version 8 and the RFC variant. Host observations remain proposals
+until their original candidate is retained; recovery never replaces a retained
+observation. Protected helpers require their separate native redemption owner.
+
+## Service discovery
+
+The database runtime enumerates application declarations and originals through
+bounded Catalog pages under its existing account activation fence. It retains
+only cursors, scheduling stripes and reusable scratch in memory. It also visits
+terminal invocation records whose original closure may be unfinished. A
+superseded service generation cannot advance the invocation, including cleanup.
+The native original owner resolves attachment conflicts; transport uncertainty
+or denial cannot close an attachment as though its CAS had failed.
+
+The initial automatic profile requires a single-partition input Queue. A larger
+Queue produces an explicit partitioning refusal; the service does not consume
+only its first partition. Typed invocation callers retain their explicit
+partition selection. An empty acquisition keeps the same original token and
+claim. A bounded account retry timer rechecks pending acquisitions, including
+delayed visibility and lease expiry; publication notifications interrupt it.
+There is no new durable attempt per empty poll. Native Queue waits retain their
+own readiness notifications and do not themselves wake application discovery.
+Suspension/retirement cancels the pending original, and retirement removes
+dependencies only after original input cleanup detaches it.
 
 ## Atomic decisions and continuation
 

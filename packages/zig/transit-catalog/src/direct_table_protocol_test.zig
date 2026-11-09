@@ -18,6 +18,7 @@ test "private reader and staging mutations preserve uncertainty without waking c
         .{ .client_token = .{ .bind = undefined } },
         .{ .record = .{ .stage = undefined } },
         .{ .record = .{ .stage_transaction = undefined } },
+        .{ .queue = .{ .wait = .{ .claim = undefined, .milliseconds = 1 } } },
         .{ .client_progress = .{ .update = .{ .key = undefined, .expected = undefined, .pending = true, .cancel = false, .record = .{ .scope = undefined, .format = c.DirectRecord.read_cache_format, .content = undefined } } } },
     };
     for (private) |action| {

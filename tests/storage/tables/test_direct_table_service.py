@@ -1,12 +1,38 @@
-"""A failed caller must not leave HTTP fault handlers alive at fixture exit."""
+"""Fault selection and joined HTTP handler cleanup preserve real proof failures."""
+import base64
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler
+import json
 import subprocess
 import sys
 import threading
 import unittest
 
-from storage.tables.direct_table_service import FaultProxy
+from storage.tables.direct_table_service import ApplicationFaults, FaultProxy
+
+
+class ApplicationFaultSelection(unittest.TestCase):
+    def test_original_stage_and_progress_bind_the_same_attachment_once(self):
+        key = {"token": [7] * 16}
+        payload = {
+            "lease": {"target": {"object": {"object": 733020}}, "epoch": 1},
+            "claim": {"operation": {"operation": 13}},
+            "execution": {"phase": "evaluate", "transaction": None},
+        }
+        encoded = {"base64": base64.b64encode(json.dumps(payload).encode()).decode()}
+        for action, identity in (("stage_original", {"binding": {"key": key}}),
+                                 ("advance", {"key": key})):
+            with self.subTest(action=action):
+                faults = ApplicationFaults()
+                work = dict(identity, format=0x41505731, bytes=encoded)
+                self.assertIsNone(faults.select({"action": {"client_progress": {action: work}}}, b"{}"))
+                response = json.dumps({"result": {"client_progress": {"state": {"original": {"phase": "attached"}}}}}).encode()
+                other = {"action": {"client_progress": {"attach_original": {"key": {"token": [8] * 16}}}}}
+                self.assertIsNone(faults.select(other, response))
+                request = {"action": {"client_progress": {"attach_original": {"key": key}}}}
+                self.assertEqual(faults.select(request, response), "attachment")
+                self.assertIsNone(faults.select(request, response))
+                self.assertEqual(faults.passed, {"attachment"})
 
 
 class ProxyCleanup(unittest.TestCase):

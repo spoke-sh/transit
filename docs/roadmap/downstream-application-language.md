@@ -33,8 +33,8 @@ instruction identity, lexical scope, exact KV revisions and single-record read
 coverage. Typed application declarations publish through the catalog's owned
 records, with an immutable executor role, native dependency readiness checks and
 fenced controls. Input predicates compile to the existing Queue acquisition
-format. These are implementation foundations: the service does not yet schedule
-ordered invocations or install the complete three-file application.
+format. These are implementation foundations; they do not yet install the
+complete three-file application.
 
 The invocation input owner now attaches work before acquisition, retains exact
 Queue claim receipts and protects initial environments with native read guards.
@@ -43,8 +43,10 @@ and retire controls fence the original pending invocation before updating its
 head. The typed invocation runner now composes Table/KV/Stream instructions,
 original input ACK and guarded checkpoints through native serializable
 transactions. Signed component coverage includes mixed commit/abort, failure
-handler termination and cancellation cleanup. Effect/response settlement, service
-scheduling and the remaining installation/browser phases are unfinished; this
+handler termination and cancellation cleanup. The database service now has
+bounded original discovery and coordinator-fenced execution for single-partition
+input Queues. Effect/response settlement and the remaining installation/browser
+phases are unfinished; this
 does not qualify the downstream journey.
 
 ## Reviewed inputs and desired experience

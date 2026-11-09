@@ -160,7 +160,7 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
             const saved = try self.load(progress.record orelse progress.receipt.binding.intent.external.record);
             defer saved.deinit();
             try saved.value.validate(value, m.client.allocator);
-            if (original.phase != .attached) _ = try self.attach(progress, saved.value);
+            if (original.phase != .attached and try self.resumeAttachment(value, progress, saved.value) == null) return null;
             return token;
         }
     }
@@ -192,11 +192,36 @@ pub fn start(self: Self, value: M.Declaration, partition: u32) !?T.Key {
     };
     const progress = try c.DirectOwnedRecord.stage(m.client, token, value.namespace, work.lease.owner.operation, digest, .{ .bytes = 128 * 1024 }, work_format, bytes);
     if (progress.original.?.phase == .closed) return error.OwnedRecordClosed;
-    _ = try self.attach(progress, work);
+    if (try self.resumeAttachment(value, progress, work) == null) return null;
     return token;
 }
 pub fn attach(self: Self, progress: T.Progress, work: Work) !T.Progress {
     return c.DirectOwnedRecord.call(self.manager.client, .{ .attach_original = .{ .key = progress.receipt.binding.key, .expected = progress.revision, .mutation = work.attachment orelse return error.InvalidDirectRecord } });
+}
+
+/// Only the native original owner can close a defeated attachment: it checks
+/// whether the exact head mutation already committed and fences late retries.
+/// An uncertain response or an authorization failure is not a defeated CAS.
+pub fn resumeAttachment(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !?T.Progress {
+    try work.validate(value, self.manager.client.allocator);
+    try progress.receipt.binding.key.requireSame(self.key(value, work.lease.epoch, "transit.application.invocation.v1\x00"));
+    const original = progress.original orelse return error.InvalidDirectRecord;
+    if (original.phase == .attached) return progress;
+    if (original.phase == .closed) return null;
+    if (original.phase != .ready and original.phase != .attaching) return error.OwnedRecordPending;
+    return self.attach(progress, work) catch |err| switch (err) {
+        error.TableDataChanged, error.TableDefinitionChanged, error.Conflict => {
+            const current = try T.inspect(self.manager.client, progress.receipt.binding.key) orelse return err;
+            _ = c.DirectOwnedRecord.call(self.manager.client, .{ .close_original = .{ .key = current.receipt.binding.key, .expected = current.revision } }) catch |close_error| switch (close_error) {
+                // A concurrently completed attachment wins. Reobserve that
+                // exact native attachment, never manufacture another head.
+                error.OwnedRecordAttached => return try self.attach(current, work),
+                else => return close_error,
+            };
+            return null;
+        },
+        else => return err,
+    };
 }
 
 pub fn advance(self: Self, value: M.Declaration, progress: T.Progress, work: Work) !T.Progress {

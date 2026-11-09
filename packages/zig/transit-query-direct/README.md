@@ -60,8 +60,12 @@ Frozen limits bound each SELECT's requests/scanned rows/result bytes, native
 transaction participants/statements/work, each continuation payload and cumulative
 retained input/proposal/checkpoint bytes. The request limit also bounds partition
 expansion; it is not a count of transport retries. These typed owners currently
-execute data instructions and failure continuations. SQL installation, automatic
-service scheduling, HTTP effects and response/capability operations remain
+execute data instructions and failure continuations. `ApplicationRecovery`
+reopens frozen declarations and invocations for bounded service scheduling,
+including interrupted final closure and defeated attachment cleanup.
+`ApplicationHost` supplies native public time, entropy, duration and digest
+observations; the runner retains their original candidate before advancing.
+SQL installation, HTTP effects and response/capability operations remain
 integration work in [#430](https://github.com/spoke-sh/transit/issues/430).
 
 `DirectTablePrepared` binds a typed SELECT to an immutable Table definition.

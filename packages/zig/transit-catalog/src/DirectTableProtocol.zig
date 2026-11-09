@@ -421,6 +421,11 @@ pub const Request = struct {
     pub fn publicationHint(self: Request) bool {
         return switch (self.action) {
             .record, .stage, .client_token, .pin, .retain_history, .release, .capture_read => false,
+            // Acquisition changes private lease ownership, not the published
+            // Queue payload or declaration. Native log waits have their own
+            // notifications. In particular an empty wait must not wake the
+            // service's discovery sweep again and defeat its bounded backoff.
+            .queue => |value| value != .wait and value.mutation(),
             .client_progress => |value| value.mutation() and !(value == .update and value.update.record != null and value.update.record.?.format == c.DirectRecord.read_cache_format),
             else => self.transport().mutation,
         };

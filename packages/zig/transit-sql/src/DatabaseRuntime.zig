@@ -44,6 +44,13 @@ managed_after: ?u64 = null,
 managed_pending: bool = false,
 managed_work: bool = true,
 managed_has_declarations: u64 = 0,
+application_route: usize = 0,
+application_after: ?u64 = null,
+application_work: bool = true,
+application_pending: bool = false,
+application_waiting: bool = false,
+application_has_declarations: u64 = 0,
+application_scratch: ?std.heap.ArenaAllocator = null,
 foreground_active: std.atomic.Value(u32) = .init(0),
 foreground_notified: std.atomic.Value(bool) = .init(false),
 pub const Keys = struct { table: p.Ed25519.KeyPair };
@@ -156,7 +163,9 @@ fn waitProgressAfter(self: *Self, observed: u64, deadline: Deadline) !void {
 }
 
 pub fn waitIdle(self: *Self, milliseconds: u32) !void {
-    try self.work.wait(self.io, milliseconds);
+    // One timer covers all parked application acquisitions, independent of
+    // durable population. Publications still interrupt this wait immediately.
+    try self.work.wait(self.io, if (self.application_waiting) @max(milliseconds, 100) else milliseconds);
 }
 
 pub fn waitProgress(self: *Self, milliseconds: u32) !void {
@@ -322,6 +331,7 @@ fn checkFence(self: *Self, observer: *g.Client) !void {
     if (!std.meta.eql(active_record, self.activation_record.?)) return error.StaleGatewayCoordinator;
 }
 pub fn deinit(self: *Self) void {
+    if (self.application_scratch) |*scratch| scratch.deinit();
     if (self.read_pins) |*pins| pins.deinit();
     self.background.deinit();
     self.ingress_wire.deinit();
@@ -353,6 +363,11 @@ pub fn tick(self: *Self) !bool {
         self.managed_after = null;
         self.managed_work = true;
         self.managed_pending = false;
+        self.application_route = 0;
+        self.application_after = null;
+        self.application_work = true;
+        self.application_pending = false;
+        self.application_waiting = false;
     }
     errdefer {
         self.ready.store(false, .release);
@@ -444,11 +459,16 @@ pub fn tick(self: *Self) !bool {
     if (!was_ready or progressed) self.notifyProgress();
     if (!self.scan_complete or cleanup_pending) return true;
     if (self.managed_directory != null and try self.managedStep()) return true;
-    if (self.managed_pending) {
+    if (try self.applicationStep()) return true;
+    if (self.managed_pending or self.application_pending) {
         self.managed_route = 0;
         self.managed_after = null;
         self.managed_work = true;
         self.managed_pending = false;
+        self.application_route = 0;
+        self.application_after = null;
+        self.application_work = true;
+        self.application_pending = false;
         return true;
     }
     self.finishSweep(self.retry_pending);
@@ -534,6 +554,104 @@ fn managedStep(self: *Self) !bool {
 fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
     if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
     if (try manager.start(declared) != null) self.managed_pending = true;
+}
+
+/// One paged invocation/declaration unit. Empty acquisition retains its exact
+/// original and uses bounded retry debt; it does not spin or append idle work.
+/// Terminal originals are included because close_original can lose its caller
+/// after the final progress record has already cleared pending.
+fn applicationStep(self: *Self) !bool {
+    const bindings = self.execution.configuration.bindings;
+    const M = g.direct.ManagedApplication;
+    while (true) {
+        while (self.application_route < bindings.len and g.Client.isDuplicateBindingConnection(bindings, self.application_route)) {
+            self.application_route += 1;
+            self.application_after = null;
+            self.application_work = true;
+        }
+        if (self.application_route >= bindings.len) return false;
+        const bit = @as(u64, 1) << @intCast(self.application_route);
+        if (self.application_work and (self.application_has_declarations & bit) == 0) {
+            self.application_work = false;
+            self.application_after = null;
+        }
+        const caller = self.private.table(bindings[self.application_route]);
+        const manager: M = .{ .client = caller };
+        const page = try c.DirectClientToken.list(caller, if (self.application_work) M.workAccount() else M.account(), self.application_after, false);
+        if (!self.application_work and page.entries[0] != null and (self.application_has_declarations & bit) == 0) {
+            self.application_has_declarations |= bit;
+            self.application_pending = true;
+        }
+        for (page.entries) |slot| if (slot) |entry| {
+            self.application_after = entry.id();
+            const original = entry.original orelse return error.InvalidDirectRecord;
+            if (original.phase == .reserved or original.phase == .closed) continue;
+            if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidDirectRecord;
+            if (!g.Client.hasConnectionNamespace(bindings, self.application_route, entry.receipt.binding.intent.external.namespace)) continue;
+            const selected = self.claim(entry.receipt.binding.key.token);
+            if (!selected.tryLock()) {
+                self.retry_pending = true;
+                return true;
+            }
+            defer selected.unlock(self.io);
+            self.applicationOne(manager, entry) catch |err| {
+                if (err == error.Canceled or err == error.Cancelled) return err;
+                self.direct_work_failure.store(@intFromError(err), .release);
+                if (wire.Client.unavailable(err) or self.background.contended(err) or
+                    err == error.InvalidTableResponse or err == error.ManagedTableInitializationPending or
+                    err == error.ManagedTableCleanupPending or err == error.ClientOperationPending or err == error.QueueTimeUnavailable) self.retry_pending = true;
+            };
+            return true;
+        };
+        if (page.next) |next| {
+            self.application_after = next;
+            return true;
+        }
+        if (self.application_work) {
+            self.application_work = false;
+            self.application_after = null;
+            continue;
+        }
+        self.application_route += 1;
+        self.application_after = null;
+        self.application_work = true;
+    }
+}
+fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.DirectClientToken.Progress) !void {
+    if (self.application_work) {
+        if (self.application_scratch == null) self.application_scratch = .init(self.allocator);
+        const scratch = &self.application_scratch.?;
+        _ = scratch.reset(.retain_capacity);
+        var host: g.direct.ApplicationHost = .{ .scratch = scratch.allocator(), .io = self.io };
+        switch (try g.direct.ApplicationRecovery.step(manager, entry.receipt.binding.key, host.recovery())) {
+            .complete => {},
+            .progressed => self.application_pending = true,
+            .waiting => {
+                self.retry_pending = true;
+                self.application_waiting = true;
+            },
+        }
+    } else {
+        const declared = try manager.load(entry.receipt.binding.intent.external.record);
+        defer declared.deinit();
+        if (entry.pending) _ = try manager.initialize(declared.value, entry.receipt.binding.key);
+        const observed = try manager.inspect(declared.value);
+        if (observed.head.control.state == .retired) {
+            _ = try manager.cleanup(declared.value);
+            return;
+        }
+        if (observed.head.control.state != .active or observed.head.pending != null) return;
+        // The initial automatic profile owns one Queue partition. Explicit
+        // typed invocation callers may select another partition; discovery
+        // must never silently execute only partition zero of a larger Queue.
+        for (declared.value.resources) |resource| {
+            if (!std.mem.eql(u8, resource.name().slice(), declared.value.program.queue)) continue;
+            if (resource.value != .log or resource.value.log.declaration.stored.declaration.configuration.partitioning.count != 1) return error.InvalidLogPartitioning;
+        }
+        const owner: g.direct.ApplicationInvocation = .{ .manager = manager };
+        if (try owner.start(declared.value, 0) != null) self.application_pending = true;
+    }
+    self.direct_work_failure.store(0, .release);
 }
 fn finishSweep(self: *Self, retry: bool) void {
     self.work.finish(self.io, self.sweep.?, retry);
