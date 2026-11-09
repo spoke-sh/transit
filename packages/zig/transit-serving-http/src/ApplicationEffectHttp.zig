@@ -154,6 +154,56 @@ pub const Capture = struct {
     }
 };
 
+/// Bind protected response bytes to the complete native effect result. Only
+/// this public metadata enters the observation commitment; never body bytes.
+pub fn responseObservation(descriptor: q.ApplicationEffect.Descriptor, response: q.ApplicationEffect.Response) !R.Observation {
+    try descriptor.validate();
+    try response.validate();
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.application.effect.response.v1\x00");
+    hash.update(&try descriptor.digest());
+    var encoded: [6]u8 = undefined;
+    std.mem.writeInt(u16, encoded[0..2], response.status, .big);
+    std.mem.writeInt(u32, encoded[2..6], response.bytes, .big);
+    hash.update(&encoded);
+    hash.update(&response.sha256);
+    return .{ .step = descriptor.step, .node = descriptor.instruction, .arguments = hash.finalResult() };
+}
+fn requireResponseOwner(descriptor: q.ApplicationEffect.Descriptor, access: R.Access) !void {
+    try descriptor.invocation.requireSame(access.owner);
+    if (!std.meta.eql(descriptor.input, access.input)) return error.ApplicationRequestOwnerMismatch;
+}
+fn requireBody(response: q.ApplicationEffect.Response, bytes: []const u8) !void {
+    if (response.bytes != bytes.len) return error.IncompleteHttpBody;
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+    if (!std.crypto.timing_safe.eql([32]u8, digest, response.sha256)) return error.ProtectedObservationChanged;
+}
+/// The caller first retains known completion metadata, then optionally seals
+/// its body. Failure leaves that response known with body=null; it cannot turn
+/// a complete exchange into unknown, unsent, or permission for another attempt.
+pub fn sealResponse(io: std.Io, reservation: *R, access: R.Access, descriptor: q.ApplicationEffect.Descriptor, response: *q.ApplicationEffect.Response, bytes: []const u8) !void {
+    const observation = try responseObservation(descriptor, response.*);
+    try requireResponseOwner(descriptor, access);
+    if (response.body != null) return error.InvalidApplicationEffect;
+    try requireBody(response.*, bytes);
+    const retained = try reservation.retain(io, access, observation, .{ .json = bytes });
+    if (retained != .protected_json) return error.ProtectedProgramValue;
+    response.body = retained.protected_json;
+}
+/// Adoption rechecks current owner/authority, the exact response observation,
+/// handle, byte count and digest. A copied valid JSON handle is insufficient.
+pub fn verifyResponse(reservation: *R, access: R.Access, descriptor: q.ApplicationEffect.Descriptor, response: q.ApplicationEffect.Response) !void {
+    const observation = try responseObservation(descriptor, response);
+    try requireResponseOwner(descriptor, access);
+    const reference = response.body orelse return error.ApplicationReservationLost;
+    const retained = try reservation.find(access, observation) orelse return error.ApplicationReservationLost;
+    if (retained != .protected_json or !std.crypto.timing_safe.eql([32]u8, retained.protected_json.id, reference.id)) return error.ProtectedObservationChanged;
+    const body = try reservation.read(access, retained, .json_projection);
+    if (body != .json) return error.ProtectedProgramValue;
+    try requireBody(response, body.json);
+}
+
 const Proof = struct {
     allowed: bool = true,
     fn check(context: *anyopaque, _: R.Evidence) !void {
@@ -171,7 +221,72 @@ const Proof = struct {
     fn profile() q.protocol.Source.Sink {
         return .{ .method = .POST, .path = "/token", .request_encoding = .form, .accept = "application/json", .user_agent = "test", .response = .protected_json, .capture = .redacted_metadata, .request_timeout_ms = 5000, .response_max_bytes = 65536, .follow_redirects = false, .max_attempts = 1, .unknown_outcome = .retain };
     }
+    fn descriptor() q.ApplicationEffect.Descriptor {
+        const caller = access();
+        var program = caller.input.target.interpretation;
+        program.object.object += 1;
+        var sink = program;
+        sink.object.object += 1;
+        return .{ .definition = q.protocol.Growth.current_definition, .invocation = caller.owner, .program = program, .input = caller.input, .request = .{ .scope = .{ .definition = q.protocol.Growth.current_definition, .connection = caller.owner.connection, .account = @splat(3) }, .format = q.catalog.DirectOwnedRecord.format, .content = .{ .bytes = 100, .sha256 = @splat(4) } }, .namespace = 1, .step = 1, .instruction = 3, .sink = sink, .operation = @splat(8) };
+    }
 };
+
+test "application HTTP response adoption binds exact original metadata and protected bytes" {
+    const t = std.testing;
+    var authority: Proof = .{};
+    const access = Proof.access();
+    const descriptor = Proof.descriptor();
+    var retained: [1024]u8 = undefined;
+    var slots: [4]R.Slot = undefined;
+    var reservation = try R.init(t.io, &retained, &slots, @splat(12), access.input, 1, 1000, .{ .context = &authority, .check = Proof.check });
+    defer reservation.deinit();
+    var bytes: [128]u8 = undefined;
+    const body = "{\"access_token\":\"private\"}";
+    @memcpy(bytes[0..body.len], body);
+    var capture: Capture = .{ .memory = &bytes, .used = body.len };
+    defer capture.deinit();
+    var response = try capture.response(.{ .status = 200, .bytes = body.len, .omitted_headers = 0 });
+    try sealResponse(t.io, &reservation, access, descriptor, &response, body);
+    try verifyResponse(&reservation, access, descriptor, response);
+    var other = response;
+    other.status = 201;
+    try t.expectError(error.ProtectedObservationChanged, verifyResponse(&reservation, access, descriptor, other));
+    other = response;
+    other.body.?.id[0] ^= 1;
+    try t.expectError(error.ProtectedObservationChanged, verifyResponse(&reservation, access, descriptor, other));
+    var changed = descriptor;
+    changed.operation[0] ^= 1;
+    try t.expectError(error.ProtectedObservationChanged, verifyResponse(&reservation, access, changed, response));
+    var stolen = access;
+    stolen.input.ordinal += 1;
+    try t.expectError(error.ApplicationRequestOwnerMismatch, verifyResponse(&reservation, stolen, descriptor, response));
+    authority.allowed = false;
+    try t.expectError(error.AccessDenied, verifyResponse(&reservation, access, descriptor, response));
+    authority.allowed = true;
+    retained[0] ^= 1;
+    try t.expectError(error.ProtectedObservationChanged, verifyResponse(&reservation, access, descriptor, response));
+}
+
+test "application HTTP body sealing failure preserves known response metadata" {
+    const t = std.testing;
+    var authority: Proof = .{};
+    const access = Proof.access();
+    var retained: [1]u8 = undefined;
+    var slots: [1]R.Slot = undefined;
+    var reservation = try R.init(t.io, &retained, &slots, @splat(12), access.input, 1, 1000, .{ .context = &authority, .check = Proof.check });
+    defer reservation.deinit();
+    var bytes: [2]u8 = .{ '{', '}' };
+    var capture: Capture = .{ .memory = &bytes, .used = bytes.len };
+    defer capture.deinit();
+    var response = try capture.response(.{ .status = 200, .bytes = bytes.len, .omitted_headers = 0 });
+    const original = response;
+    try t.expectError(error.ApplicationReservationCapacity, sealResponse(t.io, &reservation, access, Proof.descriptor(), &response, &bytes));
+    try t.expectEqualDeep(original, response);
+    try t.expect(response.body == null);
+    try t.expectEqual(@as(usize, 0), reservation.used);
+    try t.expectError(error.IncompleteHttpBody, sealResponse(t.io, &reservation, access, Proof.descriptor(), &response, bytes[0..1]));
+    try t.expectEqualDeep(original, response);
+}
 
 test "application HTTP operands use exact form escaping and current protected redemptions" {
     const t = std.testing;

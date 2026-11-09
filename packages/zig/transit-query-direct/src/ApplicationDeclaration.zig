@@ -231,6 +231,7 @@ test "application declarations retain exact typed programs and consume rights wi
     defer bound.deinit();
     try t.expectEqual(c.LogAuthority.read | c.LogAuthority.acquire | c.LogAuthority.settle, try restored.value.resources[0].privileges(bound.uses[0]));
     try t.expectEqual(c.LogAuthority.read | c.LogAuthority.append, try resources[0].privileges(.{ .resource = 0, .write = true }));
+    try t.expectEqual(c.LogAuthority.read | c.LogAuthority.acquire | c.LogAuthority.settle | c.LogAuthority.inspect, try resources[0].privileges(.{ .resource = 0, .read = true, .consume = true, .observe_time = true }));
     var changed = declaration;
     changed.connection.role = 7;
     try t.expect(!std.meta.eql(try declaration.digest(t.allocator), try changed.digest(t.allocator)));

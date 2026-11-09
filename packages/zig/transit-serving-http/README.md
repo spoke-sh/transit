@@ -157,12 +157,21 @@ bytes still require current redemption before sending. Capacity and rendering
 failures erase partial bodies. Response capture retains at most 64 KiB privately
 and creates status/count/digest metadata only from a complete transport result;
 the protected body must be sealed separately in the original reservation.
+Sealing commits the original descriptor, status, byte count and body digest to
+one protected observation. Adoption checks that observation, its exact handle
+and retained bytes under current authority. A sealing failure leaves the known
+HTTP response metadata intact with no body handle.
 This adapter supplies neither dispatch authority nor a service worker.
 
 `ApplicationEffectTasks` bounds local active work and private scratch separately
 from the native backlog. A full pool leaves the original waiting. Each task
 keeps its creating I/O runtime through join and requires independent clients;
-coordinator calls may use another runtime. Withdrawal signals the task, which
+coordinator calls may use another runtime. Local status observes an existing task
+without admitting one; missing work and capacity are distinct from a running task.
+Waiting returns the existing progress unchanged, without another native read or
+an authority claim. The physical task checks current authority and fences through
+its native operations and final write gate. Missing or completed local tasks
+re-enter the native executor boundary before result observation. Withdrawal signals the task, which
 joins its child I/O before reporting completion. A replaced fence cannot start
 another task in the occupied slot, and changed operands for the same original
 are rejected. Failed work remains abandoned until native recovery releases it.
@@ -174,6 +183,35 @@ budget covers owned slots and scratch, with I/O scheduling and thread-stack
 budgets owned by the deployment runtime. An executor callback still supplies the
 actual native reopening, authority checks and HTTP exchange. The pool does not
 make effect programs ready by itself.
+
+`ApplicationEffectRuntime` supplies that physical callback and an explicit host
+composition. Each task reopens the original invocation with independent native
+clients, borrows its request once, and validates exact connection placement.
+Its explicit `native_bytes` slice comes from the existing task scratch budget.
+A fixed `transit-memory` slab reuses native call buffers with independent
+lifetimes and a resettable arena for guard temporaries. Retained evaluation
+values use separate output memory in that same reserve.
+State execution retains the program's role; the active sink selects its own
+dispatch role. Native secret redemptions require both roles' current rights.
+Both read sets must agree on the policy revision, and the final state-role check
+also verifies the exact sink/connection controls observed by the dispatch role.
+After TLS, the worker reevaluates the original guard against the frozen pre-step
+environment, rechecks protected operands and verifies those current read sets
+before allowing the first HTTP write. It never reevaluates frozen request operands.
+
+The worker uses native Queue clock inspection and the original claim's deadline,
+with sink and request limits that can only shorten the remaining budget. Programs
+with effects or a declared deadline require `inspect` on their input Queue;
+ordinary programs retain their narrower input privileges. A
+deadline watcher cancels and joins the exchange when a later clock observation
+shortens that budget. No fresh native dispatch admission means no send; later
+transport failure retains uncertainty. Complete responses remain known through
+failed private body sealing and cancellation. Response adoption checks the
+original deadline again before disclosing the protected body to its continuation.
+The explicit host still lacks
+ingress publication, handoff and transactional response facilities; node/SQL
+deployment composition must supply their owners before admitting the complete
+browser application.
 
 `BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
 It reads typed catalog declarations, resolves private mounted secrets, performs

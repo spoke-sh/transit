@@ -1256,6 +1256,10 @@
         "PredicateTooLarge": {
           "code": "sql.predicate_instruction_limit",
           "category": "limit"
+        },
+        "InvalidApplicationDeadline": {
+          "code": "sql.invalid_application_deadline",
+          "category": "binding"
         }
       }
     },

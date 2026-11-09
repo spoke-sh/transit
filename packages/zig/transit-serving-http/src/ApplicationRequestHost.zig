@@ -42,9 +42,14 @@ pub fn available() a.Types.Requirements {
 }
 fn requireReady(context: *anyopaque, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) !void {
     const self: *Self = @ptrCast(@alignCast(context));
+    try self.requireFacilities(allocator, declaration, available());
+}
+/// The trusted composition supplies the facilities it actually implements.
+/// Mount readiness remains owned here and cannot be replaced by a feature bit.
+pub fn requireFacilities(self: *Self, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration, facilities: a.Types.Requirements) !void {
     var bound = try declaration.bind(allocator);
     defer bound.deinit();
-    try bound.requirements.requireAvailable(available());
+    try bound.requirements.requireAvailable(facilities);
     if (bound.native.contains(.secret_references)) {
         const binding = try secretBinding(declaration) orelse return error.ApplicationHostUnavailable;
         if (self.findMount(binding) == null) return error.ApplicationHostUnavailable;
@@ -116,6 +121,49 @@ fn bind(context: *anyopaque, scope: q.ApplicationExecution.Context) !q.Applicati
     }
     return .{ .expressions = .{ .context = binding, .lookup = Binding.lookup, .evaluate = Binding.evaluate, .condition = Binding.condition }, .release = Binding.release };
 }
+
+/// A trusted physical effect owner keeps one serialized request borrow through
+/// preflight, guard reevaluation, dispatch and private response sealing. This
+/// borrow grants no rights and must never escape into native retained records.
+pub const EffectBorrow = struct {
+    bound: q.ApplicationExecution.BoundHost,
+    fn binding(self: EffectBorrow) *Binding {
+        return @ptrCast(@alignCast(self.bound.expressions.context));
+    }
+    pub fn deinit(self: *EffectBorrow) void {
+        self.bound.deinit();
+        self.* = undefined;
+    }
+    pub const View = struct { reservation: *Reservation, access: Reservation.Access };
+    pub fn view(self: EffectBorrow) !View {
+        const owner = self.binding();
+        const borrowed = owner.borrow orelse return owner.unavailable;
+        try borrowed.requireLive();
+        const protected = if (owner.protected) |*value| value else return owner.unavailable;
+        protected.access.now_ms = try q.ApplicationDeadline.now(protected.io);
+        return .{ .reservation = protected.reservation, .access = protected.access };
+    }
+    /// B's metadata reads use the same declared native binding and placement,
+    /// but its selected sink role. Original state execution remains under A.
+    pub fn sinkSecrets(self: EffectBorrow, client: c.DirectTableClient, reads: *q.ApplicationReadSet) !?Secrets {
+        const owner = self.binding();
+        var origin = client.connection;
+        origin.role = owner.ordinary.scope.?.client.connection.role;
+        if (client.transaction != null or !std.meta.eql(origin, owner.ordinary.scope.?.client.connection) or
+            !std.meta.eql(client.lease, owner.ordinary.scope.?.client.lease)) return error.DataflowLeaseFenced;
+        var result = owner.secrets orelse return null;
+        result.client = client;
+        result.reads = reads;
+        return result;
+    }
+};
+pub fn borrowEffect(self: *Self, scope: q.ApplicationExecution.Context, dispatch: ?Reservation.Authority) !EffectBorrow {
+    var result: EffectBorrow = .{ .bound = try bind(self, scope) };
+    errdefer result.deinit();
+    _ = try result.view();
+    result.binding().dispatch = dispatch;
+    return result;
+}
 const Binding = struct {
     ordinary: q.ApplicationHost,
     borrow: ?Requests.Borrow = null,
@@ -123,6 +171,7 @@ const Binding = struct {
     authority: ?Authority = null,
     protected: ?Protected = null,
     unavailable: anyerror = error.MissingProgramNativeBinding,
+    dispatch: ?Reservation.Authority = null,
 
     fn finish(self: *Binding) void {
         if (self.borrow) |*borrowed| borrowed.deinit();
@@ -141,6 +190,7 @@ const Binding = struct {
         try borrowed.requireLive();
         const authority = if (self.authority) |*value| value.authority() else return error.MissingProgramNativeBinding;
         try authority.check(authority.context, evidence);
+        if (self.dispatch) |dispatch| try dispatch.check(dispatch.context, evidence);
     }
     fn secretLookup(context: *anyopaque, private: std.mem.Allocator, name: []const u8) !Reservation.Material {
         const self: *Binding = @ptrCast(@alignCast(context));

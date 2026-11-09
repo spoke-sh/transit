@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import urllib.request
+from urllib.parse import parse_qs
 
 from harness.services import free_port, wait_ready
 from runner.capture import identity, provenance
@@ -26,16 +27,86 @@ class FaultProxy(ThreadingHTTPServer):
     daemon_threads = False
 
 
+class ApplicationEffectPeer:
+    """Independent single-send peer; credentials never enter its evidence log."""
+
+    def __enter__(self):
+        self.requests = []
+        self.failures = []
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def setup(self):
+                super().setup()
+                self.connection.settimeout(10)
+
+            def log_message(self, *_):
+                pass
+
+            def exchange(self):
+                try:
+                    if self.command == "POST":
+                        assert self.path == "/token"
+                        length = int(self.headers["content-length"])
+                        assert 0 < length <= 65536
+                        fields = parse_qs(self.rfile.read(length).decode(), strict_parsing=True)
+                        assert fields.get("code") == ["opaque-code+ /&"]
+                        assert set(fields) == {"code", "mode"}
+                        assert fields["mode"] in (["fast"], ["slow"])
+                        owner.requests.append(("token", fields["mode"][0]))
+                        if fields["mode"] == ["slow"]:
+                            time.sleep(6)
+                        body = b'{"access_token":"transient-provider-token"}'
+                    else:
+                        assert self.command == "GET" and self.path == "/profile"
+                        assert self.headers["authorization"] == "Bearer transient-provider-token"
+                        owner.requests.append(("profile", "protected"))
+                        body = b'{"id":123}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    # The deadline case closes its socket before this response.
+                    pass
+                except Exception as error:
+                    owner.failures.append(type(error).__name__)
+                    self.close_connection = True
+
+            do_POST = exchange
+            do_GET = exchange
+
+        self.server = FaultProxy(("127.0.0.1", 0), Handler)
+        self.thread = threading.Thread(target=self.server.serve_forever)
+        self.thread.start()
+        return self
+
+    def __exit__(self, error_type, *_):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=15)
+        assert not self.thread.is_alive()
+        if error_type is None:
+            assert not self.failures, self.failures
+            assert self.requests == [("token", "fast"), ("profile", "protected"), ("token", "slow")], self.requests
+
+
 class ApplicationFaults:
     """Lose original replies and crash the native owner at common decisions."""
 
     expected = {"attachment", "claim", "candidate", "kv", "table", "append", "ack",
                 "checkpoint", "atomic_commit", "final_commit", "execute", "complete",
-                "effect_admission", "effect_completion", "ordered_effect_completion"}
+                "effect_admission", "effect_completion", "ordered_effect_completion",
+                "physical_effect_admission", "physical_effect_completion"}
 
     def __init__(self):
         self.claim = None
         self.invocation = None
+        self.physical_original = None
         self.transactions = {}
         self.passed = set()
 
@@ -44,15 +115,36 @@ class ApplicationFaults:
         if not isinstance(action, dict):
             return None
         progress = action.get("client_progress", {})
+        retained = progress.get("retain_original")
+        if retained and retained["key"] == self.physical_original:
+            native = json.loads(data)["result"]["client_progress"]["state"]
+            assert native["original"]["phase"] == "retained"
+            phase = "physical_effect_admission"
+            if phase not in self.passed:
+                self.passed.add(phase)
+                return phase
+            return None
         work = progress.get("advance") or progress.get("stage_original")
         phase = None
         if work and work.get("format") == 0xC1454631:
             guarded = json.loads(base64.b64decode(work["bytes"]["base64"], validate=True))
             effect = json.loads(base64.b64decode(guarded["payload"]["base64"], validate=True))
             program = effect["descriptor"]["program"]["object"]["object"]
-            assert program in (737020, 737041)
+            assert program in (737020, 737041, 748020)
             native = json.loads(data)["result"]["client_progress"]["state"]
-            if program == 737041:
+            if program == 748020:
+                original = effect["descriptor"]["input"]["operation"]["operation"]
+                if original == 748100 and "advance" in progress and effect["phase"] == "finished":
+                    assert not native["pending"]
+                    if "response" not in effect["outcome"]:
+                        return None  # Preserve the native caller's original refusal assertion.
+                    assert effect["outcome"]["response"]["status"] == 200
+                    phase = "physical_effect_completion"
+                elif original == 748103 and "stage_original" in progress:
+                    assert native["original"]["phase"] == "ready"
+                    assert effect["phase"] == "dispatching"
+                    self.physical_original = work["binding"]["key"]
+            elif program == 737041:
                 if ("advance" in progress and effect["descriptor"]["operation"][0] == 21
                         and effect["phase"] == "finished"):
                     assert not native["pending"]
@@ -887,7 +979,16 @@ def run(node, caller, mode="tables", *artifacts):
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
-                subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600)
+                with ApplicationEffectPeer() as peer:
+                    environment = dict(os.environ, TRANSIT_TEST_APPLICATION_EFFECT_PORT=str(peer.server.server_port))
+                    subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600, env=environment)
+                # Native retained history may contain opaque references and
+                # commitments, never request credentials or provider bodies.
+                for retained in (root / "native").rglob("*"):
+                    if retained.is_file():
+                        data = retained.read_bytes()
+                        assert b"opaque-code+ /&" not in data, retained.name
+                        assert b"transient-provider-token" not in data, retained.name
                 assert application_faults.passed == ApplicationFaults.expected, application_faults.passed
                 print("Application invocation: service discovery/coordinator replacement, empty acquisition, defeated attachment, "
                       "exact Table/KV/Stream commit and rollback, failure-handler abort, cancellation cleanup, "

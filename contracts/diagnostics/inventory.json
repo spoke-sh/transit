@@ -4719,7 +4719,7 @@
         "InvalidCatalogDescriptor": 10,
         "InvalidClientToken": 2,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 19,
+        "InvalidDirectCatalogEntry": 18,
         "InvalidDirectCatalogName": 2,
         "InvalidDirectCatalogOperation": 30,
         "InvalidDirectCatalogTransition": 1,
@@ -4742,7 +4742,7 @@
         "InvalidSourceCaptureCursor": 1,
         "InvalidSourceCaptureState": 1,
         "InvalidSourceControl": 3,
-        "InvalidSourceDeclaration": 5,
+        "InvalidSourceDeclaration": 4,
         "InvalidSourcePublication": 10,
         "InvalidStorageBudget": 1,
         "InvalidStreamReadAuthority": 2,
@@ -4979,7 +4979,6 @@
         "connectorEdges()": "<inferred>",
         "connectorGuard()": "<inferred>",
         "connectorReason()": "<inferred>",
-        "connectorRecord()": "<inferred>",
         "connectorRequirements()": "<inferred>",
         "connectorWriter()": "<inferred>",
         "copyRowsDefined()": "<inferred>",
@@ -5254,7 +5253,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 2916,
+        "try": 2915,
         "catch": 32
       },
       "imports": [
@@ -5657,7 +5656,7 @@
         "DataIdentityConflict": 1,
         "InvalidCatalogIdentity": 3,
         "InvalidDirectCatalogConfiguration": 1,
-        "InvalidDirectCatalogEntry": 7,
+        "InvalidDirectCatalogEntry": 8,
         "InvalidDirectCatalogHistory": 12,
         "InvalidDirectCatalogName": 1,
         "InvalidDirectCatalogOperation": 12,
@@ -5734,7 +5733,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 96,
+        "try": 97,
         "catch": 4
       },
       "imports": [
@@ -5964,7 +5963,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 442,
+        "try": 443,
         "catch": 1
       },
       "imports": [
@@ -15683,7 +15682,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 142,
+        "try": 143,
         "catch": 0
       },
       "imports": [
@@ -19981,6 +19980,7 @@
         "IncompatibleVectorMetric": 1,
         "Inexact": 1,
         "InexactDecimalRounding": 1,
+        "InvalidApplicationDeadline": 1,
         "InvalidArrayLength": 1,
         "InvalidBinaryLiteral": 1,
         "InvalidBinaryVectorDimensions": 1,
@@ -27727,11 +27727,13 @@
         "EffectJob.serviceLease()": "<inferred>",
         "EffectJob.validate()": "<inferred>",
         "EffectResult.validate()": "<inferred>",
+        "EffectWorker.evaluateBoundGuard()": "<inferred>",
         "EffectWorker.evaluateGuard()": "<inferred>",
         "EffectWorker.guard()": "<inferred>",
         "Effects.join()": "anyerror",
         "Effects.poll()": "anyerror",
         "Effects.response()": "anyerror",
+        "Effects.status()": "anyerror",
         "Failure.code()": "<inferred>",
         "Failure.validate()": "<inferred>",
         "Host.bind()": "anyerror",
@@ -27751,6 +27753,7 @@
         "environment()": "<inferred>",
         "evaluate()": "<inferred>",
         "load()": "<inferred>",
+        "localEffectWaiting()": "<inferred>",
         "openEffect()": "<inferred>",
         "refuse()": "<inferred>",
         "resource()": "<inferred>",
@@ -27760,10 +27763,10 @@
         "tick()": "<inferred>",
         "withdrawEffect()": "<inferred>"
       },
-      "open_error_set_uses": 6,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 227,
-        "catch": 6
+        "try": 229,
+        "catch": 7
       },
       "imports": [
         "root.zig",
@@ -31688,14 +31691,18 @@
     "packages/zig/transit-serving-http/src/ApplicationEffectHttp.zig": {
       "errors": {
         "AccessDenied": 1,
+        "ApplicationRequestOwnerMismatch": 1,
+        "ApplicationReservationLost": 2,
         "DuplicateProgramField": 1,
         "HttpHeadersOversize": 1,
         "HttpResponseTooLarge": 1,
-        "IncompleteHttpBody": 1,
+        "IncompleteHttpBody": 2,
+        "InvalidApplicationEffect": 1,
         "InvalidHttpSecret": 2,
         "InvalidSinkEncoding": 1,
         "InvalidSinkHeader": 2,
-        "ProtectedProgramValue": 3
+        "ProtectedObservationChanged": 2,
+        "ProtectedProgramValue": 5
       },
       "outcomes": {},
       "error_sets": {},
@@ -31707,18 +31714,103 @@
         "encode()": "<inferred>",
         "header()": "<inferred>",
         "init()": "<inferred>",
+        "requireBody()": "<inferred>",
         "requireCurrent()": "<inferred>",
+        "requireResponseOwner()": "<inferred>",
         "resolve()": "<inferred>",
-        "value()": "<inferred>"
+        "responseObservation()": "<inferred>",
+        "sealResponse()": "<inferred>",
+        "value()": "<inferred>",
+        "verifyResponse()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 33,
         "catch": 0
       },
       "imports": [
         "ApplicationReservation.zig",
         "std",
+        "transit_query_direct",
+        "transit_station_http"
+      ]
+    },
+    "packages/zig/transit-serving-http/src/ApplicationEffectRuntime.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "ApplicationGuardRefused": 2,
+        "ApplicationHostUnavailable": 1,
+        "ApplicationRequestOwnerMismatch": 1,
+        "ApplicationReservationCapacity": 1,
+        "ApplicationReservationExpired": 3,
+        "ApplicationReservationLost": 1,
+        "Canceled": 1,
+        "CatalogDenied": 1,
+        "ClockUnavailable": 2,
+        "DataflowLeaseFenced": 1,
+        "HttpRequestTooLarge": 1,
+        "HttpResponseTooLarge": 1,
+        "InvalidApplicationDeadline": 1,
+        "InvalidHttpEndpoint": 2,
+        "InvalidSourceControl": 4,
+        "InvalidSourceDeclaration": 1,
+        "InvalidTableReadBudget": 1,
+        "LogTimeRegression": 1,
+        "LogTimeUnavailable": 1,
+        "MissingProgramNativeBinding": 1,
+        "OutOfMemory": 1,
+        "ProgramResourceKindMismatch": 2,
+        "QueueTimeUnavailable": 1,
+        "SecretRevisionChanged": 2,
+        "TableDefinitionChanged": 2,
+        "Timeout": 1,
+        "TransactionAuthorityChanged": 2,
+        "TransactionConflict": 1,
+        "TransactionReadChanged": 1
+      },
+      "outcomes": {
+        "Exchange.exchange().Choice": [
+          "response",
+          "deadline"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Budget.refresh()": "<inferred>",
+        "Budget.remaining()": "<inferred>",
+        "Budget.wait()": "<inferred>",
+        "Clients.open()": "anyerror",
+        "Exchange.check()": "<inferred>",
+        "Exchange.exchange()": "<inferred>",
+        "Exchange.redemption()": "<inferred>",
+        "Exchange.send()": "<inferred>",
+        "Exchange.write()": "<inferred>",
+        "Host.adopt()": "<inferred>",
+        "Host.bind()": "<inferred>",
+        "Host.join()": "<inferred>",
+        "Host.poll()": "<inferred>",
+        "Host.ready()": "<inferred>",
+        "Host.status()": "<inferred>",
+        "Placement.validate()": "<inferred>",
+        "execute()": "<inferred>",
+        "metadata()": "<inferred>",
+        "placement()": "<inferred>",
+        "response()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 68,
+        "catch": 5
+      },
+      "imports": [
+        "ApplicationEffectHttp.zig",
+        "ApplicationEffectTasks.zig",
+        "ApplicationRequestHost.zig",
+        "ApplicationReservation.zig",
+        "ApplicationSecrets.zig",
+        "std",
+        "transit_memory",
         "transit_query_direct",
         "transit_station_http"
       ]
@@ -31744,12 +31836,14 @@
         "execute()": "<inferred>",
         "init()": "<inferred>",
         "join()": "<inferred>",
+        "observation()": "<inferred>",
         "poll()": "<inferred>",
+        "status()": "<inferred>",
         "withdrawn()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 17,
+        "try": 20,
         "catch": 4
       },
       "imports": [
@@ -31811,6 +31905,7 @@
         "ApplicationReservationExpired": 1,
         "ApplicationReservationLost": 4,
         "ClockUnavailable": 1,
+        "DataflowLeaseFenced": 1,
         "DuplicateProgramNativeBinding": 2,
         "IncompatibleDefinition": 1,
         "InvalidDirectRecord": 1,
@@ -31826,16 +31921,20 @@
         "Binding.lookup()": "<inferred>",
         "Binding.secretCurrent()": "<inferred>",
         "Binding.secretLookup()": "<inferred>",
+        "EffectBorrow.sinkSecrets()": "<inferred>",
+        "EffectBorrow.view()": "<inferred>",
         "bind()": "<inferred>",
+        "borrowEffect()": "<inferred>",
         "init()": "<inferred>",
         "requestReference()": "<inferred>",
+        "requireFacilities()": "<inferred>",
         "requireReady()": "<inferred>",
         "secret()": "<inferred>",
         "secretBinding()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 19,
+        "try": 25,
         "catch": 2
       },
       "imports": [
@@ -31950,6 +32049,7 @@
         "Authority.check()": "anyerror",
         "Proof.check()": "<inferred>",
         "authorize()": "<inferred>",
+        "checkOwner()": "<inferred>",
         "copy()": "<inferred>",
         "find()": "<inferred>",
         "handoff()": "<inferred>",
@@ -31959,13 +32059,14 @@
         "purpose()": "<inferred>",
         "randomReference()": "<inferred>",
         "read()": "<inferred>",
+        "redemption()": "<inferred>",
         "request()": "<inferred>",
         "retain()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 31,
-        "catch": 1
+        "try": 33,
+        "catch": 2
       },
       "imports": [
         "std",
@@ -32360,6 +32461,7 @@
       "imports": [
         "ApplicationAuthority.zig",
         "ApplicationEffectHttp.zig",
+        "ApplicationEffectRuntime.zig",
         "ApplicationEffectTasks.zig",
         "ApplicationProtectedHost.zig",
         "ApplicationRequestHost.zig",

@@ -84,22 +84,32 @@ fn find(self: *Self, descriptor: E.Descriptor) ?*Slot {
     };
     return null;
 }
+/// Observe only a matching local slot. Capacity and absent work remain distinct
+/// from a running task; callers still inspect the original native completion.
+pub fn status(self: *Self, io: std.Io, job: X.EffectJob) !?X.EffectPoll {
+    try job.validate();
+    try self.mutex.lock(io);
+    defer self.mutex.unlock(io);
+    return self.observation(job);
+}
+fn observation(self: *Self, job: X.EffectJob) !?X.EffectPoll {
+    for (self.slots) |slot| if (slot.job) |existing| {
+        if (existing.descriptor.step == job.descriptor.step and existing.descriptor.instruction == job.descriptor.instruction and
+            std.meta.eql(existing.descriptor.invocation, job.descriptor.invocation) and
+            !std.meta.eql(existing.descriptor, job.descriptor)) return error.InvalidApplicationEffect;
+    };
+    const slot = self.find(job.descriptor) orelse return null;
+    if (!std.meta.eql(slot.job.?, job)) return .abandoned;
+    if (!slot.done) return .waiting;
+    return if (slot.completion) |completion| .{ .completed = completion } else .abandoned;
+}
 /// Capacity leaves the native original waiting; it creates no in-memory queue
 /// and cannot turn pressure into refusal or another dispatch identity.
 pub fn poll(self: *Self, io: std.Io, job: X.EffectJob) !X.EffectPoll {
     try job.validate();
     try self.mutex.lock(io);
     defer self.mutex.unlock(io);
-    for (self.slots) |slot| if (slot.job) |existing| {
-        if (existing.descriptor.step == job.descriptor.step and existing.descriptor.instruction == job.descriptor.instruction and
-            std.meta.eql(existing.descriptor.invocation, job.descriptor.invocation) and
-            !std.meta.eql(existing.descriptor, job.descriptor)) return error.InvalidApplicationEffect;
-    };
-    if (self.find(job.descriptor)) |slot| {
-        if (!std.meta.eql(slot.job.?, job)) return .abandoned;
-        if (!slot.done) return .waiting;
-        return if (slot.completion) |completion| .{ .completed = completion } else .abandoned;
-    }
+    if (try self.observation(job)) |known| return known;
     if (self.stopped) return .abandoned;
     for (self.slots) |*slot| if (slot.job == null) {
         slot.job = job;
@@ -239,19 +249,25 @@ test "application effect tasks retain known completion through cancellation and 
         self.deinit() catch unreachable;
     }
     const job = proofJob();
+    try t.expect(try self.status(t.io, job) == null);
+    try t.expect(self.slots[0].job == null);
     try t.expectEqual(.waiting, try self.poll(worker_io, job));
     try worker.entered.wait(t.io);
+    try t.expectEqual(.waiting, (try self.status(t.io, job)).?);
     var other = job;
     other.descriptor.operation[0] ^= 1;
     try t.expectError(error.InvalidApplicationEffect, self.poll(t.io, other));
+    try t.expectError(error.InvalidApplicationEffect, self.status(t.io, other));
     other = job;
     other.descriptor.instruction += 1;
     try t.expectEqual(.waiting, try self.poll(t.io, other));
+    try t.expect(try self.status(t.io, other) == null);
     try t.expectEqual(@as(usize, 0), worker.exited.load(.acquire));
     var replaced = job;
     replaced.revision.next_lsn += 1;
     replaced.lease.revision = replaced.revision;
     try t.expectEqual(.abandoned, try self.poll(t.io, replaced));
+    try t.expectEqual(.abandoned, (try self.status(t.io, replaced)).?);
     const initial = try self.join(t.io, job.descriptor);
     if (initial == .waiting) {
         self.mutex.lockUncancelable(t.io);
@@ -265,9 +281,11 @@ test "application effect tasks retain known completion through cancellation and 
     self.shutdown(t.io);
     try t.expectError(error.ApplicationEffectPending, self.deinit());
     try t.expectEqualDeep(joined.joined.?, (try self.poll(t.io, job)).completed);
+    try t.expectEqualDeep(joined.joined.?, (try self.status(t.io, job)).?.completed);
     try t.expectEqual(.abandoned, try self.poll(t.io, other));
     // Simulate the coordinator's verified native settlement only now.
     self.release(t.io, job.descriptor);
+    try t.expect(try self.status(t.io, job) == null);
     try t.expect(std.mem.allEqual(u8, self.memory, 0));
     try t.expectEqualDeep(X.EffectJoin{ .joined = null }, try self.join(t.io, job.descriptor));
 }

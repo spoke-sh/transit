@@ -30,8 +30,9 @@ pub const Evidence = union(enum) {
     /// Verify the live original invocation, acquired row and current scoped
     /// authority. A syntactically valid Key/Claim is insufficient.
     access: Access,
-    /// The native owner additionally checks any referenced secret/sink policy
-    /// for this particular use. No protected bytes enter this evidence.
+    /// Verify all access requirements AND referenced secret/sink policy for
+    /// this particular use. This is one complete authority check, not an
+    /// extension of an earlier access permit. No protected bytes enter it.
     redemption: struct { access: Access, handle: V, use: Use, revision_kind: ?RevisionKind },
     /// Observe the original committed common transaction and its exact handoff,
     /// enqueue, input ACK and checkpoint. Unknown/aborted decisions must reject.
@@ -109,12 +110,15 @@ fn live(self: *Self, now_ms: u64) !void {
         return error.ApplicationReservationExpired;
     }
 }
-fn authorize(self: *Self, access: Access) !void {
+fn checkOwner(self: *Self, access: Access) !void {
     try self.live(access.now_ms);
     try access.owner.validate();
     try access.input.validate();
     if (!std.meta.eql(self.input, access.input) or !std.meta.eql(access.owner.connection.scope, self.input.operation.scope)) return error.ApplicationRequestOwnerMismatch;
     if (self.owner) |owner| try owner.requireSame(access.owner);
+}
+fn authorize(self: *Self, access: Access) !void {
+    try self.checkOwner(access);
     try self.authority.check(self.authority.context, .{ .access = access });
     if (self.owner == null) self.owner = access.owner;
 }
@@ -165,7 +169,19 @@ pub fn retain(self: *Self, io: std.Io, access: Access, observation: Observation,
 /// Borrow only inside the serialized authorized operation. Recheck authority
 /// again before dispatch/disclosure; neither a borrow nor a handle is a lease.
 pub fn read(self: *Self, access: Access, handle: V, use: Use) !Material {
-    try self.authorize(access);
+    try self.checkOwner(access);
+    const slot = self.redemption(access, handle, use) catch |err| {
+        // Invalid handles, revisions and purposes disclose nothing before the
+        // ordinary current access check. Valid redemptions include that same
+        // check themselves and do not need a second native access observation.
+        try self.authorize(access);
+        return err;
+    };
+    try self.authority.check(self.authority.context, .{ .redemption = .{ .access = access, .handle = handle, .use = use, .revision_kind = if (slot.material == .secret) slot.material.secret.revision_kind else null } });
+    if (self.owner == null) self.owner = access.owner;
+    return slot.material;
+}
+fn redemption(self: *Self, access: Access, handle: V, use: Use) !Slot {
     const reference = switch (handle) {
         .secret => |secret| secret.reference,
         .protected_json => |ref| ref,
@@ -180,8 +196,7 @@ pub fn read(self: *Self, access: Access, handle: V, use: Use) !Material {
         if (handle == .secret and !std.mem.eql(u8, handle.secret.revision, expected.secret.revision)) return error.ProtectedObservationChanged;
         if (handle == .sealed and handle.sealed.kind != expected.sealed.kind) return error.ProtectedProgramValue;
         try purpose(slot.material, use);
-        try self.authority.check(self.authority.context, .{ .redemption = .{ .access = access, .handle = handle, .use = use, .revision_kind = if (slot.material == .secret) slot.material.secret.revision_kind else null } });
-        return slot.material;
+        return slot;
     }
     return error.ApplicationReservationLost;
 }
@@ -343,9 +358,15 @@ test "protected application reservation binds original input and rechecks author
     proof.allowed = false;
     const before = proof.checks;
     try t.expectError(error.AccessDenied, self.read(access, secret, .commitment));
+    // Validation errors cannot reveal whether a copied handle, revision or
+    // purpose was otherwise valid after access revocation.
+    try t.expectError(error.AccessDenied, self.read(access, revision, .commitment));
+    try t.expectError(error.AccessDenied, self.read(access, secret, .cookie));
+    try t.expectError(error.AccessDenied, self.read(access, .{ .protected_json = .{ .id = @splat(77) } }, .json_projection));
+    try t.expectError(error.AccessDenied, self.read(access, .{ .integer = 7 }, .commitment));
     try t.expectError(error.AccessDenied, self.find(access, site));
     try t.expectError(error.AccessDenied, self.retain(t.io, access, site, .{ .secret = .{ .bytes = "private credential", .revision = "r1", .origin = .named, .revision_kind = .native } }));
-    try t.expectEqual(before + 3, proof.checks);
+    try t.expectEqual(before + 7, proof.checks);
     proof.allowed = true;
     var expired = access;
     expired.now_ms = 200;

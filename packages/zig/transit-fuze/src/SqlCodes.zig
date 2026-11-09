@@ -7,6 +7,7 @@ pub const Entry = struct {
     hint: ?[]const u8 = null,
 };
 pub const entries = [_]Entry{
+    .{ .cause = error.InvalidApplicationDeadline, .code = "sql.invalid_application_deadline", .category = .binding, .summary = "The application deadline is invalid", .hint = "Use a positive integer duration with ms, s, m, h or d units within the unsigned 64-bit millisecond range." },
     .{ .cause = error.InvalidQueuePredicate, .code = "sql.invalid_queue_predicate", .category = .unsupported, .summary = "The Queue acquisition predicate is outside the native profile", .hint = "Use application columns with literal comparisons, Boolean combinations and null tests; exclude host functions and lease metadata." },
     .{ .cause = error.PredicateTooLarge, .code = "sql.predicate_instruction_limit", .category = .limit, .summary = "The Queue predicate exceeds its instruction budget", .hint = "Keep the native predicate within 64 Boolean and comparison instructions." },
     .{ .cause = error.ProgramRowAssertionFailed, .code = "sql.program_row_assertion_failed", .category = .conflict, .summary = "An existing row differs from the program's asserted row", .hint = "Inspect the original transaction and row; a matching key does not authorize replacing different values." },

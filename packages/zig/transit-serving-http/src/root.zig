@@ -14,6 +14,7 @@ pub const ApplicationSecrets = @import("ApplicationSecrets.zig");
 pub const ApplicationAuthority = @import("ApplicationAuthority.zig");
 pub const ApplicationEffectHttp = @import("ApplicationEffectHttp.zig");
 pub const ApplicationEffectTasks = @import("ApplicationEffectTasks.zig");
+pub const ApplicationEffectRuntime = @import("ApplicationEffectRuntime.zig");
 pub const Caller = struct { principal: u64, public_key: [32]u8 };
 pub const Gateway = struct {
     service: u64,

@@ -34,6 +34,7 @@ pub const Use = struct {
     read: bool = false,
     write: bool = false,
     consume: bool = false,
+    observe_time: bool = false,
     dispatch: bool = false,
     guard: bool = false,
 };
@@ -124,6 +125,8 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         try self.define(failure.name, failure_value);
         try self.block(failure.instructions);
     }
+    if (self.requirements.features.contains(.effects) or self.requirements.features.contains(.deadline))
+        _ = try self.resource(program.queue, .queue, .{ .resource = 0, .observe_time = true });
     for (values) |selected| if (selected) |value_| self.requirements.value(value_);
     return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator), .native = self.native, .requirements = self.requirements };
 }
@@ -146,6 +149,7 @@ fn resource(self: *Self, name: []const u8, kind: ?@FieldType(Resource, "kind"), 
             prior.read = prior.read or usage.read;
             prior.write = prior.write or usage.write;
             prior.consume = prior.consume or usage.consume;
+            prior.observe_time = prior.observe_time or usage.observe_time;
             prior.dispatch = prior.dispatch or usage.dispatch;
             prior.guard = prior.guard or usage.guard;
             return candidate;
@@ -593,6 +597,7 @@ test "application program types keep commits and approved secret uses explicit" 
     try t.expectEqual(3, bound.uses.len);
     try t.expect(bound.native.contains(.secret_references));
     try t.expect(bound.uses[0].read and bound.uses[0].consume and !bound.uses[0].write);
+    try t.expect(bound.uses[0].observe_time);
     try t.expect(bound.uses[1].dispatch);
     try t.expect(bound.uses[2].write);
     const token_expression = parsed.program.body.instructions[3].value.let.value.expression;
@@ -616,6 +621,7 @@ test "application host requirements include unreachable branches and failure con
     defer parsed.deinit();
     var bound = try bind(t.allocator, parsed.program, &test_resources, null);
     defer bound.deinit();
+    try t.expect(!bound.uses[0].observe_time);
     try t.expect(bound.requirements.functions.contains(.random_secret));
     try t.expect(bound.requirements.features.contains(.protected_values));
     try t.expect(bound.requirements.features.contains(.responses));

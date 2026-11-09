@@ -118,6 +118,9 @@ pub const Effects = struct {
     /// Schedule or observe this original task without blocking on remote I/O.
     /// A completion remains owned until release, including across lost native replies.
     poll: *const fn (*anyopaque, EffectJob) anyerror!EffectPoll,
+    /// Optional local-only observation. It never admits a task or establishes
+    /// native completion. null means no local slot, including after restart.
+    status: ?*const fn (*anyopaque, EffectJob) anyerror!?EffectPoll = null,
     /// Withdraw and join any task for the descriptor, including an older fence.
     /// Only joined establishes that no live local attempt can still escape.
     join: *const fn (*anyopaque, E.Descriptor) anyerror!EffectJoin,
@@ -550,10 +553,24 @@ pub const EffectWorker = struct {
     /// Collect the original guard's actual public bases. A physical owner may
     /// add protected-operand reads before verify; evaluation alone is no permit.
     pub fn evaluateGuard(self: EffectWorker, host: Host, reads: *q.ApplicationReadSet) !bool {
+        var scratch: std.heap.ArenaAllocator = .init(self.owner.scope.scratch);
+        defer scratch.deinit();
+        var scope = self.owner.scope;
+        scope.scratch = scratch.allocator();
+        scope.reads = reads;
+        var native = try host.bind(host.context, scope);
+        defer native.deinit();
+        return self.evaluateBoundGuard(scope.scratch, native.expressions, reads);
+    }
+    /// A physical owner holding the request's exclusive borrow reuses its
+    /// expression host at the write boundary. Rebinding would wait on itself.
+    /// The host must carry this same current scope and read-set pointer. Guard
+    /// temporaries may use a resettable scratch arena independent of that
+    /// host's retained output; only an owned read set and Boolean escape.
+    pub fn evaluateBoundGuard(self: EffectWorker, allocator: std.mem.Allocator, expressions: a.Evaluation.Host, reads: *q.ApplicationReadSet) !bool {
         var scope = self.owner.scope;
         scope.reads = reads;
         try scope.requireCurrent();
-        const allocator = self.owner.scope.scratch;
         const value = self.declaration.value;
         var index = try a.Cursor.Index.init(allocator, &value.program);
         defer index.deinit();
@@ -561,9 +578,7 @@ pub const EffectWorker = struct {
         defer bound.deinit();
         var env = try a.Environment.restore(allocator, index, bound, try value.digest(allocator), self.request.value.environment);
         defer env.deinit();
-        var native = try host.bind(host.context, scope);
-        defer native.deinit();
-        var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = native.expressions };
+        var driver: a.Step = .{ .index = index, .bound = bound, .environment = &env, .scratch = allocator, .native = expressions };
         const expression = try self.request.value.action.effect.expression(index, bound, self.request.value.instruction);
         const evaluation = driver.evaluator();
         return evaluation.condition(try evaluation.evaluate(expression.guard));
@@ -691,10 +706,11 @@ fn advanceEffect(self: Self, client: c.DirectTableClient, value: M.Declaration, 
                     failure.reason = .none;
                     failure.refusal = candidate.instruction;
                 },
-                .authority => {
-                    failure.reason = .authorization;
-                    work.execution.cancelled = true;
-                },
+                // A sink's distinct dispatch role may be denied while the
+                // state executor can still record the failure. Enter its own
+                // current authority boundary; loss of A's rights/fence uses the
+                // ordinary tick cancellation path, never B's refusal alone.
+                .authority => failure.reason = .authorization,
                 .deadline => failure.reason = .request_expired,
                 .request_lost => failure.reason = .request_lost,
                 .budget => failure.reason = .budget,
@@ -914,6 +930,15 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
     try self.adopt(client, value, work, reference, candidate);
 }
 
+fn localEffectWaiting(self: Self, client: c.DirectTableClient, progress: T.Progress, work: I.Work) !bool {
+    if (work.execution.phase != .effect) return false;
+    const facilities = self.native.effects orelse return false;
+    const status = facilities.status orelse return false;
+    const lease = try T.Lease.combine(client.lease, .{ .key = progress.receipt.binding.key, .revision = progress.revision });
+    const local = try status(facilities.context, .{ .declaration = work.declaration, .descriptor = work.execution.effect.?.descriptor, .revision = progress.revision, .lease = lease });
+    return local != null and local.? == .waiting;
+}
+
 /// Advance one persisted phase. Settlement/cleanup resolve their original
 /// transaction without consulting a participant that may already be prepared.
 /// Every new data instruction still requires current declaration authority.
@@ -948,6 +973,13 @@ pub fn tick(self: Self, value: M.Declaration, progress: T.Progress, original: I.
     if (work.phase != .ready and work.execution.phase == .evaluate) return self.owner.acquire(value, progress, work) catch |err| self.refuse(value, progress, work, err);
     var client = self.owner.manager.client;
     client.connection.role = work.executor_role;
+    // Waiting changes nothing and discloses no new native observation. Keep
+    // coordinator polling out of the physical task's authority/read budget.
+    // The task checks current authority and both fences on every native call
+    // and again before writing HTTP. Cancellation above still joins that task.
+    // Missing/completed tasks always re-enter the native executor boundary;
+    // local pool capacity can never prevent adoption of a completed original.
+    if (self.localEffectWaiting(client, progress, work) catch |err| return self.refuse(value, progress, work, err)) return progress;
     switch (work.execution.phase) {
         .abort, .closing, .release, .detach, .effect_closing => {},
         .settle => client.lease = try T.Lease.combine(client.lease, .{ .key = progress.receipt.binding.key, .revision = progress.revision }),

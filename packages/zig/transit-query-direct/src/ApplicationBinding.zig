@@ -174,7 +174,7 @@ pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection)
 /// The current common transaction owner acquires a read cut for write targets
 /// too; readiness must expose those native requirements before execution.
 pub fn privileges(self: Self, use: a.Types.Use) !u64 {
-    if ((use.dispatch and self.kind() != .sink) or (use.consume and self.kind() != .queue)) return error.ProgramResourceKindMismatch;
+    if ((use.dispatch and self.kind() != .sink) or ((use.consume or use.observe_time) and self.kind() != .queue)) return error.ProgramResourceKindMismatch;
     if (self.kind() == .sink and (use.read or use.write or use.guard)) return error.ProgramResourceKindMismatch;
     return switch (self.kind()) {
         .table, .document => (if (use.read or use.guard or use.write) @as(u64, c.TableAuthority.select) else 0) |
@@ -184,7 +184,8 @@ pub fn privileges(self: Self, use: a.Types.Use) !u64 {
             (if (use.write) @as(u64, c.KVAuthority.write) else 0),
         .queue, .stream => (if (use.read or use.write) @as(u64, c.LogAuthority.read) else 0) |
             (if (use.write) @as(u64, c.LogAuthority.append) else 0) |
-            (if (use.consume) @as(u64, c.LogAuthority.acquire | c.LogAuthority.settle) else 0),
+            (if (use.consume) @as(u64, c.LogAuthority.acquire | c.LogAuthority.settle) else 0) |
+            (if (use.observe_time) @as(u64, c.LogAuthority.inspect) else 0),
         // Retained environments also require current descriptor disclosure.
         .sink => if (use.dispatch) c.SourceAuthority.inspect | c.SourceAuthority.use else 0,
     };

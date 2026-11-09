@@ -583,6 +583,7 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     try applicationAcquisition(client, value, admin, role);
     try applicationExecution(client, value, role);
     try applicationEffects(init, client, value.limits, role);
+    try applicationPhysicalEffects(init, client, value.limits, admin, role);
 }
 
 fn applicationEffectSource(output: *std.heap.ArenaAllocator, client: c.DirectTableClient, role: u64, id: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.Metadata {
@@ -600,6 +601,221 @@ fn applicationEffectSource(output: *std.heap.ArenaAllocator, client: c.DirectTab
     const observed = try c.DirectSourceClient.apply(output, client, .{ .declaration = .{ .request = request, .command = .execute } });
     try t.expectEqual(.applied, observed.observation.operation.phase);
     return (try c.DirectSourceClient.apply(output, client, .{ .lookup = .{ .selection = .{ .namespace = 1, .kind = intent.kind }, .name = intent.name } })).metadata.?;
+}
+
+/// Real native owners, task-private signed clients and an independent HTTP peer.
+/// Ingress publication is separate; this fixture binds an exact enqueue identity
+/// to the transient request before submitting its protected capability row.
+fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, admin: anytype, role: u64) !void {
+    const h = @import("transit_serving_http");
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    const X = q.ApplicationExecution;
+    const Runtime = h.ApplicationEffectRuntime;
+    const port = try std.fmt.parseInt(u16, init.environ_map.get("TRANSIT_TEST_APPLICATION_EFFECT_PORT") orelse return error.ExpectedEffectPeer, 10);
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+    const allocator = output.allocator();
+    const endpoint = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}", .{port});
+    const connection = try applicationEffectSource(&output, client, role, 748001, "application_http_connection", .{ .connection = .{ .endpoint = endpoint } });
+    const dispatch_role = (try admin.change(.{ .create_role = .{ .name = try p.Value.init("application-http-dispatch"), .login = false } })).?;
+    try t.expect(dispatch_role != role);
+    _ = try admin.change(.{ .membership = .{ .member = role, .role = dispatch_role, .inherit = false, .set = true } });
+    const description = try client.call(.describe);
+    defer description.deinit();
+    const authority = description.value.result.description.authority;
+    for ([_]struct { object: u64, rights: u64 }{
+        .{ .object = authority.database, .rights = c.TableAuthority.connect },
+        .{ .object = authority.initial_schema_authority, .rights = c.TableAuthority.usage },
+        .{ .object = connection.state.declaration.properties.authorization, .rights = c.SourceAuthority.use },
+    }) |grant| _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(grant.object), .grantee = dispatch_role, .privileges = grant.rights } });
+    var sinks: [2]c.DirectSource.Metadata = undefined;
+    for (&sinks, 0..) |*sink, index| {
+        const id: u64 = 748002 + index;
+        const name = if (index == 0) "application_http_token" else "application_http_profile";
+        sink.* = try applicationEffectSource(&output, client, role, id, name, .{ .sink = .{ .connection = connection.state.declaration.interpretation, .http = .{
+            .method = if (index == 0) .POST else .GET,
+            .path = if (index == 0) "/token" else "/profile",
+            .request_encoding = if (index == 0) .form else .none,
+            .accept = "application/json",
+            .user_agent = null,
+            .response = .protected_json,
+            .capture = .redacted_metadata,
+            .request_timeout_ms = 5000,
+            .response_max_bytes = 65536,
+            .follow_redirects = false,
+            .max_attempts = 1,
+            .unknown_outcome = .retain,
+        } } });
+        _ = try admin.change(.{ .grant = .{ .object = c.TableAuthority.reference(sink.state.declaration.properties.authorization), .grantee = dispatch_role, .privileges = c.SourceAuthority.use } });
+        for ([_]p.Source.Command{ .authorize, .activate }, 0..) |command, ordinal| {
+            const intent: c.DirectSource.Intent = .{ .kind = .sink, .namespace = 1, .name = try .init(name), .action = .{ .control = .{ .expected_epoch = sink.state.control.?.epoch, .command = command, .executor_role = if (command == .authorize) dispatch_role else null } } };
+            const request: c.DirectSource.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 748030 + index * 2 + ordinal }, .target = sink.state.declaration.interpretation.object, .action = .alter, .expected_definition = sink.state.declaration.interpretation, .expected_data = null, .intent = try intent.digest(allocator) } };
+            _ = try c.DirectSourceClient.apply(&output, client, .{ .declaration = .{ .request = request, .command = .reserve } });
+            const applied = try c.DirectSourceClient.apply(&output, client, .{ .declaration = .{ .request = request, .command = .execute } });
+            try t.expectEqual(.applied, applied.observation.operation.phase);
+            sink.* = (try c.DirectSourceClient.apply(&output, client, .{ .inspect = sink.state.declaration.interpretation })).metadata.?;
+        }
+    }
+    var queue = try q.fuze.LogDdl.compile(allocator, "CREATE QUEUE application_http_input (id UUID NOT NULL, mode BIGINT NOT NULL, request CAPABILITY NOT NULL)", .transit, null);
+    defer queue.deinit();
+    const schema = try queue.statement.action.create.bind(748010);
+    const configured = try queue.statement.configure(null, schema);
+    const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init("application_http_input"), .action = .{ .create = .{ .owner = role, .schema = schema, .configuration = configured.configuration, .limits = configured.limits } } };
+    const request: c.DirectLog.Request = .{ .intent = intent, .binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 748010 }, .target = .{ .scope = client.connection.scope, .branch = 1, .object = 748010 }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(allocator) } };
+    _ = try c.DirectLogClient.apply(&output, client, .{ .admit = request });
+    try t.expectEqual(.complete, (try c.DirectLogClient.apply(&output, client, .{ .operation = .{ .binding = request.binding, .command = .execute, .steps = 16 } })).operation.operation.phase);
+    const metadata = try client.call(.{ .log_lookup = .{ .namespace = 1, .name = "application_http_input" } });
+    defer metadata.deinit();
+    const resources = [_]q.ApplicationBinding{
+        .{ .value = .{ .log = metadata.value.result.log_lookup.? } },
+        .{ .value = .{ .sink = .{ .stored = sinks[0].state.declaration, .profile = sinks[0].definition.payload.sink } } },
+        .{ .value = .{ .sink = .{ .stored = sinks[1].state.declaration, .profile = sinks[1].definition.payload.sink } } },
+    };
+    const declared = try q.ApplicationDeclaration.prepare(allocator, .{
+        .connection = client.connection,
+        .namespace = 1,
+        .object = 748020,
+        .operation = 748020,
+        .resources = &resources,
+        .limits = limits,
+        .source =
+        \\CREATE DATAFLOW application_http_effects FROM QUEUE application_http_input AS event WITH (DEADLINE = '5s') AS BEGIN
+        \\  LET code = HTTP_SECRET_QUERY_UNIQUE(event.request, 'code');
+        \\  LET token = EXECUTE SINK application_http_token EFFECT OPERATION_ID(event.id, 'token') GUARD TRUE
+        \\    FORM (code = code, mode = CASE WHEN event.mode = 2 THEN 'slow' ELSE 'fast' END) ON REPLAY OBSERVE ONLY;
+        \\  REQUIRE token.status = 200 ELSE 'TokenRefused';
+        \\  LET bearer = BEARER(SECRET_JSON_VALUE(token.body, '$.access_token'));
+        \\  LET profile = EXECUTE SINK application_http_profile EFFECT OPERATION_ID(event.id, 'profile') GUARD TRUE
+        \\    HEADERS (authorization = bearer) ON REPLAY OBSERVE ONLY;
+        \\  REQUIRE profile.status = 200 AND JSON_INTEGER(profile.body, '$.id') = 123 ELSE 'ProfileRefused';
+        \\ON FAILURE failure
+        \\  REQUIRE event.mode > 0 AND (failure.effect_outcome = 'unknown' OR failure.effect_outcome = 'not_dispatched') ELSE 'UnexpectedEffectFailure';
+        \\END;
+        ,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 748021 + index }, .target = try value.interpretation(allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    const Factory = struct {
+        base: c.DirectTableClient,
+        const Owned = struct {
+            allocator: std.mem.Allocator,
+            budget: q.fuze.MemoryBudget,
+            authority: c.client.Client,
+            service: c.client.Client,
+            fn close(context: *anyopaque) void {
+                const self: *@This() = @ptrCast(@alignCast(context));
+                self.service.deinit();
+                self.authority.deinit();
+                std.debug.print("Physical application native workspace: peak {d}, retained {d} bytes\n", .{ self.budget.peak, self.budget.used });
+                std.debug.assert(self.budget.used == 0);
+                const allocator_ = self.allocator;
+                std.crypto.secureZero(u8, std.mem.asBytes(self));
+                allocator_.destroy(self);
+            }
+        };
+        fn open(context: *anyopaque, memory: std.mem.Allocator, io: std.Io, original: c.DirectTableProtocol.Connection) !Runtime.Client {
+            const self: *@This() = @ptrCast(@alignCast(context));
+            try t.expectEqualDeep(self.base.connection, original);
+            const own = try memory.create(Owned);
+            // Accounting wraps the already admitted slab; it adds no backing
+            // and cannot permit an allocation refused by that fixed reserve.
+            own.* = .{ .allocator = memory, .budget = .{ .parent = memory, .limit = std.math.maxInt(usize) }, .authority = undefined, .service = undefined };
+            const tracked = own.budget.allocator();
+            own.authority = .init(tracked, io, self.base.authority.url);
+            own.service = .init(tracked, io, self.base.service.url);
+            var result = self.base;
+            result.allocator = tracked;
+            result.authority = &own.authority;
+            result.service = &own.service;
+            return .{ .value = result, .context = own, .close = Owned.close };
+        }
+    };
+    var factory: Factory = .{ .base = client };
+    var registry = try h.ApplicationRequests.init(init.gpa, .{ .active_requests = 1, .request_bytes = 1024, .protected_bytes = 8192, .protected_values = 32, .scratch_bytes = 16384, .resident_bytes = 64 * 1024 });
+    defer registry.deinit(init.io);
+    var requests = try h.ApplicationRequestHost.init(&registry, &.{});
+    var runtime: Runtime = .{ .native_bytes = 12 * 1024 * 1024, .requests = &requests, .clients = .{ .context = &factory, .open = Factory.open }, .placements = &.{.{ .connection = connection.state.declaration.interpretation, .endpoint = .{ .host = "127.0.0.1", .address = "127.0.0.1", .port = port, .tls = false, .timeout_ms = 5000 } }} };
+    const Reporting = struct {
+        fn run(context: *anyopaque, task: *h.ApplicationEffectTasks.Task) !void {
+            const physical: *Runtime = @ptrCast(@alignCast(context));
+            const executor = physical.executor();
+            executor.run(executor.context, task) catch |err| {
+                std.debug.print("Physical application effect step {d}: {s}\n", .{ task.job.descriptor.step, @errorName(err) });
+                if (err == error.OutOfMemory) {
+                    const scratch: *std.heap.FixedBufferAllocator = @ptrCast(@alignCast(task.allocator().ptr));
+                    std.debug.print("Physical application task reserve: {d}/{d} bytes used\n", .{ scratch.end_index, scratch.buffer.len });
+                }
+                return err;
+            };
+        }
+    };
+    var pool = try h.ApplicationEffectTasks.init(init.gpa, .{ .active_tasks = 1, .scratch_bytes = 16 * 1024 * 1024, .resident_bytes = 17 * 1024 * 1024 }, .{ .context = &runtime, .run = Reporting.run });
+    var pool_closed = false;
+    defer if (!pool_closed) {
+        pool.shutdown(init.io);
+        pool.deinit() catch {};
+    };
+    var host: Runtime.Host = .{ .runtime = &runtime, .pool = &pool, .io = init.io };
+    const native = host.host();
+    try native.ready(native.context, allocator, value);
+    const execution: X = .{ .owner = owner, .native = native };
+    var lost_completion: usize = 0;
+    for (0..4) |mode| {
+        errdefer std.debug.print("Physical application effect mode {d} failed\n", .{mode});
+        const right = c.TableAuthority.reference(sinks[0].state.declaration.properties.authorization);
+        if (mode == 1) _ = try admin.change(.{ .revoke_privileges = .{ .object = right, .grantee = dispatch_role, .privileges = c.SourceAuthority.use } });
+        if (mode == 2) _ = try admin.change(.{ .grant = .{ .object = right, .grantee = dispatch_role, .privileges = c.SourceAuthority.use } });
+        const input: p.StreamQueue.RecordIdentity = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = resources[0].interpretation(), .partition = 0 }, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 748100 + mode }, .ordinal = 0 };
+        const ticket = try registry.open(init.io, input, @splat(@intCast(40 + mode)), .{ .query = "code=opaque-code%2B%20%2F%26", .headers = &.{} }, 60000);
+        defer registry.close(init.io, ticket);
+        const append = try q.ApplicationData.prepareAppend(allocator, client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = schema }, input.operation.operation, .{ .kind = .queue, .target = "application_http_input", .values = &.{ .{ .uuid = @splat(@intCast(40 + mode)) }, .{ .integer = @intCast(mode) }, .{ .capability = ticket.reference } } });
+        const bytes = try append.payload.decode(allocator, c.DirectTableProtocol.max_work_bytes);
+        _ = try c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = bytes } });
+        const token = (try owner.start(value, 0)).?;
+        var progress = (try T.inspect(client, token)).?;
+        for (0..2000) |_| {
+            const current = try owner.load(progress);
+            defer current.deinit();
+            progress = execution.tick(value, progress, current.value) catch |err| {
+                if (err != error.InvalidTableResponse or mode != 0 or lost_completion != 0) return err;
+                lost_completion += 1;
+                progress = (try T.inspect(client, token)).?;
+                continue;
+            };
+            if (!progress.pending) break;
+            try init.io.sleep(.fromMilliseconds(5), .awake);
+        }
+        try t.expect(!progress.pending and progress.original.?.phase == .closed);
+        const final = try owner.load(progress);
+        defer final.deinit();
+        const outcome = final.value.execution.effect.?.outcome.?;
+        if (mode == 0) {
+            try t.expectEqual(.response, std.meta.activeTag(outcome));
+            try t.expectEqual(@as(u16, 200), outcome.response.status);
+            try t.expect(final.value.execution.failure == null);
+        } else {
+            try t.expectEqual(if (mode == 1) @as(std.meta.Tag(q.ApplicationEffect.Outcome), .not_dispatched) else .unknown, std.meta.activeTag(outcome));
+            try t.expect(!final.value.execution.cancelled);
+            try t.expect(final.value.execution.failure != null and final.value.execution.failure.?.refusal == null);
+            if (mode == 1) try t.expectEqual(.authorization, final.value.execution.failure.?.reason);
+        }
+        try t.expectEqualDeep(progress, try execution.tick(value, progress, final.value));
+    }
+    try t.expectEqual(@as(usize, 1), lost_completion);
+    pool.shutdown(init.io);
+    try pool.deinit();
+    pool_closed = true;
+    std.debug.print("Application physical effects: distinct dispatch role, protected code/token/profile, original five-second deadline, no redispatch after lost admission/completion, revocation and joined cleanup passed.\n", .{});
 }
 
 /// Native effect bookkeeping component. This deliberately sends no HTTP and

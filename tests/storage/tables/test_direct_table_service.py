@@ -12,6 +12,46 @@ from storage.tables.direct_table_service import ApplicationFaults, FaultProxy
 
 
 class ApplicationFaultSelection(unittest.TestCase):
+    def test_physical_admission_loses_only_the_retained_original_reply(self):
+        faults = ApplicationFaults()
+        key = {"token": [9] * 16}
+        effect = {"descriptor": {"program": {"object": {"object": 748020}},
+                                 "input": {"operation": {"operation": 748103}}},
+                  "phase": "dispatching"}
+        def encode(value):
+            return {"base64": base64.b64encode(json.dumps(value).encode()).decode()}
+        staged = {"binding": {"key": key}, "format": 0xC1454631,
+                  "bytes": encode({"payload": encode(effect)})}
+        def reply(phase):
+            return json.dumps({"result": {"client_progress": {"state": {
+                "original": {"phase": phase}}}}}).encode()
+        self.assertIsNone(faults.select({"action": {"client_progress": {
+            "stage_original": staged}}}, reply("ready")))
+        self.assertFalse(faults.passed)
+        other = {"action": {"client_progress": {"retain_original": {
+            "key": {"token": [10] * 16}}}}}
+        self.assertIsNone(faults.select(other, reply("retained")))
+        retained = {"action": {"client_progress": {"retain_original": {"key": key}}}}
+        with self.assertRaises(AssertionError):
+            faults.select(retained, reply("ready"))
+        self.assertFalse(faults.passed)
+        self.assertEqual(faults.select(retained, reply("retained")), "physical_effect_admission")
+        self.assertIsNone(faults.select(retained, reply("retained")))
+        self.assertEqual(faults.passed, {"physical_effect_admission"})
+
+    def test_unexpected_physical_refusal_reaches_the_original_caller(self):
+        effect = {"descriptor": {"program": {"object": {"object": 748020}},
+                                 "input": {"operation": {"operation": 748100}}},
+                  "phase": "finished", "outcome": {"not_dispatched": "budget"}}
+        def encode(value):
+            return {"base64": base64.b64encode(json.dumps(value).encode()).decode()}
+        envelope = {"action": {"client_progress": {"advance": {
+            "format": 0xC1454631, "bytes": encode({"payload": encode(effect)})}}}}
+        response = json.dumps({"result": {"client_progress": {"state": {"pending": False}}}}).encode()
+        faults = ApplicationFaults()
+        self.assertIsNone(faults.select(envelope, response))
+        self.assertFalse(faults.passed)
+
     def test_original_stage_and_progress_bind_the_same_attachment_once(self):
         key = {"token": [7] * 16}
         payload = {
