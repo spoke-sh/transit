@@ -115,7 +115,7 @@ assert migrate_help.rstrip().endswith(b'--help               Show this help')
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout
 assert b'--initialize' not in root_help and b'--config' not in root_help
 commands = root_help.split(b'Commands:\n', 1)[1].split(b'\nOptions:', 1)[0]
-assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console', b'migrate']
+assert [line.split()[0] for line in commands.splitlines() if line.strip()] == [b'server', b'console', b'migrate', b'build']
 invoke(['private-must-not-appear'], contains=('unknown command', 'argument 1', 'transit --help'))
 invoke(['migrate'], contains=('requires a migration action', 'transit migrate --help'))
 invoke(['migrate', 'private-must-not-appear'], contains=('unknown migrate action', 'argument 2', 'transit migrate --help'))

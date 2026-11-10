@@ -1216,6 +1216,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scenario_test.has_side_effects = true;
     scenario_test.stdio = .inherit;
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
+    const application_compiler = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") }));
+    b.step("test-application-compiler", "Verify bounded typed module compilation and emission equivalence").dependOn(&application_compiler.step);
+    const application_build = b.addSystemCommand(&.{ "python3", "-B" });
+    application_build.addFileArg(b.path("tests/runner/launch.py"));
+    application_build.addFileArg(b.path("tests/interfaces/cli/application_build.py"));
+    application_build.addArtifactArg(transit_cli);
+    application_build.has_side_effects = true;
+    application_build.stdio = .inherit;
+    b.step("test-application-build", "Qualify locked offline builds and source-free SQL execution").dependOn(&application_build.step);
     const migrate_lifecycle_test = b.addSystemCommand(&.{ "python3", "-B" });
     const application_program = b.addExecutable(.{ .name = "transit-application-program-oracle", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/application_program.zig"),

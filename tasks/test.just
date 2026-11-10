@@ -471,6 +471,7 @@ packages:
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-spatial && zig build test
+    cd packages/zig/transit-compiler && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
@@ -1148,3 +1149,11 @@ managed-tables:
 # Installed native SOURCE/SINK publication and inspection with no connector execution.
 source-declarations:
     zig build test-server-sources -Doptimize=ReleaseSafe
+
+# Pure typed application source compiler, including allocator and budget controls.
+application-compiler:
+    zig build test-application-compiler
+
+# Real offline dependency/build workflow and installed source-free SQL execution.
+application-build:
+    zig build test-application-build -Doptimize=ReleaseSafe

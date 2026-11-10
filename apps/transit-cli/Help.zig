@@ -9,6 +9,7 @@ pub const root =
     \\  server    Run a local server
     \\  console   Open an SQL console
     \\  migrate   Plan, apply and verify application schema migrations
+    \\  build     Compile application modules to executable SQL
     \\
     \\Options:
     \\  --help     Show this help
@@ -71,5 +72,21 @@ pub const migrate =
     \\  --allow-grants       Allow GRANT/REVOKE/ROLE statements in migrations
     \\  --format table|json  Output format (default: table)
     \\  --help               Show this help
+    \\
+;
+
+pub const build =
+    \\Compile typed application modules offline without applying SQL.
+    \\
+    \\Usage: transit build [-f FILE] [--target NAME] [--out DIRECTORY]
+    \\                     [--check] [--fetch] [--override NAME=DIRECTORY]
+    \\                     [--format text|json] [--help]
+    \\
+    \\The default entry is build.transit and the default target is default.
+    \\Normal builds verify frozen dependencies without network access.
+    \\--fetch explicitly fetches pinned repositories and writes transit.lock.
+    \\--check validates and verifies SQL without publishing an artifact.
+    \\--fetch cannot combine with --check, --out or --override.
+    \\--check cannot combine with --out. Explicit outputs must be absent.
     \\
 ;
