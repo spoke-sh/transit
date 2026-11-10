@@ -5,17 +5,18 @@ const std = @import("std");
 const d = @import("transit_protocol").DataLifecycle;
 const Self = @This();
 
+pub const Sparse = struct {
+    rows: u32,
+    segment: ?d.Content = null,
+};
 pub const Binding = struct {
     position: d.Position,
     first: u64,
     content: d.Content,
-    view: ?d.Content = null,
-    fn payload(self: Binding) d.Content {
-        return self.view orelse self.content;
-    }
+    sparse: ?Sparse = null,
 };
 pub const Options = struct { slots: u16, borrow_slots: u16, slot_bytes: u32, resident_bytes: u64 };
-const Slot = struct { binding: ?Binding = null, pins: u32 = 0 };
+const Slot = struct { binding: ?Binding = null, length: usize = 0, pins: u32 = 0 };
 const Held = struct { serial: u64, slot: usize };
 
 allocator: std.mem.Allocator,
@@ -57,9 +58,12 @@ fn validate(self: *const Self, binding: Binding) !void {
     try binding.position.validate();
     try binding.content.validate();
     if (binding.position.next_lsn == 0 or binding.content.bytes > self.slot_bytes) return error.InvalidTailBinding;
-    if (binding.view) |view| {
-        try view.validate();
-        if (view.bytes > binding.content.bytes) return error.InvalidTailBinding;
+    if (binding.sparse) |sparse| {
+        if ((sparse.rows != 0) != (sparse.segment != null)) return error.InvalidTailBinding;
+        if (sparse.segment) |segment| {
+            try segment.validate();
+            if (segment.bytes > @import("transit_fuze").TSeg.max_segment_bytes) return error.InvalidTailBinding;
+        }
     }
 }
 
@@ -68,7 +72,7 @@ fn find(self: *const Self, binding: Binding) !?usize {
     for (self.slots, 0..) |slot, index| if (slot.binding) |present| {
         if (std.meta.eql(present.position, binding.position) and present.first == binding.first) {
             if (!std.meta.eql(present.content, binding.content)) return error.TailContentConflict;
-            if (std.meta.eql(present.view, binding.view)) return index;
+            if (std.meta.eql(present.sparse, binding.sparse)) return index;
         }
     };
     return null;
@@ -79,7 +83,11 @@ fn find(self: *const Self, binding: Binding) !?usize {
 /// pressure refuses cache admission; it never discards a durable log record.
 pub fn admit(self: *Self, binding: Binding, bytes: []const u8) !void {
     try self.validate(binding);
-    if (bytes.len != binding.payload().bytes) return error.InvalidTailContent;
+    if (binding.sparse == null) {
+        if (bytes.len != binding.content.bytes) return error.InvalidTailContent;
+    } else {
+        if (bytes.len > binding.content.bytes) return error.InvalidTailContent;
+    }
     if (try self.find(binding) != null) return;
     var destination: ?usize = null;
     for (0..self.slots.len) |distance| {
@@ -90,14 +98,16 @@ pub fn admit(self: *Self, binding: Binding, bytes: []const u8) !void {
         }
     }
     const index = destination orelse return error.TailCachePinned;
-    var digest: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
-    if (!std.mem.eql(u8, &digest, &binding.payload().sha256)) return error.InvalidTailContent;
+    if (binding.sparse == null) {
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
+        if (!std.mem.eql(u8, &digest, &binding.content.sha256)) return error.InvalidTailContent;
+    }
     const target = self.slab[index * self.stride ..][0..self.stride];
     // A caller may admit a slice borrowed from a different cache slot.
     std.mem.copyForwards(u8, target[0..bytes.len], bytes);
     @memset(target[bytes.len..][0..64], 0);
-    self.slots[index] = .{ .binding = binding };
+    self.slots[index] = .{ .binding = binding, .length = bytes.len };
     self.next_slot = (index + 1) % self.slots.len;
     self.verified +|= 1;
 }
@@ -118,8 +128,7 @@ pub const Borrow = struct {
     /// current rights after buffering and immediately before disclosure.
     pub fn bytes(self: Borrow) ![]const u8 {
         const held = try self.current();
-        const binding = self.owner.slots[held.slot].binding.?;
-        return self.owner.slab[held.slot * self.owner.stride ..][0..@intCast(binding.payload().bytes)];
+        return self.owner.slab[held.slot * self.owner.stride ..][0..self.owner.slots[held.slot].length];
     }
 
     /// Copies of a released handle cannot release a later borrow's pin.

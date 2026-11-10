@@ -1618,6 +1618,10 @@ including digests or producer IDs whose bytes happen to be valid UTF-8. Reading
 does not reinterpret strings as those arrays.
 
 Log schemas have no relational primary key: offsets establish append identity.
+User schemas contain at most 125 columns (`TableSchema.max_columns - 3`) and
+cannot use the reserved `"transit.log."` column-name prefix, which is owned by
+the sealed `.tseg` log-segment system columns (`transit.log._offset`,
+`transit.log._timestamp`, and `transit.log._tombstone`).
 Declared routing, FIFO and compaction keys must resolve to existing nonnullable
 columns with supported key types and collations. The schema owner validates
 logical types, physical encodings and collations together without conflating
@@ -1805,40 +1809,44 @@ obligation. Publication advances only the physical WAL frontier; logical offsets
 producer state and original receipts do not change. Unknown publication follows
 normal partition recovery before retry.
 
-`LogSegment.Descriptor` binds the original evidence, optional `.tseg` content,
-delivery metadata and materialized view content. The paged segment directory is
-keyed by the original exclusive batch end. Its 165-byte value stores a layout
-byte (`1` complete, `2` sparse), big-endian `u32` physical row count, then those
-four contents in order, each as big-endian `u64` byte length followed by SHA-256.
-Only an empty sparse view has no segment, encoded as 40 zero bytes. Segment IDs are the
-original append's exclusive physical frontier. User columns preserve the declared
-schema, codecs and collations. Row identities preserve principal/operation/ordinal
-order within that append; no Table primary-key uniqueness semantics are added.
+`LogSegment.Descriptor` binds the original evidence and optional `.tseg` content.
+The paged segment directory is keyed by the original exclusive batch end. Its
+85-byte value stores a layout byte (`1` complete, `2` sparse), big-endian `u32`
+physical row count, then the original `LogEvidence` content and optional `.tseg`
+content in order, each as big-endian `u64` byte length followed by SHA-256. Only
+an empty sparse placement has no segment, encoded as 40 zero bytes. Segment IDs
+are the original append's exclusive physical frontier. User columns preserve the
+declared schema, codecs and collations. Row identities preserve
+principal/operation/ordinal order within that append; no Table primary-key
+uniqueness semantics are added.
 
-`log-segments/{sha256}.tseg` uses the shared segment format.
-`log-segment-metadata/{sha256}.data` contains `LBMETA01`, the shared definition,
-original evidence SHA-256, big-endian `u32` physical row count, then a big-endian
-`u32` original ordinal, `u64` visibility time and one tombstone byte per physical
-row. Original ordinals are strictly increasing and remain the row identities;
-physical row positions may differ. Only zero and one are
-valid tombstone bytes; Stream/Queue metadata rules remain unchanged. The metadata
-bound is 76 bytes plus the maximum WAL payload size. Neither object establishes
-acceptance. The owner reads back both, validates identities and reconstructs the
-original `LOGBAT01` digest for a complete placement. A missing object,
-foreign receipt, changed payload or unsupported lossless reconstruction refuses.
+`log-segments/{sha256}.tseg` uses the shared segment format over a physical
+storage schema that appends three non-null plain system columns after the user
+columns: `transit.log._offset` (`uint64`), `transit.log._timestamp` (`uint64`
+visibility milliseconds), and `transit.log._tombstone` (`boolean`). There is no
+separate `LBMETA01` (`log-segment-metadata/{sha256}.data`) or `LOGVIEW1` sidecar.
+Original ordinals are strictly increasing (`_offset - receipt.first`) and match
+each row's `TableRow.Identity.ordinal`; physical row positions may differ in a
+sparse segment. Every `.tseg` row group carries a monotonic non-null zone map over
+`transit.log._offset`. The `.tseg` object alone never establishes acceptance. The
+owner reads back the segment, validates row identities, zone maps and system
+columns, and reconstructs the original `LOGBAT01` digest for a complete placement.
+A missing object, foreign receipt, changed payload or unsupported lossless
+reconstruction refuses.
 
-Sparse placement uses internal `LOGVIEW1` bytes: the eight-byte magic, shared
-definition, schema layout fingerprint, Stream kind byte (`1`), and big-endian
-`u32` retained row count form a 77-byte header. Each retained row contains its
-big-endian `u32` original ordinal, `u32` encoded length, `u64` visibility time,
-tombstone byte and unchanged encoded Table row. Zero retained rows are valid.
-This format is not accepted as an append. A sparse view retains at most half
-the original rows and cannot exceed the original payload byte budget. Its own
-digest supplies the cache binding, while the original receipt remains unchanged.
-Every omitted offset must be hidden in the exact retained visibility root;
-read pins and collection walks cannot substitute current visibility for that
-basis. Sparse timestamp reads use exact row predicates without dense ordinal
-zone-map shortcuts. These storage codecs do not themselves publish rewrites.
+Sparse placement stores only retained rows in a compact `.tseg` (or `segment = null`
+when zero rows remain). When materialized into `LogTail` for row-by-row iteration,
+`LogBatch.SparseEncoder` and `LogBatch.SparseIterator` use `LOGBAT01` with internal
+kind byte `3` (`sparse_stream`) and read each retained row's original ordinal
+directly from its `FTR1` `TableRow.Identity` header. This internal cache layout
+is never accepted as an append. A sparse placement retains at most half the
+original rows and cannot exceed the original payload byte budget. `LogTail` binds
+the sparse cache entry to `(descriptor.rows, descriptor.segment)` while the
+original receipt remains unchanged. Every omitted offset must be hidden in the
+exact retained visibility root; read pins and collection walks cannot substitute
+current visibility for that basis. Sparse timestamp reads use exact row predicates
+without dense ordinal zone-map shortcuts. These storage codecs do not themselves
+publish rewrites.
 
 Build and cold reconstruction share an explicit simultaneous allocation budget
 (64 MiB by default, configurable up to 1 GiB). Segment row groups default to 1,024
@@ -1846,9 +1854,10 @@ rows and cannot exceed 1,024 for this owner. A refusal leaves the original WAL
 placement usable and any private objects collectible. Each finite read base
 retains both its batch and segment directories. The bounded read iterator keeps
 the original cut and returns owned rows across WAL and segment boundaries; cache
-admission verifies the placement's bound complete batch or sparse view. Physical copies may be reclaimed
-only after the retained graph no longer needs their placement, independently of
-logical payload retention.
+admission verifies the placement's bound complete batch or sparse segment.
+Physical copies, including complete `.tseg` segments superseded by a sparse
+`rewrite` transition, may be reclaimed only after the retained graph no longer
+needs their placement, independently of logical payload retention.
 
 ### Retained Stream settlement and closure
 

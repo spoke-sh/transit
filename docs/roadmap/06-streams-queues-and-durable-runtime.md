@@ -61,11 +61,12 @@ This slice is therefore organized as two sequential stages across five reviewabl
 units:
 
 - **Stage A (Storage Units 1–2): Native `.tseg` log-segment system columns,
-  `.tdel` compaction vectors and `LBMETA01`/`LOGVIEW1` retirement.** Seal each
+  85-byte segment descriptors and `LBMETA01`/`LOGVIEW1` retirement.** Seal each
   flushed Stream or Queue batch into one self-contained `log-segments/{x}.tseg`
-  object with native system columns (`_offset`, `_timestamp` / `visible_ms`,
-  `_tombstone`), monotonic zone maps and bitmap-backed key-compaction masks,
-  retiring `LBMETA01`, `LOGVIEW1` and `LogPartitionRecord.Record.action.rewrite`.
+  object with native system columns (`transit.log._offset`,
+  `transit.log._timestamp`, `transit.log._tombstone`), monotonic zone maps and
+  single-object sparse `.tseg` rewrites, retiring `LBMETA01` (`log-segment-metadata/`)
+  and `LogView.zig` (`LOGVIEW1`).
 - **Stage B (Batch 4c): Finite retained `STREAM_SLICE` over hot `TWAL1` frames
   and sealed `.tseg` segments.** Bind an exact Stream definition, partition and
   finite offset/timestamp window to a query-owned `LogRead` pin with saved
@@ -86,8 +87,8 @@ exact schema/collation/timezone semantics and deterministic pin cleanup.
 
 | Component owner | Current behavior at `b42ef803b` | Gap to close in this slice |
 | --- | --- | --- |
-| [`LogSegment.zig`](../../packages/zig/transit-storage/src/LogSegment.zig), [`LogView.zig`](../../packages/zig/transit-storage/src/LogView.zig) | `Descriptor` (165 bytes) tracks `layout: enum { complete, sparse }`, `rows: u32`, `evidence: d.Content`, `segment: ?d.Content` (`log-segments/{x}.tseg`), `metadata: d.Content` (`log-segment-metadata/{x}.data` with `"LBMETA01"` + 13 bytes/row `[ordinal: u32][visible_ms: u64][tombstone: u8]`), and `view: d.Content` (`"LOGVIEW1"`). `LogSegment.materialize` reads both `.tseg` and `LBMETA01` to rebuild a full `LOGBAT01` or `LOGVIEW1` byte slice in memory | Fold batch row metadata (`_offset`/ordinal, `_timestamp`/`visible_ms`, `_tombstone`) into native `.tseg` system columns with monotonic zone maps; replace `materialize` with bounded `TSegReader` vector/row accessors; remove `LBMETA01` (`log-segment-metadata/`) and `LogView.zig` (`LOGVIEW1`) |
-| [`StreamCompaction.zig`](../../packages/zig/transit-storage/src/StreamCompaction.zig), [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig), [`LogPartitionRecord.zig`](../../packages/zig/transit-storage/src/LogPartitionRecord.zig) | `StreamCompaction` computes hidden offsets in `BitmapDirectory.Root`, and `LogPartition` publishes `LogPartitionRecord.Record.action.rewrite` (`Rewrite`), materializing a sparse `LOGVIEW1` payload and re-staging `.tseg` + `LBMETA01` | Retire `action.rewrite`; keep sealed `.tseg` segments immutable and represent compacted/superseded offsets through the partition's accepted `BitmapDirectory` / `.tdel` deletion vector references on `StreamPartition.Root` and `LogRead.Basis` |
+| [`LogSegment.zig`](../../packages/zig/transit-storage/src/LogSegment.zig), [`LogBatch.zig`](../../packages/zig/transit-storage/src/LogBatch.zig) | `Descriptor` (165 bytes) tracks `layout: enum { complete, sparse }`, `rows: u32`, `evidence: d.Content`, `segment: ?d.Content` (`log-segments/{x}.tseg`), `metadata: d.Content` (`log-segment-metadata/{x}.data` with `"LBMETA01"` + 13 bytes/row `[ordinal: u32][visible_ms: u64][tombstone: u8]`), and `view: d.Content` (`"LOGVIEW1"`). `LogSegment.materialize` reads both `.tseg` and `LBMETA01` to rebuild a full `LOGBAT01` or `LOGVIEW1` byte slice in memory | Fold batch row metadata (`transit.log._offset`, `transit.log._timestamp`, `transit.log._tombstone`) into native `.tseg` system columns with monotonic zone maps; shrink `Descriptor` to 85 bytes (`layout`, `rows`, `evidence`, `segment`); remove `LBMETA01` (`log-segment-metadata/`) and `LogView.zig` (`LOGVIEW1`) |
+| [`StreamCompaction.zig`](../../packages/zig/transit-storage/src/StreamCompaction.zig), [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig), [`LogTail.zig`](../../packages/zig/transit-storage/src/LogTail.zig) | `StreamCompaction` computes hidden offsets in `BitmapDirectory.Root`, and `LogPartition` publishes `LogPartitionRecord.Record.action.rewrite` (`Rewrite`), materializing a sparse `LOGVIEW1` payload and re-staging `.tseg` + `LBMETA01` | Re-stage sparse compacted placements as a single `.tseg` (or `segment = null` when empty) without `LBMETA01` or `LOGVIEW1`; materialize sparse `LogTail` cache slices via `LogBatch.SparseEncoder` / `LogBatch.SparseIterator` using each row's `FTR1` `TableRow.Identity.ordinal` |
 | [`TSeg.zig`](../../packages/zig/transit-fuze/src/TSeg.zig), [`TSegReader.zig`](../../packages/zig/transit-fuze/src/TSegReader.zig) | `TSeg` encodes declared schema columns with 64-byte alignment and per-group `ZoneMap`s; `TSegReader` provides bounded `Decisions`, `EncodedGroup`, `BufferedGroup` and `SharedGroup` over verified page ranges | Bind physical log-segment schemas that append canonical system columns (`_offset`, `_timestamp`, `_tombstone`) to declared user columns while preserving user-schema fingerprints and zero-copy `SharedGroup` buffer lifetimes |
 | [`DirectStorageGraph.zig`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) | `collectible` includes `"log-segment-metadata/"`, and `.log_segment` allocates a full batch buffer, runs `LogSegment.materialize` + `requireVisibility`, and marks `segmentKey` and `metadataKey` | Verify `.log_segment` directly against the single `log-segments/{x}.tseg` footer/page commitments and `BitmapDirectory` visibility without full-batch materialization; remove `"log-segment-metadata/"` from `collectible` |
 | [`LogRead.zig`](../../packages/zig/transit-storage/src/LogRead.zig), [`DirectStream.zig`](../../packages/zig/transit-catalog/src/DirectStream.zig), [`DirectLog.zig`](../../packages/zig/transit-catalog/src/DirectLog.zig) | `LogRead.Basis` pins `cut`, `declared`, `batches`, `segments` and `hidden` for stateful/positional `CONSUME` (`StreamRead.PageRequest` up to 4,096 rows / 4 MiB) with explicit caller `releaseRead` | Add query-owned `STREAM_SLICE` pin acquisition, window validation (`from_offset`, `until_offset`, optional timestamp bounds), per-page current-policy re-authorization and saved client-token cleanup so interrupted or early-closed queries never leak retained pins |
@@ -113,20 +114,17 @@ exact schema/collation/timezone semantics and deterministic pin cleanup.
      `_timestamp` alongside user-column zone maps so both offset-window and
      timestamp-window pruning are sound without secondary sidecars.
    - Replace [`LogSegment.Descriptor`](../../packages/zig/transit-storage/src/LogSegment.zig)'s
-     165-byte `layout`/`segment`/`metadata`/`view` structure with a fixed compact
-     descriptor containing `rows: u32`, `live_rows: u32`, `evidence: d.Content`
-     and `segment: d.Content` (`log-segments/{x}.tseg`). All-compacted batches
-     either retain their `.tseg` header/footer commitment with `live_rows == 0`
-     under the partition's accepted `hidden` bitmap or record an explicit
-     zero-live-row state validated against `BitmapDirectory` without `LBMETA01`
-     or `LOGVIEW1`.
-   - Retire [`LogView.zig`](../../packages/zig/transit-storage/src/LogView.zig)
-     (`"LOGVIEW1"`), `LogSegment.metadataKey` (`"log-segment-metadata/"`), and
-     `LogPartitionRecord.Record.action.rewrite` (`Rewrite`). Key compaction in
-     [`StreamCompaction.zig`](../../packages/zig/transit-storage/src/StreamCompaction.zig)
-     updates the partition's accepted `hidden: BitmapDirectory.Root` (`.tdel`
-     Roaring bitmap containers) and `latest` key index without rewriting sealed
-     `.tseg` objects into sparse `LOGVIEW1` blobs.
+     165-byte `layout`/`segment`/`metadata`/`view` structure with an 85-byte
+     descriptor containing `layout: Layout`, `rows: u32`, `evidence: d.Content`
+     and `segment: ?d.Content` (`log-segments/{x}.tseg`). Empty sparse placements
+     record `rows == 0` and `segment == null` validated against `BitmapDirectory`
+     without `LBMETA01` or `LOGVIEW1`.
+   - Retire `LogView.zig` (`"LOGVIEW1"`) and `LogSegment.metadataKey`
+     (`"log-segment-metadata/"`). Sparse cache slices use
+     [`LogBatch.SparseEncoder`](../../packages/zig/transit-storage/src/LogBatch.zig)
+     and `LogBatch.SparseIterator` (`LOGBAT01` internal kind `3`), reading each
+     retained row's original ordinal directly from its `FTR1` `TableRow.Identity`
+     header.
 2. **Replace full-batch materialization with bounded `TSegReader` vector/row access.**
    - Update `LogSegment.stage` to encode the physical `.tseg` directly from the
      validated [`LogBatch`](../../packages/zig/transit-storage/src/LogBatch.zig)
@@ -310,10 +308,9 @@ adds explicit M6 storage work and cross-milestone format dependencies. This
 addendum extends the November 7 delivery plan; the predicate slice above does
 not implement these storage changes or establish their performance guarantees.
 
-Source inspection still finds `LBMETA01` metadata in
+Source inspection at `d9ac6ea30` found `LBMETA01` metadata in
 [`LogSegment`](../../packages/zig/transit-storage/src/LogSegment.zig),
-`LOGVIEW1` sparse payloads in
-[`LogView`](../../packages/zig/transit-storage/src/LogView.zig), and
+`LOGVIEW1` sparse payloads in `LogView.zig`, and
 [`LogPartition`](../../packages/zig/transit-storage/src/LogPartition.zig)
 persisting the selected Queue candidate objects before publishing the operation
 record. [`QueueCandidateObjects`](../../packages/zig/transit-storage/src/QueueCandidateObjects.zig)

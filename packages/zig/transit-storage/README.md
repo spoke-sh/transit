@@ -218,8 +218,8 @@ Cache pressure may refuse admission without affecting the durable log. Callers
 serialize access, retain the owner through release, and check current rights
 before disclosing buffered bytes. A cache pin is not a durable retention pin.
 Complete and sparse placements can coexist under one original append identity;
-their view digests distinguish cache entries without weakening original-content
-conflict checks.
+their `(rows, segment)` cache bindings distinguish entries without weakening
+original-content conflict checks.
 
 `LogDeclaration` validates schema-bound partition/FIFO/compaction keys and stores
 immutable schema, policy, limits and catalog property bytes. `LogInitialization`
@@ -459,9 +459,11 @@ buffering. The catalog and native service compose the owner into signed payload
 operations and bounded notification waits; see the
 [Streams reference](../../../docs/handbook/reference/streams.md).
 `flush` seals one accepted batch per call through a fixed physical cut, preserving
-its original receipt and offsets. Shared `.tseg` columns and a separate immutable
-delivery-metadata sidecar must reproduce the original payload digest before their
-paged placement index is published. Existing read pins keep their old placements;
+its original receipt and offsets. The single `.tseg` segment (encoding user columns
+plus `transit.log._offset`, `transit.log._timestamp` and `transit.log._tombstone`
+system columns with monotonic zone maps) must reproduce the original payload digest
+before its paged 85-byte placement descriptor is published; there is no separate
+`LBMETA01` or `LOGVIEW1` sidecar. Existing read pins keep their old placements;
 new reads can traverse sealed batches and the hot tail through the same iterator.
 An optional declared UTC timestamp column supports finite half-open microsecond
 bounds. Verified zone maps prune nonmatching sealed groups without assuming time
@@ -469,9 +471,9 @@ follows offset order. Returned-row and scanned-offset budgets are separate;
 filtered empty pages keep exact continuation and completion evidence.
 Build and cold-read work have a separate 64 MiB default allocation budget, with
 at most 1,024 rows per segment group. These finite operation bounds do not cap
-the durable segment directory. Missing sidecars reject without falling back to
-different history. The retained graph protects both objects and allows obsolete
-WAL copies to be collected once pins and recovery no longer need them.
+the durable segment directory. Missing segments reject without falling back to
+different history. The retained graph protects the segment and evidence objects and
+allows obsolete WAL copies to be collected once pins and recovery no longer need them.
 `LogHistory` shares the immutable TWAL archive codec with Tables, staging at most
 eight frames per unit. `checkpoint` publishes an exact `LogRecovery` baseline;
 `trimArchived` requires both accepted archival coverage and that checkpoint,
@@ -495,13 +497,15 @@ unpublished compaction without discarding accepted payloads or read pins.
 
 After logical compaction, `rewriteMaintenanceUnit` replaces one sparse accepted
 batch per unit under a retained sealed frontier. It preserves original encoded
-row identities and removes only offsets proven hidden. Batches with at most half
+row identities in the replacement `.tseg`'s system columns and `TableRow.Identity`
+headers and removes only offsets proven hidden. Batches with at most half
 their original rows still visible qualify; empty placements retain range and
-receipt evidence without a segment. `LogView` encodes sparse ordinals in bounded
-caller buffers. Reads and collection validate omitted offsets against each
-retained visibility root. Prior pins and replay keep the old placement until
-closure and a later checkpoint permit collection. The node composes rewriting
-with logical compaction under the same maintenance budget.
+receipt evidence without a segment. `LogBatch.SparseEncoder` and
+`LogBatch.SparseIterator` materialize sparse ordinals in bounded caller buffers.
+Reads and collection validate omitted offsets against each retained visibility
+root. Prior pins and replay keep the old placement until closure and a later
+checkpoint permit collection. The node composes rewriting with logical compaction
+under the same maintenance budget.
 
 An optional control store must address the same physical namespace and current
 authority with the deployment's reserved capacity. Offset settlement, read

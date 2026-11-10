@@ -2066,9 +2066,18 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             return evidence;
         }
 
+        const SparseRewrite = struct {
+            rows: []Batch.EncodedRow,
+            bytes: []u8,
+            fn deinit(self: SparseRewrite, allocator: std.mem.Allocator) void {
+                allocator.free(self.rows);
+                allocator.free(self.bytes);
+            }
+        };
+
         /// Build only from the accepted old placement. Missing rows must already be
         /// hidden; surviving canonical bytes are copied without changing identities.
-        fn rewriteView(self: *Self, allocator: std.mem.Allocator, declaration: *const Declaration.Owned, evidence: Evidence.Record, guard: Guard) !?[]u8 {
+        fn rewriteView(self: *Self, allocator: std.mem.Allocator, declaration: *const Declaration.Owned, evidence: Evidence.Record, guard: Guard) !?SparseRewrite {
             const receipt = evidence.outcome.append;
             var batch = (try self.borrowWithinBudget(try self.root.cut(self.root.declared), self.root.batches, self.root.segments, self.root.hidden, receipt.first, guard, allocator)) orelse return error.LogHistoryUnavailable;
             defer batch.deinit();
@@ -2084,10 +2093,17 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             if (kept == present or kept > receipt.append.rows / 2) return null;
             const buffer = try allocator.alloc(u8, @intCast(receipt.append.payload.bytes));
             defer allocator.free(buffer);
-            var encoder = try @import("LogView.zig").Encoder.init(schema, @intCast(receipt.append.rows), kept, buffer);
+            var encoder = try Batch.SparseEncoder.init(schema, @intCast(receipt.append.rows), kept, buffer);
             rows = try batch.iterator(schema);
             while (try rows.next()) |row| if (!try visibility.contains(self.root.hidden, receipt.first + row.ordinal)) try encoder.append(row);
-            return try allocator.dupe(u8, try encoder.finish());
+            const bytes = try allocator.dupe(u8, try encoder.finish());
+            errdefer allocator.free(bytes);
+            const surviving = try allocator.alloc(Batch.EncodedRow, kept);
+            errdefer allocator.free(surviving);
+            var sparse = try Batch.SparseIterator.init(bytes, schema, receipt.append.rows);
+            var index: usize = 0;
+            while (try sparse.next()) |row| : (index += 1) surviving[index] = row;
+            return .{ .rows = surviving, .bytes = bytes };
         }
 
         fn rewriteWithinBudget(self: *Self, allocator: std.mem.Allocator, guard: Guard) !void {
@@ -2095,12 +2111,12 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
             defer declaration.deinit();
             const view = try self.rewriteView(allocator, &declaration, evidence, guard);
-            defer if (view) |bytes| allocator.free(bytes);
+            defer if (view) |value| value.deinit(allocator);
             var segment: ?Segment.Descriptor = null;
-            if (view) |bytes| {
-                segment = try Segment.stageSparse(allocator, self.objects, &declaration, evidence, bytes, self.options.segment_rows_per_group);
+            if (view) |value| {
+                segment = try Segment.stageSparse(allocator, self.objects, &declaration, evidence, value.rows, self.options.segment_rows_per_group);
                 const rebuilt = try Segment.materialize(allocator, self.objects, segment.?, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
-                if (!std.mem.eql(u8, bytes, rebuilt)) return error.LogPayloadConflict;
+                if (!std.mem.eql(u8, value.bytes, rebuilt)) return error.LogPayloadConflict;
                 try Segment.requireVisibility(segment.?, rebuilt, declaration.definition.schema, evidence.outcome.append, &self.store, self.root.hidden);
             }
             try self.store.begin(self.options.index_work_bytes);
@@ -2118,12 +2134,12 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             var declaration = try Declaration.load(allocator, self.objects, evidence.declared);
             defer declaration.deinit();
             const expected = try self.rewriteView(allocator, &declaration, evidence, guard);
-            defer if (expected) |bytes| allocator.free(bytes);
+            defer if (expected) |rewrite| rewrite.deinit(allocator);
             if ((expected != null) != (value.segment != null)) return error.InvalidLogSegment;
             if (value.segment) |segment| {
                 try self.verifyValue(record.root.segments, try r.integerKey(value.receipt.next), try segment.encode());
                 const bytes = try Segment.materialize(allocator, self.objects, segment, &declaration, evidence, self.encoded[0..self.options.batch_bytes]);
-                if (!std.mem.eql(u8, expected.?, bytes)) return error.LogPayloadConflict;
+                if (!std.mem.eql(u8, expected.?.bytes, bytes)) return error.LogPayloadConflict;
                 try Segment.requireVisibility(segment, bytes, declaration.definition.schema, value.receipt, &self.store, self.root.hidden);
             } else if (!std.meta.eql(record.root.segments, self.root.segments)) return error.InvalidLogSegment;
         }
@@ -2552,11 +2568,11 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             receipt: q.AppendReceipt,
             payload: Tail.Borrow,
             layout: Segment.Layout,
-            pub fn iterator(self: *BorrowedBatch, schema: f.TableSchema.Schema) !@import("LogView.zig").Rows {
+            pub fn iterator(self: *BorrowedBatch, schema: f.TableSchema.Schema) !Batch.Rows {
                 const bytes = try self.payload.bytes();
                 return switch (self.layout) {
                     .complete => .{ .complete = try Batch.Iterator.init(bytes, schema, if (self.receipt.append.kind == .stream) .stream else .queue, self.receipt.append.rows) },
-                    .sparse => .{ .sparse = try @import("LogView.zig").Iterator.init(bytes, schema, self.receipt.append.rows) },
+                    .sparse => .{ .sparse = try Batch.SparseIterator.init(bytes, schema, self.receipt.append.rows) },
                 };
             }
             pub fn deinit(self: *BorrowedBatch) void {
@@ -2601,9 +2617,14 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             const segment: ?Segment.Descriptor = if (try self.tree().get(segments, entry.key)) |value| try Segment.Descriptor.decode(value) else null;
             if (segment) |value| {
                 if (!std.meta.eql(value.evidence, try Evidence.decodeReference(try Evidence.expectedReference(evidence)))) return error.InvalidLogSegment;
-                if (value.layout == .complete and (value.rows != receipt.append.rows or !std.meta.eql(value.view, receipt.append.payload))) return error.InvalidLogSegment;
+                if (value.layout == .complete and value.rows != receipt.append.rows) return error.InvalidLogSegment;
             }
-            const binding: Tail.Binding = .{ .position = receipt.accepted, .first = receipt.first, .content = receipt.append.payload, .view = if (segment) |value| (if (value.layout == .sparse) value.view else null) else null };
+            const binding: Tail.Binding = .{
+                .position = receipt.accepted,
+                .first = receipt.first,
+                .content = receipt.append.payload,
+                .sparse = if (segment) |value| (if (value.layout == .sparse) .{ .rows = value.rows, .segment = value.segment } else null) else null,
+            };
             var borrowed = try self.cache.borrow(binding);
             if (borrowed == null) {
                 if (segment) |value| {
