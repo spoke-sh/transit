@@ -386,9 +386,9 @@ storage-lifecycle-model *args:
 resident-owner-cache-model *args:
     nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-resident-owner-cache-model -- {{args}}
 
-# Forward-design QueuePartition .tack Roaring states, key_fifo, lease fencing and 3-primitive turn commit.
+# QueuePartition .tack Roaring states, key_fifo, lease fencing, 3-primitive turn commit and Zig replay.
 queue-lease-transaction-model *args:
-    nix shell --inputs-from . nixpkgs#tlaplus --command python3 -B tests/runner/launch.py tests/verification/models/queue_lease_transaction_model.py {{args}}
+    nix shell --inputs-from . nixpkgs#tlaplus --command zig build test-queue-lease-transaction-model -- {{args}}
 
 # Durable write lifecycle/token models and selected production Table trace replay.
 write-lifecycle-model *args:

@@ -2602,22 +2602,29 @@
       "claim": "Finite Queue state, key_fifo acquisition, lease epoch/time, policy and common-decision guards preserve mutual exclusion, atomic visibility and retained payloads",
       "owner": "docs/handbook/reference/streams.md",
       "implementation": [
+        "packages/zig/transit-storage/src/Tack.zig",
+        "packages/zig/transit-storage/src/QueuePartition.zig",
+        "packages/zig/transit-storage/src/LogTransaction.zig",
+        "packages/zig/transit-catalog/src/DirectCatalog.zig",
+        "packages/zig/transit-catalog/src/DirectStorageGraph.zig",
         "tests/verification/models/QueueLeaseTransaction.tla",
+        "tests/verification/models/queue_lease_transaction_state.zig",
         "tests/verification/models/queue_lease_transaction_model.py"
       ],
-      "profile": "Three offsets, two keys, two claim generations, time 0..2 and one prepared turn/decision; nine negative controls",
+      "profile": "Three offsets, two keys, two claim generations, time 0..2 and one prepared turn/decision; nine negative controls and five concrete schedules replayed against Zig",
       "tasks": [
-        "test::queue-lease-transaction-model"
+        "test::queue-lease-transaction-model",
+        "check::native"
       ],
       "scenarios": [
         "Disjoint .tack Roaring bitmap states (available, acquired, acked, dlq)",
         "key_fifo mutual exclusion and ordered offset acquisition per entity key",
         "Authoritative expiry before reassignment and _lease_epoch fencing against stale worker ACK/commit",
-        "Policy revocation between preparation and the common decision",
+        "Policy revocation and transaction deadline expiry between preparation and the common decision",
         "Atomic state/outbox/ACK visibility and original decision recovery across derived-cache replacement",
-        "Terminal segment collection preserves retained history and durable DLQ payload reachability"
+        "Terminal segment collection preserves retained claim history and paired DLQ transfer durability"
       ],
-      "limits": "Safety-only design model assuming atomic durable state; no timing wheel, storage I/O, bitmap encoding, fairness or runtime correspondence. Standalone QueuePartition execution has separate evidence; common transactions and DLQ transfer remain unavailable.",
+      "limits": "Finite safety model and selected Zig counterexample/schedule replay; not an unbounded refinement proof, fairness/liveness guarantee or physical power-loss test.",
       "model": "tests/verification/models/QueueLeaseTransaction.tla",
       "qualification": "Execution evidence is retained under .cache/verification/queue-lease-transaction-model/ and CI artifacts."
     },

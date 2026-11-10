@@ -2889,7 +2889,7 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     const identity: Transfers.Identity = .{ .principal = 101, .key = try key(29), .role = null, .account = @splat(42), .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 2, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 } };
     host.queue_transfers = identity;
     var original: ?c.DirectClientToken.Receipt = null;
-    for (0..64) |_| {
+    for (0..32) |_| {
         _ = try worker.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine));
         try catalog.recover();
         if ((try catalog.store.queueTransferPending(null)).entries[0]) |pending| {
@@ -2899,11 +2899,27 @@ test "automatic Queue maintenance requires its database signer and resumes the o
     }
     const receipt = original orelse return error.FixtureBudget;
     // Admission must fit the existing 32 MiB ceiling without retaining a second
-    // Queue owner. The unexamined row keeps this finite discovery sweep open.
+    // Queue owner.
     try t.expect(worker.workspace == null);
     try t.expectEqual(@as(usize, 0), memory.used);
     try t.expectEqual(@as(u64, 1), worker.cursor.?.next);
     try t.expectEqual(@as(u64, 2), worker.cursor.?.until);
+    // A competing discovery worker scanning the same exhausted source item must
+    // converge on the existing source-key token without creating a second attempt
+    // or disturbing pre-acquisition state.
+    {
+        var early_peer: Transfers = .{};
+        defer early_peer.deinit();
+        for (0..16) |_| {
+            early_peer.next = .discovery;
+            _ = try early_peer.step(memory.allocator(), &host, &engine, try Fixture.signed(&engine));
+            if (early_peer.cursor != null and early_peer.cursor.?.next == 1 and early_peer.cursor.?.until == 2) break;
+        } else return error.EarlyPeerMissedSource;
+        try catalog.recover();
+        try t.expectEqual(@as(u64, 1), catalog.store.root.client_token_count);
+        try t.expectEqualDeep(receipt, (try catalog.store.queueTransferPending(null)).entries[0].?.receipt);
+    }
+    try t.expectEqual(@as(usize, 0), memory.used);
     const plan = try c.DirectQueueTransferPlan.fromReceipt(t.allocator, catalog.data_objects, receipt);
     try t.expectEqual(@as(u32, 1), plan.transfer.destination.target.partition);
     try t.expectEqualDeep(destination.stored.declaration.interpretation, plan.transfer.destination.target.interpretation);
@@ -3280,6 +3296,38 @@ fn sourceCaptureReadSchedule(service: *@import("LocalTableService.zig"), owner_r
     observed = try catalog.capturePublish(plan, policy.policy(), authority);
     while (observed.state.phase == .publishing) observed = try catalog.captureAdvance(plan.candidate, .commit, 8, policy.policy(), authority);
     try t.expectEqual(0, observed.state.outcome.?.append.?.first);
+
+    // Stage and close an unpublished candidate capture, then run mark-grace-sweep GC:
+    // closed candidate chunks must be reclaimed while Stream-retained capture chunks
+    // and manifests survive and remain readable over the signed service boundary.
+    var closed_descriptor = descriptor;
+    closed_descriptor.key.token = @splat(3);
+    closed_descriptor.operation.operation = 90010;
+    closed_descriptor.evidence.poll.operation = closed_descriptor.operation;
+    closed_descriptor.evidence.poll.capture_id = @splat(2);
+    closed_descriptor.evidence.poll.sequence = 2;
+    closed_descriptor.evidence.attempt.operation = 92001;
+    host.expected = closed_descriptor.evidence;
+    var closed_obs = try catalog.captureReserve(closed_descriptor, policy.policy(), authority);
+    const closed_slice = body[0..Capture.storage.chunk_bytes];
+    const closed_chunk: Capture.storage.Chunk = .{ .offset = 0, .content = c.storage.LogBatch.content(closed_slice) };
+    closed_obs = try catalog.captureUpload(.{ .control = .{ .key = closed_descriptor.key, .expected = closed_obs.revision }, .chunk = closed_chunk, .bytes = closed_slice }, policy.policy(), authority);
+    var closed_chunk_buf: [96]u8 = undefined;
+    const closed_chunk_key = try Capture.storage.key(try closed_descriptor.key.digest(), closed_chunk, &closed_chunk_buf);
+    try t.expect(try data.objects().head(closed_chunk_key) != null);
+    closed_obs = try catalog.captureClose(.{ .key = closed_descriptor.key, .expected = closed_obs.revision }, policy.policy(), authority);
+    try t.expectEqual(.closed, closed_obs.state.phase);
+    var pub_manifest_buf: [96]u8 = undefined;
+    const pub_manifest_key = try Capture.Manifest.key(plan.reference.manifest, &pub_manifest_buf);
+    var pub_chunk_buf: [96]u8 = undefined;
+    const pub_chunk_key = try Capture.storage.key(try descriptor.key.digest(), closed_chunk, &pub_chunk_buf);
+    try t.expect(try data.objects().head(pub_manifest_key) != null);
+    try t.expect(try data.objects().head(pub_chunk_key) != null);
+    try catalog.recover();
+    try collectDirect(service.engine, &catalog);
+    try t.expect(try data.objects().head(pub_manifest_key) != null);
+    try t.expect(try data.objects().head(pub_chunk_key) != null);
+    try t.expect(try data.objects().head(closed_chunk_key) == null);
     // Withhold source/connection permissions and all Stream mutation rights.
     for ([_]u64{ source.declaration.properties.authorization, connection.declaration.properties.authorization, stream.properties.authorization }) |id| {
         _ = try change(service.engine, .{ .transfer_object = .{ .object = c.TableAuthority.reference(id), .owner = 0 } });

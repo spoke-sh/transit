@@ -110,7 +110,7 @@ fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, ke
     }
     return logs;
 }
-fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, logs: Logs, committed: bool) !void {
+fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, logs: Logs, committed: bool) !?p.StreamQueue.Lease {
     const count: u64 = if (committed) 2 else 1;
     try t.expectEqual(count + 1, (try Stream.apply(output, client, .{ .observe = logs.stream })).cut.next);
     try t.expectEqual(count, (try Queue.apply(output, client, .{ .observe = logs.queue })).cut.next);
@@ -155,7 +155,9 @@ fn visibleLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, lo
         try t.expectEqual(@as(usize, 1), next_page.rows.len);
         try t.expectEqual(@as(u64, 1), next_page.rows[0].lease.original.offset);
         try t.expectEqual(@as(i64, 42), next_page.rows[0].value.cells[0].value.atom.signed);
+        return next_page.rows[0].lease.original;
     }
+    return null;
 }
 fn visible(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, object: d.Object, expected: bool) !void {
     const value = (try KV.apply(output, client, .{ .get = .{ .object = object, .key = "six" } })).value;
@@ -244,7 +246,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
             try t.expect(outcome == .provisional);
             try t.expectEqualDeep(outcome, try tx.executeLog(saved.key, request));
         }
-        try visibleLogs(client, &output, logs, false);
+        _ = try visibleLogs(client, &output, logs, false);
     }
     var private = client;
     private.transaction = .{ .key = saved.key, .revision = (try tx.inspect(saved.key)).revision };
@@ -265,5 +267,60 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
     try visible(client, &output, saved.object, true);
-    if (saved.logs) |logs| try visibleLogs(client, &output, logs, true);
+    if (saved.logs) |logs| {
+        const held_lease = (try visibleLogs(client, &output, logs, true)).?;
+        // 4-participant Transaction.Deadline expiry: when commit runs after the
+        // transaction deadline has elapsed (even while the Queue lease remains live),
+        // native settlement refuses commit with TransactionDeadlineElapsed and
+        // allows original abort cleanup with zero participant visibility.
+        const expired_key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = @splat(9), .token = @splat(7) };
+        const targets = [_]p.Transaction.Target{
+            .{ .object = saved.object, .kind = .kv, .partition = null },
+            .{ .object = saved.table_statement.binding.target, .kind = .table, .partition = null },
+            .{ .object = logs.stream.interpretation.object, .kind = .stream, .partition = 0 },
+            .{ .object = logs.queue.interpretation.object, .kind = .queue, .partition = 0 },
+        };
+        const observed_ms = held_lease.expires_ms - 300000;
+        _ = try tx.begin(.{
+            .key = expired_key,
+            .fingerprint = @splat(8),
+            .operation = operation(client, 642200),
+            .namespace = 1,
+            .mode = .serializable,
+            .deadline = .{ .floor_ms = observed_ms -| 1000, .expires_ms = observed_ms },
+            .selection = .{ .explicit_objects = &targets },
+            .limits = c.DirectTransaction.default_limits,
+            .budget = .{},
+        });
+        _ = try tx.acquire(expired_key);
+        var insert = try c.DirectTablePreparedDml.prepare(init.gpa, client, 1, "INSERT INTO atomic_rows (id) VALUES ($1)", .transit, null);
+        defer insert.deinit();
+        var table_work = try insert.bind(init.gpa, client, 642201, &.{.{ .signed = 99 }}, .bulk, null);
+        defer table_work.deinit();
+        const staged_table = try tx.stage(expired_key, (try tx.inspect(expired_key)).revision, 1, table_work.parsed.value.work);
+        try t.expectEqual(@as(u64, 1), (try tx.execute(expired_key, staged_table)).provisional.affected);
+        var kv_binding = saved.kv_statement.binding;
+        kv_binding.identity = operation(client, 642202);
+        const kv_changes = [_]c.storage.KVPartition.Change{.{ .put = .{ .key = "seven", .value = .{ .value = .{ .atom = .{ .bytes = &payload } } }, .expect = .absent } }};
+        const staged_kv = try tx.stageKV(expired_key, (try tx.inspect(expired_key)).revision, 2, try KV.prepareMutation(&output, kv_binding, spec, &kv_changes));
+        try t.expectEqual(@as(u64, 1), (try tx.execute(expired_key, staged_kv)).provisional.affected);
+        var buffer: [8192]u8 = undefined;
+        const stream_id = operation(client, 642203);
+        const stream_bytes = try appendPayload(logs.stream, stream_id, .stream, &buffer);
+        const staged_stream = try tx.stageLog(expired_key, (try tx.inspect(expired_key)).revision, 3, .{ .append = .{ .target = logs.stream, .operation = stream_id, .kind = .stream, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(stream_bytes) } }, try c.DirectTableProtocol.Binary.encode(output.allocator(), stream_bytes));
+        try t.expect((try tx.executeLog(expired_key, staged_stream)) == .provisional);
+        const staged_ack = try tx.stageLog(expired_key, (try tx.inspect(expired_key)).revision, 4, .{ .queue_ack = .{ .operation = operation(client, 642204), .lease = held_lease, .action = .ack } }, null);
+        try t.expect((try tx.executeLog(expired_key, staged_ack)) == .provisional);
+
+        try t.expectError(error.TransactionDeadlineElapsed, tx.settle(expired_key, operation(client, 642205), .commit, 8));
+        const aborted = try tx.settle(expired_key, operation(client, 642205), .abort, 16);
+        try t.expect(aborted.observation == .decided and aborted.observation.decided.outcome == .aborted);
+        try t.expect(aborted.cleanup_complete);
+        try t.expect((try KV.apply(&output, client, .{ .get = .{ .object = saved.object, .key = "seven" } })).value.value == null);
+        const table_after = try client.call(.{ .lookup = .{ .namespace = 1, .name = "atomic_rows" } });
+        defer table_after.deinit();
+        try t.expectEqual(@as(u64, 1), table_after.value.result.lookup.?.row_count);
+        try t.expectEqual(@as(u64, 3), (try Stream.apply(&output, client, .{ .observe = logs.stream })).cut.next);
+        try t.expectEqual(@as(u64, 2), (try Queue.apply(&output, client, .{ .observe = logs.queue })).cut.next);
+    }
 }

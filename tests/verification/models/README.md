@@ -567,8 +567,8 @@ pin preservation. Each negative control trace is replayed against
 ## Finite QueuePartition lease and turn-commit model
 
 Run `nix develop --command just test::queue-lease-transaction-model`. The
-ordinary formal lane owns this forward-design check for Milestone 6
-(`QUEUE-01`). [QueueLeaseTransaction.tla](QueueLeaseTransaction.tla) and
+ordinary formal lane owns this check (`QUEUE-01`).
+[QueueLeaseTransaction.tla](QueueLeaseTransaction.tla) and
 [QueueLeaseTransaction.cfg](QueueLeaseTransaction.cfg) model `QueuePartition`
 logical state sets (`available`, `acquired`, `acked`, `dlq`), per-key acquisition,
 lease epochs and authoritative expiry, current-policy commit checks, prepared
@@ -576,29 +576,31 @@ turns, one commit/abort decision and retained-payload collection guards.
 
 The finite domain contains three offsets (two for one key and one for another),
 two claim generations, time in `0..2`, one prepared turn and one decision. A
-restart drops derived residency while accepted records remain. This abstracts
-atomic durable state; it does not model WAL writes, a timing wheel, bitmap bytes,
-receipt authentication, complete implementation correspondence or power loss.
-The invariants are safety-only, with no fairness or starvation-free scheduling
-claim. The other key remains eligible while the first key is blocked.
+restart drops derived residency while accepted records remain. The TLA+ model
+abstracts atomic durable state; the invariants are safety-only, with no fairness
+or starvation-free scheduling claim. The other key remains eligible while the
+first key is blocked.
 
 [queue_lease_transaction_model.py](queue_lease_transaction_model.py) requires
 complete exploration and nine intended invariant failures: overlapping states,
 FIFO bypass, stale epoch, partial turn visibility, premature terminal collection,
 expired-but-unreassigned commit, revoked commit, collection while history remains
-held, and source DLQ terminalization without durable destination payload.
-It records source/configuration/driver hashes, TLC identity, completed state
-counts and each negative trace under the repository's ignored evidence directory.
+held, and source DLQ terminalization without durable destination payload. Every
+negative-control trace, plus five concrete schedules covering three-primitive
+`Table`/`Queue`/`Stream` commit and segment reclamation, turn abort, paired DLQ
+transfer across restart, and `Transaction.Deadline` expiry before lease expiry,
+is replayed against `Tack`, `QueuePartition`, `LogTransaction`, `DirectCatalog`
+and `DirectStorageGraph` through
+[queue_lease_transaction_state.zig](queue_lease_transaction_state.zig).
+It records source/configuration/driver/binary hashes, TLC identity, completed
+state counts and each replayed trace under `.cache/verification/queue-lease-transaction-model/`.
 Earlier 21-state/five-control results apply to the earlier model revision.
 
-The pure [Stream/Queue bindings](../../../packages/zig/transit-protocol/src/StreamQueue.zig)
-independently check supplied lease/time guards and original accepted receipts;
-those unit checks are not replay of this model. The implemented standalone
-`QueuePartition` has separate disk, signed-caller and collection evidence for
-claims, settlements, scheduling and terminal payload retention. This model does
-not establish correspondence to those owners. Common state/outbox/ACK decisions
-and DLQ transfer remain unavailable; the [Queue contract](../../../contracts/QUEUE_V1.md)
-defines those execution boundaries.
+Selected counterexample and schedule replay does not establish an unbounded
+refinement proof, arbitrary concurrency schedules or physical power-loss
+durability; disk-backed and signed-service schedules own those boundaries in
+`just test::direct-mixed-transaction`, `just test::direct-queue-transfer` and
+`just test::direct-automatic-queue-transfer`.
 
 ## Board observation, statement presentation and admission
 
