@@ -9,7 +9,7 @@ const Objects = @import("TransitObjectStore.zig");
 const header_bytes = 104;
 pub const max_properties_bytes = 4096;
 pub const max_policy_bytes = 4096;
-pub const max_user_columns = f.TableSchema.max_columns - 3;
+pub const max_user_columns = f.TableSchema.max_columns - 4;
 pub const max_bytes = header_bytes + max_properties_bytes + max_policy_bytes + f.TableSchema.max_bytes;
 const Policy = struct { configuration: q.Configuration, limits: q.Limits };
 
@@ -28,7 +28,7 @@ pub const Definition = struct {
         try self.configuration.validate();
         try self.limits.validate();
         if (self.schema.columns.len > max_user_columns) return error.InvalidColumnCount;
-        for (self.schema.columns) |column| if (std.mem.startsWith(u8, column.name, "transit.log.")) return error.InvalidColumnIdentity;
+        for (self.schema.columns) |column| if (reservedColumnName(column.name)) return error.InvalidColumnIdentity;
         if (self.object.branch != 1 or self.revision == 0 or self.schema.object != self.object.object or self.properties.len > max_properties_bytes) return error.InvalidLogDeclaration;
         // Log offsets supply identity. A declared relational uniqueness key
         // would silently impose a different append contract.
@@ -55,6 +55,14 @@ pub const Definition = struct {
     fn requireKey(self: Definition, id: u64) !void {
         const column = self.schema.columns[try self.schema.index(id)];
         if (column.nullable or !f.TableSchema.keyType(column.type)) return error.InvalidLogKeyColumn;
+    }
+
+    pub fn reservedColumnName(name: []const u8) bool {
+        if (std.mem.startsWith(u8, name, "transit.log.")) return true;
+        inline for (.{ "_partition", "_offset", "_timestamp", "_tombstone" }) |reserved| {
+            if (std.mem.eql(u8, name, reserved)) return true;
+        }
+        return false;
     }
 
     pub fn encode(self: Definition, output: []u8) ![]const u8 {

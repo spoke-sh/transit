@@ -226,7 +226,7 @@ pub const Read = struct {
                     for (query.tables.scans[0..count], views[0..count]) |scan, *view| view.* = scan.?.reader.basis.workspace orelse return error.InvalidTransactionObservation;
                     break :blk try self.transactionBasis(allocator, views[0..count]);
                 }
-                if (query.tables.scans[0].?.reader.basis.catalog) |snapshot| {
+                if (query.tables.scans[0]) |first_scan| if (first_scan.reader.basis.catalog) |snapshot| {
                     const sources = try allocator.alloc(@FieldType(g.results.Observation.Data, "table"), query.tables.declarations.len);
                     for (query.tables.scans[0..sources.len], sources) |slot, *out| {
                         const scan = slot.?;
@@ -235,7 +235,7 @@ pub const Read = struct {
                         out.* = .{ .object = source.snapshot.object, .interpretation = source.interpretation.interpretation, .accepted = source.accepted, .changed_lsn = source.changed_lsn, .pin = source.snapshot.handle.content, .commitment = try scan.fingerprint(), .schema = source.interpretation.schema_fingerprint, .projection = projectionObservation(source.interpretation, source.projection) };
                     }
                     break :blk .{ .historical = .{ .snapshot = snapshot, .sources = sources } };
-                }
+                };
                 break :blk .{ .independent_table_snapshots = try allocator.dupe(f.Relational.Cut, query.execution.bound.cuts) };
             },
             .source => |source| if (source.query.bundle.source.source == .table and source.query.bundle.source.source.table.historical != null)
@@ -893,15 +893,21 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
             }
             if (statement.kind() != .select) return error.ExpectedGatewayRead;
             const count = if (statement.plan == .relational) statement.plan.relational.plan.sources.len else 1;
-            var snapshots: [f.Relational.max_sources]c.DirectTableProtocol.Snapshot = undefined;
+            var pins: [f.Relational.max_sources]g.direct.DirectRelationalTables.SourcePin = undefined;
             for (0..count) |i| {
                 const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+                if (statement.plan == .relational) if (statement.plan.relational.streams[i]) |stream_source| {
+                    if (self.table.transaction != null) return error.UnsupportedTransactionStatement;
+                    read.pins[i] = try self.runtime.read_pins.?.acquireStreamSlice(self.table, binding, stream_source);
+                    pins[i] = .{ .stream = .{ .namespace = binding.namespace, .receipt = try read.pins[i].?.streamReceipt() } };
+                    continue;
+                };
                 if (binding.catalog) |snapshot| {
                     const response = try c.DirectHistory.call(self.table, .{ .source = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = true } });
                     defer response.deinit();
                     const selected = response.value.result.historical_catalog.source;
                     if (!std.meta.eql(selected.binding.declaration, binding.interpretation)) return error.HistoricalIdentityConflict;
-                    snapshots[i] = selected.table().snapshot;
+                    pins[i] = .{ .table = selected.table().snapshot };
                     continue;
                 }
                 if (self.table.transaction != null) {
@@ -910,16 +916,16 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                     const metadata = response.value.result.lookup orelse return error.TableNotFound;
                     try binding.check(self.table.connection, metadata);
                     const view = metadata.workspace orelse return error.InvalidTransactionRead;
-                    snapshots[i] = .{ .object = metadata.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } };
+                    pins[i] = .{ .table = .{ .object = metadata.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } } };
                     continue;
                 }
                 var shared: ?usize = null;
-                for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (std.meta.eql(pin.table, binding)) {
+                for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (pin.stream == null and std.meta.eql(pin.table, binding)) {
                     shared = j;
                     break;
                 };
                 if (shared) |j| {
-                    snapshots[i] = snapshots[j];
+                    pins[i] = pins[j];
                     continue;
                 }
                 const known_metadata = if (is_fresh and statement.plan == .select) blk: {
@@ -931,15 +937,15 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
                 // reply must return to original-pin cleanup, never the generic
                 // observation retry that can allocate a replacement identity.
                 read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
-                snapshots[i] = try read.pins[i].?.snapshot();
+                pins[i] = .{ .table = try read.pins[i].?.snapshot() };
             }
             if (statement.plan == .relational) {
                 var nonce: [16]u8 = undefined;
                 try self.io.randomSecure(&nonce);
                 var path: [64]u8 = undefined;
                 const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
-                read.value = .{ .relational = try statement.openRelational(self.allocator, self.io, self.directory, name, &self.table, values, snapshots[0..count], self.readOptions(), self.cancellation) };
-            } else read.value = .{ .single = try self.fresh(g.Statement.openSelectValidated, .{ statement, self.allocator, &self.table, values, snapshots[0], .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true }) };
+                read.value = .{ .relational = try statement.openRelationalPins(self.allocator, self.io, self.directory, name, &self.table, values, pins[0..count], self.readOptions(), self.cancellation) };
+            } else read.value = .{ .single = try self.fresh(g.Statement.openSelectValidated, .{ statement, self.allocator, &self.table, values, pins[0].table, .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true }) };
         },
     }
     return read;
@@ -1102,7 +1108,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SqlTransactionLimit => .{ "54000".*, "Transaction statement or savepoint limit reached; settle the transaction" },
         error.SqlTransactionClosed => .{ "25000".*, "Transaction is closing or already decided; inspect its original operation" },
         error.TransactionReadChanged => .{ "55000".*, "Transaction workspace changed; discard the old result cursor" },
-        error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation => .{ "0A000".*, "Operation is outside the selected serializable Table transaction profile" },
+        error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation, error.UnsupportedLogTransaction => .{ "0A000".*, "Operation is outside the selected serializable Table transaction profile" },
         error.ReadOnlyTransaction => .{ "25006".*, "The transaction is read only" },
         error.SqlTransactionRejected => blk: {
             const completion = self.transaction_completion orelse break :blk .{ "XX000".*, "Missing transaction outcome" };
@@ -1179,7 +1185,8 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.LogPartitionRequired, error.LogPartitionKeyMismatch, error.InvalidLogAppendOperand, error.NullWorkloadParameter, error.InvalidLogVisibilityTime, error.InvalidLogProducer => .{ "22023".*, "Invalid Stream or Queue append routing or metadata operand" },
         error.UnsupportedLogAppendOption => .{ "0A000".*, "Append option is outside this Stream or Queue profile" },
         error.UnsupportedLogOption, error.UnsupportedLogPrimaryKey, error.UnsupportedLogRepartition, error.UnsupportedLogKeyChange, error.UnsupportedLogTimestampChange => .{ "0A000".*, "Stream or Queue declaration option is unsupported" },
-        error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
+        error.InvalidLogOption, error.DuplicateLogOption, error.InvalidLogPartitioning, error.InvalidLogRetention, error.InvalidLogLimits, error.InvalidLogKeyColumn, error.InvalidStreamPolicy, error.InvalidStreamTimestampColumn, error.InvalidQueuePolicy, error.InvalidQueuePartitionKey, error.InvalidQueueBackoff, error.InvalidQueueDestination, error.InvalidStreamSliceBounds, error.StreamTimestampUnavailable, error.InvalidLogPartition, error.LogOffsetBeyondCut => .{ "22023".*, "Invalid Stream or Queue declaration policy or budget" },
+        error.StreamOffsetTrimmed, error.LogRangeExpired => .{ "55000".*, "Requested Stream offset range has been trimmed" },
         error.KVDeleteLimitExceeded => .{ "54000".*, "Delete batch exceeds the declared KV budget" },
         error.UnsupportedKVOption => .{ "0A000".*, "KV declaration option is unsupported" },
         error.InvalidKVOption, error.DuplicateKVOption, error.InvalidKVRetention, error.InvalidKVLimits => .{ "22023".*, "Invalid KV declaration policy or budget" },
@@ -1222,6 +1229,12 @@ test "capacity diagnostics retain operation uncertainty and do not override deni
     try std.testing.expectEqualStrings("54000", &host.diagnostic(error.CellTooLarge).state);
     try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidQueueLeaseHandle).state);
     try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidLogSettlementOperand).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidStreamSliceBounds).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.StreamTimestampUnavailable).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.InvalidLogPartition).state);
+    try std.testing.expectEqualStrings("22023", &host.diagnostic(error.LogOffsetBeyondCut).state);
+    try std.testing.expectEqualStrings("55000", &host.diagnostic(error.StreamOffsetTrimmed).state);
+    try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.UnsupportedLogTransaction).state);
     try std.testing.expectEqualStrings("0A000", &host.diagnostic(error.IncompatibleDefinition).state);
     try std.testing.expectEqualStrings("55000", &host.diagnostic(error.GatewayOwnerUnavailable).state);
     const changed = host.diagnostic(error.TableDefinitionChanged);

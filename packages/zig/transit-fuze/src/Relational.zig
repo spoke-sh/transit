@@ -140,6 +140,28 @@ pub const Plan = struct {
         return false;
     }
 
+    pub fn referencesColumn(self: Plan, source: u8, id: table.ColumnId) bool {
+        if (source >= self.sources.len) return false;
+        const target: Column = .{ .source = source, .id = id };
+        if (source == 0 and self.scalars.instructions.len != 0) {
+            if (self.sources[0].schema.index(id) catch null) |col_idx| {
+                for (self.scalars.instructions) |inst| if (inst == .input and inst.input == col_idx) return true;
+            }
+        }
+        if (self.join) |join| if (join.left.eql(target) or join.right.eql(target)) return true;
+        for (self.source_filters[0..self.sources.len]) |predicate| if (predicateReferences(predicate, target)) return true;
+        if (predicateReferences(self.filter, target)) return true;
+        for (self.group_by) |col| if (col.eql(target)) return true;
+        for (self.outputs) |output| if (expressionReferences(output.expression, target)) return true;
+        for (self.having.instructions) |inst| switch (inst) {
+            .compare => |item| if (expressionReferences(item.expression, target)) return true,
+            .is_null, .is_not_null => |expr| if (expressionReferences(expr, target)) return true,
+            else => {},
+        };
+        for (self.order_by) |item| if (expressionReferences(item.expression, target)) return true;
+        return false;
+    }
+
     pub fn keyColumns(self: Plan, buffer: *[max_groups]Column) []const Column {
         if (self.isGrouped()) return self.group_by;
         if (self.order_by.len == 0) return &.{};
@@ -536,9 +558,14 @@ pub fn resolve(sources: []const Source, qualifier: ?[]const u8, column_name: []c
 /// required Table heads at its recorded native coordinate, resolved through
 /// complete Table history. Neither evidence kind supplies authority or a lease.
 pub const Cut = struct {
-    /// Native KV resource revisions and direct Table partition frontiers are
-    /// distinct atomic domains. This field is mandatory in persisted vectors.
-    domain: union(enum) { native_resource, table_partition: struct { branch: u64, object: u64, partition: u64 } },
+    /// Native KV resource revisions, direct Table partition frontiers, and
+    /// retained Stream partition slices are distinct atomic domains. This field
+    /// is mandatory in persisted vectors.
+    domain: union(enum) {
+        native_resource,
+        table_partition: struct { branch: u64, object: u64, partition: u64 },
+        stream_partition: struct { branch: u64, object: u64, partition: u64, from_offset: u64 },
+    },
     resource: u64,
     revision: u64,
     commitment: [32]u8,
@@ -559,15 +586,37 @@ pub const Bound = struct {
             if (cut.domain == .table_partition) {
                 const target = cut.domain.table_partition;
                 if (target.branch != 1 or target.object != source.schema.object or target.partition == 0 or cut.revision == 0) return error.InvalidRelationalCut;
+            } else if (cut.domain == .stream_partition) {
+                const target = cut.domain.stream_partition;
+                if (target.branch != 1 or target.object != source.schema.object or target.partition == 0 or target.from_offset > cut.revision) return error.InvalidRelationalCut;
             }
             var shared = false;
             for (self.cuts[0..i]) |earlier| if (cut.resource == earlier.resource) {
-                if (std.meta.activeTag(cut.domain) != std.meta.activeTag(earlier.domain)) return error.InconsistentRelationalCut;
-                if (cut.domain == .table_partition) {
-                    const a = cut.domain.table_partition;
-                    const b = earlier.domain.table_partition;
-                    if ((a.partition == b.partition) != (a.branch == b.branch and a.object == b.object)) return error.InconsistentRelationalCut;
-                    if (a.partition != b.partition) continue;
+                if ((cut.domain == .native_resource) != (earlier.domain == .native_resource)) return error.InconsistentRelationalCut;
+                switch (cut.domain) {
+                    .native_resource => {},
+                    .table_partition => |a| switch (earlier.domain) {
+                        .native_resource => unreachable,
+                        .table_partition => |b| {
+                            if ((a.partition == b.partition) != (a.branch == b.branch and a.object == b.object)) return error.InconsistentRelationalCut;
+                            if (a.partition != b.partition) continue;
+                        },
+                        .stream_partition => |b| {
+                            if (a.partition == b.partition or (a.branch == b.branch and a.object == b.object)) return error.InconsistentRelationalCut;
+                            continue;
+                        },
+                    },
+                    .stream_partition => |a| switch (earlier.domain) {
+                        .native_resource => unreachable,
+                        .table_partition => |b| {
+                            if (a.partition == b.partition or (a.branch == b.branch and a.object == b.object)) return error.InconsistentRelationalCut;
+                            continue;
+                        },
+                        .stream_partition => |b| {
+                            if (a.partition == b.partition and (a.branch != b.branch or a.object != b.object)) return error.InconsistentRelationalCut;
+                            if (a.partition != b.partition or a.from_offset != b.from_offset or cut.revision != earlier.revision) continue;
+                        },
+                    },
                 }
                 if (cut.revision != earlier.revision or !std.mem.eql(u8, &cut.commitment, &earlier.commitment)) return error.InconsistentRelationalCut;
                 shared = true;
@@ -583,14 +632,24 @@ pub const Bound = struct {
         hash.update(definition ++ "\x00bound\x00");
         hash.update(&try self.plan.fingerprint());
         for (self.cuts) |cut| {
-            hash.update(&.{if (cut.domain == .native_resource) 0 else 1});
-            if (cut.domain == .table_partition) {
-                const target = cut.domain.table_partition;
-                inline for (.{ target.branch, target.object, target.partition }) |id| {
-                    var value: [8]u8 = undefined;
-                    std.mem.writeInt(u64, &value, id, .little);
-                    hash.update(&value);
-                }
+            switch (cut.domain) {
+                .native_resource => hash.update(&.{0}),
+                .table_partition => |target| {
+                    hash.update(&.{1});
+                    inline for (.{ target.branch, target.object, target.partition }) |id| {
+                        var value: [8]u8 = undefined;
+                        std.mem.writeInt(u64, &value, id, .little);
+                        hash.update(&value);
+                    }
+                },
+                .stream_partition => |target| {
+                    hash.update(&.{2});
+                    inline for (.{ target.branch, target.object, target.partition, target.from_offset }) |id| {
+                        var value: [8]u8 = undefined;
+                        std.mem.writeInt(u64, &value, id, .little);
+                        hash.update(&value);
+                    }
+                },
             }
             var coordinates: [16]u8 = undefined;
             std.mem.writeInt(u64, coordinates[0..8], cut.resource, .little);
@@ -651,6 +710,20 @@ fn signedInteger(kind: types.Type) bool {
 
 fn containsColumn(list: []const Column, target: Column) bool {
     for (list) |item| if (item.eql(target)) return true;
+    return false;
+}
+fn expressionReferences(expression: Expression, target: Column) bool {
+    return switch (expression) {
+        .count_all => false,
+        inline else => |col| col.eql(target),
+    };
+}
+fn predicateReferences(predicate: Predicate, target: Column) bool {
+    for (predicate.instructions) |inst| switch (inst) {
+        .compare => |item| if (item.column.eql(target)) return true,
+        .is_null, .is_not_null => |col| if (col.eql(target)) return true,
+        else => {},
+    };
     return false;
 }
 fn containsExpression(list: []const Expression, target: Expression) bool {

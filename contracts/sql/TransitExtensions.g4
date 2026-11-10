@@ -101,7 +101,14 @@ havingNegation: NOT havingNegation | LPAREN havingDisjunction RPAREN | havingAto
 havingAtom: relationalExpression (IS NOT? NULL_ | comparison (literal | PARAMETER));
 orderByClause: ORDER BY relationalOrderItem (COMMA relationalOrderItem)*;
 relationalOrderItem: relationalExpression (ASC | DESC)? (NULLS (FIRST | LAST))?;
-relationalTarget: identifier relationalAlias?;
+relationalTarget: (identifier | streamSliceTarget) relationalAlias?;
+streamSliceTarget
+    : STREAM_SLICE LPAREN identifier COMMA PARTITION INTEGER COMMA streamSliceBound (COMMA streamSliceBound)? RPAREN
+    ;
+streamSliceBound
+    : OFFSET INTEGER (TO INTEGER)?
+    | TIMESTAMP FROM TIMESTAMP STRING (TO TIMESTAMP STRING)?
+    ;
 relationalAlias: AS identifier | relationalImplicitAlias;
 // Clause words cannot consume the next join/group token as an implicit alias.
 relationalImplicitAlias: legacyIdentifier | STREAMS | QUEUES | BY;
@@ -424,7 +431,7 @@ legacyIdentifier
     | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN
     | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE
     | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE
-    | STREAM | QUEUE | PARTITION | PARTITIONS | HASH
+    | STREAM | STREAM_SLICE | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
     | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT
     | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
@@ -464,6 +471,7 @@ VALIDATE: 'VALIDATE';
 NO: 'NO';
 ACTION: 'ACTION';
 STREAM: 'STREAM';
+STREAM_SLICE: 'STREAM_SLICE';
 QUEUE: 'QUEUE';
 STREAMS: 'STREAMS';
 QUEUES: 'QUEUES';

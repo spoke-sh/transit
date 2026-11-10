@@ -76,6 +76,10 @@ test "log declarations reject undefined nullable keys relational uniqueness and 
     var changed = definition.configuration;
     changed.policy.stream.timestamp_column = null;
     try t.expectError(error.UnsupportedLogTimestampChange, definition.configuration.requireEvolution(changed));
+    for ([_][]const u8{ "transit.log.offset", "_partition", "_offset", "_timestamp", "_tombstone" }) |reserved| {
+        columns[1].name = reserved;
+        try t.expectError(error.InvalidColumnIdentity, definition.validate());
+    }
 }
 
 test "log declarations resolve exact digests without accepting foreign definitions or malformed bounds" {

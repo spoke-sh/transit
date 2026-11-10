@@ -9786,6 +9786,41 @@
       "expected": {
         "accepted": true
       }
+    },
+    {
+      "id": "relational-stream-slice-open-bounds",
+      "sql": "SELECT stream_slice.id FROM STREAM_SLICE(items, PARTITION 0, OFFSET 0, TIMESTAMP FROM TIMESTAMP '2026-03-29T00:00:00Z') stream_slice",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-stream-slice-closed-bounds",
+      "sql": "SELECT s.id, s.value FROM STREAM_SLICE(items, PARTITION 0, OFFSET 0 TO 10, TIMESTAMP FROM TIMESTAMP '2026-03-29T00:00:00Z' TO TIMESTAMP '2026-03-29T01:00:00Z') AS s",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "relational-stream-slice-invalid-bounds",
+      "sql": "SELECT id FROM STREAM_SLICE(items, PARTITION 0, OFFSET 10 TO 5)",
+      "profile": "relational",
+      "grammar": "sql",
+      "root": "relationalQuery",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.invalid_stream_slice_bounds",
+        "category": "binding"
+      }
     }
   ]
 }

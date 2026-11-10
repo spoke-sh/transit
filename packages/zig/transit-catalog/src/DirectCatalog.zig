@@ -1471,6 +1471,19 @@ pub fn checkAccess(self: *Self, request: AccessRequest, policy: Policy) !void {
     defer if (view) |*value| value.deinit();
     if (request.target) |expected| {
         const target_entry = try self.entry(expected.object.object) orelse return error.CatalogDenied;
+        if (target_entry.log != null) {
+            if (self.transaction_read != null) return error.UnsupportedLogTransaction;
+            const log_access: c.LogAuthority.Access = switch (request.access) {
+                .inspect => .inspect,
+                .read => .read,
+                else => return error.CatalogDenied,
+            };
+            const current = try self.logAuthorization(arena.allocator(), .stream, .{ .definition = p.Growth.current_definition, .interpretation = expected, .partition = 0 }, log_access, policy);
+            if (current.definition.stored.retired or current.definition.properties.namespace != request.namespace.?) return error.CatalogDenied;
+            if (!std.meta.eql(expected, current.definition.stored.declaration.interpretation)) return error.CatalogDefinitionChanged;
+            try check(current.guard);
+            return;
+        }
         if (target_entry.seed == null) return error.CatalogDenied;
         view = try self.open(self.allocator, target_entry, false);
         if (view.?.table.root.next_lsn == 0 or view.?.table.root.retired or view.?.properties.namespace != request.namespace.?) return error.CatalogDenied;

@@ -14,6 +14,7 @@ several batches does not make that query continuous.
 | Declare and inspect a Stream or Queue | Shared Catalog declaration owner | `CREATE`, policy `ALTER`, `RENAME`, `DROP`, named `SHOW` and `DESCRIBE` below |
 | Append schema-bound events or work | Stream/Queue native owner with Catalog operation identity | `PRODUCE INTO`, `ENQUEUE INTO`, optional `RETURNING` below |
 | Consume a finite Stream cut | Native read with retained identity and bounded Fuze projection | Positional or explicitly grouped `CONSUME`, typed predicates, logical `LIMIT` and bounded `WAIT` below |
+| Query a finite Stream slice | Relational Fuze over a query-owned native `StreamRead` pin | `SELECT ... FROM STREAM_SLICE(...)` below |
 | Settle Stream progress | Native group checkpoint owner with authenticated read boundaries | `COMMIT OFFSET ... RECEIPT` below |
 | Acquire Queue work | Native fenced leases and retained original selection | `CLAIM ... WITH LEASE`, optional bounded `WAIT`, one partition and an acquisition maximum below |
 | Settle or renew Queue work | Native settlement of an exact lease | `ACK`, `NACK` and `EXTEND LEASE` below |
@@ -271,6 +272,50 @@ or recorded closure wins over waiting. Successful grouped reads still require a
 separate authenticated `COMMIT OFFSET`. Closing delivery commits no progress
 and releases no native pin. See the
 [Stream wait contract](../../../../contracts/SQL_SESSION_V1.md#stream-wait-attempts).
+
+## Query a finite Stream slice
+
+```sql
+SELECT s.tenant, COUNT(*) AS events, SUM(t.weight) AS total_weight
+FROM STREAM_SLICE(
+  events,
+  PARTITION 0,
+  OFFSET 0 TO 100,
+  TIMESTAMP FROM TIMESTAMP '2026-01-01T00:00:00Z' TO TIMESTAMP '2026-01-02T00:00:00Z'
+) AS s
+INNER JOIN tenants AS t ON s.tenant = t.tenant
+WHERE s._offset >= 0
+GROUP BY s.tenant
+ORDER BY events DESC
+LIMIT 10;
+```
+
+`STREAM_SLICE(stream_name, PARTITION p, OFFSET o1 [TO o2] [, TIMESTAMP FROM ts1 [TO ts2]])`
+(or `STREAM_SLICE(stream_name, PARTITION p, TIMESTAMP FROM ts1 [TO ts2])`)
+binds one retained Stream partition as a finite relational source in `FROM` or
+`JOIN`. `PARTITION p` selects the zero-based partition ordinal. `OFFSET o1 [TO o2]`
+bounds the half-open `[o1, o2)` offset interval; omitting `OFFSET` starts at
+`retained_from`, and omitting `TO o2` freezes the observed upper cut `next` at
+pin acquisition. `TIMESTAMP FROM ts1 [TO ts2]` bounds the half-open `[ts1, ts2)`
+UTC microsecond window and requires a declared `timestamp_column` on the Stream.
+Offsets below `retained_from` fail with `StreamOffsetTrimmed` (`55000`); offsets
+above `next`, reversed bounds, or invalid partition ordinals fail with `22023`.
+Target objects of kind `QUEUE` or `TABLE` fail with `42809`.
+
+Each `STREAM_SLICE` source exposes its declared user columns followed by four
+system columns: `_partition` (`UINT64 NOT NULL`), `_offset` (`UINT64 NOT NULL`),
+`_timestamp` (`TIMESTAMPTZ`, `NOT NULL` when `timestamp_column` is declared and
+`NULL` otherwise), and `_tombstone` (`BOOL NOT NULL`).
+`SELECT *` expands only user columns; project system columns explicitly when
+needed. Tombstone records are excluded by default unless `_tombstone` is
+referenced in `SELECT`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY` or `JOIN ON`.
+
+Opening a `STREAM_SLICE` query records a durable recovery slot and acquires a
+positional `StreamRead` pin (`group = null`) that protects both hot WAL batches
+and sealed `.tseg` segments for the life of the SQL result cursor. Closing or
+exhausting the result cursor deterministically releases that pin without
+changing consumer-group progress. `STREAM_SLICE` is outside interactive
+`BEGIN ... COMMIT` transactions (`0A000`) and historical `AS OF` snapshots.
 
 ## Acquire Queue work
 

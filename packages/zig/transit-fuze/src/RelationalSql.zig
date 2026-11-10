@@ -36,7 +36,39 @@ pub const Parameters = struct {
         if (values) |supplied| if (supplied.len != self.count) return error.ParameterCountMismatch;
     }
 };
-pub const Target = struct { name: []const u8, alias: []const u8 };
+pub const StreamSlice = struct {
+    partition: u32,
+    from_offset: ?u64 = null,
+    until_offset: ?u64 = null,
+    timestamp: ?@import("transit_protocol").StreamRead.TimestampRange = null,
+
+    pub fn validate(self: StreamSlice) !void {
+        if (self.from_offset == null and self.timestamp == null) return error.InvalidStreamSliceBounds;
+        if (self.until_offset) |until| {
+            const from = self.from_offset orelse return error.InvalidStreamSliceBounds;
+            if (from > until) return error.InvalidStreamSliceBounds;
+        }
+        if (self.timestamp) |range| range.validate() catch return error.InvalidStreamSliceBounds;
+    }
+};
+pub const Target = struct {
+    name: []const u8,
+    alias: []const u8,
+    stream_slice: ?StreamSlice = null,
+
+    pub fn jsonStringify(self: Target, jw: anytype) !void {
+        try jw.beginObject();
+        try jw.objectField("name");
+        try jw.write(self.name);
+        try jw.objectField("alias");
+        try jw.write(self.alias);
+        if (self.stream_slice) |slice| {
+            try jw.objectField("stream_slice");
+            try jw.write(slice);
+        }
+        try jw.endObject();
+    }
+};
 /// Classifies syntax before any source is opened. This is routing, not parsing
 /// acceptance: malformed/unsupported relational input still goes to parse.
 pub fn required(text: []const u8) !bool {
@@ -61,6 +93,7 @@ pub fn requiredDialect(text: []const u8, dialect: sql.Dialect) !bool {
             continue;
         }
         if (depth == 0) {
+            if (!selection and std.ascii.eqlIgnoreCase(token.text, "STREAM_SLICE") and (try lexer.peek()).tag == .left) return true;
             if (selection and std.ascii.eqlIgnoreCase(token.text, "FROM")) {
                 selection = false;
                 source = .target;
@@ -137,7 +170,10 @@ pub const Owned = struct {
     /// always supplies an exact slice; all bound operands belong to allocator.
     pub fn bindParameters(self: *const Owned, allocator: std.mem.Allocator, sources: []const r.Source, lifetime: r.Lifetime, budgets: r.Budgets, location: ?*sql.Location, parameters: *Parameters, values: ?[]const ?types.Values.Atom) !r.Plan {
         if (sources.len != self.targets.len) return error.InvalidRelationalSources;
-        for (sources, self.targets) |source, input| if (!std.mem.eql(u8, source.alias, input.alias)) return error.RelationalSourceChanged;
+        for (sources, self.targets) |source, input| {
+            if (!std.mem.eql(u8, source.alias, input.alias)) return error.RelationalSourceChanged;
+            if (input.stream_slice != null and lifetime == .maintained) return error.UnsupportedConstruct;
+        }
         var scalars: Scalar.Builder = .{};
         const outputs = if (self.star) try self.expandStar(allocator, sources, location) else try allocator.alloc(r.Output, self.selections.len);
         if (!self.star) {
@@ -233,6 +269,19 @@ pub const Owned = struct {
         return plan;
     }
 
+    fn starColumns(self: *const Owned, sources: []const r.Source, source_index: usize) []const @import("TableSchema.zig").Column {
+        const columns = sources[source_index].schema.columns;
+        if (self.targets[source_index].stream_slice != null and columns.len > 4 and
+            std.mem.eql(u8, columns[columns.len - 4].name, "_partition") and
+            std.mem.eql(u8, columns[columns.len - 3].name, "_offset") and
+            std.mem.eql(u8, columns[columns.len - 2].name, "_timestamp") and
+            std.mem.eql(u8, columns[columns.len - 1].name, "_tombstone"))
+        {
+            return columns[0 .. columns.len - 4];
+        }
+        return columns;
+    }
+
     fn expandStar(self: *const Owned, allocator: std.mem.Allocator, sources: []const r.Source, location: ?*sql.Location) ![]r.Output {
         const selected: ?usize = if (self.star_qualifier) |qualifier| found: {
             for (sources, 0..) |source, i| if (std.mem.eql(u8, source.alias, qualifier.name)) break :found i;
@@ -240,16 +289,17 @@ pub const Owned = struct {
             return error.UnknownRelationalSource;
         } else null;
         var count: usize = 0;
-        for (sources, 0..) |source, i| {
+        for (sources, 0..) |_, i| {
             if (selected != null and selected.? != i) continue;
-            if (source.schema.columns.len > r.max_outputs - count) return error.InvalidRelationalOutputs;
-            count += source.schema.columns.len;
+            const columns = self.starColumns(sources, i);
+            if (columns.len > r.max_outputs - count) return error.InvalidRelationalOutputs;
+            count += columns.len;
         }
         const outputs = try allocator.alloc(r.Output, count);
         var index: usize = 0;
         for (sources, 0..) |source, source_index| {
             if (selected != null and selected.? != source_index) continue;
-            for (source.schema.columns) |column| {
+            for (self.starColumns(sources, source_index)) |column| {
                 outputs[index] = .{
                     // Joined schemas commonly repeat names, including the join
                     // key. Keep every column and qualify the result labels.
@@ -586,9 +636,64 @@ pub fn discoverTargets(allocator: std.mem.Allocator, text: []const u8, output: *
     return 1;
 }
 fn target(parser: *Parser) !Target {
+    if (parser.word("STREAM_SLICE") and (try parser.lexer.peek()).tag == .left) {
+        parser.annotate(.function);
+        try parser.advance();
+        try parser.require(.left);
+        const name = try parser.named(.source);
+        try parser.require(.comma);
+        try parser.requireWord("PARTITION");
+        if (parser.token.tag == .minus) return error.InvalidStreamSliceBounds;
+        if (parser.token.tag != .integer or (parser.token.text.len != 0 and (parser.token.text[0] == '$' or parser.token.text[0] == '?'))) return error.InvalidSqlSyntax;
+        parser.annotate(.number);
+        const partition = std.fmt.parseInt(u32, parser.token.text, 10) catch return error.LiteralOutOfRange;
+        try parser.advance();
+        try parser.require(.comma);
+        var slice: StreamSlice = .{ .partition = partition };
+        while (true) {
+            if (try parser.takeWord("OFFSET")) {
+                if (slice.from_offset != null) return error.InvalidStreamSliceBounds;
+                slice.from_offset = try parseUnsignedOffset(parser);
+                if (try parser.takeWord("TO")) {
+                    slice.until_offset = try parseUnsignedOffset(parser);
+                }
+            } else if (try parser.takeWord("TIMESTAMP")) {
+                if (slice.timestamp != null) return error.InvalidStreamSliceBounds;
+                try parser.requireWord("FROM");
+                const from_us = try parseUtcTimestamp(parser);
+                const until_us: i64 = if (try parser.takeWord("TO")) try parseUtcTimestamp(parser) else std.math.maxInt(i64);
+                slice.timestamp = .{ .from_us = from_us, .until_us = until_us };
+            } else {
+                if (parser.location) |loc| loc.expected = "OFFSET or TIMESTAMP";
+                return error.InvalidSqlSyntax;
+            }
+            if (!try parser.take(.comma)) break;
+        }
+        try parser.require(.right);
+        try slice.validate();
+        const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else name;
+        return .{ .name = name, .alias = alias, .stream_slice = slice };
+    }
     const name = try parser.named(.source);
     const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else name;
     return .{ .name = name, .alias = alias };
+}
+fn parseUnsignedOffset(parser: *Parser) !u64 {
+    if (parser.token.tag == .minus) return error.InvalidStreamSliceBounds;
+    if (parser.token.tag != .integer or (parser.token.text.len != 0 and (parser.token.text[0] == '$' or parser.token.text[0] == '?'))) return error.InvalidSqlSyntax;
+    parser.annotate(.number);
+    const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.LiteralOutOfRange;
+    try parser.advance();
+    return value;
+}
+fn parseUtcTimestamp(parser: *Parser) !i64 {
+    if (!try parser.takeWordRole("TIMESTAMP", .type_name)) {
+        if (parser.location) |loc| loc.expected = "TIMESTAMP";
+        return error.InvalidStreamSliceBounds;
+    }
+    if (parser.token.tag != .string) return error.InvalidStreamSliceBounds;
+    const raw = (try parser.literal(.{ .timestamp = .utc })).value.string;
+    return (types.Semantics.bind(raw, .{ .timestamp = .utc }) catch return error.InvalidStreamSliceBounds).timestamp;
 }
 fn clauseWord(word: []const u8) bool {
     inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |keyword| {

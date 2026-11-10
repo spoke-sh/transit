@@ -415,3 +415,49 @@ test "relational clauses are not mistaken for an implicit source alias" {
     try t.expectEqualStrings("lefts", grouped.targets[0].alias);
     try t.expectEqual(1, grouped.groups.len);
 }
+test "STREAM_SLICE parses offset and UTC timestamp bounds and omits system columns from SELECT star" {
+    const stream_columns = [_]@import("TableSchema.zig").Column{
+        .{ .id = 1, .name = "key", .type = .int64 },
+        .{ .id = 2, .name = "value", .type = .int64, .nullable = true },
+        .{ .id = 3, .name = "_partition", .type = .uint64 },
+        .{ .id = 4, .name = "_offset", .type = .uint64 },
+        .{ .id = 5, .name = "_timestamp", .type = .{ .timestamp = .utc }, .nullable = true },
+        .{ .id = 6, .name = "_tombstone", .type = .boolean },
+    };
+    const stream_sources = [_]r.Source{.{
+        .alias = "s",
+        .realm = 1,
+        .resource = 101,
+        .catalog = 1,
+        .owner = 9,
+        .schema = .{ .object = 11, .revision = 1, .next_column = 7, .columns = &stream_columns },
+    }};
+    try t.expect(try sql.required("SELECT * FROM STREAM_SLICE(events, PARTITION 0, OFFSET 2 TO 9) AS s"));
+    var star = try sql.parse(t.allocator, "SELECT * FROM STREAM_SLICE(events, PARTITION 0, OFFSET 2 TO 9) AS s WHERE s._offset >= 2", null);
+    defer star.deinit();
+    try t.expectEqualStrings("events", star.targets[0].name);
+    try t.expectEqualStrings("s", star.targets[0].alias);
+    try t.expectEqual(@as(u32, 0), star.targets[0].stream_slice.?.partition);
+    try t.expectEqual(@as(?u64, 2), star.targets[0].stream_slice.?.from_offset);
+    try t.expectEqual(@as(?u64, 9), star.targets[0].stream_slice.?.until_offset);
+    const star_plan = try star.bind(&stream_sources, .interactive, budgets, null);
+    try t.expectEqual(@as(usize, 2), star_plan.outputs.len);
+    try t.expectEqualStrings("key", star_plan.outputs[0].name);
+    try t.expectEqualStrings("value", star_plan.outputs[1].name);
+    try t.expect(star_plan.referencesColumn(0, 4));
+    try t.expect(!star_plan.referencesColumn(0, 6));
+    var with_tombstone = try sql.parse(t.allocator, "SELECT s._partition, s._offset, s._timestamp, s._tombstone, s.key FROM STREAM_SLICE(events, PARTITION 1, TIMESTAMP FROM TIMESTAMP '1970-01-01T00:00:01Z' TO TIMESTAMP '1970-01-01T00:00:05Z') s", null);
+    defer with_tombstone.deinit();
+    try t.expectEqual(@as(i64, 1_000_000), with_tombstone.targets[0].stream_slice.?.timestamp.?.from_us);
+    try t.expectEqual(@as(i64, 5_000_000), with_tombstone.targets[0].stream_slice.?.timestamp.?.until_us);
+    const tombstone_plan = try with_tombstone.bind(&stream_sources, .interactive, budgets, null);
+    try t.expect(tombstone_plan.referencesColumn(0, 6));
+    try t.expectError(error.UnsupportedConstruct, with_tombstone.bind(&stream_sources, .maintained, budgets, null));
+    for ([_][]const u8{
+        "SELECT * FROM STREAM_SLICE(events, PARTITION 0, OFFSET 9 TO 2)",
+        "SELECT * FROM STREAM_SLICE(events, PARTITION 0, TIMESTAMP FROM TIMESTAMP '1970-01-01T00:00:05Z' TO TIMESTAMP '1970-01-01T00:00:01Z')",
+        "SELECT * FROM STREAM_SLICE(events, PARTITION 0, TIMESTAMP FROM TIMESTAMP '1970-01-01T00:00:01')",
+    }) |invalid| {
+        try t.expectError(error.InvalidStreamSliceBounds, sql.parse(t.allocator, invalid, null));
+    }
+}

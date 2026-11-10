@@ -8,9 +8,10 @@ bindings. Its validators check shape, exact attribution and supplied guards.
 They perform no I/O and establish no permission, catalog publication, payload
 availability or durable acceptance. SQL declarations and named inspection use
 the [shared Catalog lifecycle](../docs/handbook/reference/sql/streaming.md#stream-and-queue-declarations).
-SQL also supports [PRODUCE and finite CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work).
-Explicitly assigned group consumption, bounded WAIT and authenticated
-`COMMIT OFFSET` use the same native owners. `STREAM_SLICE` remains unavailable in SQL.
+SQL also supports [PRODUCE and finite CONSUME](../docs/handbook/reference/sql/streaming.md#append-events-and-work),
+explicitly assigned group consumption, bounded WAIT, authenticated
+`COMMIT OFFSET` and [finite relational `STREAM_SLICE(...)` queries](../docs/handbook/reference/sql/streaming.md#query-a-finite-stream-slice)
+using the same native owners.
 SQL WAIT retains one original consume request and an open upper frontier;
 payload and upper-offset predicates filter output after acceptance. See the
 [SQL wait contract](SQL_SESSION_V1.md#stream-wait-attempts).
@@ -321,6 +322,18 @@ not group progress, and does not cancel accepted mutations. Its original receipt
 survives pin closure. The storage `StreamPartition` implements these transitions
 with `LogRead` bases and authenticated coverage; these neutral types alone do
 not enable installed read/settlement APIs.
+
+Relational `SELECT ... FROM STREAM_SLICE(...)` queries acquire a query-owned
+positional `StreamRead` pin (`group = null`) and record its durable client-token
+recovery slot before dispatching `.consume`. Each source appends four read-only
+system columns (`_partition`, `_offset`, `_timestamp`, `_tombstone`) after the
+declared user columns; `SELECT *` expands only user columns, and tombstone
+records are excluded unless `_tombstone` is referenced in the query. Closing or
+exhausting the SQL result cursor releases the pin; if a crashed or interrupted
+open left the pin receipt uncertain, recovery cancels the original consume
+identity before releasing any accepted pin. `STREAM_SLICE` never mutates
+consumer-group progress and is rejected on `QUEUE` objects and inside attached
+interactive transactions.
 
 Release and offset settlement preserve their accepted read's interpretation
 through later declaration revisions or DROP. Their publication records the

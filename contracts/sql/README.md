@@ -376,8 +376,9 @@ expression arithmetic, general casts,
 and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
-`relationalQuery` is a separate checked root for the explicit Table relational
-profile. It accepts optional EXPLAIN, one or two Table targets with explicit or
+`relationalQuery` is a separate checked root for the explicit Table and finite
+Stream slice relational profile. It accepts optional EXPLAIN, one or two Table or
+`STREAM_SLICE(...)` targets with explicit or
 implicit aliases, one inner/left equijoin, `*` or mixed column/COUNT/SUM selections,
 Boolean WHERE, GROUP BY, HAVING, ORDER BY (`ASC`/`DESC`, `NULLS FIRST`/`NULLS LAST`)
 and LIMIT. The [relational corpus](corpus/relational.json)
