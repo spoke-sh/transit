@@ -163,6 +163,18 @@ def compiler_journey(cli, root):
     main = f"DEPENDENCY bridge FROM '{bridge}' REVISION '{bridge_rev}' SUBDIRECTORY 'source';\nIMPORT bridge FROM PACKAGE bridge FILE 'build.transit'; CREATE TARGET default AS BEGIN USE bridge.Wrap(NAME 'remote_items'); SELECT * FROM remote_items; END;"
     source(remote, 'build.transit', main)
     cli_build(cli, remote, '--check', expected=1)
+    # Kill the real fetch at cache publication, after verified source and its
+    # manifest are staged. A partial cache must not publish a usable lock.
+    killed = subprocess.run([str(cli), 'build', '--fetch'], cwd=remote,
+                            capture_output=True, timeout=150,
+                            preexec_fn=lambda: offline(interrupt_publish=True))
+    assert killed.returncode == -signal.SIGSYS, (killed.returncode, killed.stdout, killed.stderr)
+    assert not (remote / 'transit.lock').exists()
+    packages = remote / '.transit/packages'
+    staged = list(packages.glob('.pending-*'))
+    assert any((item / 'manifest.json').is_file() and (item / 'tree/build.transit').is_file() for item in staged)
+    assert all(item.name.startswith('.pending-') for item in packages.iterdir())
+    cli_build(cli, remote, '--check', expected=1)
     fetched = cli_build(cli, remote, '--fetch', fetch=True)
     assert fetched['dependencies'] == 2
     lock_path = remote / 'transit.lock'
