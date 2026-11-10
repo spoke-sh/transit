@@ -254,3 +254,41 @@ test "candidate objects batch selected persistence and preserve original bytes a
     fault.corrupt_metadata = false;
     try candidates.persistSelected(selection);
 }
+
+test "candidate objects support zero-allocation mark rollback and in-place selected compaction" {
+    var base = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer base.deinit();
+    var allocator = t.FailingAllocator.init(t.allocator, .{});
+    var candidates = try Candidates.init(allocator.allocator(), base.objectStore(), .{ .bytes = 4096, .objects = 8, .resident_bytes = 8192 });
+    defer candidates.deinit();
+    allocator.fail_index = allocator.alloc_index;
+    const store = candidates.objectStore();
+    try put(store, "keep-a", "alpha");
+    try put(store, "drop-b", "bravo");
+    const checkpoint = candidates.mark();
+    try put(store, "rollback-c", "charlie");
+    try t.expect(try store.head("rollback-c") != null);
+    candidates.rollback(checkpoint);
+    try t.expect(try store.head("rollback-c") == null);
+    var output: [32]u8 = undefined;
+    try t.expectEqualStrings("alpha", try store.getRange("keep-a", 0, 5, &output));
+    try t.expectEqualStrings("bravo", try store.getRange("drop-b", 0, 5, &output));
+    try put(store, "keep-d", "delta");
+    candidates.beginSelection();
+    try candidates.select("keep-a", 0, s.LogBatch.content("alpha").sha256);
+    try candidates.select("keep-d", 0, s.LogBatch.content("delta").sha256);
+    candidates.compactSelected(struct {
+        owner: *Candidates,
+        pub fn keep(self: @This(), name: []const u8) bool {
+            return self.owner.isSelected(name);
+        }
+    }{ .owner = &candidates });
+    try t.expectEqual(@as(u32, 2), candidates.count);
+    try t.expect(try store.head("drop-b") == null);
+    try t.expectEqualStrings("alpha", try store.getRange("keep-a", 0, 5, &output));
+    try t.expectEqualStrings("delta", try store.getRange("keep-d", 0, 5, &output));
+    candidates.clear();
+    try t.expectEqual(@as(u32, 0), candidates.count);
+    try t.expectEqual(@as(usize, 0), candidates.used);
+    try t.expect(try store.head("keep-a") == null);
+}

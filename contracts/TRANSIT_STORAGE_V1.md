@@ -1690,7 +1690,8 @@ borrow cannot supply those authorities. Fresh appends require the current live
 declaration and preserve the seed's schema, partition routing and compaction key.
 
 Each `LOGPART1` payload contains its eight-byte magic, shared definition, metadata
-length (`u32`, big-endian), canonical JSON metadata and optional `LOGBAT01` bytes.
+length (`u32`, big-endian), canonical JSON metadata and optional trailing payload
+bytes (`LOGBAT01` on append or canonical `QCLAIM01` on a nonempty Queue claim).
 Metadata has a 32 KiB limit and contains the previous accepted payload's SHA-256,
 the complete new paged root and operation or physical-maintenance action. The root records the original
 initialization, declaration, physical WAL frontier, independent logical offset
@@ -1698,8 +1699,9 @@ frontier, retained boundary, nullable trusted-time floor, batch/segment/receipt/
 directories, exclusive sealed offset, accepted archive coverage, nullable recovery reference and
 mandatory maintenance progress. Missing
 fields reject. Append records use `row_delta`; assignment, read pin/release,
-offset, expiry, flush, archival, checkpoint and maintenance records use `manifest_checkpoint` and contain no row
-payload. All advance the
+offset, claim, settlement, expiry, flush, archival, checkpoint and maintenance records use `manifest_checkpoint`.
+Nonempty Queue claim records verify that their trailing `QCLAIM01` payload matches `claim.receipt.leases`;
+empty Queue claims and other `manifest_checkpoint` records carry zero trailing payload bytes. All advance the
 WAL frontier, while only append allocates logical offsets.
 
 Original outcomes are immutable `log-evidence/{sha256}.data` objects: `LOGEVID1`,
@@ -2035,7 +2037,19 @@ or trim authority.
 
 Cold recovery selects the latest accepted reference, verifies the publishing
 record, then replays bounded successors with the normal transition checks.
-Top-level index roots are verified before readiness. A superseded reference
+Top-level index roots are verified before readiness. For Queue partitions,
+foreground mutations and timer/retention transitions stage derived `TDIX`,
+`TBMP0001`, `QTBUF001`, `QTRUN001`, `LOGEVID1` and `QCLAIM01` objects in the
+bounded `CandidateObjects` overlay without writing `TransitObjectStore`; only
+materializing barriers (`checkpoint`, `flush`, `archive`, `transaction_pin`,
+`transaction_release`, `transaction_prepare`, `transaction_commit`, and
+`transaction_abort`) persist the reachable object closure to `TransitObjectStore`
+before clearing the overlay on WAL acceptance. Queue `recoveryState()` exports
+the latest verified checkpoint or materializing barrier anchor so fresh owners
+replay unmaterialized post-barrier `TWAL1` frames in order, and dirty-frame
+watermarks (`queue_checkpoint_soft_frames`, `queue_checkpoint_hard_frames`, with
+`.coalesce` or `.refuse` backpressure) bound uncheckpointed tail length without
+blocking idempotent retries or lease settlements. A superseded reference
 inside a baseline is structural history, not another checkpoint to recursively
 open. Missing required baselines, publishing records or archive bytes reject;
 the owner never silently restarts from an incompatible or incomplete prefix.

@@ -178,14 +178,16 @@ replay roots and other open claims preserve their independent dependencies.
 Local buffer disposal does not invoke this operation, and closure alone does
 not expire the Queue's current payloads.
 
-`CandidateObjects` derives one proposed transition's immutable pages and bitmap
-containers in bounded, reusable memory. It enforces separate byte, object-count
-and total resident budgets for that operation. Reads fall through to the existing
+`CandidateObjects` derives immutable pages, bitmap containers, timer buffers/runs,
+evidence records and claim selections in bounded, reusable memory. It enforces
+separate byte, object-count and total resident budgets, supports zero-allocation
+`mark`/`rollback` across failed transitions and in-place `compactSelected`
+pruning of unreachable intermediates. Reads fall through to the existing
 provider; private puts reach the provider only through explicit `persist`.
 Persistence groups at most eight selected objects through the immutable batch
 API, verifies each returned size and digest, and retains the exact private bytes
 after partial failure. All groups must finish before the enclosing owner can
-publish its root. This uses bounded borrowed views into the existing candidate
+publish a materializing barrier root. This uses bounded borrowed views into the existing candidate
 buffer and adds no per-object allocation.
 Replay can reconstruct and compare roots without writing or requiring old
 intermediate staging objects. Persistence alone publishes no root and supplies no
@@ -200,14 +202,20 @@ overlay when every cache slot is verified; they acquire no provider provenance
 by being staged, decoded or found in the cache. Changing the underlying physical
 namespace still requires clearing the complete page cache.
 
-Queue publication follows the proposed root's private index dependencies before
-staging. It includes `.tack` bitmap containers, full-key child directories and
-timer merges' frozen source and output roots. The traversal reuses the candidate
-entry allocation and stops at existing immutable provider objects. Superseded
-private index pages, containers and delta buffers are omitted; earlier accepted
-objects are never deleted. This changes staging work without changing accepted
-root bytes, lease checks or deterministic replay. The storage retention graph
-still owns physical collection.
+Queue foreground mutations and timer/retention transitions commit through one
+`LOGPART1` WAL append (with nonempty `QCLAIM01` bytes inline on `.claim`) and
+retain reachable metadata in the bounded `CandidateObjects` overlay without
+foreground `TransitObjectStore` `PUT`s. Materialization at `checkpoint` (`LCHECK01`)
+and placement/transaction barriers (`flush`, `archive`, `pinTransactionSource`,
+`releaseTransactionSource`, `evaluateTransaction`, `prepareTransaction`) follows
+the target root's reachable index, `.tack`, FIFO-key, timer-merge, `LOGEVID1`,
+`QCLAIM01` and unreleased `source.batches`/`source.segments` dependencies before
+staging. The traversal reuses the candidate entry allocation and stops at existing
+immutable provider objects. Superseded private index pages, containers and delta
+buffers are omitted; earlier accepted objects are never deleted. Resident
+`DeadlineCache`, `QueueVisibilityCache` and `QueueAffinity` prefixes update
+incrementally across `enqueue`, `claim`, `settle` and `expireOne`. The storage
+retention graph still owns physical collection.
 
 `LogTail` reserves aligned payload slabs and borrow handles under an explicit
 resident byte budget. It verifies content once on admission, returns pinned

@@ -105,6 +105,50 @@ pub fn clear(self: *Self) void {
     }
 }
 
+/// Advance resident unchanged FIFO keys across a single-key `before -> after`
+/// root transition while publishing `changed_value` (or invalidating on removal).
+/// Active reader pins are never mutated in place; pinned slots keep `before`.
+pub fn transitionKey(self: *Self, before: ?pages.Reference, after: ?pages.Reference, changed_key: []const u8, changed_value: ?[32]u8) void {
+    const next_root = after orelse {
+        self.clear();
+        return;
+    };
+    if (changed_value) |value| {
+        _ = self.put(next_root, changed_key, value);
+    } else if (changed_key.len != 0 and changed_key.len <= max_key_bytes) {
+        const at = self.bucket(changed_key);
+        const current = self.buckets[at].load(.acquire);
+        if (current != 0) {
+            const slot = &self.slots[slotIndex(current)];
+            if (slot.mapped and slot.length == changed_key.len and std.mem.eql(u8, slot.key[0..slot.length], changed_key)) {
+                const previous = self.buckets[at].swap(0, .acq_rel);
+                if (previous != 0) self.slots[slotIndex(previous)].mapped = false;
+            }
+        }
+    }
+    const prior = before orelse return;
+    if (std.meta.eql(prior, next_root)) return;
+    for (self.buckets) |*entry| {
+        const current = entry.load(.acquire);
+        if (current == 0) continue;
+        const index = slotIndex(current);
+        const slot = &self.slots[index];
+        if (!slot.mapped or !std.meta.eql(slot.root, prior)) continue;
+        if (slot.length == changed_key.len and std.mem.eql(u8, slot.key[0..slot.length], changed_key)) {
+            const previous = entry.swap(0, .acq_rel);
+            if (previous != 0) self.slots[slotIndex(previous)].mapped = false;
+            continue;
+        }
+        const state = slot.state.load(.acquire);
+        if (state & ~generation_mask != 0 or state & generation_mask == generation_mask) continue;
+        const generation = (state & generation_mask) + (@as(u64, 1) << 32);
+        if (slot.state.cmpxchgStrong(state, generation | busy, .acq_rel, .acquire) != null) continue;
+        slot.root = next_root;
+        slot.state.store(generation, .release);
+        entry.store(generation | @as(u64, @intCast(index + 1)), .release);
+    }
+}
+
 test "queue affinity full keys roots and bounded saturation preserve misses" {
     const t = std.testing;
     var buckets: [1]Atomic = undefined;

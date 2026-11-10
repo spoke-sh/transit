@@ -43098,7 +43098,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 12,
-        "catch": 2
+        "catch": 3
       },
       "imports": [
         "TransitObjectStore.zig",
@@ -44295,11 +44295,12 @@
     },
     "packages/zig/transit-storage/src/LogPartition.zig": {
       "errors": {
+        "CandidateObjectBudgetExceeded": 4,
         "InvalidLogArchive": 3,
         "InvalidLogBatch": 2,
         "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 41,
+        "InvalidLogHistory": 44,
         "InvalidLogPreparation": 16,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
@@ -44313,7 +44314,7 @@
         "InvalidQueueHead": 1,
         "InvalidQueueReadBudget": 1,
         "InvalidQueueSchedule": 1,
-        "InvalidQueueScheduleBudget": 2,
+        "InvalidQueueScheduleBudget": 3,
         "InvalidQueueSelection": 2,
         "InvalidQueueTimerBudget": 3,
         "InvalidStreamBudget": 3,
@@ -44357,6 +44358,7 @@
         "LogTransactionSourceReleased": 2,
         "OutstandingTailBorrows": 1,
         "PrivateLogWorkspace": 8,
+        "QueueCheckpointBacklog": 2,
         "QueueClaimMissing": 2,
         "QueueDestinationSchemaMismatch": 1,
         "QueueItemMissing": 8,
@@ -44390,6 +44392,10 @@
           "unsealed",
           "untimed",
           "not_due"
+        ],
+        "Owner().<return>.Options.queue_checkpoint_hard_mode": [
+          "coalesce",
+          "refuse"
         ]
       },
       "error_sets": {},
@@ -44416,6 +44422,7 @@
         "Owner().<return>.candidateQueueSchedule()": "<inferred>",
         "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
+        "Owner().<return>.checkpointMaintenanceUnit()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
         "Owner().<return>.claimNonempty()": "<inferred>",
         "Owner().<return>.claimReadReleased()": "<inferred>",
@@ -44423,6 +44430,7 @@
         "Owner().<return>.claimSelected()": "<inferred>",
         "Owner().<return>.close()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
+        "Owner().<return>.compactQueueOverlayIfNeeded()": "<inferred>",
         "Owner().<return>.compactStep()": "<inferred>",
         "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
         "Owner().<return>.compactionProgress()": "<inferred>",
@@ -44435,6 +44443,7 @@
         "Owner().<return>.decodeValue()": "<inferred>",
         "Owner().<return>.deinit()": "<inferred>",
         "Owner().<return>.encodeTransferPayload()": "<inferred>",
+        "Owner().<return>.ensureQueueCheckpointHeadroom()": "<inferred>",
         "Owner().<return>.evaluateTransaction()": "<inferred>",
         "Owner().<return>.evaluateTransactionBounded()": "<inferred>",
         "Owner().<return>.expirationObservation()": "<inferred>",
@@ -44451,6 +44460,7 @@
         "Owner().<return>.loadEvidence()": "<inferred>",
         "Owner().<return>.loadRead()": "<inferred>",
         "Owner().<return>.materialize()": "<inferred>",
+        "Owner().<return>.materializeQueueRoot()": "<inferred>",
         "Owner().<return>.materializeWithinBudget()": "<inferred>",
         "Owner().<return>.nextPosition()": "<inferred>",
         "Owner().<return>.nextProducer()": "<inferred>",
@@ -44466,8 +44476,10 @@
         "Owner().<return>.progress()": "<inferred>",
         "Owner().<return>.protectedOffset()": "<inferred>",
         "Owner().<return>.publish()": "<inferred>",
+        "Owner().<return>.publishClaim()": "<inferred>",
         "Owner().<return>.publishMaintenance()": "<inferred>",
         "Owner().<return>.publishRecord()": "<inferred>",
+        "Owner().<return>.publishSelected()": "<inferred>",
         "Owner().<return>.putGroup()": "<inferred>",
         "Owner().<return>.queueCanonicalKey()": "<inferred>",
         "Owner().<return>.queueDeadline()": "<inferred>",
@@ -44515,17 +44527,19 @@
         "Owner().<return>.verifyCompactionStep()": "<inferred>",
         "Owner().<return>.verifyDecisionTime()": "<inferred>",
         "Owner().<return>.verifyGroup()": "<inferred>",
+        "Owner().<return>.verifyMaterializedRoots()": "<inferred>",
         "Owner().<return>.verifyPrepared()": "<inferred>",
         "Owner().<return>.verifyPreparedBounded()": "<inferred>",
         "Owner().<return>.verifyRewrite()": "<inferred>",
+        "Owner().<return>.verifyRootReferences()": "<inferred>",
         "Owner().<return>.verifyTransferPayload()": "<inferred>",
         "Owner().<return>.verifyTransition()": "<inferred>",
         "Owner().<return>.verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 910,
-        "catch": 20
+        "try": 946,
+        "catch": 27
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -44575,7 +44589,7 @@
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
-        "InvalidLogHistory": 12,
+        "InvalidLogHistory": 13,
         "InvalidLogPreparation": 2,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 2,
@@ -44584,6 +44598,7 @@
         "InvalidQueueExpiration": 1,
         "InvalidQueueRoot": 2,
         "InvalidQueueSchedule": 1,
+        "InvalidQueueSelection": 1,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
@@ -45133,32 +45148,40 @@
       "outcomes": {
         "Domain": [
           "plain",
+          "receipts",
           "sidecars",
           "bitmap",
           "keys",
           "levels",
+          "run_chunks",
           "blob"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "compact()": "<inferred>",
         "leaf()": "<inferred>",
         "persist()": "<inferred>",
         "schedule()": "<inferred>",
+        "selectReachable()": "<inferred>",
         "tree()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 46,
         "catch": 0
       },
       "imports": [
         "BitmapDirectory.zig",
         "CandidateObjects.zig",
+        "LogEvidence.zig",
         "LogPartitionRecord.zig",
         "OrderedKeyIndex.zig",
+        "QueueReadRelease.zig",
         "QueueSchedule.zig",
+        "QueueSelection.zig",
         "QueueTimeDirectory.zig",
+        "QueueTimeRun.zig",
         "Tack.zig",
         "TreeStore.zig",
         "std"
@@ -45255,7 +45278,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 138,
+        "try": 139,
         "catch": 1
       },
       "imports": [
@@ -45349,6 +45372,7 @@
         "archiveMaintenanceUnit()": "<inferred>",
         "cancel()": "<inferred>",
         "checkpoint()": "<inferred>",
+        "checkpointMaintenanceUnit()": "<inferred>",
         "claim()": "<inferred>",
         "claimNonempty()": "<inferred>",
         "claimReadiness()": "<inferred>",
@@ -45489,7 +45513,7 @@
     "packages/zig/transit-storage/src/QueueSelection.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidQueueSelection": 13,
+        "InvalidQueueSelection": 14,
         "QueueClaimConflict": 1,
         "QueueSelectionBudgetExceeded": 1,
         "QueueSelectionMissing": 1,
@@ -45509,11 +45533,12 @@
         "objectKey()": "<inferred>",
         "requireLease()": "<inferred>",
         "stage()": "<inferred>",
+        "stageEncoded()": "<inferred>",
         "validateContent()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -45704,7 +45729,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 1
+        "catch": 8
       },
       "imports": [
         "QueueTimingWheel.zig",

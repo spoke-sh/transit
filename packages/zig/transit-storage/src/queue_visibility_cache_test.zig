@@ -100,3 +100,30 @@ test "queue visibility rebinding requires exact basis and rejects missing known 
     try t.expectEqual(Cache.Lookup.miss, cache.lookup(reference(3), 2, 40, null));
     try t.expect(!cache.valid);
 }
+
+test "queue visibility incremental insert maintains bounded earliest prefix across evictions" {
+    var entries: [3]Wheel.Entry = undefined;
+    for ([_]u64{ 5, 15, 25, 40 }) |now| {
+        var cache: Cache = .{ .wheel = try Wheel.init(&entries, now) };
+        cache.reset(reference(1), 0, now);
+        cache.valid = true;
+        cache.covers_all = true;
+        cache.observed_ms = now;
+        const insertion_order = [_]usize{ 4, 2, 1, 3, 0 };
+        var active: [5]bool = @splat(false);
+        var root = reference(1);
+        var count: u64 = 0;
+        for (insertion_order, 0..) |idx, step| {
+            const next = reference(@intCast(step + 2));
+            cache.insert(root, next, count, events[idx]);
+            active[idx] = true;
+            count += 1;
+            root = next;
+            try t.expect(cache.matches(root, count));
+            try check(&cache, root, count, active, now);
+        }
+        try t.expect(!cache.covers_all);
+        try t.expectEqualDeep(events[0], cache.earliest(root, count).?);
+        try t.expectEqualDeep(events[2], cache.last.?);
+    }
+}

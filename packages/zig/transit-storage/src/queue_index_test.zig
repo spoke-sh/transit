@@ -299,9 +299,19 @@ test "queue index backlog exceeds resident pages and same-batch claims keep disj
     var exhausted_policy = definition.configuration.policy.queue;
     exhausted_policy.maximum_attempts = 1;
     const blocked = try index.settle(renewed, .{ .operation = operation(4), .lease = (try index.item(renewed, 0)).lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } }, exhausted_policy, .exact(30), .{ .partition = 91, .next_lsn = 5 }, null);
-    try t.expect(!visibility.matches(blocked.items, blocked.scheduled));
-    try index.prepareVisibility(blocked, 30, 64);
+    try t.expect(visibility.matches(blocked.items, blocked.scheduled));
     try t.expectEqual(@as(u64, 4), (try index.firstEligible(blocked, 30)).?.offset);
+    try index.prepareVisibility(renewed, 30, 64);
+    const delayed_requeued = try index.settle(renewed, .{ .operation = operation(6), .lease = (try index.item(renewed, 0)).lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } }, definition.configuration.policy.queue, .exact(30), .{ .partition = 91, .next_lsn = 5 }, null);
+    try t.expect(visibility.matches(delayed_requeued.items, delayed_requeued.scheduled));
+    try t.expectEqual(@as(u64, 4), (try index.firstEligible(delayed_requeued, 30)).?.offset);
+    try index.prepareVisibility(renewed, 30, 64);
+    var zero_backoff_policy = definition.configuration.policy.queue;
+    zero_backoff_policy.backoff = .{ .initial_ms = 0, .maximum_ms = 0, .multiplier = 1 };
+    const immediate_requeued = try index.settle(renewed, .{ .operation = operation(7), .lease = (try index.item(renewed, 0)).lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } }, zero_backoff_policy, .exact(0), .{ .partition = 91, .next_lsn = 5 }, null);
+    try t.expect(visibility.matches(immediate_requeued.items, immediate_requeued.scheduled));
+    try t.expectEqual(@as(usize, 8), visibility.wheel.len);
+    try t.expectEqual(@as(u64, 0), (try index.firstEligible(immediate_requeued, 0)).?.offset);
     try t.expect(!try filter.keep(Index.timerBasis(blocked), .visible, .{ .at_ms = 0, .offset = 0, .epoch = 1 }));
     try t.expect(!try filter.keep(Index.timerBasis(blocked), .lease, .{ .at_ms = 150, .offset = 0, .epoch = 1 }));
 }

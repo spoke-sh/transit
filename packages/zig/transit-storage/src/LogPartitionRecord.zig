@@ -157,6 +157,13 @@ pub const Record = struct {
         };
     }
 
+    pub fn isMaterializedBarrier(self: Record) bool {
+        return switch (self.action) {
+            .checkpoint, .flush, .archive, .transaction_pin, .transaction_release, .transaction_prepare, .transaction_commit, .transaction_abort => true,
+            else => false,
+        };
+    }
+
     pub fn validate(self: Record, lsn: u64) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.root.validate();
@@ -265,6 +272,10 @@ fn verifyPayload(record: Record, payload: []const u8) !void {
     if (payload.len > max_batch_bytes) return error.LogRecordTooLarge;
     if (record.action == .operation and record.action.operation.outcome == .append) {
         if (!std.meta.eql(record.action.operation.outcome.append.append.payload, @import("LogBatch.zig").content(payload))) return error.LogPayloadConflict;
+    } else if (record.action == .operation and record.action.operation.outcome == .claim) {
+        if (record.action.operation.outcome.claim.receipt.leases) |leases| {
+            if (!std.meta.eql(leases, @import("LogBatch.zig").content(payload))) return error.InvalidQueueSelection;
+        } else if (payload.len != 0) return error.InvalidLogHistory;
     } else {
         if (payload.len != 0) return error.InvalidLogHistory;
     }

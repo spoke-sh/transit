@@ -183,13 +183,15 @@ test "queue candidate persistence retains long FIFO key children and earlier roo
     var encoder = try s.LogBatch.Encoder.init(declared.definition.schema, operation(2), .queue, 3, &bytes);
     for ([_][]const u8{ &first, &other, &alias }) |name| try encoder.append(.{ .cells = &.{ .{ .value = .{ .atom = .{ .bytes = name } } }, .{ .value = .{ .atom = .{ .bytes = "payload" } } } } });
     const payload = try encoder.finish();
+    const initial_puts = objects.puts;
     _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(2), .kind = .queue, .producer = null, .rows = 3, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
     const appended = owner.owner.root;
     const receipt = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 3, .lease_ms = 100, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 2), receipt.rows);
-    const lease = try selectedLease(objects.objectStore(), receipt, 0);
+    const lease = try selectedLease(owner.owner.objects, receipt, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
     _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .ack }, policy.guard());
+    try t.expectEqual(initial_puts, objects.puts);
     const settled = owner.owner.root;
     try owner.deinit();
     wal.deinit();
@@ -211,6 +213,14 @@ test "queue candidate persistence retains long FIFO key children and earlier roo
     try t.expectEqualDeep(s.QueueIndex.Head{ .first = 2, .last = 2 }, (try queue.head(settled.queue.?, key)).?);
     try t.expectEqual(@as(u64, 2), (try queue.firstEligible(settled.queue.?, 100)).?.offset);
     try t.expectEqualDeep(receipt, try owner.claim(initial.declared, receipt.claim, policy.guard()));
+    _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+    try t.expect(objects.puts > 0);
+    try owner.deinit();
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    try t.expect((try owner.recoverStep(policy.guard(), 1)).complete);
+    const checkpointed_queue = index(&owner, &bitmap);
+    try t.expectEqualDeep(s.QueueIndex.Head{ .first = 2, .last = 2 }, (try checkpointed_queue.head(owner.owner.root.queue.?, key)).?);
+    try t.expectEqual(@as(u64, 0), (try selectedLease(objects.objectStore(), receipt, 0)).offset);
 }
 
 test "queue partition resumes accepted timer merges through reply loss retirement and disk recovery" {
@@ -257,13 +267,11 @@ test "queue partition resumes accepted timer merges through reply loss retiremen
         const prior_puts = objects.puts;
         receipt.* = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(id), .maximum = 256, .lease_ms = 100, .predicate = null }, policy.guard());
         try t.expectEqual(@as(u32, 256), receipt.rows);
-        // Immutable derivation preserves replay roots, but superseded private
-        // pages and bitmap containers need not reach the provider.
-        try t.expect(objects.puts - prior_puts < owner.owner.candidate_objects.count);
+        try t.expectEqual(prior_puts, objects.puts);
     }
     try t.expectEqual(@as(u64, 2), owner.owner.root.queue.?.deadlines.pending_chunks);
-    const old_first = try selectedLease(objects.objectStore(), claimed[0], 0);
-    const old_second = try selectedLease(objects.objectStore(), claimed[0], 1);
+    const old_first = try selectedLease(owner.owner.objects, claimed[0], 0);
+    const old_second = try selectedLease(owner.owner.objects, claimed[0], 1);
     _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = old_first, .action = .{ .nack = .{ .visible_ms = 300 } } }, policy.guard());
     _ = try owner.settle(initial.declared, .{ .operation = operation(7), .lease = old_second, .action = .ack }, policy.guard());
     var both = false;
@@ -349,45 +357,53 @@ test "queue partition resumes accepted timer merges through reply loss retiremen
 
 test "queue partition replay cannot replace a missing accepted item page with its derivation" {
     for ([_]usize{ 1, 16 }) |resident_pages| {
-        var tmp = t.tmpDir(.{});
-        defer tmp.cleanup();
-        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
-        defer wal.deinit();
-        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
-        defer objects.deinit();
-        var declared = try declaration();
-        defer declared.deinit();
-        var policy: Policy = .{};
-        const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
-        var configured = options;
-        configured.resident_pages = resident_pages;
-        var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
-        defer owner.deinit() catch unreachable;
-        _ = try owner.recoverStep(policy.guard(), 1);
-        var buffer: [8192]u8 = undefined;
-        const first = try request(&declared, 2, &buffer);
-        _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
-        const accepted = owner.owner.root;
-        const missing = accepted.queue.?.items.?;
-        var name: [96]u8 = undefined;
-        const object_key = try s.TreeStore.key(missing.location, &name);
-        const metadata = (try objects.objectStore().head(object_key)).?;
-        const saved = try t.allocator.alloc(u8, @intCast(metadata.size));
-        defer t.allocator.free(saved);
-        _ = try objects.objectStore().getRange(object_key, 0, @intCast(metadata.size), saved);
-        try owner.deinit();
-        try objects.objectStore().delete(object_key);
-        owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
-        const puts = objects.puts;
-        try t.expectError(error.MissingDataIndexObject, owner.recoverStep(policy.guard(), 16));
-        try t.expect(!owner.owner.ready);
-        try t.expectEqual(puts, objects.puts);
-        // Restore the same accepted bytes, then prove this same WAL is valid.
-        try owner.deinit();
-        _ = try objects.objectStore().putImmutable(object_key, saved, metadata.sha256);
-        owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
-        try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
-        try t.expectEqualDeep(accepted, owner.owner.root);
+        for ([_]bool{ false, true }) |use_checkpoint| {
+            var tmp = t.tmpDir(.{});
+            defer tmp.cleanup();
+            var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+            defer wal.deinit();
+            var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+            defer objects.deinit();
+            var declared = try declaration();
+            defer declared.deinit();
+            var policy: Policy = .{};
+            const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+            var configured = options;
+            configured.resident_pages = resident_pages;
+            var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+            defer owner.deinit() catch unreachable;
+            _ = try owner.recoverStep(policy.guard(), 1);
+            var buffer: [8192]u8 = undefined;
+            const first = try request(&declared, 2, &buffer);
+            _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
+            const missing = owner.owner.root.queue.?.items.?;
+            var name: [96]u8 = undefined;
+            const object_key = try s.TreeStore.key(missing.location, &name);
+            try t.expect((try objects.objectStore().head(object_key)) == null);
+            if (use_checkpoint) {
+                _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+            } else {
+                while (!(try owner.flush(owner.owner.root.position(), policy.guard())).complete) {}
+            }
+            const accepted = owner.owner.root;
+            const metadata = (try objects.objectStore().head(object_key)).?;
+            const saved = try t.allocator.alloc(u8, @intCast(metadata.size));
+            defer t.allocator.free(saved);
+            _ = try objects.objectStore().getRange(object_key, 0, @intCast(metadata.size), saved);
+            try owner.deinit();
+            try objects.objectStore().delete(object_key);
+            owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+            const puts = objects.puts;
+            try t.expectError(error.MissingDataIndexObject, owner.recoverStep(policy.guard(), 16));
+            try t.expect(!owner.owner.ready);
+            try t.expectEqual(puts, objects.puts);
+            // Restore the same accepted bytes, then prove this same WAL is valid.
+            try owner.deinit();
+            _ = try objects.objectStore().putImmutable(object_key, saved, metadata.sha256);
+            owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+            try t.expect((try owner.recoverStep(policy.guard(), 16)).complete);
+            try t.expectEqualDeep(accepted, owner.owner.root);
+        }
     }
 }
 
@@ -624,7 +640,7 @@ test "queue partition original claim selections and empty outcomes survive expir
     const original = try owner.claim(initial.declared, claim, policy.guard());
     try t.expectEqual(@as(u32, 1), original.rows);
     var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
-    var view = try s.QueueSelection.load(t.allocator, objects.objectStore(), original.leases.?, &selection_buffer);
+    var view = try s.QueueSelection.load(t.allocator, owner.owner.objects, original.leases.?, &selection_buffer);
     try view.requireReceipt(original);
     try t.expectEqual(@as(u64, 1), (try view.lease(0)).offset);
     try t.expectEqual(@as(u64, 200), (try view.lease(0)).expires_ms);
@@ -653,7 +669,7 @@ test "queue partition original claim selections and empty outcomes survive expir
     fresh.operation = operation(5);
     const alpha = try owner.claim(initial.declared, fresh, policy.guard());
     try t.expectEqual(@as(u32, 1), alpha.rows);
-    view = try s.QueueSelection.load(t.allocator, objects.objectStore(), alpha.leases.?, &selection_buffer);
+    view = try s.QueueSelection.load(t.allocator, owner.owner.objects, alpha.leases.?, &selection_buffer);
     try t.expectEqual(@as(u64, 0), (try view.lease(0)).offset);
     const root = owner.owner.root;
     try t.expectEqual(@as(u64, 2), root.queue.?.active);
@@ -798,16 +814,19 @@ test "queue partition replay refuses a canonical claim selecting an ineligible F
     const claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const receipt = try owner.claim(initial.declared, claim, policy.guard());
     var selection_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
-    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), receipt.leases.?, &selection_buffer);
+    const selection = try s.QueueSelection.load(t.allocator, owner.owner.objects, receipt.leases.?, &selection_buffer);
     var lease = try selection.lease(0);
     lease.offset = 2;
-    const false_selection = try s.QueueSelection.stage(objects.objectStore(), selection.metadata, &.{lease}, &selection_buffer);
+    var false_buffer: [s.QueueSelection.max_bytes]u8 = undefined;
+    const false_bytes = try s.QueueSelection.encode(selection.metadata, &.{lease}, &false_buffer);
+    const false_selection = s.LogBatch.content(false_bytes);
     var frames = try wal.log().read(t.allocator, 91, 1, 2);
     defer frames.deinit();
     var record = (try s.LogPartitionRecord.decode(t.allocator, frames.frames[1], 91, 2)).record;
     record.action.operation.outcome.claim.receipt.leases = false_selection;
     var buffer: [65536]u8 = undefined;
-    const encoded = try s.LogPartitionRecord.encode(record, &.{}, &buffer);
+    try t.expectError(error.InvalidQueueSelection, s.LogPartitionRecord.encode(record, &.{}, &buffer));
+    const encoded = try s.LogPartitionRecord.encode(record, false_bytes, &buffer);
     var other = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer other.deinit();
     _ = try initialize(other.log(), objects.objectStore(), &policy, &declared);
@@ -845,8 +864,8 @@ test "queue partition fenced ACK NACK and renewal recover original outcomes afte
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const claimed = try owner.claim(initial.declared, claim, policy.guard());
-    const old_alpha = try selectedLease(objects.objectStore(), claimed, 0);
-    const beta = try selectedLease(objects.objectStore(), claimed, 1);
+    const old_alpha = try selectedLease(owner.owner.objects, claimed, 0);
+    const beta = try selectedLease(owner.owner.objects, claimed, 1);
     clock.value = .exact(1010);
     const renewal: q.Settlement = .{ .operation = operation(4), .lease = old_alpha, .action = .{ .extend = .{ .expires_ms = 1200 } } };
     fault.lose_reply = true;
@@ -874,13 +893,13 @@ test "queue partition fenced ACK NACK and renewal recover original outcomes afte
     const nacked = try owner.settle(initial.declared, nack, policy.guard());
     claim.operation = operation(7);
     const successor = try owner.claim(initial.declared, claim, policy.guard());
-    const next_alpha = try selectedLease(objects.objectStore(), successor, 0);
+    const next_alpha = try selectedLease(owner.owner.objects, successor, 0);
     try t.expectEqual(@as(u64, 2), next_alpha.offset);
     try t.expectEqual(@as(u32, 1), successor.rows);
     clock.value = .exact(1014);
     claim.operation = operation(8);
     const retried = try owner.claim(initial.declared, claim, policy.guard());
-    const next_beta = try selectedLease(objects.objectStore(), retried, 0);
+    const next_beta = try selectedLease(owner.owner.objects, retried, 0);
     try t.expect(next_beta.offset == beta.offset and next_beta.epoch == 2 and next_beta.attempt == 2);
     const stale: q.Settlement = .{ .operation = operation(9), .lease = beta, .action = .ack };
     try t.expectError(error.QueueLeaseFenced, owner.settle(initial.declared, stale, policy.guard()));
@@ -949,7 +968,7 @@ test "queue partition settlement rechecks time at publication and keeps exhauste
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
-    const alpha = try selectedLease(objects.objectStore(), claimed, 0);
+    const alpha = try selectedLease(owner.owner.objects, claimed, 0);
     const nack: q.Settlement = .{ .operation = operation(4), .lease = alpha, .action = .{ .nack = .{ .visible_ms = 0 } } };
     const before = owner.owner.root;
     clock.value = .exact(1099);
@@ -1010,7 +1029,7 @@ test "queue partition dead letter discovery bounds sweeps preserves recorded des
     const appended = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
-    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    const lease = try selectedLease(owner.owner.objects, claim, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
     _ = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = lease, .action = .{ .nack = .{ .visible_ms = 0 } } }, policy.guard());
     const first = try owner.deadLetterNext(initial.declared, null, 1, policy.guard());
@@ -1153,7 +1172,7 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     _ = try owner.enqueue(initial.declared, appended.append, appended.payload, policy.guard());
     var claim: q.Claim = .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null };
     const original = try owner.claim(initial.declared, claim, policy.guard());
-    const alpha = try selectedLease(objects.objectStore(), original, 0);
+    const alpha = try selectedLease(owner.owner.objects, original, 0);
     // Warm the earliest prefix, then renew its lease. The old wakeup must not
     // expire a changed lease or hide the other acquired offset.
     try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
@@ -1204,7 +1223,7 @@ test "queue partition expiry fences renewed deadlines and records bounded retrie
     claim.operation = operation(5);
     const retry = try owner.claim(initial.declared, claim, policy.guard());
     try t.expectEqual(@as(u32, 1), retry.rows);
-    const beta = try selectedLease(objects.objectStore(), retry, 0);
+    const beta = try selectedLease(owner.owner.objects, retry, 0);
     try t.expect(beta.offset == 1 and beta.attempt == 2 and beta.epoch == 2);
     try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
     try t.expectEqual(@as(usize, 1), owner.owner.queue_deadlines.heap.len);
@@ -1288,7 +1307,7 @@ test "queue partition payload read release preserves leases and recovers its ori
     const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
     const empty = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 0), empty.rows);
-    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    const lease = try selectedLease(owner.owner.objects, claimed, 0);
     const before = owner.owner.root;
     const release: p.QueueRead.Release = .{ .operation = operation(5), .claim = claimed };
     var forged = release;
@@ -1386,7 +1405,7 @@ test "queue partition controls verify immutable declaration bytes before accepta
     claim.target = initial.target();
     const claimed = try owner.claim(initial.declared, claim, policy.guard());
     const acquired = owner.owner.root;
-    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    const lease = try selectedLease(owner.owner.objects, claimed, 0);
     const ack: q.Settlement = .{ .operation = operation(4), .lease = lease, .action = .ack };
     try t.expectError(error.InvalidLogDeclaration, owner.settle(invented, ack, policy.guard()));
     try t.expectEqualDeep(acquired, owner.owner.root);
@@ -1559,12 +1578,12 @@ test "queue partition terminal retention preserves original reads and replays ex
     const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(4), .maximum = 3, .lease_ms = 1000, .predicate = null }, policy.guard());
     try t.expectEqual(@as(u32, 3), claimed.rows);
     var acked: [3]q.SettlementReceipt = undefined;
-    for (0..2) |i| acked[i] = try owner.settle(initial.declared, .{ .operation = operation(5 + i), .lease = try selectedLease(objects.objectStore(), claimed, @intCast(i)), .action = .ack }, policy.guard());
+    for (0..2) |i| acked[i] = try owner.settle(initial.declared, .{ .operation = operation(5 + i), .lease = try selectedLease(owner.owner.objects, claimed, @intCast(i)), .action = .ack }, policy.guard());
     clock.value = .exact(1100);
     const before = owner.owner.root;
     try t.expectEqual(Queue.ExpirationStatus.nonterminal, (try owner.expireTerminalHistory(initial.declared, cut, policy.guard())).status);
     try t.expectEqualDeep(before, owner.owner.root);
-    acked[2] = try owner.settle(initial.declared, .{ .operation = operation(7), .lease = try selectedLease(objects.objectStore(), claimed, 2), .action = .ack }, policy.guard());
+    acked[2] = try owner.settle(initial.declared, .{ .operation = operation(7), .lease = try selectedLease(owner.owner.objects, claimed, 2), .action = .ack }, policy.guard());
     // A terminal segment still needs opted-in policy and trusted age. A compatible
     // candidate without retention cannot authorize expiration or change the root.
     var unlimited_definition = definition;
@@ -1603,7 +1622,7 @@ test "queue partition terminal retention preserves original reads and replays ex
     }
     const later = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(8), .maximum = 3, .lease_ms = 1000, .predicate = null }, policy.guard());
     var selection_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
-    const selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), later.leases.?, &selection_bytes);
+    const selection = try s.QueueSelection.load(t.allocator, owner.owner.objects, later.leases.?, &selection_bytes);
     try t.expectEqual(@as(u64, 3), selection.metadata.source.retained_from);
     for (0..3) |i| _ = try owner.settle(initial.declared, .{ .operation = operation(9 + i), .lease = try selection.lease(@intCast(i)), .action = .ack }, policy.guard());
     var retired_definition = definition;
@@ -1671,7 +1690,7 @@ test "queue partition terminal retention replay refuses removal of another live 
         _ = try owner.enqueue(initial.declared, .{ .target = initial.target(), .operation = operation(id), .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(payload) }, payload, policy.guard());
     }
     const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(5), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
-    const lease = try selectedLease(objects.objectStore(), claimed, 0);
+    const lease = try selectedLease(owner.owner.objects, claimed, 0);
     try t.expectEqual(@as(u64, 0), lease.offset);
     _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = lease, .action = .ack }, policy.guard());
     const cut = owner.owner.root.position();
@@ -1773,10 +1792,11 @@ test "log transaction private Queue evaluation composes enqueue and fenced ACK w
     const first = try request(&declared, 2, &bytes);
     _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
     const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
-    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    const lease = try selectedLease(owner.owner.objects, claim, 0);
     const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
     const basis = owner.owner.root;
     const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
+    try t.expectEqualDeep(lease, try selectedLease(objects.objectStore(), claim, 0));
     const before = owner.owner.root;
     var actions = try s.LogTransactionActions.init(t.allocator, objects.objectStore(), identity, try s.LogTransaction.logGuard(basis), 20, 1024 * 1024, 1, 1024 * 1024);
     defer actions.deinit();
@@ -1837,7 +1857,7 @@ test "log transaction terminal candidates reject standalone replay before recons
     const input = try request(&source, 2, &bytes);
     _ = try owner.enqueue(initial.declared, input.append, input.payload, policy.guard());
     const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
-    const lease = try selectedLease(objects.objectStore(), claim, 0);
+    const lease = try selectedLease(owner.owner.objects, claim, 0);
     try t.expectEqual(@as(u64, 1), lease.offset);
     _ = try owner.flush(owner.owner.root.position(), policy.guard());
     try owner.deinit();
@@ -1922,7 +1942,7 @@ test "log transaction Queue decision rechecks live leases and recovers accepted 
         const first = try request(&declared, 2, &bytes);
         _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
         const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
-        const lease = try selectedLease(objects.objectStore(), claim, 0);
+        const lease = try selectedLease(owner.owner.objects, claim, 0);
         const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
         const basis = owner.owner.root;
         const pin = try owner.pinTransactionSource(initial.declared, identity, basis.position(), policy.guard());
@@ -2099,7 +2119,7 @@ test "queue predicate selection preserves FIFO original empty and lost replies a
     while (!(try owner.recoverStep(policy.guard(), 1)).complete) {}
     const receipt = try owner.claim(initial.declared, beta, policy.guard());
     try t.expectEqual(@as(u32, 1), receipt.rows);
-    try t.expectEqual(@as(u64, 1), (try selectedLease(objects.objectStore(), receipt, 0)).offset);
+    try t.expectEqual(@as(u64, 1), (try selectedLease(owner.owner.objects, receipt, 0)).offset);
     var changed = beta;
     changed.predicate = blocked.predicate;
     try t.expectError(error.QueueClaimConflict, owner.claim(initial.declared, changed, policy.guard()));
@@ -2158,4 +2178,222 @@ test "queue predicate budget and authorization refusals publish no partial selec
     policy.deny_at = std.math.maxInt(usize);
     const accepted = try owner.claim(initial.declared, one, policy.guard());
     try t.expectEqual(@as(u32, 1), accepted.rows);
+}
+
+test "queue partition foreground lifecycle performs zero object puts until checkpoint and retains open claim sources" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+
+    const baseline_puts = objects.puts;
+    var bytes: [8192]u8 = undefined;
+    const first_batch = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, first_batch.append, first_batch.payload, policy.guard());
+    const open_claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 1, .lease_ms = 500, .predicate = null }, policy.guard());
+    const open_lease = try selectedLease(owner.owner.objects, open_claim, 0);
+    const filtered_claim = try predicateClaim(&declared, initial.target(), 4, "CLAIM * FROM tasks WHERE key = 'Alpha' WITH LEASE '100ms'");
+    const claimed_beta = try owner.claim(initial.declared, filtered_claim, policy.guard());
+    try t.expectEqual(@as(u32, 1), claimed_beta.rows);
+    const beta_lease = try selectedLease(owner.owner.objects, claimed_beta, 0);
+    clock.value = .exact(1010);
+    const extended = try owner.settle(initial.declared, .{ .operation = operation(5), .lease = beta_lease, .action = .{ .extend = .{ .expires_ms = 1150 } } }, policy.guard());
+    var renewed_beta = beta_lease;
+    renewed_beta.expires_ms = extended.settlement.action.extend.expires_ms;
+    clock.value = .exact(1020);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(6), .lease = renewed_beta, .action = .{ .nack = .{ .visible_ms = 1025 } } }, policy.guard());
+    clock.value = .exact(1030);
+    const reclaimed_beta = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(7), .maximum = 1, .lease_ms = 50, .predicate = filtered_claim.predicate }, policy.guard());
+    const reclaimed_lease = try selectedLease(owner.owner.objects, reclaimed_beta, 0);
+    clock.value = .exact(1100);
+    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    _ = try owner.releaseClaimRead(initial.declared, .{ .operation = operation(8), .claim = claimed_beta }, policy.guard());
+    var cancelled_batch = try request(&declared, 9, &bytes);
+    cancelled_batch.append.producer = null;
+    _ = try owner.cancel(initial.declared, .{ .enqueue = cancelled_batch.append }, policy.guard());
+    while (try owner.scheduleMaintenanceUnit(initial.declared, 16, policy.guard())) {}
+
+    // Advance batches root past open_claim's frozen source.batches before checkpointing.
+    for (10..13) |op_id| {
+        var extra = try request(&declared, op_id, &bytes);
+        extra.append.producer = null;
+        _ = try owner.enqueue(initial.declared, extra.append, extra.payload, policy.guard());
+    }
+    clock.value = .exact(1110);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(13), .lease = open_lease, .action = .ack }, policy.guard());
+    _ = reclaimed_lease;
+
+    // Zero TransitObjectStore PUTs occurred across the entire foreground and timer lifecycle!
+    try t.expectEqual(baseline_puts, objects.puts);
+    try t.expect(owner.hasPendingCheckpoint());
+    try t.expect(owner.uncheckpointedFrames() >= 10);
+
+    try t.expect(try owner.checkpointMaintenanceUnit(policy.guard()));
+    try t.expect(objects.puts > baseline_puts);
+    try t.expect(!owner.hasPendingCheckpoint());
+    try t.expectEqual(@as(u64, 0), owner.uncheckpointedFrames());
+    try t.expect(!try owner.checkpointMaintenanceUnit(policy.guard()));
+
+    // Append post-checkpoint WAL delta, then verify cold recovery from LCHECK01 + WAL tail
+    // and verify open_claim's unreleased pre-checkpoint source.batches remained reachable!
+    var tail_batch = try request(&declared, 14, &bytes);
+    tail_batch.append.producer = null;
+    const pre_tail_puts = objects.puts;
+    _ = try owner.enqueue(initial.declared, tail_batch.append, tail_batch.payload, policy.guard());
+    try t.expectEqual(pre_tail_puts, objects.puts);
+    const expected_root = owner.owner.root;
+    try owner.deinit();
+
+    owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    while (!(try owner.recoverStep(policy.guard(), 2)).complete) {}
+    try t.expectEqualDeep(expected_root, owner.owner.root);
+    var open_page = try owner.readClaimPage(initial.declared, .{ .receipt = open_claim, .next = 0 }, .{ .rows = 4, .encoded_bytes = 8192 }, t.allocator, policy.guard());
+    defer open_page.deinit();
+    try t.expectEqual(@as(usize, 1), open_page.rows().len);
+    try t.expectEqual(@as(u64, 1), open_page.rows()[0].lease.original.offset);
+    try t.expectEqual(p.QueueRead.State.acked, open_page.rows()[0].lease.state);
+}
+
+test "queue partition checkpoint watermarks coalesce or refuse without dropping idempotent retries or settlements" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    configured.queue_checkpoint_soft_frames = 2;
+    configured.queue_checkpoint_hard_frames = 4;
+    configured.queue_checkpoint_hard_mode = .refuse;
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var owner = try Queue.open(t.allocator, wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+
+    var bytes: [8192]u8 = undefined;
+    var blocked_bytes: [8192]u8 = undefined;
+    var first_receipt: q.AppendReceipt = undefined;
+    for (0..3) |step| {
+        var batch = try request(&declared, 2 + step, &bytes);
+        batch.append.producer = null;
+        const r = try owner.enqueue(initial.declared, batch.append, batch.payload, policy.guard());
+        if (step == 0) first_receipt = r;
+        if (step == 1) try t.expect(owner.needsCheckpoint());
+    }
+    const claimed = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
+    const lease = try selectedLease(owner.owner.objects, claimed, 0);
+    try t.expectEqual(@as(u64, 4), owner.uncheckpointedFrames());
+
+    // At hard watermark under .refuse, fresh enqueue and fresh claim refuse with QueueCheckpointBacklog.
+    var blocked_batch = try request(&declared, 30, &blocked_bytes);
+    blocked_batch.append.producer = null;
+    const blocked_lsn = owner.owner.root.next_lsn;
+    try t.expectError(error.QueueCheckpointBacklog, owner.enqueue(initial.declared, blocked_batch.append, blocked_batch.payload, policy.guard()));
+    try t.expectError(error.QueueCheckpointBacklog, owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(31), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard()));
+    try t.expectEqual(blocked_lsn, owner.owner.root.next_lsn);
+
+    // Idempotent retries of accepted operations and progress/closure operations still succeed!
+    var retry_first = try request(&declared, 2, &bytes);
+    retry_first.append.producer = null;
+    try t.expectEqualDeep(first_receipt, try owner.enqueue(initial.declared, retry_first.append, retry_first.payload, policy.guard()));
+    try t.expectEqualDeep(claimed, try owner.claim(initial.declared, claimed.claim, policy.guard()));
+    clock.value = .exact(1010);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(32), .lease = lease, .action = .ack }, policy.guard());
+    const settle_checkpoint = owner.owner.root.recovery.?;
+    _ = try owner.releaseClaimRead(initial.declared, .{ .operation = operation(33), .claim = claimed }, policy.guard());
+    try t.expectEqual(@as(u64, 2), owner.uncheckpointedFrames());
+
+    // Switch to .coalesce, advance back to hard_frames, and verify fresh enqueue automatically checkpoints!
+    owner.owner.options.queue_checkpoint_hard_mode = .coalesce;
+    _ = try owner.enqueue(initial.declared, blocked_batch.append, blocked_batch.payload, policy.guard());
+    var fourth_batch = try request(&declared, 34, &bytes);
+    fourth_batch.append.producer = null;
+    _ = try owner.enqueue(initial.declared, fourth_batch.append, fourth_batch.payload, policy.guard());
+    try t.expectEqual(@as(u64, 4), owner.uncheckpointedFrames());
+    var fifth_batch = try request(&declared, 35, &bytes);
+    fifth_batch.append.producer = null;
+    const coalesced = try owner.enqueue(initial.declared, fifth_batch.append, fifth_batch.payload, policy.guard());
+    try t.expectEqual(owner.owner.root.next_lsn, coalesced.accepted.next_lsn);
+    try t.expectEqual(@as(u64, 1), owner.uncheckpointedFrames());
+    try t.expect(owner.owner.root.recovery.?.next_lsn > settle_checkpoint.next_lsn);
+}
+
+test "queue partition maintains deadline visibility and affinity caches incrementally without directory refills" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+    defer wal.deinit();
+    var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+    defer objects.deinit();
+    var declared = try declaration();
+    defer declared.deinit();
+    var policy: Policy = .{};
+    var clock: Clock = .{ .value = .exact(1000) };
+    var configured = options;
+    configured.clock = clock.source();
+    const initial = try initialize(wal.log(), objects.objectStore(), &policy, &declared);
+    var allocations: f.memory.AllocationProbe = .{ .parent = t.allocator };
+    defer t.expectEqual(@as(usize, 0), allocations.live_bytes) catch unreachable;
+    var owner = try Queue.open(allocations.allocator(), wal.log(), objects.objectStore(), initial, policy.guard(), configured);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(policy.guard(), 1);
+
+    var bytes: [8192]u8 = undefined;
+    const batch = try request(&declared, 2, &bytes);
+    _ = try owner.enqueue(initial.declared, batch.append, batch.payload, policy.guard());
+    const probe_claim: q.Claim = .{ .target = initial.target(), .operation = operation(99), .maximum = 1, .lease_ms = 100, .predicate = null };
+    try t.expect((try owner.claimReadiness(initial.declared, probe_claim, policy.guard())).available);
+    try t.expect(owner.owner.queue_visibility.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.scheduled));
+
+    const first_claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(3), .maximum = 2, .lease_ms = 100, .predicate = null }, policy.guard());
+    const alpha = try selectedLease(owner.owner.objects, first_claim, 0);
+    _ = try selectedLease(owner.owner.objects, first_claim, 1);
+    _ = try owner.checkpoint(owner.owner.root.position(), policy.guard());
+    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(owner.owner.queue_deadlines.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.active));
+    try t.expect(owner.owner.queue_visibility.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.scheduled));
+
+    clock.value = .exact(1020);
+    const extended = try owner.settle(initial.declared, .{ .operation = operation(4), .lease = alpha, .action = .{ .extend = .{ .expires_ms = 1300 } } }, policy.guard());
+    try t.expect(owner.owner.queue_deadlines.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.active));
+    try t.expect(owner.owner.queue_visibility.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.scheduled));
+
+    // After settle(.extend), an un-due expireOne probe must consult the incremental DeadlineCache with zero disk object reads!
+    const probe_reads = objects.range_reads;
+    clock.value = .exact(1050);
+    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expectEqual(probe_reads, objects.range_reads);
+
+    // Second item still expires at 1100; incremental DeadlineCache preserves the extended 1300 lease across expiry!
+    clock.value = .exact(1100);
+    try t.expect(try owner.expireOne(initial.declared, policy.guard()));
+    try t.expect(owner.owner.queue_deadlines.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.active));
+    try t.expect(owner.owner.queue_visibility.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.scheduled));
+
+    const post_expiry_reads = objects.range_reads;
+    clock.value = .exact(1200);
+    try t.expect(!try owner.expireOne(initial.declared, policy.guard()));
+    try t.expectEqual(post_expiry_reads, objects.range_reads);
+
+    var renewed_alpha = alpha;
+    renewed_alpha.expires_ms = extended.settlement.action.extend.expires_ms;
+    clock.value = .exact(1210);
+    _ = try owner.settle(initial.declared, .{ .operation = operation(5), .lease = renewed_alpha, .action = .ack }, policy.guard());
+    try t.expect(owner.owner.queue_deadlines.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.active));
+    try t.expect(owner.owner.queue_visibility.matches(owner.owner.root.queue.?.items, owner.owner.root.queue.?.scheduled));
 }

@@ -148,10 +148,15 @@ fn decodeVerified(allocator: std.mem.Allocator, bytes: []const u8, content: d.Co
 pub fn stage(objects: Objects.ObjectStore, metadata: Metadata, leases: []const q.Lease, output: []u8) !d.Content {
     const bytes = try encode(metadata, leases, output);
     const content = @import("LogBatch.zig").content(bytes);
+    try stageEncoded(objects, content, bytes);
+    return content;
+}
+pub fn stageEncoded(objects: Objects.ObjectStore, content: d.Content, bytes: []const u8) !void {
+    try validateContent(content);
+    if (!std.meta.eql(@import("LogBatch.zig").content(bytes), content)) return error.InvalidQueueSelection;
     var name: [96]u8 = undefined;
     const stored = try objects.putImmutable(try objectKey(content, &name), bytes, content.sha256);
     if (stored.size != content.bytes or !std.mem.eql(u8, &stored.sha256, &content.sha256)) return error.InvalidQueueSelection;
-    return content;
 }
 pub fn load(allocator: std.mem.Allocator, objects: Objects.ObjectStore, content: d.Content, output: []u8) !View {
     try validateContent(content);

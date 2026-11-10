@@ -230,18 +230,24 @@ pub fn acquire(self: Self, before: Root, offset: u64, claim: q.Claim, policy: p.
 
 /// ACK advances exactly one canonical FIFO head. The owner obtains key bytes
 /// from this offset's original payload and declaration, not from client input.
-fn advanceHead(self: Self, root: *Root, value: Item, key: []const u8) !void {
+fn advanceHead(self: Self, root: *Root, value: Item, key: []const u8) !?Item {
+    const before_keys = root.keys;
     const previous = try self.head(root.*, key) orelse return error.InvalidQueueHead;
     if (previous.first != value.offset) return error.QueueNotEligible;
     if (value.next_key) |offset| {
         if (previous.last < offset) return error.InvalidQueueHead;
         const successor = try self.item(root.*, offset);
         if (try self.state(root.*, successor) != .available or successor.attempts != 0) return error.InvalidQueueHead;
-        root.keys = try self.keys().put(root.keys, key, try (Head{ .first = offset, .last = previous.last }).encode());
+        const encoded = try (Head{ .first = offset, .last = previous.last }).encode();
+        root.keys = try self.keys().put(root.keys, key, encoded);
         try self.schedule(root, successor);
+        if (self.affinity) |cache| cache.transitionKey(before_keys, root.keys, key, encoded);
+        return successor;
     } else {
         if (previous.last != value.offset) return error.InvalidQueueHead;
         root.keys = try self.keys().remove(root.keys, key);
+        if (self.affinity) |cache| cache.transitionKey(before_keys, root.keys, key, null);
+        return null;
     }
 }
 
@@ -250,23 +256,28 @@ pub fn settle(self: Self, before: Root, request: q.Settlement, policy: p.StreamQ
     const previous = try self.item(before, request.lease.offset);
     const change = try previous.settle(try self.state(before, previous), request, policy, now);
     var next = before;
+    var promoted: ?Item = null;
     try self.removeDeadline(&next, previous);
     if (change.state != .acquired) {
         try self.changeState(&next, previous, .acquired, change.state, accepted);
         next.active -= 1;
         if (change.state == .acked) {
             next.terminal = try std.math.add(u64, next.terminal, 1);
-            if (policy.ordering == .key_fifo) try self.advanceHead(&next, previous, canonical_key orelse return error.InvalidQueueHead);
+            if (policy.ordering == .key_fifo) promoted = try self.advanceHead(&next, previous, canonical_key orelse return error.InvalidQueueHead);
         } else if (change.item.blocked != .none) {
             next.blocked = try std.math.add(u64, next.blocked, 1);
         } else try self.schedule(&next, change.item);
     } else try self.addDeadline(&next, change.item);
     try self.putItem(&next, change.item);
     try next.validate();
-    // Renewal keeps the head acquired. An unordered ACK exposes no successor.
-    // Other settlements can add eligibility and must use the durable refill.
-    if (change.state == .acquired or (change.state == .acked and policy.ordering == .unordered)) {
-        if (self.visibility) |cache| cache.retain(before.items, next.items, before.scheduled);
+    if (self.visibility) |cache| {
+        if (change.state == .acquired or (change.state == .acked and promoted == null) or (change.state == .available and change.item.blocked != .none)) {
+            cache.retain(before.items, next.items, before.scheduled);
+        } else if (promoted) |successor| {
+            cache.insert(before.items, next.items, before.scheduled, .{ .at_ms = successor.visible_ms, .offset = successor.offset });
+        } else {
+            cache.insert(before.items, next.items, before.scheduled, .{ .at_ms = change.item.visible_ms, .offset = change.item.offset });
+        }
     }
     return next;
 }
@@ -284,6 +295,13 @@ pub fn expire(self: Self, before: Root, offset: u64, policy: p.StreamQueueDeclar
         next.blocked = try std.math.add(u64, next.blocked, 1);
     } else try self.schedule(&next, changed);
     try next.validate();
+    if (self.visibility) |cache| {
+        if (changed.blocked != .none) {
+            cache.retain(before.items, next.items, before.scheduled);
+        } else {
+            cache.insert(before.items, next.items, before.scheduled, .{ .at_ms = changed.visible_ms, .offset = changed.offset });
+        }
+    }
     return next;
 }
 
@@ -305,15 +323,23 @@ pub fn transfer(self: Self, before: Root, request: p.Transaction.TerminalTransfe
     const state_value = try self.state(before, previous);
     const change = try previous.transfer(state_value, request, policy, now);
     var next = before;
+    var promoted: ?Item = null;
     if (state_value == .acquired) {
         try self.removeDeadline(&next, previous);
         next.active -= 1;
     } else next.blocked -= 1;
     try self.changeState(&next, previous, state_value, .archived, accepted);
     next.terminal = try std.math.add(u64, next.terminal, 1);
-    if (policy.ordering == .key_fifo) try self.advanceHead(&next, previous, canonical_key orelse return error.InvalidQueueHead);
+    if (policy.ordering == .key_fifo) promoted = try self.advanceHead(&next, previous, canonical_key orelse return error.InvalidQueueHead);
     try self.putItem(&next, change.item);
     try next.validate();
+    if (self.visibility) |cache| {
+        if (promoted) |successor| {
+            cache.insert(before.items, next.items, before.scheduled, .{ .at_ms = successor.visible_ms, .offset = successor.offset });
+        } else {
+            cache.retain(before.items, next.items, before.scheduled);
+        }
+    }
     return next;
 }
 
@@ -324,6 +350,12 @@ pub fn enqueue(self: Self, before: Root, declaration: *const Declaration.Owned, 
     try receipt.validate();
     if (receipt.append.kind != .queue or declaration.definition.configuration.policy != .queue or receipt.first != before.next_offset) return error.QueueStateConflict;
     try Batch.validate(payload, declaration, receipt.append, self.scratch, self.key_buffer);
+    errdefer {
+        if (self.visibility) |cache| cache.valid = false;
+        if (self.affinity) |cache| cache.clear();
+    }
+    const cache_matched = if (self.visibility) |cache| cache.matches(before.items, before.scheduled) else false;
+    var cache_scheduled = before.scheduled;
     var next = before;
     next.next_offset = receipt.next;
     var manifest: Tack = .{ .target = receipt.append.target, .segment = receipt.accepted.next_lsn, .first = receipt.first, .next = receipt.next, .accepted = receipt.accepted, .states = @splat(.empty) };
@@ -355,13 +387,23 @@ pub fn enqueue(self: Self, before: Root, declaration: *const Declaration.Owned, 
                 changed.first = previous.first;
                 eligible = false;
             }
-            next.keys = try self.keys().put(next.keys, key, try changed.encode());
+            const before_keys = next.keys;
+            const encoded_head = try changed.encode();
+            next.keys = try self.keys().put(next.keys, key, encoded_head);
+            if (self.affinity) |cache| cache.transitionKey(before_keys, next.keys, key, encoded_head);
         }
         try self.putItem(&next, current);
-        if (eligible) try self.schedule(&next, current);
+        if (eligible) {
+            try self.schedule(&next, current);
+            if (cache_matched) if (self.visibility) |cache| {
+                cache.insert(before.items, before.items, cache_scheduled, .{ .at_ms = current.visible_ms, .offset = current.offset });
+                cache_scheduled += 1;
+            };
+        }
     }
     _ = self.scratch.reset(.retain_capacity);
     try next.validate();
+    if (cache_matched) if (self.visibility) |cache| cache.retain(before.items, next.items, cache_scheduled);
     return next;
 }
 
@@ -377,6 +419,10 @@ pub fn firstEligible(self: Self, root: Root, earliest_ms: u64) !?Item {
 pub fn nextVisibleMs(self: Self, root: Root) !?u64 {
     try root.validate();
     if (root.scheduled == 0) return null;
+    if (self.visibility) |cache| if (cache.earliest(root.items, root.scheduled)) |cached| {
+        _ = try self.scheduledItem(root, cached);
+        return cached.at_ms;
+    };
     const event = try self.timers(.visible).nextEvent(root.eligible, null, timerBasis(root), self.timer_read_work, TimerFilter{ .index = self }) orelse return error.InvalidQueueSchedule;
     _ = try self.scheduledItem(root, .{ .at_ms = event.at_ms, .offset = event.offset });
     return event.at_ms;

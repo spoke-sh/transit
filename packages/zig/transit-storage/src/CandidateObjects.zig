@@ -59,11 +59,59 @@ pub fn residentBytes(self: Self) usize {
 pub fn reset(self: *Self, underlying: Objects.ObjectStore) !void {
     if (underlying.context == @as(*anyopaque, @ptrCast(self)) and underlying.vtable == &vtable) return error.InvalidCandidateObjectBase;
     self.underlying = underlying;
+    self.clear();
+}
+pub const Mark = struct { used: usize, count: u32 };
+pub fn mark(self: *const Self) Mark {
+    return .{ .used = self.used, .count = self.count };
+}
+pub fn rollback(self: *Self, saved: Mark) void {
+    std.debug.assert(saved.used <= self.used and saved.count <= self.count);
+    self.used = saved.used;
+    self.count = saved.count;
+    self.first_pending = vacant;
+    self.last_pending = vacant;
+    self.rebuildSlots();
+}
+pub fn clear(self: *Self) void {
     self.used = 0;
     self.count = 0;
     self.first_pending = vacant;
     self.last_pending = vacant;
     @memset(self.slots, vacant);
+}
+fn rebuildSlots(self: *Self) void {
+    @memset(self.slots, vacant);
+    for (self.entries[0..self.count], 0..) |entry, index| {
+        const at = self.slot(self.key(entry)) catch unreachable;
+        self.slots[at] = @intCast(index);
+    }
+}
+pub fn compactSelected(self: *Self, selection: anytype) void {
+    var write_used: usize = 0;
+    var write_count: u32 = 0;
+    for (self.entries[0..self.count]) |entry| {
+        const name = self.key(entry);
+        if (!selection.keep(name)) continue;
+        const total = @as(usize, entry.key_len) + @as(usize, entry.len);
+        if (write_used != entry.key_from) {
+            std.mem.copyForwards(u8, self.buffer[write_used..][0..total], self.buffer[entry.key_from..][0..total]);
+        }
+        var moved = entry;
+        moved.key_from = @intCast(write_used);
+        moved.from = @intCast(write_used + entry.key_len);
+        moved.selected = 0;
+        moved.examined = 0;
+        moved.next_pending = vacant;
+        self.entries[write_count] = moved;
+        write_used += total;
+        write_count += 1;
+    }
+    self.used = write_used;
+    self.count = write_count;
+    self.first_pending = vacant;
+    self.last_pending = vacant;
+    self.rebuildSlots();
 }
 fn key(self: Self, entry: Entry) []const u8 {
     return self.buffer[entry.key_from..][0..entry.key_len];
