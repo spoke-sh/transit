@@ -259,12 +259,18 @@ last column rejects. Rename preserves ID and rejects duplicate names.
 
 Name/default changes and NOT VALID CHECK additions classify as metadata-only.
 Tighter nullability/UTF-8 character limits and CHECK validation require an
-existing-row validation scan while preserving physical row indexes. A changed
+existing-row validation scan. The direct Table owner preserves physical row
+indexes for validation-only changes. A changed
 physical type, codec, comparison or key layout requires a phased rewrite on a
 populated Table. These classifications are work requirements, not evidence that existing
 rows passed. Adding a required field without a default may be valid for an empty
 Table; transforming any existing row fails. Changing defaults affects subsequent
 inserts/DEFAULT assignments, never earlier stored cells.
+
+The Publication-backed Station Table owner retains one row decoder per head.
+It also rewrites rows whenever the layout fingerprint changes, including
+nullability and character limits, preserving row identities and values. Retained
+heads keep their original decoder and immutable rows.
 
 Row transformation selects preserved values by column ID and initializes only
 new IDs. Type changes admit identical descriptors, checked signed/unsigned/

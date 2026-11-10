@@ -404,7 +404,25 @@ test "schema rewrites preserve identity, old decoders and defaults with atomic p
     const before_bound = try Head.load(&turn, 9);
     try t.expectEqual(.applied, (try sqlAlter(&store, 411, "ALTER TABLE items ALTER COLUMN full_name TYPE VARCHAR(30)")).state);
     turn = try store.capture();
-    try t.expectEqualDeep(before_bound.index, (try Head.load(&turn, 9)).index);
+    const bounded = try Head.load(&turn, 9);
+    var bounded_schema = try bounded.readSchema(t.allocator, &turn);
+    defer bounded_schema.deinit();
+    try t.expectEqual(@as(?u32, 30), bounded_schema.schema.columns[1].max_characters);
+    // This Publication owner rewrites when the row decoder changes, including
+    // character bounds. Both retained decoders must preserve every row identity
+    // and value; an unchanged physical index is not the schema-change contract.
+    for ([_]f.TableRow.Identity{
+        .{ .origin = 2, .operation = 400, .ordinal = 0 },
+        .{ .origin = 2, .operation = 400, .ordinal = 1 },
+        .{ .origin = 2, .operation = 400, .ordinal = 2 },
+        .{ .origin = 2, .operation = 403, .ordinal = 0 },
+    }) |row_identity| {
+        var before_row = (try (Data{ .schema = required.schema, .index = before_bound.index }).get(t.allocator, &reader, row_identity)).?;
+        defer before_row.deinit();
+        var after_row = (try (Data{ .schema = bounded_schema.schema, .index = bounded.index }).get(t.allocator, &reader, row_identity)).?;
+        defer after_row.deinit();
+        try t.expectEqualDeep(before_row.row(), after_row.row());
+    }
     try t.expectEqual(.applied, (try sqlAlter(&store, 412, "ALTER TABLE items ALTER COLUMN id TYPE INTEGER")).state);
     turn = try store.capture();
     const converted = try Head.load(&turn, 9);
