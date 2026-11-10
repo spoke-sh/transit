@@ -46,6 +46,8 @@ in_case: bool = false,
 expansion: [32]u8 = @splat(0),
 cases: std.ArrayList(Test.Case) = .empty,
 actions: std.ArrayList(Test.Action) = .empty,
+expected_rows: usize = 0,
+expected_bytes: usize = 0,
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
     diagnostic.* = null;
@@ -366,6 +368,8 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
     self.catalog = .{ .output = self.a, .scratch = self.scratch.allocator() };
     self.steps = .empty;
     self.actions = .empty;
+    self.expected_rows = 0;
+    self.expected_bytes = 0;
     for (case.setup) |call| try self.body(file, &.{.{ .span = span, .value = .{ .use = call } }}, bindings, depth + 1);
     try self.body(file, case.body, bindings, depth + 1);
     if (self.actions.items.len == 0) return error.EmptyTestCase;
@@ -386,7 +390,14 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
             const schema = try self.catalog.querySchema(step.sql);
             var buffer: [f.Sql.max_statement_bytes]u8 = undefined;
             const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, &buffer, false, null);
-            break :blk .{ .rows = try Test.bindRows(self.a, self.scratch.allocator(), text, schema) };
+            const rows = try Test.bindRows(self.a, self.scratch.allocator(), text, schema);
+            if (rows.values.len > Test.max_rows - self.expected_rows) return error.TestRowsLimit;
+            self.expected_rows += rows.values.len;
+            for (rows.values) |bytes| {
+                if (bytes.len > Test.max_result_bytes - self.expected_bytes) return error.TestResultBytesLimit;
+                self.expected_bytes += bytes.len;
+            }
+            break :blk .{ .rows = rows };
         },
         .command => |counts| blk: {
             if (is_select) return error.TestCommandRequired;

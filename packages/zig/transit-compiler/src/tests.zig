@@ -225,3 +225,45 @@ fn allocationTestSuite(allocator: std.mem.Allocator) !void {
 test "test compilation cleans up every allocation failure" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationTestSuite, .{});
 }
+
+test "case and action ceilings admit the boundary and reject the next item" {
+    var source: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer source.deinit();
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN ");
+    for (0..c.Test.max_cases) |i| try source.writer.print("TEST 'case-{d}' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT); END; ", .{i});
+    const closing = source.written().len;
+    try source.writer.writeAll("END;");
+    const boundary = try one(source.written(), test_options);
+    boundary.deinit();
+    source.writer.end = closing;
+    try source.writer.writeAll("TEST 'overflow' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT); END; END;");
+    try std.testing.expectError(error.TestCaseLimit, one(source.written(), test_options));
+    source.writer.end = 0;
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN TEST 'actions' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT);");
+    for (1..c.Test.max_actions) |_| try source.writer.writeAll("SELECT * FROM items;");
+    const end = source.written().len;
+    try source.writer.writeAll("END; END;");
+    const actions = try one(source.written(), test_options);
+    actions.deinit();
+    source.writer.end = end;
+    try source.writer.writeAll("SELECT * FROM items; END; END;");
+    try std.testing.expectError(error.TestActionLimit, one(source.written(), test_options));
+}
+
+test "expected row limits aggregate across assertions within one case" {
+    var source: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer source.deinit();
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN TEST 'rows' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT);");
+    for (0..100) |_| {
+        try source.writer.writeAll("ASSERT ROWS (SELECT * FROM items) EQUAL (");
+        for (0..100) |i| try source.writer.print("{s}({d})", .{ if (i == 0) "" else ",", i });
+        try source.writer.writeAll(");");
+    }
+    const end = source.written().len;
+    try source.writer.writeAll("END; END;");
+    const boundary = try one(source.written(), test_options);
+    boundary.deinit();
+    source.writer.end = end;
+    try source.writer.writeAll("ASSERT ROWS (SELECT * FROM items) EQUAL ((1)); END; END;");
+    try std.testing.expectError(error.TestRowsLimit, one(source.written(), test_options));
+}
