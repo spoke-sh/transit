@@ -2113,6 +2113,8 @@ test "shared refusals distinguish current denial from storage and missing-owner 
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseFenced).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueLeaseExpired).code);
     try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.QueueLeaseCapacityExceeded).code);
+    try t.expectEqual(p.ErrorCode.StorageQuota, failure.table(error.QueueCheckpointBacklog).code);
+    try t.expectEqual(std.http.Status.service_unavailable, failure.table(error.QueueCheckpointBacklog).status);
     try t.expectEqual(p.ErrorCode.InvalidRequest, failure.table(error.QueueReadBudgetExceeded).code);
     try t.expectEqual(p.ErrorCode.QueryExpired, failure.table(error.QueueReadReleased).code);
     try t.expectEqual(p.ErrorCode.Conflict, failure.table(error.QueueReadReleaseConflict).code);

@@ -8396,7 +8396,7 @@
         "InvalidDocumentStorageGraph": 17,
         "InvalidHistoricalDirectory": 3,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 47,
+        "InvalidLogStorageGraph": 48,
         "InvalidQueueDestination": 2,
         "InvalidSourceCaptureState": 3,
         "InvalidSourceDeclaration": 2,
@@ -8547,7 +8547,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 667,
+        "try": 672,
         "catch": 1
       },
       "imports": [

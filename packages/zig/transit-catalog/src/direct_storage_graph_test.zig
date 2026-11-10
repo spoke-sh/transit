@@ -96,6 +96,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
     defer owner.deinit() catch unreachable;
     _ = try owner.recoverStep(guard, 1);
+    const foreground_puts = objects.puts;
     const operation: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
     var bytes: [65536]u8 = undefined;
     var encoder = try s.LogBatch.Encoder.init(declaration.definition.schema, operation, .queue, 24, &bytes);
@@ -112,7 +113,7 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     const claimed = try owner.claim(declared, claim, guard);
     try t.expectEqual(@as(u32, 16), claimed.rows);
     var original_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
-    const original_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), claimed.leases.?, &original_bytes);
+    const original_selection = try s.QueueSelection.load(t.allocator, owner.owner.objects, claimed.leases.?, &original_bytes);
     _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 4 }, .lease = try original_selection.lease(0), .action = .ack }, guard);
     _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 5 }, .lease = try original_selection.lease(2), .action = .{ .nack = .{ .visible_ms = 0 } } }, guard);
     context = 1;
@@ -152,8 +153,32 @@ test "direct graph retains Queue scheduling bitmaps and full FIFO keys after col
     // the current basis after the timer merge froze it, without completing it.
     const next_claim = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 13 }, .maximum = 1, .lease_ms = 100, .predicate = null }, guard);
     var next_bytes: [s.QueueSelection.max_bytes]u8 = undefined;
-    const next_selection = try s.QueueSelection.load(t.allocator, objects.objectStore(), next_claim.leases.?, &next_bytes);
+    const next_selection = try s.QueueSelection.load(t.allocator, owner.owner.objects, next_claim.leases.?, &next_bytes);
     _ = try owner.settle(declared, .{ .operation = .{ .scope = scope_id, .principal = 1, .operation = 14 }, .lease = try next_selection.lease(0), .action = .{ .nack = .{ .visible_ms = 1000 } } }, guard);
+    try t.expectEqual(foreground_puts, objects.puts);
+    {
+        var uncheckpointed_tail = try wal.log().read(t.allocator, 92, owner.owner.root.next_lsn - 1, 1);
+        defer uncheckpointed_tail.deinit();
+        var cold_index = try s.TreeStore.init(t.allocator, objects.objectStore(), 4);
+        defer cold_index.deinit();
+        var uncheckpointed_ws: Workspace = .{};
+        defer uncheckpointed_ws.deinit();
+        try uncheckpointed_ws.enqueue(try Graph.fromFrame(t.allocator, uncheckpointed_tail.frames[0]));
+        var at_job: usize = 0;
+        while (at_job < uncheckpointed_ws.jobs.items.len) : (at_job += 1) {
+            var work = uncheckpointed_ws.jobs.items[at_job];
+            while (true) {
+                const queued = uncheckpointed_ws.jobs.items.len;
+                const done = try Graph.step(t.allocator, &cold_index, wal.log(), &work, &uncheckpointed_ws);
+                try t.expect(uncheckpointed_ws.jobs.items.len - queued <= 3);
+                if (done) break;
+            }
+        }
+        var decl_key: [96]u8 = undefined;
+        try t.expect(uncheckpointed_ws.marks.contains(try s.LogDeclaration.key(declared.content, &decl_key)));
+        try t.expect(uncheckpointed_ws.marks.contains(try s.LogDeclaration.key(destination_stored.content, &decl_key)));
+        try t.expect(uncheckpointed_ws.marks.contains(try s.LogDeclaration.key(terminal_stored.content, &decl_key)));
+    }
     const cut = owner.owner.root.position();
     while (!(try owner.flush(cut, guard)).complete) {}
     while (!(try owner.archive(cut, .{ .frames = 2 }, guard)).complete) {}
@@ -848,4 +873,107 @@ test "direct graph collection retains accepted projection origins after the live
     defer projected.deinit();
     try t.expectEqual(@as(i128, 7), projected.page.rows[0].?.row().cells[1].value.atom.signed);
     try t.expect(projected.page.next == null);
+}
+
+test "direct graph collection retains Queue checkpoint roots across uncheckpointed post-checkpoint WAL frames" {
+    const Fixture = struct {
+        fn acquire(_: *anyopaque) !s.PublicationGuard.Fence {
+            return .{ .writer_epoch = 1, .policy_epoch = 1 };
+        }
+        fn release(_: *anyopaque) void {}
+        fn clock(raw: *anyopaque) !?s.LogTime.Sample {
+            return .exact(@as(*u64, @ptrCast(@alignCast(raw))).*);
+        }
+    };
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var now_ms: u64 = 100;
+    const guard: s.PublicationGuard = .{ .context = &now_ms, .acquire = Fixture.acquire, .release = Fixture.release };
+    const scope_id: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const schema: c.fuze.TableSchema.Schema = .{ .object = 21, .revision = 1, .next_column = 2, .columns = &.{.{ .id = 1, .name = "key", .type = .utf8, .nullable = false }}, .primary_key = &.{} };
+    const definition: s.LogDeclaration.Definition = .{
+        .object = .{ .scope = scope_id, .branch = 1, .object = 21 },
+        .revision = 1,
+        .schema = schema,
+        .configuration = .{
+            .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 },
+            .retention = .{ .max_age_ms = null },
+            .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 50, .maximum_lease_ms = 500, .maximum_attempts = 2, .backoff = .{ .initial_ms = 1, .maximum_ms = 10, .multiplier = 1 }, .dead_letter = null } },
+        },
+        .limits = .{ .append_rows = 256, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 256, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 },
+        .properties = "queue-checkpoint-graph",
+    };
+    var declaration = try s.LogDeclaration.prepare(t.allocator, definition);
+    defer declaration.deinit();
+    const declared = try s.LogDeclaration.stage(objects.objectStore(), &declaration);
+    var orphan_def = definition;
+    orphan_def.revision = 99;
+    var orphan_decl = try s.LogDeclaration.prepare(t.allocator, orphan_def);
+    defer orphan_decl.deinit();
+    const orphan_stored = try s.LogDeclaration.stage(objects.objectStore(), &orphan_decl);
+
+    const initial: s.LogInitialization.Request = .{ .definition = c.protocol.Growth.current_definition, .declared = declared, .operation = .{ .scope = scope_id, .principal = 1, .operation = 1 }, .ordinal = 0, .partition = 93 };
+    _ = try s.LogInitialization.initialize(t.allocator, wal.log(), objects.objectStore(), initial, guard);
+    const options: s.QueuePartition.Options = .{ .resident_pages = 1, .batch_bytes = 65536, .key_bytes = 1024, .clock = .{ .context = &now_ms, .read = Fixture.clock } };
+    var owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    defer owner.deinit() catch unreachable;
+    _ = try owner.recoverStep(guard, 4);
+
+    var bytes: [4096]u8 = undefined;
+    const op_enq1: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 2 };
+    const batch1 = try s.LogBatch.encode(schema, op_enq1, .queue, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = "alpha" } } }} }}, &bytes);
+    _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = op_enq1, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(batch1) }, batch1, guard);
+    const claimed = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 3 }, .maximum = 1, .lease_ms = 100, .predicate = null }, guard);
+    const checkpoint_ref = try owner.checkpoint(owner.owner.root.position(), guard);
+    const puts_at_checkpoint = objects.puts;
+
+    // Append and claim again AFTER the checkpoint without materializing another checkpoint.
+    var post_bytes: [4096]u8 = undefined;
+    const op_enq2: d.Operation = .{ .scope = scope_id, .principal = 1, .operation = 4 };
+    const batch2 = try s.LogBatch.encode(schema, op_enq2, .queue, &.{.{ .cells = &.{.{ .value = .{ .atom = .{ .bytes = "beta" } } }} }}, &post_bytes);
+    _ = try owner.enqueue(declared, .{ .target = initial.target(), .operation = op_enq2, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(batch2) }, batch2, guard);
+    const post_claimed = try owner.claim(declared, .{ .target = initial.target(), .operation = .{ .scope = scope_id, .principal = 1, .operation = 5 }, .maximum = 1, .lease_ms = 100, .predicate = null }, guard);
+    try t.expectEqual(puts_at_checkpoint, objects.puts);
+
+    var latest = try wal.log().read(t.allocator, 93, owner.owner.root.next_lsn - 1, 1);
+    defer latest.deinit();
+    var cold_index = try s.TreeStore.init(t.allocator, objects.objectStore(), 4);
+    defer cold_index.deinit();
+    var workspace: Workspace = .{};
+    defer workspace.deinit();
+    try workspace.enqueue(try Graph.fromFrame(t.allocator, latest.frames[0]));
+    var at: usize = 0;
+    while (at < workspace.jobs.items.len) : (at += 1) {
+        var work = workspace.jobs.items[at];
+        while (true) {
+            const queued = workspace.jobs.items.len;
+            const done = try Graph.step(t.allocator, &cold_index, wal.log(), &work, &workspace);
+            try t.expect(workspace.jobs.items.len - queued <= 3);
+            if (done) break;
+        }
+    }
+    var key: [96]u8 = undefined;
+    try t.expect(workspace.marks.contains(try s.LogRecovery.key(checkpoint_ref.content, &key)));
+    try t.expect(workspace.marks.contains(try s.QueueSelection.objectKey(claimed.leases.?, &key)));
+    try t.expect(!workspace.marks.contains(try s.LogDeclaration.key(orphan_stored.content, &key)));
+
+    at = 0;
+    while (at < objects.objects.items.len) {
+        const item = objects.objects.items[at];
+        if (Graph.collectible(item.key) and !workspace.marks.contains(item.key)) try objects.objectStore().delete(item.key) else at += 1;
+    }
+
+    try owner.deinit();
+    owner = try s.QueuePartition.open(t.allocator, wal.log(), objects.objectStore(), initial, guard, options);
+    const before_recover_puts = objects.puts;
+    while (!(try owner.recoverStep(guard, 4)).complete) {}
+    try t.expectEqual(before_recover_puts, objects.puts);
+    var page1 = try owner.readClaimPage(declared, .{ .receipt = claimed, .next = 0 }, .{}, t.allocator, guard);
+    defer page1.deinit();
+    try t.expectEqual(@as(usize, 1), page1.rows().len);
+    var page2 = try owner.readClaimPage(declared, .{ .receipt = post_claimed, .next = 0 }, .{}, t.allocator, guard);
+    defer page2.deinit();
+    try t.expectEqual(@as(usize, 1), page2.rows().len);
 }

@@ -1087,14 +1087,33 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const context = try LogContext.fromRoot(walk.cut.root, walk.cut.root.archive);
             switch (try walk.next(allocator, index, log)) {
                 .complete => return true,
-                .current => |root| try workspace.enqueue(.{ .log_root = .{ .root = root, .archive = context.archive } }),
+                .current => |root| if (root.queue == null or root.next_lsn == 1) {
+                    try workspace.enqueue(.{ .log_root = .{ .root = root, .archive = context.archive } });
+                } else {
+                    try workspace.enqueue(.{ .log_declaration = root.declared });
+                    try workspace.enqueue(.{ .log_declaration = root.initialization.declared });
+                },
                 .checkpoint => |checkpoint| {
                     try markContent(workspace, try s.LogRecovery.key(checkpoint.reference.content, &key_buffer), checkpoint.reference.content);
                     try workspace.enqueue(.{ .log_root = .{ .root = checkpoint.basis.root, .archive = context.archive } });
                 },
                 .initialization => |initialized| try workspace.enqueue(.{ .log_declaration = initialized.request.declared }),
                 .frame => |record| {
-                    try workspace.enqueue(.{ .log_root = .{ .root = record.root, .archive = context.archive } });
+                    if (walk.cut.root.queue == null or record.isMaterializedBarrier()) {
+                        try workspace.enqueue(.{ .log_root = .{ .root = record.root, .archive = context.archive } });
+                    } else {
+                        try workspace.enqueue(.{ .log_declaration = record.root.declared });
+                        if (record.action == .operation) {
+                            if (!std.meta.eql(record.action.operation.declared, record.root.declared)) {
+                                if (record.action.operation.outcome == .append and record.action.operation.outcome.append.append.capture != null) return error.InvalidLogStorageGraph;
+                                try workspace.enqueue(.{ .log_declaration = record.action.operation.declared });
+                            } else if (record.action.operation.outcome == .append) {
+                                if (record.action.operation.outcome.append.append.capture) |capture| {
+                                    try workspace.enqueue(.{ .capture_manifest = capture.reference });
+                                }
+                            }
+                        }
+                    }
                     try workspace.enqueue(.{ .log_wal = .{ .context = context, .lsn = record.root.next_lsn - 1 } });
                     if (record.action == .archive) try workspace.enqueue(.{ .log_archive_range = .{ .context = context, .from = record.action.archive.from_lsn, .until = record.root.archive.through } });
                 },

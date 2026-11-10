@@ -18,6 +18,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
         const Class = enum {
             flush,
             archive,
+            checkpoint,
             trim,
             compact,
             expire,
@@ -29,6 +30,9 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 return switch (self) {
                     .flush => settings.flush.enabled,
                     .archive, .trim => settings.archive.enabled,
+                    // Queue metadata checkpoints bound cold-reopen WAL replay
+                    // independently of optional WAL archiving.
+                    .checkpoint => kind == .queue,
                     // Queue scheduling cleanup is control progress, independent
                     // of optional Stream payload compaction settings.
                     .compact => kind == .queue or settings.compact,
@@ -163,6 +167,10 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             defer if (runtime(stream).root.next_lsn != before or !runtime(stream).ready) host.notifyLogs();
             switch (selected) {
                 .archive => return stream.archiveMaintenanceUnit(.{ .frames = settings.archive.work_frames }, authority.guard()),
+                .checkpoint => {
+                    if (kind == .stream or (settings.archive.enabled and !runtime(stream).needsCheckpoint())) return false;
+                    return stream.checkpointMaintenanceUnit(authority.guard());
+                },
                 .compact => return if (kind == .stream)
                     stream.compactionMaintenanceUnit(definition.stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard())
                 else
