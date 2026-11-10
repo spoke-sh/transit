@@ -121,6 +121,13 @@ def compiler_journey(cli, root):
     refusal = cli_build(cli, project, '--check', expected=1)
     assert refusal['location']['line'] == '1' and refusal['location']['source'], refusal
     (project / 'invalid.transit').unlink()
+    bad_type = root / 'bad-type'
+    bad_type.mkdir()
+    source(bad_type, 'build.transit', "CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id BIGINT); END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;")
+    refused_type = cli_build(cli, bad_type, expected=1)
+    assert any(fact and fact['field'] == 'native_cause' and fact['value'] == {'text': 'InvalidSourceTypeOperand'} for fact in refused_type['facts']), refused_type
+    assert not (bad_type / '.transit').exists()
+
     (project / 'linked.transit').symlink_to(project / 'rows.transit')
     cli_build(cli, project, '--check', expected=1)
     (project / 'linked.transit').unlink()

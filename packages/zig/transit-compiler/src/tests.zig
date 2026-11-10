@@ -131,3 +131,9 @@ test "dependency closure cycles and conflicting global pins reject" {
     try refuses(error.ConflictingDependency, &.{ .{ .path = "build.transit", .text = pinned }, .{ .path = "other.transit", .text = "DEPENDENCY a FROM '/other-repository' REVISION '1111111111111111111111111111111111111111';" } }, .{ .compiler_revision = "test" });
     try refuses(error.RepositoryCredentialsForbidden, &.{.{ .path = "build.transit", .text = "DEPENDENCY a FROM 'https://user:secret@example.invalid/repository' REVISION '1111111111111111111111111111111111111111';" }}, .{ .compiler_revision = "test" });
 }
+
+test "type operands cannot become object or column identifiers" {
+    try std.testing.expectError(error.InvalidSourceTypeOperand, one("CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id BIGINT); END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.InvalidSourceTypeOperand, one("CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE items ($t BIGINT); END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.InvalidSourceTypeOperand, one("CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE items (bigint BIGINT); SELECT $t FROM items; END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;", .{ .compiler_revision = "test" }));
+}

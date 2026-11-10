@@ -278,12 +278,15 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
     self.offset = span.start;
     var raw_buf: [f.Sql.max_statement_bytes]u8 = undefined;
     var canonical_buf: [f.Sql.max_statement_bytes]u8 = undefined;
-    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, false);
-    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true);
+    var type_sites: [f.Sql.max_statement_bytes]bool = @splat(false);
+    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, false, &type_sites);
+    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     _ = self.scratch.reset(.retain_capacity);
     var at: f.Sql.Location = .{};
     const digest = try self.catalog.check(raw, &at);
+    _ = self.scratch.reset(.retain_capacity);
+    try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], &at);
     self.output_bytes += canonical.len + 2;
     var binding_hash = std.crypto.hash.sha2.Sha256.init(.{});
     binding_hash.update("transit.source.bindings.v1\x00");
@@ -308,7 +311,7 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
     }
     try self.steps.append(self.a, .{ .sql = try self.a.dupe(u8, canonical), .plan_digest = digest, .definition = location(self.graph.sources[file], span.start), .call = self.call_site, .instance = try self.a.dupe(u8, self.instance), .bindings_digest = binding_hash.finalResult() });
 }
-fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool) ![]const u8 {
+fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;
     var writer: std.Io.Writer = .fixed(output);
     var i: usize = 0;
@@ -329,6 +332,10 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
             const value = for (bindings) |binding| {
                 if (std.ascii.eqlIgnoreCase(name, binding.name)) break binding.value;
             } else return error.UnknownSourceOperand;
+            if (value == .type) if (type_sites) |sites| {
+                if (writer.end >= sites.len) return error.BuildStatementLimit;
+                sites[writer.end] = true;
+            };
             writeValue(&writer, value) catch |err| return if (err == error.WriteFailed) error.BuildStatementLimit else err;
         } else if (canonical and token.kind == .word) {
             for (raw) |byte| writer.writeByte(std.ascii.toUpper(byte)) catch return error.BuildStatementLimit;

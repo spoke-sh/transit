@@ -51,3 +51,26 @@ fn find(self: Self, name: []const u8) !Entry {
     for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, name)) return entry;
     return error.UnknownBuildTable;
 }
+
+/// Require a TYPE source operand to occupy a type position in the ordinary
+/// grammar. SQL permits some type words as identifiers; successful preparation
+/// alone cannot establish the source operand's kind. Unlike presentation
+/// classification, this parse must finish and allocation/parse errors propagate.
+pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: []const bool, location: *f.Sql.Location) !void {
+    if (std.mem.indexOfScalar(bool, sites, true) == null) return;
+    var roles: [f.Sql.max_statement_bytes]f.Sql.TokenRole = @splat(.unknown);
+    var parser = try f.SqlTyped.init(allocator, sql, location);
+    parser.roles = roles[0..sql.len];
+    if (parser.word("CREATE")) {
+        _ = try f.TableDdl.syntax(&parser, null);
+    } else if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
+        _ = try f.TableDml.syntax(&parser, null);
+    } else if (parser.word("SELECT")) {
+        _ = try f.TableSelect.syntax(&parser, null);
+    } else return error.UnsupportedBuildStatement;
+    try parser.finish();
+    for (sites, 0..) |site, i| if (site and roles[i] != .type_name) {
+        location.* = .{ .offset = i };
+        return error.InvalidSourceTypeOperand;
+    };
+}
