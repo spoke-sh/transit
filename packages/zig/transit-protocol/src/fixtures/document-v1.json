@@ -1,6 +1,6 @@
 {
   "declaration": {
-    "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+    "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
     "interpretation": {
       "object": {
         "scope": {
@@ -114,7 +114,7 @@
     "mutation": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {
@@ -311,7 +311,7 @@
   "replica": {
     "target": {
       "partition": {
-        "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+        "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
         "interpretation": {
           "object": {
             "scope": {
@@ -409,7 +409,7 @@
     "checkpoint": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {
@@ -531,7 +531,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {
@@ -659,7 +659,7 @@
       "expected": {
         "target": {
           "partition": {
-            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+            "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
             "interpretation": {
               "object": {
                 "scope": {
@@ -783,7 +783,7 @@
     "request": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {
@@ -868,7 +868,7 @@
     "cut": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {
@@ -1077,7 +1077,7 @@
       "cut": {
         "target": {
           "partition": {
-            "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+            "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
             "interpretation": {
               "object": {
                 "scope": {
@@ -1198,45 +1198,45 @@
       "complete": true
     },
     "authentication": [
-      228,
-      64,
-      76,
-      179,
-      155,
-      179,
-      153,
-      94,
-      153,
-      237,
-      221,
-      55,
-      144,
-      220,
-      206,
-      156,
-      148,
-      94,
-      22,
-      19,
-      229,
-      237,
-      10,
-      7,
-      54,
-      119,
-      141,
-      210,
+      180,
+      88,
+      149,
+      200,
+      56,
       184,
-      170,
-      78,
-      185
+      175,
+      215,
+      55,
+      142,
+      132,
+      98,
+      91,
+      109,
+      112,
+      140,
+      141,
+      117,
+      3,
+      18,
+      1,
+      47,
+      90,
+      10,
+      63,
+      45,
+      106,
+      159,
+      95,
+      116,
+      135,
+      67
     ]
   },
   "read_release": {
     "release": {
       "target": {
         "partition": {
-          "definition": "b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb",
+          "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
           "interpretation": {
             "object": {
               "scope": {

@@ -10,12 +10,15 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
 The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-09),
-based on `origin/main` at `b42ef803ba7b861a0a6dd732865ac9390c09941d`, selects
-the concrete next implementation sequence after delivered [predicate-aware Queue acquisition](#predicate-aware-queue-acquisition--2026-11-08)
-(#428) and [M3 aggregate direct-storage memory admission](03-live-storage-and-sql-cutover.md#next-slice-implementation-plan--2026-11-08)
-(#431): native `.tseg` log-segment system columns, `.tdel` compaction vectors and
-`LBMETA01`/`LOGVIEW1` retirement ([Storage Units 1–2](#additional-storage-review-units-and-sequencing)),
-followed directly by finite retained `STREAM_SLICE` (Batch 4c). Start there,
+based on `origin/main` at `b42ef803ba7b861a0a6dd732865ac9390c09941d`, delivers
+native `.tseg` log-segment system columns and `LBMETA01`/`LOGVIEW1` retirement
+([Storage Units 1–2](#additional-storage-review-units-and-sequencing)) together
+with finite retained `STREAM_SLICE` (Batch 4c) under the shared
+[`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+cutover `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`), leaving bounded Queue metadata
+checkpoints ([Storage Unit 3](#additional-storage-review-units-and-sequencing)),
+mixed SQL and transactional Station as the next remaining units. Start there,
 together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
 and [November 7 implementation plan](#implementation-plan--2026-11-07); the
 [November 5 completion plan](#completion-plan-at-current-main--2026-11-05) and
@@ -28,10 +31,12 @@ for the current executable declarations, workload operations and inspection form
 
 ## Next slice implementation plan — 2026-11-09
 
-**Source basis:** `origin/main` at `b42ef803ba7b861a0a6dd732865ac9390c09941d`.
-The integrated [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
-is `936374f85eeaa6e27db5a81ef298caf5ff0da2dfc6439ff32fca73b1cc1eab49`
-(`transit.v1.direct-storage-admission.2026-11-08`). Since the November 7–8
+**Source basis:** `origin/main` at `866bd127f2a0ab78598d730363ff46d8bf059082`.
+This slice advances [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+from `b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb`
+(`transit.v1.application-foundation.2026-11-09`) to
+`21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`). Since the November 7–8
 updates, #428 delivered predicate-aware Queue acquisition (Batches 3 and 4b.3),
 #431 delivered M3's aggregate local direct-storage allocation admission and
 disjoint control/maintenance/collection reserves in
@@ -40,7 +45,7 @@ disjoint control/maintenance/collection reserves in
 hardened installation port reservation and non-contending telemetry drain, and
 #433/#434 added Phase I [Milestone 12](12-application-modules-compilation-and-testing.md)
 (renumbering subsequent milestones 13–47). M6 remains **In Progress**; this
-planning update supplies no new runtime qualification.
+slice delivers Stage A (Storage Units 1–2) and Stage B (Batch 4c `STREAM_SLICE`).
 
 ### Why this slice is next and how it is staged
 
@@ -208,7 +213,7 @@ exact schema/collation/timezone semantics and deterministic pin cleanup.
      `stream_partition: struct { branch: u64, object: u64, partition: u32, retained_from: u64, next_offset: u64, from_offset: u64, until_offset: u64 }`
      so compiled plans bind and verify the exact frozen Stream cut alongside any
      co-queried `table_partition` cuts.
-   - Add `DirectStreamSliceScan` in `packages/zig/transit-query-direct/` (modeled
+   - Add [`DirectStreamSliceScan.zig`](../../packages/zig/transit-query-direct/src/DirectStreamSliceScan.zig) in `packages/zig/transit-query-direct/` (modeled
      on [`DirectTableScan.zig`](../../packages/zig/transit-query-direct/src/DirectTableScan.zig)):
      - Re-verifies current `READ` authorization, `policy_epoch` and Stream
        definition revision via `DirectStreamClient` before each bounded page
