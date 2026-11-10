@@ -14,6 +14,8 @@ transit --version
 transit server [--config FILE] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]
+transit build [-f FILE] [--target NAME] [OPTIONS]
+transit test [-f FILE] [--target NAME] [OPTIONS]
 ```
 
 | Command | Input and outcome |
@@ -21,6 +23,8 @@ transit migrate <plan|inspect|apply|status|resume|verify> [OPTIONS]
 | `server` | Run the local supervisor in the foreground. Missing installation paths are initialized automatically; existing empty directories are refused. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
 | `migrate` | Reviewable, resumable application schema and data migration lifecycle (`plan`, `inspect`, `apply`, `status`, `resume`, `verify`) over ordered `.sql` sources or saved plans (`transit_migration_plan_v1`) |
+| `build` | Compile typed modules to executable Table SQL and provenance with frozen dependencies |
+| `test` | Compile and run explicit Table cases in isolated local databases |
 
 The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`
@@ -77,9 +81,42 @@ The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 fi
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations
 and 8 MiB emitted SQL. The ordinary SQL owner retains its 4,096-byte statement
 limit. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
-additional tooling limits and syntax. `transit test`, migration synthesis and the
+additional tooling limits and syntax. Migration synthesis and the
 broader [source model](applications.md#planned-source-language-and-build-model)
 remain planned.
+
+## Application Table tests
+
+`transit test [-f FILE] [--target NAME]` defaults to `build.transit` and test target
+`tests`. It uses the installed Transit binary without a running server or
+containers. Prepare repository dependencies explicitly with `transit build
+--fetch`; tests verify the frozen lock and cache without network access. Explicit
+`--override NAME=DIRECTORY` changes source provenance, as for builds. Tests never
+read server configuration, connection credentials or `.transitrc`.
+
+Use `--format text` for status on stderr or `--format json` for one bounded final
+report on stdout. Reports distinguish `passed`, `failed` and `not_run` cases;
+`complete` records coverage and `ok` records success. They include input/SQL and
+compiler identities, safe source locations and assertion facts without expected
+or actual row payloads. Ordinary mismatches allow later isolated cases to run;
+a host failure stops execution and marks the remaining cases `not_run`.
+
+Exit 0 requires every case and its cleanup to pass; invalid options exit 2, and
+compilation, assertion, runtime or cleanup failures exit 1. Zero selected cases
+reject. `--fetch`, `--out`, `--check`, connection options and `--verify-replay` are
+not test options. See [Table test declarations](applications.md#isolated-application-table-tests)
+for the executable source profile.
+
+The compiler retains its build budgets. A suite admits at most 128 cases and
+1,024 actions per case. Each case permits 10,000 expected/observed rows, 16 MiB of
+observed canonical row bytes, 256 MiB of accounted host allocations and 256 MiB
+of temporary storage. Cases have 30-second awake-clock budgets within a
+five-minute suite budget, with separate five-second cleanup deadlines. Reports are bounded
+to 1 MiB. Quota exhaustion fails; it cannot turn a partial result into a pass.
+Reports include compiler/host allocation peaks and local storage reservations.
+These limits do not bound total process RSS, filesystem allocation-unit overhead
+or the operating system's page cache. Private installations use `TMPDIR` when
+set, otherwise `/tmp`, and are removed after joined shutdown.
 
 ## Application SQL migrations
 

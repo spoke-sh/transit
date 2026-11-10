@@ -239,17 +239,21 @@ limits across the whole suite. Additional ceilings are 128 cases, 1,024 actions
 per case and 10,000 expected/observed rows per case. The runner separately bounds
 observed canonical cell bytes to 16 MiB per case and reports to 1 MiB per suite.
 A case has a 30-second awake-clock budget and a suite has five minutes. Runtime
-shutdown has a separate bounded cleanup scope; failure to close/join fails the
+shutdown has a separate five-second cleanup scope; failure to close/join fails the
 run. Host/runner allocations and temporary storage each have a 256 MiB per-case
-budget; source/tooling/compiler allocations retain their separate owner limits.
+budget. The local provider reserves at most 192 MiB for ordinary storage plus
+32 MiB for control progress; private key/credential files fit in the remaining
+allowance. This Table profile does not spill query intermediates. Source/tooling/
+compiler allocations retain their separate owner limits.
 These are accounted quotas, not guarantees about total process RSS, stack or OS
-page-cache usage. Exhaustion never silently omits actions or results.
+page-cache usage or filesystem allocation-unit overhead. Exhaustion never silently omits actions or results.
 
 The runner composes real local storage, signed native dispatch, Catalog policy,
 DatabaseRuntime and SQL sessions without listeners. It bootstraps synthetic
 case-owned credentials and explicit grants; bootstrap authority is distinct
 from the statement caller. Test controls never enter deployable SQL. Local
-routing has no remote fallback. Cases cannot use application configuration,
+routing has no remote fallback. Private directories are created under `TMPDIR` (otherwise `/tmp`), with mode
+0700 and mode-0600 key files. Cases cannot use application configuration,
 credentials or installations. Disposal of case-owned data is explicit fixture
 cleanup, not application retention or cancellation semantics. Original accepted
 operation identities govern settlement after uncertainty; writes are not

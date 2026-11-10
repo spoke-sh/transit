@@ -6,11 +6,11 @@
 query engine, and durable execution runtime.** It's written in Zig and provides
 [SDKs for a wide range of languages](docs/handbook/reference/sdks.md).
 
-The [planned application language](docs/handbook/reference/applications.md#planned-source-language-and-build-model)
-uses recursively composable `.transit` SQL modules and a `build.transit` program
-in the same dialect. The proposed `transit build` and `transit test` commands
-compile executable `.sql` for statement or migration execution; these source
-language and build capabilities are not yet implemented.
+The [application source compiler](docs/handbook/reference/applications.md#application-source-builds)
+composes typed `.transit` modules through `build.transit`. `transit build` emits
+ordinary executable Table SQL; `transit test` runs isolated Table cases through
+the same compiler and local database owners. Broader application runtime forms,
+migration synthesis and workflow simulation remain planned.
 
 ![A measured score becomes waves that fork upward into graphite terrain and downward into translucent planes, with a shared vermilion path.](docs/design/transit-artwork/images/d1-refraction-graphite.jpg)
 

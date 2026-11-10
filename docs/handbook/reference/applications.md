@@ -43,9 +43,43 @@ build identity. The [build CLI](cli.md#application-source-builds) and
 resolution, artifacts, diagnostics and resource limits.
 
 This profile rejects runtime-private storage, privileged procedures, effects,
-Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis,
-`transit test` and full Platform compilation remain planned. The existing
+Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
+
+## Isolated application Table tests
+
+`transit test` selects `CREATE TEST TARGET tests` from the same source graph and
+frozen dependencies as a build. Declare explicit cases inside a test target or
+composed module. Each case has its own setup modules and empty local database:
+
+```text
+CREATE TEST TARGET tests AS BEGIN
+  TEST 'inserted rows are visible' USING MODULES () AS BEGIN
+    CREATE PUBLIC TABLE items(id BIGINT PRIMARY KEY);
+    ASSERT COMMAND (INSERT INTO items VALUES (7)) MATCHED 1 CHANGED 1;
+    ASSERT ROWS (SELECT id FROM items) EQUAL ((7));
+    ASSERT STATEMENT (INSERT INTO items VALUES (7)) FAILS WITH 'duplicate_key';
+    ASSERT ROWS (SELECT id FROM items) EQUAL ((7));
+  END;
+END;
+```
+
+All selected cases compile before a runtime starts. Setup and asserted SQL use
+the production emitter and ordinary SQL session owners. Row expectations bind to
+the query schema and compare exact typed values as a multiset, preserving NULL
+and duplicate counts without requiring physical row order. Command assertions
+check authoritative matched/changed counts. Expected refusals support only
+recorded DML `duplicate_key` and `check_violation` outcomes. A timeout, denied
+request, incomplete read or exhausted budget fails the run.
+
+Cases run sequentially in private temporary local databases without listeners,
+server configuration or containers. The runner uses real grants, storage and
+current disclosure checks, then closes sessions and deletes each owned database.
+Passing requires complete assertions and successful cleanup. The
+[test CLI](cli.md#application-table-tests) owns invocation and reporting; the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+owns syntax and exact limits. Subject/grant controls, virtual clocks, effects,
+HTTP simulation and workflow replay remain unsupported source features.
 
 ## Planned source language and build model
 
@@ -54,7 +88,7 @@ The proposed authoring language is a higher-order Transit SQL dialect stored in
 imports, parameters and compile-time composition organize larger programs.
 `build.transit` is a program in that same dialect. The implemented build profile
 above covers recursive Table composition. The
-proposed broader language and `transit test` use the same graph to select richer
+proposed broader language uses the same graph to select richer
 outputs and tests. The following sections describe that larger design; they do
 not extend the executable capabilities listed above.
 
@@ -145,12 +179,11 @@ immutable: recovery uses the original migration and accepted operation identitie
 even after source, compiler or dependency changes. A successful build neither
 applies a migration nor proves that an existing deployment matches its basis.
 
-The proposed `transit test` resolves the same build graph and exercises the same
-SQL emitter as `transit build`. Test bodies execute generated SQL through real
-database components in isolated instances, with explicit runner-owned clocks,
-effect mocks and fault schedules. Test controls are distinct from deployable SQL.
-Local simulation establishes only its executed scenarios; it does not qualify
-external providers, physical durability or distributed recovery.
+The delivered Table test profile above resolves the same graph and uses the same
+SQL emitter as `transit build`. Extensions for application clocks, effect mocks
+and workflow fault schedules remain planned. Test controls stay distinct from
+deployable SQL. Local tests qualify only their executed scenarios, not external
+providers, physical durability or distributed recovery.
 
 ## Installation and bootstrap
 

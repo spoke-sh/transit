@@ -6,7 +6,7 @@ pub const Format = enum { table, json };
 pub const MigrateAction = sdk.protocol.Migration.ActionKind;
 pub const max_migrate_files = 16;
 pub const Options = struct {
-    command: enum { help, version, console, server, migrate, build },
+    command: enum { help, version, console, server, migrate, build, @"test" },
     build: @import("BuildOptions.zig") = .{},
     path: ?[]const u8 = null,
     path_from_environment: bool = false,
@@ -42,12 +42,12 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     if (args.len == 0) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--help")) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--version")) return .{ .command = .version };
-    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server")) .server else if (std.mem.eql(u8, args[0], "migrate")) .migrate else if (std.mem.eql(u8, args[0], "build")) .build else {
+    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server")) .server else if (std.mem.eql(u8, args[0], "migrate")) .migrate else if (std.mem.eql(u8, args[0], "build")) .build else if (std.mem.eql(u8, args[0], "test")) .@"test" else {
         diagnostic.atArgument(1, null);
         return diagnostic.invalidArgument("unknown command or misplaced global option");
     } };
-    if (result.command == .build) {
-        result.build = try @import("BuildOptions.zig").parse(args[1..], diagnostic);
+    if (result.command == .build or result.command == .@"test") {
+        result.build = try @import("BuildOptions.zig").parseMode(args[1..], diagnostic, result.command == .@"test");
         result.help = result.build.help;
         return result;
     }
@@ -219,6 +219,7 @@ pub fn writeHelp(io: std.Io, options: Options) !void {
         .console => @import("Help.zig").console,
         .migrate => @import("Help.zig").migrate,
         .build => @import("Help.zig").build,
+        .@"test" => @import("Help.zig").@"test",
         else => @import("Help.zig").root,
     });
 }

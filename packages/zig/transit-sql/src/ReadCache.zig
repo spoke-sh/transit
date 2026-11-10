@@ -394,6 +394,23 @@ pub fn close(self: *Self, client: c.DirectTableClient, record: Record) !void {
     };
     return error.InvalidSqlReadRecovery;
 }
+/// Explicit shutdown of one connection after its readers and recovery worker
+/// have joined. Use ordinary durable reconciliation to release cached pins;
+/// an interrupted drain leaves the original recovery records intact.
+pub fn drain(self: *Self, client: c.DirectTableClient) !void {
+    {
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        for (self.entries) |slot| if (slot) |entry| {
+            if (std.meta.eql(entry.record.table.connection, client.connection) and entry.users != 0) return error.SqlReadCacheInUse;
+        };
+        for (&self.entries) |*slot| if (slot.*) |entry| {
+            if (std.meta.eql(entry.record.table.connection, client.connection)) slot.* = null;
+        };
+        self.known_slots = null;
+    }
+    for (0..capacity) |_| _ = try self.tick(client);
+}
 /// Inspect one fixed recovery slot. Slots bound cache capacity, never durable
 /// collection cardinality; each overwrite preserves the previous WAL evidence.
 pub fn tick(self: *Self, client: c.DirectTableClient) !bool {
