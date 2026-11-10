@@ -137,7 +137,7 @@ local-payload-service:
 
 # Verify direct catalog lifecycle against signed native registration and policy.
 local-catalog:
-    zig build test-local-catalog
+    zig build test-local-catalog -Doptimize=ReleaseSafe
 
 # Explicit Table expiry, retained snapshots and original receipts after collection.
 local-data-collection:
