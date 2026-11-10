@@ -15,8 +15,9 @@ maps Platform's identity, GitHub sign-in and publication migrations to current
 owners, missing contracts and an ordered implementation/qualification sequence.
 It is a proposal for review and changes no milestone status.
 The [application Table test runner plan](application-test-implementation.md)
-proposes the next M12 slice after the merged recursive compiler: isolated tests
-using the production SQL emitter and real local database owners.
+records the delivered bounded M12 slice after the recursive compiler: isolated
+Table tests using the production SQL emitter and real local database owners.
+The remaining P5 controls and broader milestone remain In Progress.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../history/qualification/README.md). A planned milestone does not establish

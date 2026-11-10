@@ -1,6 +1,6 @@
 # Application Table test runner implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: In Progress** · Approved implementation slice
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Completed** · Approved implementation slice
 
 Let an application author compose a reusable Table module, declare isolated tests
 beside it, and run `transit test` without a server, network access or containers.
@@ -15,6 +15,22 @@ and the [first-slice plan](application-build-implementation.md). It does not
 complete P5 or M12. Clock/effect simulation, workflow replay, runtime-private
 modules, migration synthesis and the full Platform workload remain explicit
 follow-ups.
+
+## Delivered slice
+
+The six implementation stages below are delivered: source/CLI contracts, typed
+compiler products, a reusable listener-free local host, the shared assertion
+runner, offline CLI integration and executable qualification. The supported
+profile and limits belong to the [application reference](../handbook/reference/applications.md#isolated-application-table-tests)
+and [source contract](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
+The [qualification account](../history/qualification/interfaces.md#isolated-application-table-tests--2026-11-10)
+records commands, source revisions, failures, measured resource usage and limits.
+
+This completes the approved bounded Table slice. P5 and M12 remain In Progress:
+subject/clock controls, effects, replay and full Platform qualification still need
+their own implementation and evidence. The original plan below retains its
+pre-implementation source audit, proposed work and acceptance rationale; it is
+not the current interface specification.
 
 ## Why this slice next
 

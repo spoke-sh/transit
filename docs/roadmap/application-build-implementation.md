@@ -6,7 +6,7 @@ Delivery update, 2026-11-10: the bounded compiler implementation merged in
 [PR #437](https://github.com/spoke-sh/transit/pull/437). Its validation record
 includes the remaining latency-gate failure and the requester-approved exception
 to publication; merge does not turn that gate into a pass. The original plan
-below remains the source-attributed scope and acceptance record. The proposed
+below remains the source-attributed scope and acceptance record. The delivered
 [next implementation slice](application-test-implementation.md) adds isolated
 Table tests through the same compiler and real database owners. The broader
 milestone and runtime work remain unfinished.

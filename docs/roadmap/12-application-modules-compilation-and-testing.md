@@ -14,8 +14,9 @@ same generated SQL through deterministic local unit and fault-injection tests.
 The bounded recursive Table compiler and `transit build` landed in
 [PR #437](https://github.com/spoke-sh/transit/pull/437); the
 [current source contract](../../contracts/APPLICATION_SOURCE_V1.md) defines that
-implemented subset. The broader source forms, test command and examples below
-remain proposed except where explicitly identified as delivered. The
+implemented subset and the delivered isolated Table profile of `transit test`.
+The broader source forms, clock/effect/replay controls and examples below remain
+proposed except where explicitly identified as delivered. The
 [public language model](../handbook/reference/applications.md#planned-source-language-and-build-model)
 owns the concepts; the [compiler analysis](../handbook/internals/query-engine.md#planned-source-to-sql-compilation)
 owns the equivalence argument and its limits. The existing `transit-app` tool
@@ -363,12 +364,15 @@ are tracked by the implementation plan. It scopes
 the initial runtime subset, package/compiler owners, logical commits and caller
 proofs; the broader P0–P6 completion criteria below remain required.
 
-The proposed [next slice is the Table test runner](application-test-implementation.md):
-explicit test targets, production SQL emission and isolated execution through real
-local database owners. This is a bounded part of P5. Subject/clock controls,
-effect simulation and workflow replay remain subsequent work. The merged build
-PR's validation and its recorded latency failure retain their original scope;
-neither that merge nor this plan completes the milestone.
+The [Table test runner slice](application-test-implementation.md) delivers explicit
+test targets, production SQL emission and isolated execution through real local
+database owners. Typed row multisets, command counts and exact constraint refusals
+use ordinary SQL sessions and require complete results and joined cleanup.
+[Executed qualification](../history/qualification/interfaces.md#isolated-application-table-tests--2026-11-10)
+records the bounded profile and its limits. This is part of P5; subject/clock
+controls, effect simulation and workflow replay remain subsequent work. The
+merged build PR's validation and latency failure retain their original scope.
+Neither delivered slice completes the milestone.
 
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
@@ -542,7 +546,12 @@ neither that merge nor this plan completes the milestone.
 
 ### `P5` — Deterministic SQL unit-test runner, sink/observation simulator and yield-point fault injector
 
-**Owners:** [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
+**Owners:** [`packages/zig/transit-compiler/`](../../packages/zig/transit-compiler), [`packages/zig/transit-test/`](../../packages/zig/transit-test), [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
+
+The [isolated Table profile](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+delivers item 1 for the existing compiler subset and typed row/count/refusal
+assertions from item 3. The controls, broader SQL and replay schedules below
+remain required to complete P5.
 
 1. **Implement the `TEST ... USING MODULES (...) AS BEGIN ... END` grammar and in-process runner:**
    - Resolve `*.test.transit` suites through the same `build.transit` graph and
@@ -623,8 +632,10 @@ neither that merge nor this plan completes the milestone.
 
 ## Completion evidence
 
-All rows are required future evidence; none is established by this plan or its
-documentation checks. Record performance against the pinned conditions in `P6`.
+The delivered compiler and Table-test slices establish only the bounded evidence
+linked above. Every row still requires its full journey, including capabilities
+outside those profiles; this plan and documentation checks establish no runtime
+result. Record performance against the pinned conditions in `P6`.
 
 | Journey | Required executable evidence |
 | --- | --- |
