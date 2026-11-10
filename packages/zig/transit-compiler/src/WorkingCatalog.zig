@@ -51,6 +51,19 @@ fn find(self: Self, name: []const u8) !Entry {
     for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, name)) return entry;
     return error.UnknownBuildTable;
 }
+pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
+    const target = try f.TableSelect.targetDiagnostic(self.scratch, sql, null);
+    const entry = try self.find(target);
+    var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
+    var semantics: [f.TableSchema.max_columns]f.TableSchema.Semantics = undefined;
+    for (entry.schema.columns, semantics[0..entry.schema.columns.len]) |column, *item| item.* = column.semantics;
+    var prepared = try f.LogicalPrepared.initSemantics(self.scratch, sql, entry.name, try entry.schema.rowType(&fields), try entry.schema.fingerprint(), null, .transit, semantics[0..entry.schema.columns.len]);
+    defer prepared.deinit();
+    var bound = try prepared.bind(self.scratch, entry.name, try entry.schema.rowType(&fields), try entry.schema.fingerprint(), &.{}, null);
+    defer bound.deinit();
+    const schema = try bound.plan.outputSchema(&fields);
+    return (try schema.clone(self.output)).type;
+}
 
 /// Require a TYPE source operand to occupy a type position in the ordinary
 /// grammar. SQL permits some type words as identifiers; successful preparation

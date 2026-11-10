@@ -26,3 +26,10 @@ The package `test` step exercises recursive higher-order construction, typed
 arguments, source visibility, explicit object bindings, deterministic emission,
 ordinary SQL verification, budget exhaustion and cleanup at every allocation
 failure. These tests do not execute SQL or qualify a runtime deployment.
+
+`Options.mode = .test_suite` selects a `CREATE TEST TARGET` (normally `tests`).
+The owned product contains independent cases with ordinary SQL, statement maps
+and typed runner expectations. Every case uses the same production evaluator,
+working catalog, emitter and independent SQL verification. Compilation executes
+no SQL. Row expectations use exact schema-bound value encodings with duplicate
+multiplicity; they do not depend on physical ordering or SQL collation equality.

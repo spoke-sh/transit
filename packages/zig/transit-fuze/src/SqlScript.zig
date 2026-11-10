@@ -56,6 +56,7 @@ fn nextFrame(scan: anytype) !?Statement {
     var instruction_start = false;
     var suffix: ?Block = null;
     var create_header = false;
+    var test_header = false;
     while (try scan.next()) |token| {
         if (!token.closed and (token.kind == .string or token.kind == .quoted or
             token.kind == .comment and std.mem.startsWith(u8, text[token.start..token.end], "/*")))
@@ -82,8 +83,10 @@ fn nextFrame(scan: anytype) !?Statement {
         // A finite query owns its contextual aliases. Once AS SELECT starts
         // that query, a later AS begin cannot open a compound declaration.
         if (compound and !body and after_as and word(text, token, "SELECT")) compound = false;
-        const opens_body = compound and !body and after_as and word(text, token, "BEGIN");
+        if (body and instruction_start and word(text, token, "TEST")) test_header = true;
+        const opens_body = compound and (!body or test_header) and after_as and word(text, token, "BEGIN");
         if (opens_body) body = true;
+        if (opens_body) test_header = false;
         after_as = word(text, token, "AS");
         if (suffix) |kind| {
             suffix = null;
