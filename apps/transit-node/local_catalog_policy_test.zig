@@ -1752,7 +1752,7 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     }
     const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
     const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(81) };
-    const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = .{} };
+    const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .deadline = null, .budget = .{} };
     const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
     defer begun.deinit();
     try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.objects.count >= 12);
@@ -2995,9 +2995,9 @@ fn ownedRecordsDispatch(service: *@import("LocalTableService.zig"), owner_role: 
     var references: [4]c.DirectRecord.Reference = undefined;
     for (&requests, &references, 0..) |*request, *reference, i| {
         const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(@as(u8, @intCast(81 + i))) };
-        (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 + i }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = .{} } } })).deinit();
+        (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 + i }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .deadline = null, .budget = .{} } } })).deinit();
         (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
-        const guarded = try c.DirectRecord.encodeGuarded(allocator, connection, .{ binding.target, null, null }, "candidate");
+        const guarded = try c.DirectRecord.encodeGuarded(allocator, connection, &.{binding.target}, "candidate");
         request.* = .{ .stage_transaction = .{ .transaction = token, .format = c.DirectRecord.guarded_bit | 17, .bytes = try w.Binary.encode(allocator, guarded) } };
         reference.* = try c.DirectRecord.reference(token.scope(), c.DirectTransactionRecord.format, try c.DirectTransactionRecord.encode(allocator, token, request.stage_transaction.format, guarded));
         if (i == 3) {
