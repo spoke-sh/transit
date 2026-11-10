@@ -7,10 +7,15 @@ const r = f.Relational;
 const c = q.catalog;
 const Memory = @import("root.zig").QueryMemory;
 const Self = @This();
+pub const StreamSource = struct {
+    definition: c.DirectLog.Definition,
+    slice: f.RelationalSql.StreamSlice,
+};
 parent: std.mem.Allocator,
 memory: Memory,
 syntax: f.RelationalSql.Owned,
 bindings: [r.max_sources]c.DirectTableBinding = undefined,
+streams: [r.max_sources]?StreamSource = @splat(null),
 projections: [r.max_sources]?c.DirectSchemaProjection.Accepted = @splat(null),
 positions: [r.max_sources]q.protocol.DataLifecycle.Position = undefined,
 schemas: [r.max_sources]?f.TableSchema.Owned = @splat(null),
@@ -43,6 +48,7 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
     self.catalog = snapshot;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
+    self.streams = @splat(null);
     self.projections = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
     errdefer self.syntax.deinit();
@@ -51,6 +57,50 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
     for (clients, self.syntax.targets, 0..) |client, target, i| {
         if (!std.meta.eql(client.transaction, clients[0].transaction) or !std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority or !std.mem.eql(u8, &client.key.public_key.bytes, &clients[0].key.public_key.bytes)) return error.RelationalCallerChanged;
         if (snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
+        if (target.stream_slice) |slice| {
+            if (lifetime != .interactive) return error.UnsupportedManagedTable;
+            if (snapshot != null) return error.CatalogKindMismatch;
+            if (projection != null) return error.UnsupportedSchemaProjection;
+            if (client.transaction != null) return error.UnsupportedLogTransaction;
+            const log_response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = target.name } });
+            defer log_response.deinit();
+            const metadata = log_response.value.result.log_lookup orelse {
+                const table_response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+                defer table_response.deinit();
+                return if (table_response.value.result.lookup != null) error.CatalogKindMismatch else error.CatalogNameNotFound;
+            };
+            if (metadata.declaration.kind() != .stream) return error.CatalogKindMismatch;
+            if (metadata.declaration.stored.retired or metadata.declaration.properties.namespace != namespace) return error.CatalogDefinitionChanged;
+            if (slice.partition >= metadata.declaration.stored.declaration.configuration.partitioning.count) return error.InvalidLogPartition;
+            const timestamp_column = metadata.declaration.stored.declaration.configuration.policy.stream.timestamp_column;
+            if (slice.timestamp != null and timestamp_column == null) return error.StreamTimestampUnavailable;
+            const bytes = try metadata.schema.decode(self.memory.allocator(), f.TableSchema.max_bytes);
+            defer self.memory.allocator().free(bytes);
+            var user_schema = try f.TableSchema.decode(self.memory.allocator(), bytes);
+            defer user_schema.deinit();
+            self.schemas[i] = try q.DirectStreamSliceScan.sliceSchema(self.memory.allocator(), user_schema.schema, timestamp_column);
+            try q.DirectTableQuery.qualify(self.schemas[i].?.schema);
+            self.streams[i] = .{ .definition = metadata.declaration, .slice = slice };
+            self.bindings[i] = .{
+                .definition = q.protocol.Growth.current_definition,
+                .connection = client.connection,
+                .namespace = metadata.declaration.properties.namespace,
+                .name = metadata.declaration.properties.name,
+                .interpretation = .{
+                    .kind = .table,
+                    .interpretation = metadata.declaration.stored.declaration.interpretation,
+                    .content = metadata.declaration.stored.content,
+                    .schema_fingerprint = try user_schema.schema.fingerprint(),
+                    .retired = metadata.declaration.stored.retired,
+                },
+            };
+            try self.bindings[i].validate();
+            self.positions[i] = .{ .partition = try metadata.declaration.partition(slice.partition), .next_lsn = 1 };
+            if (access != .inspect) _ = try self.bindings[i].require(client, access);
+            const connection = client.connection;
+            self.sources[i] = .{ .alias = target.alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = self.schemas[i].?.schema };
+            continue;
+        }
         const response = if (snapshot) |cut| try c.DirectHistory.resolve(client, cut, namespace, target.name, access == .read) else try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
         defer response.deinit();
         const metadata: c.DirectTableProtocol.Definition = if (snapshot != null) blk: {
@@ -126,12 +176,14 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
     self.catalog = null;
     self.memory = .{ .parent = allocator, .limit = @intCast(options.budgets.resident_bytes - resident_base) };
     self.schemas = @splat(null);
+    self.streams = @splat(null);
     self.projections = @splat(null);
     self.syntax = try f.RelationalSql.parseDialect(self.memory.allocator(), text, location, options.dialect);
     errdefer self.syntax.deinit();
     if (self.syntax.targets.len != bindings.len) return error.InvalidRelationalSources;
     errdefer for (&self.schemas) |*slot| if (slot.*) |*schema| schema.deinit();
     for (bindings, snapshots, self.syntax.targets, 0..) |binding, snapshot, target, i| {
+        if (target.stream_slice != null) return error.UnsupportedManagedTable;
         try binding.validate();
         if (!std.meta.eql(binding.connection, client.connection)) return error.RelationalCallerChanged;
         if (namespace != binding.namespace or !std.mem.eql(u8, binding.name.slice(), target.name) or !std.meta.eql(snapshot.object, binding.interpretation.interpretation.object)) return error.RelationalSourceChanged;

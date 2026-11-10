@@ -120,6 +120,98 @@ pub const Iterator = struct {
     }
 };
 
+pub const SparseEncoder = struct {
+    output: []u8,
+    original_rows: u32,
+    count: u32,
+    emitted: u32 = 0,
+    previous: ?u32 = null,
+    at: usize = header_bytes,
+
+    pub fn init(schema: f.TableSchema.Schema, original_rows: u32, count: u32, output: []u8) !SparseEncoder {
+        try schema.validate();
+        if (original_rows == 0 or count > original_rows / 2 or output.len < header_bytes) return error.InvalidLogSegment;
+        output[0..8].* = "LOGBAT01".*;
+        output[8..40].* = p.Growth.definition_bytes;
+        output[40..72].* = try schema.layoutFingerprint();
+        output[72] = 3;
+        std.mem.writeInt(u32, output[73..77], count, .big);
+        return .{ .output = output, .original_rows = original_rows, .count = count };
+    }
+    pub fn append(self: *SparseEncoder, row: EncodedRow) !void {
+        if (self.emitted == self.count or row.ordinal >= self.original_rows or
+            (self.previous != null and row.ordinal <= self.previous.?) or
+            row.bytes.len < f.TableRow.header_bytes or row.bytes.len > f.TableRow.max_bytes or row.visible_ms != 0)
+            return error.InvalidLogSegment;
+        const row_id = f.TableRow.Identity.decode(row.bytes[f.TableRow.header_bytes - f.TableRow.Identity.encoded_bytes ..][0..f.TableRow.Identity.encoded_bytes]) catch return error.InvalidLogSegment;
+        if (row_id.ordinal != row.ordinal) return error.InvalidLogSegment;
+        if (row_header_bytes + row.bytes.len > self.output.len - self.at) return error.LogSegmentBudgetExceeded;
+        const out = self.output[self.at..];
+        std.mem.writeInt(u32, out[0..4], @intCast(row.bytes.len), .big);
+        std.mem.writeInt(u64, out[4..12], row.visible_ms, .big);
+        out[12] = @intFromBool(row.tombstone);
+        @memcpy(out[row_header_bytes..][0..row.bytes.len], row.bytes);
+        self.at += row_header_bytes + row.bytes.len;
+        self.previous = row.ordinal;
+        self.emitted += 1;
+    }
+    pub fn finish(self: SparseEncoder) ![]const u8 {
+        if (self.emitted != self.count) return error.InvalidLogSegment;
+        return self.output[0..self.at];
+    }
+};
+
+pub const SparseIterator = struct {
+    bytes: []const u8,
+    original_rows: u32,
+    count: u32,
+    emitted: u32 = 0,
+    previous: ?u32 = null,
+    at: usize = header_bytes,
+
+    pub fn init(bytes: []const u8, schema: f.TableSchema.Schema, original_rows: u64) !SparseIterator {
+        if (bytes.len < header_bytes or original_rows == 0 or original_rows > std.math.maxInt(u32) or
+            !std.mem.eql(u8, bytes[0..8], "LOGBAT01") or bytes[72] != 3) return error.InvalidLogSegment;
+        if (!std.mem.eql(u8, bytes[8..40], &p.Growth.definition_bytes)) return error.IncompatibleDefinition;
+        if (!std.mem.eql(u8, bytes[40..72], &try schema.layoutFingerprint())) return error.TableSchemaChanged;
+        const count = std.mem.readInt(u32, bytes[73..77], .big);
+        if (count > original_rows / 2 or count > (bytes.len - header_bytes) / (row_header_bytes + f.TableRow.header_bytes) or
+            (count == 0 and bytes.len != header_bytes)) return error.InvalidLogSegment;
+        return .{ .bytes = bytes, .original_rows = @intCast(original_rows), .count = count };
+    }
+    pub fn next(self: *SparseIterator) !?EncodedRow {
+        if (self.emitted == self.count) {
+            if (self.at != self.bytes.len) return error.InvalidLogSegment;
+            return null;
+        }
+        if (self.bytes.len - self.at < row_header_bytes) return error.InvalidLogSegment;
+        const bytes = self.bytes[self.at..];
+        const length = std.mem.readInt(u32, bytes[0..4], .big);
+        if (length < f.TableRow.header_bytes or length > f.TableRow.max_bytes or length > bytes.len - row_header_bytes or
+            std.mem.readInt(u64, bytes[4..12], .big) != 0 or bytes[12] > 1) return error.InvalidLogSegment;
+        const row_bytes = bytes[row_header_bytes..][0..length];
+        const row_id = f.TableRow.Identity.decode(row_bytes[f.TableRow.header_bytes - f.TableRow.Identity.encoded_bytes ..][0..f.TableRow.Identity.encoded_bytes]) catch return error.InvalidLogSegment;
+        if (row_id.ordinal >= self.original_rows or (self.previous != null and row_id.ordinal <= self.previous.?)) return error.InvalidLogSegment;
+        self.at += row_header_bytes + length;
+        self.previous = row_id.ordinal;
+        self.emitted += 1;
+        if (self.emitted == self.count and self.at != self.bytes.len) return error.InvalidLogSegment;
+        return .{ .ordinal = row_id.ordinal, .visible_ms = 0, .tombstone = bytes[12] != 0, .bytes = row_bytes };
+    }
+};
+
+/// Placement chooses its format explicitly; malformed dense data cannot fall
+/// through to another decoder. Both alternatives retain original row identity.
+pub const Rows = union(enum) {
+    complete: Iterator,
+    sparse: SparseIterator,
+    pub fn next(self: *Rows) !?EncodedRow {
+        return switch (self.*) {
+            inline else => |*iterator| iterator.next(),
+        };
+    }
+};
+
 /// The caller initializes this arena outside the hot path and retains its
 /// capacity between rows/batches. No decoded row survives a scratch reset.
 pub fn validate(bytes: []const u8, declaration: *const @import("LogDeclaration.zig").Owned, append: p.StreamQueue.Append, scratch: *std.heap.ArenaAllocator, key_buffer: []u8) !void {

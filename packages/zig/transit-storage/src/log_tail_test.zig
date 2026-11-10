@@ -13,7 +13,7 @@ test "log tail retains simultaneous sparse and complete views without weakening 
     defer cache.deinit() catch unreachable;
     const original = binding(1, "original payload");
     var sparse = original;
-    sparse.view = binding(1, "view").content;
+    sparse.sparse = .{ .rows = 1, .segment = binding(1, "segment").content };
     try cache.admit(original, "original payload");
     const old = (try cache.borrow(original)).?;
     defer old.release() catch unreachable;
@@ -26,7 +26,7 @@ test "log tail retains simultaneous sparse and complete views without weakening 
     foreign.content = binding(1, "foreign payload").content;
     try t.expectError(error.TailContentConflict, cache.borrow(foreign));
     foreign = sparse;
-    foreign.view = binding(1, "a view larger than the original payload").content;
+    foreign.sparse = .{ .rows = 1, .segment = null };
     try t.expectError(error.InvalidTailBinding, cache.borrow(foreign));
 }
 

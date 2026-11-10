@@ -61,7 +61,7 @@ def antlr(sql):
     ctx = tree(sql, 'relationalQuery').relationalSelect()
 
     def source(target):
-        name = identifier(target.identifier())
+        name = identifier(target.identifier() or target.streamSliceTarget().identifier())
         alias = target.relationalAlias()
         return dict(name=name, alias=identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else name)
 

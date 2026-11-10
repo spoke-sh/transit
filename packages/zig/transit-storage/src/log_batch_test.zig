@@ -96,3 +96,47 @@ test "log batches reject trailing bytes truncated rows wrong definitions and cha
     iterator = try B.Iterator.init(encoded, owned.definition.schema, .stream, 1);
     try t.expectError(error.InvalidLogRowMetadata, iterator.next());
 }
+
+test "log batches preserve sparse original identities in TableRow headers with allocation-free buffers" {
+    var declaration = try s.LogDeclaration.prepare(t.allocator, support.definition(.stream));
+    defer declaration.deinit();
+    const schema = declaration.definition.schema;
+    const op: p.DataLifecycle.Operation = .{ .scope = declaration.definition.object.scope, .principal = 2, .operation = 99 };
+    const rows: [7]B.Row = @splat(.{ .cells = &cells });
+    var original: [8192]u8 = undefined;
+    const bytes = try B.encode(schema, op, .stream, &rows, &original);
+    var output: [8192]u8 = undefined;
+    var encoder = try B.SparseEncoder.init(schema, 7, 3, &output);
+    var input = try B.Iterator.init(bytes, schema, .stream, 7);
+    while (try input.next()) |row| if (row.ordinal % 3 == 0) try encoder.append(row);
+    const sparse = try encoder.finish();
+    var iterator = try B.SparseIterator.init(sparse, schema, 7);
+    var memory: [8192]u8 = undefined;
+    var scratch = std.heap.FixedBufferAllocator.init(&memory);
+    for ([_]u32{ 0, 3, 6 }) |ordinal| {
+        const row = (try iterator.next()).?;
+        try t.expectEqual(ordinal, row.ordinal);
+        scratch.reset();
+        const decoded = try row.decode(scratch.allocator(), schema, op);
+        try t.expectEqualStrings("payload", decoded.cells[1].value.atom.bytes);
+    }
+    try t.expectEqual(@as(?B.EncodedRow, null), try iterator.next());
+    try t.expectError(error.InvalidLogSegment, B.SparseIterator.init(bytes, schema, 7));
+    try t.expectError(error.LogBatchKindConflict, B.Iterator.init(sparse, schema, .stream, 7));
+    output[8] ^= 1;
+    try t.expectError(error.IncompatibleDefinition, B.SparseIterator.init(sparse, schema, 7));
+    output[8] ^= 1;
+    iterator = try B.SparseIterator.init(sparse[0 .. sparse.len - 1], schema, 7);
+    _ = try iterator.next();
+    _ = try iterator.next();
+    try t.expectError(error.InvalidLogSegment, iterator.next());
+    iterator = try B.SparseIterator.init(sparse, schema, 7);
+    _ = try iterator.next();
+    std.mem.writeInt(u32, output[iterator.at + B.row_header_bytes + f.TableRow.header_bytes - 4 ..][0..4], 0, .big);
+    try t.expectError(error.InvalidLogSegment, iterator.next());
+    encoder = try B.SparseEncoder.init(schema, 7, 0, &output);
+    iterator = try B.SparseIterator.init(try encoder.finish(), schema, 7);
+    try t.expectEqual(@as(?B.EncodedRow, null), try iterator.next());
+    output[B.header_bytes] = 0;
+    try t.expectError(error.InvalidLogSegment, B.SparseIterator.init(output[0 .. B.header_bytes + 1], schema, 7));
+}

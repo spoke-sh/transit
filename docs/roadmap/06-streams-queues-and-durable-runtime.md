@@ -9,11 +9,18 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 `TransitLog` (`TWAL1`) and `.tseg` segments, and re-architect `Station` on top
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
-The [current implementation plan](#implementation-plan--2026-11-07), based on
-`origin/main` at `8f2f997f2`, selects the remaining implementation sequence and
-qualification gates. It preserves the existing R0–R10 owners and Batch 0–9 scope,
-and incorporates delivered waits, Document staging, inherited command deadlines,
-owned SOURCE captures and Queue transfer memory fixes. Start there; the
+The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-09),
+based on `origin/main` at `b42ef803ba7b861a0a6dd732865ac9390c09941d`, delivers
+native `.tseg` log-segment system columns and `LBMETA01`/`LOGVIEW1` retirement
+([Storage Units 1–2](#additional-storage-review-units-and-sequencing)) together
+with finite retained `STREAM_SLICE` (Batch 4c) under the shared
+[`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+cutover `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`), leaving bounded Queue metadata
+checkpoints ([Storage Unit 3](#additional-storage-review-units-and-sequencing)),
+mixed SQL and transactional Station as the next remaining units. Start there,
+together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
+and [November 7 implementation plan](#implementation-plan--2026-11-07); the
 [November 5 completion plan](#completion-plan-at-current-main--2026-11-05) and
 [Stream WAIT slice](#next-slice-sql-stream-wait-4a2--2026-11-05) retain their dated
 source assessments and detailed acceptance obligations.
@@ -21,6 +28,265 @@ The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progre
 records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
+
+## Next slice implementation plan — 2026-11-09
+
+**Source basis:** `origin/main` at `866bd127f2a0ab78598d730363ff46d8bf059082`.
+This slice advances [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+from `b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb`
+(`transit.v1.application-foundation.2026-11-09`) to
+`21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`). Since the November 7–8
+updates, #428 delivered predicate-aware Queue acquisition (Batches 3 and 4b.3),
+#431 delivered M3's aggregate local direct-storage allocation admission and
+disjoint control/maintenance/collection reserves in
+[`DirectStorageMemory`](../../apps/transit-node/DirectStorageMemory.zig) and
+[`DirectRequestMemory`](../../apps/transit-node/DirectRequestMemory.zig), #432
+hardened installation port reservation and non-contending telemetry drain, and
+#433/#434 added Phase I [Milestone 12](12-application-modules-compilation-and-testing.md)
+(renumbering subsequent milestones 13–47). M6 remains **In Progress**; this
+slice delivers Stage A (Storage Units 1–2) and Stage B (Batch 4c `STREAM_SLICE`).
+
+### Why this slice is next and how it is staged
+
+With predicate-aware Queue acquisition (`4b.3`) delivered, the next functional
+exit in the [ordered review sequence](#ordered-review-units) is **Batch 4c:
+finite retained `STREAM_SLICE`**—providing a bounded retained Stream source for
+`transit-query-direct`, Fuze and `transit-sql`, and supplying the finite Stream
+input required by [M13](13-sql-and-dataflows.md). As established in
+[Storage Units 1 and 2](#additional-storage-review-units-and-sequencing),
+replacing sealed log segments' auxiliary `LBMETA01` (`log-segment-metadata/{x}.data`)
+and `LOGVIEW1` (`LogView`) sidecars with native `.tseg` system columns and
+`.tdel` compaction vectors **precedes** Batch 4c's physical `STREAM_SLICE`
+adapter so that relational scans and `CONSUME` share one single-object `.tseg`
+layout and bounded `TSegReader` vector path without building a temporary sidecar
+reader or retaining full-batch `LogSegment.materialize` reconstruction.
+
+This slice is therefore organized as two sequential stages across five reviewable
+units:
+
+- **Stage A (Storage Units 1–2): Native `.tseg` log-segment system columns,
+  85-byte segment descriptors and `LBMETA01`/`LOGVIEW1` retirement.** Seal each
+  flushed Stream or Queue batch into one self-contained `log-segments/{x}.tseg`
+  object with native system columns (`transit.log._offset`,
+  `transit.log._timestamp`, `transit.log._tombstone`), monotonic zone maps and
+  single-object sparse `.tseg` rewrites, retiring `LBMETA01` (`log-segment-metadata/`)
+  and `LogView.zig` (`LOGVIEW1`).
+- **Stage B (Batch 4c): Finite retained `STREAM_SLICE` over hot `TWAL1` frames
+  and sealed `.tseg` segments.** Bind an exact Stream definition, partition and
+  finite offset/timestamp window to a query-owned `LogRead` pin with saved
+  client-token recovery, stream matching rows through a bounded
+  `DirectStreamSliceScan` adapter in `transit-query-direct` and Fuze without
+  mutating consumer-group progress, and expose `SELECT ... FROM STREAM_SLICE(...)`
+  through shared SQL statement execution and session paging.
+
+**Application outcome:** operators and applications can seal, compact, recover
+and audit Stream and Queue partitions using one native `.tseg` segment per
+flushed batch without sidecar metadata objects or sparse batch rewrites, and
+can run bounded relational `SELECT ... FROM STREAM_SLICE(...)` queries (with
+projection, `WHERE`, `JOIN`, `GROUP BY`, `ORDER BY` and `LIMIT`) transparently
+across hot `TWAL1` tails, sealed `.tseg` segments and compacted offsets with
+exact schema/collation/timezone semantics and deterministic pin cleanup.
+
+### Source baseline at `b42ef803b` and component gaps
+
+| Component owner | Current behavior at `b42ef803b` | Gap to close in this slice |
+| --- | --- | --- |
+| [`LogSegment.zig`](../../packages/zig/transit-storage/src/LogSegment.zig), [`LogBatch.zig`](../../packages/zig/transit-storage/src/LogBatch.zig) | `Descriptor` (165 bytes) tracks `layout: enum { complete, sparse }`, `rows: u32`, `evidence: d.Content`, `segment: ?d.Content` (`log-segments/{x}.tseg`), `metadata: d.Content` (`log-segment-metadata/{x}.data` with `"LBMETA01"` + 13 bytes/row `[ordinal: u32][visible_ms: u64][tombstone: u8]`), and `view: d.Content` (`"LOGVIEW1"`). `LogSegment.materialize` reads both `.tseg` and `LBMETA01` to rebuild a full `LOGBAT01` or `LOGVIEW1` byte slice in memory | Fold batch row metadata (`transit.log._offset`, `transit.log._timestamp`, `transit.log._tombstone`) into native `.tseg` system columns with monotonic zone maps; shrink `Descriptor` to 85 bytes (`layout`, `rows`, `evidence`, `segment`); remove `LBMETA01` (`log-segment-metadata/`) and `LogView.zig` (`LOGVIEW1`) |
+| [`StreamCompaction.zig`](../../packages/zig/transit-storage/src/StreamCompaction.zig), [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig), [`LogTail.zig`](../../packages/zig/transit-storage/src/LogTail.zig) | `StreamCompaction` computes hidden offsets in `BitmapDirectory.Root`, and `LogPartition` publishes `LogPartitionRecord.Record.action.rewrite` (`Rewrite`), materializing a sparse `LOGVIEW1` payload and re-staging `.tseg` + `LBMETA01` | Re-stage sparse compacted placements as a single `.tseg` (or `segment = null` when empty) without `LBMETA01` or `LOGVIEW1`; materialize sparse `LogTail` cache slices via `LogBatch.SparseEncoder` / `LogBatch.SparseIterator` using each row's `FTR1` `TableRow.Identity.ordinal` |
+| [`TSeg.zig`](../../packages/zig/transit-fuze/src/TSeg.zig), [`TSegReader.zig`](../../packages/zig/transit-fuze/src/TSegReader.zig) | `TSeg` encodes declared schema columns with 64-byte alignment and per-group `ZoneMap`s; `TSegReader` provides bounded `Decisions`, `EncodedGroup`, `BufferedGroup` and `SharedGroup` over verified page ranges | Bind physical log-segment schemas that append canonical system columns (`_offset`, `_timestamp`, `_tombstone`) to declared user columns while preserving user-schema fingerprints and zero-copy `SharedGroup` buffer lifetimes |
+| [`DirectStorageGraph.zig`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) | `collectible` includes `"log-segment-metadata/"`, and `.log_segment` allocates a full batch buffer, runs `LogSegment.materialize` + `requireVisibility`, and marks `segmentKey` and `metadataKey` | Verify `.log_segment` directly against the single `log-segments/{x}.tseg` footer/page commitments and `BitmapDirectory` visibility without full-batch materialization; remove `"log-segment-metadata/"` from `collectible` |
+| [`LogRead.zig`](../../packages/zig/transit-storage/src/LogRead.zig), [`DirectStream.zig`](../../packages/zig/transit-catalog/src/DirectStream.zig), [`DirectLog.zig`](../../packages/zig/transit-catalog/src/DirectLog.zig) | `LogRead.Basis` pins `cut`, `declared`, `batches`, `segments` and `hidden` for stateful/positional `CONSUME` (`StreamRead.PageRequest` up to 4,096 rows / 4 MiB) with explicit caller `releaseRead` | Add query-owned `STREAM_SLICE` pin acquisition, window validation (`from_offset`, `until_offset`, optional timestamp bounds), per-page current-policy re-authorization and saved client-token cleanup so interrupted or early-closed queries never leak retained pins |
+| [`BitemporalAndTvf.zig`](../../packages/zig/transit-fuze/src/BitemporalAndTvf.zig), [`Relational.zig`](../../packages/zig/transit-fuze/src/Relational.zig), [`RelationalSql.zig`](../../packages/zig/transit-fuze/src/RelationalSql.zig) | `BitemporalAndTvf.evaluateStreamSliceTvf` filters an in-memory `[]const StreamRecord` slice; `Relational.Source` and `Relational.Cut.Domain` represent only `table_partition` sources | Extend `Relational.Cut.Domain` with `stream_partition` (binding `branch`, `object`, `partition` and finite offset/timestamp bounds) and lower SQL `FROM STREAM_SLICE(...)` in `RelationalSql.zig` to a bound relational source |
+| [`DirectRelationalCompilation.zig`](../../packages/zig/transit-query-direct/src/DirectRelationalCompilation.zig), [`DirectRelationalTables.zig`](../../packages/zig/transit-query-direct/src/DirectRelationalTables.zig), [`DirectRelationalQuery.zig`](../../packages/zig/transit-query-direct/src/DirectRelationalQuery.zig), [`Statement.zig`](../../packages/zig/transit-sql/src/Statement.zig) | `DirectRelationalCompilation` admits only Table and View catalog definitions; `DirectRelationalTables` opens only `DirectTableScan`s; `Statement.zig` rejects `SELECT ... FROM STREAM_SLICE(...)` | Add `DirectStreamSliceScan` alongside [`DirectTableScan.zig`](../../packages/zig/transit-query-direct/src/DirectTableScan.zig), admit Stream sources in `DirectRelationalCompilation` and `DirectRelationalQuery` under [`DirectRequestMemory`](../../apps/transit-node/DirectRequestMemory.zig) and `SessionStorage`, and route `SELECT ... FROM STREAM_SLICE(...)` through shared SQL result paging |
+
+### Stage A — Native `.tseg` log-segment system columns, `.tdel` compaction vectors and `LBMETA01`/`LOGVIEW1` retirement
+
+1. **Freeze the sealed log `.tseg` physical layout and descriptor contract.**
+   - Every sealed log batch writes exactly one immutable `log-segments/{x}.tseg`
+     object in [`TransitObjectStore`](../../packages/zig/transit-storage/src/TransitObjectStore.zig).
+     Its physical [`TSeg`](../../packages/zig/transit-fuze/src/TSeg.zig) schema
+     places the declared Stream/Queue user columns first (preserving their column
+     IDs, types $\tau$, codecs $\epsilon$ and collations/descriptors $\kappa$),
+     followed by three canonical non-null system columns:
+     - `_offset` (`u64` logical offset, or batch-relative `u32` ordinal anchored
+       to `AppendReceipt.first()`), strictly increasing across rows in the segment;
+     - `_timestamp` (`i64` millisecond event/acceptance timestamp for Streams;
+       `u64` `visible_ms` schedule timestamp for Queues);
+     - `_tombstone` (`bool`, always `false` for Queues and for Streams without
+       `compact_key_column`).
+   - Row-group `ZoneMap`s record exact `(min, max)` bounds for `_offset` and
+     `_timestamp` alongside user-column zone maps so both offset-window and
+     timestamp-window pruning are sound without secondary sidecars.
+   - Replace [`LogSegment.Descriptor`](../../packages/zig/transit-storage/src/LogSegment.zig)'s
+     165-byte `layout`/`segment`/`metadata`/`view` structure with an 85-byte
+     descriptor containing `layout: Layout`, `rows: u32`, `evidence: d.Content`
+     and `segment: ?d.Content` (`log-segments/{x}.tseg`). Empty sparse placements
+     record `rows == 0` and `segment == null` validated against `BitmapDirectory`
+     without `LBMETA01` or `LOGVIEW1`.
+   - Retire `LogView.zig` (`"LOGVIEW1"`) and `LogSegment.metadataKey`
+     (`"log-segment-metadata/"`). Sparse cache slices use
+     [`LogBatch.SparseEncoder`](../../packages/zig/transit-storage/src/LogBatch.zig)
+     and `LogBatch.SparseIterator` (`LOGBAT01` internal kind `3`), reading each
+     retained row's original ordinal directly from its `FTR1` `TableRow.Identity`
+     header.
+2. **Replace full-batch materialization with bounded `TSegReader` vector/row access.**
+   - Update `LogSegment.stage` to encode the physical `.tseg` directly from the
+     validated [`LogBatch`](../../packages/zig/transit-storage/src/LogBatch.zig)
+     (`LOGBAT01`) iterator and `AppendReceipt` using a caller-supplied reusable
+     scratch arena and the maintenance/data quota allocators from
+     [`DirectStorageMemory`](../../apps/transit-node/DirectStorageMemory.zig).
+   - Replace `LogSegment.materialize` with bounded [`TSegReader`](../../packages/zig/transit-fuze/src/TSegReader.zig)
+     helpers that verify the `.tseg` footer and read only the requested column
+     pages and non-hidden row ordinals (`EncodedGroup.select` / `BufferedGroup` /
+     `SharedGroup` / `preparedDecisions`), enforcing `TSegReader.Limits` within
+     the active request or maintenance memory quota.
+   - Update [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig)
+     and `QueueClaims.zig` so Stream `CONSUME`, Queue candidate predicate
+     evaluation (`preparedDecisions` on sealed `.tseg` segments before full row
+     decode) and leased payload delivery read sealed batches through `TSegReader`
+     while reading unsealed tail batches from `TransitLog` (`TWAL1`).
+   - Update [`DirectStorageGraph.zig`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+     (`.log_segment` and `collectible`) to validate the `.tseg` object commitment,
+     footer metadata (`object_id`, `schema_revision`, `layout_fingerprint`,
+     `row_count`) and `hidden` bitmap coverage in bounded chunks without
+     allocating a full-batch `output` buffer or referencing
+     `"log-segment-metadata/"`.
+3. **Execute one current-v1 definition cutover for the storage format.**
+   - Advance [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+     when landing the descriptor/record cutover, regenerate schemas, bindings and
+     log storage fixtures (`stream_read_fixture.json`,
+     `stream_progress_fixture.json`, native signing fixtures), and verify that
+     pre-cutover `LBMETA01`/`LOGVIEW1` or mismatched-definition artifacts fail
+     closed with `IncompatibleDefinition` or `InvalidLogSegment`.
+
+### Stage B — Finite retained `STREAM_SLICE` over hot WAL and sealed `.tseg` segments (Batch 4c)
+
+1. **Freeze the `STREAM_SLICE` SQL syntax, projection and finite cut contract.**
+   - Define the executable relational table-valued function in
+     [`contracts/STREAM_V1.md`](../../contracts/STREAM_V1.md),
+     [`contracts/sql/`](../../contracts/sql/README.md) and
+     [`docs/handbook/reference/sql/streaming.md`](../handbook/reference/sql/streaming.md):
+     ```sql
+     SELECT ...
+     FROM STREAM_SLICE(
+       <stream_name>,
+       PARTITION <u32>,
+       OFFSET <start_offset> TO <end_offset>
+       [, TIMESTAMP <start_ms> TO <end_ms>]
+     ) [AS <alias>]
+     ```
+     (plus the timestamp-primary window form `TIMESTAMP <start_ms> TO <end_ms>`
+     bounded by the partition's pinned `[retained_from, next_offset)` cut).
+   - `STREAM_SLICE` exposes the Stream's declared columns with their exact
+     $\tau$/$\epsilon$/$\kappa$ descriptors and makes system columns
+     (`_partition`, `_offset`, `_timestamp`, `_tombstone`) available for
+     projection, predicates, joins and ordering when referenced. By default,
+     compacted (`hidden`) offsets and tombstones are filtered according to the
+     Stream's compaction policy; explicit system-column inspection cannot bypass
+     `retained_from` trimming or read unaccepted offsets (`>= cut.next`).
+   - Enforce strict separation from stateful workload operations:
+     - `STREAM_SLICE` is a finite, read-only relational source (`lifetime == .interactive`
+       or bounded dataflow step); it never creates, reads or advances a consumer
+       group (`StreamQueue.GroupProgress`), never accepts `WAIT`, and never emits
+       an offset-settlement receipt.
+     - Binding `STREAM_SLICE` to a `QUEUE`, `TABLE`, `VIEW`, `KV` or `DOCUMENT`
+       refuses before pin acquisition with a typed catalog/compilation error.
+     - Requested offset windows below `cut.retained_from` fail closed with
+       `StreamOffsetTrimmed` rather than silently returning a partial prefix;
+       `end_offset` above `cut.next` is either clamped to the frozen `cut.next`
+       or rejected per the explicit bound mode recorded in the plan's `Relational.Cut`.
+2. **Bind query-owned Stream pins and uncertain-operation cleanup.**
+   - Extend [`DirectStream.zig`](../../packages/zig/transit-catalog/src/DirectStream.zig) /
+     [`DirectLog.zig`](../../packages/zig/transit-catalog/src/DirectLog.zig) so
+     opening a `STREAM_SLICE` source records a replaceable query-read progress
+     intent under the caller's `DirectClientToken` before acquiring the native
+     `StreamRead.Handle` (`LogRead.Basis`), then releases that pin on query
+     completion, early `LIMIT` termination, cancellation, session close or error.
+   - If a worker or session is interrupted during pin acquisition or execution,
+     token recovery resolves and releases the query-owned `StreamRead.Handle`
+     without affecting caller-owned `CONSUME` pins or retained `DirectTransaction`
+     log pins.
+3. **Implement `DirectStreamSliceScan` and compose with Fuze and `transit-query-direct`.**
+   - Extend `Relational.Cut.Domain` in
+     [`Relational.zig`](../../packages/zig/transit-fuze/src/Relational.zig) with
+     `stream_partition: struct { branch: u64, object: u64, partition: u32, retained_from: u64, next_offset: u64, from_offset: u64, until_offset: u64 }`
+     so compiled plans bind and verify the exact frozen Stream cut alongside any
+     co-queried `table_partition` cuts.
+   - Add [`DirectStreamSliceScan.zig`](../../packages/zig/transit-query-direct/src/DirectStreamSliceScan.zig) in `packages/zig/transit-query-direct/` (modeled
+     on [`DirectTableScan.zig`](../../packages/zig/transit-query-direct/src/DirectTableScan.zig)):
+     - Re-verifies current `READ` authorization, `policy_epoch` and Stream
+       definition revision via `DirectStreamClient` before each bounded page
+       fetch, charging two exchanges per native call against the shared query
+       `request_limit`.
+     - Traverses the pinned `LogRead.Basis` (`batches`, `segments`, `hidden`) in
+       monotonic offset order across `[from_offset, until_offset)`:
+       - Prunes batches whose offset range or sealed `.tseg` `_offset`/`_timestamp`
+         zone maps cannot match the slice window or pushed-down column predicates.
+       - Reads sealed batches directly from `log-segments/{x}.tseg` via bounded
+         `TSegReader` groups (`SharedGroup` / `BufferedGroup`) and unsealed tail
+         batches from `TransitLog` (`TWAL1` / `LogHistory`), skipping offsets set
+         in `hidden` (`BitmapDirectory`).
+       - Emits rows with deterministic `TableRow.Identity` (`origin`, `operation`,
+         `ordinal`) and monotonic traversal cursors so `DirectRelationalTables` /
+         `DirectRelationalQuery` can drive single-source scans, joins (including
+         Stream-to-Table joins across explicitly pinned cuts), aggregations,
+         sorting and `LIMIT` within [`DirectRequestMemory`](../../apps/transit-node/DirectRequestMemory.zig)
+         and `SessionStorage` budgets.
+   - Route `SELECT ... FROM STREAM_SLICE(...)` through
+     [`Statement.zig`](../../packages/zig/transit-sql/src/Statement.zig) and
+     `transit-sql-service` paged result cursors, and expose the same bounded source
+     adapter to [M13](13-sql-and-dataflows.md)'s finite computation runner.
+
+### Ordered review units for this slice
+
+| Unit | Scope and primary packages | Review exit gate |
+| --- | --- | --- |
+| **1A. Log `.tseg` system columns and single-object segment codec** | `transit-fuze` (`TSeg`, `TSegReader`), `transit-storage` (`LogSegment`, `LogPartition`, `QueueClaims`); delete `LogView.zig` | Sealed Stream and Queue batches write one `.tseg` with `_offset`, `_timestamp`/`visible_ms` and `_tombstone` system columns and monotonic zone maps; `LogSegment.materialize`, `LBMETA01` and `LOGVIEW1` are removed; unit and storage recovery suites pass |
+| **1B. Compaction bitmap cutover and storage-graph audit** | `transit-storage` (`StreamCompaction`, `LogPartitionRecord`, `LogRead`), `transit-catalog` (`DirectStorageGraph`), `transit-protocol` (`Growth`) | `LogPartitionRecord.Record.action.rewrite` is removed; key compaction uses `BitmapDirectory` masks over immutable `.tseg` segments; `DirectStorageGraph` verifies `.log_segment` in bounded chunks without `"log-segment-metadata/"`; `Growth.current_definition`, schemas and fixtures are regenerated together |
+| **2A. `STREAM_SLICE` contract, SQL grammar and relational cut binding** | `contracts/STREAM_V1.md`, `contracts/sql/`, `transit-fuze` (`Relational`, `RelationalSql`, `BitemporalAndTvf`), `docs/handbook/reference/sql/streaming.md` | `STREAM_SLICE` syntax, offset/timestamp window rules, system-column projection and `Relational.Cut.Domain.stream_partition` are specified and unit-tested; invalid targets (`QUEUE`, `TABLE`), negative/inverted ranges and unsupported options fail closed |
+| **2B. `DirectStreamSliceScan`, query-owned pin lifecycle and SQL paging** | `transit-catalog` (`DirectStream`, `DirectLog`), `transit-query-direct` (`DirectStreamSliceScan`, `DirectRelationalCompilation`, `DirectRelationalTables`, `DirectRelationalQuery`), `transit-sql`, `transit-sql-service` | Query-owned `StreamRead.Handle` pins are acquired, re-authorized per page and deterministically released across completion, `LIMIT`, cancellation, disconnect and token recovery; `SELECT ... FROM STREAM_SLICE(...)` executes end-to-end across native, console and PostgreSQL/MySQL wire sessions |
+| **2C. Integrated slice qualification and M3/M13 handoff checks** | `tests/storage/`, `tests/query/`, `tests/interfaces/`, `docs/history/qualification/` | Full acceptance matrix below passes under M3's `DirectStorageMemory` / `DirectRequestMemory` quotas; `DirectStorageGraph` collection proves zero leaked pins or sidecars; M13 finite computation can read a `STREAM_SLICE` cut |
+
+### Slice acceptance matrix
+
+| Required case | Acceptance oracle |
+| --- | --- |
+| Single-object `.tseg` sealing and recovery | Flushing Stream and Queue batches writes only `log-segments/{x}.tseg` (zero `log-segment-metadata/` or `LOGVIEW1` objects); restart recovery and `DirectStorageGraph` audit verify segment footers, system-column zone maps and SHA-256 digests; truncated/corrupted pages or foreign definitions fail closed |
+| Compaction and sparse offsets without `LOGVIEW1` | `StreamCompaction` hides superseded keys and tombstones through `BitmapDirectory` without `action.rewrite`; `CONSUME`, predicate-aware `CLAIM` and `STREAM_SLICE` skip hidden offsets identically across hot, sealed, compacted and reopened partitions |
+| Placement transparency (`TWAL1` + `.tseg`) | `STREAM_SLICE` over all-hot `TWAL1`, mixed sealed `.tseg` + hot `TWAL1`, all-sealed and archived/reopened ranges returns identical rows, system columns and collation ordering; background flush/compaction during an open `STREAM_SLICE` cursor preserves the pinned `LogRead.Basis` without duplicating or dropping rows |
+| Offset and timestamp window pruning | `OFFSET` and `TIMESTAMP` bounds prune non-overlapping batches and `.tseg` row groups via monotonic `_offset`/`_timestamp` zone maps; boundary inclusion, three-valued `WHERE` predicates, `JOIN` with a pinned Table, `GROUP BY`, `ORDER BY` and `LIMIT` match the scalar reference oracle |
+| Trimmed range and target refusals | Requesting `from_offset < retained_from` fails closed with `StreamOffsetTrimmed`; referencing a `QUEUE` or non-Stream object in `STREAM_SLICE` fails with a typed diagnostic; uncommitted transaction log appends remain invisible to `STREAM_SLICE` until commit |
+| Consumer-group isolation | Running `STREAM_SLICE` never creates or mutates `StreamQueue.GroupProgress`, never emits an offset receipt, and does not perturb concurrent `CONSUME ... GROUP` or `COMMIT OFFSET` operations on the same partition |
+| Authority, pin cleanup and M3 memory admission | Revoking `READ` or dropping/altering the Stream after buffering refuses subsequent page fetches; normal completion, early `LIMIT` close, cancellation, client disconnect and `OutOfMemory` under `DirectStorageMemory` release the query-owned `StreamRead.Handle` and leave `data`, `control`, `maintenance` and `collection` quotas at zero on teardown |
+
+### Sequencing after this slice
+
+1. **Storage Unit 3 — Bounded Queue metadata checkpoints:** Replace per-operation
+   `.tack` (`TACK0001`) and `QueueIndex` `TDIX` staging in
+   [`QueuePartition.zig`](../../packages/zig/transit-storage/src/QueuePartition.zig)
+   with append-only `TWAL1` transitions and bounded checkpoints over resident
+   lease heaps, timing wheels, affinity state and Roaring bitmaps, preserving
+   [`QueueCandidateObjects`](../../packages/zig/transit-storage/src/QueueCandidateObjects.zig)
+   and recovery invariants before claiming new write-path cost guarantees for
+   Station turns.
+2. **Batch 2 and Batch 4d — Mixed decision qualification and mixed SQL:** Complete
+   prepare/decision/finalize fault, lease/grant fence, savepoint and retained-capture
+   proofs in [`DirectTransaction`](../../packages/zig/transit-catalog/src/DirectTransaction.zig)
+   and [`LogTransaction`](../../packages/zig/transit-storage/src/LogTransaction.zig),
+   then extend [`TransactionWork`](../../packages/zig/transit-sql/src/TransactionWork.zig)
+   so SQL transactions can commit Table/KV mutations together with Stream/Queue
+   appends, authenticated offsets and Queue ACKs under one decision.
+3. **Batches 5–7 — Transactional Station behavior, services and consumer cutover:**
+   Implement the private transactional Station runner over declared inbox, state,
+   journal and outbox primitives, migrate services and effects, integrate
+   [M7](07-document-storage-and-station-decoupling.md)'s Document participant
+   before switching Document-dependent consumers, and remove legacy writable
+   Station paths in one current-v1 cutover.
+4. **Batches 8–9 — Table write lifecycle, provider cost and integrated completion:**
+   Close account-token/partition commitment and [#211 Table latency](https://github.com/spoke-sh/transit/issues/211)
+   with M3/M8, qualify maintenance and provider costs ([Storage Unit 4](#additional-storage-review-units-and-sequencing)),
+   and execute the full Batch 9 common-revision matrix.
 
 ## Predicate-aware Queue acquisition — 2026-11-08
 
@@ -47,10 +313,9 @@ adds explicit M6 storage work and cross-milestone format dependencies. This
 addendum extends the November 7 delivery plan; the predicate slice above does
 not implement these storage changes or establish their performance guarantees.
 
-Source inspection still finds `LBMETA01` metadata in
+Source inspection at `d9ac6ea30` found `LBMETA01` metadata in
 [`LogSegment`](../../packages/zig/transit-storage/src/LogSegment.zig),
-`LOGVIEW1` sparse payloads in
-[`LogView`](../../packages/zig/transit-storage/src/LogView.zig), and
+`LOGVIEW1` sparse payloads in `LogView.zig`, and
 [`LogPartition`](../../packages/zig/transit-storage/src/LogPartition.zig)
 persisting the selected Queue candidate objects before publishing the operation
 record. [`QueueCandidateObjects`](../../packages/zig/transit-storage/src/QueueCandidateObjects.zig)
@@ -106,7 +371,7 @@ publication dependencies until their replacement can recover accepted state.
 
 These units extend R1/R3/R4 and Batches 1/3/4c/8/9 below. M3 Decision D1 stays
 intact: completing its local storage cutover does not require replacing all
-Table/KV `TreeStore` indexes. M11/M13 own sparse fence/Bloom footers, the broader
+Table/KV `TreeStore` indexes. M11/M14 own sparse fence/Bloom footers, the broader
 Table/KV LSM transition and WiscKey value separation. Their shared format
 contracts are dependencies for affected M6 readers, not a requirement to finish
 every optimization before independent Queue semantics can ship. M3 P5's
@@ -162,7 +427,7 @@ is next changed.
 | Automatic transfers | Protected original transfer ownership and bounded discovery; #425 releases discovery payload/workspace before participant admission while retaining the finite sweep cursor | Preserve the existing 32 MiB regression and requalify transfer recovery under maintenance pressure; this fix does not explain every earlier Queue timeout |
 | Document handoff | #388 adds logical deletion/partition guards; #393 implements protected chunked source staging, verification, discovery and closure at the component boundary | Source verification is not revision publication. Direct lifecycle, candidate attachment and mixed Document participation remain M7 work; [`DirectTransaction.inspectSelection`](../../packages/zig/transit-catalog/src/DirectTransaction.zig) still rejects Documents |
 | Gateway and callers | #392 carries inherited command deadlines; M9 supplies shared Context/recovery ownership. #418 adds console KV/Document declaration and inspection parity | Reuse deadline and original-operation owners. Console parity does not replace the Station-backed Document storage lifecycle or admit Document transactions |
-| Owned capture graphs | #419 delivers protected SOURCE capture attachment with one Stream envelope and a signed bounded reader | Retain capture manifests/chunks through log/transaction collection changes. Installed HTTP admission, polling and activation remain M12 gates; ordinary binary cells establish no ownership |
+| Owned capture graphs | #419 delivers protected SOURCE capture attachment with one Stream envelope and a signed bounded reader | Retain capture manifests/chunks through log/transaction collection changes. Installed HTTP admission, polling and activation remain M13 gates; ordinary binary cells establish no ownership |
 | Station | Existing native GenServer, calls, timers, names, supervision, private state/query helpers and recorded effects | Transactional behavior/services, affected SDK/effect/consumer migration and one coherent runtime cutover |
 
 Do not enlarge operation budgets to make these paths compose. Native appends are
@@ -183,7 +448,7 @@ milestone. Keep M4 and M5's completed status scoped to their delivered profiles.
 | [M7: Documents](07-document-storage-and-station-decoupling.md#protected-source-staging-and-operation-discovery-plan--2026-11-05) | Build on protected source staging, retained membership and deletion guards; accept its C5 participant only with prepare/decision/finalize, savepoint and collection evidence | Prove Table/KV Station first. M7 C4/C5/C7 then gate Document turns and removal of affected old consumers; no second Document authority |
 | [M8: gateway](08-gateway-architecture-and-protocol-ingress.md#next-slice--inherited-command-deadlines-and-cancellation), [M9: clients](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01) | Propagate one command deadline through waits and owner calls; preserve Context/control capacity, saved identity and shared result recovery | Resumable host scheduling/core-based sizing and broader managed handles remain their owners' work. Deadline propagation alone does not prove either |
 | [M10: interpretation](10-standards-and-catalogs.md), [M11: indexes](11-indexing-and-access-paths.md) | Bind exact schema/collation and retained source meaning; make bounded Queue scans correct without secondary indexes | Later indexes may accelerate qualified selection, never replace FIFO, visibility or current-policy checks |
-| [M13: computations and SOURCE](13-sql-and-dataflows.md#next-source-slice-owned-capture-storage-and-readers--2026-11-07) | Supply a real finite Stream source and qualified progress/output decisions; preserve TXR1/CPR1/SOR1 and capture-specific retained graphs | Continuous activation, complete transaction change feeds and SOURCE scheduling remain M12 work. Its protected capture transaction is a regression, not a Station runner |
+| [M13: computations and SOURCE](13-sql-and-dataflows.md#next-source-slice-owned-capture-storage-and-readers--2026-11-07) | Supply a real finite Stream source and qualified progress/output decisions; preserve TXR1/CPR1/SOR1 and capture-specific retained graphs | Continuous activation, complete transaction change feeds and SOURCE scheduling remain M13 work. Its protected capture transaction is a regression, not a Station runner |
 | [M14: performance](14-data-structures-and-performance.md), [M15: strings](15-vectorized-strings-and-search.md), [M16: compilation](16-data-centric-compilation-and-specialization.md) | Reuse owned predicates, encoded traversal and resource meters through package interfaces; measure the actual selection/turn boundary | Broader optimization follows semantic and resource proof; no new latency promise follows from fewer allocations or requests |
 | [M17: exchanges](17-document-profiles-and-gateway-exchange-lifecycle.md), [M22: SDK coverage](22-service-and-sdk-coverage.md), [M31: Board](31-board-reimplementation.md) | Preserve intent/attempt/outcome semantics; migrate affected existing callers together; expose authorized definitions, leases and progress through public reads | Exchange representation and wider API coverage keep their gates. Board inspection remains read-only; application saves/dispatch need their separate operations |
 | [M23: correspondence](23-formal-semantics-and-correspondence.md), [M24–M26: distributed operation](24-storage-providers-and-concurrency.md) | Extend finite models with real-owner replay and negative controls; retain applicable Ursula/Substrate readiness and recovery tests | Local branch-one composition proves no distributed commit, replication, automatic group rebalance or cross-branch Stream/Queue support |
@@ -317,7 +582,7 @@ Use the [Batch 6 service matrix](#batch-6--migrate-durable-station-services) and
 [Batch 7 removal inventory](#batch-7--migrate-effects-and-consumers-and-activate-the-cutover)
 for calls/replies, timers, names, supervision, effects and consumers. Preserve
 recorded destinations, poisoned-read failure behavior, late-reply closure,
-current grants and no replay dispatch. M16's representation work and M12's
+current grants and no replay dispatch. M17's representation work and M13's
 SOURCE captures do not settle unknown remote effects. Remove courier polling
 only after Queue wait/recovery scheduling proves wakeup races, bounded discovery,
 idle cost and joined shutdown. Keep Catalog's separate `DirectTableBridge`.
@@ -349,7 +614,7 @@ unchanged durability, time, leases, quotas and retained populations. Report fail
 refused and unknown attempts alongside successful samples; distinguish client
 allocations from server allocations, process restart from power loss, and local
 independent authorities from distributed execution. The promoted-image nightly
-campaign remains a separate M13/M44 workflow; it cannot measure this unpublished
+campaign remains a separate M14/M45 workflow; it cannot measure this unpublished
 checkout or replace the source-matched runtime baseline.
 
 ### Validation and completion checklist

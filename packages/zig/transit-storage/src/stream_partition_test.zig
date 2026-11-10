@@ -846,16 +846,16 @@ test "stream partition sealed batches preserve finite reads and resume lost flus
     try t.expect(old.cursor.coverage.complete and old.count == 2);
     try t.expectEqualDeep(accepted, (try owner.operation(operation(2), policy.guard())).?.outcome.append);
     var name: [96]u8 = undefined;
-    const key = try s.LogSegment.metadataKey(segment.metadata, &name);
-    const metadata = try t.allocator.alloc(u8, @intCast(segment.metadata.bytes));
-    defer t.allocator.free(metadata);
-    _ = try objects.objectStore().getRange(key, 0, @intCast(metadata.len), metadata);
+    const key = try s.LogSegment.segmentKey(segment.segment.?, &name);
+    const segment_bytes = try t.allocator.alloc(u8, @intCast(segment.segment.?.bytes));
+    defer t.allocator.free(segment_bytes);
+    _ = try objects.objectStore().getRange(key, 0, @intCast(segment_bytes.len), segment_bytes);
     try objects.objectStore().delete(key);
     try owner.deinit();
     owner = try reopen(fault.log(), objects.objectStore(), initial, &policy);
     try t.expectError(error.LogSegmentMissing, owner.recoverStep(policy.guard(), 256));
     try t.expectError(error.LogRecoveryRequired, owner.observe(initial.declared, policy.guard()));
-    _ = try objects.objectStore().putImmutable(key, metadata, segment.metadata.sha256);
+    _ = try objects.objectStore().putImmutable(key, segment_bytes, segment.segment.?.sha256);
     try t.expect((try owner.recoverStep(policy.guard(), 256)).complete);
     try t.expect((try owner.flush(owner.root.position(), policy.guard())).complete);
     try t.expectEqual(@as(u64, 4), owner.root.sealed_through);
@@ -1638,10 +1638,9 @@ test "stream partition rewrite replay rejects a valid sparse segment that change
     changed[1] = .{ .value = .{ .atom = .{ .bytes = "changed" } } };
     const row: f.TableRow.Row = .{ .identity = .{ .origin = 1, .operation = 2, .ordinal = 1 }, .cells = &changed };
     var row_bytes: [4096]u8 = undefined;
-    var view_bytes: [8192]u8 = undefined;
-    var encoder = try s.LogView.Encoder.init(declaration.definition.schema, 2, 1, &view_bytes);
-    try encoder.append(.{ .ordinal = 1, .visible_ms = 0, .tombstone = false, .bytes = try row.encode(declaration.definition.schema, &row_bytes) });
-    const replacement = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, try encoder.finish(), 1);
+    const replacement = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, &.{
+        .{ .ordinal = 1, .visible_ms = 0, .tombstone = false, .bytes = try row.encode(declaration.definition.schema, &row_bytes) },
+    }, 1);
     var forged = owner.root;
     forged.next_lsn += 1;
     forged.maintenance.archive_source_lsn = forged.next_lsn;

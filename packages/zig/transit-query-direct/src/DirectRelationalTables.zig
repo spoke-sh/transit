@@ -7,10 +7,21 @@ const f = q.fuze;
 const r = f.Relational;
 const e = f.RelationalExecution;
 const Scan = @import("DirectTableScan.zig");
+const StreamScan = @import("DirectStreamSliceScan.zig");
 const Self = @This();
+pub const SourcePin = union(enum) {
+    table: c.DirectTableProtocol.Snapshot,
+    stream: struct {
+        namespace: u64,
+        receipt: q.protocol.StreamRead.Receipt,
+        include_tombstones: bool = false,
+        limits: q.storage.StreamPartition.ReadLimits = .{ .rows = 128, .encoded_bytes = 1024 * 1024 },
+    },
+};
 allocator: std.mem.Allocator,
 client: c.DirectTableClient,
 scans: [r.max_sources]?Scan = @splat(null),
+stream_scans: [r.max_sources]?StreamScan = @splat(null),
 declarations: []const r.Source,
 cuts: [r.max_sources]r.Cut = undefined,
 requests: u64 = 0,
@@ -25,34 +36,55 @@ pub fn openAt(allocator: std.mem.Allocator, client: c.DirectTableClient, snapsho
     return openProjectedAt(allocator, client, snapshots, sources, requests, cancellation, catalog, &.{});
 }
 pub fn openProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableClient, snapshots: []const c.DirectTableProtocol.Snapshot, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool), catalog: ?q.protocol.DataLifecycle.Snapshot, projections: []const ?c.DirectSchemaProjection.Accepted) !Self {
+    if (snapshots.len > r.max_sources) return error.InvalidRelationalSources;
+    var pins: [r.max_sources]SourcePin = undefined;
+    for (snapshots, pins[0..snapshots.len]) |snapshot, *pin| pin.* = .{ .table = snapshot };
+    return openPinsProjectedAt(allocator, client, pins[0..snapshots.len], sources, requests, cancellation, catalog, projections);
+}
+pub fn openPinsProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableClient, pins: []const SourcePin, sources: []const r.Source, requests: u64, cancellation: ?*const std.atomic.Value(bool), catalog: ?q.protocol.DataLifecycle.Snapshot, projections: []const ?c.DirectSchemaProjection.Accepted) !Self {
     if (projections.len != 0 and projections.len != sources.len) return error.InvalidRelationalSources;
-    if (sources.len == 0 or sources.len > r.max_sources or snapshots.len != sources.len) return error.InvalidRelationalSources;
+    if (sources.len == 0 or sources.len > r.max_sources or pins.len != sources.len) return error.InvalidRelationalSources;
     var self: Self = .{ .allocator = allocator, .client = client, .declarations = sources, .request_limit = requests };
     errdefer self.deinit();
-    for (snapshots, sources, 0..) |snapshot, source, i| {
+    for (pins, sources, 0..) |pin, source, i| {
         if (self.requests >= requests) return error.QueryPageBudget;
-        self.scans[i] = if (catalog) |cut| try Scan.openCatalog(allocator, client, cut, snapshot.object.object, requests - self.requests, cancellation) else try Scan.open(allocator, client, snapshot, requests - self.requests, cancellation);
-        const scan = &self.scans[i].?;
-        if (projections.len != 0) if (projections[i]) |target| try scan.projectTo(target);
-        self.requests += scan.requests;
-        const basis = scan.reader.basis;
-        if ((basis.workspace != null) != (client.transaction != null)) return error.InvalidTransactionRead;
-        if (basis.workspace) |view| {
-            const first = self.scans[0].?.reader.basis.workspace orelse return error.InvalidTransactionRead;
-            if (!std.meta.eql(view.cut, first.cut) or !std.meta.eql(view.revision, first.revision) or view.last_statement != first.last_statement) return error.TransactionReadChanged;
+        switch (pin) {
+            .table => |snapshot| {
+                self.scans[i] = if (catalog) |cut| try Scan.openCatalog(allocator, client, cut, snapshot.object.object, requests - self.requests, cancellation) else try Scan.open(allocator, client, snapshot, requests - self.requests, cancellation);
+                const scan = &self.scans[i].?;
+                if (projections.len != 0) if (projections[i]) |target| try scan.projectTo(target);
+                self.requests += scan.requests;
+                const basis = scan.reader.basis;
+                if ((basis.workspace != null) != (client.transaction != null)) return error.InvalidTransactionRead;
+                if (basis.workspace) |view| {
+                    const first = (self.scans[0] orelse return error.InvalidTransactionRead).reader.basis.workspace orelse return error.InvalidTransactionRead;
+                    if (!std.meta.eql(view.cut, first.cut) or !std.meta.eql(view.revision, first.revision) or view.last_statement != first.last_statement) return error.TransactionReadChanged;
+                }
+                const object = basis.interpretation.interpretation.object;
+                const schema = scan.reader.schema.schema;
+                try q.DirectTableQuery.qualify(schema);
+                if (source.realm != object.scope.realm or source.resource != object.scope.resource or source.catalog != object.scope.catalog or source.owner != client.connection.audience or
+                    !std.mem.eql(u8, &try source.schema.fingerprint(), &try schema.fingerprint())) return error.RelationalSourceChanged;
+                self.cuts[i] = .{ .domain = .{ .table_partition = .{ .branch = object.branch, .object = object.object, .partition = basis.accepted.partition } }, .resource = object.scope.resource, .revision = basis.accepted.next_lsn, .commitment = try scan.fingerprint(), .schema = try schema.fingerprint() };
+            },
+            .stream => |stream_pin| {
+                if (catalog != null or (projections.len != 0 and projections[i] != null)) return error.InvalidRelationalSources;
+                if (client.transaction != null) return error.UnsupportedLogTransaction;
+                self.stream_scans[i] = try StreamScan.open(allocator, client, stream_pin.namespace, stream_pin.receipt, source.schema, stream_pin.include_tombstones, stream_pin.limits, requests - self.requests, cancellation);
+                const scan = &self.stream_scans[i].?;
+                self.requests += scan.requests;
+                const object = stream_pin.receipt.request.target.interpretation.object;
+                if (source.realm != object.scope.realm or source.resource != object.scope.resource or source.catalog != object.scope.catalog or source.owner != client.connection.audience) return error.RelationalSourceChanged;
+                self.cuts[i] = .{ .domain = .{ .stream_partition = .{ .branch = object.branch, .object = object.object, .partition = stream_pin.receipt.cut.accepted.partition, .from_offset = stream_pin.receipt.request.from } }, .resource = object.scope.resource, .revision = stream_pin.receipt.until, .commitment = try scan.fingerprint(), .schema = scan.expected_fingerprint };
+            },
         }
-        const object = basis.interpretation.interpretation.object;
-        const schema = scan.reader.schema.schema;
-        try q.DirectTableQuery.qualify(schema);
-        if (source.realm != object.scope.realm or source.resource != object.scope.resource or source.catalog != object.scope.catalog or source.owner != client.connection.audience or
-            !std.mem.eql(u8, &try source.schema.fingerprint(), &try schema.fingerprint())) return error.RelationalSourceChanged;
-        self.cuts[i] = .{ .domain = .{ .table_partition = .{ .branch = object.branch, .object = object.object, .partition = basis.accepted.partition } }, .resource = object.scope.resource, .revision = basis.accepted.next_lsn, .commitment = try scan.fingerprint(), .schema = try schema.fingerprint() };
     }
     try self.authorize();
     return self;
 }
 pub fn deinit(self: *Self) void {
     for (&self.scans) |*slot| if (slot.*) |*scan| scan.deinit();
+    for (&self.stream_scans) |*slot| if (slot.*) |*scan| scan.deinit();
     self.* = undefined;
 }
 pub fn close(self: *Self) void {
@@ -72,10 +104,15 @@ fn authorize(self: *Self) !void {
     if (self.closed) return error.QueryClosed;
     if (self.requests > self.request_limit or self.request_limit - self.requests < 2) return error.QueryPageBudget;
     var checks: [r.max_sources]c.DirectTableProtocol.ReadCheck = undefined;
-    for (self.scans[0..self.declarations.len], 0..) |slot, i| {
-        try slot.?.checkCancellation();
-        const basis = slot.?.reader.basis;
-        checks[i] = if (basis.catalog) |snapshot| .{ .historical = .{ .snapshot = snapshot, .object = basis.snapshot.object.object, .rows = true } } else .{ .snapshot = basis.snapshot };
+    for (0..self.declarations.len) |i| {
+        if (self.scans[i]) |*scan| {
+            try scan.checkCancellation();
+            const basis = scan.reader.basis;
+            checks[i] = if (basis.catalog) |snapshot| .{ .historical = .{ .snapshot = snapshot, .object = basis.snapshot.object.object, .rows = true } } else .{ .snapshot = basis.snapshot };
+        } else if (self.stream_scans[i]) |*scan| {
+            try scan.checkCancellation();
+            checks[i] = .{ .access = .{ .namespace = scan.namespace, .target = scan.receipt.request.target.interpretation, .access = .read } };
+        } else return error.InvalidRelationalSources;
     }
     self.requests += 2;
     const response = try self.client.call(.{ .check_set = checks[0..self.declarations.len] });
@@ -85,11 +122,18 @@ pub fn next(self: *Self, source: u8, after: ?r.RowIdentity) !?e.Row {
     if (self.closed) return error.QueryClosed;
     if (source >= self.declarations.len) return error.UnknownRelationalSource;
     if (self.requests >= self.request_limit) return error.QueryPageBudget;
-    const scan = &self.scans[source].?;
+    if (self.scans[source]) |*scan| {
+        scan.request_limit = std.math.add(u64, scan.requests, self.request_limit - self.requests) catch return error.QueryPageBudget;
+        const before = scan.requests;
+        defer self.requests += scan.requests - before;
+        var row = (try scan.nextAfter(after)) orelse return null;
+        defer row.deinit();
+        return try self.projection.row(self.allocator, scan.after.?, source, self.declarations[source].schema.columns, row.cells);
+    }
+    const scan = &(self.stream_scans[source] orelse return error.UnknownRelationalSource);
     scan.request_limit = std.math.add(u64, scan.requests, self.request_limit - self.requests) catch return error.QueryPageBudget;
     const before = scan.requests;
     defer self.requests += scan.requests - before;
-    var row = (try scan.nextAfter(after)) orelse return null;
-    defer row.deinit();
-    return try self.projection.row(self.allocator, scan.after.?, source, self.declarations[source].schema.columns, row.cells);
+    const cells = (try scan.nextBorrowedAfter(after)) orelse return null;
+    return try self.projection.row(self.allocator, scan.after.?, source, self.declarations[source].schema.columns, cells);
 }

@@ -262,6 +262,14 @@ test "direct Table vectors keep partition domains distinct from native resource 
     try testing.expectError(error.InconsistentRelationalCut, bound.validate());
     basis[1].domain = .{ .table_partition = .{ .branch = 1, .object = declarations[1].schema.object, .partition = 4 } };
     try testing.expect(!std.mem.eql(u8, &identity, &try bound.fingerprint()));
+    basis[0].domain = .{ .stream_partition = .{ .branch = 1, .object = declarations[0].schema.object, .partition = 2, .from_offset = 3 } };
+    basis[0].revision = 8;
+    try bound.validate();
+    const stream_identity = try bound.fingerprint();
+    basis[0].domain.stream_partition.from_offset = 4;
+    try testing.expect(!std.mem.eql(u8, &stream_identity, &try bound.fingerprint()));
+    basis[0].domain.stream_partition.from_offset = 9;
+    try testing.expectError(error.InvalidRelationalCut, bound.validate());
 }
 
 test "relational prepared and bound identities retain budgets lifetime schemas and exact cuts" {

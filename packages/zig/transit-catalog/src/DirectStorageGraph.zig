@@ -165,7 +165,7 @@ pub fn collectible(key: []const u8) bool {
     // Saved staging references and permanent operation-to-target reservations
     // have independent lifetimes. Unknown generic object namespaces also remain
     // outside this collector's authority.
-    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-sources/", "catalog-source-intents/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "log-segment-metadata/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "source-captures/", "source-capture-manifests/", "document-sources/", "document-definitions/", "document-evidence/", "document-reads/", "document-collections/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
+    for ([_][]const u8{ "transaction-records/", "progress-records/", "owned-records/", "catalog-history/", "catalog-definitions/", "catalog-sources/", "catalog-source-intents/", "catalog-definition-intents/", "catalog-foreign/", "data-index/", "bitmap-containers/", "data-maintenance/", "catalog-intents/", "catalog-log-intents/", "log-definitions/", "log-evidence/", "log-reads/", "log-tx-sources/", "log-preparations/", "transaction-log-actions/", "transaction-log-payload/", "log-checkpoints/", "log-segments/", "queue-selections/", "queue-time-buffers/", "queue-time-runs/", "source-captures/", "source-capture-manifests/", "document-sources/", "document-definitions/", "document-evidence/", "document-reads/", "document-collections/", "document-checkpoints/", "document-payloads/", "document-states/", "document-segment/", "table-definitions/", "table-evidence/", "table-intents/", "table-snapshots/", "table-checkpoints/", "table-history/", "table-segments/", "table-preparations/" }) |prefix| {
         if (std.mem.startsWith(u8, key, prefix)) return true;
     }
     return false;
@@ -1427,7 +1427,6 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             const payload = try s.LogSegment.materialize(allocator, index.store, value.descriptor, &declaration, evidence, output);
             try s.LogSegment.requireVisibility(value.descriptor, payload, declaration.definition.schema, evidence.outcome.append, index, value.context.hidden);
             if (value.descriptor.segment) |segment| try markContent(workspace, try s.LogSegment.segmentKey(segment, &key_buffer), segment);
-            try markContent(workspace, try s.LogSegment.metadataKey(value.descriptor.metadata, &key_buffer), value.descriptor.metadata);
         },
         .log_wal => |value| {
             if (value.lsn >= value.context.next_lsn) return error.InvalidLogStorageGraph;

@@ -5,7 +5,7 @@ const f = @import("transit_fuze");
 const s = @import("root.zig");
 const support = @import("log_test_support.zig");
 
-test "log segment sparse placement preserves identities and requires exact hidden coverage" {
+test "log segment sparse placement preserves identities in native tseg system columns and requires exact hidden coverage" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "sparse");
@@ -23,12 +23,19 @@ test "log segment sparse placement preserves identities and requires exact hidde
     const append: p.StreamQueue.Append = .{ .target = .{ .definition = p.Growth.current_definition, .interpretation = declared.declaration.interpretation, .partition = 1 }, .operation = operation, .kind = .stream, .producer = null, .rows = rows.len, .payload = s.LogBatch.content(payload) };
     const evidence: s.LogEvidence.Record = .{ .declared = declared, .outcome = .{ .append = .{ .append = append, .first = 100, .next = 106, .accepted = .{ .partition = 91, .next_lsn = 7 }, .observed_ms = null } } };
     var encoded: [8192]u8 = undefined;
-    var encoder = try s.LogView.Encoder.init(definition.schema, 6, 2, &encoded);
+    var encoder = try s.LogBatch.SparseEncoder.init(definition.schema, 6, 2, &encoded);
+    var surviving: [2]s.LogBatch.EncodedRow = undefined;
+    var count: usize = 0;
     var iterator = try s.LogBatch.Iterator.init(payload, definition.schema, .stream, 6);
-    while (try iterator.next()) |row| if (row.ordinal == 1 or row.ordinal == 4) try encoder.append(row);
+    while (try iterator.next()) |row| if (row.ordinal == 1 or row.ordinal == 4) {
+        try encoder.append(row);
+        surviving[count] = row;
+        count += 1;
+    };
     const view = try encoder.finish();
-    const sparse = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, view, 1);
+    const sparse = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, &surviving, 1);
     const complete = try s.LogSegment.stage(t.allocator, objects.objectStore(), &declaration, evidence, payload, 1);
+    try t.expectEqual(@as(u16, 85), (try sparse.encode()).len);
     try t.expectEqualDeep(sparse, try s.LogSegment.Descriptor.decode(try sparse.encode()));
     objects.deinit();
     objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "sparse");
@@ -44,12 +51,12 @@ test "log segment sparse placement preserves identities and requires exact hidde
     try s.LogSegment.requireVisibility(sparse, view, definition.schema, evidence.outcome.append, &tree, hidden);
     try t.expectError(error.LogHistoryUnavailable, s.LogSegment.requireVisibility(sparse, view, definition.schema, evidence.outcome.append, &tree, .empty));
     var corrupt = sparse;
-    corrupt.view.sha256[0] ^= 1;
-    try t.expectError(error.LogPayloadConflict, s.LogSegment.materialize(t.allocator, objects.objectStore(), corrupt, &declaration, evidence, &output));
+    corrupt.rows = 1;
+    try t.expectError(error.InvalidLogSegment, s.LogSegment.materialize(t.allocator, objects.objectStore(), corrupt, &declaration, evidence, &output));
     try t.expectEqualSlices(u8, payload, try s.LogSegment.materialize(t.allocator, objects.objectStore(), complete, &declaration, evidence, &output));
-    encoder = try s.LogView.Encoder.init(definition.schema, 6, 0, &encoded);
+    encoder = try s.LogBatch.SparseEncoder.init(definition.schema, 6, 0, &encoded);
     const empty_view = try encoder.finish();
-    const empty = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, empty_view, 1);
+    const empty = try s.LogSegment.stageSparse(t.allocator, objects.objectStore(), &declaration, evidence, &.{}, 1);
     try t.expect(empty.segment == null);
     try t.expectEqualSlices(u8, empty_view, try s.LogSegment.materialize(t.allocator, objects.objectStore(), empty, &declaration, evidence, &output));
     try t.expectError(error.LogHistoryUnavailable, s.LogSegment.requireVisibility(empty, empty_view, definition.schema, evidence.outcome.append, &tree, hidden));
@@ -59,7 +66,7 @@ test "log segment sparse placement preserves identities and requires exact hidde
     try s.LogSegment.requireVisibility(empty, empty_view, definition.schema, evidence.outcome.append, &tree, all_hidden);
 }
 
-test "log segment disk readback preserves original payload identity and delivery metadata" {
+test "log segment disk readback preserves original payload identity and delivery metadata in native tseg columns" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();
     var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
@@ -91,7 +98,7 @@ test "log segment disk readback preserves original payload identity and delivery
         foreign.outcome.append.next = 103;
         try t.expectError(error.InvalidLogSegment, s.LogSegment.materialize(t.allocator, objects.objectStore(), segment, &declaration, foreign, &output));
         var name: [96]u8 = undefined;
-        try objects.objectStore().delete(try s.LogSegment.metadataKey(segment.metadata, &name));
+        try objects.objectStore().delete(try s.LogSegment.segmentKey(segment.segment.?, &name));
         try t.expectError(error.LogSegmentMissing, s.LogSegment.materialize(t.allocator, objects.objectStore(), segment, &declaration, evidence, &output));
         var memory: f.MemoryBudget = .{ .parent = t.allocator, .limit = 4096 };
         try t.expectError(error.OutOfMemory, s.LogSegment.stage(memory.allocator(), objects.objectStore(), &declaration, evidence, payload, 1));

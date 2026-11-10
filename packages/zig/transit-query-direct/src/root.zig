@@ -7,6 +7,7 @@ pub const storage = catalog.storage;
 pub const QueryMemory = fuze.MemoryBudget;
 pub const DirectTableQuery = @import("DirectTableQuery.zig");
 pub const DirectTablePrepared = @import("DirectTablePrepared.zig");
+pub const DirectStreamSliceScan = @import("DirectStreamSliceScan.zig");
 pub const DirectRelationalCompilation = @import("DirectRelationalCompilation.zig");
 pub const DirectRelationalTables = @import("DirectRelationalTables.zig");
 pub const DirectRelationalQuery = @import("DirectRelationalQuery.zig");

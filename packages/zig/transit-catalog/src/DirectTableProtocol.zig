@@ -457,6 +457,15 @@ pub const Request = struct {
             // notifications. In particular an empty wait must not wake the
             // service's discovery sweep again and defeat its bounded backoff.
             .queue => |value| value != .wait and value.mutation(),
+            .stream => |value| switch (value) {
+                .mutate => |mutate| switch (mutate.work) {
+                    .release => false,
+                    .consume => |consume| consume.group != null,
+                    else => true,
+                },
+                .cancel => false,
+                else => value.mutation(),
+            },
             .client_progress => |value| value.mutation() and !(value == .update and value.update.record != null and value.update.record.?.format == c.DirectRecord.read_cache_format),
             else => self.transport().mutation,
         };

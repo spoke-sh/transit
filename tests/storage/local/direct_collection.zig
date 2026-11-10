@@ -382,7 +382,6 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     try t.expect(try fixture.data.objects().head(try s.LogRecovery.key(checkpoint.content, &name)) == null);
     try expectArchive(&fixture, payload_archive, false);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment.?, &name)) != null);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) != null);
     try t.expectEqualDeep(read, (try stream.operation(read.request.operation, fixture.guard())).?.outcome.read);
     try t.expectError(error.StreamReadReleased, stream.readCursor(read.handle(), authority, fixture.guard()));
     try stream.deinit();
@@ -407,7 +406,6 @@ test "direct Stream collection preserves pinned cuts and original receipts throu
     _ = try stream.checkpoint(stream.root.position(), fixture.guard());
     _ = try fixture.collect();
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(segment_reference.segment.?, &name)) == null);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(segment_reference.metadata, &name)) == null);
     try stream.deinit();
     fixture.close();
     try fixture.open(tmp.dir, false);
@@ -505,7 +503,6 @@ test "direct Stream collection retains pending compaction and pinned visibility 
     _ = try stream.checkpoint(stream.root.position(), fixture.guard());
     _ = try fixture.collect();
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(old_segment.segment.?, &name)) == null);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(old_segment.metadata, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(rewritten.segment.?, &name)) != null);
     try stream.deinit();
     fixture.close();
@@ -653,7 +650,6 @@ test "direct Queue collection requires terminal expiry claim closure and replay 
     _ = try queue.checkpoint(queue.owner.root.position(), fixture.guard());
     _ = try fixture.collect();
     try t.expect(try fixture.data.objects().head(try s.LogSegment.segmentKey(sealed.segment.?, &name)) == null);
-    try t.expect(try fixture.data.objects().head(try s.LogSegment.metadataKey(sealed.metadata, &name)) == null);
     try t.expect(try fixture.data.objects().head(try s.QueueSelection.objectKey(claimed.leases.?, &name)) != null);
     try queue.deinit();
     fixture.close();

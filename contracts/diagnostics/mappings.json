@@ -1113,6 +1113,10 @@
           "code": "sql.invalid_stream_progress",
           "category": "binding"
         },
+        "InvalidStreamSliceBounds": {
+          "code": "sql.invalid_stream_slice_bounds",
+          "category": "binding"
+        },
         "SqlNestingTooDeep": {
           "code": "sql.source_nesting_limit",
           "category": "limit"

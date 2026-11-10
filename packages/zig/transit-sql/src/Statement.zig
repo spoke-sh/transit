@@ -436,6 +436,10 @@ pub fn openRelational(self: *const Self, allocator: std.mem.Allocator, io: std.I
     if (self.inspection or self.plan != .relational) return error.ExpectedRelationalSelect;
     return g.direct.DirectRelationalQuery.openBoundPreparedRetained(allocator, io, directory, name, client.*, self.plan.relational, values, snapshots, options, cancellation);
 }
+pub fn openRelationalPins(self: *const Self, allocator: std.mem.Allocator, io: std.Io, directory: std.Io.Dir, name: []const u8, client: *c.DirectTableClient, values: []const ?f.Types.Values.Atom, pins: []const g.direct.DirectRelationalTables.SourcePin, options: g.direct.DirectRelationalQuery.Options, cancellation: ?*const std.atomic.Value(bool)) !*g.direct.DirectRelationalQuery {
+    if (self.inspection or self.plan != .relational) return error.ExpectedRelationalSelect;
+    return g.direct.DirectRelationalQuery.openBoundPreparedPins(allocator, io, directory, name, client.*, self.plan.relational, values, pins, options, cancellation);
+}
 
 test "gateway statements reject transaction controls and multiple commands before authority access" {
     const t = std.testing;
