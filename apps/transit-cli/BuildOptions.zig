@@ -25,7 +25,10 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Self {
     while (index < args.len) : (index += 1) {
         const selected = for (names, 0..) |name, n| {
             if (std.mem.eql(u8, name, args[index])) break n;
-        } else return diagnostic.invalidArgument("unknown build option");
+        } else {
+            diagnostic.atArgument(index + 2, null);
+            return diagnostic.invalidArgument("unknown build option");
+        };
         diagnostic.atArgument(index + 2, names[selected]);
         const mask = @as(u16, 1) << @intCast(selected);
         if (selected != 7 and seen & mask != 0) return diagnostic.invalidOption("can only be specified once");
@@ -78,4 +81,18 @@ test "build options have no connection defaults and reject conflicting actions" 
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--fetch", "--out", "out" }, &diagnostic));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--config", "connection.json" }, &diagnostic));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--target", "../escape" }, &diagnostic));
+}
+
+test "unknown build options retain a redacted argument location" {
+    inline for (.{ &[_][]const u8{"private-value"}, &[_][]const u8{ "--check", "private-value" } }) |args| {
+        var diagnostic: Diagnostic = .{};
+        try std.testing.expectError(error.InvalidInvocation, parse(args, &diagnostic));
+        try std.testing.expectEqual(args.len + 1, diagnostic.argument.?);
+        try std.testing.expectEqual(null, diagnostic.option);
+        var output: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        defer output.deinit();
+        try diagnostic.render(&output.writer, error.InvalidInvocation);
+        try std.testing.expect(std.mem.indexOf(u8, output.written(), "unknown build option at argument") != null);
+        try std.testing.expect(std.mem.indexOf(u8, output.written(), "private-value") == null);
+    }
 }

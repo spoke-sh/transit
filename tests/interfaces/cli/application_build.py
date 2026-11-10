@@ -81,6 +81,14 @@ def source(root, name, text):
 
 
 def compiler_journey(cli, root):
+    for args, position in ((['private-value'], 2), (['--check', 'private-value'], 3)):
+        invalid = subprocess.run([str(cli), 'build', *args], cwd=root, text=True,
+                                 capture_output=True, timeout=30, env={'PATH': '/unavailable'},
+                                 preexec_fn=offline)
+        assert invalid.returncode == 2 and not invalid.stdout, invalid
+        assert f'unknown build option at argument {position}' in invalid.stderr, invalid.stderr
+        assert 'private-value' not in invalid.stderr, invalid.stderr
+        cli_build(cli, root, *args, expected=2)
     control = subprocess.run([sys.executable, '-c', 'import socket; socket.socket()'], capture_output=True, preexec_fn=offline)
     assert control.returncode != 0 and b'Function not implemented' in control.stderr, control
     corpus = REPO / 'tests/fixtures/application-build'
