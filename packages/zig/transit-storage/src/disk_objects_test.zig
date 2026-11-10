@@ -611,6 +611,31 @@ test "immutable object batches share directory barriers and retain exact per-obj
     }
 }
 
+test "direct local immutable batches validate all inputs before publication" {
+    const Objects = @import("TransitObjectStore.zig");
+    const sentinel: Objects.ObjectMeta = .{ .size = 999, .sha256 = @splat(9) };
+    for ([_]bool{ false, true }) |disk| {
+        var tmp = t.tmpDir(.{});
+        defer tmp.cleanup();
+        var owner = if (disk) try Store.openDiskAt(t.allocator, t.io, tmp.dir, "objects") else Store.initMemory(t.allocator);
+        defer owner.deinit();
+        const first: Objects.ImmutablePut = .{ .key = "first", .bytes = "first", .sha256 = hash("first") };
+        const second: Objects.ImmutablePut = .{ .key = "second", .bytes = "second", .sha256 = hash("wrong") };
+        var output: [2]Objects.ObjectMeta = @splat(sentinel);
+        // Exercise the adapter directly: the generic ObjectStore wrapper must
+        // not conceal missing validation in either concrete backend.
+        try t.expectError(error.InvalidObjectBatch, owner.putImmutableBatch(&.{}, &.{}));
+        try t.expectError(error.InvalidObjectBatch, owner.putImmutableBatch(&.{first}, &output));
+        try t.expectError(error.DuplicateObjectKey, owner.putImmutableBatch(&.{ first, first }, &output));
+        try t.expectError(error.ObjectDigestMismatch, owner.putImmutableBatch(&.{ first, second }, &output));
+        try t.expectEqualDeep([2]Objects.ObjectMeta{ sentinel, sentinel }, output);
+        try t.expectEqual(@as(u64, 0), owner.puts);
+        try t.expectEqual(@as(u64, 0), owner.bytes_written);
+        try t.expectEqual(@as(?Objects.ObjectMeta, null), try owner.objectStore().head(first.key));
+        try t.expectEqual(@as(?Objects.ObjectMeta, null), try owner.objectStore().head(second.key));
+    }
+}
+
 test "immutable object batch failure never returns partial output and exact retry recovers" {
     const Objects = @import("TransitObjectStore.zig");
     const Fault = struct {
