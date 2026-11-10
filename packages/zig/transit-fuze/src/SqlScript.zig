@@ -22,6 +22,15 @@ fn word(text: []const u8, token: anytype, value: []const u8) bool {
     return token.kind == .word and std.ascii.eqlIgnoreCase(text[token.start..token.end], value);
 }
 
+fn followingWord(scan: anytype, value: []const u8) !bool {
+    var following = scan.*;
+    while (try following.next()) |token| {
+        if (token.kind == .space or token.kind == .comment) continue;
+        return word(following.text, token, value);
+    }
+    return false;
+}
+
 pub const Compiler = struct {
     scan: input.CompilerScan,
     pub fn init(text: []const u8) !Compiler {
@@ -98,13 +107,17 @@ fn nextFrame(scan: anytype) !?Statement {
             parentheses -= 1;
         }
         if (body) {
-            const block: ?Block = if (word(text, token, "BEGIN")) .body else if (word(text, token, "CASE")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else null;
+            // These words remain identifiers outside their control positions.
+            // BEGIN ATOMIC also starts the first failure-handler instruction;
+            // searched CASE owns its expression END, unlike a name such as
+            // table.case or a SELECT alias named end.
+            const block: ?Block = if (word(text, token, "BEGIN") and (opens_body or instruction_start or try followingWord(scan, "ATOMIC"))) .body else if (word(text, token, "CASE") and try followingWord(scan, "WHEN")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else null;
             if (block) |kind| {
                 if (depth == blocks.len) return error.SqlNestingTooDeep;
                 blocks[depth] = kind;
                 depth += 1;
                 instruction_start = kind == .body;
-            } else if (word(text, token, "END")) {
+            } else if (word(text, token, "END") and (instruction_start or depth > 0 and blocks[depth - 1] == .expression)) {
                 if (depth == 0) return error.UnbalancedSqlBlock;
                 depth -= 1;
                 suffix = if (blocks[depth] == .body) null else blocks[depth];
@@ -193,6 +206,20 @@ test "script framing keeps finite dataflow query aliases contextual" {
         try t.expectEqualStrings(statement, source[first.start..first.end]);
         const second = (try script.next()).?;
         try t.expectEqualStrings("ACTIVATE DATAFLOW projection", source[second.start..second.end]);
+        try t.expectEqual(null, try script.next());
+    }
+}
+
+test "compound framing keeps SQL and source names contextual" {
+    const t = std.testing;
+    const statement = "CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE case (begin BIGINT, end BIGINT); INSERT INTO case VALUES (1, 2); SELECT begin AS end, end AS begin FROM case; USE begin(1); IF end THEN SELECT begin FROM case; END IF; END";
+    const source = statement ++ "; SELECT 1;";
+    inline for (.{ Self, Compiler }) |Framer| {
+        var script = try Framer.init(source);
+        const first = (try script.next()).?;
+        try t.expectEqualStrings(statement, source[first.start..first.end]);
+        const second = (try script.next()).?;
+        try t.expectEqualStrings("SELECT 1", source[second.start..second.end]);
         try t.expectEqual(null, try script.next());
     }
 }

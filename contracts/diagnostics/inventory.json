@@ -21129,13 +21129,14 @@
       "error_returns": {
         "Compiler.init()": "<inferred>",
         "Compiler.next()": "<inferred>",
+        "followingWord()": "<inferred>",
         "init()": "<inferred>",
         "next()": "<inferred>",
         "nextFrame()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 3,
+        "try": 6,
         "catch": 0
       },
       "imports": [

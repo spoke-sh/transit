@@ -30,6 +30,12 @@ fn refuses(expected: anyerror, input: []const c.Source, options: c.Options) !voi
     try std.testing.expectEqual(.not_submitted, diagnostic.?.outcome);
 }
 const simple = "CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE items (id BIGINT PRIMARY KEY); INSERT INTO items VALUES (1); SELECT * FROM items; END;";
+test "contextual names survive source framing and ordinary SQL verification" {
+    const product = try one("CREATE MODULE begin(case BIGINT, end BOOLEAN) AS BEGIN IF end THEN CREATE PUBLIC TABLE case (begin BIGINT, end BIGINT); INSERT INTO case VALUES ($case, 2); SELECT begin AS end, end AS begin FROM case; END IF; END; CREATE TARGET default AS BEGIN USE begin(1, TRUE); END;", .{ .compiler_revision = "test" });
+    defer product.deinit();
+    try std.testing.expectEqual(3, product.steps.len);
+    try std.testing.expectEqualStrings("SELECT BEGIN AS END , END AS BEGIN FROM CASE", product.steps[2].sql);
+}
 test "source argument kinds, arity and module interfaces reject" {
     const wrong_type = "CREATE MODULE M(x BIGINT) AS BEGIN CREATE PUBLIC TABLE items (id BIGINT); END; CREATE TARGET default AS BEGIN USE M('text'); END;";
     try std.testing.expectError(error.SourceTypeMismatch, one(wrong_type, .{ .compiler_revision = "test" }));
