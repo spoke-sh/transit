@@ -70,6 +70,9 @@ fn nextFrame(scan: anytype) !?Statement {
                     compound = true;
                 };
         }
+        // A finite query owns its contextual aliases. Once AS SELECT starts
+        // that query, a later AS begin cannot open a compound declaration.
+        if (compound and !body and after_as and word(text, token, "SELECT")) compound = false;
         const opens_body = compound and !body and after_as and word(text, token, "BEGIN");
         if (opens_body) body = true;
         after_as = word(text, token, "AS");
@@ -175,6 +178,22 @@ test "script framing keeps transaction controls separate and rejects incomplete 
     inline for (invalid) |entry| {
         var broken = try init(entry[0]);
         try t.expectError(entry[1], broken.next());
+    }
+}
+
+test "script framing keeps finite dataflow query aliases contextual" {
+    const t = std.testing;
+    const query = "SELECT id AS begin FROM input";
+    _ = try @import("Sql.zig").parse(query);
+    const statement = "CREATE DATAFLOW projection INTO output AS " ++ query;
+    const source = statement ++ "; ACTIVATE DATAFLOW projection;";
+    inline for (.{ Self, Compiler }) |Framer| {
+        var script = try Framer.init(source);
+        const first = (try script.next()).?;
+        try t.expectEqualStrings(statement, source[first.start..first.end]);
+        const second = (try script.next()).?;
+        try t.expectEqualStrings("ACTIVATE DATAFLOW projection", source[second.start..second.end]);
+        try t.expectEqual(null, try script.next());
     }
 }
 
