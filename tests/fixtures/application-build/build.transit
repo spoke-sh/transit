@@ -1,0 +1,17 @@
+IMPORT rows FROM 'rows.transit';
+CREATE INTERFACE Factory(table_name IDENTIFIER, element TYPE, initial BIGINT);
+CREATE MODULE Recursive(factory MODULE Factory, name IDENTIFIER, remaining BIGINT) AS BEGIN
+  IF remaining = 0 THEN
+    USE factory(name, TYPE BIGINT, 9);
+  ELSE
+    USE Recursive(factory, name, remaining - 1);
+  END IF;
+END;
+CREATE TARGET default AS BEGIN
+  USE rows.Rows(NAME 'first_items', TYPE BIGINT, 7);
+  USE Recursive(rows.Rows, NAME 'second_items', 3);
+  UPDATE first_items SET id = 8 WHERE id = 7;
+  DELETE FROM second_items WHERE id = 100;
+  SELECT * FROM first_items;
+  SELECT * FROM second_items;
+END;

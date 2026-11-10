@@ -1,0 +1,8 @@
+CREATE PUBLIC MODULE Rows(table_name IDENTIFIER, element TYPE, initial BIGINT) AS BEGIN
+  CREATE PUBLIC TABLE $table_name (id $element PRIMARY KEY);
+  INSERT INTO $table_name VALUES ($initial);
+END;
+CREATE TARGET default AS BEGIN
+  USE Rows(NAME 'first_items', TYPE BIGINT, 7);
+  SELECT * FROM first_items;
+END;

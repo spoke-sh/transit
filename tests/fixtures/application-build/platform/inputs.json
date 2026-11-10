@@ -1,0 +1,41 @@
+{
+  "repository": "spoke-sh/platform",
+  "revision": "7da5b30c6d3790d3c3c9bb4e3542e466e6094ac7",
+  "files": [
+    {
+      "path": "0001-auth.sql",
+      "bytes": 19570,
+      "sha256": "435b4cbad17f02967858ebeed65cf5fb2a82c4283045f06bfd1c0fb0a8c17bc4"
+    },
+    {
+      "path": "0002-catalog.sql",
+      "bytes": 2706,
+      "sha256": "8b760e927d14b1fa654a386bc787e65b9c48fbb3a2d1e626141839a6a4476690"
+    },
+    {
+      "path": "0003-tenancy.sql",
+      "bytes": 13128,
+      "sha256": "fce1ab79a3d20e7512142cc285146af6236b27b6a65767194e18d715d3c78c26"
+    },
+    {
+      "path": "0004-networks.sql",
+      "bytes": 20788,
+      "sha256": "3cc8ecae94c3be6e84bf804a6b3498a20bb3481590c7b75147471870fc1a01fc"
+    },
+    {
+      "path": "0005-transit-instances.sql",
+      "bytes": 61060,
+      "sha256": "6470e8c0cc1325961be02a09160e6dbeb6d89e578776a47673200f88fb574110"
+    },
+    {
+      "path": "0006-static-applications.sql",
+      "bytes": 31011,
+      "sha256": "435c7c9dbd8c83b71a78e0603cf4077aa78d30dc7002423c2a89972d1b5634ad"
+    },
+    {
+      "path": "0007-https-endpoints.sql",
+      "bytes": 50638,
+      "sha256": "9c1e736c88ce5379f59d3b4fa59e804ce9caebb1188a8a703d46cac6d63f0cea"
+    }
+  ]
+}

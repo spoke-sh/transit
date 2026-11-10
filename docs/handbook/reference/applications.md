@@ -6,16 +6,57 @@ transform durable data. Use the [first application guide](../guides/applications
 for a separately compiled Zig worker and [work-items](../../../examples/work-items/README.md)
 for the complete example.
 
+## Application source builds
+
+`transit build` compiles `.transit` modules to ordinary SQL for new Tables,
+literal INSERT/UPDATE/DELETE and finite single-Table SELECT. Typed constructors
+accept values, types and other modules; interfaces check module arguments.
+Imports expose public source symbols, and bounded constructor recursion can
+compose repeated instances with explicit, caller-chosen Table names.
+
+A minimal `build.transit` is:
+
+```text
+CREATE MODULE Rows(name IDENTIFIER, initial BIGINT) AS BEGIN
+  CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY);
+  INSERT INTO $name VALUES ($initial);
+END;
+CREATE TARGET default AS BEGIN
+  USE Rows(NAME 'items', 7);
+  SELECT * FROM items;
+END;
+```
+
+Run `transit build --check` to check the selected target, or `transit build` to
+publish `application.sql` and its provenance under `.transit/build/`. Execute
+that SQL separately through an ordinary caller, for example
+`transit console --no-rc -f PATH/application.sql`. Source packages and build
+metadata are unnecessary at execution; current authorization still applies.
+`PUBLIC` exposes a runtime Table for ordinary access and grants no permission.
+The compiler starts with an empty proposed catalog and does not consult a server.
+
+Repository dependencies name exact commits and package subdirectories in source.
+`transit build --fetch` explicitly populates the content-verified cache and lock;
+subsequent builds run offline. Explicit local overrides enter provenance and
+build identity. The [build CLI](cli.md#application-source-builds) and
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md) define syntax,
+resolution, artifacts, diagnostics and resource limits.
+
+This profile rejects runtime-private storage, privileged procedures, effects,
+Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis,
+`transit test` and full Platform compilation remain planned. The existing
+interface-definition compiler and installation APIs below retain their scope.
+
 ## Planned source language and build model
 
 The proposed authoring language is a higher-order Transit SQL dialect stored in
 `.transit` files. Ordinary SQL forms its executable foundation; typed modules,
 imports, parameters and compile-time composition organize larger programs.
-`build.transit` is a program in that same dialect. The proposed `transit build`
-and `transit test` commands read it to select outputs and tests from one resolved
-dependency graph. These commands and the source-language extensions are not
-implemented; the current interface-definition compiler and installation APIs
-below retain their documented scope.
+`build.transit` is a program in that same dialect. The implemented build profile
+above covers recursive Table composition. The
+proposed broader language and `transit test` use the same graph to select richer
+outputs and tests. The following sections describe that larger design; they do
+not extend the executable capabilities listed above.
 
 ```text
 build.transit + imported .transit modules + locked dependencies

@@ -343,6 +343,16 @@ executable SQL:
 
 ## Delivery sequence and implementation plan (`P0`–`P6`)
 
+The [next-slice implementation plan](application-build-implementation.md)
+reconciles this sequence with the merged application foundation and scopes
+the first recursive module build through independently executable SQL. The
+bounded Table compiler is implemented in `transit-compiler` and exposed through
+`transit build`; [its public contract](../../contracts/APPLICATION_SOURCE_V1.md)
+keeps unsupported runtime capabilities explicit. Qualification and remaining work
+are tracked by the implementation plan. It scopes
+the initial runtime subset, package/compiler owners, logical commits and caller
+proofs; the broader P0–P6 completion criteria below remain required.
+
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
 **Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-fuze/src/SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).

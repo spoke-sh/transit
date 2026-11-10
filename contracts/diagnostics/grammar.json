@@ -106,6 +106,11 @@
       "source": "packages/zig/transit-sql/src/SourceSql.zig",
       "contract": "contracts/SOURCE_V1.md",
       "behavior": "Pure typed HTTP source, sink and connection parsing with exact transport options and lifecycle/inspection forms. No catalog binding, publication, dispatch or execution."
+    },
+    "kv_workload": {
+      "source": "packages/zig/transit-fuze/src/KVWorkloadSql.zig",
+      "contract": "contracts/sql/README.md",
+      "behavior": "Pure typed KV PUT/GET/DELETE preparation and literal binding against an explicit INT64 value specification; no catalog lookup, authorization or durable admission."
     }
   },
   "cases": [
@@ -9554,6 +9559,232 @@
         "message_contains": [
           "syntax has not been validated"
         ]
+      }
+    },
+    {
+      "id": "kv-workload-0",
+      "sql": "PUT INTO items KEY 'a' VALUE 1",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-1",
+      "sql": "PUT INTO items KEY 'a'::BYTEA VALUE 1 IF ABSENT",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_statement",
+        "category": "unsupported",
+        "cause": "UnsupportedStatement"
+      }
+    },
+    {
+      "id": "kv-workload-2",
+      "sql": "PUT INTO items KEY X'61' VALUE 2 IF PRESENT",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": false,
+        "code": "sql.unsupported_statement",
+        "category": "unsupported",
+        "cause": "UnsupportedStatement"
+      }
+    },
+    {
+      "id": "kv-workload-3",
+      "sql": "PUT INTO items KEY $1 VALUE $2",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-4",
+      "sql": "PUT INTO items VALUES ('a', 1) IF ABSENT",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-5",
+      "sql": "PUT INTO items VALUES ('a', 1), ('b', 2) IF PRESENT",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-6",
+      "sql": "PUT INTO items VALUES ('a', 1), ('b', 2), ('c', NULL)",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-7",
+      "sql": "GET FROM items KEY 'a'",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-8",
+      "sql": "DELETE FROM items KEY 'a'",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-9",
+      "sql": "DELETE FROM items KEYS ('a')",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-10",
+      "sql": "DELETE FROM items KEYS ('a', 'b')",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "kv-workload-11",
+      "sql": "DELETE FROM items KEYS ('a', 'b', 'c')",
+      "profile": "kv_workload",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "contextual-kv-put",
+      "sql": "SELECT id AS PUT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "contextual-kv-get",
+      "sql": "SELECT id AS GET FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "contextual-kv-keys",
+      "sql": "SELECT id AS KEYS FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "contextual-kv-present",
+      "sql": "SELECT id AS PRESENT FROM items",
+      "profile": "query",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-control-activate",
+      "sql": "ACTIVATE SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-control-suspend",
+      "sql": "SUSPEND SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-control-resume",
+      "sql": "RESUME SINK exchange",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "id": "sink-authorize-role",
+      "sql": "AUTHORIZE SINK exchange AS ROLE executor",
+      "profile": "source",
+      "grammar": "sql",
+      "root": "statement",
+      "reference": true,
+      "expected": {
+        "accepted": true
       }
     }
   ]

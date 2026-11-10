@@ -7,7 +7,7 @@ const f = q.fuze;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
-    profile: enum { query, table_query, historical_selector, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, log_claim, log_settlement, log_offset, mutation, application, relational, authorization, settings, transaction, managed, source } = .query,
+    profile: enum { query, table_query, historical_selector, template, declaration, table_ddl, log_ddl, log_inspection, log_append, log_consume, log_claim, log_settlement, log_offset, kv_workload, mutation, application, relational, authorization, settings, transaction, managed, source } = .query,
     value_type: f.Unified.Type = .int64,
     source: []const u8 = "items",
     basis: []const u8 = "CREATE TABLE items (id INT64 PRIMARY KEY, value INT64)",
@@ -19,6 +19,23 @@ fn compile(allocator: std.mem.Allocator, case: Case, binding: *f.Sql.Binding, lo
     };
     const source: f.Unified.Sql.Source = .{ .name = try f.Unified.Name.init(case.source), .schema = .{ .columns = &columns } };
     switch (case.profile) {
+        .kv_workload => {
+            const target = (try f.KVWorkloadSql.target(allocator, case.sql, .transit, location)) orelse return error.UnsupportedStatement;
+            defer target.deinit(allocator);
+            const spec: f.KVDdl.Spec = .{ .value_type = .int64, .nullable = true };
+            if (target.kind == .get) {
+                var value = try f.KVWorkloadSql.PreparedGet.init(allocator, case.sql, spec, .transit, location);
+                defer value.deinit();
+                if (value.parameterTypes().len == 0) allocator.free(try value.bind(allocator, &.{}));
+            } else {
+                var value = try f.KVWorkloadSql.PreparedWrite.init(allocator, case.sql, spec, .transit, location);
+                defer value.deinit();
+                if (value.parameterTypes().len == 0) {
+                    var bound = try value.bind(allocator, &.{});
+                    defer bound.deinit();
+                }
+            }
+        },
         .source => {
             var value = (try @import("transit_sql_service").database.SourceSql.parse(allocator, case.sql, .transit)) orelse return error.UnsupportedStatement;
             defer value.deinit();

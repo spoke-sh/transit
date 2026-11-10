@@ -49,6 +49,7 @@
       "test::state"
     ],
     "storage-query": [
+      "test::application-compiler",
       "test::arrow",
       "test::fuze-types",
       "test::spatial",
@@ -96,6 +97,7 @@
       "test::server-direct-tables",
       "test::managed-tables",
       "test::migrate-lifecycle",
+      "test::application-build",
       "test::source-declarations",
       "test::server-direct-faults",
       "test::server-sql-lifetimes",

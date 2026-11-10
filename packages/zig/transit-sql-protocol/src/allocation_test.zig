@@ -68,6 +68,9 @@ test "warmed binary codec preserves every logical kind and state across changing
                 .{ .lower = .{ .value = .{ .signed = 197 }, .inclusive = true } },
             } },
             .vector => .{ .vector = &vector_bytes },
+            // The native codec preserves opaque, non-authorizing handles;
+            // public disclosure is checked by the typed statement owner.
+            .capability => .{ .atom = .{ .capability = &@as([32]u8, @splat(0xa7)) } },
         };
     }
     var alternatives: [tags.len][2]r.Types.Values.Alternative = undefined;

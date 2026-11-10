@@ -3,6 +3,7 @@ const std = @import("std");
 const Self = @This();
 command: []const u8 = "transit",
 emitted: bool = false,
+machine: bool = false,
 style: @import("Style.zig") = .{},
 envelope: ?@import("transit_query").protocol.Diagnostic = null,
 input: ?@import("InputPosition.zig") = null,

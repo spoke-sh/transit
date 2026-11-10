@@ -5,7 +5,7 @@ const build_version = @import("build_version");
 pub fn main(init: std.process.Init) !void {
     var diagnostic: Diagnostic = .{};
     dispatch(init, &diagnostic) catch |err| {
-        diagnostic.emit(init.io, err);
+        if (diagnostic.machine) @import("Build.zig").emitFailure(init.io, &diagnostic, err) catch {} else diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,
             error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge, error.MigrationTargetMismatch => 2,
@@ -34,6 +34,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         .console => @import("Console.zig").run(init, options, diagnostic),
         .server => @import("server/Server.zig").run(init, options, diagnostic),
         .migrate => @import("Migrate.zig").run(init, options, diagnostic),
+        .build => @import("Build.zig").run(init, options.build, diagnostic),
         .help => unreachable,
     };
 }

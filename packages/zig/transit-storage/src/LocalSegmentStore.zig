@@ -82,14 +82,16 @@ pub const LocalSegmentStore = struct {
     }
 
     pub fn putImmutableBatch(self: *LocalSegmentStore, batch: []const TransitObjectStore.ImmutablePut, output: []TransitObjectStore.ObjectMeta) !void {
-        try TransitObjectStore.validateBatch(batch, output);
         if (self.disk) |disk| {
+            // DiskObjects validates the complete batch before its first I/O.
+            // Keep that owner check without hashing the same bytes here too.
             try disk.putImmutableBatch(batch, output);
             self.counters_mutex.lockUncancelable(disk.io);
             defer self.counters_mutex.unlock(disk.io);
             self.puts += batch.len;
             for (batch) |item| self.bytes_written += item.bytes.len;
         } else {
+            try TransitObjectStore.validateBatch(batch, output);
             var completed: [TransitObjectStore.max_put_batch]TransitObjectStore.ObjectMeta = undefined;
             for (batch, completed[0..batch.len]) |item, *meta| meta.* = try self.putImmutableObject(item.key, item.bytes, item.sha256);
             @memcpy(output, completed[0..batch.len]);

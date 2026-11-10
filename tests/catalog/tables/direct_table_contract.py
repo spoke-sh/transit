@@ -676,7 +676,7 @@ binding = {
     "expected_definition": {"object": target, "revision": 2, "digest": [3] * 32},
     "expected_data": {"partition": 9, "next_lsn": 10}, "intent": list(intent_digest), "prerequisite": None,
 }
-saved = {"definition": definition, "connection": request_input["connection"], "work": {"ddl": {"binding": binding, "namespace": 1, "name": "events", "action": {"drop": {}}}}}
+saved = {"definition": definition, "connection": request_input["connection"], "work": {"ddl": {"native_binding": None, "binding": binding, "namespace": 1, "name": "events", "action": {"drop": {}}}}}
 saved_validator = jsonschema.Draft202012Validator({**schema, "$ref": "#/$defs/SavedIntent"})
 saved_validator.validate(saved)
 for field in ("definition", "connection", "work"):

@@ -111,6 +111,11 @@ test "direct saved work rejects incompatible missing noncanonical and truncated 
     var recovered = try I.restore(t.allocator, saved.bytes);
     defer recovered.deinit();
     try t.expectEqualDeep(saved.binding(), recovered.binding());
+    // A parse-time default cannot make an older saved envelope canonical.
+    const field = "\"native_binding\":null,";
+    const offset = I.prefix_bytes + std.mem.indexOf(u8, saved.bytes[I.prefix_bytes..], field).?;
+    const missing_binding = try std.mem.concat(alloc, u8, &.{ saved.bytes[0..offset], saved.bytes[offset + field.len ..] });
+    try t.expectError(error.InvalidTableIntent, I.restore(t.allocator, missing_binding));
 }
 
 test "private staged work checks complete content and operation binding without admission" {

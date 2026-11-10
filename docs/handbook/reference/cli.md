@@ -44,16 +44,42 @@ that variable. `--format` overrides rc presentation settings. Connection files
 use YAML by default, with explicit JSON compatibility; credentials and identities
 are never merged between them. The rc files remain DuckDB-style dot-command scripts.
 
-## Planned build and test commands
+## Application source builds
 
-The proposed `transit build` and `transit test` commands read `build.transit`,
-written in the same higher-order SQL dialect as imported `.transit` modules.
-They compose workspace and pinned repository dependencies and compile executable
-`.sql`; testing exercises that output with explicit isolated runner controls.
-These commands are not part of the installed CLI described above. See the
-[planned source language and build model](applications.md#planned-source-language-and-build-model)
-for recursive composition and the separation between compilation, statement
-execution and migration application.
+`transit build [-f FILE] [--target NAME]` reads `build.transit` by default and
+selects target `default`. It compiles new Table definitions, bounded literal
+mutations and finite single-Table reads without opening a Transit connection.
+The entry file's directory is the package root. Relative imports stay below that
+root; source files use the same module language as the build entry.
+
+| Option | Behavior |
+| --- | --- |
+| `--check` | Run compilation and emitted-SQL equivalence checks without publishing |
+| `--fetch` | Explicitly fetch pinned Git dependencies and write `transit.lock`; no compilation or SQL execution |
+| `--override NAME=DIRECTORY` | Use explicit local source for one declared dependency, recorded in provenance |
+| `--out DIRECTORY` | Publish to an absent directory instead of `.transit/build/TARGET/INPUT-DIGEST/` |
+| `--format text\|json` | Human status on stderr or one machine result/diagnostic on stdout |
+
+`--fetch` cannot combine with `--check`, `--out` or `--override`; `--check` cannot
+combine with `--out`. Builds never fetch implicitly or read `.transitrc`.
+Normal builds verify locked source content. Supported repository transports are
+HTTPS and explicitly selected local Git repositories; hooks, package scripts and
+submodules are not executed. Repository URLs must contain no credentials.
+
+Successful output contains `application.sql` and `provenance.json`, published by
+one directory rename after validation. Existing explicit output directories
+reject. A matching default artifact is verified against a fresh compilation;
+changed bytes reject. Failed or interrupted publication cannot create a partial
+complete directory. SQL execution needs no source or provenance files and still
+checks current caller rights. Build output is not an installation receipt.
+
+The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 files,
+64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations
+and 8 MiB emitted SQL. The ordinary SQL owner retains its 4,096-byte statement
+limit. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
+additional tooling limits and syntax. `transit test`, migration synthesis and the
+broader [source model](applications.md#planned-source-language-and-build-model)
+remain planned.
 
 ## Application SQL migrations
 

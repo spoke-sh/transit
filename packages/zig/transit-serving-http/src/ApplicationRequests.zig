@@ -214,8 +214,10 @@ pub const Borrow = struct {
     }
     pub fn deinit(self: *Borrow) void {
         const registry = self.registry;
-        registry.mutex.lockUncancelable(self.io);
-        defer registry.mutex.unlock(self.io);
+        // The deferred unlock outlives this borrow's invalidation.
+        const io = self.io;
+        registry.mutex.lockUncancelable(io);
+        defer registry.mutex.unlock(io);
         const slot = registry.find(self.ticket) orelse unreachable;
         std.debug.assert(slot.borrowed and slot.sequence == self.sequence);
         // No scope/allocator borrowed from this evaluation remains callable.
@@ -223,7 +225,7 @@ pub const Borrow = struct {
         std.crypto.secureZero(u8, slot.private_memory);
         slot.borrowed = false;
         if (slot.state == .closing or registry.stopped) slot.wipe();
-        registry.changed.broadcast(self.io);
+        registry.changed.broadcast(io);
         self.* = undefined;
     }
 };

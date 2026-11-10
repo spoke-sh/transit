@@ -9,6 +9,11 @@ direct catalog without reading `.transitrc` startup files. Table and finite
 dataflow declarations share SQL operation owners and retain original identities
 for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
+`transit build` compiles typed application modules offline into executable SQL
+and provenance. Explicit `--fetch` prepares pinned dependencies; normal builds
+verify frozen content without network access. See the
+[application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
+
 The `transit` executable contains the node, query host, SQL gateway and Board,
 including its frontend assets. The local server starts these roles as separate
 processes from the same executable. Board runs by default, with `--no-ui` for

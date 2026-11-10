@@ -109,12 +109,13 @@ def update_ledger_version(root, ports, version_id, mutator):
     ))), 84)
 
 
-def disable_sql_credential(root, ports):
+def disable_sql_credential(root, ports, installation=None):
     """Revoke the isolated fixture's caller through its public policy owner."""
-    profile = json.loads((root / '.transit/sql/authorization.yaml').read_text())
+    installation = installation or root / '.transit'
+    profile = json.loads((installation / 'sql/authorization.yaml').read_text())
     connection = profile['connection']
     administrator = ExistingKey(root, Path(profile['seed_file']))
-    gateway = json.loads((root / '.transit/sql/gateway.json').read_text())
+    gateway = json.loads((installation / 'sql/gateway.json').read_text())
     account = gateway['accounts'][0]
     caller = ExistingKey(root, Path(account['keys']['table']))
     principal = account['execution']['table_principal']

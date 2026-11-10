@@ -14,13 +14,38 @@ for successive complete results. The physical mechanisms below preserve those
 semantics. Typed maintained owners require explicit host activation and wakeups;
 they do not establish an automatic SQL materialized-view service.
 
+## Bounded application source compilation
+
+[transit-compiler](../../../packages/zig/transit-compiler/README.md) accepts
+resolved immutable source buffers and compiler/resolution identity. It parses
+source with Fuze's shared file framer, resolves public imports and interfaces,
+and evaluates the selected target under explicit limits. A proposed catalog
+stages new schemas in composition order; it has no durable object allocation,
+live grants or execution authority.
+
+Each expanded Table statement uses `TableDdl`, `TableDml` or `LogicalPrepared`.
+The emitter quotes typed operands, preserves SQL literal bytes and normalizes
+spacing/unquoted words. A second proposed catalog reparses only emitted SQL and
+compares ordered schema/plan fingerprints. Its synthetic schema ordinals are
+comparison inputs, not allocated runtime identities. Statement scratch resets
+between preparations; retained schemas/output and scratch backing allocations
+share one compiler memory budget.
+
+The CLI owns bounded file capture, explicit Git fetch, locks and atomic output
+publication. It includes the executable digest as well as the build revision in
+artifact identity. Reusing a default output still recompiles and compares the
+complete artifact bytes; a cache entry cannot establish correctness or authority.
+See the [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) for the
+implemented Table subset. The analysis below describes the larger planned model.
+
 ## Planned source-to-SQL compilation
 
 The design question is how recursive source composition can preserve the meaning
 of data definitions, queries and durable operations when its output is executed
 without the source compiler. This section analyzes the
 [proposed `.transit` language](../reference/applications.md#planned-source-language-and-build-model);
-it records no implementation or executed equivalence proof. The existing
+its broader capability, migration and test requirements extend beyond the
+implemented Table compiler above. The existing
 [SQL compiler boundary](../../../contracts/sql/README.md),
 [migration contract](../../../contracts/MIGRATION_V1.md) and
 [definition identities](../reference/data-model.md#describe-definitions-data-and-dependencies-separately)
