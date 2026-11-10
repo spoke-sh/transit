@@ -164,6 +164,7 @@ fn resolve(self: *Self, file: usize, name: s.Name, bindings: []const Binding) !G
     return ref;
 }
 fn signature(self: *Self, expected: Graph.Ref, actual: Graph.Ref, depth: usize) anyerror!void {
+    try self.tick();
     if (depth >= self.limits.depth) return error.SourceDepthLimit;
     const want = self.graph.getDefinition(expected);
     const got = self.graph.getDefinition(actual);

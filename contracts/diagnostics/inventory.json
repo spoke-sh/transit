@@ -12682,7 +12682,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 16
       },
       "imports": [

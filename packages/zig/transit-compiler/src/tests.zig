@@ -137,3 +137,21 @@ test "type operands cannot become object or column identifiers" {
     try std.testing.expectError(error.InvalidSourceTypeOperand, one("CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE items ($t BIGINT); END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;", .{ .compiler_revision = "test" }));
     try std.testing.expectError(error.InvalidSourceTypeOperand, one("CREATE MODULE M(t TYPE) AS BEGIN CREATE PUBLIC TABLE items (bigint BIGINT); SELECT $t FROM items; END; CREATE TARGET default AS BEGIN USE M(TYPE BIGINT); END;", .{ .compiler_revision = "test" }));
 }
+
+test "shared higher order interface graphs consume the evaluation work budget" {
+    const graph =
+        "CREATE INTERFACE I0();" ++
+        "CREATE INTERFACE I1(a MODULE I0, b MODULE I0);" ++
+        "CREATE INTERFACE I2(a MODULE I1, b MODULE I1);" ++
+        "CREATE INTERFACE I3(a MODULE I2, b MODULE I2);" ++
+        "CREATE INTERFACE I4(a MODULE I3, b MODULE I3);" ++
+        "CREATE INTERFACE I5(a MODULE I4, b MODULE I4);" ++
+        "CREATE MODULE M(a MODULE I4, b MODULE I4) AS BEGIN END;" ++
+        "CREATE MODULE Apply(m MODULE I5) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END;" ++
+        "CREATE TARGET default AS BEGIN USE Apply(M); END;";
+    const product = try one(graph, .{ .compiler_revision = "test" });
+    defer product.deinit();
+    try std.testing.expectEqual(1, product.steps.len);
+    try std.testing.expect(product.work > 16);
+    try refuses(error.BuildWorkLimit, &.{.{ .path = "build.transit", .text = graph }}, .{ .compiler_revision = "test", .limits = .{ .work = 16 } });
+}
