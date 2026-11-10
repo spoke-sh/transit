@@ -1,6 +1,6 @@
 # 12. Recursive `.transit` modules, SQL compilation, builds and testing
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a higher-order Transit SQL dialect stored as `.transit`.
@@ -11,7 +11,11 @@ statements or synthesize immutable migration SQL against an explicit prior state
 Reuse typed modules, profiles, functions, guards and procedures, and exercise the
 same generated SQL through deterministic local unit and fault-injection tests.
 
-All source forms, build/test commands and examples below are proposed. The
+The bounded recursive Table compiler and `transit build` landed in
+[PR #437](https://github.com/spoke-sh/transit/pull/437); the
+[current source contract](../../contracts/APPLICATION_SOURCE_V1.md) defines that
+implemented subset. The broader source forms, test command and examples below
+remain proposed except where explicitly identified as delivered. The
 [public language model](../handbook/reference/applications.md#planned-source-language-and-build-model)
 owns the concepts; the [compiler analysis](../handbook/internals/query-engine.md#planned-source-to-sql-compilation)
 owns the equivalence argument and its limits. The existing `transit-app` tool
@@ -36,6 +40,12 @@ Extend the [shared data lifecycle](01-declarative-data-lifecycle.md),
 [source contract](../../contracts/SOURCE_V1.md).
 
 ## Problem statement and empirical baseline
+
+This gap assessment records the pre-compiler Platform baseline. Shared block
+framing, migration file validation and bounded Table builds have since advanced;
+the [first implementation plan](application-build-implementation.md) and
+[next-slice source audit](application-test-implementation.md#source-basis-and-existing-owners)
+distinguish delivered scope from the remaining work described here.
 
 As declarative SQL in Transit expands beyond passive `CREATE TABLE` DDL to
 encompass versioned documents, queues, streams, transactional command handlers
@@ -343,7 +353,7 @@ executable SQL:
 
 ## Delivery sequence and implementation plan (`P0`–`P6`)
 
-The [next-slice implementation plan](application-build-implementation.md)
+The [first-slice implementation plan](application-build-implementation.md)
 reconciles this sequence with the merged application foundation and scopes
 the first recursive module build through independently executable SQL. The
 bounded Table compiler is implemented in `transit-compiler` and exposed through
@@ -352,6 +362,13 @@ keeps unsupported runtime capabilities explicit. Qualification and remaining wor
 are tracked by the implementation plan. It scopes
 the initial runtime subset, package/compiler owners, logical commits and caller
 proofs; the broader P0–P6 completion criteria below remain required.
+
+The proposed [next slice is the Table test runner](application-test-implementation.md):
+explicit test targets, production SQL emission and isolated execution through real
+local database owners. This is a bounded part of P5. Subject/clock controls,
+effect simulation and workflow replay remain subsequent work. The merged build
+PR's validation and its recorded latency failure retain their original scope;
+neither that merge nor this plan completes the milestone.
 
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
