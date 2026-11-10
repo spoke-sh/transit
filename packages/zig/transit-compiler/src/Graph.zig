@@ -13,6 +13,7 @@ pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offs
     if (sources.len == 0 or sources.len > 256) return error.SourceFileLimit;
     const files = try a.alloc(s.File, sources.len);
     var bytes: usize = 0;
+    var dependency_count: usize = 0;
     for (sources, 0..) |source, i| {
         file_at.* = i;
         offset.* = 0;
@@ -22,6 +23,8 @@ pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offs
         if (bytes > 16 * 1024 * 1024) return error.SourceBytesLimit;
         for (sources[0..i]) |prior| if (std.mem.eql(u8, prior.package, source.package) and std.mem.eql(u8, prior.path, source.path)) return error.DuplicateSourceFile;
         files[i] = try s.parse(a, source.text, offset);
+        dependency_count += files[i].dependencies.len;
+        if (dependency_count > 256) return error.SourceDependencyLimit;
         for (files[i].definitions, 0..) |definition, j| {
             offset.* = definition.span.start;
             for (files[i].definitions[0..j]) |prior| if (std.mem.eql(u8, definition.name, prior.name)) return error.DuplicateSourceName;
@@ -37,12 +40,23 @@ pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offs
             for (files[i].dependencies[0..j]) |prior| if (std.mem.eql(u8, dependency.name, prior.name)) return error.DuplicateDependency;
         }
     }
+    for (files, 0..) |file, i| for (file.dependencies) |dependency| {
+        for (files[0..i]) |prior_file| for (prior_file.dependencies) |prior| {
+            if (std.mem.eql(u8, prior.name, dependency.name) and
+                (!std.mem.eql(u8, prior.repository, dependency.repository) or
+                    !std.mem.eql(u8, prior.revision, dependency.revision) or
+                    !std.mem.eql(u8, prior.subdirectory, dependency.subdirectory))) return error.ConflictingDependency;
+        };
+    };
     var self: Self = .{ .a = a, .sources = sources, .files = files, .max_depth = max_depth };
     const visited = try a.alloc(u8, sources.len);
     const heights = try a.alloc(usize, sources.len);
     @memset(heights, 0);
     @memset(visited, 0);
     for (sources, 0..) |_, i| _ = try self.visit(i, visited, heights, 0, file_at, offset);
+    @memset(visited, 0);
+    @memset(heights, 0);
+    for (sources, 0..) |_, i| _ = try self.visitPackage(i, visited, heights, 0, file_at, offset);
     return self;
 }
 pub fn validPackage(name: []const u8) !void {
@@ -56,6 +70,10 @@ pub fn validPath(path: []const u8) !void {
 }
 pub fn validateDependency(value: s.Dependency) !void {
     if (value.repository.len == 0 or value.repository.len > 2048 or value.repository[0] == '-' or std.mem.indexOfAny(u8, value.repository, "\x00\r\n") != null) return error.InvalidRepository;
+    if (std.mem.startsWith(u8, value.repository, "https://") or std.mem.startsWith(u8, value.repository, "file://")) {
+        const uri = std.Uri.parse(value.repository) catch return error.InvalidRepository;
+        if (uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return error.RepositoryCredentialsForbidden;
+    } else if (!std.fs.path.isAbsolute(value.repository)) return error.UnsupportedRepositoryTransport;
     if (value.revision.len != 40) return error.InvalidRepositoryRevision;
     for (value.revision) |b| if (!std.ascii.isHex(b)) return error.InvalidRepositoryRevision;
     if (value.subdirectory.len > 0) try validPath(value.subdirectory);
@@ -96,6 +114,36 @@ fn visit(self: *Self, file: usize, visited: []u8, heights: []usize, depth: usize
     }
     visited[file] = 2;
     heights[file] = height;
+    return height;
+}
+fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize) anyerror!usize {
+    const package = self.sources[representative].package;
+    const index = for (self.sources, 0..) |source, i| {
+        if (std.mem.eql(u8, source.package, package)) break i;
+    } else unreachable;
+    file_at.* = index;
+    if (visited[index] == 1) return error.SourceDependencyCycle;
+    if (visited[index] == 2) {
+        if (depth + heights[index] > self.max_depth) return error.SourceDepthLimit;
+        return heights[index];
+    }
+    if (depth >= self.max_depth) return error.SourceDepthLimit;
+    visited[index] = 1;
+    var height: usize = 1;
+    for (self.sources, 0..) |source, i| {
+        if (!std.mem.eql(u8, source.package, package)) continue;
+        for (self.files[i].dependencies) |dependency| {
+            file_at.* = i;
+            offset.* = dependency.span.start;
+            if (std.mem.eql(u8, dependency.name, "root")) return error.ReservedPackageName;
+            const next = for (self.sources, 0..) |candidate, j| {
+                if (std.mem.eql(u8, candidate.package, dependency.name)) break j;
+            } else return error.MissingSource;
+            height = @max(height, 1 + try self.visitPackage(next, visited, heights, depth + 1, file_at, offset));
+        }
+    }
+    visited[index] = 2;
+    heights[index] = height;
     return height;
 }
 pub fn resolve(self: Self, file: usize, name: s.Name) !Ref {

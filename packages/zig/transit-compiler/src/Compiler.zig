@@ -9,7 +9,7 @@ const Catalog = @import("WorkingCatalog.zig");
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
 pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
-pub const Step = struct { sql: []const u8, plan_digest: [32]u8, definition: p.Diagnostic.Location, call: ?p.Diagnostic.Location, instance: []const u8 };
+pub const Step = struct { sql: []const u8, plan_digest: [32]u8, definition: p.Diagnostic.Location, call: ?p.Diagnostic.Location, instance: []const u8, bindings_digest: [32]u8 };
 pub const Product = struct {
     budget: memory.Budget,
     arena: std.heap.ArenaAllocator,
@@ -42,13 +42,16 @@ instance: []const u8 = "target",
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
     diagnostic.* = null;
-    const result = try parent.create(Product);
+    const result = parent.create(Product) catch |err| {
+        diagnostic.* = project(err, if (sources.len > 0) location(sources[0], 0) else null, null, null);
+        return err;
+    };
     result.* = .{ .budget = .{ .parent = parent, .limit = options.limits.memory_bytes }, .arena = undefined };
     result.arena = .init(result.budget.allocator());
     errdefer result.deinit();
     return compileInner(result, sources, options, diagnostic) catch |err| {
         const cause = if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err;
-        if (diagnostic.* == null) diagnostic.* = project(cause, null, null, null);
+        if (diagnostic.* == null) diagnostic.* = project(cause, if (sources.len > 0) location(sources[0], 0) else null, null, null);
         return cause;
     };
 }
@@ -282,7 +285,28 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
     var at: f.Sql.Location = .{};
     const digest = try self.catalog.check(raw, &at);
     self.output_bytes += canonical.len + 2;
-    try self.steps.append(self.a, .{ .sql = try self.a.dupe(u8, canonical), .plan_digest = digest, .definition = location(self.graph.sources[file], span.start), .call = self.call_site, .instance = try self.a.dupe(u8, self.instance) });
+    var binding_hash = std.crypto.hash.sha2.Sha256.init(.{});
+    binding_hash.update("transit.source.bindings.v1\x00");
+    for (bindings) |binding| {
+        Graph.hashPart(&binding_hash, binding.name);
+        Graph.hashPart(&binding_hash, @tagName(binding.value));
+        switch (binding.value) {
+            .module => |ref| {
+                Graph.hashPart(&binding_hash, self.graph.sources[ref.file].package);
+                Graph.hashPart(&binding_hash, self.graph.sources[ref.file].path);
+                Graph.hashPart(&binding_hash, self.graph.getDefinition(ref).name);
+            },
+            .text, .identifier => |value| Graph.hashPart(&binding_hash, value),
+            .type => |value| Graph.hashPart(&binding_hash, @tagName(value)),
+            .boolean => |value| binding_hash.update(&.{@intFromBool(value)}),
+            .integer => |value| {
+                var bytes: [8]u8 = undefined;
+                std.mem.writeInt(i64, &bytes, value, .little);
+                binding_hash.update(&bytes);
+            },
+        }
+    }
+    try self.steps.append(self.a, .{ .sql = try self.a.dupe(u8, canonical), .plan_digest = digest, .definition = location(self.graph.sources[file], span.start), .call = self.call_site, .instance = try self.a.dupe(u8, self.instance), .bindings_digest = binding_hash.finalResult() });
 }
 fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;

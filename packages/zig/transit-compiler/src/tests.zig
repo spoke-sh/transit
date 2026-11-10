@@ -109,3 +109,25 @@ fn allocationFailure(a: std.mem.Allocator) !void {
 test "every compiler allocation failure cleans up" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationFailure, .{});
 }
+
+test "minimum signed operand and source hygiene" {
+    const product = try one("CREATE MODULE Helper(name IDENTIFIER, x BIGINT) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); INSERT INTO $name VALUES ($x); END; CREATE MODULE Outer(name IDENTIFIER) AS BEGIN USE Helper(name, -9223372036854775808); END; CREATE TARGET default AS BEGIN USE Outer(NAME 'items'); END;", .{ .compiler_revision = "test" });
+    defer product.deinit();
+    try std.testing.expect(std.mem.indexOf(u8, product.sql, "-9223372036854775808") != null);
+    try std.testing.expect(product.budget.peak <= product.budget.limit);
+}
+test "source package content identity is ordered and byte sensitive" {
+    const before = try c.Graph.treeDigest(&sources, "root", std.testing.allocator);
+    const reordered = [_]c.Source{ sources[1], sources[0] };
+    try std.testing.expectEqual(before, try c.Graph.treeDigest(&reordered, "root", std.testing.allocator));
+    const changed = [_]c.Source{ sources[0], .{ .path = sources[1].path, .text = rows ++ "\n" } };
+    try std.testing.expect(!std.mem.eql(u8, &before, &try c.Graph.treeDigest(&changed, "root", std.testing.allocator)));
+}
+
+test "dependency closure cycles and conflicting global pins reject" {
+    const pinned = "DEPENDENCY a FROM '/repository-a' REVISION '1111111111111111111111111111111111111111';";
+    const nested = "DEPENDENCY b FROM '/repository-b' REVISION '2222222222222222222222222222222222222222';";
+    try refuses(error.SourceDependencyCycle, &.{ .{ .path = "build.transit", .text = pinned }, .{ .package = "a", .path = "build.transit", .text = nested }, .{ .package = "b", .path = "build.transit", .text = pinned } }, .{ .compiler_revision = "test" });
+    try refuses(error.ConflictingDependency, &.{ .{ .path = "build.transit", .text = pinned }, .{ .path = "other.transit", .text = "DEPENDENCY a FROM '/other-repository' REVISION '1111111111111111111111111111111111111111';" } }, .{ .compiler_revision = "test" });
+    try refuses(error.RepositoryCredentialsForbidden, &.{.{ .path = "build.transit", .text = "DEPENDENCY a FROM 'https://user:secret@example.invalid/repository' REVISION '1111111111111111111111111111111111111111';" }}, .{ .compiler_revision = "test" });
+}

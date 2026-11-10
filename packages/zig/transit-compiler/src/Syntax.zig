@@ -208,7 +208,16 @@ fn expression(self: *Self, minimum: u8) anyerror!*Expr {
     defer self.depth -= 1;
     if (self.depth > 64) return error.SourceDepthLimit;
     const start = self.at();
-    const value: @FieldType(Expr, "value") = if (self.take("-")) .{ .unary = .{ .negative = true, .operand = try self.expression(6) } } else if (self.take("NOT")) .{ .unary = .{ .negative = false, .operand = try self.expression(6) } } else if (self.take("(")) blk: {
+    const value: @FieldType(Expr, "value") = if (self.take("-")) blk: {
+        if (self.index < self.tokens.len and self.tokens[self.index].kind == .number) {
+            const token = self.tokens[self.index];
+            const magnitude = try std.fmt.parseInt(u64, self.text[token.start..token.end], 10);
+            if (magnitude > @as(u64, std.math.maxInt(i64)) + 1) return error.Overflow;
+            self.index += 1;
+            break :blk .{ .integer = if (magnitude == @as(u64, std.math.maxInt(i64)) + 1) std.math.minInt(i64) else -@as(i64, @intCast(magnitude)) };
+        }
+        break :blk .{ .unary = .{ .negative = true, .operand = try self.expression(6) } };
+    } else if (self.take("NOT")) .{ .unary = .{ .negative = false, .operand = try self.expression(6) } } else if (self.take("(")) blk: {
         const inner = try self.expression(0);
         try self.require(")");
         break :blk inner.value;
