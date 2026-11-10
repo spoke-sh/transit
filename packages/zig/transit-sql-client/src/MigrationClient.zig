@@ -30,14 +30,20 @@ pub fn loadSourceFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8
     if (path.len == 0 or path.len > Migration.max_path_bytes) return error.InvalidMigrationVersion;
     const basename = std.fs.path.basename(path);
     const parsed = try parseFilename(basename);
-    const sql = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(api.max_sql_bytes));
+    // The reader needs one byte beyond the inclusive source limit to prove EOF.
+    const sql = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(api.max_sql_bytes + 1));
+    errdefer allocator.free(sql);
     if (sql.len == 0) return error.EmptyMigrationSource;
-    try api.fuze.Sql.validateText(sql);
+    _ = try api.fuze.SqlInput.SourceScan.init(sql);
     var sha: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(sql, &sha, .{});
+    const version_id = try allocator.dupe(u8, parsed.version_id);
+    errdefer allocator.free(version_id);
+    const name = try allocator.dupe(u8, parsed.name);
+    errdefer allocator.free(name);
     return .{
-        .version_id = try allocator.dupe(u8, parsed.version_id),
-        .name = try allocator.dupe(u8, parsed.name),
+        .version_id = version_id,
+        .name = name,
         .path = try allocator.dupe(u8, path),
         .sql = sql,
         .sha256 = sha,
@@ -130,4 +136,38 @@ test "parseFilename splits version_id and descriptive name" {
 
     try t.expectError(error.InvalidMigrationFilename, parseFilename("0001-init.txt"));
     try t.expectError(error.InvalidMigrationVersion, parseFilename("-init.sql"));
+}
+
+test "migration file loading keeps the source budget separate from statement admission" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    const path = try std.fs.path.join(t.allocator, &.{ ".zig-cache", "tmp", &temporary.sub_path, "0001-source.sql" });
+    defer t.allocator.free(path);
+    var bytes: [api.max_sql_bytes + 1]u8 = @splat(' ');
+    @memcpy(bytes[60000..60009], "SELECT 1;");
+    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = bytes[0..api.max_sql_bytes] });
+    const Check = struct {
+        fn run(allocator: std.mem.Allocator, source_path: []const u8) !void {
+            const source = try loadSourceFile(allocator, t.io, source_path);
+            defer allocator.free(source.version_id);
+            defer allocator.free(source.name);
+            defer allocator.free(source.path);
+            defer allocator.free(source.sql);
+            try source.validate();
+            try t.expectEqual(api.max_sql_bytes, source.sql.len);
+            try t.expectError(error.StatementTooLarge, api.fuze.Sql.validateText(source.sql));
+            var script = try api.fuze.SqlScript.init(source.sql);
+            const statement = (try script.next()).?;
+            try t.expectEqualStrings("SELECT 1", source.sql[statement.start..statement.end]);
+            try t.expectEqual(null, try script.next());
+        }
+    };
+    try t.checkAllAllocationFailures(t.allocator, Check.run, .{path});
+    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = &bytes });
+    try t.expectError(error.StreamTooLong, loadSourceFile(t.allocator, t.io, path));
+    for ([_][]const u8{ "SELECT\x001;", "SELECT\xff1;" }) |invalid| {
+        try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = invalid });
+        try t.expectError(error.InvalidSqlEncoding, loadSourceFile(t.allocator, t.io, path));
+    }
 }
