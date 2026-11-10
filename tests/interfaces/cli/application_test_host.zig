@@ -202,7 +202,10 @@ pub fn main(init: std.process.Init) !void {
         const outcome = if (index == faults.len + 2) host.runActionWithStorage(process, directory, path, g.wire.Deadline.init(init.io, 30000, null), action, .{ .bytes = 1, .control_bytes = 1024 * 1024 }) else host.runAction(process, directory, path, g.wire.Deadline.init(init.io, 30000, null), action);
         directory.close(init.io);
         try host.delete(init.io, temporary, name);
-        const expected: ?anyerror = if (index == faults.len + 2) error.StorageQuota else if (index == faults.len + 1) error.OutOfMemory else if (index == faults.len) error.TestReadCleanupFailed else if (faults[index].mode == .memory) error.TestMemoryLimit else null;
+        // Native bootstrap reports unavailable authority when the private
+        // provider cannot admit its next control transition. It is not a
+        // statement constraint refusal.
+        const expected: ?anyerror = if (index == faults.len + 2) error.AuthorityUnavailable else if (index == faults.len + 1) error.OutOfMemory else if (index == faults.len) error.TestReadCleanupFailed else if (faults[index].mode == .memory) error.TestMemoryLimit else null;
         if (expected) |failure| {
             if (outcome) |_| return error.ExpectedHostFailure else |err| {
                 if (err != failure) {
