@@ -2,8 +2,8 @@
 
 This contract specifies the first `.transit` compiler profile. Source compilation
 is separate from SQL execution and from the immutable [migration ledger](MIGRATION_V1.md).
-The [implementation plan](../docs/roadmap/application-build-implementation.md)
-defines delivery gates. Until those gates execute, this is an implementation contract.
+The [application reference](../docs/handbook/reference/applications.md#application-source-builds)
+describes its supported authoring and execution workflow.
 
 ## Source language
 
@@ -88,7 +88,9 @@ execution. Current runtime authorization and operation identity checks still app
 Relative imports resolve beneath their package root; absolute paths, `..`, empty
 components, symlinks and undeclared file kinds reject. A package consists of
 UTF-8 `.transit` files selected from a bounded tree, sorted by relative path.
-Repository dependencies are explicit source declarations:
+Directories named `.git` or `.transit` are excluded. Other regular files are
+ignored; symlinks and special file kinds reject. Repository dependencies are
+explicit source declarations:
 
 ```text
 DEPENDENCY common FROM 'https://example.invalid/team/library.git'
@@ -97,7 +99,8 @@ DEPENDENCY common FROM 'https://example.invalid/team/library.git'
 IMPORT shared FROM PACKAGE common FILE 'build.transit';
 ```
 
-An exact 40-hex Git revision is required. `transit build --fetch` is the only
+An exact 40-hex Git revision is required. HTTPS and explicitly named local Git
+repositories are supported; URLs cannot include userinfo, queries or fragments. `transit build --fetch` is the only
 network-enabled resolution mode. It fetches explicit revisions without hooks,
 submodules, build scripts or working-tree execution, verifies selected source,
 and writes `transit.lock` plus content-addressed package cache entries. A normal
@@ -109,8 +112,11 @@ definition and a sorted dependency list of name, repository, revision,
 subdirectory and source-tree SHA-256. Hash the domain `transit.source.tree.v1\0`
 then each sorted UTF-8 relative path and file content with unsigned 64-bit
 little-endian byte lengths. A cache entry must match the complete tree digest.
-No hostname or revision string substitutes for content verification.
+No hostname or revision string substitutes for content verification. Cache entries
+are `.transit/packages/DIGEST/` directories containing a source tree and a
+format/definition/digest manifest. Package names are global within the graph.
 
+CLI override names use normalized lowercase package names.
 `--override name=directory` explicitly replaces one declared dependency with
 local source. Record its content digest and override status in provenance and
 cache identity; never rewrite a repository lock entry to pretend it was fetched.
@@ -125,6 +131,13 @@ Compiler callers may lower quotas; they cannot use budgets to enable unsupported
 syntax. Bounds cover both conditional branches' syntax; execution work covers
 the evaluated branch. Parser recursion has an independent bounded depth.
 
+Tooling separately bounds owned allocations to 256 MiB, directory entries to
+16,384, dependency declarations to 256 and resolved dependency names to 255.
+Locks are at most 64 KiB; provenance is at most 64 MiB. Each Git command has a
+120-second deadline and bounded captured output. Git transport/object storage
+cost is separate from compiler resident quotas. Fetch requires an installed Git;
+offline build/check requires no Git executable.
+
 Inputs remain immutable for a compile. Retained output is independently owned;
 scratch resets cannot invalidate it. Allocation failure leaves no result. A work,
 depth, memory or output limit produces a located diagnostic and no complete
@@ -132,8 +145,8 @@ artifact. Source files and graph state count against resident budgets separately
 from reusable statement scratch. No statement or atomic unit is split to fit.
 
 The artifact contains executable SQL and a provenance/source-map JSON file.
-Record source/dependency digests, selected target, explicit instance inputs,
-compiler source revision, source-format identity, native contract definition,
+Record source/dependency digests, selected target, explicit instance-input digests,
+compiler source revision and executable digest, source-format identity, native contract definition,
 SQL digest and per-statement definition/call sites. Cache keys include all these
 inputs and the compiler budgets. Paths may change provenance/cache identity but
 cannot change explicitly bound runtime names. Cache bytes are verified and never
@@ -153,7 +166,7 @@ transit build [-f build.transit] [--target default] [--out DIRECTORY]
 ```
 
 `--fetch` prepares dependencies/lock only and cannot combine with `--check` or
-`--out`. `--check` publishes nothing and cannot combine with `--out`. The default
+`--out` or `--override`. `--check` publishes nothing and cannot combine with `--out`. The default
 output is `.transit/build/<target>/<input-digest>/`; explicit output directories
 must be absent. Build and fetch never read `.transitrc` or connect to Transit.
 The build command does not apply migrations or activate application work.

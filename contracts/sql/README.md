@@ -1,5 +1,14 @@
 # SQL grammar and rewrite proofs
 
+Application source roots (`IMPORT`, `DEPENDENCY`, `CREATE MODULE`, `CREATE
+INTERFACE`, `CREATE TARGET`) belong to the separate
+[application source contract](../APPLICATION_SOURCE_V1.md) and `transit-compiler`.
+They are not executable SQL statements or additions to the runtime ANTLR root.
+Their emitted Table SQL uses the existing typed owners described here. The
+shared `SqlScript.Compiler` framer admits 1 MiB source files independently of
+64 KiB migration files and 4,096-byte executable statements.
+
+
 The public [SQL statement reference](../../docs/handbook/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
 the [historical snapshot suffix](../../docs/handbook/reference/sql/as-of.md).

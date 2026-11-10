@@ -1,6 +1,6 @@
 # Application module build implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Planned** · Review proposal
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: In Progress** · Approved first slice
 
 Deliver the first usable source-to-SQL build path: an application composes typed
 modules through `build.transit`, checks the composition offline, and produces
