@@ -24,34 +24,13 @@ pub fn Host(comptime Provider: type) type {
         const Engine = Provider.Engine;
         const Lane = Provider.Lane;
         pub fn serve(init: std.process.Init, engine: *Engine, lanes: []Lane, config: anytype, diagnostics: *telemetry.Runtime) !void {
-            var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent, .request_metrics = config.request_metrics };
+            const context = try Context.create(init, engine, lanes, config, diagnostics);
+            defer context.destroy(init.gpa);
+            return serveContext(init, context, config, diagnostics);
+        }
+        pub fn serveContext(init: std.process.Init, context: *Context, config: anytype, diagnostics: *telemetry.Runtime) !void {
             var listener = try (try std.Io.net.IpAddress.parseIp4(config.listen, config.port)).listen(init.io, .{ .reuse_address = true });
             defer listener.deinit(init.io);
-            const shared_pages = try init.gpa.alloc(?Provider.PageStore.Cached, config.resident_pages);
-            defer init.gpa.free(shared_pages);
-            @memcpy(shared_pages, engine.page_store.cache);
-            var shared_pages_count: usize = 0;
-            for (shared_pages) |*slot| {
-                if (slot.* == null) break;
-                shared_pages_count += 1;
-            }
-            var context: Context = .{
-                .server = &server,
-                .diagnostics = diagnostics,
-                .lanes = lanes,
-                .snapshots = .{ .epoch = engine.snapshot_epoch.? },
-                .position = engine.head.position,
-                .latest_cached = engine.journal.cached,
-                .shared_pages = shared_pages,
-                .shared_pages_count = shared_pages_count,
-                .shared_access = engine.page_store.access,
-                .table_memory = try DirectRequestMemory.init(config.storage.requests),
-            };
-            if (comptime @hasDecl(Provider, "TableHost")) {
-                if (lanes[0].table) |host| if (host.admission) |admission| context.table_memory.attach(admission);
-            }
-            context.local_output_data = .{ .parent = init.gpa, .quota = &context.table_memory.data };
-            context.local_output_control = .{ .parent = init.gpa, .quota = &context.table_memory.control };
             var browser: ?@import("transit_serving_http").BrowserRuntime.Running = null;
             if (comptime @hasField(@TypeOf(config), "browser")) {
                 if (config.browser) |browser_config| browser = try @import("transit_serving_http").BrowserRuntime.Running.open(init, browser_config, context.endpoint());
@@ -66,7 +45,7 @@ pub fn Host(comptime Provider: type) type {
                 if (config.sql_control) |sql_config| try services.concurrent(.sql, @import("transit_sql_host").Deployment.serve, .{ init, sql_config, context.endpoint(), diagnostics });
             }
             if (browser) |*running| try services.concurrent(.browser, @import("transit_serving_http").BrowserRuntime.Running.run, .{running});
-            try services.concurrent(.native, serveNative, .{ init, &listener, config.request_timeout_ms, &context });
+            try services.concurrent(.native, serveNative, .{ init, &listener, config.request_timeout_ms, context });
             return switch (try services.await()) {
                 inline else => |result| result,
             };
@@ -508,6 +487,48 @@ pub fn Host(comptime Provider: type) type {
             table_memory: DirectRequestMemory = .{},
             local_output_data: ?@import("transit_memory").Quota.Allocator = null,
             local_output_control: ?@import("transit_memory").Quota.Allocator = null,
+
+            /// The host owns this stable dispatch context until every borrower joins.
+            /// Creating it opens no listener and changes no authority semantics.
+            pub fn create(init: std.process.Init, engine: *Engine, lanes: []Lane, config: anytype, diagnostics: *telemetry.Runtime) !*Context {
+                const owned_server = try init.gpa.create(Server);
+                errdefer init.gpa.destroy(owned_server);
+                owned_server.* = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent, .request_metrics = config.request_metrics };
+                const shared_pages = try init.gpa.alloc(?Provider.PageStore.Cached, config.resident_pages);
+                errdefer init.gpa.free(shared_pages);
+                @memcpy(shared_pages, engine.page_store.cache);
+                var shared_pages_count: usize = 0;
+                for (shared_pages) |*slot| {
+                    if (slot.* == null) break;
+                    shared_pages_count += 1;
+                }
+                const context = try init.gpa.create(Context);
+                errdefer init.gpa.destroy(context);
+                context.* = .{
+                    .server = owned_server,
+                    .diagnostics = diagnostics,
+                    .lanes = lanes,
+                    .snapshots = .{ .epoch = engine.snapshot_epoch.? },
+                    .position = engine.head.position,
+                    .latest_cached = engine.journal.cached,
+                    .shared_pages = shared_pages,
+                    .shared_pages_count = shared_pages_count,
+                    .shared_access = engine.page_store.access,
+                    .table_memory = try DirectRequestMemory.init(config.storage.requests),
+                };
+                if (comptime @hasDecl(Provider, "TableHost")) {
+                    if (lanes[0].table) |host| if (host.admission) |admission| context.table_memory.attach(admission);
+                }
+                context.local_output_data = .{ .parent = init.gpa, .quota = &context.table_memory.data };
+                context.local_output_control = .{ .parent = init.gpa, .quota = &context.table_memory.control };
+                return context;
+            }
+            pub fn destroy(self: *Context, allocator: std.mem.Allocator) void {
+                for (self.lanes) |lane| std.debug.assert(!lane.busy);
+                allocator.free(self.shared_pages);
+                allocator.destroy(self.server);
+                allocator.destroy(self);
+            }
 
             pub fn endpoint(self: *Context) wire.LocalEndpoint {
                 return .{ .context = self, .invoke = invokeLocal, .changes = &self.database_changes, .response_allocator = responseAllocator };
