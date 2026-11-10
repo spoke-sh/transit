@@ -547,3 +547,15 @@ installation, registry locations and supported platforms.
 `verify_release_registries.py` verifies anonymous downloads of the published
 container images and Helm chart against the same release manifest. The release
 workflow runs it after the installed public-release proof on a fresh runner.
+
+## Application source checks
+
+`just test application-compiler` checks pure module/test compilation and emission.
+`just test application-runner` checks the typed assertion package.
+`just test application-build` qualifies frozen builds and independent installed
+SQL execution. `just test application-test` exercises the real offline Table test
+command, its installed SQL oracle, budgets and process failure schedules.
+`just test application-test-host` exercises the same listener-free host with real
+policy revocation, lost commit replies, corrupted/incomplete reads, allocation,
+quota, deadline and cleanup failures. The latter hooks are qualification code,
+not application source features or workflow replay support.

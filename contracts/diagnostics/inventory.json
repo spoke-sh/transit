@@ -283,7 +283,8 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "parse()": "<inferred>"
+        "parse()": "<inferred>",
+        "parseMode()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -838,7 +839,8 @@
           "console",
           "server",
           "migrate",
-          "build"
+          "build",
+          "@\"test\""
         ]
       },
       "error_sets": {},
@@ -1316,7 +1318,8 @@
         "MigrationOutcomeUnknown": 1,
         "MigrationTargetMismatch": 1,
         "MigrationVerificationFailed": 1,
-        "QueryInputTooLarge": 1
+        "QueryInputTooLarge": 1,
+        "TestSuiteFailed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -1336,6 +1339,8 @@
         "Migrate.zig",
         "Options.zig",
         "RuntimeRole.zig",
+        "Test.zig",
+        "TestHost.zig",
         "build_version",
         "server/Gateway.zig",
         "server/Process.zig",
@@ -12633,7 +12638,10 @@
         "BuildOutputLimit": 1,
         "BuildStatementLimit": 5,
         "BuildWorkLimit": 1,
+        "DuplicateTestCase": 1,
         "EmptyBuildTarget": 1,
+        "EmptyTestCase": 1,
+        "EmptyTestTarget": 1,
         "InvalidBuildBudget": 1,
         "InvalidCompilerIdentity": 1,
         "InvalidInstanceName": 1,
@@ -12643,7 +12651,7 @@
         "MissingBuildEntry": 1,
         "ModuleInterfaceMismatch": 2,
         "ModuleIsNotSqlOperand": 1,
-        "NotBuildTarget": 1,
+        "NestedTestCase": 1,
         "NotModuleConstructor": 2,
         "OutOfMemory": 3,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
@@ -12652,10 +12660,25 @@
         "SourceDepthLimit": 3,
         "SourceFileLimit": 1,
         "SourceTypeMismatch": 8,
+        "TestActionLimit": 1,
+        "TestAssertionOutsideCase": 1,
+        "TestCaseLimit": 1,
+        "TestCommandRequired": 1,
+        "TestInBuildTarget": 1,
+        "TestMutationRequired": 1,
+        "TestResultBytesLimit": 1,
+        "TestRowsLimit": 1,
+        "TestRowsRequired": 1,
+        "TestStatementOutsideCase": 1,
         "UnknownSourceOperand": 1,
-        "WriteFailed": 1
+        "WriteFailed": 1,
+        "WrongSourceTargetKind": 1
       },
       "outcomes": {
+        "Options.mode": [
+          "build",
+          "test_suite"
+        ],
         "Value": [
           "integer",
           "text",
@@ -12667,6 +12690,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "assertion()": "<inferred>",
         "body()": "anyerror",
         "compile()": "<inferred>",
         "compileInner()": "<inferred>",
@@ -12677,18 +12701,21 @@
         "resolve()": "<inferred>",
         "run()": "<inferred>",
         "signature()": "anyerror",
+        "testCase()": "<inferred>",
         "tick()": "<inferred>",
         "validateInterfaces()": "<inferred>",
+        "verify()": "<inferred>",
         "writeValue()": "<inferred>"
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 50,
+        "try": 65,
         "catch": 16
       },
       "imports": [
         "Graph.zig",
         "Syntax.zig",
+        "Test.zig",
         "WorkingCatalog.zig",
         "std",
         "transit_fuze",
@@ -12750,14 +12777,28 @@
         "DuplicateSourceName": 1,
         "InvalidParameterType": 1,
         "InvalidSourceName": 2,
-        "InvalidSourceSyntax": 4,
+        "InvalidSourceSyntax": 5,
+        "InvalidTestCount": 3,
+        "InvalidTestName": 2,
+        "InvalidTestStatement": 1,
         "Overflow": 1,
-        "SourceDepthLimit": 2,
-        "SourceParameterLimit": 2,
+        "SourceDepthLimit": 3,
+        "SourceParameterLimit": 3,
         "UnsupportedSourceDeclaration": 1,
-        "UnsupportedSourceType": 1
+        "UnsupportedSourceType": 1,
+        "UnsupportedTestAssertion": 1,
+        "UnsupportedTestRefusal": 1
       },
       "outcomes": {
+        "Assertion.expected": [
+          "rows",
+          "command",
+          "refusal"
+        ],
+        "Assertion.expected.refusal": [
+          "duplicate_key",
+          "check_violation"
+        ],
         "Binary": [
           "add",
           "subtract",
@@ -12774,7 +12815,8 @@
         "Definition.kind": [
           "module",
           "interface",
-          "target"
+          "target",
+          "test_target"
         ],
         "Expr.value": [
           "integer",
@@ -12802,16 +12844,26 @@
         "Statement.value": [
           "use",
           "conditional",
-          "sql"
+          "sql",
+          "test_case",
+          "assertion"
+        ],
+        "parseBody().kind": [
+          "rows",
+          "command",
+          "refusal"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "count()": "<inferred>",
         "decodeString()": "<inferred>",
         "expression()": "anyerror",
         "identifier()": "<inferred>",
+        "parenthesized()": "<inferred>",
         "parse()": "<inferred>",
         "parseBody()": "anyerror",
+        "parseCall()": "<inferred>",
         "parseName()": "<inferred>",
         "parseParameters()": "<inferred>",
         "require()": "<inferred>",
@@ -12819,8 +12871,8 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 69,
-        "catch": 1
+        "try": 96,
+        "catch": 2
       },
       "imports": [
         "std",
@@ -12840,11 +12892,12 @@
       "error_returns": {
         "check()": "<inferred>",
         "find()": "<inferred>",
+        "querySchema()": "<inferred>",
         "verifyTypeOperands()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 32,
         "catch": 1
       },
       "imports": [
@@ -12865,7 +12918,8 @@
       "imports": [
         "Compiler.zig",
         "Graph.zig",
-        "Syntax.zig"
+        "Syntax.zig",
+        "Test.zig"
       ]
     },
     "packages/zig/transit-compiler/src/tests.zig": {
@@ -12874,12 +12928,13 @@
       "error_sets": {},
       "error_returns": {
         "allocationFailure()": "<inferred>",
+        "allocationTestSuite()": "<inferred>",
         "one()": "<inferred>",
         "refuses()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 4,
+        "try": 6,
         "catch": 0
       },
       "imports": [
@@ -37826,6 +37881,7 @@
         "InvalidStreamResponse": 11,
         "InvalidStreamSliceBounds": 1,
         "LogOffsetBeyondCut": 2,
+        "SqlReadCacheInUse": 1,
         "SqlReadLeaseCapacity": 2,
         "StaleGatewayCoordinator": 1,
         "StreamOffsetTrimmed": 1,
@@ -37850,6 +37906,7 @@
         "acquireStreamSlice()": "<inferred>",
         "bindInitial()": "<inferred>",
         "close()": "<inferred>",
+        "drain()": "<inferred>",
         "init()": "<inferred>",
         "inspect()": "<inferred>",
         "key()": "<inferred>",
@@ -37862,7 +37919,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 66,
+        "try": 68,
         "catch": 2
       },
       "imports": [
@@ -47236,6 +47293,83 @@
         "root.zig",
         "std",
         "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-test/src/Bootstrap.zig": {
+      "errors": {
+        "TestProvisioningBudget": 1,
+        "TestProvisioningConflict": 1,
+        "TestProvisioningFailed": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "authorize()": "<inferred>",
+        "provision()": "<inferred>",
+        "query()": "<inferred>",
+        "submit()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 24,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_sql_service"
+      ]
+    },
+    "packages/zig/transit-test/src/Runner.zig": {
+      "errors": {
+        "GatewayMutationRejected": 1,
+        "TestIncompleteResult": 1,
+        "TestInvalidExpectation": 2,
+        "TestInvalidTerminal": 2,
+        "TestMissingCounts": 1,
+        "TestMissingTerminal": 1,
+        "TestResultBytesLimit": 1,
+        "TestRowsLimit": 2,
+        "TestUnexpectedStatementOwner": 1
+      },
+      "outcomes": {
+        "Failure": [
+          "rows",
+          "counts",
+          "expected_refusal",
+          "refusal_reason"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Bag.init()": "<inferred>",
+        "execute()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 1
+      },
+      "imports": [
+        "std",
+        "transit_compiler",
+        "transit_sql_service"
+      ]
+    },
+    "packages/zig/transit-test/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Bootstrap.zig",
+        "Runner.zig",
+        "transit_sql_service"
       ]
     },
     "packages/zig/transit-tls-server/src/LocalTrust.zig": {

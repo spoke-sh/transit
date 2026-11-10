@@ -9,6 +9,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | Native protocol, schemas and signed fixtures | [native/](native/), [fixture validator](native/native_fixtures.py) |
 | Read-only inspection and telemetry | [inspection/](inspection/), [original-request retry controls](inspection/inspection_retry_test.py), [Board](board/) |
 | CLI diagnostics and interactive console | [cli/](cli/), [console](cli/console.py), [diagnostic inventory](cli/diagnostic_inventory.py) |
+| Isolated application tests | [Offline CLI and installed SQL oracle](cli/application_test.py), [real local authority and failure schedules](cli/application_test_host.zig) |
 | Application source builds | [Locked offline modules, source-free SQL, restart and revocation](cli/application_build.py) |
 | Native operation-driver composition | [Private driver](cli/operations/main.zig), [shared module imports](../../build/README.md) |
 | SQL sessions and PostgreSQL/MySQL protocols | [Session checks](sql_sessions/README.md), [wire checks](sql_wire/README.md) |

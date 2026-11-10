@@ -1216,8 +1216,31 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scenario_test.has_side_effects = true;
     scenario_test.stdio = .inherit;
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
+    const application_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") }));
+    b.step("test-application-runner", "Verify typed isolated application assertions").dependOn(&application_tests.step);
     const application_compiler = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") }));
     b.step("test-application-compiler", "Verify bounded typed module compilation and emission equivalence").dependOn(&application_compiler.step);
+    const application_host = b.addExecutable(.{ .name = "application-test-host", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/cli/application_test_host.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "transit_cli_role", .module = transit_cli.root_module },
+            .{ .name = "transit_test", .module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") },
+            .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
+        },
+    }) });
+    application_host.root_module.link_libc = true;
+    const application_host_run = b.addRunArtifact(application_host);
+    application_host_run.has_side_effects = true;
+    b.step("test-application-test-host", "Qualify local test authority and original outcomes").dependOn(&application_host_run.step);
+    const table_application_test = b.addSystemCommand(&.{ "python3", "-B" });
+    table_application_test.addFileArg(b.path("tests/runner/launch.py"));
+    table_application_test.addFileArg(b.path("tests/interfaces/cli/application_test.py"));
+    table_application_test.addArtifactArg(transit_cli);
+    table_application_test.has_side_effects = true;
+    table_application_test.stdio = .inherit;
+    b.step("test-application-test", "Qualify isolated offline Table tests").dependOn(&table_application_test.step);
     const application_build = b.addSystemCommand(&.{ "python3", "-B" });
     application_build.addFileArg(b.path("tests/runner/launch.py"));
     application_build.addFileArg(b.path("tests/interfaces/cli/application_build.py"));
