@@ -183,3 +183,103 @@ Source/lock/cache formats have one current v1 identity. Foreign/missing format
 and native definitions reject; no fallback interpretation exists. This new
 source profile changes no accepted native operation, stored runtime format or
 wire schema and therefore does not itself change the shared native definition.
+
+## Isolated Table tests
+
+`CREATE TEST TARGET tests AS BEGIN ... END;` selects a test composition.
+Build and test targets share the source symbol namespace; command selection must
+match the target kind. A test target composes USE and compile-time IF through the
+same module evaluator. It may reach declarations of this form:
+
+```text
+TEST 'inserts are visible' USING MODULES (rows.Rows(NAME 'items', TYPE BIGINT, 7))
+AS BEGIN
+  ASSERT COMMAND (INSERT INTO items VALUES (9)) MATCHED 1 CHANGED 1;
+  ASSERT ROWS (SELECT id FROM items) EQUAL ((7), (9));
+  ASSERT STATEMENT (INSERT INTO items VALUES (7)) FAILS WITH 'duplicate_key';
+END;
+```
+
+TEST may occur in a module or test target. Every case has an independent proposed
+catalog and local runtime. Setup constructors and body SQL use the ordinary
+production emitter and independent reparse/rebind. A build reaching TEST, a
+nested TEST, an assertion outside TEST, or executable SQL directly in the test
+target rejects. All selected cases compile before any runtime starts. Imported
+files are parsed normally; only explicitly composed cases execute. File suffixes
+do not enable discovery or grant permission. Empty suites reject.
+
+Cases execute in lexical composition order, one at a time. Test identity binds
+the target, constructor expansion path and case name. Duplicate identities
+reject. Name/alias changes may change test identity, never the explicitly bound
+runtime Table names. Case labels are at most 128 UTF-8 bytes and may not contain
+control characters. Source spans retain case, definition and invocation sites.
+
+ASSERT COMMAND accepts CREATE TABLE or literal INSERT/UPDATE/DELETE and compares
+verified applied/unchanged command outcomes and exact unsigned matched/changed
+counts. ASSERT STATEMENT accepts literal mutations and matches only the native
+terminal DML reasons `duplicate_key` or `check_violation`; a compiler rejection,
+transport error, missing terminal, cancellation or budget failure never satisfies
+it. Ordinary statements require successful completion; unasserted SELECTs are
+fully consumed. Every assertion contains one ordinary statement without its
+terminating semicolon. The Table execution profile is unchanged.
+
+ASSERT ROWS binds each expected literal to the prepared output schema using
+Fuze's shared typed literal parser. EQUAL () expects an empty result. Rows are an
+unordered multiset of exact canonical schema-bound typed values, including
+multiplicity. This is exact-value equality, not collation-based SQL equality or
+an implicit ORDER BY. Types, field names/order, NULL and supported cell states
+are preserved. No JSON-number conversion or presentation string comparison is
+permitted. Every expected row is bounded by the shared value codec; expected
+literal text retains the 4,096-byte statement-parser limit. The observed schema
+must match, and success requires complete terminal coverage and the exact row
+count. Missing/extra/duplicate rows fail; reaching a result limit is not success.
+
+The compiler retains its existing source, work, memory and aggregate SQL-output
+limits across the whole suite. Additional ceilings are 128 cases, 1,024 actions
+per case and 10,000 expected/observed rows per case. The runner separately bounds
+observed canonical cell bytes to 16 MiB per case and reports to 1 MiB per suite.
+A case has a 30-second awake-clock budget and a suite has five minutes. Runtime
+shutdown has a separate bounded cleanup scope; failure to close/join fails the
+run. Host/runner allocations and temporary storage each have a 256 MiB per-case
+budget; source/tooling/compiler allocations retain their separate owner limits.
+These are accounted quotas, not guarantees about total process RSS, stack or OS
+page-cache usage. Exhaustion never silently omits actions or results.
+
+The runner composes real local storage, signed native dispatch, Catalog policy,
+DatabaseRuntime and SQL sessions without listeners. It bootstraps synthetic
+case-owned credentials and explicit grants; bootstrap authority is distinct
+from the statement caller. Test controls never enter deployable SQL. Local
+routing has no remote fallback. Cases cannot use application configuration,
+credentials or installations. Disposal of case-owned data is explicit fixture
+cleanup, not application retention or cancellation semantics. Original accepted
+operation identities govern settlement after uncertainty; writes are not
+recompiled or resubmitted with new identities. Unresolved work fails explicitly.
+
+```text
+transit test [-f build.transit] [--target tests]
+             [--override NAME=DIRECTORY] [--format text|json]
+```
+
+Tests share frozen build resolution and override provenance. Use the explicit
+`transit build --fetch` operation to prepare dependencies. Tests never fetch,
+change locks, read `.transitrc` or discover server configuration. Success is not
+cached. JSON emits one bounded final report; text status uses stderr. Reports
+identify source/compiler/native definitions, input/SQL digests, target and cases,
+coverage and outcome. Payloads and private installation/credential files are
+excluded. Mismatch facts identify the assertion/location rather than print data.
+
+Exit 0 requires all selected cases and cleanup to pass. Invalid invocation exits
+2; compilation, assertion, runtime, reporting or cleanup failure exits 1.
+Ordinary assertion failures allow later isolated cases to run. A host failure
+stops execution and records the not-run suffix. Report coverage (`complete`) is
+separate from successful assertions (`ok`); no cases may disappear from either.
+Process death supplies no successful terminal report. Compilation diagnostics
+use DIAGNOSTICS_V1 and do not imply any SQL acceptance. Runtime reports preserve
+failure/uncertainty rather than relabeling them as compile-time non-submission.
+
+Subject/grant DSL controls, virtual clocks, effect mocks, commands, HTTP
+simulation, property generators and `--verify-replay` are unsupported. Table
+results do not qualify workflow replay, provider idempotency or physical
+power-loss durability. This additive source grammar and local test product
+change no persistent source lock/cache shape or native format; existing format
+and native-definition rejection remains in force.

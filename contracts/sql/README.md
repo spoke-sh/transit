@@ -1,7 +1,7 @@
 # SQL grammar and rewrite proofs
 
 Application source roots (`IMPORT`, `DEPENDENCY`, `CREATE MODULE`, `CREATE
-INTERFACE`, `CREATE TARGET`) belong to the separate
+INTERFACE`, `CREATE TARGET`, `CREATE TEST TARGET`, `TEST` and runner assertions) belong to the separate
 [application source contract](../APPLICATION_SOURCE_V1.md) and `transit-compiler`.
 They are not executable SQL statements or additions to the runtime ANTLR root.
 Their emitted Table SQL uses the existing typed owners described here. The

@@ -1,6 +1,6 @@
 # Application Table test runner implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Planned** · Proposed next slice for review
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: In Progress** · Approved implementation slice
 
 Let an application author compose a reusable Table module, declare isolated tests
 beside it, and run `transit test` without a server, network access or containers.
@@ -109,7 +109,7 @@ CREATE PUBLIC MODULE Cases() AS BEGIN
   AS BEGIN
     ASSERT COMMAND (INSERT INTO items VALUES (9))
       MATCHED 1 CHANGED 1;
-    ASSERT ROWS (SELECT id FROM items ORDER BY id)
+    ASSERT ROWS (SELECT id FROM items)
       EQUAL ((7), (9));
   END;
 END;
@@ -156,11 +156,11 @@ Fuze types/codecs. Validate schema shape, column order and logical types; preser
 NULL and every supported cell-state distinction without string/JSON-number
 coercion. Unsupported cell literals fail compilation, not silent conversion.
 
-An ordered multirow assertion requires an explicit ordering admitted by the
-current SQL owner. Do not infer ordering from storage layout. Initially reject
-unordered multirow equality rather than implement a second collation-aware sort
-or unbounded multiset comparison. Empty/single-row cases still consume their
-complete result and verify terminal counts and observation basis.
+Implementation audit: the current compiler does not admit ORDER BY. Use bounded
+multiset equality over the shared canonical typed value encoding, retaining
+duplicate counts, rather than expanding executable SQL. This compares exact
+values, not SQL collation equivalence or physical storage order. Every case
+consumes its complete result and verifies terminal counts and observation basis.
 
 Command assertions use the shared typed command outcome and its applicable
 matched/changed counts, never SQL-text heuristics. Expected-refusal assertions

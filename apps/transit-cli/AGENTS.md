@@ -6,7 +6,7 @@ Follow the repository's root instructions and the
 
 ## Command scope
 
-The public command policy permits exactly four commands:
+The public command policy permits exactly five commands:
 
 - `transit server` starts and supervises a local Transit installation.
 - `transit console` provides interactive and batch SQL sessions through the
@@ -17,6 +17,9 @@ The public command policy permits exactly four commands:
 
 - `transit build` compiles typed source modules offline to checked SQL. Explicit
   fetching and locks belong to build tooling; builds never open a SQL session.
+
+- `transit test` compiles explicit Table test targets and executes their SQL
+  through isolated real database owners without listeners or deployment configuration.
 
 ## Statement results and future console work
 
