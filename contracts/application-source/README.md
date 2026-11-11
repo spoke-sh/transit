@@ -3,7 +3,7 @@
 [TransitSource.g4](TransitSource.g4) defines the bounded `.transit` source
 profile in [Application source v1](../APPLICATION_SOURCE_V1.md). Its root is
 `sourceFile`, including complete input consumption. Imports, modules, interfaces,
-targets and test controls are compile-time forms, not ordinary runtime SQL.
+domains, closed variants, typed Table exports, targets and test controls are compile-time forms, not ordinary runtime SQL.
 
 The grammar imports [TransitExtensions.g4](../sql/TransitExtensions.g4) with the
 same pinned ANTLR 4.13.2 tools. Source overrides add typed holes and narrow the
@@ -29,3 +29,18 @@ compares the ANTLR tree with actual production syntax, source round-trips and
 compiled products. Generated parsers and run records are ignored artifacts.
 This finite correspondence check is not an exhaustive language proof, an
 execution qualification, a TLA+ model result or a Lean theorem.
+
+The corpus includes public/imported nominal domains, three-component constructors,
+exhaustive MATCH syntax, hygienic binders, named instance results, Table signatures
+and export forwarding. Syntax acceptance remains distinct from duplicate domain
+identity, wrong argument/interface, nominal SQL operand and exhaustiveness checks.
+Source type words remain contextual except at the explicit built-in kind sites.
+
+[TypedTarget.lean](TypedTarget.lean) owns three separate source/action laws, with
+premises and exclusions in its header and the source contract. The dedicated
+`test::application-source-types` task also compares finite independent typed
+expectations with production checked operands and erased SQL; it does not replace
+grammar correspondence or real CLI execution. Its audit rejects missing theorem
+output, incomplete proofs and unreviewed axioms. The selection law uses `propext` and Lean's quotient
+soundness axiom through the library's finite-list filter/count lemmas; the other
+two laws permit only `propext`. No application or compiler correctness axiom is admitted.

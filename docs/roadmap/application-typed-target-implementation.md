@@ -1,6 +1,12 @@
 # Nominal values, typed Table exports and exhaustive source matching
 
-[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Planned — implementation review**
+[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented — qualification in progress**
+
+The implementation follows merged planning PR #442. The executable source
+contract now owns the delivered syntax and restrictions; this document retains
+the reviewed scope. Compiler and correspondence checks are executing against the
+implementation, while the complete required qualification remains in progress.
+This status is not a clean-lane or runtime pass.
 
 Let an application distinguish two resource kinds even when their IDs have the
 same scalar representation, pass a Table through a checked module interface,

@@ -47,6 +47,16 @@ projection commutation, and collation sort-key preorders with Umbra 4-byte prefi
 reflection and zone-map pruning under explicit correspondence assumptions; no
 optimizer rewrite is enabled by those proofs.
 
+The [typed-target source specification](../../../contracts/application-source/TypedTarget.lean)
+proves nominal substitution, selection from a checked total arm table and ordered
+Table-action preservation for one scalar payload per constructor and insert
+bodies. It assumes exact types, well-typed environments/signatures and explicit
+Table bindings. Separate finite comparisons check synthetic Lean/source actions,
+production checked domain operands and ordinary SQL. Real build/test CLI checks
+own native rows, counts, restart and authorization. These laws do not prove the
+source checker, full compiler, arbitrary recursion, SQL runtime or live workflows.
+No new temporal-state/TLA+ result is claimed by compile-time specialization.
+
 The local WAL model separates visible writes from durable file contents, directory
 entries and metadata. Its finite checks cover acknowledgement, fencing, recovery
 and authorized prefix deletion under explicit sync and atomic-replacement

@@ -37,3 +37,37 @@ refusals; cast recognition alone does not enable native Table casts. These fixes
 do not change SQL for previously accepted inputs. Source
 formatting retains SQL token adjacency and quoted bytes while normalizing words
 and source-expression parentheses. It does not bind a catalog or execute tests.
+
+## Typed-target laws and correspondence
+
+`types.py` drives `just test::application-source-types` with the repository-pinned
+Lean 4 tool. [TypedTarget.lean](../../../contracts/application-source/TypedTarget.lean)
+models exact scalar/domain types, typed de Bruijn variables, checked total variant
+arm tables and ordered inserts into explicitly typed Table bindings. It proves
+nominal substitution, exhaustive selection and specialization preservation.
+The premise that constructor labels are complete and unique is supplied by the checker; the law
+does not prove that checker. Other premises and omissions are explicit beside
+the definitions. No source parser, SQL encoder, bounded Zig evaluator, storage,
+authority, liveness or effect claim follows from these laws.
+
+Sixteen independent descriptors vary constructor, signed/equal raw values, arm
+order and explicit Table names. They generate source and Lean examples against
+independent expected actions. Forty-eight finite Lean checks cover constructor selection, source
+and specialized interpretations; the production driver separately exposes
+checked column/domain/operand records and ordinary SQL. A scalar SQL fingerprint
+cannot detect a swapped domain, so both projections are required. The compiler
+also reparses its emitted SQL through ordinary Fuze owners. Native rows/counts,
+restart and revocation belong to the real CLI fixture schedules.
+
+The task audits exact theorem/output inventories. Nominal substitution and
+specialization permit only `propext`; exhaustive selection and its finite uses
+also permit `Quot.sound`, inherited from Lean's list filter/count lemmas. These
+are standard logical axioms, not assumed application/compiler properties.
+An actually incomplete Lean proof, omitted output and unreviewed axioms fail the
+guard. Swapped domains/Tables, changed values/SQL and missing actions must fail
+comparisons; real wrong-domain source programs must fail without a product.
+Unique `.cache/verification/application-source-types/run-*` directories retain
+inputs, products, specification/driver hashes, Lean identity and complete evidence.
+The subprocess deadline is 120 seconds; the private projection keeps the grammar
+check's input/output/request bounds. The fast `--check-inventory` mode checks
+registration and audit controls only and never claims to execute Lean.
