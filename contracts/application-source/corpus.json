@@ -1,0 +1,102 @@
+[
+  {
+    "name": "empty",
+    "source": "; /* outer /* nested */ comment */ ; -- eof",
+    "parse": true,
+    "expected": {"definitions": [], "imports": [], "dependencies": []}
+  },
+  {
+    "name": "interface",
+    "source": "CREATE PUBLIC INTERFACE Factory(name IDENTIFIER, value BIGINT, element TYPE, text TEXT, flag BOOLEAN, factory MODULE lib.Inner);",
+    "parse": true,
+    "checks": {"definitions.0.name": "factory", "definitions.0.public": true, "definitions.0.kind": "interface", "definitions.0.parameters.5.kind.module": {"qualifier": "lib", "member": "inner"}}
+  },
+  {
+    "name": "imports",
+    "source": "IMPORT rows FROM 'röws.transit'; IMPORT pkg FROM PACKAGE common FILE 'build.transit'; DEPENDENCY common FROM 'https://example.invalid/library.git' REVISION '0123456789012345678901234567890123456789' SUBDIRECTORY 'src';",
+    "parse": true,
+    "checks": {"imports.0.path": "röws.transit", "imports.1.package": "common", "dependencies.0.subdirectory": "src"}
+  },
+  {
+    "name": "precedence",
+    "source": "CREATE MODULE m() AS BEGIN USE f(1 + 2 * 3 < 9 AND NOT FALSE OR TRUE, -9223372036854775808, NAME 'it''s', TYPE BOOLEAN); END;",
+    "parse": true,
+    "checks": {"definitions.0.body.0.value.use.arguments.0.value.binary.op": "or_", "definitions.0.body.0.value.use.arguments.1.value.integer": -9223372036854775808}
+  },
+  {
+    "name": "table-build",
+    "source": "CREATE MODULE rows(t IDENTIFIER, v BIGINT, ty TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id $ty PRIMARY KEY, note TEXT); INSERT INTO $t VALUES ($v, '雪 $inert;'); END; CREATE TARGET default AS BEGIN USE rows(NAME 'items', 7, TYPE BIGINT); UPDATE items SET note = 'it''s' WHERE id = 7; DELETE FROM items WHERE id = 9; SELECT id, note FROM items WHERE id <= 8 LIMIT 5; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 5
+  },
+  {
+    "name": "tests",
+    "source": "CREATE MODULE rows() AS BEGIN CREATE PUBLIC TABLE items (id BIGINT PRIMARY KEY); END; CREATE TEST TARGET tests AS BEGIN TEST 'rows' USING MODULES (rows()) AS BEGIN ASSERT COMMAND (INSERT INTO items VALUES (7)) MATCHED 1 CHANGED 1; ASSERT ROWS (SELECT * FROM items) EQUAL ((7)); ASSERT STATEMENT (INSERT INTO items VALUES (7)) FAILS WITH 'duplicate_key'; END; END;",
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 1
+  },
+  {
+    "name": "unused-malformed-table",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC TABLE t (id); END;",
+    "parse": false,
+    "at": ")"
+  },
+  {
+    "name": "unselected-malformed-insert",
+    "source": "CREATE TARGET default AS BEGIN IF FALSE THEN INSERT INTO t VALUES (1,); END IF; END;",
+    "parse": false,
+    "at": ")"
+  },
+  {
+    "name": "unused-unsupported",
+    "source": "CREATE MODULE unused() AS BEGIN COMMIT; END;",
+    "parse": false,
+    "at": "COMMIT"
+  },
+  {
+    "name": "malformed-expected-rows",
+    "source": "CREATE MODULE unused() AS BEGIN ASSERT ROWS (SELECT * FROM t) EQUAL ((1,)); END;",
+    "parse": false,
+    "at": "));"
+  },
+  {
+    "name": "positional-parameter",
+    "source": "CREATE MODULE unused() AS BEGIN INSERT INTO t VALUES ($1); END;",
+    "parse": false,
+    "at": "$1"
+  },
+  {
+    "name": "quoted-source-name",
+    "source": "CREATE MODULE \"m\"() AS BEGIN END;",
+    "parse": false,
+    "at": "\"m\""
+  },
+  {
+    "name": "missing-terminator",
+    "source": "CREATE MODULE m() AS BEGIN END",
+    "parse": false
+  },
+  {
+    "name": "unknown-table-stage",
+    "source": "CREATE TARGET default AS BEGIN SELECT * FROM absent; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnknownBuildTable"
+  },
+  {
+    "name": "eager-booleans",
+    "source": "CREATE TARGET default AS BEGIN IF FALSE AND missing THEN CREATE PUBLIC TABLE t (id BIGINT); END IF; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnknownSourceSymbol"
+  },
+  {
+    "name": "assertion-stage",
+    "source": "CREATE TARGET default AS BEGIN ASSERT ROWS (SELECT * FROM t) EQUAL (); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "TestAssertionOutsideCase"
+  }
+]
