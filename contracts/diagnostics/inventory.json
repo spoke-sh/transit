@@ -12701,6 +12701,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "Step.jsonStringify()": "std . Io . Writer . Error",
         "argument()": "<inferred>",
         "assertion()": "<inferred>",
         "body()": "anyerror",
@@ -12728,7 +12729,7 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 118,
+        "try": 119,
         "catch": 18
       },
       "imports": [

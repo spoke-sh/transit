@@ -12,7 +12,20 @@ const Operands = @import("TypedOperands.zig");
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
 pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
-pub const Step = struct { sql: []const u8, plan_digest: [32]u8, definition: p.Diagnostic.Location, call: ?p.Diagnostic.Location, instance: []const u8, bindings_digest: [32]u8, checked: Operands.Checked };
+pub const Step = struct {
+    sql: []const u8,
+    plan_digest: [32]u8,
+    definition: p.Diagnostic.Location,
+    call: ?p.Diagnostic.Location,
+    instance: []const u8,
+    bindings_digest: [32]u8,
+    checked: Operands.Checked,
+    /// Keep checked-core evidence in memory; the current provenance format is
+    /// deliberately independent of the compiler's internal typed representation.
+    pub fn jsonStringify(self: Step, out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try p.Json.write(.{ .sql = self.sql, .plan_digest = self.plan_digest, .definition = self.definition, .call = self.call, .instance = self.instance, .bindings_digest = self.bindings_digest }, out);
+    }
+};
 pub const Product = struct {
     budget: memory.Budget,
     arena: std.heap.ArenaAllocator,

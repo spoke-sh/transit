@@ -425,3 +425,18 @@ test "valid recursive symbolic bodies do not execute unselected recursion" {
     try std.testing.expectEqual(3, product.steps.len);
     try std.testing.expectEqualStrings("INSERT INTO SITES VALUES ( 7 )", product.steps[2].sql);
 }
+
+test "checked nominal evidence stays outside the current provenance JSON format" {
+    const product = try one(typed_application, .{ .compiler_revision = "test" });
+    defer product.deinit();
+    const bytes = try p.Json.valueAlloc(std.testing.allocator, product.steps);
+    defer std.testing.allocator.free(bytes);
+    const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, bytes, .{});
+    defer parsed.deinit();
+    try std.testing.expectEqual(product.steps.len, parsed.value.array.items.len);
+    for (parsed.value.array.items) |step| {
+        try std.testing.expectEqual(6, step.object.count());
+        inline for (.{ "sql", "plan_digest", "definition", "call", "instance", "bindings_digest" }) |field| try std.testing.expect(step.object.contains(field));
+    }
+    try std.testing.expect(std.mem.indexOf(u8, bytes, "example.machine-id") == null);
+}
