@@ -10,10 +10,12 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
 The [next-slice implementation plan, 2026-11-11](station-transaction-implementation.md)
-proposes **Batch 5: one private transactional Station behavior**, based on
-`main` at `bc849156ad91e9f022ad9a9204c47f654a209a57`. It sequences prerequisite
-qualification, a native actor execution guard at the common decision, retained
-turn recovery, a real Table/KV handler and installed fault/resource proofs.
+records **Batch 5: one private transactional Station behavior**, based on
+`main` at `bc849156ad91e9f022ad9a9204c47f654a209a57`. The private implementation
+adds a native actor execution guard at the common decision, retained turn
+recovery, a real Table/KV handler and installed worker-replacement fault proofs.
+Its acceptance matrix distinguishes these checks from broader resource and
+collection qualification.
 Public activation and service/consumer migration remain Batches 6–7; M6 remains
 **In Progress**.
 

@@ -71,7 +71,8 @@ one resident storage page, unlimited retention, 30-second client exchanges and
 a five-minute Queue lease. It does not renew a claim to obtain a sample.
 
 The [comparison driver](station_transaction.py) retains each attempt and sample
-in a fresh output directory. The installed oracle checks exact state, Table rows,+journal/input/transaction attribution, original ACKs and every output payload.
+in a fresh output directory. The installed oracle checks exact state, Table rows,
+journal/input/transaction attribution, original ACKs and every output payload.
 Two SIGKILL node restarts repeat that oracle with a different authorized worker
 and zero handler invocations. Missing, duplicate, corrupt or failed samples fail
 the report; the private installation remains available on failure. Physical

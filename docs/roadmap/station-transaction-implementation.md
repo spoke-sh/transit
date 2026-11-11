@@ -15,10 +15,10 @@ internal to its package and qualification harness until the service and consumer
 cutover in Batches 6–7; this slice does not switch installed Station applications.
 
 **Source basis:** local `main` and `origin/main` at
-`bc849156ad91e9f022ad9a9204c47f654a209a57`. The current shared definition is
+`bc849156ad91e9f022ad9a9204c47f654a209a57`. At that basis the shared definition was
 `316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
-(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`). The sequence below is a
-proposal for review; M6 remains **In Progress**.
+(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`). The implementation and
+consumer handoff are recorded below; M6 remains **In Progress**.
 
 ## Why this slice is next
 
@@ -61,10 +61,10 @@ cut. A shared `key_fifo` inbox routes a stable actor key to one partition; the
 first runner processes one input per turn. Independent actor keys may progress
 under explicitly bounded active-work limits. Idle actors reside in paged data.
 
-The review should settle these three choices before the dependent runner lands:
+The implementation uses these three choices:
 
 1. **Retain native PID authority.** Bind the declared actor to its existing
-   realm/PID and immutable behavior definition. Propose a neutral native execution
+   realm/PID and immutable behavior definition. Use a neutral native execution
    condition on standard transactions, checked by the native authority. An actor
    row or a client progress lease must not become a second ownership authority.
 2. **Prove the Table/KV runner privately first.** Use a real compiled Zig handler
@@ -300,8 +300,6 @@ matched baseline report. Promote implemented semantics and limits to
 relevant native transaction/authority references. Record executed results in
 [qualification history](../history/qualification/README.md) with the exact
 source and definition. Keep plans and future public activation in this roadmap.
-
-
 ## Implemented ownership and later consumer cutover
 
 The [private package composition](../../packages/zig/transit-station/README.md#private-transactional-behavior-composition)
