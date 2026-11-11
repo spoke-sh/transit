@@ -52,10 +52,16 @@ def parse(source):
             names = [p.sourceName().getText().lower() for p in node.parameter()]
             if len(names) > 64 or len(set(names)) != len(names):
                 raise Refusal(span(node)['start'], 'parameter bound/duplicate')
-        if rule == 'sourceCall' and len(node.expression()) > 64:
+        if rule in ('sourceCall', 'sourceAtom') and len(node.expression()) > 64:
             raise Refusal(span(node)['start'], 'argument bound')
         if rule == 'sourceStatement' and len(node.sourceCall()) > 64:
             raise Refusal(span(node)['start'], 'setup bound')
+        if rule == 'matchArm':
+            names = [n.getText().lower() for n in node.sourceName()]
+            if len(names) > 64 or len(set(names)) != len(names):
+                raise Refusal(span(node)['start'], 'binder bound/duplicate')
+        if rule == 'sourceStatement' and len(node.matchArm()) > 64:
+            raise Refusal(span(node)['start'], 'arm bound')
         for child in node.children or []:
             bounds(child)
     bounds(root)
@@ -64,8 +70,10 @@ def parse(source):
         return token.getText()[1:-1].replace("''", "'")
 
     def name(ctx):
-        parts = ctx.getText().lower().split('.')
-        return {'qualifier': parts[0] if len(parts) == 2 else None, 'member': parts[-1]}
+        parts = ctx.getText().split('(')[0].lower().split('.')
+        return {'qualifier': parts[0] if len(parts) >= 2 else None,
+                'member': parts[1] if len(parts) >= 2 else parts[0],
+                'constructor': parts[2] if len(parts) == 3 else None}
 
     def template(ctx, rows=False):
         result = []
@@ -127,27 +135,36 @@ def parse(source):
         elif ctx.NAME() and ctx.STRING():
             value = {'identifier': string(ctx.STRING())}
         elif ctx.TYPE():
-            value = {'type': ctx.children[1].getText().lower()}
+            kind = ctx.sourceType()
+            value = {'type': kind.getText().lower()} if kind.sourceBaseType() else {'named_type': name(kind)}
         elif ctx.TRUE() or ctx.FALSE():
             value = {'boolean': bool(ctx.TRUE())}
         elif ctx.STRING():
             value = {'text': string(ctx.STRING())}
-        elif ctx.expression():
-            value = expr(ctx.expression())['value']
+        elif ctx.referenceHead():
+            value = {'construct': {'name': name(ctx), 'arguments': [expr(arg) for arg in ctx.expression()], 'result': None}} if ctx.LPAREN() else {'reference': name(ctx)}
         else:
-            value = {'reference': name(ctx)}
+            value = expr(ctx.expression(0))['value']
         if 'integer' in value and not -(2 ** 63) <= value['integer'] < 2 ** 63:
             raise Refusal(span(ctx)['start'], 'integer bound')
         return {'span': span(ctx), 'value': value}
 
     def call(ctx):
-        return {'name': name(ctx.sourceQualifiedName()), 'arguments': [expr(arg) for arg in ctx.expression()]}
+        return {'name': name(ctx.sourceQualifiedName()), 'arguments': [expr(arg) for arg in ctx.expression()], 'result': None}
 
     def body(ctx):
         result = []
         for stmt in ctx.sourceStatement():
             if stmt.USE():
-                value = {'use': call(stmt.sourceCall(0))}
+                invoked = call(stmt.sourceCall(0))
+                invoked['result'] = stmt.sourceName().getText().lower() if stmt.AS() else None
+                value = {'use': invoked}
+            elif stmt.EXPORT():
+                value = {'table_export': {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}}
+            elif stmt.MATCH():
+                arms = [{'constructor': name(arm.sourceQualifiedName()), 'names': [n.getText().lower() for n in arm.sourceName()],
+                         'body': body(arm.body()), 'span': span(arm)} for arm in stmt.matchArm()]
+                value = {'match': {'value': expr(stmt.expression()), 'arms': arms}}
             elif stmt.IF():
                 value = {'conditional': {'condition': expr(stmt.expression()), 'yes': body(stmt.body(0)),
                                          'no': body(stmt.body(1)) if stmt.ELSE() else []}}
@@ -176,20 +193,50 @@ def parse(source):
             result.append({'span': span(stmt), 'value': value})
         return result
 
+    def parameters(ctx):
+        result = []
+        for param in ctx.parameter() if ctx else []:
+            kind = param.parameterKind()
+            if kind.MODULE():
+                value = {'module': name(kind.sourceQualifiedName())}
+            elif kind.TABLE():
+                columns = []
+                for col in kind.signatureColumn():
+                    raw_type = col.sourceType()
+                    ty = {'scalar': raw_type.getText().lower()} if raw_type.sourceBaseType() else {'named': name(raw_type)}
+                    nullable = not col.PRIMARY() and (not col.nullability() or not col.nullability().NOT())
+                    if col.PRIMARY() and col.nullability() and not col.nullability().NOT():
+                        raise Refusal(span(col)['start'], 'nullable primary key')
+                    columns.append({'name': col.sourceName(0).getText().lower(), 'type': ty, 'nullable': nullable,
+                                    'primary': bool(col.PRIMARY()), 'collation': col.sourceName(1).getText().lower() if col.COLLATE() else 'none'})
+                names = [col['name'] for col in columns]
+                if len(columns) > 128 or len(set(names)) != len(names):
+                    raise Refusal(span(kind)['start'], 'column bound/duplicate')
+                value = {'table': columns}
+            elif kind.sourceParameterName():
+                value = {'named': name(kind.sourceParameterName())}
+            else:
+                value = {{'BIGINT': 'integer', 'IDENTIFIER': 'identifier'}.get(kind.getText().upper(), kind.getText().lower()): None}
+            result.append({'name': param.sourceName().getText().lower(), 'kind': value})
+        return result
+
     definitions = []
     for definition in root.definition():
-        parameters = []
-        if definition.parameters():
-            for param in definition.parameters().parameter():
-                kind = param.parameterKind()
-                if kind.MODULE():
-                    value = {'module': name(kind.sourceQualifiedName())}
-                else:
-                    value = {{'BIGINT': 'integer', 'IDENTIFIER': 'identifier'}.get(kind.getText().upper(), kind.getText().lower()): None}
-                parameters.append({'name': param.sourceName().getText().lower(), 'kind': value})
+        domain = None
+        constructors = []
+        if definition.DOMAIN():
+            domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING())}
+            if not 1 <= len(domain['identity'].encode()) <= 128:
+                raise Refusal(span(definition)['start'], 'domain identity bound')
+        if definition.VARIANT():
+            constructors = [{'name': ctor.sourceName().getText().lower(), 'fields': parameters(ctor.parameters())} for ctor in definition.variantConstructor()]
+            names = [ctor['name'] for ctor in constructors]
+            if len(constructors) > 64 or len(set(names)) != len(names):
+                raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
         definitions.append({'name': definition.sourceName().getText().lower(), 'public': bool(definition.PUBLIC()),
-                            'kind': 'module' if definition.MODULE() else 'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target',
-                            'parameters': parameters, 'body': body(definition.body()) if definition.body() else [], 'span': span(definition)})
+                            'kind': 'domain' if domain else 'variant' if constructors else 'module' if definition.MODULE() else 'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target',
+                            'parameters': parameters(definition.parameters()), 'body': body(definition.body()) if definition.body() else [],
+                            'span': span(definition), 'domain': domain, 'constructors': constructors})
     imports = [{'alias': item.sourceName(0).getText().lower(), 'package': item.sourceName(1).getText().lower() if item.PACKAGE() else None,
                 'path': string(item.STRING()), 'span': span(item)} for item in root.sourceImport()]
     dependencies = [{'name': item.sourceName().getText().lower(), 'repository': string(item.STRING(0)), 'revision': string(item.STRING(1)),

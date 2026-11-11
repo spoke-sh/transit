@@ -7,20 +7,34 @@ sourceFile: (SEMI | sourceImport | dependency | definition)* EOF;
 sourceImport: IMPORT sourceName FROM (PACKAGE sourceName FILE)? STRING SEMI;
 dependency: DEPENDENCY sourceName FROM STRING REVISION STRING (SUBDIRECTORY STRING)? SEMI;
 definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
+    | DOMAIN sourceName AS sourceBaseType IDENTITY STRING
+    | VARIANT sourceName AS LPAREN variantConstructor (COMMA variantConstructor)* RPAREN
     | INTERFACE sourceName parameters
     | TEST? TARGET sourceName AS BEGIN body END) SEMI;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 parameter: sourceName parameterKind;
-parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName;
-sourceQualifiedName: sourceName (DOT sourceName)?;
+parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName
+    | TABLE LPAREN signatureColumn (COMMA signatureColumn)* RPAREN | sourceParameterName;
+sourceBaseType: BIGINT | TEXT | BOOLEAN;
+sourceParameterName: parameterHead (DOT sourceName (DOT sourceName)?)?;
+parameterHead: referenceTypeHead | TRUE | FALSE | NOT;
+sourceTypeName: typeHead (DOT sourceName (DOT sourceName)?)?;
+typeHead: referenceTypeHead | MODULE | TABLE | IDENTIFIER_KIND | TYPE | TRUE | FALSE | NOT;
+sourceType: sourceBaseType | sourceTypeName;
+signatureColumn: sourceName sourceType nullability? (PRIMARY KEY)? (COLLATE sourceName)?;
+variantConstructor: sourceName parameters;
+sourceQualifiedName: sourceName (DOT sourceName (DOT sourceName)?)?;
 body: sourceStatement*;
 sourceStatement
-    : USE sourceCall SEMI
+    : USE sourceCall (AS sourceName)? SEMI
+    | EXPORT TABLE DOLLAR? sourceQualifiedName AS sourceName SEMI
+    | MATCH expression matchArm+ END MATCH SEMI
     | IF expression THEN body (ELSE body)? END IF SEMI
     | TEST STRING USING MODULES LPAREN (sourceCall (COMMA sourceCall)*)? RPAREN AS BEGIN body END SEMI
     | ASSERT assertion SEMI
     | tableTemplate SEMI
     ;
+matchArm: WHEN sourceQualifiedName LPAREN (sourceName (COMMA sourceName)*)? RPAREN THEN body;
 sourceCall: sourceQualifiedName LPAREN (expression (COMMA expression)*)? RPAREN;
 assertion
     : ROWS LPAREN tableTemplate RPAREN EQUAL LPAREN expectedRows? RPAREN
@@ -38,8 +52,8 @@ sourceAdd: sourceMultiply ((PLUS | MINUS) sourceMultiply)*;
 sourceMultiply: sourceUnary (STAR sourceUnary)*;
 sourceUnary: MINUS sourceUnary | NOT sourceUnary | sourceAtom;
 sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
-    | TYPE (BIGINT | TEXT | BOOLEAN) | LPAREN expression RPAREN
-    | referenceHead (DOT sourceName)?;
+    | TYPE sourceType | LPAREN expression RPAREN
+    | referenceHead (DOT sourceName (DOT sourceName)?)? (LPAREN (expression (COMMA expression)*)? RPAREN)?;
 
 // Only the delivered single-Table profile, with syntax before schema binding.
 tableTemplate: CREATE PUBLIC TABLE identifier LPAREN tableElement (COMMA tableElement)* RPAREN
@@ -82,7 +96,7 @@ tableConstraint: (CONSTRAINT identifier)? checkConstraint;
 identifier: identifierHole | plainIdentifier;
 plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND;
+sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -110,9 +124,11 @@ checkHole: DOLLAR sourceName;
 
 // Source identifiers are contextual words, unlike reserved SQL identifiers.
 sourceName: referenceHead | TYPE | TRUE | FALSE | NOT;
-referenceHead: sourceWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
+referenceHead: referenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
+referenceTypeHead: typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
     | DOUBLE | CHARACTER;
-sourceWord: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
+typeWord: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
     | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
     | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE
     | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES
@@ -132,12 +148,12 @@ sourceWord: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY 
     | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL
     | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING
     | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES
-    | SINK | SINKS | TABLE | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON
+    | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON
     | SHOW | STORAGE | DESCRIBE | NULL_ | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT
-    | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE
+    | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
     | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
-    | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN
-    | IDENTIFIER_KIND | USING;
+    | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME
+    | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN;
 
 IMPORT: 'IMPORT';
 DEPENDENCY: 'DEPENDENCY';
@@ -171,3 +187,10 @@ DOLLAR: '$';
 BANG_NE: '!=';
 NE: '<>';
 
+
+DOMAIN: 'DOMAIN';
+VARIANT: 'VARIANT';
+IDENTITY: 'IDENTITY';
+EXPORT: 'EXPORT';
+MATCH: 'MATCH';
+WHEN: 'WHEN';

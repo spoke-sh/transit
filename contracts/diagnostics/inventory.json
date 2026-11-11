@@ -12645,30 +12645,37 @@
         "BuildEmissionMismatch": 1,
         "BuildMemoryLimit": 2,
         "BuildOutputLimit": 1,
-        "BuildStatementLimit": 5,
+        "BuildStatementLimit": 6,
         "BuildWorkLimit": 1,
+        "DuplicateSourceMatchArm": 1,
+        "DuplicateSourceName": 4,
         "DuplicateTestCase": 1,
         "EmptyBuildTarget": 1,
         "EmptyTestCase": 1,
         "EmptyTestTarget": 1,
+        "ExportOutsideModule": 1,
+        "ForeignTableExport": 1,
         "InvalidBuildBudget": 1,
         "InvalidCompilerIdentity": 1,
         "InvalidInstanceName": 1,
         "InvalidModuleInterface": 1,
-        "InvalidSourceOperand": 1,
+        "InvalidParameterType": 1,
+        "InvalidSourceOperand": 2,
         "InvalidSourceSyntax": 1,
         "MissingBuildEntry": 1,
-        "ModuleInterfaceMismatch": 2,
+        "ModuleInterfaceMismatch": 5,
         "ModuleIsNotSqlOperand": 1,
         "NestedTestCase": 1,
+        "NonExhaustiveSourceMatch": 1,
         "NotModuleConstructor": 2,
         "OutOfMemory": 3,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
-        "SourceArgumentCount": 1,
+        "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
-        "SourceDepthLimit": 3,
+        "SourceDepthLimit": 4,
+        "SourceExportLimit": 1,
         "SourceFileLimit": 1,
-        "SourceTypeMismatch": 8,
+        "SourceTypeMismatch": 27,
         "TestActionLimit": 1,
         "TestAssertionOutsideCase": 1,
         "TestCaseLimit": 1,
@@ -12679,7 +12686,10 @@
         "TestRowsLimit": 1,
         "TestRowsRequired": 1,
         "TestStatementOutsideCase": 1,
+        "UnknownSourceExport": 1,
         "UnknownSourceOperand": 1,
+        "UnsupportedRecursiveExports": 1,
+        "UnsupportedSymbolicSchema": 2,
         "WriteFailed": 1,
         "WrongSourceTargetKind": 1
       },
@@ -12687,26 +12697,26 @@
         "Options.mode": [
           "build",
           "test_suite"
-        ],
-        "Value": [
-          "integer",
-          "text",
-          "boolean",
-          "identifier",
-          "type",
-          "module"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "argument()": "<inferred>",
         "assertion()": "<inferred>",
         "body()": "anyerror",
+        "checkBody()": "<inferred>",
         "compile()": "<inferred>",
         "compileInner()": "<inferred>",
+        "construct()": "<inferred>",
         "emit()": "<inferred>",
         "expand()": "<inferred>",
         "expression()": "anyerror",
+        "fork()": "<inferred>",
+        "freshBinding()": "<inferred>",
+        "invoke()": "anyerror",
+        "match()": "<inferred>",
         "quoted()": "<inferred>",
+        "reference()": "<inferred>",
         "resolve()": "<inferred>",
         "run()": "<inferred>",
         "signature()": "anyerror",
@@ -12716,15 +12726,17 @@
         "verify()": "<inferred>",
         "writeValue()": "<inferred>"
       },
-      "open_error_set_uses": 4,
+      "open_error_set_uses": 5,
       "propagation": {
-        "try": 65,
-        "catch": 16
+        "try": 118,
+        "catch": 18
       },
       "imports": [
         "Graph.zig",
+        "SourceTypes.zig",
         "Syntax.zig",
         "Test.zig",
+        "TypedOperands.zig",
         "WorkingCatalog.zig",
         "std",
         "transit_fuze",
@@ -12734,23 +12746,25 @@
     },
     "packages/zig/transit-compiler/src/Format.zig": {
       "errors": {
-        "SourceDepthLimit": 2
+        "SourceDepthLimit": 3
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "body()": "anyerror",
         "call()": "<inferred>",
+        "callDepth()": "anyerror",
         "expr()": "anyerror",
         "indent()": "<inferred>",
+        "kind()": "anyerror",
         "name()": "<inferred>",
         "string()": "<inferred>",
         "template()": "<inferred>",
         "write()": "<inferred>"
       },
-      "open_error_set_uses": 2,
+      "open_error_set_uses": 4,
       "propagation": {
-        "try": 90,
+        "try": 133,
         "catch": 0
       },
       "imports": [
@@ -12767,6 +12781,7 @@
         "InvalidPackageName": 2,
         "InvalidRepository": 2,
         "InvalidRepositoryRevision": 2,
+        "InvalidSourceName": 1,
         "InvalidSourcePath": 3,
         "MissingSource": 2,
         "PrivateSourceSymbol": 1,
@@ -12807,18 +12822,76 @@
         "std"
       ]
     },
+    "packages/zig/transit-compiler/src/SourceTypes.zig": {
+      "errors": {
+        "BuildWorkLimit": 2,
+        "DuplicateDomainIdentity": 1,
+        "InvalidDomainIdentity": 1,
+        "InvalidVariantConstructor": 2,
+        "NotSourceDomain": 1,
+        "SourceDepthLimit": 1,
+        "SourceTypeMismatch": 1,
+        "TableInterfaceMismatch": 4,
+        "UnknownVariantConstructor": 1,
+        "UnsupportedVariantField": 1
+      },
+      "outcomes": {
+        "Primitive": [
+          "integer",
+          "text",
+          "boolean"
+        ],
+        "Value": [
+          "integer",
+          "text",
+          "boolean",
+          "identifier",
+          "type",
+          "module",
+          "nominal",
+          "variant",
+          "table",
+          "instance",
+          "symbolic"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Value.primitive()": "<inferred>",
+        "constructor()": "<inferred>",
+        "domain()": "<inferred>",
+        "field()": "<inferred>",
+        "hashValue()": "<inferred>",
+        "resolve()": "<inferred>",
+        "signature()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "Syntax.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-compiler/src/Syntax.zig": {
       "errors": {
-        "DuplicateSourceName": 1,
-        "InvalidParameterType": 1,
+        "DuplicateSourceName": 4,
+        "InvalidDomainIdentity": 1,
         "InvalidSourceName": 2,
-        "InvalidSourceSyntax": 5,
+        "InvalidSourceSyntax": 6,
         "InvalidTestCount": 3,
         "InvalidTestName": 2,
         "InvalidTestStatement": 1,
+        "NullablePrimaryKey": 1,
         "Overflow": 1,
+        "SourceConstructorLimit": 2,
         "SourceDepthLimit": 3,
-        "SourceParameterLimit": 3,
+        "SourceParameterLimit": 5,
         "UnsupportedSourceDeclaration": 1,
         "UnsupportedSourceType": 1,
         "UnsupportedTestAssertion": 1,
@@ -12851,7 +12924,9 @@
           "module",
           "interface",
           "target",
-          "test_target"
+          "test_target",
+          "domain",
+          "variant"
         ],
         "Expr.value": [
           "integer",
@@ -12859,7 +12934,9 @@
           "boolean",
           "identifier",
           "type",
+          "named_type",
           "reference",
+          "construct",
           "binary",
           "unary"
         ],
@@ -12869,7 +12946,9 @@
           "boolean",
           "identifier",
           "type",
-          "module"
+          "module",
+          "named",
+          "table"
         ],
         "ScalarType": [
           "bigint",
@@ -12878,19 +12957,31 @@
         ],
         "Statement.value": [
           "use",
+          "table_export",
+          "match",
           "conditional",
           "sql",
           "test_case",
           "assertion"
         ],
+        "TypeRef": [
+          "scalar",
+          "named"
+        ],
         "parseBody().kind": [
           "rows",
           "command",
           "refusal"
+        ],
+        "parseBody().stop": [
+          "end",
+          "conditional",
+          "arm"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "callAfterName()": "<inferred>",
         "count()": "<inferred>",
         "decodeString()": "<inferred>",
         "expression()": "anyerror",
@@ -12902,12 +12993,15 @@
         "parseName()": "<inferred>",
         "parseParameters()": "<inferred>",
         "require()": "<inferred>",
+        "scalarType()": "<inferred>",
         "string()": "<inferred>",
-        "template()": "<inferred>"
+        "tableSignature()": "<inferred>",
+        "template()": "<inferred>",
+        "typeRef()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 99,
+        "try": 146,
         "catch": 2
       },
       "imports": [
@@ -12992,6 +13086,46 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-compiler/src/TypedOperands.zig": {
+      "errors": {
+        "InvalidRowWidth": 1,
+        "InvalidSourceOperand": 3,
+        "InvalidSourceTypeOperand": 1,
+        "SourceDomainMismatch": 2,
+        "SourceTableBindingMismatch": 1,
+        "SourceTypeMismatch": 2,
+        "UnsupportedBuildStatement": 1,
+        "UnsupportedNominalColumn": 2,
+        "UnsupportedNominalOperation": 4
+      },
+      "outcomes": {
+        "Operand.role": [
+          "assignment",
+          "predicate"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "parameters()": "<inferred>",
+        "predicate()": "<inferred>",
+        "scalar()": "<inferred>",
+        "selection()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 40,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceTypes.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-compiler/src/WorkingCatalog.zig": {
       "errors": {
         "ConflictingModuleInstance": 1,
@@ -13010,10 +13144,12 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
+        "try": 30,
         "catch": 1
       },
       "imports": [
+        "Graph.zig",
+        "SourceTypes.zig",
         "std",
         "transit_fuze"
       ]
@@ -13044,11 +13180,12 @@
         "allocationFailure()": "<inferred>",
         "allocationTestSuite()": "<inferred>",
         "one()": "<inferred>",
-        "refuses()": "<inferred>"
+        "refuses()": "<inferred>",
+        "typedAllocationFailure()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 6,
+        "try": 7,
         "catch": 0
       },
       "imports": [
@@ -21301,7 +21438,8 @@
           "body",
           "conditional",
           "expression",
-          "loop"
+          "loop",
+          "match"
         ]
       },
       "error_sets": {},
@@ -21901,7 +22039,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 152,
+        "try": 154,
         "catch": 1
       },
       "imports": [
@@ -48380,13 +48518,22 @@
       "sourceFile": "( SEMI | sourceImport | dependency | definition ) * EOF",
       "sourceImport": "IMPORT sourceName FROM ( PACKAGE sourceName FILE ) ? STRING SEMI",
       "dependency": "DEPENDENCY sourceName FROM STRING REVISION STRING ( SUBDIRECTORY STRING ) ? SEMI",
-      "definition": "CREATE PUBLIC ? ( MODULE sourceName parameters AS BEGIN body END | INTERFACE sourceName parameters | TEST ? TARGET sourceName AS BEGIN body END ) SEMI",
+      "definition": "CREATE PUBLIC ? ( MODULE sourceName parameters AS BEGIN body END | DOMAIN sourceName AS sourceBaseType IDENTITY STRING | VARIANT sourceName AS LPAREN variantConstructor ( COMMA variantConstructor ) * RPAREN | INTERFACE sourceName parameters | TEST ? TARGET sourceName AS BEGIN body END ) SEMI",
       "parameters": "LPAREN ( parameter ( COMMA parameter ) * ) ? RPAREN",
       "parameter": "sourceName parameterKind",
-      "parameterKind": "BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName",
-      "sourceQualifiedName": "sourceName ( DOT sourceName ) ?",
+      "parameterKind": "BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName | TABLE LPAREN signatureColumn ( COMMA signatureColumn ) * RPAREN | sourceParameterName",
+      "sourceBaseType": "BIGINT | TEXT | BOOLEAN",
+      "sourceParameterName": "parameterHead ( DOT sourceName ( DOT sourceName ) ? ) ?",
+      "parameterHead": "referenceTypeHead | TRUE | FALSE | NOT",
+      "sourceTypeName": "typeHead ( DOT sourceName ( DOT sourceName ) ? ) ?",
+      "typeHead": "referenceTypeHead | MODULE | TABLE | IDENTIFIER_KIND | TYPE | TRUE | FALSE | NOT",
+      "sourceType": "sourceBaseType | sourceTypeName",
+      "signatureColumn": "sourceName sourceType nullability ? ( PRIMARY KEY ) ? ( COLLATE sourceName ) ?",
+      "variantConstructor": "sourceName parameters",
+      "sourceQualifiedName": "sourceName ( DOT sourceName ( DOT sourceName ) ? ) ?",
       "body": "sourceStatement *",
-      "sourceStatement": "USE sourceCall SEMI | IF expression THEN body ( ELSE body ) ? END IF SEMI | TEST STRING USING MODULES LPAREN ( sourceCall ( COMMA sourceCall ) * ) ? RPAREN AS BEGIN body END SEMI | ASSERT assertion SEMI | tableTemplate SEMI",
+      "sourceStatement": "USE sourceCall ( AS sourceName ) ? SEMI | EXPORT TABLE DOLLAR ? sourceQualifiedName AS sourceName SEMI | MATCH expression matchArm + END MATCH SEMI | IF expression THEN body ( ELSE body ) ? END IF SEMI | TEST STRING USING MODULES LPAREN ( sourceCall ( COMMA sourceCall ) * ) ? RPAREN AS BEGIN body END SEMI | ASSERT assertion SEMI | tableTemplate SEMI",
+      "matchArm": "WHEN sourceQualifiedName LPAREN ( sourceName ( COMMA sourceName ) * ) ? RPAREN THEN body",
       "sourceCall": "sourceQualifiedName LPAREN ( expression ( COMMA expression ) * ) ? RPAREN",
       "assertion": "ROWS LPAREN tableTemplate RPAREN EQUAL LPAREN expectedRows ? RPAREN | COMMAND LPAREN tableTemplate RPAREN MATCHED INTEGER CHANGED INTEGER | STATEMENT LPAREN tableTemplate RPAREN FAILS WITH STRING",
       "expectedRows": "expectedRow ( COMMA expectedRow ) *",
@@ -48399,7 +48546,7 @@
       "sourceAdd": "sourceMultiply ( ( PLUS | MINUS ) sourceMultiply ) *",
       "sourceMultiply": "sourceUnary ( STAR sourceUnary ) *",
       "sourceUnary": "MINUS sourceUnary | NOT sourceUnary | sourceAtom",
-      "sourceAtom": "INTEGER | STRING | TRUE | FALSE | NAME STRING | TYPE ( BIGINT | TEXT | BOOLEAN ) | LPAREN expression RPAREN | referenceHead ( DOT sourceName ) ?",
+      "sourceAtom": "INTEGER | STRING | TRUE | FALSE | NAME STRING | TYPE sourceType | LPAREN expression RPAREN | referenceHead ( DOT sourceName ( DOT sourceName ) ? ) ? ( LPAREN ( expression ( COMMA expression ) * ) ? RPAREN ) ?",
       "tableTemplate": "CREATE PUBLIC TABLE identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN | mutationStatement | sourceSelect",
       "sourceSelect": "SELECT selection FROM identifier sourceTableAlias ? whereClause ? limitClause ? | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias ? whereClause ? limitClause ? RPAREN AS identifier",
       "sourceTableAlias": "AS identifier | sourceImplicitAlias",
@@ -48422,7 +48569,7 @@
       "tableConstraint": "( CONSTRAINT identifier ) ? checkConstraint",
       "identifier": "identifierHole | plainIdentifier",
       "plainIdentifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword",
-      "sourceKeyword": "USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND",
+      "sourceKeyword": "DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND",
       "dataType": "typeHole | sourceDataType",
       "sourceDataType": "scalarTypeName ( LPAREN sourceUnsigned ( COMMA sourceUnsigned ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | ROW | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA sourceUnsigned RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN | ( RANGE | MULTIRANGE ) LT dataType GT | VECTOR LPAREN sourceUnsigned COMMA ( sourceName | typeHole ) RPAREN",
       "scalarTypeName": "scalarTypeWord | DOUBLE PRECISION ? | CHARACTER VARYING ?",
@@ -48434,8 +48581,10 @@
       "valueHole": "DOLLAR sourceName",
       "checkHole": "DOLLAR sourceName",
       "sourceName": "referenceHead | TYPE | TRUE | FALSE | NOT",
-      "referenceHead": "sourceWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR | DOUBLE | CHARACTER",
-      "sourceWord": "IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM | STREAM_SLICE | QUEUE | STREAMS | QUEUES | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | CONSUME | CLAIM | ACK | NACK | EXTEND | RECEIPT | LEASE | WAIT | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | DATABASES | SCHEMAS | ASC | DESC | NULLS | FIRST | LAST | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER | SELECT | WHERE | LIMIT | COUNT | SUM | IS | AND | OR | BYTEA | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | COLLATE | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES | SINK | SINKS | TABLE | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON | SHOW | STORAGE | DESCRIBE | NULL_ | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | USING",
+      "referenceHead": "referenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE",
+      "referenceTypeHead": "typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR | DOUBLE | CHARACTER",
+      "sourceWord": "typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE",
+      "typeWord": "IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM | STREAM_SLICE | QUEUE | STREAMS | QUEUES | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | CONSUME | CLAIM | ACK | NACK | EXTEND | RECEIPT | LEASE | WAIT | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | DATABASES | SCHEMAS | ASC | DESC | NULLS | FIRST | LAST | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER | SELECT | WHERE | LIMIT | COUNT | SUM | IS | AND | OR | BYTEA | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | COLLATE | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON | SHOW | STORAGE | DESCRIBE | NULL_ | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN",
       "IMPORT": "'IMPORT'",
       "DEPENDENCY": "'DEPENDENCY'",
       "SUBDIRECTORY": "'SUBDIRECTORY'",
@@ -48466,7 +48615,13 @@
       "USING": "'USING'",
       "DOLLAR": "'$'",
       "BANG_NE": "'!='",
-      "NE": "'<>'"
+      "NE": "'<>'",
+      "DOMAIN": "'DOMAIN'",
+      "VARIANT": "'VARIANT'",
+      "IDENTITY": "'IDENTITY'",
+      "EXPORT": "'EXPORT'",
+      "MATCH": "'MATCH'",
+      "WHEN": "'WHEN'"
     }
   }
 }

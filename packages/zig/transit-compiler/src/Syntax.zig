@@ -4,10 +4,14 @@ const f = @import("transit_fuze");
 pub const Template = @import("Template.zig");
 pub const Token = f.SqlInput.CompilerScan.Token;
 pub const Span = struct { start: u32, end: u32 };
-pub const Name = struct { qualifier: ?[]const u8 = null, member: []const u8 };
-pub const Kind = union(enum) { integer, text, boolean, identifier, type, module: Name };
+pub const Name = struct { qualifier: ?[]const u8 = null, member: []const u8, constructor: ?[]const u8 = null };
+pub const Kind = union(enum) { integer, text, boolean, identifier, type, module: Name, named: Name, table: []const Column };
 pub const Parameter = struct { name: []const u8, kind: Kind };
 pub const ScalarType = enum { bigint, text, boolean };
+pub const TypeRef = union(enum) { scalar: ScalarType, named: Name };
+pub const Column = struct { name: []const u8, type: TypeRef, nullable: bool = true, primary: bool = false, collation: []const u8 = "none" };
+pub const Constructor = struct { name: []const u8, fields: []const Parameter };
+pub const Domain = struct { base: ScalarType, identity: []const u8 };
 pub const Binary = enum { add, subtract, multiply, equal, not_equal, less, less_equal, greater, greater_equal, and_, or_ };
 pub const Expr = struct {
     span: Span,
@@ -17,12 +21,15 @@ pub const Expr = struct {
         boolean: bool,
         identifier: []const u8,
         type: ScalarType,
+        named_type: Name,
         reference: Name,
+        construct: Call,
         binary: struct { op: Binary, left: *Expr, right: *Expr },
         unary: struct { negative: bool, operand: *Expr },
     },
 };
-pub const Call = struct { name: Name, arguments: []const *Expr };
+pub const Call = struct { name: Name, arguments: []const *Expr, result: ?[]const u8 = null };
+pub const Arm = struct { constructor: Name, names: []const []const u8, body: []const Statement, span: Span };
 pub const Case = struct { name: []const u8, setup: []const Call, body: []const Statement };
 pub const Assertion = struct {
     sql: Template.Syntax,
@@ -34,12 +41,14 @@ pub const Assertion = struct {
 };
 pub const Statement = struct { span: Span, value: union(enum) {
     use: Call,
+    table_export: struct { source: Name, operand: bool, alias: []const u8 },
+    match: struct { value: *Expr, arms: []const Arm },
     conditional: struct { condition: *Expr, yes: []const Statement, no: []const Statement },
     sql: Template.Syntax,
     test_case: Case,
     assertion: Assertion,
 } };
-pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target }, parameters: []const Parameter, body: []const Statement, span: Span };
+pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{} };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
 pub const Dependency = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, span: Span };
 pub const File = struct { definitions: []const Definition, imports: []const Import, dependencies: []const Dependency };
@@ -91,21 +100,41 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         } else {
             try self.require("CREATE");
             const public = self.take("PUBLIC");
-            const kind: @FieldType(Definition, "kind") = if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
+            const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
                 try self.require("TARGET");
                 break :blk .test_target;
             } else return error.UnsupportedSourceDeclaration;
             const name = try self.identifier();
             const parameters = if (kind == .module or kind == .interface) try self.parseParameters() else &.{};
-            const body: []const Statement = if (kind == .interface) &.{} else blk: {
+            var domain: ?Domain = null;
+            var constructors: std.ArrayList(Constructor) = .empty;
+            if (kind == .domain) {
+                try self.require("AS");
+                const base = try self.scalarType();
+                try self.require("IDENTITY");
+                domain = .{ .base = base, .identity = try self.string() };
+                if (domain.?.identity.len == 0 or domain.?.identity.len > 128) return error.InvalidDomainIdentity;
+            } else if (kind == .variant) {
+                try self.require("AS");
+                try self.require("(");
+                while (true) {
+                    if (constructors.items.len == 64) return error.SourceConstructorLimit;
+                    const constructor = try self.identifier();
+                    for (constructors.items) |prior| if (std.mem.eql(u8, prior.name, constructor)) return error.DuplicateSourceName;
+                    try constructors.append(a, .{ .name = constructor, .fields = try self.parseParameters() });
+                    if (!self.take(",")) break;
+                }
+                try self.require(")");
+            }
+            const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant) &.{} else blk: {
                 try self.require("AS");
                 try self.require("BEGIN");
-                const result = try self.parseBody(false);
+                const result = try self.parseBody(.end);
                 try self.require("END");
                 break :blk result;
             };
             try self.require(";");
-            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start) });
+            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(a) });
         }
     }
     return .{ .definitions = try definitions.toOwnedSlice(a), .imports = try imports.toOwnedSlice(a), .dependencies = try dependencies.toOwnedSlice(a) };
@@ -143,7 +172,42 @@ fn identifier(self: *Self) ![]const u8 {
 }
 fn parseName(self: *Self) !Name {
     const first = try self.identifier();
-    return if (self.take(".")) .{ .qualifier = first, .member = try self.identifier() } else .{ .member = first };
+    if (!self.take(".")) return .{ .member = first };
+    const second = try self.identifier();
+    return .{ .qualifier = first, .member = second, .constructor = if (self.take(".")) try self.identifier() else null };
+}
+fn scalarType(self: *Self) !ScalarType {
+    return if (self.take("BIGINT")) .bigint else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else error.UnsupportedSourceType;
+}
+fn typeRef(self: *Self) !TypeRef {
+    if (self.is("BIGINT") or self.is("TEXT") or self.is("BOOLEAN")) return .{ .scalar = try self.scalarType() };
+    return .{ .named = try self.parseName() };
+}
+fn tableSignature(self: *Self) ![]const Column {
+    try self.require("(");
+    var columns: std.ArrayList(Column) = .empty;
+    while (true) {
+        if (columns.items.len == f.TableSchema.max_columns) return error.SourceParameterLimit;
+        const name = try self.identifier();
+        for (columns.items) |prior| if (std.mem.eql(u8, prior.name, name)) return error.DuplicateSourceName;
+        var column: Column = .{ .name = name, .type = try self.typeRef() };
+        var explicit_null = false;
+        if (self.take("NOT")) {
+            try self.require("NULL");
+            column.nullable = false;
+        } else explicit_null = self.take("NULL");
+        if (self.take("PRIMARY")) {
+            try self.require("KEY");
+            if (explicit_null) return error.NullablePrimaryKey;
+            column.primary = true;
+            column.nullable = false;
+        }
+        if (self.take("COLLATE")) column.collation = try self.identifier();
+        try columns.append(self.a, column);
+        if (!self.take(",")) break;
+    }
+    try self.require(")");
+    return columns.toOwnedSlice(self.a);
 }
 fn string(self: *Self) ![]const u8 {
     _ = self.at();
@@ -169,25 +233,61 @@ fn parseParameters(self: *Self) ![]const Parameter {
         if (result.items.len == 64) return error.SourceParameterLimit;
         const parameter_name = try self.identifier();
         for (result.items) |prior| if (std.mem.eql(u8, prior.name, parameter_name)) return error.DuplicateSourceName;
-        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("MODULE")) .{ .module = try self.parseName() } else return error.InvalidParameterType;
+        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("MODULE")) .{ .module = try self.parseName() } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else .{ .named = try self.parseName() };
         try result.append(self.a, .{ .name = parameter_name, .kind = kind });
         if (self.take(")")) break;
         try self.require(",");
     }
     return result.toOwnedSlice(self.a);
 }
-fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
+fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const Statement {
     self.depth += 1;
     defer self.depth -= 1;
     if (self.depth > 64) return error.SourceDepthLimit;
     var result: std.ArrayList(Statement) = .empty;
-    while (!self.is("END") and !(conditional and self.is("ELSE"))) {
+    while (!self.is("END") and !(stop == .conditional and self.is("ELSE")) and !(stop == .arm and self.is("WHEN"))) {
         if (self.index == self.tokens.len) return error.InvalidSourceSyntax;
         const start = self.at();
         const value: @FieldType(Statement, "value") = if (self.take("USE")) blk: {
-            const call = try self.parseCall();
+            var call = try self.parseCall();
+            if (self.take("AS")) call.result = try self.identifier();
             try self.require(";");
             break :blk .{ .use = call };
+        } else if (self.take("EXPORT")) blk: {
+            try self.require("TABLE");
+            const operand = self.take("$");
+            const source = try self.parseName();
+            try self.require("AS");
+            const alias = try self.identifier();
+            try self.require(";");
+            break :blk .{ .table_export = .{ .source = source, .operand = operand, .alias = alias } };
+        } else if (self.take("MATCH")) blk: {
+            const value = try self.expression(0);
+            var arms: std.ArrayList(Arm) = .empty;
+            while (self.is("WHEN")) {
+                const arm_start = self.at();
+                try self.require("WHEN");
+                if (arms.items.len == 64) return error.SourceConstructorLimit;
+                const constructor = try self.parseName();
+                try self.require("(");
+                var names: std.ArrayList([]const u8) = .empty;
+                if (!self.take(")")) while (true) {
+                    if (names.items.len == 64) return error.SourceParameterLimit;
+                    const name = try self.identifier();
+                    for (names.items) |prior| if (std.mem.eql(u8, prior, name)) return error.DuplicateSourceName;
+                    try names.append(self.a, name);
+                    if (self.take(")")) break;
+                    try self.require(",");
+                };
+                try self.require("THEN");
+                const body = try self.parseBody(.arm);
+                try arms.append(self.a, .{ .constructor = constructor, .names = try names.toOwnedSlice(self.a), .body = body, .span = self.span(arm_start) });
+            }
+            if (arms.items.len == 0) return error.InvalidSourceSyntax;
+            try self.require("END");
+            try self.require("MATCH");
+            try self.require(";");
+            break :blk .{ .match = .{ .value = value, .arms = try arms.toOwnedSlice(self.a) } };
         } else if (self.take("TEST")) blk: {
             const name = try self.string();
             if (name.len == 0 or name.len > 128 or !std.unicode.utf8ValidateSlice(name)) return error.InvalidTestName;
@@ -204,7 +304,7 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
             };
             try self.require("AS");
             try self.require("BEGIN");
-            const body = try self.parseBody(false);
+            const body = try self.parseBody(.end);
             try self.require("END");
             try self.require(";");
             break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
@@ -233,8 +333,8 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
         } else if (self.take("IF")) blk: {
             const condition = try self.expression(0);
             try self.require("THEN");
-            const yes = try self.parseBody(true);
-            const no = if (self.take("ELSE")) try self.parseBody(false) else &.{};
+            const yes = try self.parseBody(.conditional);
+            const no = if (self.take("ELSE")) try self.parseBody(.end) else &.{};
             try self.require("END");
             try self.require("IF");
             try self.require(";");
@@ -257,7 +357,9 @@ fn template(self: *Self, tokens: []const Token, rows: bool) !Template.Syntax {
     return Template.parse(self.a, self.text, tokens, end, rows, self.location);
 }
 fn parseCall(self: *Self) !Call {
-    const name = try self.parseName();
+    return self.callAfterName(try self.parseName());
+}
+fn callAfterName(self: *Self, name: Name) !Call {
     try self.require("(");
     var arguments: std.ArrayList(*Expr) = .empty;
     if (!self.take(")")) while (true) {
@@ -313,11 +415,20 @@ fn expression(self: *Self, minimum: u8) anyerror!*Expr {
         const inner = try self.expression(0);
         try self.require(")");
         break :blk inner.value;
-    } else if ((self.index + 1 < self.tokens.len and self.tokens[self.index + 1].kind == .string and self.take("NAME"))) .{ .identifier = try self.string() } else if (self.take("TYPE")) .{ .type = if (self.take("BIGINT")) .bigint else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else return error.UnsupportedSourceType } else if (self.take("TRUE")) .{ .boolean = true } else if (self.take("FALSE")) .{ .boolean = false } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .string) .{ .text = try self.string() } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .number) blk: {
+    } else if ((self.index + 1 < self.tokens.len and self.tokens[self.index + 1].kind == .string and self.take("NAME"))) .{ .identifier = try self.string() } else if (self.take("TYPE")) blk: {
+        const kind = try self.typeRef();
+        break :blk switch (kind) {
+            .scalar => |scalar| .{ .type = scalar },
+            .named => |name| .{ .named_type = name },
+        };
+    } else if (self.take("TRUE")) .{ .boolean = true } else if (self.take("FALSE")) .{ .boolean = false } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .string) .{ .text = try self.string() } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .number) blk: {
         const token = self.tokens[self.index];
         self.index += 1;
         break :blk .{ .integer = try std.fmt.parseInt(i64, self.text[token.start..token.end], 10) };
-    } else .{ .reference = try self.parseName() };
+    } else blk: {
+        const name = try self.parseName();
+        break :blk if (self.is("(")) .{ .construct = try self.callAfterName(name) } else .{ .reference = name };
+    };
     var left = try self.a.create(Expr);
     left.* = .{ .span = self.span(start), .value = value };
     while (true) {

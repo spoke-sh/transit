@@ -267,3 +267,114 @@ test "expected row limits aggregate across assertions within one case" {
     try source.writer.writeAll("ASSERT ROWS (SELECT * FROM items) EQUAL ((1)); END; END;");
     try std.testing.expectError(error.TestRowsLimit, one(source.written(), test_options));
 }
+
+const target_types =
+    "CREATE DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; " ++
+    "CREATE DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; " ++
+    "CREATE VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); ";
+const typed_tables =
+    "CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN " ++
+    "CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; " ++
+    "CREATE MODULE InsertMachine(rows TABLE(id MachineId PRIMARY KEY), id MachineId) AS BEGIN INSERT INTO $rows VALUES ($id); END; " ++
+    "CREATE MODULE InsertSite(rows TABLE(id SiteId PRIMARY KEY), id SiteId) AS BEGIN INSERT INTO $rows VALUES ($id); END; ";
+const typed_setup =
+    "USE Rows(NAME 'machines', TYPE MachineId) AS machines; " ++
+    "USE Rows(NAME 'sites', TYPE SiteId) AS sites; ";
+const typed_route =
+    "CREATE MODULE Route(target Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN " ++
+    "MATCH target WHEN Target.Machine(id) THEN USE InsertMachine(machines, id); " ++
+    "WHEN Target.Site(id) THEN USE InsertSite(sites, id); END MATCH; END; ";
+const typed_application = target_types ++ typed_tables ++ typed_route ++
+    "CREATE TARGET default AS BEGIN " ++ typed_setup ++
+    "USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); " ++
+    "USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); " ++
+    "SELECT * FROM machines; SELECT * FROM sites; END;";
+test "nominal targets specialize both constructors into independently verified SQL" {
+    const product = try one(typed_application, .{ .compiler_revision = "test" });
+    defer product.deinit();
+    try std.testing.expectEqual(6, product.steps.len);
+    try std.testing.expectEqualStrings("INSERT INTO \"machines\" VALUES ( 7 )", product.steps[2].sql);
+    try std.testing.expectEqualStrings("INSERT INTO \"sites\" VALUES ( 7 )", product.steps[3].sql);
+    try std.testing.expect(std.mem.indexOf(u8, product.sql, "MachineId") == null);
+}
+test "nominal parameters cannot erase, rebrand, or substitute equal raw values" {
+    try std.testing.expectError(error.SourceTypeMismatch, one(target_types ++ typed_tables ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE InsertMachine(machines.rows, SiteId(7)); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.TableInterfaceMismatch, one(target_types ++ typed_tables ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE InsertMachine(sites.rows, MachineId(7)); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.SourceTypeMismatch, one(target_types ++
+        "CREATE MODULE Raw(x BIGINT) AS BEGIN END; CREATE TARGET default AS BEGIN USE Raw(MachineId(7)); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.SourceTypeMismatch, one(target_types ++
+        "CREATE MODULE Nominal(x MachineId) AS BEGIN END; CREATE TARGET default AS BEGIN USE Nominal(MachineId(SiteId(7))); END;", .{ .compiler_revision = "test" }));
+}
+test "literal Table names cannot bypass nominal operand checks" {
+    try std.testing.expectError(error.SourceDomainMismatch, one(target_types ++ typed_tables ++
+        "CREATE MODULE Wrong(id SiteId) AS BEGIN INSERT INTO machines VALUES ($id); END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Wrong(SiteId(7)); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.SourceDomainMismatch, one(target_types ++ typed_tables ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "INSERT INTO machines VALUES (7); END;", .{ .compiler_revision = "test" }));
+}
+test "unselected MATCH arms are checked with symbolic payload types" {
+    try std.testing.expectError(error.SourceDomainMismatch, one(target_types ++ typed_tables ++
+        "CREATE MODULE Route(target Target) AS BEGIN MATCH target " ++
+        "WHEN Target.Machine(id) THEN INSERT INTO machines VALUES ($id); " ++
+        "WHEN Target.Site(id) THEN INSERT INTO machines VALUES ($id); END MATCH; END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Machine(MachineId(7))); END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.NonExhaustiveSourceMatch, one(target_types ++
+        "CREATE MODULE Route(target Target) AS BEGIN MATCH target WHEN Target.Machine(id) THEN END MATCH; END; " ++
+        "CREATE TARGET default AS BEGIN USE Route(Target.Machine(MachineId(7))); END;", .{ .compiler_revision = "test" }));
+}
+fn typedAllocationFailure(a: std.mem.Allocator) !void {
+    var diagnostic: ?p.Diagnostic = null;
+    const product = try c.compile(a, &.{.{ .path = "build.transit", .text = typed_application }}, .{ .compiler_revision = "test" }, &diagnostic);
+    defer product.deinit();
+}
+test "typed MATCH and proposed catalog branches clean up every allocation failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, typedAllocationFailure, .{});
+}
+
+test "typed DML assignments aliases and predicates retain source annotations" {
+    const product = try one(target_types ++ typed_tables ++
+        "CREATE MODULE Mutate(rows TABLE(id MachineId PRIMARY KEY), id MachineId, replacement MachineId) AS BEGIN " ++
+        "INSERT INTO $rows (id) VALUES ($id); UPDATE machines SET id = $replacement WHERE id = $id; " ++
+        "SELECT m.id FROM machines AS m WHERE m.id <> $id; DELETE FROM machines WHERE id = $replacement; END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Mutate(machines.rows, MachineId(7), MachineId(9)); END;", .{ .compiler_revision = "test" });
+    defer product.deinit();
+    const update = product.steps[3].checked;
+    try std.testing.expectEqualStrings("machines", update.table);
+    try std.testing.expectEqualStrings("example.machine-id", update.columns[0].domain.?);
+    try std.testing.expectEqual(2, update.operands.len);
+    try std.testing.expectEqual(.assignment, update.operands[0].role);
+    try std.testing.expectEqual(9, update.operands[0].value.?.integer);
+    try std.testing.expectEqual(.predicate, update.operands[1].role);
+    try std.testing.expectEqual(7, update.operands[1].value.?.integer);
+    try std.testing.expectEqualStrings("example.machine-id", update.operands[1].domain.?);
+}
+test "typed rows assertions check unselected arms without materializing symbolic payloads" {
+    const source = target_types ++ typed_tables ++
+        "CREATE MODULE Route(value Target) AS BEGIN MATCH value " ++
+        "WHEN Target.Machine(id) THEN ASSERT ROWS (SELECT * FROM machines WHERE id = $id) EQUAL (); " ++
+        "WHEN Target.Site(id) THEN ASSERT ROWS (SELECT * FROM sites WHERE id = $id) EQUAL (); END MATCH; END; " ++
+        "CREATE TEST TARGET tests AS BEGIN TEST 'empty' USING MODULES () AS BEGIN " ++ typed_setup ++
+        "USE Route(Target.Machine(MachineId(7))); END; END;";
+    const product = try one(source, .{ .compiler_revision = "test", .mode = .test_suite, .target = "tests" });
+    defer product.deinit();
+    try std.testing.expectEqual(1, product.cases.len);
+    try std.testing.expectEqual(3, product.cases[0].actions.len);
+    const bad = try std.mem.replaceOwned(u8, std.testing.allocator, source, "SELECT * FROM sites WHERE id = $id", "SELECT * FROM machines WHERE id = $id");
+    defer std.testing.allocator.free(bad);
+    try std.testing.expectError(error.SourceDomainMismatch, one(bad, .{ .compiler_revision = "test", .mode = .test_suite, .target = "tests" }));
+}
+test "unselected recursive checking validates bodies and preserves call diagnostics" {
+    const source = target_types ++ typed_tables ++
+        "CREATE MODULE Loop(n BIGINT, id SiteId) AS BEGIN IF n = 0 THEN INSERT INTO machines VALUES ($id); ELSE USE Loop(n - 1, id); END IF; END; " ++
+        "CREATE MODULE Route(value Target) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO machines VALUES ($id); " ++
+        "WHEN Target.Site(id) THEN USE Loop(1, id); END MATCH; END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Machine(MachineId(7))); END;";
+    var diagnostic: ?p.Diagnostic = null;
+    try std.testing.expectError(error.SourceDomainMismatch, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = source }}, .{ .compiler_revision = "test" }, &diagnostic));
+    try std.testing.expect(diagnostic != null);
+    try std.testing.expectEqual(std.mem.indexOf(u8, source, "INSERT INTO machines VALUES ($id)").?, try diagnostic.?.location.?.offset.value());
+    try std.testing.expectEqual(.first_occurrence, diagnostic.?.facts[1].?.field);
+    try std.testing.expectEqual(std.mem.indexOf(u8, source, "USE Loop(1, id)").?, try diagnostic.?.facts[1].?.value.?.location.offset.value());
+}

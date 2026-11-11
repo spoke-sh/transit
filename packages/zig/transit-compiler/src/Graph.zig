@@ -147,6 +147,7 @@ fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []us
     return height;
 }
 pub fn resolve(self: Self, file: usize, name: s.Name) !Ref {
+    if (name.constructor != null) return error.InvalidSourceName;
     var target = file;
     if (name.qualifier) |qualifier| {
         target = for (self.files[file].imports) |import| {

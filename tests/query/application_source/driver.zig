@@ -80,6 +80,8 @@ fn steps(out: *std.json.Stringify, values: []const c.Compiler.Step) !void {
         try out.write(v.sql);
         try out.objectField("fingerprint");
         try out.write(std.fmt.bytesToHex(v.plan_digest, .lower));
+        try out.objectField("checked");
+        try project(out, "", v.checked, 0);
         try out.objectField("bindings");
         try out.write(std.fmt.bytesToHex(v.bindings_digest, .lower));
         try out.objectField("definition");
