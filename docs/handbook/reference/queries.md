@@ -557,6 +557,8 @@ native transaction owner. The first committed boundary includes the exact Queue
 ACK and a guarded checkpoint; later blocks do not ACK again. A failed block
 enters its failure handler only after its original abort is known. A SELECT
 returning more than one matching row refuses instead of silently choosing one.
+LET bindings take precedence over bare column names in SELECT predicates. Use
+distinct local names, such as `requested_id`, when `id` must refer to the row.
 
 `EXPLAIN CREATE DATAFLOW ... FROM QUEUE ...` returns bound resource definitions,
 uses and budgets without publishing or executing. `SHOW DATAFLOW name` currently

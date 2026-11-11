@@ -68,6 +68,11 @@ Table profile is unchanged; this interface consumes executable lowered SQL.
 
 ## Definition and compilation
 
+LET bindings are lexical. In a SELECT predicate, an existing program binding
+takes precedence over a bare column name; column lookup occurs only when that
+name is absent from the lexical environment. Use distinct local names when a
+predicate must address the current row's column.
+
 A definition has a scoped catalog identity, immutable source digest, exact
 resource definitions, publication connection, input Queue and acquisition
 predicate, budgets and native contract definition. Node identities belong to
