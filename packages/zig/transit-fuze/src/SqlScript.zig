@@ -37,13 +37,20 @@ pub const Compiler = struct {
         return .{ .scan = try input.CompilerScan.init(text) };
     }
     pub fn next(self: *Compiler) !?Statement {
-        return nextFrame(&self.scan);
+        return nextFrame(&self.scan, false);
     }
 };
 pub fn next(self: *Self) !?Statement {
-    return nextFrame(&self.scan);
+    return nextFrame(&self.scan, false);
 }
-fn nextFrame(scan: anytype) !?Statement {
+/// Editor input may end at any token or block boundary. Return only an explicit
+/// outer terminator, using the same compound grammar as source-file framing.
+pub fn editorTerminator(text: []const u8) !?u32 {
+    var scan = try input.SourceScan.init(text);
+    _ = try nextFrame(&scan, true) orelse return null;
+    return @intCast(scan.position);
+}
+fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
     const text = scan.text;
     var result: ?Statement = null;
     var count: usize = 0;
@@ -61,12 +68,18 @@ fn nextFrame(scan: anytype) !?Statement {
     while (try scan.next()) |token| {
         if (!token.closed and (token.kind == .string or token.kind == .quoted or
             token.kind == .comment and std.mem.startsWith(u8, text[token.start..token.end], "/*")))
+        {
+            if (editing) return null;
             return error.UnterminatedSqlToken;
+        }
         if (token.kind == .space or token.kind == .comment) continue;
         const symbol = token.kind == .symbol;
         const byte = text[token.start];
         if (result == null) {
-            if (symbol and byte == ';') continue;
+            if (symbol and byte == ';') {
+                if (editing) return .{ .start = token.start, .end = token.end, .first = @splat(null) };
+                continue;
+            }
             result = .{ .start = token.start, .end = token.end, .first = @splat(null) };
         }
         if (count < 3) result.?.first[count] = .{ .kind = token.kind, .start = token.start, .end = token.end, .closed = token.closed };
@@ -103,6 +116,8 @@ fn nextFrame(scan: anytype) !?Statement {
                 result.?.end = token.end;
                 continue;
             }
+            if (editing and token.kind == .word and scan.position == text.len and
+                std.ascii.startsWithIgnoreCase(expected, text[token.start..token.end])) return null;
             if (kind != .expression) return error.UnbalancedSqlBlock;
         }
         if (symbol and byte == '(') {
@@ -141,6 +156,7 @@ fn nextFrame(scan: anytype) !?Statement {
         }
         result.?.end = token.end;
     }
+    if (editing) return null;
     if (depth != 0 or (suffix != null and suffix.? != .expression)) return error.UnbalancedSqlBlock;
     if (parentheses != 0) return error.UnbalancedSqlParentheses;
     return result;

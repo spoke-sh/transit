@@ -537,6 +537,9 @@ ENQUEUE INTO requests VALUES (1);
 SHOW DATAFLOW process_requests;
 ```
 
+Console input retains the complete body through its matching `END;`. Inner
+instruction and atomic-block semicolons do not submit separate statements.
+
 CREATE parses and type-checks the complete body, freezes native resource
 definitions and budgets, and publishes an inactive declaration. It does not
 acquire input. AUTHORIZE requires an explicit named role, `CURRENT_ROLE` or

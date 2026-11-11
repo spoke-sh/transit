@@ -154,12 +154,12 @@ fn classifyTableWithAllocator(text: []const u8, roles: []sql.TokenRole, allocato
     try parser.finish();
 }
 
-/// First explicit terminator outside quotes/comments; returned end includes ';'.
+/// First explicit outer terminator; returned end includes ';'. Compound bodies
+/// use the source framer, while editor byte and unfinished-input bounds remain.
 /// No terminator means keep editing, even if a complete statement could compile.
 pub fn terminator(text: []const u8) !?u16 {
-    var scan = try Scan.init(text);
-    while (try scan.next()) |token| if (token.kind == .symbol and text[token.start] == ';') return token.end;
-    return null;
+    _ = try Scan.init(text);
+    return if (try @import("SqlScript.zig").editorTerminator(text)) |end| @intCast(end) else null;
 }
 /// Cursor-local statement, retaining its suffix for binding. Dot commands end
 /// at a line boundary; SQL separators inside strings/comments remain inert.
@@ -225,6 +225,17 @@ test "framing respects nested comments, doubled quotes, multiline input and expl
     try t.expectEqual(null, try terminator("SELECT 'unfinished;"));
     try t.expectEqual(null, try terminator("/* unfinished;"));
     try t.expectEqual(@as(u16, 9), (try terminator("SELECT 1;SELECT 2;")).?);
+}
+test "editor framing retains every incomplete Queue program prefix and its cursor range" {
+    const t = std.testing;
+    const body = "CREATE DATAFLOW action FROM QUEUE input AS event AS BEGIN LET id = event.id; BEGIN ATOMIC IF id > 0 THEN REQUIRE TRUE ELSE 'Invalid;'; END IF; INSERT INTO output VALUES (id) ON CONFLICT (id) DO ASSERT SAME ROW; END; LET observed = SELECT * FROM output WHERE id = event.id; BEGIN ATOMIC REQUIRE observed.id = id ELSE 'Missing'; END; END;";
+    inline for (.{ body, "EXPLAIN " ++ body }) |statement| {
+        for (0..statement.len) |end| try t.expectEqual(null, try terminator(statement[0..end]));
+        try t.expectEqual(statement.len, (try terminator(statement ++ " SELECT 1;")).?);
+        const range = try active(statement ++ " SELECT 1;", @intCast(statement.len / 2), true);
+        try t.expectEqualStrings(statement, (statement ++ " SELECT 1;")[range.start..range.end]);
+    }
+    try t.expectEqual(@as(u16, 1), (try terminator(";;SELECT 1;")).?);
 }
 test "cursor ranges replace whole tokens and reject split UTF-8 or protected lexical context" {
     const t = std.testing;

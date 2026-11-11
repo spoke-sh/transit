@@ -20965,6 +20965,7 @@
       "imports": [
         "RelationalSql.zig",
         "Sql.zig",
+        "SqlScript.zig",
         "SqlTyped.zig",
         "TableDdl.zig",
         "TableDml.zig",
@@ -21307,6 +21308,7 @@
       "error_returns": {
         "Compiler.init()": "<inferred>",
         "Compiler.next()": "<inferred>",
+        "editorTerminator()": "<inferred>",
         "followingWord()": "<inferred>",
         "init()": "<inferred>",
         "next()": "<inferred>",
@@ -21314,7 +21316,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 6,
+        "try": 8,
         "catch": 0
       },
       "imports": [
