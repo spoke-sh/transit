@@ -462,6 +462,12 @@ Neither delivered slice completes the milestone.
 
 ### Next language slice
 
+The [source grammar and typed-core implementation plan](application-source-grammar-implementation.md)
+scopes this next increment for review: independent ANTLR/production-parser
+correspondence for the delivered language, explicit embedded-SQL syntax/stage
+rules, bounded source round-trips and the core extension contract. It includes
+logical commits and acceptance gates; it implements none of the proposed forms.
+
 First close source-grammar parity for the delivered build/test profile and settle
 the typed-core and interface contracts in `P0`/`P1`. Keep existing compiler/test
 behavior and evidence intact. Develop three synthetic design cases incrementally:
