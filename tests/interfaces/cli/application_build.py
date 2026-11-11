@@ -231,7 +231,35 @@ def compiler_journey(cli, root):
     return output
 
 
-def execute_program(cli, sql):
+def typed_journey(cli, root):
+    fixture = REPO / 'tests/fixtures/application-typed-targets'
+    project = root / 'typed-project'
+    shutil.copytree(fixture, project)
+    checked = cli_build(cli, project, '--check')
+    assert checked['statements'] == 6 and not (project / '.transit').exists()
+    first = cli_build(cli, project)
+    sql = (Path(first['directory']) / 'application.sql').read_text()
+    assert sql == (fixture / 'expected.sql').read_text()
+    provenance = json.loads((Path(first['directory']) / 'provenance.json').read_text())
+    assert all(set(step) == {'sql', 'plan_digest', 'definition', 'call', 'instance', 'bindings_digest'}
+               for step in provenance['steps']), 'Internal checked values leaked into the artifact format'
+    assert cli_build(cli, project)['reused']
+    build = (project / 'build.transit').read_text()
+    routing = (project / 'routing.transit').read_text()
+    for filename, original, changed in (
+            ('build.transit', build, build.replace('ids.Target.Machine(ids.MachineId(7))', 'ids.Target.Machine(ids.SiteId(7))')),
+            ('build.transit', build, build.replace('machines.rows, sites.rows', 'sites.rows, machines.rows')),
+            ('routing.transit', routing, routing.replace('INSERT INTO $sites VALUES ($id)', 'INSERT INTO $machines VALUES ($id)'))):
+        source(project, filename, changed)
+        refused = cli_build(cli, project, expected=1)
+        assert refused['outcome'] == 'not_submitted' and refused['location'] is not None
+        assert (Path(first['directory']) / 'application.sql').read_text() == sql
+        source(project, filename, original)
+    shutil.rmtree(project)
+    return sql
+
+
+def execute_program(cli, sql, typed_sql):
     fixture = Fixture(cli)
     fixture.use_private_runtime()
     passed = False
@@ -265,12 +293,21 @@ def execute_program(cli, sql):
         finally:
             client.close()
         assert sorted(records(fixture.console('SELECT * FROM first_items;')[-1]), key=lambda row: int(row['id'])) == [{'id': '7'}, {'id': '8'}]
+        typed_outcomes = fixture.console(typed_sql)
+        typed_rows = [records(value) for value in typed_outcomes if 'schema' in value]
+        assert typed_rows == [[{'id': '7'}], [{'id': '7'}]], typed_rows
+        typed_counts = [value['completion']['counts'] for value in typed_outcomes
+                        if value.get('completion', {}).get('kind') == 'insert']
+        assert typed_counts == [{'matched': '1', 'changed': '1'}] * 2
+        outcomes += typed_outcomes
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
         assert records(fixture.console('SELECT * FROM second_items;')[-1]) == [{'id': '9'}]
+        assert records(fixture.console('SELECT * FROM sites;')[-1]) == [{'id': '7'}]
         disable_sql_credential(fixture.root, fixture.config['ports'], installation=fixture.installation)
         fixture.console('SELECT * FROM first_items;', expected=1)
+        fixture.console('SELECT * FROM machines;', expected=1)
         passed = True
         return outcomes
     finally:
@@ -285,8 +322,10 @@ def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
         sql = compiler_journey(cli, Path(temporary)).read_text()
-        generated = execute_program(cli, sql)
-        oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text())
+        typed_sql = typed_journey(cli, Path(temporary))
+        generated = execute_program(cli, sql, typed_sql)
+        oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
+                                 (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):

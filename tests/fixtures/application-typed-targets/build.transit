@@ -1,0 +1,28 @@
+IMPORT ids FROM 'types.transit';
+IMPORT rows FROM 'rows.transit';
+IMPORT routing FROM 'routing.transit';
+CREATE TARGET default AS BEGIN
+  USE rows.Rows(NAME 'machines', TYPE ids.MachineId) AS machines;
+  USE rows.Rows(NAME 'sites', TYPE ids.SiteId) AS sites;
+  USE routing.Route(ids.Target.Machine(ids.MachineId(7)), machines.rows, sites.rows);
+  USE routing.Route(ids.Target.Site(ids.SiteId(7)), machines.rows, sites.rows);
+  SELECT * FROM machines;
+  SELECT * FROM sites;
+END;
+CREATE TEST TARGET tests AS BEGIN
+  TEST 'machine target and counts' USING MODULES () AS BEGIN
+    USE rows.Rows(NAME 'machines', TYPE ids.MachineId) AS machines;
+    USE rows.Rows(NAME 'sites', TYPE ids.SiteId) AS sites;
+    USE routing.Route(ids.Target.Machine(ids.MachineId(7)), machines.rows, sites.rows);
+    USE routing.CheckMachine(machines.rows, ids.MachineId(9));
+    ASSERT ROWS (SELECT * FROM machines) EQUAL ((7), (9));
+    ASSERT ROWS (SELECT * FROM sites) EQUAL ();
+  END;
+  TEST 'site target and isolated state' USING MODULES () AS BEGIN
+    USE rows.Rows(NAME 'machines', TYPE ids.MachineId) AS machines;
+    USE rows.Rows(NAME 'sites', TYPE ids.SiteId) AS sites;
+    USE routing.Route(ids.Target.Site(ids.SiteId(7)), machines.rows, sites.rows);
+    ASSERT ROWS (SELECT * FROM machines) EQUAL ();
+    ASSERT ROWS (SELECT * FROM sites) EQUAL ((7));
+  END;
+END;

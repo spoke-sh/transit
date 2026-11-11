@@ -3,6 +3,7 @@ import copy
 import hashlib
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -145,9 +146,14 @@ def main():
     parent.mkdir(parents=True, exist_ok=True)
     destination = Path(tempfile.mkdtemp(prefix='run-', dir=parent))
     cases = list(descriptors())
-    meta = {'completed': False, 'cases': cases, 'spec_sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest(),
+    meta = {**capture.provenance(ROOT), 'completed': False, 'cases': cases, 'spec_sha256': hashlib.sha256(SPEC.read_bytes()).hexdigest(),
             'driver_sha256': hashlib.sha256(driver.read_bytes()).hexdigest(),
-            'lean': subprocess.check_output(['lean', '--version'], text=True).strip()}
+            'lean': subprocess.check_output(['lean', '--version'], text=True).strip(),
+            'lean_executable': capture.identity(Path(shutil.which('lean')).resolve()),
+            'inputs': {path: capture.identity(ROOT / path) for path in (
+                'tests/query/application_source/types.py', 'tests/query/application_source/driver.zig',
+                'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
+                'packages/zig/transit-compiler/src/SourceTypes.zig', 'packages/zig/transit-compiler/src/TypedOperands.zig')}}
     capture.write_json(destination / 'evidence.json', meta)
     print(f'typed source evidence: {destination}', flush=True)
     inventory()
