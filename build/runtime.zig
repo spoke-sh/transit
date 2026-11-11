@@ -225,6 +225,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) {
+            app.root_module.addImport("transit_test", b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test"));
             app.root_module.addImport("transit_compiler", b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler"));
             app.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
             app.root_module.addOptions("build_version", @import("version.zig").options(b));

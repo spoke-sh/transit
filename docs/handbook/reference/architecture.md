@@ -67,16 +67,16 @@ select a venue, strategy, latency target or monetary representation for you.
 
 ## Workloads guide the architecture
 
-The [planned source-to-SQL toolchain](applications.md#planned-source-language-and-build-model)
+The [source-to-SQL toolchain](applications.md#application-source-builds)
 places recursive `.transit` module composition and `build.transit` evaluation
-outside runtime authority. The proposed `transit build` and `transit test` use
-shared Zig compiler components to produce and exercise executable Transit SQL.
-The database consumes that SQL through its ordinary statement and migration
-owners; it does not need source repositories or a build interpreter. Compilation
-must preserve authorization, definition identity and transaction boundaries.
-The database compiler remains independent of Station; Station and interface
-integrations consume the common language boundary. These are proposed boundaries,
-not claims that the build language or commands are available.
+outside runtime authority. `transit build` emits executable Table SQL, and
+`transit test` exercises that SQL through isolated local database owners.
+The database consumes generated SQL through ordinary statement and migration
+owners; it needs no source repositories or build interpreter. Compilation grants
+no rights and preserves the runtime's authorization and definition boundaries.
+The compiler depends on shared Fuze types and plans, independently of Station.
+Broader application declarations and workflow simulations remain proposed in the
+[source model](applications.md#planned-source-language-and-build-model).
 
 Interactive inspection, shared Documents, capture/materialization, historical
 research, enrichment, workflow coordination and external execution have different

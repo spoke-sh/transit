@@ -16,6 +16,13 @@ same-user lifecycle socket; stopping SQL leaves the database owner running.
 The configuration service retains its separate installation owner. Explicit
 standalone SQL gateway placement continues to use the public HTTP data APIs.
 
+The node module also exports `LocalRuntime.open`, `configureTable`, `endpoint`
+and `close` for the application test command's private local composition.
+Opening this owner starts no listener. It uses the same storage, request lanes,
+signature checks and policy fences as node service ingress. The embedding caller
+must close all sessions, owned responses and concurrent users before `close`;
+an endpoint is a borrowed dispatch handle, never an authority grant.
+
 ## Build and run
 
 From the repository root in `nix develop`:

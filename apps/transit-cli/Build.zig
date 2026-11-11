@@ -104,7 +104,7 @@ fn publish(io: std.Io, a: std.mem.Allocator, output: []const u8, sql: []const u8
     try Sources.syncDirectory(parent);
     return false;
 }
-fn executableDigest(io: std.Io, a: std.mem.Allocator) ![32]u8 {
+pub fn executableDigest(io: std.Io, a: std.mem.Allocator) ![32]u8 {
     const path = try std.process.executablePathAlloc(io, a);
     const file = try std.Io.Dir.cwd().openFile(io, path, .{});
     defer file.close(io);

@@ -2,6 +2,15 @@
 
 [Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: In Progress** · Approved first slice
 
+Delivery update, 2026-11-10: the bounded compiler implementation merged in
+[PR #437](https://github.com/spoke-sh/transit/pull/437). Its validation record
+includes the remaining latency-gate failure and the requester-approved exception
+to publication; merge does not turn that gate into a pass. The original plan
+below remains the source-attributed scope and acceptance record. The delivered
+[next implementation slice](application-test-implementation.md) adds isolated
+Table tests through the same compiler and real database owners. The broader
+milestone and runtime work remain unfinished.
+
 Deliver the first usable source-to-SQL build path: an application composes typed
 modules through `build.transit`, checks the composition offline, and produces
 deterministic SQL that an ordinary Transit client can execute with the source
@@ -14,7 +23,8 @@ composition, locked dependencies, a bounded working catalog, canonical SQL
 emission and `transit build` for an explicitly supported Table workload. It is a
 vertical subset of M12 P0, P1 and P3. Subsequent slices add the abstractions,
 runtime encapsulation, migration synthesis and test language required to finish
-M12. This plan does not change the milestone's status or close #430.
+M12. The original first-slice proposal did not change the milestone's status or
+close #430; the milestone now records the merged delivery as In Progress.
 
 ## Source basis and work to reuse
 

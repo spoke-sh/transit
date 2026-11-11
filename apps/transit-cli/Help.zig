@@ -10,6 +10,7 @@ pub const root =
     \\  console   Open an SQL console
     \\  migrate   Plan, apply and verify application schema migrations
     \\  build     Compile application modules to executable SQL
+    \\  test      Run isolated application Table tests
     \\
     \\Options:
     \\  --help     Show this help
@@ -88,5 +89,18 @@ pub const build =
     \\--check validates and verifies SQL without publishing an artifact.
     \\--fetch cannot combine with --check, --out or --override.
     \\--check cannot combine with --out. Explicit outputs must be absent.
+    \\
+;
+
+pub const @"test" =
+    \\Run application Table tests in fresh local databases.
+    \\
+    \\Usage: transit test [-f FILE] [--target NAME]
+    \\                    [--override NAME=DIRECTORY] [--format text|json] [--help]
+    \\
+    \\The default entry is build.transit and the default target is tests.
+    \\Dependencies must already be frozen by transit build --fetch.
+    \\All cases compile before execution. Each case owns a temporary database.
+    \\Exit 0 requires complete assertions and successful cleanup.
     \\
 ;

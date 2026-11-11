@@ -1,6 +1,8 @@
 const std = @import("std");
 const telemetry = @import("transit_observability").telemetry;
 const wire = @import("transit_client");
+pub const LocalRuntime = @import("Local.zig").Runtime;
+pub const LocalConfiguration = @import("Local.zig").Config;
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const status = if (args.len == 3 and std.mem.eql(u8, args[2], "--maintain")) telemetry.runService(init, "transit-maintenance", .info, run) else telemetry.runService(init, "transit-node", .info, run);

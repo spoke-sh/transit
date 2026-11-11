@@ -6,15 +6,17 @@ const memory = @import("transit_memory");
 const s = @import("Syntax.zig");
 const Graph = @import("Graph.zig");
 const Catalog = @import("WorkingCatalog.zig");
+const Test = @import("Test.zig");
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
-pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
+pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
 pub const Step = struct { sql: []const u8, plan_digest: [32]u8, definition: p.Diagnostic.Location, call: ?p.Diagnostic.Location, instance: []const u8, bindings_digest: [32]u8 };
 pub const Product = struct {
     budget: memory.Budget,
     arena: std.heap.ArenaAllocator,
     sql: []const u8 = "",
     steps: []const Step = &.{},
+    cases: []const Test.Case = &.{},
     input_digest: [32]u8 = undefined,
     sql_digest: [32]u8 = undefined,
     work: usize = 0,
@@ -39,6 +41,13 @@ file: usize = 0,
 offset: usize = 0,
 call_site: ?p.Diagnostic.Location = null,
 instance: []const u8 = "target",
+test_mode: bool = false,
+in_case: bool = false,
+expansion: [32]u8 = @splat(0),
+cases: std.ArrayList(Test.Case) = .empty,
+actions: std.ArrayList(Test.Action) = .empty,
+expected_rows: usize = 0,
+expected_bytes: usize = 0,
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
     diagnostic.* = null;
@@ -84,7 +93,6 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     const a = self.a;
     const graph = self.graph;
     const sources = graph.sources;
-    const scratch = self.scratch;
     const entry = for (sources, 0..) |source, i| {
         if (std.mem.eql(u8, source.package, "root") and std.mem.eql(u8, source.path, options.entry)) break i;
     } else return error.MissingBuildEntry;
@@ -92,26 +100,26 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     const target_name = try std.ascii.allocLowerString(a, options.target);
     const target = try graph.resolve(entry, .{ .member = target_name });
     const definition = graph.getDefinition(target);
-    if (definition.kind != .target) return error.NotBuildTarget;
+    self.test_mode = options.mode == .test_suite;
+    const target_kind: @FieldType(s.Definition, "kind") = if (self.test_mode) .test_target else .target;
+    if (definition.kind != target_kind) return error.WrongSourceTargetKind;
+    std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
     try self.validateInterfaces();
     try self.body(target.file, definition.body, &.{}, 0);
-    if (self.steps.items.len == 0) return error.EmptyBuildTarget;
-    // A second working catalog prepares only the emitted SQL, with no source
-    // symbols or evaluator. Compare ordered plans, not merely parser acceptance.
-    var verified: Catalog = .{ .output = a, .scratch = scratch.allocator() };
-    var sql: std.ArrayList(u8) = .empty;
-    for (self.steps.items) |step| {
-        _ = scratch.reset(.retain_capacity);
-        var at: f.Sql.Location = .{};
-        const actual = try verified.check(step.sql, &at);
-        if (!std.mem.eql(u8, &actual, &step.plan_digest)) return error.BuildEmissionMismatch;
-        try sql.appendSlice(a, step.sql);
-        try sql.appendSlice(a, ";\n");
+    if (self.test_mode) {
+        if (self.cases.items.len == 0) return error.EmptyTestTarget;
+        result.cases = try self.cases.toOwnedSlice(a);
+        var combined = std.crypto.hash.sha2.Sha256.init(.{});
+        combined.update("transit.source.tests.sql.v1\x00");
+        for (result.cases) |case| combined.update(&case.sql_digest);
+        result.sql_digest = combined.finalResult();
+    } else {
+        if (self.steps.items.len == 0) return error.EmptyBuildTarget;
+        result.sql = try self.verify();
+        result.steps = try self.steps.toOwnedSlice(a);
+        std.crypto.hash.sha2.Sha256.hash(result.sql, &result.sql_digest, .{});
     }
-    result.sql = try sql.toOwnedSlice(a);
-    result.steps = try self.steps.toOwnedSlice(a);
     result.work = self.work;
-    std.crypto.hash.sha2.Sha256.hash(result.sql, &result.sql_digest, .{});
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.source.build.v1\x00");
     Graph.hashPart(&hash, format);
@@ -120,6 +128,7 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     hash.update(&options.resolution_digest);
     Graph.hashPart(&hash, options.entry);
     Graph.hashPart(&hash, target_name);
+    if (self.test_mode) Graph.hashPart(&hash, "test_suite");
     inline for (@typeInfo(Limits).@"struct".field_names) |field_name| {
         var bytes: [8]u8 = undefined;
         std.mem.writeInt(u64, &bytes, @field(options.limits, field_name), .little);
@@ -139,6 +148,20 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     }
     result.input_digest = hash.finalResult();
     return result;
+}
+fn verify(self: *Self) ![]const u8 {
+    // Independent ordinary preparation receives SQL, never source or controls.
+    var verified: Catalog = .{ .output = self.a, .scratch = self.scratch.allocator() };
+    var sql: std.ArrayList(u8) = .empty;
+    for (self.steps.items) |step| {
+        _ = self.scratch.reset(.retain_capacity);
+        var at: f.Sql.Location = .{};
+        const actual = try verified.check(step.sql, &at);
+        if (!std.mem.eql(u8, &actual, &step.plan_digest)) return error.BuildEmissionMismatch;
+        try sql.appendSlice(self.a, step.sql);
+        try sql.appendSlice(self.a, ";\n");
+    }
+    return sql.toOwnedSlice(self.a);
 }
 fn tick(self: *Self) !void {
     if (self.work == self.limits.work) return error.BuildWorkLimit;
@@ -199,13 +222,28 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, bindings: []c
                 }
                 const before_site = self.call_site;
                 const before_instance = self.instance;
+                const before_expansion = self.expansion;
+                var expansion = std.crypto.hash.sha2.Sha256.init(.{});
+                expansion.update(&before_expansion);
+                Graph.hashPart(&expansion, self.graph.sources[file].package);
+                Graph.hashPart(&expansion, self.graph.sources[file].path);
+                var at: [8]u8 = undefined;
+                std.mem.writeInt(u64, &at, statement.span.start, .little);
+                expansion.update(&at);
+                self.expansion = expansion.finalResult();
                 self.call_site = location(self.graph.sources[file], statement.span.start);
                 self.instance = definition.name;
                 try self.body(ref.file, definition.body, values[0..call.arguments.len], depth + 1);
                 self.call_site = before_site;
                 self.instance = before_instance;
+                self.expansion = before_expansion;
             },
-            .sql => |tokens| try self.emit(file, statement.span, tokens, bindings),
+            .sql => |tokens| {
+                if (self.test_mode and !self.in_case) return error.TestStatementOutsideCase;
+                try self.emit(file, statement.span, tokens, bindings);
+            },
+            .test_case => |case| try self.testCase(file, statement.span, case, bindings, depth),
+            .assertion => |check| try self.assertion(file, statement.span, check, bindings),
         }
     }
 }
@@ -275,6 +313,7 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
     };
 }
 fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, bindings: []const Binding) !void {
+    if (self.in_case and self.actions.items.len == Test.max_actions) return error.TestActionLimit;
     self.file = file;
     self.offset = span.start;
     var raw_buf: [f.Sql.max_statement_bytes]u8 = undefined;
@@ -311,6 +350,65 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
         }
     }
     try self.steps.append(self.a, .{ .sql = try self.a.dupe(u8, canonical), .plan_digest = digest, .definition = location(self.graph.sources[file], span.start), .call = self.call_site, .instance = try self.a.dupe(u8, self.instance), .bindings_digest = binding_hash.finalResult() });
+    if (self.in_case) try self.actions.append(self.a, .{ .step = self.steps.items.len - 1, .expectation = .complete, .location = location(self.graph.sources[file], span.start) });
+}
+fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []const Binding, depth: usize) !void {
+    if (!self.test_mode) return error.TestInBuildTarget;
+    if (self.in_case) return error.NestedTestCase;
+    if (self.cases.items.len == Test.max_cases) return error.TestCaseLimit;
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update(&self.expansion);
+    Graph.hashPart(&hash, self.graph.sources[file].package);
+    Graph.hashPart(&hash, self.graph.sources[file].path);
+    Graph.hashPart(&hash, case.name);
+    const identity = hash.finalResult();
+    for (self.cases.items) |prior| if (std.mem.eql(u8, &prior.identity, &identity)) return error.DuplicateTestCase;
+    self.in_case = true;
+    defer self.in_case = false;
+    self.catalog = .{ .output = self.a, .scratch = self.scratch.allocator() };
+    self.steps = .empty;
+    self.actions = .empty;
+    self.expected_rows = 0;
+    self.expected_bytes = 0;
+    for (case.setup) |call| try self.body(file, &.{.{ .span = span, .value = .{ .use = call } }}, bindings, depth + 1);
+    try self.body(file, case.body, bindings, depth + 1);
+    if (self.actions.items.len == 0) return error.EmptyTestCase;
+    const sql = try self.verify();
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(sql, &digest, .{});
+    try self.cases.append(self.a, .{ .name = try self.a.dupe(u8, case.name), .identity = identity, .location = location(self.graph.sources[file], span.start), .sql = sql, .sql_digest = digest, .steps = try self.steps.toOwnedSlice(self.a), .actions = try self.actions.toOwnedSlice(self.a) });
+}
+fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, bindings: []const Binding) !void {
+    if (!self.in_case) return error.TestAssertionOutsideCase;
+    try self.emit(file, span, value.sql, bindings);
+    const step = self.steps.items[self.steps.items.len - 1];
+    const is_select = tokenIs(self.graph.sources[file].text, value.sql[0], "SELECT");
+    const is_create = tokenIs(self.graph.sources[file].text, value.sql[0], "CREATE");
+    const expected: Test.Expectation = switch (value.expected) {
+        .rows => |tokens| blk: {
+            if (!is_select) return error.TestRowsRequired;
+            const schema = try self.catalog.querySchema(step.sql);
+            var buffer: [f.Sql.max_statement_bytes]u8 = undefined;
+            const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, &buffer, false, null);
+            const rows = try Test.bindRows(self.a, self.scratch.allocator(), text, schema);
+            if (rows.values.len > Test.max_rows - self.expected_rows) return error.TestRowsLimit;
+            self.expected_rows += rows.values.len;
+            for (rows.values) |bytes| {
+                if (bytes.len > Test.max_result_bytes - self.expected_bytes) return error.TestResultBytesLimit;
+                self.expected_bytes += bytes.len;
+            }
+            break :blk .{ .rows = rows };
+        },
+        .command => |counts| blk: {
+            if (is_select) return error.TestCommandRequired;
+            break :blk .{ .command = .{ .matched = counts.matched, .changed = counts.changed } };
+        },
+        .refusal => |reason| blk: {
+            if (is_select or is_create) return error.TestMutationRequired;
+            break :blk .{ .refusal = if (reason == .duplicate_key) .duplicate_key else .check_violation };
+        },
+    };
+    self.actions.items[self.actions.items.len - 1].expectation = expected;
 }
 fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;

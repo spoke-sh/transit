@@ -1,6 +1,6 @@
 # 12. Recursive `.transit` modules, SQL compilation, builds and testing
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress
 
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a higher-order Transit SQL dialect stored as `.transit`.
@@ -11,7 +11,12 @@ statements or synthesize immutable migration SQL against an explicit prior state
 Reuse typed modules, profiles, functions, guards and procedures, and exercise the
 same generated SQL through deterministic local unit and fault-injection tests.
 
-All source forms, build/test commands and examples below are proposed. The
+The bounded recursive Table compiler and `transit build` landed in
+[PR #437](https://github.com/spoke-sh/transit/pull/437); the
+[current source contract](../../contracts/APPLICATION_SOURCE_V1.md) defines that
+implemented subset and the delivered isolated Table profile of `transit test`.
+The broader source forms, clock/effect/replay controls and examples below remain
+proposed except where explicitly identified as delivered. The
 [public language model](../handbook/reference/applications.md#planned-source-language-and-build-model)
 owns the concepts; the [compiler analysis](../handbook/internals/query-engine.md#planned-source-to-sql-compilation)
 owns the equivalence argument and its limits. The existing `transit-app` tool
@@ -36,6 +41,12 @@ Extend the [shared data lifecycle](01-declarative-data-lifecycle.md),
 [source contract](../../contracts/SOURCE_V1.md).
 
 ## Problem statement and empirical baseline
+
+This gap assessment records the pre-compiler Platform baseline. Shared block
+framing, migration file validation and bounded Table builds have since advanced;
+the [first implementation plan](application-build-implementation.md) and
+[next-slice source audit](application-test-implementation.md#source-basis-and-existing-owners)
+distinguish delivered scope from the remaining work described here.
 
 As declarative SQL in Transit expands beyond passive `CREATE TABLE` DDL to
 encompass versioned documents, queues, streams, transactional command handlers
@@ -343,7 +354,7 @@ executable SQL:
 
 ## Delivery sequence and implementation plan (`P0`–`P6`)
 
-The [next-slice implementation plan](application-build-implementation.md)
+The [first-slice implementation plan](application-build-implementation.md)
 reconciles this sequence with the merged application foundation and scopes
 the first recursive module build through independently executable SQL. The
 bounded Table compiler is implemented in `transit-compiler` and exposed through
@@ -352,6 +363,16 @@ keeps unsupported runtime capabilities explicit. Qualification and remaining wor
 are tracked by the implementation plan. It scopes
 the initial runtime subset, package/compiler owners, logical commits and caller
 proofs; the broader P0–P6 completion criteria below remain required.
+
+The [Table test runner slice](application-test-implementation.md) delivers explicit
+test targets, production SQL emission and isolated execution through real local
+database owners. Typed row multisets, command counts and exact constraint refusals
+use ordinary SQL sessions and require complete results and joined cleanup.
+[Executed qualification](../history/qualification/interfaces.md#isolated-application-table-tests--2026-11-10)
+records the bounded profile and its limits. This is part of P5; subject/clock
+controls, effect simulation and workflow replay remain subsequent work. The
+merged build PR's validation and latency failure retain their original scope.
+Neither delivered slice completes the milestone.
 
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
@@ -525,7 +546,12 @@ proofs; the broader P0–P6 completion criteria below remain required.
 
 ### `P5` — Deterministic SQL unit-test runner, sink/observation simulator and yield-point fault injector
 
-**Owners:** [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
+**Owners:** [`packages/zig/transit-compiler/`](../../packages/zig/transit-compiler), [`packages/zig/transit-test/`](../../packages/zig/transit-test), [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
+
+The [isolated Table profile](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+delivers item 1 for the existing compiler subset and typed row/count/refusal
+assertions from item 3. The controls, broader SQL and replay schedules below
+remain required to complete P5.
 
 1. **Implement the `TEST ... USING MODULES (...) AS BEGIN ... END` grammar and in-process runner:**
    - Resolve `*.test.transit` suites through the same `build.transit` graph and
@@ -606,8 +632,10 @@ proofs; the broader P0–P6 completion criteria below remain required.
 
 ## Completion evidence
 
-All rows are required future evidence; none is established by this plan or its
-documentation checks. Record performance against the pinned conditions in `P6`.
+The delivered compiler and Table-test slices establish only the bounded evidence
+linked above. Every row still requires its full journey, including capabilities
+outside those profiles; this plan and documentation checks establish no runtime
+result. Record performance against the pinned conditions in `P6`.
 
 | Journey | Required executable evidence |
 | --- | --- |

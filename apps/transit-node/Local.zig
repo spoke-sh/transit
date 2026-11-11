@@ -14,7 +14,7 @@ pub const Store = backend.Store;
 pub const PageStore = backend.PageStore;
 pub const Engine = core.growing.Engine(Store, PageStore);
 
-const Config = struct {
+pub const Config = struct {
     profile: enum { native_v1 } = .native_v1,
     genesis: core.growing.Genesis,
     local_directory: []const u8,
@@ -71,81 +71,126 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     }
 }
 
-fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !void {
-    var admission: @import("DirectStorageMemory.zig") = undefined;
-    try admission.init(init.gpa, config.storage);
-    defer admission.deinit();
-    var owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
-    defer owner.deinit();
-    owner.collection_quota = &admission.collection;
-    owner.maintenance_settings = config.storage.maintenance;
-    if (config.maintenance) |maintenance| owner.maintenance_activity = .{
-        .enabled = true,
-        .state = .waiting,
-        .completed_steps = 0,
-        .failed_steps = 0,
-        .last_failure = null,
-        .interval_ms = maintenance.interval_ms,
-        .operation_timeout_ms = maintenance.operation_timeout_ms,
-    };
-    var pages = try PageStore.init(&owner, config.resident_pages);
-    defer pages.deinit();
-    pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
-    var journal: Store = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
-    var recovery = @import("transit_observability").begin(diagnostics, .recovery, if (mode.initialize or mode.bootstrap) "bootstrap" else "open", null);
-    journal.observe.parent = recovery.span.context;
-    pages.observe.parent = recovery.span.context;
-    var engine = (if (mode.initialize or mode.bootstrap) Engine.bootstrap(&journal, &pages, config.genesis) else Engine.open(&journal, &pages, config.genesis)) catch |err| {
-        recovery.fail(err);
+/// Listener-free local storage and native dispatch composition. All SQL and
+/// native callers use the same production Context; close requires joined users.
+pub const Runtime = struct {
+    init: std.process.Init,
+    config: Config,
+    admission: @import("DirectStorageMemory.zig"),
+    owner: backend.Backend,
+    pages: PageStore,
+    journal: Store,
+    engine: Engine,
+    clock_context: u8 = 0,
+    table: ?TableHost = null,
+    lanes: []Lane = &.{},
+    context: ?*server.Host(Self).Context = null,
+
+    pub fn open(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !*Runtime {
+        if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
+        try config.storage.maintenance.validate();
+        try config.storage.requests.validate();
+        try config.storage.admission.validate();
+        const self = try init.gpa.create(Runtime);
+        errdefer init.gpa.destroy(self);
+        self.* = .{ .init = init, .config = config, .admission = undefined, .owner = undefined, .pages = undefined, .journal = undefined, .engine = undefined };
+        try self.admission.init(init.gpa, config.storage);
+        errdefer self.admission.deinit();
+        self.owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
+        errdefer self.owner.deinit();
+        self.owner.collection_quota = &self.admission.collection;
+        self.owner.maintenance_settings = config.storage.maintenance;
+        if (config.maintenance) |maintenance| self.owner.maintenance_activity = .{ .enabled = true, .state = .waiting, .completed_steps = 0, .failed_steps = 0, .last_failure = null, .interval_ms = maintenance.interval_ms, .operation_timeout_ms = maintenance.operation_timeout_ms };
+        self.pages = try PageStore.init(&self.owner, config.resident_pages);
+        errdefer self.pages.deinit();
+        self.pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
+        self.journal = .{ .backend = &self.owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
+        var recovery = @import("transit_observability").begin(diagnostics, .recovery, if (mode.initialize or mode.bootstrap) "bootstrap" else "open", null);
+        self.journal.observe.parent = recovery.span.context;
+        self.pages.observe.parent = recovery.span.context;
+        self.engine = (if (mode.initialize or mode.bootstrap) Engine.bootstrap(&self.journal, &self.pages, config.genesis) else Engine.open(&self.journal, &self.pages, config.genesis)) catch |err| {
+            recovery.fail(err);
+            recovery.finish();
+            return err;
+        };
+        recovery.event.realm = config.genesis.realm;
+        recovery.event.position = self.engine.head.position;
         recovery.finish();
-        return err;
-    };
-    recovery.event.realm = config.genesis.realm;
-    recovery.event.position = engine.head.position;
-    recovery.finish();
-    journal.observe.parent = null;
-    pages.observe.parent = null;
+        self.journal.observe.parent = null;
+        self.pages.observe.parent = null;
+        if (mode.initialize) return self;
+        if (config.genesis.max_clock_error_ms != null) self.engine.clock = .{ .context = &self.clock_context, .read = @import("Clock.zig").read };
+        var snapshot_epoch: [16]u8 = undefined;
+        try init.io.randomSecure(&snapshot_epoch);
+        self.engine.snapshot_epoch = snapshot_epoch;
+        self.lanes = try init.gpa.alloc(Lane, TableHost.request_owners);
+        errdefer init.gpa.free(self.lanes);
+        var initialized: usize = 0;
+        errdefer for (self.lanes[0..initialized]) |*lane| lane.pages.deinit();
+        for (self.lanes) |*lane| {
+            lane.* = .{ .journal = .{ .backend = &self.owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } }, .pages = try PageStore.init(&self.owner, config.resident_pages), .engine = self.engine };
+            lane.pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
+            lane.engine.journal = &lane.journal;
+            lane.engine.page_store = &lane.pages;
+            initialized += 1;
+        }
+        errdefer if (self.table) |*host| host.deinit();
+        if (config.table) |configured| try self.configureTable(configured);
+        self.context = try server.Host(Self).Context.create(init, &self.engine, self.lanes, config, diagnostics);
+        return self;
+    }
+    pub fn configureTable(self: *Runtime, config: TableHost.Config) !void {
+        if (self.table != null) return error.LocalTableAlreadyConfigured;
+        self.table = try TableHost.init(self.admission.allocator(false), self.init.io, config, &self.engine);
+        errdefer {
+            self.table.?.deinit();
+            self.table = null;
+        }
+        self.table.?.admission = &self.admission;
+        self.table.?.resident_memory.attach(&self.admission);
+        try self.table.?.warm(&self.engine);
+        for (self.lanes) |*lane| lane.table = &self.table.?;
+        if (self.context) |context| context.table_memory.attach(&self.admission);
+    }
+    pub fn endpoint(self: *Runtime) @import("transit_client").LocalEndpoint {
+        return self.context.?.endpoint();
+    }
+    pub fn close(self: *Runtime) void {
+        if (self.context) |context| context.destroy(self.init.gpa);
+        for (self.lanes) |*lane| lane.pages.deinit();
+        if (self.lanes.len != 0) self.init.gpa.free(self.lanes);
+        if (self.table) |*host| host.deinit();
+        self.pages.deinit();
+        self.owner.deinit();
+        self.admission.deinit();
+        self.init.gpa.destroy(self);
+    }
+};
+
+fn runOwner(init: std.process.Init, config: Config, mode: anytype, diagnostics: *telemetry.Runtime) !void {
+    const runtime = try Runtime.open(init, config, mode, diagnostics);
+    defer runtime.close();
     if (mode.initialize) return;
-    var clock_context: u8 = 0;
-    if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
-    var snapshot_epoch: [16]u8 = undefined;
-    try init.io.randomSecure(&snapshot_epoch);
-    engine.snapshot_epoch = snapshot_epoch;
-    var table: ?TableHost = if (config.table) |configured| try TableHost.init(admission.allocator(false), init.io, configured, &engine) else null;
-    defer if (table) |*host| host.deinit();
-    if (table) |*host| {
-        host.admission = &admission;
-        host.resident_memory.attach(&admission);
-        try host.warm(&engine);
-    }
-    const lanes = try init.gpa.alloc(Lane, TableHost.request_owners);
-    defer init.gpa.free(lanes);
-    var initialized: usize = 0;
-    defer for (lanes[0..initialized]) |*lane| lane.pages.deinit();
-    for (lanes) |*lane| {
-        lane.* = .{ .journal = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } }, .pages = try PageStore.init(&owner, config.resident_pages), .engine = engine };
-        lane.pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
-        lane.engine.journal = &lane.journal;
-        lane.engine.page_store = &lane.pages;
-        lane.table = if (table) |*value| value else null;
-        initialized += 1;
-    }
+    const owner = &runtime.owner;
+    const engine = &runtime.engine;
     if (config.maintenance != null) {
         // This lane shares only the exclusive physical owner. Its mutable
         // authority, cache and scanner are private to the maintenance task.
-        var maintenance_pages = try PageStore.init(&owner, config.resident_pages);
+        var maintenance_pages = try PageStore.init(owner, config.resident_pages);
         defer maintenance_pages.deinit();
         maintenance_pages.observe = .{ .runtime = diagnostics, .enabled = config.request_metrics };
-        var maintenance_journal: Store = .{ .backend = &owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
-        var maintenance_engine = engine;
+        var maintenance_journal: Store = .{ .backend = owner, .observe = .{ .runtime = diagnostics, .enabled = config.request_metrics } };
+        var maintenance_engine = engine.*;
         maintenance_engine.journal = &maintenance_journal;
         maintenance_engine.page_store = &maintenance_pages;
-        return runServices(init, &engine, lanes, config, &maintenance_engine, diagnostics);
+        return runServices(init, runtime, config, &maintenance_engine, diagnostics);
     }
-    return runServices(init, &engine, lanes, config, null, diagnostics);
+    return runServices(init, runtime, config, null, diagnostics);
 }
 
-fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: Config, maintenance_engine: ?*Engine, diagnostics: *telemetry.Runtime) !void {
+fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintenance_engine: ?*Engine, diagnostics: *telemetry.Runtime) !void {
+    const engine = &local.engine;
+    const lanes = local.lanes;
     var table_maintenance: ?TableMaintenance = if (lanes[0].table) |host| .{ .host = host, .allocator = init.gpa } else null;
     defer if (table_maintenance) |*work| work.deinit();
     const Task = struct {
@@ -155,8 +200,8 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
         fn maintainTable(raw: *anyopaque, owned: *Engine, settings: Maintenance.Config, signed: core.protocol.Growth.SignedRequest) anyerror!bool {
             return TableMaintenance.step(raw, owned, settings.storage, signed);
         }
-        fn serve(process: std.process.Init, authority: *Engine, requests: []Lane, settings: Config, runtime: *telemetry.Runtime) anyerror!void {
-            return server.Host(Self).serve(process, authority, requests, settings, runtime);
+        fn serve(process: std.process.Init, context: *server.Host(Self).Context, settings: Config, diagnostics_: *telemetry.Runtime) anyerror!void {
+            return server.Host(Self).serveContext(process, context, settings, diagnostics_);
         }
         fn watch(io: std.Io, owner: *backend.Backend, runtime: *telemetry.Runtime) anyerror!void {
             while (true) {
@@ -180,7 +225,7 @@ fn runServices(init: std.process.Init, engine: *Engine, lanes: []Lane, config: C
         const extension: ?Maintenance.Extension(Self) = if (table_maintenance) |*work| .{ .context = work, .step = Task.maintainTable } else null;
         try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics, extension });
     }
-    try select.concurrent(.server, Task.serve, .{ init, engine, lanes, config, diagnostics });
+    try select.concurrent(.server, Task.serve, .{ init, local.context.?, config, diagnostics });
     try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend, diagnostics });
     return switch (try select.await()) {
         .server => |result| result,

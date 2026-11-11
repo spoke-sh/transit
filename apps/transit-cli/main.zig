@@ -2,9 +2,11 @@
 const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
 const build_version = @import("build_version");
+pub const ApplicationTestHost = @import("TestHost.zig");
 pub fn main(init: std.process.Init) !void {
     var diagnostic: Diagnostic = .{};
     dispatch(init, &diagnostic) catch |err| {
+        if (err == error.TestSuiteFailed) std.process.exit(1);
         if (diagnostic.machine) @import("Build.zig").emitFailure(init.io, &diagnostic, err) catch {} else diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,
@@ -35,6 +37,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         .server => @import("server/Server.zig").run(init, options, diagnostic),
         .migrate => @import("Migrate.zig").run(init, options, diagnostic),
         .build => @import("Build.zig").run(init, options.build, diagnostic),
+        .@"test" => @import("Test.zig").run(init, options.build, diagnostic),
         .help => unreachable,
     };
 }

@@ -22,12 +22,23 @@ pub const Expr = struct {
     },
 };
 pub const Call = struct { name: Name, arguments: []const *Expr };
+pub const Case = struct { name: []const u8, setup: []const Call, body: []const Statement };
+pub const Assertion = struct {
+    sql: []const Token,
+    expected: union(enum) {
+        rows: []const Token,
+        command: struct { matched: u64, changed: u64 },
+        refusal: enum { duplicate_key, check_violation },
+    },
+};
 pub const Statement = struct { span: Span, value: union(enum) {
     use: Call,
     conditional: struct { condition: *Expr, yes: []const Statement, no: []const Statement },
     sql: []const Token,
+    test_case: Case,
+    assertion: Assertion,
 } };
-pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target }, parameters: []const Parameter, body: []const Statement, span: Span };
+pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target }, parameters: []const Parameter, body: []const Statement, span: Span };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
 pub const Dependency = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, span: Span };
 pub const File = struct { definitions: []const Definition, imports: []const Import, dependencies: []const Dependency };
@@ -79,9 +90,12 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         } else {
             try self.require("CREATE");
             const public = self.take("PUBLIC");
-            const kind: @FieldType(Definition, "kind") = if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("TARGET")) .target else return error.UnsupportedSourceDeclaration;
+            const kind: @FieldType(Definition, "kind") = if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
+                try self.require("TARGET");
+                break :blk .test_target;
+            } else return error.UnsupportedSourceDeclaration;
             const name = try self.identifier();
-            const parameters = if (kind != .target) try self.parseParameters() else &.{};
+            const parameters = if (kind == .module or kind == .interface) try self.parseParameters() else &.{};
             const body: []const Statement = if (kind == .interface) &.{} else blk: {
                 try self.require("AS");
                 try self.require("BEGIN");
@@ -170,17 +184,51 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
         if (self.index == self.tokens.len) return error.InvalidSourceSyntax;
         const start = self.at();
         const value: @FieldType(Statement, "value") = if (self.take("USE")) blk: {
-            const call_name = try self.parseName();
+            const call = try self.parseCall();
+            try self.require(";");
+            break :blk .{ .use = call };
+        } else if (self.take("TEST")) blk: {
+            const name = try self.string();
+            if (name.len == 0 or name.len > 128 or !std.unicode.utf8ValidateSlice(name)) return error.InvalidTestName;
+            for (name) |byte| if (std.ascii.isControl(byte)) return error.InvalidTestName;
+            try self.require("USING");
+            try self.require("MODULES");
             try self.require("(");
-            var arguments: std.ArrayList(*Expr) = .empty;
+            var setup: std.ArrayList(Call) = .empty;
             if (!self.take(")")) while (true) {
-                if (arguments.items.len == 64) return error.SourceParameterLimit;
-                try arguments.append(self.a, try self.expression(0));
+                if (setup.items.len == 64) return error.SourceParameterLimit;
+                try setup.append(self.a, try self.parseCall());
                 if (self.take(")")) break;
                 try self.require(",");
             };
+            try self.require("AS");
+            try self.require("BEGIN");
+            const body = try self.parseBody(false);
+            try self.require("END");
             try self.require(";");
-            break :blk .{ .use = .{ .name = call_name, .arguments = try arguments.toOwnedSlice(self.a) } };
+            break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
+        } else if (self.take("ASSERT")) blk: {
+            const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
+            const sql = try self.parenthesized();
+            const expected: @FieldType(Assertion, "expected") = switch (kind) {
+                .rows => rows: {
+                    try self.require("EQUAL");
+                    break :rows .{ .rows = try self.parenthesized() };
+                },
+                .command => command: {
+                    try self.require("MATCHED");
+                    const matched = try self.count();
+                    try self.require("CHANGED");
+                    break :command .{ .command = .{ .matched = matched, .changed = try self.count() } };
+                },
+                .refusal => refusal: {
+                    try self.require("FAILS");
+                    try self.require("WITH");
+                    break :refusal .{ .refusal = std.meta.stringToEnum(@FieldType(@FieldType(Assertion, "expected"), "refusal"), try self.string()) orelse return error.UnsupportedTestRefusal };
+                },
+            };
+            try self.require(";");
+            break :blk .{ .assertion = .{ .sql = sql, .expected = expected } };
         } else if (self.take("IF")) blk: {
             const condition = try self.expression(0);
             try self.require("THEN");
@@ -202,6 +250,45 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
         try result.append(self.a, .{ .span = self.span(start), .value = value });
     }
     return result.toOwnedSlice(self.a);
+}
+fn parseCall(self: *Self) !Call {
+    const name = try self.parseName();
+    try self.require("(");
+    var arguments: std.ArrayList(*Expr) = .empty;
+    if (!self.take(")")) while (true) {
+        if (arguments.items.len == 64) return error.SourceParameterLimit;
+        try arguments.append(self.a, try self.expression(0));
+        if (self.take(")")) break;
+        try self.require(",");
+    };
+    return .{ .name = name, .arguments = try arguments.toOwnedSlice(self.a) };
+}
+fn parenthesized(self: *Self) ![]const Token {
+    try self.require("(");
+    const start = self.index;
+    var depth: usize = 1;
+    while (self.index < self.tokens.len) {
+        if (self.take("(")) {
+            depth += 1;
+            if (depth > 64) return error.SourceDepthLimit;
+        } else if (self.take(")")) {
+            depth -= 1;
+            if (depth == 0) return self.tokens[start .. self.index - 1];
+        } else {
+            if (self.is(";")) return error.InvalidTestStatement;
+            self.index += 1;
+        }
+    }
+    return error.InvalidSourceSyntax;
+}
+fn count(self: *Self) !u64 {
+    _ = self.at();
+    if (self.index == self.tokens.len) return error.InvalidTestCount;
+    const token = self.tokens[self.index];
+    const bytes = self.text[token.start..token.end];
+    for (bytes) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidTestCount;
+    self.index += 1;
+    return std.fmt.parseInt(u64, bytes, 10) catch return error.InvalidTestCount;
 }
 fn expression(self: *Self, minimum: u8) anyerror!*Expr {
     self.depth += 1;

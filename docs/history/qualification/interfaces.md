@@ -3513,3 +3513,153 @@ identify the executable and fixture sources, hashes and commands. This changes
 test isolation only; it does not change CLI discovery rules or complete the
 current-source clean core lane.
 
+## Isolated application Table tests — 2026-11-10
+
+The Table test slice of Milestone 12 compiles explicit test targets through the
+production module compiler and SQL emitter, then runs each case in a fresh local
+installation through the ordinary native dispatcher, Catalog, database runtime
+and SQL Session. Source declarations cannot install the qualification hooks,
+choose credentials, connect to a deployment, or request workflow replay.
+
+Implementation basis: `01a191687`, following main `91be427a8`, on Linux x86_64 with
+the pinned Zig `0.17.0-dev.2267+48abf1a34` toolchain and native definition
+`21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`.
+The owning current profile is [isolated Table tests](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
+
+The CLI proof runs with socket/connect/io_uring denial, no executable search
+path and unusable ambient deployment configuration. It checks repeatable source
+and emitted SQL identities, independent cases reusing Table names, NULL,
+full-width integers, duplicate projected values, empty and multi-batch results,
+authoritative INSERT/UPDATE/DELETE counts, real constraint refusal and unchanged
+state. It compares independent hand-written SQL through an installed SQL caller,
+with source packages removed. Child roots, frozen repository caches, explicit
+overrides, missing/foreign locks and corrupt cache controls use the existing
+build resolver. Wrong expectations fail while subsequent isolated cases run;
+host failure identifies the unexecuted suffix.
+
+The host proof uses the exact CLI composition with real current grants. It denies
+a restricted write, revokes read authority after buffering and on an empty
+terminal result, then checks fresh disclosure. A lost response after a verified
+commit resolves through the original operation without another SQL submission.
+Missing read replies, duplicated/reordered native scan entries, premature
+terminal evidence and a timeout during an expected-refusal assertion cannot pass. Allocation failure,
+accounted memory refusal, provider quota exhaustion, deadline cancellation and
+permission-denied pin cleanup fail the host. Reader borrows, recovery tasks and
+native dispatch are joined before provider teardown; warm pins are explicitly
+drained through ordinary durable reconciliation. CLI syscall schedules exercise
+ENOSPC during initialization, denied deletion and process death without a
+successful terminal report. Only each proof's owned private directory is removed.
+
+Compiler boundaries cover 128/129 cases, 1,024/1,025 actions and aggregate
+10,000/10,001 expected rows. The real CLI consumes exactly 10,000 observed rows
+and refuses the next row; its wide-result schedule refuses before 16 MiB of
+canonical bytes. Reports expose compiler/host allocation peaks and provider
+reservations. Accounted limits exclude process stacks, binary mappings, filesystem
+allocation-unit overhead and the operating system's page cache.
+
+Completed focused checks:
+
+- `nix develop --command just test application-compiler` and the runner package
+  tests pass, as do the ReleaseSafe node build and Debug host proof.
+- `nix develop --command just test application-test` and
+  `nix develop --command just test application-test-host` pass in ReleaseSafe,
+  including the offline/differential CLI corpus and host-fault schedules.
+- `nix develop --command just check contracts` passes all 20 checks. Version
+  validation checks 163 Transit versions/pins; the regenerated diagnostic
+  inventory covers 1,011 production owners and 9,451 error-return boundaries.
+
+Committed-source clean checks use `nix develop --command just ci clean --lane
+NAME`. All selected lanes pass:
+
+| Lane | Source | Tasks | Elapsed | Ignored evidence directory under `.cache/ci/clean/` |
+| --- | --- | --- | --- | --- |
+| `core` | `f5ad50b0d` | 28 | 4,154.41 s | `f5ad50b0d6c2-transit-ci-09m4vuc5` |
+| `storage-query` | `01a191687` | 35 | 8,749.28 s | `01a191687e20-transit-ci-5spgtnwj` |
+| `interfaces-sql` | `01a191687` | 8 | 2,882.68 s | `01a191687e20-transit-ci-7zyfk4p8` |
+| `installation-ui` | `01a191687` | 26 | 4,367.30 s | `01a191687e20-transit-ci-705lt7b0` |
+| `launchers` | `01a191687` | 2 | 721.31 s | `01a191687e20-transit-ci-7hpgebek` |
+
+The installation lane includes the required `server-sql-types` check, existing
+application-build regression, new offline CLI and host-fault checks, server
+recovery/lifetime schedules and Board/browser checks.
+
+The only change between those sources corrects the new host proof's expected
+native bootstrap-quota refusal; the runtime is identical and the core lane does
+not execute that proof. The selected clean lanes are not the full ten-lane
+integration/release qualification. Timings include overlapping functional
+workloads and are not performance comparisons. Raw runner reports remain in
+ignored output and CI artifacts; this record does not archive routine logs in Git.
+
+The pinned latency gate passes:
+`nix develop .#ci-experience --command just test console-latency-gate --output
+.cache/transit-latency/application-tests-01a191687`. It verifies three startup
+samples, all 795 statement samples and their 795 resource observations with zero
+budget violations. Fresh readiness is 4,698.063 ms; the first verified result is
+4,909.892 ms. Warm relational reads have a 20 ms class median and KV writes a
+127 ms class median. The seven owned processes peak at 1,397,733,376 PSS bytes;
+cycle PSS growth is 1.1413. The original budgets are unchanged.
+
+The gate ran after all owned clean-checkout processes exited. Other user work
+was left untouched. Host one-minute load averages were 3.505 before the gate
+build and 4.830 after measurement; Linux I/O-pressure `some avg10` was 0.15 and
+1.43 respectively. These snapshots describe a shared host, not a controlled
+comparison against an earlier source. The ignored output directory retains
+`host-conditions.json`, `startup.jsonl`, `statements.jsonl` and `report.json`.
+Their source-attributed SHA-256 references are:
+
+- Budgets: `c01fc90e4acbe0f7b8444c75fde79b7adb060259d2a9d9ed07b24438c6ad1b94`.
+- Startup transcript: `4c1633e69250b8b6c424b1145ddea15b2bf9ccf329be3c959e286f54413f8147`.
+- Statement transcript: `1c109a4bda7a36b654585f84df1d0ae0276f6254e775ea7c4afe4c0bd41d7769`.
+
+Small-corpus measurements use the same ReleaseSafe executable at `01a191687`
+(SHA-256 `4035776d16d1f00f75850d99bf764d684317f958ffde3e221c50d4613bf86c1b`),
+an AMD Ryzen Threadripper 3960X, Linux `6.17.0-41-generic`, x86_64 and
+48 available logical CPUs. Each invocation uses `PATH=/unavailable`, a fresh
+private TMPDIR and no deployment environment. The commands are `transit build
+--check -f tests/fixtures/application-tests/build.transit --format json` and
+`transit test -f tests/fixtures/application-tests/build.transit --format json`.
+Elapsed time uses a monotonic process-launch boundary; peak RSS is the child's
+Linux `wait4` value. Every run succeeds and leaves its owned temporary directory
+empty. Automatic reports are in `.cache/application-test-measurements/`.
+
+| Command | Process invocation | Wall time | Peak RSS |
+| --- | --- | --- | --- |
+| `build` | 1 | 85.046 ms | 11.883 MiB |
+| `build` | 2 | 85.987 ms | 11.188 MiB |
+| `build` | 3 | 85.799 ms | 11.938 MiB |
+| `test` | 1 | 2,985.171 ms | 131.031 MiB |
+| `test` | 2 | 3,033.083 ms | 129.453 MiB |
+| `test` | 3 | 3,691.933 ms | 130.207 MiB |
+
+The two-case test target reports 3,222,934 compiler allocation bytes at peak,
+25,325,386–25,328,053 host allocation bytes at peak, and 1,212,740–1,356,460 provider
+reserved bytes per case across these runs. Reservations are distinct from
+filesystem allocation-unit overhead. First/repeated invocations do not establish
+cold operating-system caches or isolate startup, compilation and execution
+phases. Build checks the ordinary default target; test includes two isolated
+cases and their cleanup. Other workloads remained untouched, so these small
+observations are not regression budgets or the full Platform two-second target.
+
+The final PR records the required `nix develop --command just check fast`,
+`nix develop .#docs --command just transit-docs::install` and
+`nix develop .#docs --command just transit-docs::check` outcomes for the final
+delivery documentation. Dependency installation alone establishes no check pass.
+
+Bring-up exposed a missing database recovery worker: CREATE waited until its
+deadline. The final host runs and joins the ordinary worker. An initial CHECK
+fixture was correctly rejected by compile-time literal validation and was changed
+to a runtime UPDATE violation without weakening the compiler. Initial wide-data
+fixtures hit the existing statement-size or time limit before the byte cap;
+bounded inserts followed by one UPDATE exercise the intended byte boundary.
+The full 10,000-row schedule exceeded the Debug deadline; this remains failed
+Debug evidence. The required CLI task uses ReleaseSafe with unchanged caps.
+A ReleaseSafe run of the unchanged CLI corpus also exceeded the 30-second
+case deadline while the clean core lane was exercising storage faults. The same
+binary and caps passed after that workload ended. Contention is a plausible
+explanation, not a proved cause; the failed attempt remains in the local records.
+Native bootstrap quota exhaustion returns AuthorityUnavailable at the signed
+boundary; the proof was corrected from its internal StorageQuota expectation.
+
+These checks qualify the bounded Table profile. They do not establish full P5 or
+Milestone 12, the full Platform workload's two-second target, virtual clocks,
+effects, exhaustive replay, distributed execution or physical power-loss durability.

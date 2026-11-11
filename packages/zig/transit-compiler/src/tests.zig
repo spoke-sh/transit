@@ -161,3 +161,109 @@ test "shared higher order interface graphs consume the evaluation work budget" {
     try std.testing.expect(product.work > 16);
     try refuses(error.BuildWorkLimit, &.{.{ .path = "build.transit", .text = graph }}, .{ .compiler_revision = "test", .limits = .{ .work = 16 } });
 }
+
+const test_source =
+    \\CREATE MODULE Rows(n IDENTIFIER, value BIGINT) AS BEGIN
+    \\  CREATE PUBLIC TABLE $n (id BIGINT PRIMARY KEY, label TEXT);
+    \\  INSERT INTO $n VALUES ($value, NULL);
+    \\END;
+    \\CREATE PUBLIC MODULE Checks(value BIGINT) AS BEGIN
+    \\  TEST 'typed rows' USING MODULES (Rows(NAME 'items', value)) AS BEGIN
+    \\    ASSERT COMMAND (INSERT INTO items VALUES (9, 'text')) MATCHED 1 CHANGED 1;
+    \\    ASSERT ROWS (SELECT * FROM items) EQUAL ((9, 'text'), ($value, NULL));
+    \\    ASSERT STATEMENT (INSERT INTO items VALUES (9, NULL)) FAILS WITH 'duplicate_key';
+    \\    ASSERT ROWS (SELECT id FROM items WHERE id = 10) EQUAL ();
+    \\  END;
+    \\END;
+    \\CREATE TARGET default AS BEGIN USE Rows(NAME 'items', 5); END;
+    \\CREATE TEST TARGET tests AS BEGIN USE Checks(7); USE Checks(8); END;
+;
+const test_options: c.Options = .{ .compiler_revision = "test", .target = "tests", .mode = .test_suite };
+test "test targets compose independent catalogs and typed expectations through production SQL" {
+    const product = try one(test_source, test_options);
+    defer product.deinit();
+    try std.testing.expectEqual(2, product.cases.len);
+    try std.testing.expectEqual(0, product.steps.len);
+    try std.testing.expectEqual(0, product.sql.len);
+    for (product.cases) |case| {
+        try std.testing.expectEqual(6, case.steps.len);
+        try std.testing.expectEqual(6, case.actions.len);
+        try std.testing.expectEqualStrings("CREATE TABLE \"items\" ( ID BIGINT PRIMARY KEY , LABEL TEXT )", case.steps[0].sql);
+        try std.testing.expectEqual(2, case.actions[3].expectation.rows.values.len);
+        try std.testing.expectEqual(0, case.actions[5].expectation.rows.values.len);
+        try std.testing.expect(std.mem.indexOf(u8, case.sql, "ASSERT") == null);
+        try std.testing.expect(case.steps[0].call != null);
+    }
+    try std.testing.expect(!std.mem.eql(u8, &product.cases[0].identity, &product.cases[1].identity));
+    const repeat = try one(test_source, test_options);
+    defer repeat.deinit();
+    try std.testing.expectEqualSlices(u8, &product.input_digest, &repeat.input_digest);
+    const built = try one(test_source, .{ .compiler_revision = "test" });
+    defer built.deinit();
+    try std.testing.expectEqual(2, built.steps.len);
+    try std.testing.expectEqual(0, built.cases.len);
+}
+test "test stage violations and unsupported expectations fail before a product" {
+    const inputs = [_]struct { err: anyerror, text: []const u8 }{
+        .{ .err = error.EmptyTestTarget, .text = "CREATE TEST TARGET tests AS BEGIN END;" },
+        .{ .err = error.TestStatementOutsideCase, .text = "CREATE TEST TARGET tests AS BEGIN CREATE PUBLIC TABLE t(id BIGINT); END;" },
+        .{ .err = error.TestAssertionOutsideCase, .text = "CREATE TEST TARGET tests AS BEGIN ASSERT ROWS (SELECT id FROM t) EQUAL (); END;" },
+        .{ .err = error.NestedTestCase, .text = "CREATE TEST TARGET tests AS BEGIN TEST 'outer' USING MODULES () AS BEGIN TEST 'inner' USING MODULES () AS BEGIN END; END; END;" },
+        .{ .err = error.UnsupportedTestRefusal, .text = "CREATE TEST TARGET tests AS BEGIN TEST 'bad' USING MODULES () AS BEGIN ASSERT STATEMENT (DELETE FROM t) FAILS WITH 'AuthorityTimeout'; END; END;" },
+        .{ .err = error.WrongSourceTargetKind, .text = "CREATE TARGET tests AS BEGIN END;" },
+    };
+    for (inputs) |input| try std.testing.expectError(input.err, one(input.text, test_options));
+    try std.testing.expectError(error.TestInBuildTarget, one("CREATE TARGET default AS BEGIN TEST 'bad' USING MODULES () AS BEGIN END; END;", .{ .compiler_revision = "test" }));
+    try std.testing.expectError(error.DuplicateTestCase, one("CREATE TEST TARGET tests AS BEGIN TEST 'same' USING MODULES () AS BEGIN CREATE PUBLIC TABLE t(id BIGINT); END; TEST 'same' USING MODULES () AS BEGIN CREATE PUBLIC TABLE t(id BIGINT); END; END;", test_options));
+}
+fn allocationTestSuite(allocator: std.mem.Allocator) !void {
+    var diagnostic: ?p.Diagnostic = null;
+    const result = try c.compile(allocator, &.{.{ .path = "build.transit", .text = test_source }}, test_options, &diagnostic);
+    defer result.deinit();
+    try std.testing.expectEqual(2, result.cases.len);
+}
+test "test compilation cleans up every allocation failure" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, allocationTestSuite, .{});
+}
+
+test "case and action ceilings admit the boundary and reject the next item" {
+    var source: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer source.deinit();
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN ");
+    for (0..c.Test.max_cases) |i| try source.writer.print("TEST 'case-{d}' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT); END; ", .{i});
+    const closing = source.written().len;
+    try source.writer.writeAll("END;");
+    const boundary = try one(source.written(), test_options);
+    boundary.deinit();
+    source.writer.end = closing;
+    try source.writer.writeAll("TEST 'overflow' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT); END; END;");
+    try std.testing.expectError(error.TestCaseLimit, one(source.written(), test_options));
+    source.writer.end = 0;
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN TEST 'actions' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT);");
+    for (1..c.Test.max_actions) |_| try source.writer.writeAll("SELECT * FROM items;");
+    const end = source.written().len;
+    try source.writer.writeAll("END; END;");
+    const actions = try one(source.written(), test_options);
+    actions.deinit();
+    source.writer.end = end;
+    try source.writer.writeAll("SELECT * FROM items; END; END;");
+    try std.testing.expectError(error.TestActionLimit, one(source.written(), test_options));
+}
+
+test "expected row limits aggregate across assertions within one case" {
+    var source: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer source.deinit();
+    try source.writer.writeAll("CREATE TEST TARGET tests AS BEGIN TEST 'rows' USING MODULES () AS BEGIN CREATE PUBLIC TABLE items(id BIGINT);");
+    for (0..100) |_| {
+        try source.writer.writeAll("ASSERT ROWS (SELECT * FROM items) EQUAL (");
+        for (0..100) |i| try source.writer.print("{s}({d})", .{ if (i == 0) "" else ",", i });
+        try source.writer.writeAll(");");
+    }
+    const end = source.written().len;
+    try source.writer.writeAll("END; END;");
+    const boundary = try one(source.written(), test_options);
+    boundary.deinit();
+    source.writer.end = end;
+    try source.writer.writeAll("ASSERT ROWS (SELECT * FROM items) EQUAL ((1)); END; END;");
+    try std.testing.expectError(error.TestRowsLimit, one(source.written(), test_options));
+}

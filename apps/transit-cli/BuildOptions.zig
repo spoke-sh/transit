@@ -13,12 +13,15 @@ help: bool = false,
 overrides: [255]Override = undefined,
 overrides_len: usize = 0,
 pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Self {
-    diagnostic.command = "transit build";
-    diagnostic.help = "transit build --help";
+    return parseMode(args, diagnostic, false);
+}
+pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: bool) !Self {
+    diagnostic.command = if (testing) "transit test" else "transit build";
+    diagnostic.help = if (testing) "transit test --help" else "transit build --help";
     for (args, 0..) |arg, index| if (std.mem.eql(u8, arg, "--format") and index + 1 < args.len and std.mem.eql(u8, args[index + 1], "json")) {
         diagnostic.machine = true;
     };
-    var result: Self = .{};
+    var result: Self = .{ .target = if (testing) "tests" else "default" };
     var seen: u16 = 0;
     var index: usize = 0;
     const names = [_][]const u8{ "-f", "--target", "--out", "--check", "--fetch", "--format", "--help", "--override" };
@@ -27,9 +30,10 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Self {
             if (std.mem.eql(u8, name, args[index])) break n;
         } else {
             diagnostic.atArgument(index + 2, null);
-            return diagnostic.invalidArgument("unknown build option");
+            return diagnostic.invalidArgument(if (testing) "unknown test option" else "unknown build option");
         };
         diagnostic.atArgument(index + 2, names[selected]);
+        if (testing and (selected == 2 or selected == 3 or selected == 4)) return diagnostic.invalidOption("is not supported by transit test");
         const mask = @as(u16, 1) << @intCast(selected);
         if (selected != 7 and seen & mask != 0) return diagnostic.invalidOption("can only be specified once");
         seen |= mask;

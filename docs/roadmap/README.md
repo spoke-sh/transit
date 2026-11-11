@@ -14,6 +14,10 @@ The supporting [downstream application language plan](downstream-application-lan
 maps Platform's identity, GitHub sign-in and publication migrations to current
 owners, missing contracts and an ordered implementation/qualification sequence.
 It is a proposal for review and changes no milestone status.
+The [application Table test runner plan](application-test-implementation.md)
+records the delivered bounded M12 slice after the recursive compiler: isolated
+Table tests using the production SQL emitter and real local database owners.
+The remaining P5 controls and broader milestone remain In Progress.
 Current behavior belongs in the [public reference](../README.md), mechanisms in
 [Internals](../handbook/internals/README.md), and executed checks in the
 [proof ledger](../history/qualification/README.md). A planned milestone does not establish
@@ -121,7 +125,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | Planned | One higher-order SQL dialect for source and `build.transit`; typed recursive modules, monorepo/pinned repository composition, deterministic `transit build` SQL emission, explicit-basis migration synthesis and `transit test` through the same emitter |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Bounded recursive Table modules and `transit build` are delivered; broader abstractions, explicit-basis migration synthesis and `transit test` through the same emitter remain |
 
 ### Phase II: Data composition, performance and interface coverage
 

@@ -1,0 +1,14 @@
+IMPORT rows FROM 'rows.transit';
+CREATE TARGET default AS BEGIN USE rows.Rows(NAME 'items', 7); END;
+CREATE TEST TARGET tests AS BEGIN
+  TEST 'writes and refusals' USING MODULES (rows.Rows(NAME 'items', 7)) AS BEGIN
+    ASSERT COMMAND (INSERT INTO items VALUES (9, NULL)) MATCHED 1 CHANGED 1;
+    ASSERT ROWS (SELECT * FROM items) EQUAL ((9, NULL), (7, 'initial'));
+    ASSERT STATEMENT (INSERT INTO items VALUES (7, 'duplicate')) FAILS WITH 'duplicate_key';
+    ASSERT ROWS (SELECT * FROM items) EQUAL ((7, 'initial'), (9, NULL));
+  END;
+  TEST 'fresh state' USING MODULES (rows.Rows(NAME 'items', 3)) AS BEGIN
+    ASSERT ROWS (SELECT id FROM items) EQUAL ((3));
+    ASSERT ROWS (SELECT * FROM items WHERE id = 7) EQUAL ();
+  END;
+END;

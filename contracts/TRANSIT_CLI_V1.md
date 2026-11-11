@@ -15,6 +15,8 @@ over the SQL session without reading `.transitrc` startup files.
 `transit build` compiles typed source modules offline and publishes independently
 executable SQL. Its options, frozen resolution and output/diagnostic streams are
 defined by [Application source and build v1](APPLICATION_SOURCE_V1.md).
+`transit test` runs explicitly selected Table tests through that same compiler
+and isolated local database owners; the source contract owns its bounds and reports.
 These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
@@ -70,7 +72,7 @@ or next step when useful. Known option errors name the option; unknown arguments
 use positions without echoing their values. Configuration decoding reports the
 file and parser location; semantic validation names fields. Known reasons use
 plain language, while untranslated failures retain their identifiers. Exhausted
-restarts remain distinct from the underlying role failure. Root help lists `server`, `console`, `migrate` and `build`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
+restarts remain distinct from the underlying role failure. Root help lists `server`, `console`, `migrate`, `build` and `test`; each command has offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
 are not a versioned machine schema. Recovery advice preserves saved identity and
 never treats uncertainty as proof of rejection.
 

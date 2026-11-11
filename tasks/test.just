@@ -472,6 +472,7 @@ packages:
     cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-spatial && zig build test
     cd packages/zig/transit-compiler && zig build test
+    cd packages/zig/transit-test && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
     cd packages/zig/telemetry && zig build test
@@ -1157,3 +1158,13 @@ application-compiler:
 # Real offline dependency/build workflow and installed source-free SQL execution.
 application-build:
     zig build test-application-build -Doptimize=ReleaseSafe
+
+# Shared typed assertion library and real isolated command journey.
+application-runner:
+    zig build test-application-runner
+
+application-test:
+    zig build test-application-test -Doptimize=ReleaseSafe
+
+application-test-host:
+    zig build test-application-test-host -Doptimize=ReleaseSafe
