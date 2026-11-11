@@ -309,6 +309,10 @@ test "source MATCH framing nests with IF and preserves contextual SQL words" {
     var script = try Compiler.init(source);
     const first = (try script.next()).?;
     try std.testing.expectEqualStrings(source[0 .. source.len - " SELECT 7;".len - 1], source[first.start..first.end]);
+    // The editor shares this framer: nested arm terminators must not submit
+    // an incomplete source declaration, including a partial END MATCH suffix.
+    for (0..first.end + 1) |end| try std.testing.expectEqual(null, try editorTerminator(source[0..end]));
+    try std.testing.expectEqual(first.end + 1, (try editorTerminator(source)).?);
     try std.testing.expectEqualStrings("SELECT 7", blk: {
         const following = (try script.next()).?;
         break :blk source[following.start..following.end];
