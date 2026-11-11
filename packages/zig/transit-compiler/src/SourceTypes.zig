@@ -167,3 +167,28 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
         },
     }
 }
+
+/// Recursive checking may discharge only an already checked symbolic instance.
+/// Concrete names, Tables, types and higher-order constructors remain relevant.
+pub fn sameSpecialization(left: []const Binding, right: []const Binding) bool {
+    if (left.len != right.len) return false;
+    for (left, right) |l, r| if (!sameValue(l.value, r.value, 0)) return false;
+    return true;
+}
+fn sameValue(left: Value, right: Value, depth: usize) bool {
+    if (depth >= 64) return false;
+    if (left.scalar()) |kind| return if (right.scalar()) |other| Scalar.eql(kind, other) else false;
+    if (std.meta.activeTag(left) != std.meta.activeTag(right)) return false;
+    return switch (left) {
+        .identifier => |v| std.mem.eql(u8, v, right.identifier),
+        .type => |v| Scalar.eql(v, right.type),
+        .module => |v| std.meta.eql(v, right.module),
+        .table => |v| v == right.table,
+        .variant => |v| blk: {
+            if (!std.meta.eql(v.definition, right.variant.definition) or v.constructor != right.variant.constructor or v.fields.len != right.variant.fields.len) break :blk false;
+            for (v.fields, right.variant.fields) |l, r| if (!sameValue(l, r, depth + 1)) break :blk false;
+            break :blk true;
+        },
+        else => false,
+    };
+}

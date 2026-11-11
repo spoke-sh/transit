@@ -55,7 +55,7 @@ next_owner: usize = 0,
 exports: ?*std.ArrayList(types.Export) = null,
 symbolic: bool = false,
 checked_statements: usize = 0,
-checking: [64]Graph.Ref = undefined,
+checking: [64]struct { definition: Graph.Ref, arguments: []const Binding } = undefined,
 checking_count: usize = 0,
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
@@ -260,12 +260,12 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     }
     // A recursive symbolic call checks its signature. The active body is already
     // being checked without inventing payload values or traversing forever.
-    if (self.symbolic) for (self.checking[0..self.checking_count]) |prior| if (std.meta.eql(prior, ref)) {
+    if (self.symbolic) for (self.checking[0..self.checking_count]) |prior| if (std.meta.eql(prior.definition, ref) and types.sameSpecialization(prior.arguments, values[0..call.arguments.len])) {
         if (call.result != null) return error.UnsupportedRecursiveExports;
         return .{ .instance = &.{} };
     };
     if (self.checking_count == self.checking.len) return error.SourceDepthLimit;
-    self.checking[self.checking_count] = ref;
+    self.checking[self.checking_count] = .{ .definition = ref, .arguments = values[0..call.arguments.len] };
     self.checking_count += 1;
     defer self.checking_count -= 1;
     const before_site = self.call_site;
@@ -305,6 +305,7 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
 fn fork(self: *Self) !Self {
     var result = self.*;
     result.symbolic = true;
+    if (!self.symbolic) result.checking_count = 0;
     result.catalog.entries = try self.catalog.entries.clone(self.a);
     result.steps = .empty;
     result.actions = .empty;

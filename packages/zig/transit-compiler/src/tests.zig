@@ -378,3 +378,21 @@ test "unselected recursive checking validates bodies and preserves call diagnost
     try std.testing.expectEqual(.first_occurrence, diagnostic.?.facts[1].?.field);
     try std.testing.expectEqual(std.mem.indexOf(u8, source, "USE Loop(1, id)").?, try diagnostic.?.facts[1].?.value.?.location.offset.value());
 }
+
+test "recursive symbolic calls recheck changed explicit Table bindings" {
+    const source = target_types ++ typed_tables ++
+        "CREATE MODULE Loop(name IDENTIFIER, id MachineId, n BIGINT) AS BEGIN " ++
+        "IF n = 0 THEN INSERT INTO $name VALUES ($id); ELSE USE Loop(NAME 'sites', id, n - 1); END IF; END; " ++
+        "CREATE MODULE Route(value Target) AS BEGIN MATCH value " ++
+        "WHEN Target.Machine(id) THEN USE Loop(NAME 'machines', id, 0); WHEN Target.Site(id) THEN SELECT * FROM sites; END MATCH; END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Site(SiteId(7))); END;";
+    try std.testing.expectError(error.SourceDomainMismatch, one(source, .{ .compiler_revision = "test" }));
+}
+test "symbolic recursion cannot reuse a concrete outer specialization" {
+    const source = target_types ++ typed_tables ++
+        "CREATE MODULE Route(value Target, n BIGINT) AS BEGIN MATCH value " ++
+        "WHEN Target.Machine(id) THEN INSERT INTO machines VALUES ($id); " ++
+        "WHEN Target.Site(id) THEN IF n = 0 THEN USE Route(value, 1); ELSE INSERT INTO machines VALUES ($id); END IF; " ++
+        "END MATCH; END; CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Machine(MachineId(7)), 0); END;";
+    try std.testing.expectError(error.SourceDomainMismatch, one(source, .{ .compiler_revision = "test" }));
+}
