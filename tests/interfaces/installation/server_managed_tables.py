@@ -203,7 +203,9 @@ def byte_boundary(fixture):
 
 def queue_program(fixture):
     fixture.console('CREATE QUEUE program_input (id BIGINT NOT NULL);\n'
+                    'CREATE QUEUE program_partitioned (id BIGINT NOT NULL) PARTITIONS 2;\n'
                     'CREATE TABLE program_output (id BIGINT PRIMARY KEY);\n'
+                    'CREATE ROLE program_denied_executor;\n'
                     'ENQUEUE INTO program_input VALUES (1);\n')
     source = '''CREATE DATAFLOW ordered_program FROM QUEUE program_input AS event AS BEGIN
       LET id = event.id;
@@ -242,6 +244,8 @@ def queue_program(fixture):
             ('SHOW DATAFLOW ordered_program REVISION 1', 'UnsupportedProgramRevision'),
             ('CREATE DATAFLOW ordered_program INTO managed_output AS SELECT id FROM managed_input', 'ManagedTableNameConflict'),
             ('AUTHORIZE DATAFLOW ordered_program AS ROLE PUBLIC', 'InvalidSqlRole'),
+            ('AUTHORIZE DATAFLOW ordered_program AS ROLE program_denied_executor', 'AccessDenied'),
+            ("CREATE DATAFLOW partitioned_program FROM QUEUE program_partitioned AS event AS BEGIN REQUIRE TRUE ELSE 'Unused'; END", 'UnsupportedProgramPartitioning'),
             ("CREATE DATAFLOW deadline_program FROM QUEUE program_input AS event WITH (DEADLINE = '5s') AS BEGIN REQUIRE TRUE ELSE 'Unused'; END", 'ApplicationHostUnavailable'),
             ("CREATE DATAFLOW wrong_type FROM QUEUE program_input AS event AS BEGIN REQUIRE event.id ELSE 'Unused'; END", 'ProgramTypeMismatch'),
         ):
@@ -264,6 +268,10 @@ def queue_program(fixture):
     dataflow_command(fixture, 'ACTIVATE DATAFLOW ordered_program')
     first = await_head(fixture, 'ordered_program', lambda head: head['completed'] == 1)
     assert first['observation']['head']['checkpoint'] is not None, first
+    assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 101]
+    fixture.console('ENQUEUE INTO program_input VALUES (0);\n')
+    failed = await_head(fixture, 'ordered_program', lambda head: head['refused'] == first['observation']['head']['refused'] + 1)
+    assert failed['observation']['head']['completed'] == 1, failed
     assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 101]
     dataflow_command(fixture, 'SUSPEND DATAFLOW ordered_program')
     await_head(fixture, 'ordered_program', lambda head: head['pending'] is None)

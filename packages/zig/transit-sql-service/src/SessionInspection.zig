@@ -416,6 +416,9 @@ pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.program) |declared| {
         for (declared.resources) |resource| try resource.requireCurrent(host.table);
         if (self.kind != .plan) {
+            const named = try g.ManagedOperations.program(host, declared.name) orelse return error.CatalogNameNotFound;
+            defer named.deinit();
+            if (!std.meta.eql(try declared.interpretation(host.allocator), try named.value.interpretation(host.allocator))) return error.DataflowIdentityConflict;
             const application: g.direct.ManagedApplication = .{ .client = host.table };
             _ = try application.inspect(declared);
         }
