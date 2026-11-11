@@ -554,11 +554,11 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
     var digest: [32]u8 = undefined;
     if (is_create) digest = try self.catalog.check(raw, &at);
     const checked = try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic);
-    if (!self.symbolic and !is_create) digest = try self.catalog.check(raw, &at);
     try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], &at);
     self.checked_statements += 1;
     if (self.symbolic) return;
     const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null);
+    if (!is_create) digest = try self.catalog.check(canonical, &at);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     self.output_bytes += canonical.len + 2;
     var binding_hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -658,7 +658,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
                 type_positions[writer.end] = true;
             };
             const start = writer.end;
-            if (value == .symbolic) {
+            if (value == .symbolic or (!canonical and value == .nominal)) {
                 parameter += 1;
                 writer.print("${d}", .{parameter}) catch return error.BuildStatementLimit;
             } else writeValue(&writer, value) catch |err| return if (err == error.WriteFailed) error.BuildStatementLimit else err;

@@ -86,8 +86,8 @@ fn selection(self: *Self, input: anytype, table: *const types.Table, qualifier: 
 
 fn parameters(self: *Self, expected: []const f.Types.Type) !void {
     var index: usize = 0;
-    for (self.sites) |site| if (site.value == .symbolic) {
-        if (index == expected.len or !try site.value.symbolic.physical().eql(expected[index])) return error.SourceTypeMismatch;
+    for (self.sites) |site| if (site.value == .symbolic or site.value == .nominal) {
+        if (index == expected.len or !try site.value.scalar().?.physical().eql(expected[index])) return error.SourceTypeMismatch;
         index += 1;
     };
     if (index != expected.len) return error.InvalidSourceOperand;

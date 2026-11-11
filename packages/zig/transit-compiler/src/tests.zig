@@ -396,3 +396,32 @@ test "symbolic recursion cannot reuse a concrete outer specialization" {
         "END MATCH; END; CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Machine(MachineId(7)), 0); END;";
     try std.testing.expectError(error.SourceDomainMismatch, one(source, .{ .compiler_revision = "test" }));
 }
+
+test "public Table export limits admit the boundary without changing instance identity" {
+    for ([_]usize{ 64, 65 }) |count| {
+        var text: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        defer text.deinit();
+        try text.writer.writeAll("CREATE MODULE Rows(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT); ");
+        for (0..count) |i| try text.writer.print("EXPORT TABLE $name AS export_{d}; ", .{i});
+        try text.writer.writeAll("END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items') AS app; SELECT * FROM items; END;");
+        if (count == 65) {
+            try std.testing.expectError(error.SourceExportLimit, one(text.written(), .{ .compiler_revision = "test" }));
+        } else {
+            const product = try one(text.written(), .{ .compiler_revision = "test" });
+            defer product.deinit();
+            try std.testing.expectEqual(2, product.steps.len);
+        }
+    }
+}
+test "valid recursive symbolic bodies do not execute unselected recursion" {
+    const source = target_types ++ typed_tables ++
+        "CREATE MODULE Loop(name IDENTIFIER, id MachineId, n BIGINT) AS BEGIN " ++
+        "IF n = 0 THEN INSERT INTO $name VALUES ($id); ELSE USE Loop(name, id, n - 1); END IF; END; " ++
+        "CREATE MODULE Route(value Target) AS BEGIN MATCH value " ++
+        "WHEN Target.Machine(id) THEN USE Loop(NAME 'machines', id, -1); WHEN Target.Site(id) THEN INSERT INTO sites VALUES ($id); END MATCH; END; " ++
+        "CREATE TARGET default AS BEGIN " ++ typed_setup ++ "USE Route(Target.Site(SiteId(7))); END;";
+    const product = try one(source, .{ .compiler_revision = "test" });
+    defer product.deinit();
+    try std.testing.expectEqual(3, product.steps.len);
+    try std.testing.expectEqualStrings("INSERT INTO SITES VALUES ( 7 )", product.steps[2].sql);
+}

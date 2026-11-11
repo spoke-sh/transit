@@ -75,7 +75,7 @@ pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
 pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: []const bool, location: *f.Sql.Location) !void {
     if (std.mem.indexOfScalar(bool, sites, true) == null) return;
     var roles: [f.Sql.max_statement_bytes]f.Sql.TokenRole = @splat(.unknown);
-    var parser = try f.SqlTyped.init(allocator, sql, location);
+    var parser = try f.SqlTyped.initDialect(allocator, sql, location, true, .transit);
     parser.roles = roles[0..sql.len];
     if (parser.word("CREATE")) {
         _ = try f.TableDdl.syntax(&parser, null);
