@@ -4,10 +4,10 @@
 
 The implementation follows merged planning PR #442. The executable [source contract](../../contracts/APPLICATION_SOURCE_V1.md)
 owns the delivered syntax and restrictions; this document retains the reviewed
-scope. [Executed qualification](../history/qualification/query.md#nominal-source-values-and-typed-table-targets--2026-11-11)
+scope. [Executed qualification](../history/qualification/query.md#typed-target-rebase-and-shared-sql-framing--2026-11-11)
 records passing compiler, grammar, Lean and native checks alongside unresolved
 installation/UI and console-latency gates. Several runtime and latency failures
-also reproduced on merged main; they remain failures. This status does not
+also reproduced on the then-current main; they remain failures. This status does not
 establish completed qualification or milestone acceptance.
 
 Let an application distinguish two resource kinds even when their IDs have the

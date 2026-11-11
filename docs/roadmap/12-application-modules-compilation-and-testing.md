@@ -476,7 +476,7 @@ SQL lowering and selected Lean preservation laws together. The first executable
 case specializes a build for one of two resource kinds; dynamic command inputs,
 query cardinality, runtime domain enforcement and reference-only foreign-key
 exports remain subsequent work. The source contract owns the exact symbolic-checking restrictions and Lean premises.
-[Executed qualification](../history/qualification/query.md#nominal-source-values-and-typed-table-targets--2026-11-11)
+[Executed qualification](../history/qualification/query.md#typed-target-rebase-and-shared-sql-framing--2026-11-11)
 records the passing component and clean-lane checks and unresolved installation/UI
 and console-latency gates; the slice has not completed its required qualification.
 Keep existing compiler/test behavior and incomplete qualification records intact. Develop three synthetic design cases

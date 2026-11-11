@@ -9,6 +9,65 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Typed-target rebase and shared SQL framing — 2026-11-11
+
+This check asks whether the typed-target slice still composes with the shared SQL
+framer and installed current-v1 runtime after rebasing onto main
+`f0a112ce330b71a2f78ee0db76d08e6397dc397a` (mixed SQL transactions and Queue
+DATAFLOW publication). The eleven feature commits rebased without conflicts;
+range comparison preserved their patches around the upstream editor-framing
+extension. A further regression checks every incomplete prefix of a nested
+source `MATCH`, including partial `END MATCH`, through the same editor framer.
+It must wait for the outer terminator and preserve the following SQL statement.
+This is framing evidence, not source-language execution in the SQL console.
+
+The qualification source is `1fbfacdd867d9107d19ce199508ab82c114bffa0`.
+Compiler/ANTLR checks used clean `a6b66b65e32657ff1554d99b7bd198b37995bc4b`
+immediately before the editor-test-only addition. Later changes update only
+qualification and roadmap documentation. Current semantics remain in the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md) and
+[compiler internals](../../handbook/internals/query-engine.md).
+
+| Executed check | Result and scope |
+| --- | --- |
+| `just test application-compiler` and `just test application-source-grammar` | Passed owning compiler tests and all 126 independent source cases, 95 round trips and seven negative controls. |
+| `just test fuze-types` | Passed the Fuze package tests including the editor/MATCH regression, 46 scalar fixtures and 610 string cases / 16,810 rows. |
+| `just check contracts` | Passed all 20 contract checks against the rebased definition and generated resources. |
+| `just ci clean --lane formal` | Passed all 16 tasks at `1fbfacdd867d`, including three source Lean laws, 48 finite equalities, 16 typed-action/SQL comparisons, four refusals and nine negative controls. The existing updated Queue transaction model and other formal owners also passed. |
+| `just test server-sql-types` | Passed installed native, console, PostgreSQL and MySQL scalar/alias and restart cases. |
+| `just test application-build` | Passed locked offline composition, source-free emitted SQL, exact typed-target rows/counts, restart and revocation. |
+| `just test application-test` | Passed offline isolation, typed rows/counts, refusals, child/remote targets and failure coverage, including the existing 70-row case with its original deadline. |
+
+Commands used pinned `nix develop`; installed checks used `.#ci-experience`.
+A focused installed pass is not a completed installation/UI lane. The successful
+application-test run does not identify the cause of the earlier deadline failures
+or change their recorded outcomes.
+
+The complete formal inventory, clean source identity and retained artifact hashes
+were verified with the run-record verifier. Evidence is under
+`.cache/ci/clean/1fbfacdd867d-transit-ci-u636c25p`; `formal.json` has SHA-256
+`75b3e259e5f42814e953c33afb8e713875da99755e91aca4db057ea16857e675` and
+`preparation.json` has SHA-256
+`3a4093900b01f5085f56b33079de8c76d3c3c4427199d9e64af3ec7baa4d5f0e`.
+The raw log `/tmp/transit-typed-rebase-clean-formal.log` has SHA-256
+`7a4aa4640b3542bc3afcc07a86685572fb8fef0441635d4d3a6011c149272ca1`.
+ANTLR evidence is `.cache/verification/application-source-grammar/run-cqwas8vh`.
+Installed SQL-type evidence is `/tmp/transit-typed-rebase-sql-types.log` (SHA-256
+`f5ebbdc64ef8d7931267936e50d1f54eb638a0387543b6b2aa68f344bb8ea1b6`).
+Application-build evidence is `/tmp/transit-typed-rebase-cli-build.log`
+(`79b64a8c786b9c6b576bf456e703ebe3da6d4b5a73621abf0a2f58a47cac4c54`);
+application-test evidence is `/tmp/transit-typed-rebase-cli-test.log`
+(`f08281c4f29029509efc3944da367470552df8539710c5dbe8bd6ee9a2266513`).
+These are local evidence paths, not portable public artifacts.
+
+Full core, storage/query and installation/UI lanes and the console-latency gate
+have not been rerun after this rebase. Their earlier passes, failures and main
+controls retain the exact pre-rebase sources in the
+[original qualification record](#nominal-source-values-and-typed-table-targets--2026-11-11)
+below. They do not qualify the new base. No budget, deadline, clock/lease guard
+or authority assertion was relaxed; required runtime qualification remains
+incomplete. The scoped Lean laws retain their original premises and limits.
+
 ## Nominal source values and typed Table targets — 2026-11-11
 
 This slice implements the scope reviewed in [planning PR #442](https://github.com/spoke-sh/transit/pull/442).
