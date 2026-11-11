@@ -44922,7 +44922,7 @@
         "LogMaintenanceConflict": 2,
         "LogOffsetConflict": 3,
         "LogOffsetExhausted": 1,
-        "LogOperationConflict": 11,
+        "LogOperationConflict": 12,
         "LogPartitionConflict": 4,
         "LogPayloadConflict": 4,
         "LogPositionExhausted": 1,
@@ -44940,7 +44940,7 @@
         "OutstandingTailBorrows": 1,
         "PrivateLogWorkspace": 8,
         "QueueCheckpointBacklog": 2,
-        "QueueClaimMissing": 2,
+        "QueueClaimMissing": 3,
         "QueueDestinationSchemaMismatch": 1,
         "QueueItemMissing": 8,
         "QueueLeaseExpired": 2,
@@ -45119,7 +45119,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 946,
+        "try": 948,
         "catch": 27
       },
       "imports": [

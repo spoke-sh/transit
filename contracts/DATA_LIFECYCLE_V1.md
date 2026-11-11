@@ -61,8 +61,10 @@ guarded admission/commit. Queue lease and deadline conditions remain independent
 A non-null `input` freezes one original Queue claim (`maximum = 1`) before
 acquisition dispatch. Its target scope and principal match the transaction; its
 operation differs from BEGIN. A committed decision must include exactly one ACK
-for that original claim in the selected Queue participant. Ordinary Queue lease
-verification still checks the actual lease and trusted time. Recovery may close
+for that original claim in the selected Queue participant. Under the decision
+fence, the Queue owner compares the frozen claim with its accepted receipt,
+including target, selection predicate, maximum rows and requested lease duration.
+Ordinary Queue lease verification also checks the actual lease and trusted time. Recovery may close
 a missing acquisition after original settlement; this does not NACK an accepted
 lease or turn receipt lookup into current execution authority.
 

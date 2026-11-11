@@ -720,6 +720,17 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
                 for (page.entries) |entry| if (entry) |value| switch (value.work.action) {
                     .queue_ack => |request| {
                         if (kind != .queue) return error.InvalidTransactionActions;
+                        if (preparation.binding.begin.execution) |execution| if (execution.input) |input| {
+                            if (std.meta.eql(input.operation, request.lease.claim)) {
+                                // The operation ID alone cannot establish the
+                                // frozen selection, cardinality or lease request.
+                                // Check the accepted receipt under the same
+                                // decision fence as the live lease below.
+                                const evidence = try self.original(input.operation) orelse return error.QueueClaimMissing;
+                                if (evidence.outcome != .claim) return error.LogOperationConflict;
+                                try evidence.outcome.claim.receipt.requireClaim(input);
+                            }
+                        };
                         var bitmap: Bitmap = undefined;
                         const index = self.queueIndex(&bitmap);
                         const item = try index.item(self.root.queue.?, request.lease.offset);
