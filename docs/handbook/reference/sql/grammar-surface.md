@@ -27,6 +27,11 @@ and the separate [Application.g4](../../../../contracts/application/Application.
 Their [corpus and limits](../../../../contracts/sql/README.md) establish selected
 syntax/AST agreement, not general PostgreSQL or SQL-standard compatibility.
 
+`Application.g4` covers interface/UI declarations. The separate
+[`.transit` source/build/test profile](../../../../contracts/APPLICATION_SOURCE_V1.md)
+has a production Zig parser but no independent ANTLR reference grammar yet.
+Source compilation and emitted-SQL checks do not establish that missing coverage.
+
 ## Implemented reads and inspection
 
 Every row is **Implemented — execution** within its stated profile.

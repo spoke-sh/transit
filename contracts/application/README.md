@@ -9,6 +9,11 @@ publish anything. Option meanings, complete reference validation and embedded
 query compilation belong to `transit-station-app` and Fuze. The broader
 [SQL grammar](../sql/README.md) retains its separate capability inventory.
 
+This grammar covers interface/UI declarations, not the `.transit` module,
+build or test language defined by [Application source v1](../APPLICATION_SOURCE_V1.md).
+That source profile currently has a production Zig parser without an independent
+ANTLR reference grammar.
+
 Run `just test::application-grammar` in the Nix environment. The proof regenerates
 ANTLR with the existing pinned SQL tools, compares a separate parse-tree adapter
 to the actual compiler, changes typed presentation data, and checks semantic
