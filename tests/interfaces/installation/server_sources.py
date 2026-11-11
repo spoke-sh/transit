@@ -31,15 +31,25 @@ def metadata(fixture, sql):
     return records(fixture.console(sql + ';\n')[-1])
 
 
-def settle(client, target):
+def settle(client, target, *, outcomes=('applied',)):
     deadline = time.monotonic() + 180
     while True:
         value = client.call(dict(status=target))['operation']
         if value['phase'] == 'terminal':
-            assert value['outcome'] == 'applied', value
+            assert value['outcome'] in outcomes, value
             return value
         assert time.monotonic() < deadline, value
-        client.call(dict(resume=value['identity']))
+        try:
+            client.call(dict(resume=value['identity']))
+        except AssertionError as failure:
+            detail = failure.args[0] if failure.args else None
+            error = detail.get('err', {}) if isinstance(detail, dict) else {}
+            if error.get('code') != 'Conflict':
+                raise
+            # Resume addresses an already accepted operation. A concurrent
+            # native CAS is not its terminal outcome; observe/resume only this
+            # same identity, never submit the SQL again under a fresh token.
+            print(f'Installed SQL: original operation {value["identity"]["id"]} reported a resume conflict; retaining its identity.', flush=True)
         time.sleep(.05)
 
 
