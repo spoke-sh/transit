@@ -333,6 +333,9 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
             }
             const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
             const sql = try self.template(try self.parenthesized(), false);
+            // Assertions contain simple statements in the reference grammar.
+            // An empty compound body can otherwise pass shared SQL framing.
+            if (sql.kind == .program) return error.UnsupportedTestAssertion;
             const expected: @FieldType(Assertion, "expected") = switch (kind) {
                 .rows => rows: {
                     try self.require("EQUAL");

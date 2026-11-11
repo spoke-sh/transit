@@ -12987,7 +12987,7 @@
         "SourceParameterLimit": 5,
         "UnsupportedSourceDeclaration": 1,
         "UnsupportedSourceType": 1,
-        "UnsupportedTestAssertion": 1,
+        "UnsupportedTestAssertion": 2,
         "UnsupportedTestRefusal": 1
       },
       "outcomes": {

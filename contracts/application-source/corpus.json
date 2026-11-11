@@ -779,6 +779,12 @@
     "at": "; END; END;"
   },
   {
+    "name": "program-declaration-assertion",
+    "source": "CREATE TEST TARGET tests AS BEGIN TEST 'compound' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); ASSERT COMMAND (CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN END) MATCHED 0 CHANGED 0; END; END;",
+    "parse": false,
+    "parse_error": "UnsupportedTestAssertion"
+  },
+  {
     "name": "program-control-counts",
     "source": "CREATE TEST TARGET tests AS BEGIN TEST 'control' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN REQUIRE TRUE ELSE 'No'; END; ASSERT COMMAND (AUTHORIZE DATAFLOW p AS ROLE CURRENT_ROLE) MATCHED 0 CHANGED 0; END; END;",
     "parse": true,
