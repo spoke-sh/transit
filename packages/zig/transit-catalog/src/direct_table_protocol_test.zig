@@ -52,7 +52,7 @@ test "direct storage responses bind physical coverage to the original Table and 
     const context = try w.Request.context(input, alloc);
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, key);
-    var request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    var request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .execution = input.execution, .proof = proof };
     const observation: c.DirectCatalog.StorageObservation = .{
         .interpretation = try declaration.stored(),
         .position = .{ .partition = 2, .next_lsn = 8 },
@@ -198,7 +198,7 @@ test "pin status binds mandatory current interpretation to the requested object"
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = object.scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .delegation = null, .nonce = @splat(7), .action = .{ .pin_status = .{ .object = object, .owner = owner } } };
     const context = try w.Request.context(input, t.allocator);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = null, .execution = input.execution, .proof = proof };
     const state: w.PinState = .{ .interpretation = .{ .object = object, .revision = 2, .digest = @splat(3) }, .position = .{ .partition = 9, .next_lsn = 10 }, .retired = false, .handle = null, .released = false, .authority = .{ .database = 1, .schema = 2, .table = 3 } };
     var response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .pin_state = state } };
     try c.DirectTableClient.validateResponse(t.allocator, request, response);
@@ -239,7 +239,7 @@ test "direct Table request proof binds the complete typed action and current def
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .lookup = .{ .namespace = 1, .name = "events" } } };
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, t.allocator) }, key);
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .execution = input.execution, .proof = proof };
     const bytes = try p.Json.valueAlloc(t.allocator, request);
     defer t.allocator.free(bytes);
     const parsed = try w.Request.parse(t.allocator, bytes);
@@ -570,7 +570,7 @@ test "direct Table responses reject unrelated requests, altered receipts and mal
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = .{ .scope = scope, .branch = 1, .principal = 4, .role = null, .audience = 5 }, .delegation = null, .nonce = @splat(1), .action = .{ .operation = .{ .binding = binding, .command = .inspect, .steps = 1 } } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .execution = input.execution, .proof = proof };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .rows = .{ .committed = .{ .binding = binding, .resulting = stored, .transaction = null, .outcome = .{ .position = .{ .partition = 2, .next_lsn = 9 }, .matched = 1, .affected = 0, .live_rows = 1 } } } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var altered = response;
@@ -617,7 +617,7 @@ test "DDL preview responses preserve proposed schema and never imply an accepted
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .preview = proposal } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .execution = input.execution, .proof = proof };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .preview = .{ .binding = proposal.binding, .directory_position = .{ .partition = 1, .next_lsn = 1 }, .current = null, .reason = .none, .work = .metadata, .schema_fingerprint = try schema.fingerprint() } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     var changed = response;
@@ -662,7 +662,7 @@ test "direct statement conversion freezes typed predicates and requires a data b
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .preview_statement = work } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = null, .execution = input.execution, .proof = proof };
     const response: w.Response = .{ .definition = p.Growth.current_definition, .context = context, .policy_revision = 1, .subject = .{ .principal = 4, .login_role = 4, .role = 4, .credential_epoch = 1, .audience = 5, .context = context }, .result = .{ .row_preview = .{ .binding = work.binding, .directory_position = .{ .partition = 1, .next_lsn = 2 }, .current = .{ .interpretation = work.interpretation, .position = .{ .partition = 17, .next_lsn = 8 }, .changed_lsn = 7, .row_count = 1 }, .reason = .none } } };
     try c.DirectTableClient.validateResponse(alloc, request, response);
     try t.expect(!request.transport().mutation and request.transport().control == null);
@@ -801,7 +801,7 @@ test "current observations reject wrong definitions invented coverage and altere
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .observe = .{ .namespace = 1, .interpretation = stored.interpretation, .rows = .{ .rows = 2 } } } };
     const context = try w.Request.context(input, alloc);
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .execution = input.execution, .proof = proof };
     const scratch = try alloc.alloc(u8, c.fuze.TableRow.max_bytes);
     const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 42 } } }};
     const row: c.fuze.TableRow.Row = .{ .identity = .{ .origin = 2, .operation = 3, .ordinal = 0 }, .cells = &cells };
@@ -913,7 +913,7 @@ test "current suffix and point responses bind logical basis ordered seek and req
 fn signedCurrentRead(allocator: std.mem.Allocator, connection: w.Connection, read: w.CurrentRead) !w.Request {
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .read_current = read } };
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, allocator) }, try p.Ed25519.KeyPair.generateDeterministic(@splat(9)));
-    return .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    return .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .execution = input.execution, .proof = proof };
 }
 
 test "retained key range consumes independent signed bounds and interval fingerprint" {
@@ -1091,7 +1091,7 @@ test "direct record staging round trips its signed application context" {
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .action = .{ .record = .{ .stage = .{ .scope = .{ .definition = p.Growth.current_definition, .connection = connection, .account = @splat(9) }, .format = c.BrowserRecordStore.format, .bytes = try w.Binary.encode(alloc, "application record") } } } };
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, alloc) }, key);
-    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .delegation = null, .execution = input.execution, .proof = proof };
     try request.validate(alloc);
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
@@ -1121,7 +1121,7 @@ test "signed request binds both recovery fences and requires their current shape
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .delegation = null, .nonce = @splat(7), .lease = both, .action = .describe };
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 42, .principal = 4, .role = null, .audience = 5, .credential_epoch = 1, .context = try w.Request.context(input, alloc) }, key);
-    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .lease = both, .delegation = null, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = input.action, .lease = both, .delegation = null, .execution = input.execution, .proof = proof };
     try request.validate(alloc);
     var changed = request;
     changed.lease.?.additional.?.revision.next_lsn += 1;

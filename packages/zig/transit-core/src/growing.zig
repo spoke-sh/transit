@@ -245,6 +245,29 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             const sample = if (self.clock) |clock| try clock.sample() else null;
             try state_ops.usable(self, try state_ops.resource(self, resource), sample);
         }
+        /// The domain authenticates its complete request and holds native
+        /// authority exclusion through publication/disclosure. This method does
+        /// not acquire another lock or derive execution rights from data rows.
+        /// Recovery can only inspect, abort or finish an existing decision.
+        pub fn requireTransactionExecution(self: *Self, condition: p.Transaction.Execution, subject: p.Authorization.Subject, recovery: bool) !void {
+            try condition.validate();
+            if (condition.realm != self.genesis.realm) return error.WrongProtocolRealm;
+            const caller = try self.principal(subject.principal());
+            const selected: ?u64 = if (subject == .signed) subject.signed.claim.role else null;
+            if (recovery and try auth_ops.selectedNativeHas(self, caller, selected, condition.pid, .admin)) return;
+            if (!try auth_ops.selectedNativeHas(self, caller, selected, condition.pid, .execute)) return error.Forbidden;
+            const current = try self.process(condition.pid);
+            const sample = if (self.clock) |clock| try clock.sample() else null;
+            try self.executable(current, sample, false);
+            if (current.owner != subject.principal()) return error.StaleGeneration;
+            if (recovery) {
+                if (!try auth_ops.selectedNativeHas(self, caller, selected, condition.pid, .inspect)) return error.Forbidden;
+                return;
+            }
+            if (condition.principal != subject.principal() or current.generation != condition.generation or
+                current.code != condition.code or !std.meta.eql(condition.workload, if (current.binding) |binding| @as(?[32]u8, binding.workload) else null))
+                return error.StaleGeneration;
+        }
         pub fn process(self: *Self, pid: u64) !g.Process {
             var current = try self.state();
             if (try current.get(g.Process, address(.process, pid))) |value| return value;

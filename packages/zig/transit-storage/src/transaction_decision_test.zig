@@ -56,6 +56,57 @@ const Access = struct {
     }
 };
 
+test "transaction execution requires verification under the decision fence and does not gate replay" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var frozen = try binding(objects.objectStore());
+    frozen.begin.execution = .{ .realm = f.scope.realm, .pid = 7, .principal = frozen.begin.identity.begin.principal, .generation = 1, .code = 1, .workload = null, .input = null };
+    const prepared = try preparations(objects.objectStore(), frozen, 3);
+    var owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, frozen);
+    var access: Access = .{};
+    try owner.recover();
+    try owner.freeze(access.guard());
+    try t.expectError(error.MissingTransactionVerification, owner.commit(prepared, access.verification(), access.guard()));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(4));
+    var verification = access.verification();
+    verification.before_decision = Access.beforeDecision;
+    const accepted = try owner.commit(prepared, verification, access.guard());
+    const checks = access.deadline_checks;
+    owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, frozen);
+    try owner.recover();
+    // The callback is now unavailable; replay requires only current control
+    // authority and must preserve the original decision.
+    try t.expectEqualDeep(accepted, try owner.commit(prepared, access.verification(), access.guard()));
+    try t.expectEqual(checks, access.deadline_checks);
+}
+
+test "transaction execution input refuses a decision without the original Queue ACK" {
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var frozen = try binding(objects.objectStore());
+    frozen.begin.execution = .{ .realm = f.scope.realm, .pid = 7, .principal = 0, .generation = 1, .code = 1, .workload = null, .input = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = f.participant(7).participant.state.guard.source.interpretation, .partition = 0 },
+        .operation = .{ .scope = f.scope, .principal = 0, .operation = 99 },
+        .maximum = 1,
+        .lease_ms = 100,
+        .predicate = null,
+    } };
+    const prepared = try preparations(objects.objectStore(), frozen, 3);
+    var owner = try J.init(t.allocator, wal.log(), objects.objectStore(), 4, frozen);
+    var access: Access = .{};
+    try owner.recover();
+    try owner.freeze(access.guard());
+    var verification = access.verification();
+    verification.before_decision = Access.beforeDecision;
+    try t.expectError(error.MissingTransactionInput, owner.commit(prepared, verification, access.guard()));
+    try t.expectEqual(@as(u64, 1), try wal.log().tail(4));
+    try t.expectEqual(@as(usize, 0), access.deadline_checks);
+}
+
 test "transaction BEGIN deadlines require final verification without log writes and preserve committed recovery" {
     var tmp = t.tmpDir(.{});
     defer tmp.cleanup();

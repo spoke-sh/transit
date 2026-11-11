@@ -63,7 +63,7 @@ pub fn beginRequest(self: Self) !c.DirectTransactionRequest.Begin {
     try self.validate();
     if (self.work != .begin) return error.TransactionOperationRequired;
     const value = self.work.begin;
-    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_objects, .limits = value.limits, .deadline = value.deadline, .budget = value.budget };
+    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_objects, .limits = value.limits, .deadline = value.deadline, .execution = null, .budget = value.budget };
 }
 pub const reservation_bytes = c.DirectTransactionWorkspace.max_bytes + c.DirectIntent.max_bytes + 512;
 pub const format: u32 = 0x54584931;
@@ -118,7 +118,7 @@ pub const Result = union(enum) {
         if (self == .rejected) return;
         switch (call.work) {
             .begin => |work| {
-                if (self != .begun or !std.meta.eql(self.begun.begin.identity.begin, work.operation) or self.begun.begin.mode != work.mode or !std.meta.eql(self.begun.begin.deadline, work.deadline) or !std.meta.eql(self.begun.begin.limits, work.limits)) return error.InvalidTableResponse;
+                if (self != .begun or !std.meta.eql(self.begun.begin.identity.begin, work.operation) or self.begun.begin.mode != work.mode or !std.meta.eql(self.begun.begin.deadline, work.deadline) or self.begun.begin.execution != null or !std.meta.eql(self.begun.begin.limits, work.limits)) return error.InvalidTableResponse;
             },
             .statement => |work| {
                 if (self != .statement) return error.InvalidTableResponse;

@@ -157,6 +157,24 @@ fn mutate(owner: *Queue, declared: s.LogDeclaration.Stored, request: Mutation.Re
 /// to this request. Neither original claims nor cached owners grant rights.
 pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, slot: *?Cached, options: Queue.Options, environment: Environment, request: Request, policy: c.DirectCatalog.Policy) !Result {
     try request.validate(policy.subject.principal(), catalog.store.root.configuration.scope);
+    return applyOriginal(scratch, output, catalog, slot, options, environment, request, policy);
+}
+
+/// Catalog recovery has checked the immutable BEGIN and completed original
+/// settlement. It supplies current native recovery and data guards, never an
+/// impersonated original subject. Only cancellation of the frozen claim is
+/// available here; an accepted claim remains accepted and a missing one closes.
+pub fn closeExecutionInput(scratch: std.mem.Allocator, catalog: *c.DirectCatalog, clock: ?s.LogTime.Source, execution: p.Transaction.Execution, policy: c.DirectCatalog.Policy) !Receipt {
+    const claim = execution.input orelse return error.InvalidTransactionInput;
+    const request: Request = .{ .cancel = .{ .claim = claim } };
+    try request.validate(execution.principal, catalog.store.root.configuration.scope);
+    var slot: ?Cached = null;
+    defer if (slot) |*cached| cached.deinit();
+    const result = try applyOriginal(scratch, scratch, catalog, &slot, catalog.options.logs.queue, .{ .clock = clock }, request, policy);
+    return if (result == .operation) result.operation orelse error.QueueClaimMissing else error.TransactionControlPending;
+}
+
+fn applyOriginal(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.DirectCatalog, slot: *?Cached, options: Queue.Options, environment: Environment, request: Request, policy: c.DirectCatalog.Policy) !Result {
     if (environment.recovery_steps == 0 or environment.recovery_steps > 256) return error.InvalidLogRecoveryBudget;
     const current = try catalog.logAuthorization(scratch, .queue, request.target(), request.access(), policy);
     const binding: ?Mutation.Binding = switch (request) {

@@ -209,6 +209,7 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         .transaction => {
             const request = @field(action.*, @tagName(action_tag));
             return .{ .transaction = switch (request) {
+                .recover => |value| .{ .recovered = try catalog.recoverTransaction(value, policy) },
                 .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
                 .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
                 .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },

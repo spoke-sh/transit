@@ -596,6 +596,7 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
                     .namespace = 1,
                     .mode = .serializable,
                     .deadline = deadline,
+                    .execution = null,
                     .selection = .{ .explicit_objects = &targets },
                     .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 8, .statements = 16, .savepoints = 4 },
                     .budget = .{ .bytes = 256 * 1024 },

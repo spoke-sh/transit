@@ -119,7 +119,7 @@ pub fn requireProgress(self: Self, allocator: std.mem.Allocator, objects: c.stor
 pub fn begin(self: Self, targets: *[1]x.Target) !c.DirectTransactionRequest.Begin {
     try self.validate();
     targets.* = .{.{ .object = self.reference.destination.object, .kind = .stream, .partition = 0 }};
-    return .{ .key = self.key, .fingerprint = try self.digest(), .operation = self.operation, .namespace = self.namespace, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = targets }, .limits = self.limits, .budget = self.budget };
+    return .{ .key = self.key, .fingerprint = try self.digest(), .operation = self.operation, .namespace = self.namespace, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = targets }, .limits = self.limits, .budget = self.budget };
 }
 pub fn envelope(self: Self, allocator: std.mem.Allocator, evidence: p.SourceCapture.Evidence, declaration: *const c.storage.LogDeclaration.Owned, output: []u8) ![]const u8 {
     try self.validate();

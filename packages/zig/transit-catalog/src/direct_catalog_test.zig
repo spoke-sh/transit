@@ -898,6 +898,7 @@ test "Document policy revision guards the original common decision across data a
             .namespace = 1,
             .mode = .serializable,
             .deadline = null,
+            .execution = null,
             .selection = .{ .explicit_objects = &.{ .{ .object = .{ .scope = scope, .branch = 1, .object = 10 }, .kind = .table, .partition = null }, try revision.target() } },
             .limits = c.DirectTransaction.default_limits,
             .budget = template.budget,
@@ -1003,6 +1004,7 @@ test "native secret reference rotation disable and revoked reads fence the commo
             .namespace = 1,
             .mode = .serializable,
             .deadline = null,
+            .execution = null,
             .selection = .{ .explicit_objects = &.{ .{ .object = result.binding.target, .kind = .table, .partition = null }, .{ .object = base.binding.target, .kind = .kv, .partition = null } } },
             .limits = c.DirectTransaction.default_limits,
             .budget = template.budget,
@@ -3723,6 +3725,7 @@ fn transactionToken(catalog: *D, operation: u64, token: u8, count: u64) !c.Direc
         .identity = identity,
         .mode = .serializable,
         .deadline = null,
+        .execution = null,
         .selection = .explicit_objects,
         .objects = try directory.seal(),
         .catalog = .{ .partition = 1, .next_lsn = catalog.store.root.next_lsn },
@@ -4809,6 +4812,144 @@ test "transaction coordinator refuses unavailable prepared data and abort can re
     try t.expectEqualDeep(terminal, try reopened.inspectTransaction(binding.key, access.policy()));
 }
 
+test "transaction native execution fences decisions and replacement can only settle original work" {
+    const Native = struct {
+        access: *Access,
+        generation: u64 = 1,
+        allowed: bool = true,
+        checks: usize = 0,
+        recoveries: usize = 0,
+        fn verify(raw: *anyopaque, execution: p.Transaction.Execution, recovery: bool) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try t.expect(self.access.held);
+            if (!self.allowed) return error.Forbidden;
+            if (recovery) {
+                self.recoveries += 1;
+            } else {
+                self.checks += 1;
+                if (execution.generation != self.generation) return error.StaleGeneration;
+            }
+        }
+        fn policy(self: *@This()) D.Policy {
+            var result = self.access.policy();
+            result.execution = .{ .context = self, .verify = verify };
+            return result;
+        }
+    };
+    for ([_]bool{ false, true }) |commit_first| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{ .exclusive = true };
+        var native: Native = .{ .access = &access };
+        try catalog.initialize(access.policy());
+        const template = try selectedTransaction(&catalog, &access, 1);
+        const execution: p.Transaction.Execution = .{ .realm = scope.realm, .pid = 7, .principal = 1, .generation = 1, .code = 1, .workload = null, .input = null };
+        var request: c.DirectTransactionRequest.Begin = .{
+            .key = template.key,
+            .fingerprint = @splat(28),
+            .operation = .{ .scope = scope, .principal = 1, .operation = 9900 },
+            .namespace = 1,
+            .mode = .serializable,
+            .deadline = null,
+            .execution = execution,
+            .selection = .authorized_catalog_objects,
+            .limits = c.DirectTransaction.default_limits,
+            .budget = template.budget,
+        };
+        request.key.token = @splat(28);
+        try t.expectError(error.UnsupportedTransactionExecution, catalog.beginTransaction(request, access.policy()));
+        _ = try catalog.beginTransaction(request, native.policy());
+        _ = try catalog.acquireTransaction(request.key, native.policy());
+        var stripped = request;
+        stripped.execution = null;
+        try t.expectError(error.ClientTokenConflict, catalog.beginTransaction(stripped, native.policy()));
+        const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9901 };
+        if (commit_first) {
+            catalog.lose_transaction_reply = true;
+            // The first loss follows freeze; resuming that same attempt reaches
+            // decision publication and loses its acknowledgement independently.
+            try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(request.key, operation, .commit, 32, native.policy()));
+            try t.expectError(error.LostAcknowledgement, catalog.settleTransaction(request.key, operation, .commit, 32, native.policy()));
+            catalog.lose_transaction_reply = false;
+        }
+        native.generation = 2;
+        if (!commit_first) {
+            try t.expectError(error.StaleGeneration, catalog.settleTransaction(request.key, operation, .commit, 32, native.policy()));
+            const pending = try catalog.inspectTransaction(request.key, native.policy());
+            try t.expect(pending.observation != .decided);
+        }
+        access.principal = 2;
+        const recovery: c.DirectTransactionRequest.Recover = .{ .key = request.key, .execution = execution, .close_input = false, .work = .{ .settle = .{ .operation = operation, .steps = 32 } } };
+        try t.expectError(error.CatalogDenied, catalog.settleTransaction(request.key, operation, .commit, 32, native.policy()));
+        native.allowed = false;
+        try t.expectError(error.Forbidden, catalog.recoverTransaction(recovery, native.policy()));
+        native.allowed = true;
+        const settled = (try catalog.recoverTransaction(recovery, native.policy())).?.status;
+        try t.expect(settled.cleanup_complete);
+        if (commit_first) try t.expectEqual(.committed, settled.observation.decided.outcome) else try t.expectEqual(.aborted, settled.observation.decided.outcome);
+        try t.expect(native.checks > 0 and native.recoveries > 0);
+        var reopened = try owner(&wal, &objects);
+        defer reopened.deinit();
+        try t.expectEqualDeep(settled, (try reopened.recoverTransaction(.{ .key = request.key, .execution = execution, .close_input = false, .work = .inspect }, native.policy())).?.status);
+    }
+}
+
+test "transaction native recovery closes only its frozen original Queue acquisition" {
+    const Native = struct {
+        fn verify(_: *anyopaque, _: p.Transaction.Execution, _: bool) !void {}
+        fn policy(access: *Access) D.Policy {
+            var result = access.policy();
+            result.execution = .{ .context = access, .verify = verify };
+            return result;
+        }
+    };
+    for ([_]bool{ false, true }) |accepted| {
+        var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+        defer wal.deinit();
+        var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        var access: Access = .{ .exclusive = true };
+        var clock: QueueClock = .{};
+        const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source(), .authority = try s.LogRead.Authority.init(@splat(4)) };
+        catalog.log_environment = &environment;
+        try catalog.initialize(access.policy());
+        const template = try selectTransactionKinds(&catalog, &access, .serializable, true, true);
+        const definition = (try catalog.resolveLog(1, try .init("work"), access.policy())).?;
+        const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = 0 };
+        const claim: p.StreamQueue.Claim = .{ .target = target, .operation = .{ .scope = scope, .principal = 1, .operation = 9902 }, .maximum = 1, .lease_ms = 100, .predicate = null };
+        const execution: p.Transaction.Execution = .{ .realm = scope.realm, .pid = 7, .principal = 1, .generation = 1, .code = 1, .workload = null, .input = claim };
+        var key = template.binding.key;
+        key.token = @splat(62);
+        _ = try catalog.beginTransaction(.{ .key = key, .fingerprint = @splat(63), .operation = .{ .scope = scope, .principal = 1, .operation = 9900 }, .namespace = 1, .mode = .serializable, .deadline = null, .execution = execution, .selection = .{ .explicit_objects = &.{.{ .object = target.interpretation.object, .kind = .queue, .partition = 0 }} }, .limits = c.DirectTransaction.default_limits, .budget = template.binding.budget }, Native.policy(&access));
+        var cache: ?c.DirectQueue.Cached = null;
+        defer if (cache) |*cached| cached.deinit();
+        if (accepted) _ = try queueCall(&catalog, &access, &cache, &clock, .{ .mutate = .{ .work = .{ .claim = claim }, .payload = null } }, 256);
+        access.principal = 2;
+        const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9901 };
+        const recovery: c.DirectTransactionRequest.Recover = .{ .key = key, .execution = execution, .work = .{ .settle = .{ .operation = operation, .steps = 8 } }, .close_input = true };
+        var forged = recovery;
+        forged.execution.input.?.operation.operation += 10;
+        try t.expectError(error.TransactionIdentityConflict, catalog.recoverTransaction(forged, Native.policy(&access)));
+        const result = (try catalog.recoverTransaction(recovery, Native.policy(&access))).?;
+        try t.expect(result.status.cleanup_complete);
+        try t.expectEqual(.aborted, result.status.observation.decided.outcome);
+        if (accepted) {
+            try t.expect(result.input.? == .claim);
+            try result.input.?.claim.requireClaim(claim);
+        } else {
+            try t.expect(result.input.? == .closed);
+            try result.input.?.closed.requireQueue(.{ .claim = claim });
+        }
+        try t.expectEqualDeep(result, (try catalog.recoverTransaction(recovery, Native.policy(&access))).?);
+    }
+}
+
 test "transaction server selection freezes authorized catalog and preserves original token" {
     var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
     defer wal.deinit();
@@ -4830,6 +4971,7 @@ test "transaction server selection freezes authorized catalog and preserves orig
         .namespace = 1,
         .mode = .read_only,
         .deadline = null,
+        .execution = null,
         .selection = .authorized_catalog_objects,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -5554,6 +5696,7 @@ fn selectTransactionKinds(catalog: *D, access: *Access, mode: p.Transaction.Mode
         .namespace = 1,
         .mode = mode,
         .deadline = null,
+        .execution = null,
         .selection = .{ .explicit_objects = targets[if (include_kv) 0 else 1..] },
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -5845,7 +5988,7 @@ fn terminalTransferCases(allocator: std.mem.Allocator) !void {
                     .{ .object = source_target.interpretation.object, .kind = .queue, .partition = 0 },
                     .{ .object = destination_target.interpretation.object, .kind = .queue, .partition = 0 },
                 };
-                receipt = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+                receipt = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
                 const key = receipt.binding.key;
                 phase = "common cut";
                 _ = try catalog.acquireTransaction(key, access.policy());
@@ -7394,7 +7537,7 @@ test "mixed Table KV transaction preserves private reads rights and one decision
                     .{ .object = kv_object, .kind = .kv, .partition = null },
                     .{ .object = table.binding.target, .kind = .table, .partition = null },
                 };
-                const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+                const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
                 _ = try catalog.beginTransaction(begin, access.policy());
                 _ = try catalog.acquireTransaction(token, access.policy());
                 // Ordinary SQL selection discovers both authorized Table and KV
@@ -9539,7 +9682,7 @@ const SignedDispatch = struct {
         const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = connection, .nonce = @splat(9), .action = action, .delegation = null, .transaction = transaction };
         const context = try w.Request.context(input, alloc);
         const proof = try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = 1, .principal = 1, .role = null, .audience = 3, .credential_epoch = 1, .context = context }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7)));
-        const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .proof = proof, .transaction = transaction };
+        const request: w.Request = .{ .definition = input.definition, .connection = connection, .nonce = input.nonce, .action = action, .delegation = null, .execution = input.execution, .proof = proof, .transaction = transaction };
         try request.validate(alloc);
         const execution: c.DirectTableDispatch.Execution = .{ .context = access, .ddl = ddl, .namespace = namespace };
         const result = if (transaction) |value| try c.DirectTransactionRead.apply(alloc, catalog, access.policy(), value, action, execution) else try c.DirectTableDispatch.apply(alloc, catalog, access.policy(), action, null, execution);
@@ -9965,6 +10108,7 @@ test "historical common transaction cut transfers retention through cleanup lost
         .namespace = 1,
         .mode = .read_only,
         .deadline = null,
+        .execution = null,
         .selection = .authorized_catalog_objects,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
@@ -10107,7 +10251,7 @@ test "historical common transaction collection and abandonment preserve independ
         _ = try selectedTransaction(&catalog, &access, 2);
         _ = try insertSelectedTable(&catalog, &access, "selected_0", 600);
         const template = try transactionToken(&catalog, 9500, 2, 0);
-        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
         const acquired = try catalog.acquireTransaction(template.key, access.policy());
         for ([_]u64{ 10, 11 }, 1..) |object, sequence| {
             const statement = try workspaceRequest(&catalog, &access, template.key, object, sequence, 700 + sequence);
@@ -10626,6 +10770,7 @@ fn ownedRecordTransaction(catalog: *D, access: *Access, operation: u64, token: u
         .namespace = 1,
         .mode = mode,
         .deadline = null,
+        .execution = null,
         .selection = .authorized_catalog_objects,
         .limits = limits,
         .budget = template.budget,
@@ -12483,11 +12628,11 @@ test "authorized catalog object selection and TXI1 log calls enforce least privi
 
     const template = try transactionToken(&catalog, 9000, 1, 0);
     // Partitioned causal_crdt Document targets remain fail-closed.
-    const doc_target: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9000 }, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &.{.{ .object = .{ .scope = scope, .branch = 1, .object = 12 }, .kind = .document, .partition = 0 }} }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+    const doc_target: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9000 }, .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &.{.{ .object = .{ .scope = scope, .branch = 1, .object = 12 }, .kind = .document, .partition = 0 }} }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
     try t.expectError(error.UnsupportedTransactionParticipant, catalog.beginTransaction(doc_target, access.policy()));
 
     // READ ONLY SQL selection includes Table, KV and row Document (3), skipping Stream and Queue.
-    const ro_begin: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9001 }, .namespace = 1, .mode = .read_only, .deadline = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+    const ro_begin: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9001 }, .namespace = 1, .mode = .read_only, .deadline = null, .execution = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
     try t.expectEqual(@as(u64, 3), (try catalog.beginTransaction(ro_begin, access.policy())).binding.intent.transaction.begin.objects.count);
     _ = try catalog.settleTransaction(ro_begin.key, .{ .scope = scope, .principal = 1, .operation = 9002 }, .abort, 8, access.policy());
 

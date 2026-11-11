@@ -4794,7 +4794,7 @@
         "CatalogDenied": 103,
         "CatalogDependencyOwned": 1,
         "CatalogHistoryMissing": 2,
-        "CatalogIdentityConflict": 10,
+        "CatalogIdentityConflict": 11,
         "CatalogKindMismatch": 18,
         "CatalogNameHashCollision": 3,
         "CatalogNameNotFound": 1,
@@ -4806,7 +4806,7 @@
         "CatalogRegistrationRequired": 13,
         "CheckConstraintViolation": 1,
         "ClientOperationConflict": 15,
-        "ClientOperationMissing": 30,
+        "ClientOperationMissing": 31,
         "ClientOperationPending": 11,
         "ClientTokenBudget": 3,
         "ClientTokenCapacity": 1,
@@ -4901,7 +4901,7 @@
         "LogOffsetConflict": 2,
         "LogProducerConflict": 2,
         "LogRetentionWindowElapsed": 2,
-        "LogTimeUnavailable": 1,
+        "LogTimeUnavailable": 2,
         "LogTransactionSourceNotPinned": 1,
         "LogTransactionSourceReleased": 1,
         "ManagedTableInitializationPending": 2,
@@ -4913,7 +4913,7 @@
         "NativeAllocationBusy": 1,
         "NullNotAllowed": 1,
         "OnlinePhasedRewriteRequired": 1,
-        "OutOfMemory": 11,
+        "OutOfMemory": 12,
         "Overflow": 1,
         "OwnedRecordAttached": 2,
         "OwnedRecordClosed": 8,
@@ -4956,10 +4956,10 @@
         "TransactionCutNotAcquired": 3,
         "TransactionDeadlineElapsed": 2,
         "TransactionFrozen": 1,
-        "TransactionIdentityConflict": 16,
-        "TransactionMemoryLimit": 11,
+        "TransactionIdentityConflict": 17,
+        "TransactionMemoryLimit": 12,
         "TransactionObjectNotSelected": 5,
-        "TransactionOperationRequired": 26,
+        "TransactionOperationRequired": 27,
         "TransactionPreparationMissing": 3,
         "TransactionPrepared": 6,
         "TransactionReadChanged": 5,
@@ -4974,6 +4974,7 @@
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedLogTransaction": 1,
         "UnsupportedTableAction": 4,
+        "UnsupportedTransactionExecution": 2,
         "UnsupportedTransactionParticipant": 2,
         "UnsupportedTransactionRead": 5,
         "WorkloadServiceUnavailable": 1
@@ -5035,6 +5036,7 @@
         "CutFence.acquire()": "<inferred>",
         "HistoryEpoch.acquire()": "<inferred>",
         "HistoryPublication.requirePublished()": "<inferred>",
+        "Policy.execution.verify()": "anyerror",
         "Policy.make_guard()": "anyerror",
         "Policy.registered()": "anyerror",
         "TransactionPolicy.make()": "<inferred>",
@@ -5150,6 +5152,8 @@
         "executeTransactionCall()": "anyerror",
         "executeTransactionLog()": "<inferred>",
         "executeTransactionStatement()": "<inferred>",
+        "executionGuard()": "<inferred>",
+        "executionGuard().Held.acquire()": "<inferred>",
         "finishCaptureSeal()": "<inferred>",
         "flushStorage()": "<inferred>",
         "foreignRequirements()": "<inferred>",
@@ -5288,6 +5292,7 @@
         "recordResource()": "<inferred>",
         "recover()": "<inferred>",
         "recoverSince()": "<inferred>",
+        "recoverTransaction()": "<inferred>",
         "recoveryState()": "<inferred>",
         "registration()": "<inferred>",
         "releaseRows()": "<inferred>",
@@ -5392,10 +5397,10 @@
         "verifyQueueBinding()": "<inferred>",
         "verifyStreamBinding()": "<inferred>"
       },
-      "open_error_set_uses": 14,
+      "open_error_set_uses": 15,
       "propagation": {
-        "try": 2954,
-        "catch": 35
+        "try": 2970,
+        "catch": 36
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -7628,13 +7633,16 @@
         "InvalidQueuePayload": 1,
         "InvalidQueueReadBudget": 1,
         "InvalidQueueWait": 1,
+        "InvalidTransactionInput": 1,
         "LogOperationConflict": 2,
         "LogPayloadConflict": 1,
+        "QueueClaimMissing": 1,
         "QueueNotEligible": 1,
         "QueueTimeUnavailable": 1,
         "QueueWaitCapacity": 1,
         "QueueWaitPending": 1,
-        "QueueWaitUnavailable": 1
+        "QueueWaitUnavailable": 1,
+        "TransactionControlPending": 1
       },
       "outcomes": {
         "Receipt": [
@@ -7666,13 +7674,15 @@
       "error_returns": {
         "Request.validate()": "<inferred>",
         "apply()": "<inferred>",
+        "applyOriginal()": "<inferred>",
         "authorize()": "<inferred>",
+        "closeExecutionInput()": "<inferred>",
         "mutate()": "<inferred>",
         "originalReceipt()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 53,
         "catch": 3
       },
       "imports": [
@@ -8931,7 +8941,7 @@
       },
       "open_error_set_uses": 13,
       "propagation": {
-        "try": 266,
+        "try": 267,
         "catch": 0
       },
       "imports": [
@@ -9094,11 +9104,12 @@
         "InvalidTableBinary": 3,
         "InvalidTableConnection": 1,
         "InvalidTableCursor": 7,
-        "InvalidTableDelegation": 6,
+        "InvalidTableDelegation": 7,
         "InvalidTableKey": 2,
         "InvalidTableReadBudget": 9,
         "InvalidTableRequest": 1,
         "InvalidTableResponse": 5,
+        "InvalidTransactionExecution": 1,
         "InvalidTransactionGuard": 1,
         "OutOfMemory": 1,
         "SourceChanged": 1,
@@ -9356,7 +9367,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 190,
+        "try": 191,
         "catch": 6
       },
       "imports": [
@@ -9710,6 +9721,7 @@
         "executeLog()": "<inferred>",
         "inspect()": "<inferred>",
         "logOutcome()": "<inferred>",
+        "recover()": "<inferred>",
         "savepoint()": "<inferred>",
         "savepointOutcome()": "<inferred>",
         "settle()": "<inferred>",
@@ -9720,7 +9732,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 19,
+        "try": 20,
         "catch": 1
       },
       "imports": [
@@ -9932,17 +9944,23 @@
     "packages/zig/transit-catalog/src/DirectTransactionRequest.zig": {
       "errors": {
         "InvalidClientToken": 1,
-        "InvalidTableResponse": 14,
+        "InvalidTableResponse": 19,
         "InvalidTransactionBegin": 1,
-        "InvalidTransactionWork": 8,
-        "TransactionCapacity": 1
+        "InvalidTransactionWork": 10,
+        "TransactionCapacity": 1,
+        "TransactionIdentityConflict": 1
       },
       "outcomes": {
         "Begin.selection": [
           "explicit_objects",
           "authorized_catalog_objects"
         ],
+        "Recover.work": [
+          "inspect",
+          "settle"
+        ],
         "Request": [
+          "recover",
           "call",
           "call_outcome",
           "begin",
@@ -9961,6 +9979,7 @@
           "settle"
         ],
         "Result": [
+          "recovered",
           "call",
           "begun",
           "acquired",
@@ -9976,12 +9995,13 @@
       "error_sets": {},
       "error_returns": {
         "Begin.validate()": "<inferred>",
+        "Recover.validate()": "<inferred>",
         "Request.validate()": "<inferred>",
         "validateResult()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 39,
+        "try": 48,
         "catch": 0
       },
       "imports": [
@@ -26402,7 +26422,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da\""
+          "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
         ],
         "Effect.phase": [
           "pending",
@@ -27677,6 +27697,7 @@
         "InvalidTransactionBegin": 1,
         "InvalidTransactionDeadline": 1,
         "InvalidTransactionDecision": 1,
+        "InvalidTransactionExecution": 1,
         "InvalidTransactionGuard": 3,
         "InvalidTransactionHandle": 2,
         "InvalidTransactionLimits": 1,
@@ -27689,7 +27710,7 @@
         "InvalidTransactionTransfer": 7,
         "ReadOnlyTransaction": 2,
         "TransactionConflict": 3,
-        "TransactionIdentityConflict": 7,
+        "TransactionIdentityConflict": 10,
         "UnsupportedTransactionDomain": 1,
         "UnsupportedTransactionParticipant": 5
       },
@@ -27779,6 +27800,8 @@
         "Directory.validate()": "<inferred>",
         "DocumentGuard.requireUnchanged()": "<inferred>",
         "DocumentGuard.validate()": "<inferred>",
+        "Execution.requireIdentity()": "<inferred>",
+        "Execution.validate()": "<inferred>",
         "Guard.requirePagedState()": "<inferred>",
         "Guard.requireTable()": "<inferred>",
         "Guard.validate()": "<inferred>",
@@ -27806,7 +27829,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 88,
+        "try": 92,
         "catch": 0
       },
       "imports": [
@@ -43293,6 +43316,170 @@
         "transit_fuze"
       ]
     },
+    "packages/zig/transit-station/src/transactional/Actor.zig": {
+      "errors": {
+        "ActorIdentityConflict": 8,
+        "IncompatibleDefinition": 2,
+        "InvalidActorDeclaration": 3,
+        "TurnCapacity": 1
+      },
+      "outcomes": {
+        "Pending.phase": [
+          "beginning",
+          "claiming",
+          "reading",
+          "acquiring",
+          "handling",
+          "dispatched",
+          "staging",
+          "executing",
+          "committing",
+          "recovering"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Declaration.digest()": "<inferred>",
+        "Declaration.validate()": "<inferred>",
+        "Head.validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "Turn.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Runner.zig": {
+      "errors": {
+        "ActorDependencyUnresolved": 1,
+        "ActorIdentityConflict": 13,
+        "ActorInputUnavailable": 1,
+        "ActorNotInitialized": 1,
+        "ActorProgressConflict": 1,
+        "ActorProgressUnresolved": 5,
+        "ActorStatementRefused": 2,
+        "HandlerStopped": 2,
+        "InvalidTableKey": 1,
+        "TurnCapacity": 1
+      },
+      "outcomes": {
+        "Handler.failure": [
+          "block_input",
+          "stop"
+        ],
+        "Point": [
+          "original",
+          "head",
+          "begin",
+          "claim",
+          "input",
+          "acquire",
+          "dispatch",
+          "draft",
+          "staged",
+          "executed",
+          "decision",
+          "cleared"
+        ],
+        "Result": [
+          "idle",
+          "committed",
+          "recovering",
+          "blocked"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Handler.run()": "anyerror",
+        "Hook.hit()": "anyerror",
+        "Reader.get()": "<inferred>",
+        "Reader.row()": "<inferred>",
+        "Reader.table()": "<inferred>",
+        "advance()": "<inferred>",
+        "append()": "<inferred>",
+        "bootstrap()": "<inferred>",
+        "cellActor()": "<inferred>",
+        "cellBytes()": "<inferred>",
+        "execute()": "<inferred>",
+        "finish()": "<inferred>",
+        "init()": "<inferred>",
+        "inspect()": "<inferred>",
+        "load()": "<inferred>",
+        "point()": "<inferred>",
+        "publish()": "<inferred>",
+        "recover()": "<inferred>",
+        "retryBlocked()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 108,
+        "catch": 2
+      },
+      "imports": [
+        "Actor.zig",
+        "Turn.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/Turn.zig": {
+      "errors": {
+        "InvalidTurnLimits": 1,
+        "PoisonedTurn": 7,
+        "TurnCapacity": 10,
+        "UnsupportedTableRead": 1,
+        "UnsupportedTableWrite": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Read.get()": "anyerror",
+        "Read.row()": "anyerror",
+        "Read.table()": "anyerror",
+        "binary()": "<inferred>",
+        "emit()": "<inferred>",
+        "finish()": "<inferred>",
+        "get()": "<inferred>",
+        "init()": "<inferred>",
+        "journal()": "<inferred>",
+        "own()": "<inferred>",
+        "put()": "<inferred>",
+        "readTable()": "<inferred>",
+        "table()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 18,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-station/src/transactional/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Actor.zig",
+        "Runner.zig",
+        "Turn.zig",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-storage/src/BitmapDirectory.zig": {
       "errors": {
         "BitmapBatchTooLarge": 1,
@@ -47261,10 +47448,12 @@
         "InvalidTransactionDecision": 1,
         "InvalidTransactionDirectory": 2,
         "InvalidTransactionHistory": 10,
+        "InvalidTransactionInput": 1,
         "InvalidTransactionLimits": 1,
         "InvalidTransactionPartition": 2,
         "InvalidTransactionTransfer": 8,
         "LostAcknowledgement": 3,
+        "MissingTransactionInput": 3,
         "MissingTransactionVerification": 1,
         "OutOfMemory": 2,
         "ReadOnlyTransaction": 1,
@@ -47308,11 +47497,12 @@
         "ready()": "<inferred>",
         "recover()": "<inferred>",
         "recoverBounded()": "<inferred>",
+        "verifyInput()": "<inferred>",
         "verifyTransfers()": "<inferred>"
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 60,
+        "try": 65,
         "catch": 3
       },
       "imports": [

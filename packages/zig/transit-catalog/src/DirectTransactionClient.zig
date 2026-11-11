@@ -7,6 +7,10 @@ const w = c.DirectTransactionRequest;
 const Self = @This();
 catalog: c.DirectTableClient,
 
+pub fn recover(self: Self, request: w.Recover) !?w.Recovery {
+    return (try self.call(.{ .recover = request })).recovered;
+}
+
 pub fn advanceCall(self: Self, key: c.DirectClientToken.Key, steps: u16, control: bool, cancel: bool) !?c.DirectTransactionCall.Result {
     return (try self.call(.{ .call = .{ .key = key, .steps = steps, .control = control, .cancel = cancel } })).call;
 }
@@ -66,7 +70,12 @@ pub fn settle(self: Self, key: c.DirectClientToken.Key, operation: c.protocol.Da
 }
 fn call(self: Self, request: w.Request) !w.Result {
     try request.validate();
-    if (!std.meta.eql(request.key().connection, self.catalog.connection)) return error.CatalogIdentityConflict;
+    var original = request.key().connection;
+    if (request == .recover) {
+        original.principal = self.catalog.connection.principal;
+        original.role = self.catalog.connection.role;
+    }
+    if (!std.meta.eql(original, self.catalog.connection)) return error.CatalogIdentityConflict;
     var caller = self.catalog;
     caller.transaction = null;
     const response = caller.call(.{ .transaction = request }) catch |err| {

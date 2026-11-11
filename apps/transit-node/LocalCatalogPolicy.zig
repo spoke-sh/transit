@@ -17,6 +17,8 @@ observed: ?p.Authorization.Guard = null,
 /// Paged transaction checks retain one epoch rather than an unbounded union.
 paged: bool = false,
 checked_epoch: ?c.storage.TablePartition.Guard.Fence = null,
+recovery_execution: ?p.Transaction.Execution = null,
+request_execution: ?p.Transaction.Execution = null,
 
 pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalog.Configuration, proof: p.Authorization.Proof, request_digest: [32]u8, executor: ?p.Authorization.Proof) !Self {
     try configuration.validate();
@@ -38,7 +40,19 @@ pub fn init(engine: *backend.DataAuthority.Engine, configuration: c.DirectCatalo
 }
 
 pub fn policy(self: *Self) c.DirectCatalog.Policy {
-    return .{ .context = self, .subject = .{ .signed = self.proof }, .effective_role = self.effective_role, .make_guard = makeGuard, .registered = registered, .native_resource = .{ .context = self, .prepare = prepareResource, .allocation = resourceAllocation, .make_guard = resourceGuard } };
+    return .{ .context = self, .subject = .{ .signed = self.proof }, .effective_role = self.effective_role, .make_guard = makeGuard, .registered = registered, .execution = .{ .context = self, .verify = verifyExecution }, .native_resource = .{ .context = self, .prepare = prepareResource, .allocation = resourceAllocation, .make_guard = resourceGuard } };
+}
+
+fn verifyExecution(raw: *anyopaque, condition: p.Transaction.Execution, recovery: bool) !void {
+    const self = erased(raw);
+    // DataAuthority already holds the backend's shared authority lock. Native
+    // ownership/lifecycle publication needs its exclusive side. Catalog service
+    // exclusion precedes this lock; do not recursively acquire either here.
+    try self.engine.requireTransactionExecution(condition, self.policy().subject, recovery);
+    if (recovery) {
+        if (self.recovery_execution) |previous| if (!std.meta.eql(previous, condition)) return error.TransactionIdentityConflict;
+        self.recovery_execution = condition;
+    }
 }
 
 fn allocationLocked(self: *Self, binding: c.DirectResource.Binding, allocation: c.DirectResource.Allocation) !?u64 {
@@ -148,6 +162,7 @@ const ObservedGuard = struct {
         const guard = self.authority.guard();
         const fence = try guard.acquire(guard.context);
         errdefer guard.release(guard.context);
+        if (self.policy.request_execution) |condition| try self.policy.engine.requireTransactionExecution(condition, self.policy.policy().subject, false);
         if (self.policy.paged) {
             if (self.policy.checked_epoch) |previous| try requireSameEpoch(previous, fence);
             self.policy.checked_epoch = fence;
@@ -181,7 +196,9 @@ pub fn observation(self: *Self) !struct { revision: u64, subject: p.Authorizatio
     const guard = value.guard();
     const fence = try guard.acquire(guard.context);
     defer guard.release(guard.context);
+    if (self.request_execution) |condition| try self.engine.requireTransactionExecution(condition, self.policy().subject, false);
     if (self.paged) if (self.checked_epoch) |previous| try requireSameEpoch(previous, fence);
+    if (self.recovery_execution) |condition| try self.engine.requireTransactionExecution(condition, self.policy().subject, true);
     return .{ .revision = fence.policy_epoch - 1, .subject = value.verified.? };
 }
 

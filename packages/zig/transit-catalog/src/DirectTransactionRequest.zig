@@ -16,6 +16,7 @@ pub const Begin = struct {
     },
     limits: x.Limits,
     deadline: ?x.Deadline,
+    execution: ?x.Execution,
     budget: c.DirectClientToken.Budget,
     pub fn validate(self: Begin) !void {
         try self.key.validate();
@@ -23,6 +24,7 @@ pub const Begin = struct {
         try c.Model.nativeId(self.namespace);
         try self.limits.validate();
         if (self.deadline) |deadline| try deadline.validate();
+        if (self.execution) |execution| try execution.requireIdentity(.{ .begin = self.operation, .branch = self.key.connection.branch });
         try self.budget.validate();
         if (std.mem.allEqual(u8, &self.fingerprint, 0)) return error.InvalidClientToken;
         if (self.selection == .explicit_objects) {
@@ -41,7 +43,28 @@ pub const Begin = struct {
         }
     }
 };
+/// A current native recovery owner can observe or settle the saved original.
+/// A settle request always aborts undecided work; it cannot request a commit.
+pub const Recover = struct {
+    key: c.DirectClientToken.Key,
+    execution: x.Execution,
+    work: union(enum) { inspect, settle: struct { operation: d.Operation, steps: u16 } },
+    close_input: bool,
+    pub fn validate(self: Recover) !void {
+        try self.key.validate();
+        try self.execution.validate();
+        if (self.execution.realm != self.key.connection.scope.realm or self.execution.principal != self.key.connection.principal)
+            return error.TransactionIdentityConflict;
+        if (self.close_input and (self.work != .settle or self.execution.input == null)) return error.InvalidTransactionWork;
+        if (self.work == .settle) {
+            try self.key.connection.owner(self.work.settle.operation);
+            if (self.work.settle.steps == 0 or self.work.settle.steps > 256) return error.InvalidTransactionWork;
+        }
+    }
+};
+pub const Recovery = struct { status: c.DirectTransactionControl.Status, input: ?c.DirectQueue.Receipt };
 pub const Request = union(enum) {
+    recover: Recover,
     call: struct { key: c.DirectClientToken.Key, steps: u16, control: bool, cancel: bool },
     call_outcome: c.DirectClientToken.Key,
     begin: Begin,
@@ -60,7 +83,7 @@ pub const Request = union(enum) {
     settle: struct { key: c.DirectClientToken.Key, operation: d.Operation, command: c.DirectTransactionControl.Command, steps: u16 },
     pub fn key(self: Request) c.DirectClientToken.Key {
         return switch (self) {
-            .begin => |value| value.key,
+            inline .begin, .recover => |value| value.key,
             inline .acquire, .inspect, .call_outcome => |value| value,
             inline .stage, .stage_kv, .stage_log, .log_statement, .log_outcome, .statement, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
         };
@@ -68,6 +91,7 @@ pub const Request = union(enum) {
     pub fn validate(self: Request) !void {
         try self.key().validate();
         switch (self) {
+            .recover => |value| try value.validate(),
             .begin => |value| try value.validate(),
             .acquire, .inspect, .call_outcome => {},
             .call => |value| if (value.steps == 0 or value.steps > 256) return error.InvalidTransactionWork,
@@ -109,13 +133,15 @@ pub const Request = union(enum) {
         }
     }
     pub fn mutation(self: Request) bool {
+        if (self == .recover) return self.recover.work != .inspect;
         return self != .inspect and self != .statement_outcome and self != .log_outcome and self != .savepoint_outcome and self != .call_outcome;
     }
     pub fn control(self: Request) bool {
-        return self == .call_outcome or (self == .call and self.call.control) or self == .inspect or self == .settle or self == .statement_outcome or self == .log_outcome or self == .savepoint_outcome;
+        return self == .recover or self == .call_outcome or (self == .call and self.call.control) or self == .inspect or self == .settle or self == .statement_outcome or self == .log_outcome or self == .savepoint_outcome;
     }
 };
 pub const Result = union(enum) {
+    recovered: ?Recovery,
     call: ?c.DirectTransactionCall.Result,
     begun: c.DirectClientToken.Receipt,
     acquired: c.DirectTransaction.Acquired,
@@ -130,6 +156,7 @@ pub const Result = union(enum) {
 
 pub fn validateResult(request: Request, result: Result) !void {
     const expected: std.meta.Tag(Result) = switch (request) {
+        .recover => .recovered,
         .call, .call_outcome => .call,
         .begin => .begun,
         .acquire => .acquired,
@@ -143,12 +170,29 @@ pub fn validateResult(request: Request, result: Result) !void {
     };
     if (std.meta.activeTag(result) != expected) return error.InvalidTableResponse;
     switch (result) {
+        .recovered => |observed| if (observed) |recovery| {
+            const status = recovery.status;
+            try status.validate();
+            try request.key().connection.owner(status.begin.identity.begin);
+            if (!std.meta.eql(status.begin.execution, @as(?x.Execution, request.recover.execution))) return error.InvalidTableResponse;
+            if (request.recover.work == .settle) {
+                const attempt = status.attempt orelse return error.InvalidTableResponse;
+                if (!std.meta.eql(attempt.operation, request.recover.work.settle.operation)) return error.InvalidTableResponse;
+            }
+            if ((recovery.input != null) != (request.recover.close_input and status.cleanup_complete)) return error.InvalidTableResponse;
+            if (recovery.input) |input| switch (input) {
+                .claim => |receipt| try receipt.requireClaim(request.recover.execution.input.?),
+                .closed => |closed| try closed.requireQueue(.{ .claim = request.recover.execution.input.? }),
+                else => return error.InvalidTableResponse,
+            };
+        },
         .call => |value| if (value) |found| try found.validate(request.key().connection),
         .begun => |receipt| {
             try receipt.validate();
             try request.key().requireSame(receipt.binding.key);
             if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &request.begin.fingerprint, &receipt.binding.fingerprint)) return error.InvalidTableResponse;
-            if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.begin.deadline)) return error.InvalidTableResponse;
+            if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.begin.deadline) or
+                !std.meta.eql(receipt.binding.intent.transaction.begin.execution, request.begin.execution)) return error.InvalidTableResponse;
         },
         .acquired => |value| {
             try value.cut.validate();

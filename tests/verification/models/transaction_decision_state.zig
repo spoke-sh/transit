@@ -43,6 +43,7 @@ fn beginRecord(directory: x.Directory) x.Begin {
         .identity = identity,
         .mode = .serializable,
         .deadline = null,
+        .execution = null,
         .selection = .explicit_objects,
         .objects = directory,
         .catalog = .{ .partition = 1, .next_lsn = 1 },

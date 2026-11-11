@@ -13,7 +13,7 @@ import jsonschema
 from interfaces.http.serving import Key
 
 root = ROOT
-definition = "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da"
+definition = "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
 raw = sys.stdin.buffer.read()
 schema = json.loads(raw)
 jsonschema.Draft202012Validator.check_schema(schema)
@@ -36,6 +36,7 @@ request_input = {
     "borrow": None,
     "lease": None,
     "transaction": None,
+    "execution": None,
 }
 context = hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(request_input)).digest()
 claim = {
@@ -1069,6 +1070,9 @@ transaction_begin = {
     "limits": {"resident_bytes": 65536, "workspace_bytes": 1048576,
                "participants": 100, "statements": 1000, "savepoints": 32},
     "deadline": {"floor_ms": 100, "expires_ms": 200},
+    "execution": {"realm": binding["identity"]["scope"]["realm"], "pid": 29,
+                  "principal": binding["identity"]["principal"], "generation": 7,
+                  "code": 1, "workload": None, "input": None},
 }
 transaction_reference = {"connection": request_input["connection"], "namespace": 1, "begin": transaction_begin, "purpose": {"interactive": {}}}
 transaction_binding = {**token_binding, "intent": {"transaction": transaction_reference}}
@@ -1101,9 +1105,10 @@ selected_begin = {
     ]},
     "limits": transaction_begin["limits"],
     "deadline": {"floor_ms": 100, "expires_ms": 200},
+    "execution": transaction_begin["execution"],
     "budget": token_binding["budget"],
 }
-selected_input = {**request_input, "action": {"transaction": {"begin": selected_begin}}}
+selected_input = {**request_input, "execution": transaction_begin["execution"], "action": {"transaction": {"begin": selected_begin}}}
 selected_claim = {**claim, "context": list(hashlib.sha256(b"transit.table.direct.request.v1\0" + canonical(selected_input)).digest())}
 with tempfile.TemporaryDirectory(prefix="transit-transaction-selection-contract-") as directory:
     signing_key = Key(Path(directory), "public-test-key", 9)

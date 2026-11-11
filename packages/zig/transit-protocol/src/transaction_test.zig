@@ -7,6 +7,30 @@ fn fixture() !std.json.Parsed(x.SchemaTypes) {
     return p.Json.parseFromSlice(x.SchemaTypes, t.allocator, @embedFile("fixtures/transaction-v1.json"));
 }
 
+test "transaction execution is immutable and missing stored authority is rejected" {
+    const parsed = try fixture();
+    defer parsed.deinit();
+    var begin = parsed.value.begin;
+    begin.execution = .{ .realm = begin.identity.begin.scope.realm, .pid = 7, .principal = begin.identity.begin.principal, .generation = 1, .code = 1, .workload = null, .input = null };
+    try begin.validate();
+    var changed = begin;
+    changed.execution = null;
+    try t.expectError(error.TransactionIdentityConflict, begin.requireSame(changed));
+    changed = begin;
+    changed.execution.?.generation += 1;
+    try t.expectError(error.TransactionIdentityConflict, begin.requireSame(changed));
+    changed.execution.?.principal += 1;
+    try t.expectError(error.TransactionIdentityConflict, changed.validate());
+    const bytes = try p.Json.valueAlloc(t.allocator, begin);
+    defer t.allocator.free(bytes);
+    var json = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer json.deinit();
+    try t.expect(json.value.object.swapRemove("execution"));
+    const missing = try p.Json.valueAlloc(t.allocator, json.value);
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(x.Begin, t.allocator, missing));
+}
+
 test "transaction deadlines reject empty intervals and missing stored constraints" {
     try (x.Deadline{ .floor_ms = 0, .expires_ms = 1 }).validate();
     try t.expectError(error.InvalidTransactionDeadline, (x.Deadline{ .floor_ms = 100, .expires_ms = 100 }).validate());

@@ -21,6 +21,8 @@ credential_epoch: ?u64 = null,
 delegation: ?c.DirectReadDelegation = null,
 lease: ?c.DirectClientToken.Lease = null,
 transaction: ?c.DirectTransactionRead.Context = null,
+/// Optional native execution prerequisite, checked under each publication fence.
+execution: ?p.Transaction.Execution = null,
 /// Current original-caller permission to close a saved delegation. This never
 /// renews read authority for the accepted computation.
 closure: ?c.DirectReadDelegation.Closure = null,
@@ -274,14 +276,14 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (self.delegation == null) return error.InvalidTableDelegation;
         try c.DirectReadDelegation.Closure.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction, .execution = self.execution };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const context = try w.Request.context(input, self.allocator);
     const proof = if (self.credential_epoch) |epoch|
         try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = authority.realm, .principal = authority.principal, .credential_epoch = epoch, .role = authority.role, .audience = self.connection.audience, .context = context }, self.key)
     else
         (try authority.proof(self.connection.audience, context)).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .transaction = input.transaction, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .transaction = input.transaction, .execution = input.execution, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }

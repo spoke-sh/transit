@@ -18,7 +18,7 @@ pub fn table(err: anyerror) Refusal {
         error.HistoricalObjectLimit => .StorageQuota,
         error.InvalidKVOperation, error.InvalidKVKey, error.KVValueTooLarge, error.KVBatchTooLarge, error.UnsupportedKVAlter => .InvalidRequest,
         error.KVBuildBudget => .StorageQuota,
-        error.InvalidTransactionTransfer, error.InvalidTransactionSettlement, error.InvalidTransactionDeadline => .InvalidRequest,
+        error.InvalidTransactionTransfer, error.InvalidTransactionSettlement, error.InvalidTransactionDeadline, error.InvalidTransactionExecution, error.UnsupportedTransactionExecution, error.InvalidTransactionInput, error.MissingTransactionInput => .InvalidRequest,
         error.TransactionDeadlineElapsed => .DeadlineExpired,
         error.InvalidLogIntent, error.InvalidWorkloadIntent, error.ClientTokenBudget => .InvalidRequest,
         error.InvalidWorkloadResultBudget, error.WorkloadResultRowTooLarge, error.WorkloadResultUnavailable => .InvalidRequest,

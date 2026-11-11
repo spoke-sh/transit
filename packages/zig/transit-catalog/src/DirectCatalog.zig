@@ -74,6 +74,12 @@ pub const Policy = struct {
     make_guard: *const fn (*anyopaque, std.mem.Allocator, p.Authorization.Guard, ?p.Authorization.Guard) anyerror!P.Guard,
     registered: *const fn (*anyopaque, a.Kind, u64) anyerror!?p.Authorization.Object,
     native_resource: ?Resource.Native = null,
+    /// Called only inside make_guard's held native authority fence. Each
+    /// capability retains its own context through policy wrappers.
+    execution: ?struct {
+        context: *anyopaque,
+        verify: *const fn (*anyopaque, p.Transaction.Execution, bool) anyerror!void,
+    } = null,
 };
 pub const View = struct {
     table: P,
@@ -2062,7 +2068,8 @@ fn clientTokenSelected(self: *Self, request: c.DirectClientToken.Request, policy
     const binding = request.bind;
     const reference = binding.intent;
     if (reference == .transaction) try self.requireTransactionPurpose(key, reference.transaction);
-    const current = if (reservation == .capture) reservation.capture.guard else if (reservation == .source) reservation.source.guard else if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
+    const admitted_guard = if (reservation == .capture) reservation.capture.guard else if (reservation == .source) reservation.source.guard else if (reference == .branch) try self.branchGuard(arena.allocator(), reference.branch, policy, true) else try self.intentGuard(arena.allocator(), reference, policy);
+    const current = try executionGuard(arena.allocator(), policy, admitted_guard, if (reference == .transaction) reference.transaction.begin.execution else null, false);
     try check(current);
     if (self.store.root.client_token_count >= self.options.client_token_quota) return error.ClientTokenCapacity;
     const usage = (try self.store.clientUsage(self.store.root, key)) orelse c.DirectClientToken.Usage.initial(binding.budget.limits);
@@ -3479,16 +3486,43 @@ fn acquireTransactionLog(self: *Self, sources: *s.TransactionDirectory, begin: p
     }
 }
 
+fn executionGuard(allocator: std.mem.Allocator, policy: Policy, underlying: P.Guard, condition: ?p.Transaction.Execution, recovery: bool) !P.Guard {
+    const value = condition orelse return underlying;
+    const native = policy.execution orelse return error.UnsupportedTransactionExecution;
+    const Held = struct {
+        underlying: P.Guard,
+        native: @TypeOf(native),
+        condition: p.Transaction.Execution,
+        recovery: bool,
+        fn acquire(raw: *anyopaque) !P.Guard.Fence {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const fence = try self.underlying.acquire(self.underlying.context);
+            errdefer self.underlying.release(self.underlying.context);
+            try self.native.verify(self.native.context, self.condition, self.recovery);
+            return fence;
+        }
+        fn release(raw: *anyopaque) void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.underlying.release(self.underlying.context);
+        }
+    };
+    const held = try allocator.create(Held);
+    held.* = .{ .underlying = underlying, .native = native, .condition = value, .recovery = recovery };
+    return .{ .context = held, .acquire = Held.acquire, .release = Held.release };
+}
+
 const TransactionPolicy = struct {
     original: Policy,
+    condition: ?p.Transaction.Execution = null,
+    recovery: bool = false,
     epoch: ?P.Guard.Fence = null,
     fn policy(self: *@This()) Policy {
-        return .{ .context = self, .subject = self.original.subject, .make_guard = make, .registered = registered, .native_resource = self.original.native_resource };
+        return .{ .context = self, .subject = self.original.subject, .make_guard = make, .registered = registered, .native_resource = self.original.native_resource, .execution = self.original.execution };
     }
     fn make(raw: *anyopaque, allocator: std.mem.Allocator, request: p.Authorization.Guard, prerequisite: ?p.Authorization.Guard) !P.Guard {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const fence = try allocator.create(CutFence);
-        fence.* = .{ .underlying = try self.original.make_guard(self.original.context, allocator, request, prerequisite), .epoch = &self.epoch };
+        fence.* = .{ .underlying = try executionGuard(allocator, self.original, try self.original.make_guard(self.original.context, allocator, request, prerequisite), self.condition, self.recovery), .epoch = &self.epoch };
         return fence.guard();
     }
     fn registered(raw: *anyopaque, kind: a.Kind, id: u64) !?p.Authorization.Object {
@@ -3505,7 +3539,8 @@ pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, 
     if (try self.clientToken(.{ .lookup = request.key }, policy)) |receipt| {
         try self.requireTransactionMutation(receipt);
         if (receipt.binding.intent != .transaction or !std.mem.eql(u8, &receipt.binding.fingerprint, &request.fingerprint)) return error.ClientTokenConflict;
-        if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.deadline)) return error.ClientTokenConflict;
+        if (!std.meta.eql(receipt.binding.intent.transaction.begin.deadline, request.deadline) or
+            !std.meta.eql(receipt.binding.intent.transaction.begin.execution, request.execution)) return error.ClientTokenConflict;
         return receipt;
     }
     try c.DirectTransaction.requireLimits(request.limits, self.options.transaction_limits);
@@ -3523,7 +3558,7 @@ pub fn beginTransaction(self: *Self, request: c.DirectTransactionRequest.Begin, 
 }
 
 fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begin, original_policy: Policy) !c.DirectClientToken.Receipt {
-    var checked: TransactionPolicy = .{ .original = original_policy };
+    var checked: TransactionPolicy = .{ .original = original_policy, .condition = request.execution };
     const policy = checked.policy();
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
@@ -3573,7 +3608,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
             }
         },
     }
-    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_objects, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline };
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_objects, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline, .execution = request.execution };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else if (self.capture_owner) |value| .{ .source_capture = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, .none)).?;
 }
@@ -4740,6 +4775,50 @@ fn inspectAcceptedTransaction(self: *Self, allocator: std.mem.Allocator, progres
 /// This exclusion plus one unchanged policy/writer epoch closes validation to
 /// decision races without retaining one in-memory guard per participant.
 /// Abort requests race through the same journal; they cannot undo a commit.
+pub fn recoverTransaction(self: *Self, request: c.DirectTransactionRequest.Recover, original_policy: Policy) !?c.DirectTransactionRequest.Recovery {
+    try request.validate();
+    if (!request.key.connection.matches(self.config())) return error.CatalogIdentityConflict;
+    var checked: TransactionPolicy = .{ .original = original_policy, .condition = request.execution, .recovery = true };
+    const policy = checked.policy();
+    var guards = std.heap.ArenaAllocator.init(self.allocator);
+    defer guards.deinit();
+    const current = try self.guard(guards.allocator(), policy, null, null, .database);
+    try check(current);
+    try self.store.refresh();
+    const progress = try self.store.clientTokenState(request.key) orelse {
+        try check(current);
+        return null;
+    };
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    const reference = progress.receipt.binding.intent.transaction;
+    if (reference.purpose != .interactive or !std.meta.eql(reference.begin.execution, @as(?p.Transaction.Execution, request.execution)))
+        return error.TransactionIdentityConflict;
+    if (request.work == .settle) {
+        var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(reference.begin.limits.resident_bytes) };
+        const parent = self.allocator;
+        const retained = self.options.table_owner;
+        self.options.table_owner = null;
+        self.allocator = memory.allocator();
+        defer {
+            self.allocator = parent;
+            self.options.table_owner = retained;
+            std.debug.assert(memory.used == 0);
+        }
+        const work = request.work.settle;
+        self.settleTransactionBounded(progress, work.operation, .abort, work.steps, policy) catch |err|
+            return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+    }
+    const latest = try self.store.clientTokenState(request.key) orelse return error.ClientOperationMissing;
+    const observed = try self.inspectAcceptedTransaction(self.allocator, latest, policy);
+    var input: ?c.DirectQueue.Receipt = null;
+    if (request.close_input and observed.cleanup_complete) {
+        const environment = self.log_environment orelse return error.LogTimeUnavailable;
+        input = try c.DirectQueue.closeExecutionInput(guards.allocator(), self, environment.clock, request.execution, policy);
+    }
+    try check(current);
+    return .{ .status = observed, .input = input };
+}
+
 pub fn settleTransaction(self: *Self, key: c.DirectClientToken.Key, operation: d.Operation, command: TransactionControl.Command, steps: u16, policy: Policy) !TransactionControl.Status {
     const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
     if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
@@ -4941,7 +5020,7 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
         // Recheck every original statement's current operation privilege. The
         // aggregate receipt must not introduce an unrelated UPDATE requirement.
         try self.authorizeTransactionStatements(control, progress.receipt.binding.key.scope(), policy, &epoch, &scratch, &index);
-        var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding, .epoch = &epoch };
+        var verification: TransactionVerification = .{ .catalog = self, .binding = control.binding, .epoch = &epoch, .policy = policy };
         control.decision = try journal.commit(control.preparations.?, .{ .context = &verification, .participant = TransactionVerification.participant, .prepared = TransactionVerification.prepared, .before_decision = TransactionVerification.beforeDecision }, guard_value);
         try self.publishTransactionControl(&progress, &control, guard_value);
     }
@@ -5062,6 +5141,7 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
 }
 
 const TransactionVerification = struct {
+    policy: Policy,
     catalog: *Self,
     binding: s.TransactionDecisionLog.Binding,
     epoch: *?P.Guard.Fence,
@@ -5138,6 +5218,10 @@ const TransactionVerification = struct {
     }
     fn beforeDecision(raw: *anyopaque) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
+        if (self.binding.begin.execution) |condition| {
+            const native = self.policy.execution orelse return error.UnsupportedTransactionExecution;
+            try native.verify(native.context, condition, false);
+        }
         const deadline = self.binding.begin.deadline;
         if (deadline == null and !self.clock_required and self.floor_ms == null and self.lease_expires_ms == null and self.append_expires_ms == null and self.transfer_not_before_ms == null) return;
         const environment = self.catalog.log_environment orelse return error.LogTimeUnavailable;

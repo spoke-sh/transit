@@ -145,6 +145,8 @@ def generated():
 
         def transaction_definition(value):
             if isinstance(value, dict):
+                if all(field in value for field in ('identity', 'objects', 'catalog', 'deadline')):
+                    value['execution'] = None
                 for name, child in value.items():
                     if name == 'definition':
                         value[name] = definition
