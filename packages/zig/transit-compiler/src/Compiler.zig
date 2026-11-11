@@ -437,7 +437,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
                 sites[writer.end] = true;
             };
             writeValue(&writer, value) catch |err| return if (err == error.WriteFailed) error.BuildStatementLimit else err;
-        } else if (canonical and token.kind == .word) {
+        } else if (canonical and token.kind == .word and !s.Template.numericWord(text, token)) {
             for (raw) |byte| writer.writeByte(std.ascii.toUpper(byte)) catch return error.BuildStatementLimit;
         } else writer.writeAll(raw) catch return error.BuildStatementLimit;
     }

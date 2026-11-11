@@ -218,7 +218,7 @@ fn template(self: Self, value: s.Template.Syntax) !void {
         // Other original adjacency is harmless and makes formatting idempotent.
         if (i != 0 and value.tokens[i - 1].end != token.start) try self.w.writeByte(' ');
         const raw = self.text[token.start..token.end];
-        if (token.kind == .word) {
+        if (token.kind == .word and !s.Template.numericWord(self.text, token)) {
             for (raw) |byte| try self.w.writeByte(std.ascii.toUpper(byte));
         } else try self.w.writeAll(raw);
     }

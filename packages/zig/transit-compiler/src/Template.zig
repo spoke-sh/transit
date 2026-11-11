@@ -278,8 +278,11 @@ fn check(self: *Self) !void {
             try self.require("NULL");
         } else {
             try self.comparison();
-            if (!try self.hole(.operand)) {
-                if (self.tag(.quoted) or (self.tag(.word) and !f.Sql.isReserved(self.raw()) and !self.is("MISSING") and !self.is("X") and !self.is("DATE") and !self.is("TIME") and !self.is("TIMESTAMP") and !self.is("UUID") and !self.is("JSON") and !self.is("STRUCT") and !self.is("ROW") and !self.is("LIST") and !self.is("ARRAY") and !self.is("MAP") and !self.is("INTERVAL") and !self.is("UNION"))) try self.reference() else try self.literal();
+            if (self.qualifiedHole()) {
+                try self.reference();
+            } else if (!try self.hole(.operand)) {
+                const literal_tail = self.i + 1 < self.tokens.len and (self.tokens[self.i + 1].kind == .string or self.nextIs("$") or self.nextIs("("));
+                if (self.tag(.quoted) or (self.tag(.word) and !f.Sql.isReserved(self.raw()) and !literal_tail)) try self.reference() else try self.literal();
             }
         }
         if (!self.take("AND")) break;
@@ -327,13 +330,30 @@ fn scalar(self: *Self) anyerror!void {
     if (function) {
         self.i += 2;
         while (true) {
-            if (!try self.hole(.operand)) {
-                if (self.tag(.number) or self.tag(.string) or self.is("+") or self.is("-")) try self.literal() else try self.scalar();
-            }
+            if (self.qualifiedHole()) {
+                try self.scalar();
+            } else if (try self.hole(.operand)) {
+                try self.timeZone();
+            } else if (self.tag(.string)) {
+                self.i += 1;
+            } else if (self.tag(.number) or self.is("+") or self.is("-")) {
+                _ = self.take("+") or self.take("-");
+                if (!self.tag(.number)) return self.invalid();
+                self.i += 1;
+            } else try self.scalar();
             if (!self.take(",")) break;
         }
         try self.require(")");
     } else try self.reference();
+    try self.timeZone();
+}
+fn nextIs(self: *Self, value: []const u8) bool {
+    return self.i + 1 < self.tokens.len and std.ascii.eqlIgnoreCase(self.text[self.tokens[self.i + 1].start..self.tokens[self.i + 1].end], value);
+}
+fn qualifiedHole(self: *Self) bool {
+    return self.is("$") and self.i + 2 < self.tokens.len and std.mem.eql(u8, self.text[self.tokens[self.i + 2].start..self.tokens[self.i + 2].end], ".");
+}
+fn timeZone(self: *Self) !void {
     if (self.take("AT")) {
         try self.require("TIME");
         try self.require("ZONE");
@@ -343,8 +363,9 @@ fn scalar(self: *Self) anyerror!void {
 fn selection(self: *Self) !bool {
     const aggregate = (self.is("COUNT") or self.is("SUM")) and self.i + 1 < self.tokens.len and std.mem.eql(u8, self.text[self.tokens[self.i + 1].start..self.tokens[self.i + 1].end], "(");
     if (aggregate) {
+        const count = self.is("COUNT");
         self.i += 2;
-        if (!self.take("*")) try self.scalar();
+        if (!count or !self.take("*")) try self.scalar();
         try self.require(")");
         if (self.take("AS")) try self.name();
     } else if (!self.take("*")) {
@@ -370,7 +391,7 @@ fn select(self: *Self) !void {
         if (try self.selection()) return self.invalid();
     }
     try self.name();
-    if (self.take("AS")) try self.name() else if (self.tag(.quoted) or (self.tag(.word) and !f.Sql.isReserved(self.raw()) and !self.is("JOIN") and !self.is("INNER") and !self.is("LEFT") and !self.is("GROUP") and !self.is("ORDER") and !self.is("HAVING"))) try self.name();
+    if (self.take("AS")) try self.name() else if (self.is("$") or self.tag(.quoted) or (self.tag(.word) and !f.Sql.isReserved(self.raw()) and !self.clauseWord())) try self.name();
     if (self.take("WHERE")) try self.predicate();
     if (self.take("LIMIT")) try self.unsigned();
     if (derived) {
@@ -378,6 +399,10 @@ fn select(self: *Self) !void {
         try self.require("AS");
         try self.name();
     }
+}
+fn clauseWord(self: *Self) bool {
+    inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |word| if (self.is(word)) return true;
+    return false;
 }
 fn statement(self: *Self) !Kind {
     if (self.take("CREATE")) {
@@ -443,4 +468,10 @@ pub fn joinsLexeme(text: []const u8, tokens: []const Token, index: usize) bool {
     if (current.kind == .number and std.mem.eql(u8, left, ".") and index >= 2 and tokens[index - 2].kind == .number and tokens[index - 2].end == previous.start) return true;
     if ((std.mem.eql(u8, right, "+") or std.mem.eql(u8, right, "-")) and std.ascii.eqlIgnoreCase(left, "e") and index >= 2 and tokens[index - 2].kind == .number and tokens[index - 2].end == previous.start) return true;
     return current.kind == .number and index >= 3 and (std.mem.eql(u8, left, "+") or std.mem.eql(u8, left, "-")) and tokens[index - 2].end == previous.start and std.ascii.eqlIgnoreCase(text[tokens[index - 2].start..tokens[index - 2].end], "e");
+}
+
+/// The exponent's spelling belongs to its numeric literal, not a SQL keyword.
+/// This is called only on structurally validated template tokens.
+pub fn numericWord(text: []const u8, token: Token) bool {
+    return token.kind == .word and token.start > 0 and std.ascii.isDigit(text[token.start - 1]) and (text[token.start] == 'e' or text[token.start] == 'E');
 }

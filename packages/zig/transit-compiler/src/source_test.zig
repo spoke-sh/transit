@@ -20,7 +20,7 @@ test "SQL lexical units survive source emission and independent rebind" {
     const result = try compile("CREATE MODULE m(n BIGINT, v TEXT) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, f FLOAT64, b BYTEA, u UINT64); INSERT INTO t VALUES (-$n, 1.25e-2, X 'abcd', $n); SELECT * FROM t WHERE id != 2; END; CREATE TARGET default AS BEGIN USE m(1, '7'); END;");
     defer result.deinit();
     try std.testing.expectEqual(3, result.steps.len);
-    try std.testing.expect(std.mem.indexOf(u8, result.sql, "1.25E-2") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result.sql, "1.25e-2") != null);
     try std.testing.expect(std.mem.indexOf(u8, result.sql, "X 'abcd'") != null);
     try std.testing.expect(std.mem.indexOf(u8, result.sql, "!=") != null);
 }
