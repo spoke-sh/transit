@@ -51,3 +51,28 @@ definitions and absent allocation observations. This baseline covers current
 native handler turns. Transactional Station replacement, concurrent offered
 load, output delivery, remote effects and injected crash schedules need their
 own measurements and correctness checks.
+
+## Private transactional comparison
+
+`just test::station-transaction-baseline .cache/performance/station-transaction`
+uses the private runner and the same modular 128-byte state sequence, three
+warmups, twenty measured turns and one output intent per turn. It additionally
+inserts a Table row, checks private Table read-your-writes and appends a journal
+entry. The input is a typed Queue payload. Report those differences when comparing
+it with the native baseline; this is not an isolated measurement of the storage
+commit mechanism.
+
+The timer includes pending discovery, claim, handler execution, all five
+transaction participants, decision and bounded cleanup. Admission and independent
+verification are outside it. The allocator probe includes the runner, signed
+Catalog caller and HTTP transport. The resident runner limit remains 64 MiB;
+the default private turn and transaction limits are unchanged. The fixture uses
+one resident storage page, unlimited retention, 30-second client exchanges and
+a five-minute Queue lease. It does not renew a claim to obtain a sample.
+
+The [comparison driver](station_transaction.py) retains each attempt and sample
+in a fresh output directory. The installed oracle checks exact state, Table rows,+journal/input/transaction attribution, original ACKs and every output payload.
+Two SIGKILL node restarts repeat that oracle with a different authorized worker
+and zero handler invocations. Missing, duplicate, corrupt or failed samples fail
+the report; the private installation remains available on failure. Physical
+power-loss behavior and external effect execution are outside this profile.

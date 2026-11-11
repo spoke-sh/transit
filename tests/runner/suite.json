@@ -70,6 +70,7 @@
       "test::direct-kv",
       "test::direct-state-transaction",
       "test::direct-mixed-transaction",
+      "test::station-transaction",
       "test::direct-queue-transfer",
       "test::direct-automatic-queue-transfer",
       "test::direct-log-token",
@@ -366,7 +367,8 @@
       "test::nightly-performance",
       "test::sdk-import-cost",
       "test::log-runtime-baseline",
-      "test::station-turn-baseline"
+      "test::station-turn-baseline",
+      "test::station-transaction-baseline"
     ]
   },
   "nested_tasks": {

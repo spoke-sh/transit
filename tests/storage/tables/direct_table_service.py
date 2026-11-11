@@ -218,7 +218,7 @@ class ApplicationFaults:
 
 
 def run(node, caller, mode="tables", *artifacts):
-    if mode not in ("log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
+    if mode not in ("station-transaction", "log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
     assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
@@ -239,7 +239,7 @@ def run(node, caller, mode="tables", *artifacts):
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
-        if mode in ("managed", "managed-board", "managed-board-browser", "log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
+        if mode in ("station-transaction", "managed", "managed-board", "managed-board-browser", "log-baseline", "resources", "resource-growth", "queues", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "workload-token", "workload-result"):
             settings["genesis"]["max_clock_error_ms"] = 10000
         if mode == "resource-growth":
             # Match the installed native cache. The 139 live resources still
@@ -736,6 +736,19 @@ def run(node, caller, mode="tables", *artifacts):
             settings["table"] = {"catalog": json.loads(profile.read_text())["catalog"], "registrar": {"principal": 0, "seed_file": str(seed)}}
             config.write_text(json.dumps(settings))
             authority = start()
+            if mode == "station-transaction":
+                from runtime.station.transactional import exercise
+                def actor_restart():
+                    nonlocal authority
+                    authority.kill()
+                    authority.wait(timeout=15)
+                    authority = start()
+                if os.environ.get("TRANSIT_STATION_TRANSACTION_BASELINE"):
+                    from performance.load.station_transaction import measure
+                    measure(node, caller, root, profile, url, actor_restart, lambda: authority)
+                else:
+                    exercise(node, caller, root, profile, url, actor_restart)
+                return
             if mode == "log-baseline":
                 from performance.storage.log_runtime import exercise
                 def baseline_restart():

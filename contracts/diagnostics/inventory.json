@@ -43318,7 +43318,7 @@
     },
     "packages/zig/transit-station/src/transactional/Actor.zig": {
       "errors": {
-        "ActorIdentityConflict": 8,
+        "ActorIdentityConflict": 12,
         "IncompatibleDefinition": 2,
         "InvalidActorDeclaration": 3,
         "TurnCapacity": 1
@@ -43345,7 +43345,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -43432,13 +43432,14 @@
       "errors": {
         "InvalidTurnLimits": 1,
         "PoisonedTurn": 7,
-        "TurnCapacity": 10,
+        "TurnCapacity": 12,
         "UnsupportedTableRead": 1,
         "UnsupportedTableWrite": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Limits.validate()": "<inferred>",
         "Read.get()": "anyerror",
         "Read.row()": "anyerror",
         "Read.table()": "anyerror",
@@ -43455,7 +43456,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 18,
+        "try": 20,
         "catch": 0
       },
       "imports": [

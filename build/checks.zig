@@ -645,6 +645,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     http_transport_test.stdio = .inherit;
     b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_transaction_internal"), .filters = &.{"private transactional"} })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") })).step);
@@ -1617,6 +1618,16 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "fixture_direct_captured_query", .module = test_modules.get(.direct_captured_query) }, .{ .name = "fixture_direct_dependencies", .module = test_modules.get(.direct_dependencies) }, .{ .name = "fixture_direct_exchange_workers", .module = test_modules.get(.direct_exchange_workers) }, .{ .name = "fixture_direct_follow_query", .module = test_modules.get(.direct_follow_query) }, .{ .name = "fixture_direct_maintained_query", .module = test_modules.get(.direct_maintained_query) }, .{ .name = "fixture_direct_named_resources", .module = test_modules.get(.direct_named_resources) }, .{ .name = "fixture_direct_relational_capacity", .module = test_modules.get(.direct_relational_capacity) }, .{ .name = "fixture_direct_relational_exchanges", .module = test_modules.get(.direct_relational_exchanges) }, .{ .name = "fixture_direct_relational_failures", .module = test_modules.get(.direct_relational_failures) }, .{ .name = "fixture_direct_sql_conditions", .module = test_modules.get(.direct_sql_conditions) }, .{ .name = "fixture_direct_sql_read_recovery", .module = test_modules.get(.direct_sql_read_recovery) }, .{ .name = "fixture_direct_table_authorization", .module = test_modules.get(.direct_table_authorization) }, .{ .name = "fixture_direct_table_collations", .module = test_modules.get(.direct_table_collations) }, .{ .name = "fixture_direct_table_count_ranges", .module = test_modules.get(.direct_table_count_ranges) }, .{ .name = "fixture_direct_table_delegation", .module = test_modules.get(.direct_table_delegation) }, .{ .name = "fixture_direct_table_growth", .module = test_modules.get(.direct_table_growth) }, .{ .name = "fixture_direct_table_history", .module = test_modules.get(.direct_table_history) }, .{ .name = "fixture_direct_table_lifecycle", .module = test_modules.get(.direct_table_lifecycle) }, .{ .name = "fixture_direct_table_maintenance", .module = test_modules.get(.direct_table_maintenance) }, .{ .name = "fixture_direct_table_predicates", .module = test_modules.get(.direct_table_predicates) }, .{ .name = "fixture_direct_table_prepared", .module = test_modules.get(.direct_table_prepared) }, .{ .name = "fixture_direct_table_projection", .module = test_modules.get(.direct_table_projection) }, .{ .name = "fixture_direct_unified_boundaries", .module = test_modules.get(.direct_unified_boundaries) } },
     }) });
+    direct_table_client.root_module.addImport("fixture_transactional_station", test_modules.get(.transactional_station));
+    const transactional_station = b.addSystemCommand(&.{ "python3", "-B" });
+    transactional_station.addFileArg(b.path("tests/runner/launch.py"));
+    transactional_station.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+    transactional_station.addArtifactArg(node_artifact);
+    transactional_station.addArtifactArg(direct_table_client);
+    transactional_station.addArg("station-transaction");
+    transactional_station.has_side_effects = true;
+    transactional_station.stdio = .inherit;
+    b.step("test-station-transaction", "Prove private transactional behavior and original recovery over installed disk owners").dependOn(&transactional_station.step);
     direct_table_client.root_module.addImport("fixture_direct_queue", test_modules.get(.direct_queue));
     direct_table_client.root_module.addImport("fixture_direct_kv", test_modules.get(.direct_kv));
     direct_table_client.root_module.addImport("fixture_direct_state_transaction", test_modules.get(.direct_state_transaction));
@@ -2348,6 +2359,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
     build_test_step.dependOn(&growing_capacity.step);
     test_modules.wire(&.{
+        .{ .name = "station_transaction_internal", .module = station.module("station_transaction_internal") },
         .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
         .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") },
         .{ .name = "cli_support", .module = cli_support },

@@ -36,6 +36,14 @@ log-runtime-baseline *args:
     set -euo pipefail
     zig build test-log-runtime-baseline -Doptimize=ReleaseSafe -- "$@"
 
+# Private detached behavior over native-guarded standard transactions.
+station-transaction:
+    zig build test-station-transaction -Doptimize=ReleaseSafe
+
+# Matched 128-byte handler workload; writes safe evidence to a fresh directory.
+station-transaction-baseline output:
+    TRANSIT_STATION_TRANSACTION_BASELINE={{quote(output)}} zig build test-station-transaction -Doptimize=ReleaseSafe
+
 # Actual GenServer handler state/output commits, with independent restart readback.
 [positional-arguments]
 [script]

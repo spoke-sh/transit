@@ -1,6 +1,6 @@
 # Milestone 6 transactional Station implementation plan
 
-[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: Planned** · 2026-11-11
+[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: In Progress** · 2026-11-11
 
 Implement **Batch 5: one private transactional Station behavior**. A handler
 consumes one declared Queue input, changes Table and direct KV state, appends a
@@ -300,3 +300,34 @@ matched baseline report. Promote implemented semantics and limits to
 relevant native transaction/authority references. Record executed results in
 [qualification history](../history/qualification/README.md) with the exact
 source and definition. Keep plans and future public activation in this roadmap.
+
+
+## Implemented ownership and later consumer cutover
+
+The [private package composition](../../packages/zig/transit-station/README.md#private-transactional-behavior-composition)
+implements the neutral execution condition and one detached Table/KV behavior.
+Its public authority is the current native PID; the declaration and progress row
+are data. No public Station selector or SDK action exposes this composition.
+The current-v1 definition changes to
+`cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2`
+(`transit.v1.native-transaction-execution.2026-11-11`). Signed outer request
+prerequisites and persisted BEGIN conditions are required nullable fields;
+missing old fields do not acquire the current definition implicitly.
+
+| Existing owner / stored boundary | Replacement and remaining contract | Consumers and required handoff proof |
+| --- | --- | --- |
+| [GenServer](../../packages/zig/transit-station/src/GenServer.zig), [native Turn](../../packages/zig/transit-station/src/Turn.zig), native mailbox/view/state records | Private Actor declaration (`STA1` within protected `SOR1`), control KV discovery, ordinary transaction workspace and `TXDEC1`; native ownership remains authoritative | Public Station host, bindings, every language SDK and ledger/work-items examples require one coherent Batch 7 cutover. Installed pending/decision recovery must precede removal of native turn persistence |
+| [Frame](../../packages/zig/transit-station/src/Frame.zig), [Waiting](../../packages/zig/transit-station/src/Waiting.zig), [Registry](../../packages/zig/transit-station/src/Registry.zig), [Supervisor](../../packages/zig/transit-station/src/Supervisor.zig) | Batch 6 correlations, authenticated actor-origin evidence, durable calls/replies, waits, timers, names and supervision over declared data | Duplicate/late replies, receiver replacement, timer registration/expiry, saturation and joined shutdown remain distinct from generic Queue rows |
+| [Station Table reader](../../packages/zig/transit-station/src/TableReader.zig), [Table write](../../packages/zig/transit-station/src/TableWrite.zig), [Query](../../packages/zig/transit-station/src/Query.zig) and framework block records | Use direct Table/KV and query owners for replacement consumers; preserve the separate Catalog `DirectTableBridge` | Migrate old private Table consumers and their retained-reader/publication proofs before removing their formats; the new handler does not migrate existing stored framework data |
+| [Document service](../../packages/zig/transit-station-document/README.md) and native Document records | M7 C4/C5/C7 supply public lifecycle, partition-aware transaction participation and consumer replacement | Document workers, query adapters, connectors and installation must pass those gates; a Table-backed SQL Document does not substitute |
+| [Station bindings](../../packages/zig/transit-station-bindings/README.md), [host](../../apps/transit-station-host/README.md) and language SDKs | Generated current-v1 definitions change together now; public handler APIs remain native until Batch 7 | Shared conformance and scripting/systems/managed lanes preserve current consumers. Future changes must move API, ABI, fixtures, examples and documentation together |
+| [Delivery](../../apps/transit-delivery/README.md), Station HTTP/gRPC connectors and captured effect records | The private runner publishes an immutable output intent only. Batch 6 supplies dispatch, destination/correlation and original remote-outcome recovery | Duplicate dispatch, replay, cancellation and uncertain remote outcomes need connector-specific qualification before courier removal |
+| [Runtime controller](../../apps/transit-runtime-controller/README.md), provider bindings and installation | Native code/workload/generation conditions already fence data publication; provider observations remain physical lifecycle evidence | Managed activation, worker scheduling and bootstrap/replacement profiles need their own installed proofs before public activation |
+
+The [installed runner driver](../../tests/runtime/station/transactional.py),
+[decision model](../../tests/verification/models/README.md#finite-transaction-decision-model)
+and [comparison](../../tests/performance/load/station_turn.md#private-transactional-comparison)
+keep their own execution scopes. Current behavior and numeric limits live with
+the package and handbook, while executed results belong in qualification history.
+Broader actor scheduling, automatic accepted-claim payload release, native-origin
+call correlation and public replacement remain later work; M6 stays In Progress.

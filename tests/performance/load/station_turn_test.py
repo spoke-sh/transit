@@ -3,6 +3,7 @@ import copy
 import unittest
 
 from performance.load import station_turn as driver
+from performance.load import station_transaction as transactional
 
 
 def fixture():
@@ -65,6 +66,33 @@ class Reports(unittest.TestCase):
         self.assertEqual(0, driver.incomplete(records[:3])['refused'])
         self.assertEqual(0, driver.incomplete(records[:4])['unknown'])
         self.assertEqual(1, driver.incomplete(records[:4])['failed'])
+
+
+class TransactionalReports(unittest.TestCase):
+    def test_missing_duplicate_corrupt_and_failure_records_refuse(self):
+        records = []
+        for index in range(23):
+            operation = dict(principal=101, operation=index + 1)
+            records.extend([dict(event="input_attempt", index=index, operation=operation),
+                            dict(event="attempt", index=index, operation=operation),
+                            dict(event="confirmed", index=index, operation=dict(principal=101, operation=100 + index)),
+                            dict(event="sample", index=index, stage="warmup" if index < 3 else "measured", ns=100,
+                                 sha256=driver.payload_hash(index), runner_peak_bytes=4096,
+                                 backing={name: 0 for name in transactional.COUNTERS})])
+        records.append(dict(event="complete", definition="test-definition", turns=23))
+        self.assertTrue(transactional.validate(records, "test-definition")["passed"])
+        for index in range(len(records)):
+            with self.assertRaises(ValueError):
+                transactional.validate(records[:index] + records[index + 1:], "test-definition")
+            with self.assertRaises(ValueError):
+                transactional.validate(records[:index] + [records[index]] + records[index:], "test-definition")
+        for field, value in (("sha256", "0" * 64), ("backing", {}), ("runner_peak_bytes", 64 * 1024 * 1024 + 1)):
+            corrupt = copy.deepcopy(records)
+            corrupt[3][field] = value
+            with self.assertRaises(ValueError):
+                transactional.validate(corrupt, "test-definition")
+        with self.assertRaises(ValueError):
+            transactional.validate(records + [dict(event="failure", index=22)], "test-definition")
 
 
 if __name__ == '__main__':
