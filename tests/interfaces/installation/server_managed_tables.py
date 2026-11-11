@@ -10,6 +10,7 @@ import sys
 import time
 
 from interfaces.installation.server_direct_tables import LifecycleFixture as Fixture
+from interfaces.installation.server_application_faults import ExistingKey, native, post
 from interfaces.installation.server_sources import settle
 from interfaces.cli.table_console import records
 from harness.sql_placement import Probe
@@ -201,11 +202,42 @@ def byte_boundary(fixture):
     print('Managed SQL: byte-boundary pages and all 63 wide output rows verified.', flush=True)
 
 
+def denied_executor(fixture):
+    # SQL selects an existing role; policy publication has its own native owner.
+    key = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    port, realm = fixture.config['ports']['node'], fixture.record()['realm']
+
+    def query(kind):
+        return post(port, '/v1/query', native(key, realm, 0, kind), retry_unavailable=True)
+
+    def authority(kind):
+        return query(dict(authorization=dict(role=None, kind=kind)))['body']['authorization']
+
+    def command(value):
+        sequence = query(dict(capabilities={}))['principal_sequence'] + 1
+        signed = native(key, realm, 0, dict(authorization=value), sequence)
+        return post(port, '/v1/command', signed, retry_unavailable=True)['position']
+
+    name = b'program_denied_executor'.hex()
+    action = dict(create_role=dict(name=name, login=False, create_role=False))
+    change = command(dict(begin=dict(expected_revision=authority(dict(identity={}))['revision'], role=None, action=action)))
+    deadline = time.monotonic() + 30
+    while True:
+        current = authority(dict(change=change))['body']['change']
+        if current['status'] == 'ready':
+            command(dict(publish=change))
+            assert authority(dict(change=change))['body']['change']['status'] == 'published'
+            assert authority(dict(resolve=name))['body']['resolve'] is not None
+            return
+        assert current['status'] == 'preparing' and time.monotonic() < deadline, current
+        command(dict(advance=change))
+
+
 def queue_program(fixture):
+    denied_executor(fixture)
     fixture.console('CREATE QUEUE program_input (id BIGINT NOT NULL);\n'
                     'CREATE QUEUE program_partitioned (id BIGINT NOT NULL) PARTITIONS 2;\n'
                     'CREATE TABLE program_output (id BIGINT PRIMARY KEY);\n'
-                    'CREATE ROLE program_denied_executor;\n'
                     'ENQUEUE INTO program_input VALUES (1);\n')
     source = '''CREATE DATAFLOW ordered_program FROM QUEUE program_input AS event AS BEGIN
       LET id = event.id;
