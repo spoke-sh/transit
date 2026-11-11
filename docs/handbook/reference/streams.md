@@ -46,9 +46,10 @@ Historical Queue dependency edges remain retained pending the Queue closure owne
 Lookup and listing recheck current metadata rights. Each bounded listing page
 has its own catalog observation position; it is not an atomic data snapshot.
 Payload operations use the separate typed calls below. SQL supports
-[declarations, inspection, appends and positional consumption](sql/streaming.md#operations-and-sql-coverage).
-Other workload verbs and transactional Station composition remain unavailable. The existing mailbox delivery
-profile below remains separate.
+[declarations, inspection and workload operations](sql/streaming.md#operations-and-sql-coverage),
+including mixed transactions over Table/KV state and selected Stream/Queue
+partitions. Transactional Station composition remains unavailable. The existing
+mailbox delivery profile below remains separate.
 See the [caller package](../../../packages/zig/transit-data-client/README.md) and
 [exact lifecycle contract](../../../contracts/DIRECT_TABLE_V1.md#stream-and-queue-lifecycle).
 
@@ -230,7 +231,9 @@ through uncertainty; provisional summaries do not establish public acceptance.
 Lease and retention deadlines are checked immediately before the decision;
 recovery preserves an already accepted decision after those deadlines. See
 [transactional log work](../../../contracts/DIRECT_TABLE_V1.md#transactional-stream-and-queue-work).
-Mixed log transaction SQL and Station turn composition remain unavailable.
+SQL can compose these log writes with Table/KV changes through the shared
+[transaction owner](sql/transactions.md). Station turn composition remains
+unavailable.
 [Workload SQL](sql/streaming.md) supports enqueue, partition-routed claims and
 receipt-bound ACK/NACK. [Declaration and named inspection SQL](sql/streaming.md#stream-and-queue-declarations)
 uses the shared Catalog lifecycle.
