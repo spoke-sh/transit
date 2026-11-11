@@ -58,6 +58,12 @@ and shared typed lowering. Names in a roadmap are design proposals, not accepted
 SQL. Domain milestones define their contract before exposing syntax; this final
 audit checks composition without making unqualified parsers executable.
 
+M12 delivers the independent `.transit` source ANTLR grammar, build/test stage
+checks, production Zig AST comparisons and formatter round-trips as the language
+grows. This final audit checks their composition with the complete runtime SQL
+dialect; it is not the delivery gate for the first source grammar. Keep the
+interface/UI grammar's separate scope explicit.
+
 1. **Unified grammar coherence across all data and computation primitives:**
    Earlier milestones introduce syntax for Tables, KV, Documents, Streams
    (`PRODUCE INTO`, `CONSUME ... FROM`, `STREAM_SLICE`), Queues (`ENQUEUE INTO`,

@@ -3,13 +3,17 @@
 [Roadmap](README.md) · **Status:** In Progress
 
 Let an application compose data definitions, queries, dataflows, effect bindings
-and publications in a higher-order Transit SQL dialect stored as `.transit`.
+and publications in a typed declarative application language stored as `.transit`,
+with SQL as its relational foundation and independently executable output.
 `build.transit` is a program in that same language: `transit build` and
 `transit test` recursively compose local and pinned repository modules, typecheck
 the program and lower it to executable `.sql`. Execute that output as ordinary
 statements or synthesize immutable migration SQL against an explicit prior state.
-Reuse typed modules, profiles, functions, guards and procedures, and exercise the
-same generated SQL through deterministic local unit and fault-injection tests.
+Reuse typed modules, profiles, functions, guards and procedures. Make domain
+identities, effects, capability ownership, state transitions and declared
+invariants explicit, and preserve them through compilation, execution and
+recovery. Exercise the same generated SQL through deterministic local tests,
+selected TLA+ models, Lean proofs and implementation correspondence checks.
 
 The bounded recursive Table compiler and `transit build` landed in
 [PR #437](https://github.com/spoke-sh/transit/pull/437); the
@@ -22,6 +26,15 @@ owns the concepts; the [compiler analysis](../handbook/internals/query-engine.md
 owns the equivalence argument and its limits. The existing `transit-app` tool
 compiles interface definitions within its documented profile; it is not this
 build system. This milestone adds no `transit app` command family.
+
+**Grammar baseline:** the source compiler has a Zig parser, but no independent
+ANTLR grammar for `.transit` modules, builds or tests. The existing
+[SQL grammar](../../contracts/sql/TransitExtensions.g4) and
+[application interface grammar](../../contracts/application/Application.g4)
+cover different entry points; neither establishes source-language coverage.
+Closing this gap is an early `P0` deliverable, not work deferred to the final
+dialect audit. New syntax, static checks, runtime semantics and formal evidence
+have separate acceptance gates throughout this milestone.
 
 Extend the [shared data lifecycle](01-declarative-data-lifecycle.md),
 [statement outcomes](04-statement-results-and-consumption.md),
@@ -76,6 +89,12 @@ current toolchain and language surface:
 
 ### `D1` — One source dialect and build graph, executable SQL outputs
 
+- **One typed semantic core:** Resolve source into a bounded typed graph carrying
+  stable object/definition identities, domain types, query cardinality and cell
+  states, ordered guards/read sets, effects, transaction boundaries, capability
+  transfers and transition contracts. Canonical SQL emission and selected formal
+  abstractions consume this graph. Generating both from one graph is not a proof
+  that either is correct; retain independent properties and runtime comparisons.
 - **Same language at every composition level:** `.transit` combines ordinary
   SQL with typed imports, modules, constructors and compile-time evaluation.
   `build.transit` uses those same constructs to export target compositions,
@@ -120,6 +139,13 @@ current toolchain and language surface:
   imports explicitly and reject undeclared references and import/build cycles.
   Compile-time recursion has deterministic work/depth/memory/output budgets and
   attributable exhaustion diagnostics; runtime recursion keeps its own contract.
+- **Behavioral resource interfaces:** Exports describe typed references, queries,
+  commands and atomic procedures, including effects and pre/postconditions.
+  Reference-only exports permit native foreign-key binding without exposing row
+  reads or mutation. Abstract nominal types distinguish an object's ID, revision,
+  operation and evidence; stable instance bindings, not source paths, determine
+  their identity. Interface conformance cannot silently widen effects or assume
+  an unproved behavioral contract. Compilation supplies no runtime grants.
 - **Reproducible repository resolution:** Pin repository URL, optional package
   subdirectory, exact revision and verified content digest in a transitive lock.
   Explicit local overrides remain visible in provenance. After fetching, frozen
@@ -150,6 +176,15 @@ functions that construct SQL from scalar functions evaluated over runtime rows.
 Imports, module constructors and build operations are erased; any retained
 `FUNCTION`, `PROCEDURE` or other declaration needs an executable runtime contract.
 The intended expansion adds no hidden actor turns or implicit authority.
+
+Extend these abstractions with typed query/predicate and command constructors:
+helpers accept and return checked expressions/declarations rather than SQL text.
+Pure expression composition, ordered guard composition, atomic command
+composition and durable workflow sequencing have distinct effect contracts.
+Specialize higher-order arguments at compile time initially. Runtime closures,
+unrestricted dependent types and implicit parallel effect dispatch are outside
+the initial profile. Any later parallel operator must specify concurrency/work
+bounds, ordering, failure and cancellation without promising remote rollback.
 
 The following snippets illustrate proposed `.transit` source, not currently
 executable SQL:
@@ -209,7 +244,9 @@ executable SQL:
    ```
    Guards preserve exact source-location provenance (reporting both the guard
    definition site and the caller invocation site in diagnostics) and record
-   their full read-set basis for native guard verification.
+   their full read-set basis for native guard verification. Ordered guards retain
+   refusal precedence, cell/error behavior and evaluation dependencies; they
+   cannot be reordered using the laws of total Boolean predicates.
 4. **Inline transactional procedures (`CREATE [PUBLIC] PROCEDURE ... AS BEGIN ATOMIC ... END`):**
    Parameterized transactional blocks that can be called (`CALL schema.proc(...)`
    or `LET res = CALL schema.proc(...)`) inside an enclosing `BEGIN ATOMIC`
@@ -224,6 +261,13 @@ executable SQL:
 
 ### `D4` — Shared compiler, bounded evaluation and canonical SQL emission (`transit build`)
 
+- **Independent source grammar:** Maintain a dedicated ANTLR source root beside
+  the source contract, using the pinned grammar tools. Distinguish source/build,
+  test and ordinary runtime SQL entry points; share SQL productions where
+  appropriate without copying a divergent SQL dialect or admitting arbitrary
+  bodies as unchecked text. Compare independent source ASTs with the production
+  Zig parser, including embedded SQL operands, precedence, block boundaries and
+  diagnostics. ANTLR remains a verification dependency, not a runtime parser.
 - **Block-aware lexical splitting and application-sized file bounds:**
   Upgrade [`SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig) and
   [`MigrationRunner.splitStatements`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig)
@@ -250,13 +294,19 @@ executable SQL:
   2. **Strict type & 5-state checking:** Typecheck every `LET` binding,
      `SELECT` projection, `ROW(...)` constructor, `PUT`/`INSERT`/`UPDATE`
      target, `JSON_OBJECT` call and `RETURN` value against bound `ColumnId`
-     types ($\tau$), collations ($\kappa$) and nullability.
+     types ($\tau$), collations ($\kappa$) and nullability. Add nominal domain
+     types, tagged unions with exhaustive matching and a bounded refinement
+     subset with explicit external-input validation. Distinguish one/optional/many
+     row cardinality from nullable values and all five cell states. Keep logical
+     types, semantic descriptors and physical codecs orthogonal.
   3. **Linear `CAPABILITY` & `OPERATION` lifecycle analysis:** Verify on every
      control-flow path (including `IF`/`ELSE` branches and `ON FAILURE` blocks)
      that each inbound `CAPABILITY` (`request_ref`) and `OPERATION` (`native_ref`)
      is consumed **at most once** and **never leaked**—every path must terminate
      in `RESPOND TO`, `RESPOND ERROR TO`, `HANDOFF ... TO`, `COMPLETE OPERATION`,
      or `PRESERVE OPERATION`.
+     Static path settlement does not prove crash-safe exactly-once processing;
+     native durable identities, fencing and current authorization remain required.
   4. **Information-flow & `SECRET` taint analysis:** Track `SECRET(...)`,
      `DERIVE_SECRET(...)`, `RANDOM_SECRET(...)`, `HTTP_SECRET_*` and
      `SECRET_JSON_VALUE(...)` values as tainted `Secret<T>` types that may only
@@ -264,6 +314,20 @@ executable SQL:
      `BEARER(...)`, `SET COOKIE ... VALUE`, or `EXECUTE SINK` protected
      fields—statically rejecting any attempt to store raw secret bytes in a
      `TABLE`, `KV`, `DOCUMENT`, `STREAM`, `QUEUE` or unredacted `RESPOND` body.
+     Protected encodings such as `BEARER` retain their disclosure restrictions;
+     wrapping a secret is not a general-purpose declassification operation.
+  5. **Effect and transition checking:** Infer/check resource reads, writes,
+     enqueue/produce, external dispatch, time/random inputs, protected disclosure
+     and capability transfer through every call and higher-order argument.
+     Forbid hidden effects in pure helpers and external dispatch in atomic
+     procedures. Declare transition preconditions, postconditions and named
+     invariants over existing authoritative state; lower admitted transitions to
+     native transactions, not another workflow store. Keep desired state,
+     external observations and operation progress distinct. Check explicit
+     success/refusal/unknown branches and evidence bound to the matching object,
+     definition, generation and operation; dynamically received evidence needs
+     runtime validation. Refinements never cache current permission across an
+     effect, suspension or commit boundary.
 - **Canonical emission and independent execution:** Emit SQL, reparse it using
   the ordinary statement compilers, and verify bound definition/plan equivalence
   with the checked expansion. Execution must preserve source attribution,
@@ -274,6 +338,11 @@ executable SQL:
 
 ### `D5` — Safe live evolution of definitions (`CREATE OR REPLACE`) and in-flight generation draining
 
+- Include domain/variant definitions, refinement predicates, effects, transition
+  contracts and evidence schemas in definition dependency/digest analysis.
+  Changes can require explicit data transforms and revalidation of proof evidence.
+  Accepted continuations retain their original interpretation and capability
+  obligations; changing source types cannot reinterpret their recorded values.
 - Extend [`DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig)
   (`TMV1`), [`DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig)
   and [`ManagedDataflow.zig`](../../packages/zig/transit-catalog/src/ManagedDataflow.zig)
@@ -350,6 +419,23 @@ executable SQL:
   only the tested schedules; real provider idempotency and physical durability
   require their owning integration proofs.
 
+- **Contracts connected to formal evidence:** Named invariants and temporal
+  properties have explicit owners and assumptions. Use small TLA+/TLC models for
+  races, replacement, revocation, crash/recovery and uncertain outcomes; state
+  finite domains and exploration completeness. Liveness requires separately
+  stated fairness and availability assumptions. Use Lean for selected type/core
+  semantics, invariant-preserving transitions and hygienic/ordered lowering laws,
+  including checked arithmetic and cell/error semantics. Review theorem meanings,
+  reject unfinished proofs and audit axioms. Neither backend verifies arbitrary
+  application code or the Zig implementation automatically.
+- **Correspondence and attributable results:** Connect formal transitions to
+  real native operations through explicit projections and counterexample replay.
+  Preserve independent specifications and negative controls even when models are
+  generated from the typed graph. Classify evidence as parsed, typechecked,
+  executed, model checked under bounds, or proved under assumptions; bind it to
+  source/dependency, compiler/core/contract, generated SQL and model/proof identities.
+  Timeouts, unsupported properties and incomplete exploration cannot pass.
+
 ---
 
 ## Delivery sequence and implementation plan (`P0`–`P6`)
@@ -374,9 +460,34 @@ controls, effect simulation and workflow replay remain subsequent work. The
 merged build PR's validation and latency failure retain their original scope.
 Neither delivered slice completes the milestone.
 
+### Next language slice
+
+First close source-grammar parity for the delivered build/test profile and settle
+the typed-core and interface contracts in `P0`/`P1`. Keep existing compiler/test
+behavior and evidence intact. Develop three synthetic design cases incrementally:
+
+| Case | Language and proof obligation |
+| --- | --- |
+| A command selecting one of two resource kinds | Nominal references, tagged unions, exhaustive matching, cardinality and typed module exports |
+| One-use request admission with a continuation | Atomic claim/enqueue/handoff, protected values, current authority and explicit unknown effects; two competing callers and interruption schedules |
+| Admission against a bounded resource budget | Ordered guards, exact revision/operation binding and atomic reservations; concurrent admission must preserve capacity |
+
+These cases define reusable native capabilities without copying private consumer
+source or product policy. Their full execution depends on the owning runtime
+contracts; grammar or model delivery must not mark unavailable operations as
+implemented. Each later construct extends grammar, typed core, lowering, negative
+cases and evidence together. Keep exact new spellings proposed until the source
+contract and checked grammar agree.
+
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
 **Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-fuze/src/SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).
+
+Source syntax and the typed core belong to
+[`APPLICATION_SOURCE_V1`](../../contracts/APPLICATION_SOURCE_V1.md) and
+[`transit-compiler`](../../packages/zig/transit-compiler/README.md). Reuse the
+[pinned grammar/proof tools](../../contracts/sql/README.md) and the
+[model correspondence harness](../../tests/verification/models/README.md).
 
 1. **Define the source/build boundary before adapters:**
    - Specify one `.transit` SQL dialect, with `build.transit` using the same
@@ -408,6 +519,40 @@ Neither delivered slice completes the milestone.
      scratch; an O(single statement) scanner does not make compilation constant
      space. Define deterministic declaration ordering independent of filesystem
      enumeration, and reject output that exceeds the target's statement limits.
+4. **Formalize the source grammar and continuously compare parsers:**
+   - Add `contracts/application-source/TransitSource.g4` with an owning README
+     and independent positive/negative corpus. This is a planned path, distinct
+     from `contracts/application/Application.g4`. First cover every delivered
+     import, dependency, interface, module, target, typed operand, expression,
+     conditional and Table-test form in `APPLICATION_SOURCE_V1`; then extend it
+     with each reviewed source feature. One source dialect serves builds/tests;
+     semantic target checks enforce which constructs may execute in each stage.
+   - Specify lexical rules, identifier quoting/case, comments, literal escapes,
+     operator precedence/associativity, source spans, compound statements and
+     typed holes. Reuse/factor the SQL reference productions where applicable;
+     fully parse embedded SQL and reject malformed bodies, trailing tokens and
+     source-only forms at ordinary SQL entry points. Lexer/parser recovery
+     diagnostics fail the check; require full input consumption. Keep syntax acceptance
+     distinct from type, budget, target-capability and runtime rejection.
+   - Generate with pinned ANTLR and warnings as errors; require no reported
+     ambiguities on the corpus using exact ambiguity detection. Compare normalized
+     independent ASTs and locations with Zig, including malformed nesting and
+     inert holes inside strings/comments, and check formatter round-trips.
+     This does not establish global grammar unambiguity or semantic correctness.
+   - Register a dedicated source-grammar task in the runner/affected clean lanes,
+     diagnostic inventory and invariant inventory. Keep generated files in the
+     ignored verification cache. Require grammar/corpus updates with language
+     changes; publish source support separately from runtime SQL/interface support.
+5. **Specify the typed core and verification boundary before richer lowering:**
+   - Define nominal identities, variants/refinements, query cardinality, typed
+     expression/command constructors, effect signatures, ownership/disclosure,
+     transitions and named contracts. Classify each obligation as statically
+     decidable, runtime-enforced or requiring a separately checked proof; unknown
+     obligations cannot be assumed. Define supported SQL encodings or reject.
+   - Specify explicit abstractions into temporal models and Lean semantics with
+     independent properties and native correspondence obligations. Preserve one
+     current-v1 contract identity through intentional incompatible cutovers;
+     source-only additions do not imply a native-format change by themselves.
 
 ### `P1` — Recursive module resolution, package locks and encapsulation
 
@@ -421,6 +566,10 @@ Neither delivered slice completes the milestone.
    - Separate package, module and instance identities from SQL schemas; bind
      stateful instances explicitly and reject conflicting dependency versions.
      Cache keys cover compiler/contract identity and all transitive inputs.
+   - Check exported nominal/reference types, query cardinalities, effects and
+     behavioral obligations. A helper accepting a command/module cannot erase
+     its reads, authority requirements or disclosure effects. Sharing a reference
+     does not instantiate storage again or permit access to private fields.
 2. **Enforce source visibility and preserve runtime encapsulation:**
    - Check private/exported symbols during binding. Define catalog ownership and
      visibility evidence for runtime objects in the owning v1 contracts and
@@ -459,13 +608,23 @@ Neither delivered slice completes the milestone.
      evidence defined in `P1`. Verify that the callee only mutates its bound
      module instance's storage (or invokes further exported procedures) and
      contains no non-transactional `EXECUTE SINK` or `AWAIT OBSERVATION` steps.
+4. **Lower typed operators and contracts through the same core:**
+   - Add exhaustive variant matching, cardinality checks and the selected
+     refinement constructors. Preserve type/error/refusal behavior, secret labels
+     and complete transactional read/write sets through specialization/inlining.
+     Retain persisted constraints and runtime obligations in executable SQL.
+   - Establish a small Lean law for ordered guard expansion or atomic transition
+     invariant preservation and independently compare generated SQL outcomes.
+     Record correspondence assumptions; a proof about an abstract expander alone
+     does not certify the production compiler.
 
 ### `P3` — Whole-program checking, SQL emission and `transit build`
 
 **Owners:** [`packages/zig/transit-fuze/src/SqlCheck.zig`](../../packages/zig/transit-fuze/src/SqlCheck.zig), [`packages/zig/transit-catalog/`](../../packages/zig/transit-catalog), [`apps/transit-cli/`](../../apps/transit-cli). Source I/O and resolution belong to tooling; shared compiler semantics remain independent of Station.
 
 1. **Build the multi-file working catalog and symbol table:**
-   - Construct an in-memory `WorkingCatalog` in `transit-fuze` that ingests an
+   - Extend `transit-compiler`'s in-memory `WorkingCatalog`, using shared Fuze and
+     Catalog type/definition owners, to ingest an
      ordered module graph or migration sequence, resolving all schemas, storage
      types, views, functions, guards, procedures, profiles, connections, sinks,
      sources, dataflows and publications in dependency order with explicit bounded
@@ -476,6 +635,10 @@ Neither delivered slice completes the milestone.
      field count and type, `PUT` / `INSERT` / `UPDATE` / `DELETE` column
      compatibility, `CASE` branch type unification, `FOR` loop cursor schema,
      and `RETURN` / `RESPOND` payload type.
+   - Check nominal identity mismatches, incomplete variant matches, invalid
+     refinement construction, one/optional/many cardinality and observation-basis
+     mismatches. Apply `P0`'s effect and transition rules across the full graph;
+     runtime checks remain mandatory for external inputs and current policy.
 3. **Enforce linear `CAPABILITY` / `OPERATION` handling and `SECRET` taint rules:**
    - Run static control-flow graph (CFG) analysis over each `DATAFLOW` body:
      - Every path from entry (including early `REQUIRE ... ELSE` exits and
@@ -485,9 +648,12 @@ Neither delivered slice completes the milestone.
      - Values derived from `SECRET(...)`, `DERIVE_SECRET(...)`, `RANDOM_SECRET(...)`,
        `HTTP_SECRET_*` or `SECRET_JSON_VALUE(...)` carry a `secret_tainted` flag;
        any flow into persistent column values, queue/stream payloads, or
-       unprotected response fields fails compilation (`UnredactedSecretFlow`)
-       unless wrapped in `COMMITMENT(...)`, `S256(...)`, `BEARER(...)` or an
-       explicitly designated `SET COOKIE` / protected sink field.
+       unprotected response fields fails compilation (`UnredactedSecretFlow`).
+       Only contract-approved commitment/challenge operations may produce public
+       values; `BEARER(...)`, cookie encodings and other protected values remain
+       restricted to their designated disclosure sinks. Track explicit and
+       control-dependent flows for the admitted profile; do not claim timing or
+       general side-channel noninterference from taint tracking alone.
 4. **Verify lifecycle activation order (`AUTHORIZE` / `ACTIVATE`):**
    - Statically reject any module or migration that activates an inbound
      `SOURCE` before its target `COMMAND` dataflow or queue-consuming
@@ -538,6 +704,10 @@ Neither delivered slice completes the milestone.
    - `build.transit` declares the desired composition, prior basis, transforms
      and migration output. `transit build` emits reviewable `<version>-<name>.sql`
      without applying it or rewriting previously recorded files.
+   - Include nominal/variant representations, constraints, effects and transition
+     contracts in the diff. Reject ambiguous state conversions; invalidate affected
+     proof evidence and recheck replacement obligations without recompiling or
+     changing the interpretation of already accepted work.
    - A verification target compares final logical fingerprints/definition digests
      between migration replay and emitted desired-state SQL under identical
      instance bindings. Integrate a bounded fixture in the fast checks; qualify
@@ -576,6 +746,19 @@ remain required to complete P5.
      (`ON REPLAY OBSERVE ONLY`) and `ON FAILURE` handlers preserve all
      tested invariants, reservations and observe-only replay. Unknown external
      outcomes remain unresolved; mocks do not prove provider idempotency.
+4. **Execute selected language models, proofs and correspondence checks:**
+   - Model the three synthetic language cases as small independent specifications
+     where temporal behavior applies. Explore concurrent admission, revision and
+     policy changes, capability transfer, crash/recovery and unknown effects.
+     Require complete safe-model exploration and intended invariant failures from
+     removed guards; parser/tool failures are not detected negative controls.
+   - Replay counterexample schedules against real native owners and compare
+     independent state/effect projections. State whether coverage is selected
+     traces or every finite edge; neither implies unbounded implementation
+     refinement. Keep provider/storage integration qualification separate.
+   - Run the selected Lean core/lowering/transition proofs with explicit premises
+     and audited axioms. Pin tooling and all evidence inputs, report missing or
+     unsupported obligations, and preserve assumption changes across revisions.
 
 ### `P6` — Refactoring qualification on the multi-module application baseline and handbook promotion
 
@@ -590,6 +773,10 @@ remain required to complete P5.
      private/exported symbol failures, import cycles, evaluation/output budgets,
      content mismatches, cache invalidation and conflicting stateful versions.
      Move source paths without changing durable object bindings.
+   - Run source ANTLR/Zig differential checks and formatter round-trips alongside
+     the semantic suites. Require negative cases for wrong nominal IDs, unmatched
+     variants, invalid cardinality, hidden effects, reordered refusals, duplicate
+     handoff, secret disclosure and stale evidence at the appropriate layer.
 2. **Qualify full SQL compilation and migration synthesis on the Platform workload:**
    - Express the seven-file baseline's six named domains (`auth`, `catalog`,
      `tenancy`, `networking`, `deployments`, `publication`) as `.transit` modules,
@@ -610,6 +797,10 @@ remain required to complete P5.
      [`applications.md`](../handbook/reference/applications.md),
      [`sql.md`](../handbook/reference/sql.md) and their exact owning contracts.
      Preserve existing interface-compiler behavior until an explicit cutover.
+   - Publish the source grammar/support inventory and the type/effect/transition
+     contracts with their limits. Record model bounds, Lean premises and actual
+     implementation correspondence in the verification owners and proof ledger;
+     passing grammar checks or documentation builds add no runtime proof.
 
 ---
 
@@ -624,9 +815,10 @@ remain required to complete P5.
 | [M13](13-sql-and-dataflows.md) | Managed computations, WAL-activated DBSP dataflows and 5-state lifecycle (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) | M12 owns recursive `.transit` source composition and SQL emission, static type/capability/secret checking, compile-time `PROFILE`/`GUARD`/`PROCEDURE` lowering, `CREATE OR REPLACE` revision migration and offline unit testing; M13 owns runtime WAL-driven incremental dataflow execution, analytical SQL operators and bitemporal `AS OF JOIN`. |
 | [M16](16-data-centric-compilation-and-specialization.md) | Shared build graph, executable SQL and AOT targets | M12 owns recursive `.transit` composition and canonical `.sql` emission; M16 extends `transit build` with optional specialization/AOT outputs from the same bound SQL semantics, without a separate module system or runtime authority. |
 | [M21](21-branches-merges-and-restore.md) & [M30](30-reviewed-data-collaboration.md) | Catalog/schema diffing (`DIFF_SCHEMA`) and reviewed branch proposals | M12's offline module-to-migration synthesizer shares the canonical schema/definition diff representation extended across branches and remotes in M21 and M30. |
+| [M23](23-formal-semantics-and-correspondence.md) | Temporal models, Lean semantics and implementation correspondence | M12 delivers the language-specific models, selected lowering/transition theorems and native trace checks with each admitted construct. M23 extends systematic coverage and composition; it is not a reason to defer these language correctness gates. Reuse the existing model harness, invariant inventory and proof ledger. |
 | [M28](28-control-and-policy-plane.md) & [M29](29-published-resources-and-investigations.md) | Declarative `SECRET` catalog, OAuth2/PKCE flows and `PUBLICATION` disclosure policies | M12 enforces static `SECRET` taint analysis and compiles `CREATE PROFILE ... FOR PUBLICATION` templates consumed by M28 and M29. |
 | [M31](31-board-reimplementation.md) | Board inspection and module/lineage visualization | Board inspects module boundaries, `PUBLIC`/`PRIVATE` definitions, profile provenance and `CREATE OR REPLACE` revision histories read-only through shared catalog operations. |
-| [M44](44-sql-grammar-and-dialect-ergonomics.md) | Pre-release grammar harmonization and `FROM`-first / dialect ergonomics | M12 defines source/build/test grammar and SQL emission with explicit stage boundaries; M44 audits shared productions, source-only rejection on runtime entry points, formatter round-trips and emitted-SQL/plan equivalence. Grammar generation alone does not prove unambiguity or execution. |
+| [M44](44-sql-grammar-and-dialect-ergonomics.md) | Pre-release grammar harmonization and `FROM`-first / dialect ergonomics | M12 delivers independent source ANTLR grammar, source/build/test stage checks, Zig AST comparisons, formatter round-trips and SQL emission. M44 audits their composition with the complete dialect and shared productions; it does not own the first source grammar. Grammar generation alone does not prove unambiguity or execution. |
 
 ---
 
@@ -639,6 +831,9 @@ result. Record performance against the pinned conditions in `P6`.
 
 | Journey | Required executable evidence |
 | --- | --- |
+| **Formalize source syntax (`P0`, `P6`)** | Every delivered source/build/test form has a checked ANTLR production and positive/negative corpus. Pinned generation, ambiguity diagnostics, independent AST/location agreement, formatter round-trips and runtime rejection of source-only forms pass; grammar-only and unsupported semantics remain explicit. |
+| **Check types, effects and transitions (`P1`–`P3`)** | Synthetic typed-target, one-use admission and capacity cases preserve nominal identities, variant exhaustiveness, cardinality, ordered guards, atomic state/output, ownership, protected disclosure and explicit uncertainty. Unsupported runtime obligations reject before output; current authorization and evidence validation remain enforced at execution. |
+| **Connect contracts to formal evidence (`P2`, `P5`, `P6`)** | Selected TLA+ configurations finish with stated bounds/assumptions; negative controls fail their intended invariants and traces replay against native owners. Selected Lean core/lowering/transition theorems pass with audited premises/axioms and no unfinished proofs. Evidence names exact artifacts and correspondence limits; no claim of universal compiler/runtime verification follows. |
 | **Resolve recursive builds and packages (`P0`, `P1`, `P6`)** | Root and child `build.transit` files use the same dialect and typed module interfaces. A monorepo, external repository/subdirectory and local override produce deterministic SQL under locked offline rebuilds; stale/missing locks, digest mismatches, undeclared imports, cycles and conflicting stateful versions reject with source locations. |
 | **Bound evaluation and preserve identity (`P1`, `P2`)** | Higher-order and recursive constructors preserve hygiene; depth/work/memory/output exhaustion rejects without complete artifacts. Source relocation preserves durable bindings; explicit repeated instances remain distinct. Compiler, dependency, option and binding changes invalidate affected cache entries. |
 | **Scan and check whole programs (`P0`, `P3`)** | Compound files above 50 KiB with nested `BEGIN ATOMIC`, `ON FAILURE`, `IF`, `CASE` and `FOR` never split at internal semicolons. Type errors, unsettled capabilities, secret leaks and invalid activation ordering report definition/call sites without network access. |

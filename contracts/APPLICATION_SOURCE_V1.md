@@ -5,6 +5,14 @@ is separate from SQL execution and from the immutable [migration ledger](MIGRATI
 The [application reference](../docs/handbook/reference/applications.md#application-source-builds)
 describes its supported authoring and execution workflow.
 
+The executable source parser is
+[`transit-compiler/Syntax.zig`](../packages/zig/transit-compiler/src/Syntax.zig).
+There is currently no independent ANTLR grammar for this source profile.
+[`TransitExtensions.g4`](sql/TransitExtensions.g4) checks ordinary SQL and
+[`Application.g4`](application/Application.g4) checks interface/UI declarations;
+neither covers `.transit` imports, modules, builds or tests. Source parser tests
+and emitted-SQL revalidation do not establish independent source-grammar parity.
+
 ## Source language
 
 `build.transit` and imported files use the same grammar. Names are case-insensitive
