@@ -206,16 +206,22 @@ grant access to another response.
 
 ## Transaction attribution
 
-Interactive Table commands use `Operation.kind.transaction`. Every transaction
+Interactive transaction commands use `Operation.kind.transaction`. Every transaction
 completion carries a validated `Transaction.Handle` and typed evidence. The
 handle binds the current definition, native transaction identity, original begin
 account/token and signed connection audience/role; it is recovery material, not
 a credential or a substitute for current authorization.
 
-A successful private INSERT/UPDATE/DELETE has outcome `provisional`, authoritative
-matched/changed counts and the original transaction statement identity. It is not
-an `applied` write to the public Tables. A rejected private statement carries its
-typed refusal and no successful count. BEGIN carries its acquired common cut;
+A successful private `INSERT`/`UPDATE`/`DELETE`/`PUT`/`PRODUCE`/`ENQUEUE` has outcome `provisional`, authoritative
+matched/changed counts and the original transaction statement identity; a successful
+private `COMMIT OFFSET` or `ACK` has outcome `provisional`, null counts and the
+original transaction statement identity. Transactional workload commands omit
+`Workload.Evidence` because public offsets and settlement receipts do not exist
+before `COMMIT`. None of these provisional outcomes is
+an `applied` write to public Tables, KV stores, Streams or Queues. A rejected private statement carries its
+typed refusal (`definition_changed`, `data_changed`, `duplicate_key`, `missing_row`,
+`invalid_rows`, `work_limit`, `check_violation`, `conflict`, `lease_expired`,
+`lease_fenced`, `producer_conflict` or `offset_conflict`) and no successful count. BEGIN carries its acquired common cut;
 savepoint controls carry their original sequence, operation and completion.
 COMMIT/ROLLBACK carries the actual durable decision and cleanup state. A COMMIT
 that resolves to abort is rejected; requesting rollback after a committed decision

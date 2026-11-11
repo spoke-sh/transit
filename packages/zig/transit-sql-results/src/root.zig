@@ -130,8 +130,7 @@ pub const CommandCompletion = struct {
             const expected: @FieldType(Operation, "kind") = if (self.transaction != null) .transaction else if (self.kind.workload()) .workload else if (self.kind.connector()) .connector else if (counted) .table else if (self.kind == .reload) .configuration else if (self.kind == .capture) .captured else if (self.kind == .create_dataflow or self.kind == .control_dataflow) .dataflow else return error.InvalidCommandCompletion;
             if (operation.kind != expected) return error.InvalidCommandCompletion;
         } else if (self.transaction != null or counted or self.kind.workload() or self.kind == .reload or self.kind == .capture or self.kind == .create_dataflow or self.kind == .control_dataflow or self.kind.connector()) return error.InvalidCommandCompletion;
-        if (self.kind.workload()) {
-            if (self.transaction != null) return error.InvalidCommandCompletion;
+        if (self.kind.workload() and self.transaction == null) {
             const evidence = self.workload orelse return error.MissingWorkloadEvidence;
             try evidence.validate(self.kind);
             if (self.outcome != evidence.outcome() or !std.meta.eql(self.counts, evidence.counts(self.kind))) return error.InvalidCommandCompletion;

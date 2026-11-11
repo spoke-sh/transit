@@ -4775,7 +4775,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "AccessDenied": 5,
+        "AccessDenied": 9,
         "BranchIdentityConflict": 1,
         "BranchNameConflict": 1,
         "BranchNotFound": 1,
@@ -4786,12 +4786,12 @@
         "BranchSourceChanged": 3,
         "BufferTooSmall": 2,
         "CatalogDefinitionChanged": 2,
-        "CatalogDenied": 100,
+        "CatalogDenied": 103,
         "CatalogDependencyOwned": 1,
-        "CatalogHistoryMissing": 1,
+        "CatalogHistoryMissing": 2,
         "CatalogIdentityConflict": 10,
         "CatalogKindMismatch": 18,
-        "CatalogNameHashCollision": 2,
+        "CatalogNameHashCollision": 3,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
@@ -4817,7 +4817,7 @@
         "DocumentSourceOperationRequired": 7,
         "DocumentSourceWorkLimit": 1,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 10,
+        "Forbidden": 13,
         "ForeignKeyDefinitionRequired": 1,
         "ForeignKeyScopeUnsupported": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,
@@ -4850,8 +4850,8 @@
         "InvalidCatalogDescriptor": 10,
         "InvalidClientToken": 2,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 18,
-        "InvalidDirectCatalogName": 2,
+        "InvalidDirectCatalogEntry": 19,
+        "InvalidDirectCatalogName": 3,
         "InvalidDirectCatalogOperation": 30,
         "InvalidDirectCatalogTransition": 1,
         "InvalidDirectRecord": 4,
@@ -4885,17 +4885,17 @@
         "InvalidTransactionCut": 13,
         "InvalidTransactionDirectory": 2,
         "InvalidTransactionPreparation": 1,
-        "InvalidTransactionRead": 6,
+        "InvalidTransactionRead": 7,
         "InvalidTransactionRecord": 2,
         "InvalidTransactionTransfer": 1,
         "InvalidTransactionWork": 9,
         "InvalidTransactionWorkspace": 9,
         "LogCatalogRequestRequired": 1,
-        "LogDeclarationConflict": 12,
-        "LogGroupFenced": 1,
-        "LogOffsetConflict": 1,
-        "LogProducerConflict": 1,
-        "LogRetentionWindowElapsed": 1,
+        "LogDeclarationConflict": 13,
+        "LogGroupFenced": 2,
+        "LogOffsetConflict": 2,
+        "LogProducerConflict": 2,
+        "LogRetentionWindowElapsed": 2,
         "LogTimeUnavailable": 1,
         "LogTransactionSourceNotPinned": 1,
         "LogTransactionSourceReleased": 1,
@@ -4918,8 +4918,8 @@
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
         "QueueDestinationSchemaMismatch": 1,
-        "QueueLeaseExpired": 2,
-        "QueueLeaseFenced": 1,
+        "QueueLeaseExpired": 3,
+        "QueueLeaseFenced": 2,
         "QueueTimeUnavailable": 2,
         "ReadOnlyTransaction": 5,
         "SourceCaptureMissing": 1,
@@ -4949,14 +4949,14 @@
         "TransactionControlConflict": 1,
         "TransactionControlPending": 6,
         "TransactionCutNotAcquired": 3,
-        "TransactionDeadlineElapsed": 1,
+        "TransactionDeadlineElapsed": 2,
         "TransactionFrozen": 1,
         "TransactionIdentityConflict": 16,
         "TransactionMemoryLimit": 11,
         "TransactionObjectNotSelected": 5,
         "TransactionOperationRequired": 26,
         "TransactionPreparationMissing": 3,
-        "TransactionPrepared": 5,
+        "TransactionPrepared": 6,
         "TransactionReadChanged": 5,
         "TransactionRecordClosed": 2,
         "TransactionRecordPending": 3,
@@ -4969,7 +4969,7 @@
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedLogTransaction": 1,
         "UnsupportedTableAction": 4,
-        "UnsupportedTransactionParticipant": 3,
+        "UnsupportedTransactionParticipant": 2,
         "UnsupportedTransactionRead": 5,
         "WorkloadServiceUnavailable": 1
       },
@@ -5304,6 +5304,7 @@
         "resolveResource()": "<inferred>",
         "resolveSource()": "<inferred>",
         "resolveState()": "<inferred>",
+        "resolveTransactionLog()": "<inferred>",
         "resolveTransactionRead()": "<inferred>",
         "resourceAllocation()": "<inferred>",
         "resourceAllocationRequirements()": "<inferred>",
@@ -5324,6 +5325,7 @@
         "schema()": "<inferred>",
         "selectHistory()": "<inferred>",
         "selectHistoryTable()": "<inferred>",
+        "selectTransactionLog()": "<inferred>",
         "selectTransactionTable()": "<inferred>",
         "settle()": "<inferred>",
         "settleTransaction()": "<inferred>",
@@ -5352,6 +5354,7 @@
         "terminal()": "<inferred>",
         "transactionCall()": "anyerror",
         "transactionCallOutcome()": "anyerror",
+        "transactionLogAdmission()": "<inferred>",
         "transactionLogOutcome()": "<inferred>",
         "transactionLogOutcomeBounded()": "<inferred>",
         "transactionLogSources()": "<inferred>",
@@ -5384,10 +5387,10 @@
         "verifyQueueBinding()": "<inferred>",
         "verifyStreamBinding()": "<inferred>"
       },
-      "open_error_set_uses": 13,
+      "open_error_set_uses": 14,
       "propagation": {
-        "try": 2917,
-        "catch": 32
+        "try": 2954,
+        "catch": 35
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -8547,7 +8550,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 672,
+        "try": 673,
         "catch": 1
       },
       "imports": [
@@ -9627,8 +9630,8 @@
         "CatalogIdentityConflict": 1,
         "DataIdentityConflict": 1,
         "InvalidClientToken": 1,
-        "InvalidTableResponse": 9,
-        "InvalidTransactionWork": 1,
+        "InvalidTableResponse": 10,
+        "InvalidTransactionWork": 3,
         "ReadOnlyTransaction": 1,
         "TransactionControlConflict": 1,
         "TransactionControlPending": 1,
@@ -9643,16 +9646,22 @@
         "TransactionStatementPending": 1
       },
       "outcomes": {
+        "KVCommand": [
+          "put",
+          "delete"
+        ],
         "Result": [
           "rejected",
           "begun",
           "statement",
+          "log_statement",
           "savepoint",
           "settled"
         ],
         "work": [
           "begin",
           "statement",
+          "log_statement",
           "savepoint",
           "settle"
         ]
@@ -9667,7 +9676,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 21,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -9864,7 +9873,7 @@
         "OutOfMemory": 1,
         "TransactionMemoryLimit": 1,
         "TransactionReadChanged": 1,
-        "UnsupportedTransactionRead": 3
+        "UnsupportedTransactionRead": 4
       },
       "outcomes": {},
       "error_sets": {},
@@ -9926,7 +9935,7 @@
       "outcomes": {
         "Begin.selection": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ],
         "Request": [
           "call",
@@ -26092,7 +26101,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288\""
+          "@\"316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da\""
         ],
         "Effect.phase": [
           "pending",
@@ -27438,7 +27447,7 @@
         ],
         "Selection": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ],
         "StateKind": [
           "table",
@@ -36219,7 +36228,12 @@
           "missing_row",
           "invalid_rows",
           "work_limit",
-          "check_violation"
+          "check_violation",
+          "conflict",
+          "lease_expired",
+          "lease_fenced",
+          "producer_conflict",
+          "offset_conflict"
         ],
         "evidence": [
           "refused",
@@ -36317,7 +36331,7 @@
     },
     "packages/zig/transit-sql-results/src/root.zig": {
       "errors": {
-        "InvalidCommandCompletion": 13,
+        "InvalidCommandCompletion": 12,
         "InvalidCommandCounts": 2,
         "InvalidResultRow": 1,
         "MissingWorkloadCoverage": 1,
@@ -37053,6 +37067,7 @@
         "InvalidSinkRetryPolicy": 1,
         "InvalidSqlOperationReference": 3,
         "InvalidSqlSyntax": 1,
+        "InvalidStreamHandle": 1,
         "InvalidStreamPolicy": 1,
         "InvalidStreamSliceBounds": 1,
         "InvalidStreamTimestampColumn": 1,
@@ -37221,7 +37236,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 155,
+        "try": 156,
         "catch": 9
       },
       "imports": [
@@ -37362,7 +37377,7 @@
         "SqlTransactionRejected": 1,
         "SqlTransactionRequired": 1,
         "TransactionIdentityConflict": 3,
-        "UnsupportedTransactionStatement": 7
+        "UnsupportedTransactionStatement": 9
       },
       "outcomes": {},
       "error_sets": {},
@@ -38203,7 +38218,7 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "GatewayRecordTooLarge": 1,
-        "InvalidTransactionCompletion": 1,
+        "InvalidTransactionCompletion": 2,
         "MissingGatewayTerminal": 1,
         "ReadOnlyTransaction": 1,
         "SqlTransactionClosed": 1,
@@ -38211,7 +38226,7 @@
         "SqlTransactionPending": 1,
         "TransactionIdentityConflict": 1,
         "TransactionOperationRequired": 2,
-        "UnsupportedTransactionStatement": 1
+        "UnsupportedTransactionStatement": 9
       },
       "outcomes": {
         "Request": [
@@ -38233,7 +38248,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 0
       },
       "imports": [

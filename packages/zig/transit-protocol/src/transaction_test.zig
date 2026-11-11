@@ -209,7 +209,7 @@ test "transaction cuts cannot claim incomplete coverage or silently change scope
     begin.objects.count = begin.limits.participants + 1;
     try t.expectError(error.InvalidTransactionBegin, begin.validate());
     begin = parsed.value.begin;
-    begin.selection = .authorized_catalog_tables;
+    begin.selection = .authorized_catalog_objects;
     try t.expectError(error.TransactionIdentityConflict, parsed.value.begin.requireSame(begin));
     begin = parsed.value.begin;
     begin.identity.branch = 2;

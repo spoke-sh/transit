@@ -910,6 +910,7 @@ fn inspectLogDefinition(self: *Self, allocator: std.mem.Allocator, definition: L
 }
 
 pub fn resolveLog(self: *Self, namespace_id: u64, name: a.Name, policy: Policy) !?L.Definition {
+    if (self.transaction_read) |context| return self.resolveTransactionLog(context, namespace_id, name, policy);
     try self.requireInitialized();
     var arena: std.heap.ArenaAllocator = .init(self.allocator);
     defer arena.deinit();
@@ -924,6 +925,42 @@ pub fn resolveLog(self: *Self, namespace_id: u64, name: a.Name, policy: Policy) 
                 if (value.properties.namespace == namespace_id and std.meta.eql(value.properties.name, name)) {
                     required = try required.merge(try self.inspectLogDefinition(arena.allocator(), value, policy));
                     result = value;
+                }
+            }
+        }
+    }
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    return result;
+}
+
+fn resolveTransactionLog(self: *Self, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?L.Definition {
+    const head = try self.transactionReadHead(context, policy);
+    var arena: std.heap.ArenaAllocator = .init(self.allocator);
+    defer arena.deinit();
+    const namespace = try self.schema(namespace_id);
+    var required = try self.requirements(policy, namespace, null, .schema);
+    try check(try policy.make_guard(policy.context, arena.allocator(), required, null));
+    const position = head.acquired.cut.begin.catalog;
+    var frames = try self.store.log.read(self.allocator, position.partition, position.next_lsn - 1, 1);
+    defer frames.deinit();
+    if (frames.frames.len != 1) return error.CatalogHistoryMissing;
+    const frozen = try Store.decodeFrame(self.allocator, frames.frames[0], position.partition, position.next_lsn - 1);
+    var result: ?L.Definition = null;
+    if (try self.store.tree().get(frozen.root.names, try r.nameKey(namespace_id, name))) |raw_name| {
+        const proposed = try r.fromValue(r.Name, self.allocator, raw_name);
+        if (proposed.namespace != namespace_id or !std.meta.eql(proposed.name, name)) return error.CatalogNameHashCollision;
+        if (try self.store.tree().get(frozen.root.objects, try r.idKey(proposed.object))) |raw_entry| {
+            const target = try r.fromValue(r.Entry, self.allocator, raw_entry);
+            try target.validate(self.config());
+            if (target.log) |log_lsn| {
+                const known = try self.store.logRecord(log_lsn);
+                if (known.binding.target.object != proposed.object or known.first_partition != target.partition) return error.InvalidDirectCatalogEntry;
+                if (known.phase == .complete and !known.resulting.?.stored.retired) {
+                    const value = known.resulting.?;
+                    if (value.properties.namespace == namespace_id and std.meta.eql(value.properties.name, name)) {
+                        required = try required.merge(try self.inspectLogDefinition(arena.allocator(), value, policy));
+                        result = value;
+                    }
                 }
             }
         }
@@ -3393,14 +3430,27 @@ fn acquireTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress
     return acquired;
 }
 
+fn transactionLogAdmission(self: *Self, scratch: std.mem.Allocator, kind: p.StreamQueueDeclaration.Kind, target: p.StreamQueue.Partition, mode: p.Transaction.Mode, policy: Policy) !LogAuthorization {
+    if (self.capture_owner != null) return self.logAuthorization(scratch, kind, target, .append, policy);
+    if (mode == .read_only) return self.logAuthorization(scratch, kind, target, .read, policy);
+    for ([_]c.LogAuthority.Access{ .read, .append }) |candidate_access| {
+        const authorized = self.logAuthorization(scratch, kind, target, candidate_access, policy) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        return authorized;
+    }
+    return self.logAuthorization(scratch, kind, target, .settle, policy);
+}
+
 fn acquireTransactionLog(self: *Self, sources: *s.TransactionDirectory, begin: p.Transaction.Begin, participant: p.Transaction.Participant, acquired: bool, policy: Policy, epoch: *?P.Guard.Fence, scratch: std.mem.Allocator) !void {
     try participant.validate(begin.identity);
     if (participant.log.actions != null) return error.InvalidTransactionBegin;
     const expected = participant.log.guard;
-    const authorized = try self.logAuthorization(scratch, switch (expected.kind) {
+    const authorized = try self.transactionLogAdmission(scratch, switch (expected.kind) {
         .stream => .stream,
         .queue => .queue,
-    }, expected.source.target, if (self.capture_owner != null) .append else .read, policy);
+    }, expected.source.target, begin.mode, policy);
     var checked: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
     const guard_value = checked.guard();
     var view = try self.transactionLogView(authorized.definition, expected.source.target.partition, guard_value);
@@ -3495,7 +3545,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
                     const known = try self.logRecord(object.object.object) orelse return error.CatalogDenied;
                     if (known.phase != .complete) return error.LogDeclarationConflict;
                     const definition = known.resulting.?;
-                    const authorization = try self.logAuthorization(scratch.allocator(), if (object.kind == .stream) .stream else .queue, .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = object.partition.? }, if (self.capture_owner != null) .append else .read, policy);
+                    const authorization = try self.transactionLogAdmission(scratch.allocator(), if (object.kind == .stream) .stream else .queue, .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = object.partition.? }, request.mode, policy);
                     var view = try self.transactionLogView(authorization.definition, object.partition.?, authorization.guard);
                     defer view.deinit();
                     try selected.put(.{ .participant = .{ .log = .{ .guard = try view.basis(), .actions = null } } });
@@ -3503,7 +3553,7 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
                 .document => return error.UnsupportedTransactionParticipant,
             }
         },
-        .authorized_catalog_tables => {
+        .authorized_catalog_objects => {
             var cursor: ?pages.Key = null;
             while (true) {
                 const page = try self.store.tree().scan(self.store.root.objects, cursor);
@@ -3512,32 +3562,59 @@ fn beginTransactionBounded(self: *Self, request: c.DirectTransactionRequest.Begi
                     const target = try r.fromValue(r.Entry, self.allocator, item.value);
                     try target.validate(self.config());
                     if (!std.meta.eql(item.key, try r.idKey(target.object))) return error.InvalidDirectCatalogEntry;
-                    if (target.resource != null or target.log != null) continue;
+                    if (target.resource != null) continue;
+                    if (target.log != null) {
+                        try self.selectTransactionLog(&selected, target, request.mode, policy, scratch.allocator());
+                        continue;
+                    }
                     _ = try self.selectTransactionTable(&selected, target, policy, scratch.allocator(), true);
                 };
                 cursor = page.next orelse break;
             }
         },
     }
-    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_tables, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline };
+    const begin: p.Transaction.Begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = request.mode, .selection = if (request.selection == .explicit_objects) .explicit_objects else .authorized_catalog_objects, .objects = try selected.seal(), .catalog = .{ .partition = self.config().partition, .next_lsn = self.store.root.next_lsn }, .limits = request.limits, .deadline = request.deadline };
     const binding: c.DirectClientToken.Binding = .{ .key = request.key, .fingerprint = request.fingerprint, .budget = request.budget, .intent = .{ .transaction = .{ .connection = request.key.connection, .namespace = request.namespace, .begin = begin, .purpose = if (self.queue_transfer_owner) |value| .{ .queue_transfer = value.plan } else if (self.capture_owner) |value| .{ .source_capture = value.plan } else .interactive } } };
     return (try self.clientTokenSelected(.{ .bind = binding }, policy, true, .none)).?;
 }
 
 fn selectTransactionTable(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, policy: Policy, scratch: std.mem.Allocator, filter: bool) !bool {
     if (target.seed == null) return false;
-    if (filter and target.seed.?.kind != .table) return false;
     var view = try self.openTransaction(self.allocator, target, false, true);
     defer view.deinit();
     if (view.table.root.next_lsn == 0 or view.table.root.retired) return false;
-    const current = try self.transactionStateGuard(scratch, &view, .read, null, policy);
+    const current = self.transactionStateGuard(scratch, &view, .read, null, policy) catch |err| {
+        if (filter and (err == error.CatalogDenied or err == error.AccessDenied or err == error.Forbidden)) return false;
+        return err;
+    };
     check(current) catch |err| {
-        if (filter and (err == error.CatalogDenied or err == error.Forbidden)) return false;
+        if (filter and (err == error.CatalogDenied or err == error.AccessDenied or err == error.Forbidden)) return false;
         return err;
     };
     if (view.table.root.transaction != null) return error.TransactionPrepared;
     try selected.put(.{ .participant = .{ .state = .{ .kind = if (view.table.root.kind == .kv) .kv else .table, .access = .read, .guard = transactionTableGuard(view.table.root) } } });
     return true;
+}
+
+fn selectTransactionLog(self: *Self, selected: *s.TransactionDirectory, target: r.Entry, mode: p.Transaction.Mode, policy: Policy, scratch: std.mem.Allocator) !void {
+    if (mode == .read_only) return;
+    const known = try self.logRecord(target.object) orelse return;
+    if (known.phase != .complete) return;
+    const definition = known.resulting.?;
+    if (definition.stored.retired) return;
+    const kind = definition.kind();
+    const count = definition.stored.declaration.configuration.partitioning.count;
+    for (0..count) |ordinal| {
+        const partition: u32 = @intCast(ordinal);
+        const authorization = self.transactionLogAdmission(scratch, kind, .{ .definition = p.Growth.current_definition, .interpretation = definition.stored.declaration.interpretation, .partition = partition }, mode, policy) catch |err| switch (err) {
+            error.CatalogDenied, error.AccessDenied, error.Forbidden => continue,
+            else => return err,
+        };
+        var view = try self.transactionLogView(authorization.definition, partition, authorization.guard);
+        defer view.deinit();
+        if (view.root().transaction != null) return error.TransactionPrepared;
+        try selected.put(.{ .participant = .{ .log = .{ .guard = try view.basis(), .actions = null } } });
+    }
 }
 
 fn requireTransactionPurpose(self: *Self, key: c.DirectClientToken.Key, reference: c.DirectTransaction.Reference) !void {
@@ -3974,8 +4051,8 @@ fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progres
     if (!std.meta.eql(basis, head.revision)) return error.TransactionReadChanged;
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
-    const read = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), if (self.capture_owner != null) .append else .read, policy);
     const write = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), work.access(), policy);
+    const read = if (work == .queue_transfer) try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), .read, policy) else write;
     var epoch: ?P.Guard.Fence = null;
     var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
@@ -4033,8 +4110,8 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
     if (!std.meta.eql(request.statement.transaction, begin.identity)) return error.TransactionIdentityConflict;
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
-    const read = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), if (self.capture_owner != null) .append else .read, policy);
     const write = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), request.work.access(), policy);
+    const read = if (request.work == .queue_transfer) try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), .read, policy) else write;
     var epoch: ?P.Guard.Fence = null;
     var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
@@ -4250,6 +4327,22 @@ pub fn transactionCallOutcome(self: *Self, key: c.DirectClientToken.Key, policy:
     return self.observeTransactionCall(call, policy);
 }
 
+fn isPermanentCommitInvalidation(err: anyerror) bool {
+    return switch (err) {
+        error.TransactionConflict,
+        error.LogDeclarationConflict,
+        error.QueueLeaseExpired,
+        error.QueueLeaseFenced,
+        error.LogOffsetConflict,
+        error.LogGroupFenced,
+        error.LogProducerConflict,
+        error.LogRetentionWindowElapsed,
+        error.TransactionDeadlineElapsed,
+        => true,
+        else => false,
+    };
+}
+
 fn observeTransactionCall(self: *Self, call: c.DirectTransactionCall, policy: Policy) anyerror!?c.DirectTransactionCall.Result {
     switch (call.work) {
         .begin => |work| {
@@ -4258,6 +4351,7 @@ fn observeTransactionCall(self: *Self, call: c.DirectTransactionCall, policy: Po
             return if (observed.cut) |cut| .{ .begun = cut } else null;
         },
         .statement => |work| return if (try self.transactionStatementOutcome(work.key, work.request, policy)) |outcome| .{ .statement = outcome } else null,
+        .log_statement => |work| return if (try self.transactionLogOutcome(work.key, work.request, policy)) |outcome| .{ .log_statement = outcome } else null,
         .savepoint => |work| {
             const outcome = try self.transactionSavepointOutcome(work.key, work.request, policy) orelse return null;
             return if (outcome.completed != null) .{ .savepoint = outcome } else null;
@@ -4278,6 +4372,7 @@ fn executeTransactionCall(self: *Self, call: c.DirectTransactionCall, steps: u16
             return .{ .begun = (try self.acquireTransaction(work.key, policy)).cut };
         },
         .statement => |work| return .{ .statement = try self.executeTransactionStatement(work.key, work.request, policy) },
+        .log_statement => |work| return .{ .log_statement = try self.executeTransactionLog(work.key, work.request, policy) },
         .savepoint => |work| {
             const result = try self.transactionSavepoint(work.key, work.request, steps, policy);
             return if (result.completed != null) .{ .savepoint = result } else null;
@@ -4286,7 +4381,7 @@ fn executeTransactionCall(self: *Self, call: c.DirectTransactionCall, steps: u16
             const result = self.settleTransaction(work.key, work.operation, work.command, steps, policy) catch |err| retry: {
                 // An invalidated serializable commit cannot publish. Record the
                 // abort through the same original attempt, never as new work.
-                if (work.command != .commit or err != error.TransactionConflict) return err;
+                if (work.command != .commit or !isPermanentCommitInvalidation(err)) return err;
                 break :retry try self.settleTransaction(work.key, work.operation, .abort, steps, policy);
             };
             return if (result.observation == .decided) .{ .settled = result } else null;
@@ -4367,8 +4462,8 @@ pub fn transactionLogOutcome(self: *Self, key: c.DirectClientToken.Key, request:
 fn transactionLogOutcomeBounded(self: *Self, progress: c.DirectClientToken.Progress, request: TransactionLogWork.Request, policy: Policy) !?TransactionLogWork.Outcome {
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
     defer scratch.deinit();
-    const read = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), if (self.capture_owner != null) .append else .read, policy);
     const write = try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), request.work.access(), policy);
+    const read = if (request.work == .queue_transfer) try self.logAuthorization(scratch.allocator(), request.work.kind(), request.work.target(), .read, policy) else write;
     var epoch: ?P.Guard.Fence = null;
     var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
     var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
@@ -4542,7 +4637,7 @@ fn overlayTransactionRead(self: *Self, view: *View, context: c.DirectTransaction
     view.* = .{ .table = table, .properties = properties, .document = properties.document };
 }
 
-fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, policy: Policy) !?View {
+fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.DirectTransactionRead.Context, namespace_id: u64, name: a.Name, kind: s.TableDeclaration.Kind, policy: Policy) !?View {
     _ = allocator;
     const head = try self.transactionReadHead(context, policy);
     var scratch = std.heap.ArenaAllocator.init(self.allocator);
@@ -4557,7 +4652,22 @@ fn resolveTransactionRead(self: *Self, allocator: std.mem.Allocator, context: c.
     const value = try self.store.tree().get(frozen.root.names, try r.nameKey(namespace_id, name)) orelse return null;
     const proposed = try r.fromValue(r.Name, self.allocator, value);
     if (proposed.namespace != namespace_id or !std.meta.eql(proposed.name, name)) return error.CatalogNameHashCollision;
-    var access = try self.readAccess(scratch.allocator(), .{ .scope = self.config().scope, .branch = self.config().branch, .object = proposed.object }, policy, false);
+    const entry_raw = try self.store.tree().get(frozen.root.objects, try r.idKey(proposed.object)) orelse return error.InvalidDirectCatalogName;
+    const target = try r.fromValue(r.Entry, self.allocator, entry_raw);
+    try target.validate(self.config());
+    if (target.seed == null or target.seed.?.kind != kind) {
+        try check(initial);
+        return null;
+    }
+    const object: d.Object = .{ .scope = self.config().scope, .branch = self.config().branch, .object = proposed.object };
+    if (kind == .kv) {
+        var access = try self.kvAccess(scratch.allocator(), object, .read, false, null, policy);
+        errdefer access.view.deinit();
+        if (access.view.properties.namespace != namespace_id or !std.meta.eql(access.view.properties.name, name)) return error.InvalidTransactionRead;
+        try check(access.current);
+        return access.view;
+    }
+    var access = try self.readAccess(scratch.allocator(), object, policy, false);
     errdefer access.view.deinit();
     if (access.view.properties.namespace != namespace_id or !std.meta.eql(access.view.properties.name, name)) return error.InvalidTransactionRead;
     try check(access.current);
@@ -4786,10 +4896,10 @@ fn settleTransactionBounded(self: *Self, admitted: c.DirectClientToken.Progress,
                 _ = scratch.reset(.retain_capacity);
                 if (entry_value.participant == .log) {
                     const participant = entry_value.participant.log;
-                    const authorized = try self.logAuthorization(scratch.allocator(), switch (participant.guard.kind) {
+                    const authorized = try self.transactionLogAdmission(scratch.allocator(), switch (participant.guard.kind) {
                         .stream => .stream,
                         .queue => .queue,
-                    }, participant.guard.source.target, if (self.capture_owner != null) .append else .read, policy);
+                    }, participant.guard.source.target, begin.mode, policy);
                     var read: CutFence = .{ .underlying = authorized.guard, .epoch = &epoch };
                     var view = try self.transactionLogView(authorized.definition, participant.guard.source.target.partition, read.guard());
                     defer view.deinit();
@@ -4901,10 +5011,10 @@ fn authorizeTransactionStatements(self: *Self, control: TransactionControl.State
             _ = scratch.reset(.retain_capacity);
             if (entry_value.participant == .log) {
                 const dependency = entry_value.participant.log;
-                const authorized = try self.logAuthorization(scratch.allocator(), switch (dependency.guard.kind) {
+                const authorized = try self.transactionLogAdmission(scratch.allocator(), switch (dependency.guard.kind) {
                     .stream => .stream,
                     .queue => .queue,
-                }, dependency.guard.source.target, if (self.capture_owner != null) .append else .read, policy);
+                }, dependency.guard.source.target, control.binding.begin.mode, policy);
                 var read: CutFence = .{ .underlying = authorized.guard, .epoch = epoch };
                 try check(read.guard());
                 continue;
@@ -5172,8 +5282,7 @@ pub fn resolveKV(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, n
 }
 fn resolveState(self: *Self, allocator: std.mem.Allocator, namespace_id: u64, name: a.Name, kind: s.TableDeclaration.Kind, policy: Policy) !?View {
     if (self.transaction_read) |context| {
-        if (kind != .table) return error.UnsupportedTransactionParticipant;
-        return self.resolveTransactionRead(allocator, context, namespace_id, name, policy);
+        return self.resolveTransactionRead(allocator, context, namespace_id, name, kind, policy);
     }
     try self.requireInitialized();
     var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -6703,8 +6812,14 @@ pub fn kvAccess(self: *Self, allocator: std.mem.Allocator, object: d.Object, acc
     try check(current);
     if (view.table.root.next_lsn == 0) return error.CatalogRegistrationRequired;
     if (self.transaction_read) |context| {
-        if (access != .read) return error.UnsupportedTransactionRead;
-        try self.overlayTransactionRead(&view, context, current, policy);
+        if (access == .read) {
+            try self.overlayTransactionRead(&view, context, current, policy);
+        } else if (access == .inspect) {
+            const read_req = try self.kvRequirements(policy, try self.authorizationSchema(view.properties.namespace), view.properties.target(object.object), .read);
+            const read_guard = try policy.make_guard(policy.context, allocator, read_req, prerequisite);
+            try check(read_guard);
+            try self.overlayTransactionRead(&view, context, read_guard, policy);
+        } else return error.UnsupportedTransactionRead;
     }
     return .{ .view = view, .current = current };
 }

@@ -12,7 +12,7 @@ pub const Begin = struct {
     selection: union(enum) {
         pub const json_schema_sequence_bounds = .{ .explicit_objects = 100_000 };
         explicit_objects: []const x.Target,
-        authorized_catalog_tables,
+        authorized_catalog_objects,
     },
     limits: x.Limits,
     deadline: ?x.Deadline,

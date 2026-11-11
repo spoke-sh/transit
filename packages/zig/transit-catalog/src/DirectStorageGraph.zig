@@ -445,6 +445,7 @@ pub fn step(allocator: std.mem.Allocator, index: *s.TreeStore, log: s.TransitLog
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .transaction_call) {
                 const call = record.action.client_token.receipt.binding.intent.transaction_call;
                 if (call.work == .statement) try workspace.enqueue(.{ .transaction_intent = call.work.statement.request });
+                if (call.work == .log_statement) try workspace.enqueue(.{ .transaction_log_intent = call.work.log_statement.request });
             }
             if (record.action == .client_token and record.action.client_token.receipt.binding.intent == .external) {
                 const progress = record.action.client_token;

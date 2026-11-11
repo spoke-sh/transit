@@ -576,8 +576,9 @@ paged logical-head basis. Group all mutations of that partition into one
 preparation, ordered alongside other owners; never prepare once per logical
 Document and overwrite another candidate from the same partition. Define
 collection-cut acquisition across all selected partitions, including empty
-ones, and preserve `authorized_catalog_tables` SQL BEGIN scope until an explicit
-mixed-selection contract is exposed. Do not merely permit `.document` through
+ones, and preserve `authorized_catalog_objects` SQL BEGIN scope (excluding
+partitioned `causal_crdt` Documents) until an explicit Document transaction
+contract is exposed. Do not merely permit `.document` through
 `requireLocalState` or pretend its accepted root is a Table snapshot.
 Decide supported ALTER fields; profile/routing/collation changes cannot
 reinterpret accepted revisions. Record grammar, lowering, execution and transport

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288",
+  "definition": "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da",
   "routes": {
     "method": "POST",
     "data": "/v1/sql/session",
@@ -44,7 +44,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288"
+          "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da"
         ]
       },
       "T3": {
@@ -804,7 +804,7 @@
       "T2": {
         "type": "string",
         "enum": [
-          "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288"
+          "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da"
         ]
       },
       "T3": {
@@ -1673,7 +1673,7 @@
         "type": "string",
         "enum": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ]
       },
       "T43": {
@@ -1833,7 +1833,12 @@
           "missing_row",
           "invalid_rows",
           "work_limit",
-          "check_violation"
+          "check_violation",
+          "conflict",
+          "lease_expired",
+          "lease_fenced",
+          "producer_conflict",
+          "offset_conflict"
         ]
       },
       "T53": {
@@ -4894,7 +4899,7 @@
       "T11": {
         "type": "string",
         "enum": [
-          "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288"
+          "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da"
         ]
       },
       "T12": {
@@ -6043,7 +6048,7 @@
         "type": "string",
         "enum": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ]
       },
       "T73": {
@@ -6604,7 +6609,7 @@
       "T16": {
         "type": "string",
         "enum": [
-          "21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288"
+          "316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da"
         ]
       },
       "T17": {

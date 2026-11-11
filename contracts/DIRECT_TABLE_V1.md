@@ -207,8 +207,8 @@ acceptance checks the exact Catalog
 observation, the complete paged selection of read-only Table/KV and partitioned
 Stream/Queue descriptors and
 configured limits. Admission accepts `explicit_objects`; it rejects the neutral
-`authorized_catalog_tables` variant until server-owned catalog discovery supplies
-that selection. Caller-supplied membership cannot certify complete authorized
+`authorized_catalog_objects` variant on caller-built token bindings because
+server-owned catalog discovery supplies that selection. Caller-supplied membership cannot certify complete authorized
 catalog coverage. It atomically reserves the next unused partition with the
 token receipt. `coordination` contains that partition only for a transaction;
 other receipts require explicit null. A repeated token returns its original
@@ -265,8 +265,11 @@ under [transactional log work](#transactional-stream-and-queue-work).
 Partitioned `document` targets reject before token admission. The current SQL
 row Document profile uses the existing TablePartition owner: its explicit
 physical target is `table` with no ordinal. Server-owned
-`authorized_catalog_tables` discovery includes accessible row Documents under
-that same owner; it does not acquire ordered/tree DocumentPartition resources.
+`authorized_catalog_objects` discovery includes accessible Tables, row Documents
+under that same owner, direct KV stores with current READ, and partitioned
+Streams/Queues (current READ, APPEND, or SETTLE in serializable mode, or current
+READ in read-only mode; source-captured Streams require APPEND); it does not
+acquire ordered/tree DocumentPartition resources.
 
 For the versioned SQL row Document profile, `DirectDocument.Revision` binds the
 mandatory current contract definition, exact immutable Document policy and
@@ -318,7 +321,8 @@ admission in that same catalog partition. Later workspace records preserve this
 original acquisition position separately from their current progress revision.
 No signed acquisition operation is exposed by this record format. The embedding
 host must hold the catalog and all selected data owners' publication fence,
-and the owner checks each selected kind's current READ rights under the publication policy epoch.
+and the owner checks each selected kind's current admission rights (Table/KV READ,
+and Stream/Queue READ or mode-admitted APPEND/SETTLE) under the publication policy epoch.
 Each Stream/Queue source retains its original log root through a live
 transaction pin. Incomplete acquisition reuses original pins only while their
 definitions and logical frontiers remain unchanged; it cannot cross another
@@ -2202,9 +2206,9 @@ checks from installed service qualification.
 ### Signed transaction action
 
 `Action.transaction` carries `DirectTransactionRequest.Request`. `begin` requires
-`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, `selection`,
+`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, nullable `deadline`, `selection`,
 `limits` and token `budget`. Explicit selection IDs are strictly increasing;
-`authorized_catalog_tables` is discovered and frozen by the owner. The original
+`authorized_catalog_objects` is discovered and frozen by the owner. The original
 account/token binding wins a race; matching fingerprints recover that accepted
 begin without reselecting the catalog. A different fingerprint conflicts.
 
@@ -2267,7 +2271,10 @@ leave already accepted work available for recovery or explicit abort.
 One common transaction decision publishes surviving Table/KV mutations, appends
 and settlements. Preparation retains exact action directories, original pins,
 predecessors and successors behind each owner's barrier. Commit rechecks current
-read and operation rights, verifies the prepared data graph and samples trusted
+participant rights (Table/KV READ and write rights, or Stream/Queue READ for
+pure read dependencies and APPEND/SETTLE for staged log actions without
+requiring Stream/Queue READ on append-only or settle-only participants),
+verifies the prepared data graph and samples trusted
 time after all potentially slow verification, immediately before the decision.
 Expired or uncertain ACK leases and elapsed append retention windows refuse
 commit. Recovery of an actual decision does not require the old clock sample or
@@ -2310,8 +2317,9 @@ terminal WAL records reject during publication and replay. Savepoint rollback
 removes both actions while preserving consumed identities and original outcomes.
 
 Claim acquisition, retry NACK and lease extension remain standalone operations.
-Automatic scheduling of blocked DLQ transfers, SQL Stream/Queue statements and
-Station turn composition remain separate implementation gates.
+Automatic scheduling of blocked DLQ transfers and Station turn composition
+remain separate implementation gates; SQL sessions admit non-RETURNING appends,
+authenticated offset commits and Queue ACKs through transactional caller commands.
 
 
 ### Transaction-scoped private reads
@@ -2319,17 +2327,19 @@ Station turn composition remain separate implementation gates.
 The signed request envelope carries nullable `transaction`, containing the original
 client-token `key` and exact active workspace `revision`. The connection must match;
 read delegation, borrowed grants and closure grants cannot accompany it. Supported
-actions are `lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status`,
-`snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range` and `release`.
+actions are `lookup`, `kv_lookup`, `log_lookup`, `check`, `check_set`, `read_authority`, `pin`, `pin_status`,
+`snapshot`, `read_key`, `scan`, `column_scan`, `filter_scan`, `key_range`, `kv.get`, `kv.observe` and `release`.
 Other actions return `UnsupportedTransactionRead`. Pending statements or a changed
 revision refuse access before disclosure.
 `check_set` rejects `current_state` and `current_connector` entries in a private workspace: a private
 result cannot establish the current public basis required for external effects.
 
 Names and definitions resolve through the accepted begin catalog root. Each Table
-must belong to the acquired source directory, retain its original live pin and
-pass current SELECT authorization. The private Table root includes accepted
-provisional writes. `Definition.workspace` and `Source.workspace` contain a required
+or KV object must belong to the acquired source directory, retain its original live pin and
+pass current SELECT/READ authorization; `log_lookup` resolves declared Stream/Queue
+metadata from the frozen begin catalog root under current INSPECT authorization.
+The private Table and KV roots include accepted
+provisional writes. `Definition.workspace`, `Source.workspace` and KV `ReadValue.workspace` contain a required
 `Transaction.ReadView` for this request context and are null for ordinary reads.
 The descriptor contains the common `cut`, workspace `revision`, `last_statement`,
 original Table `source` guard and a `private` content commitment. Positions and
@@ -2399,9 +2409,11 @@ remain separate; only the common decision publishes private state.
 
 ## Durable transaction caller commands
 
-`DirectIntent.Reference.transaction_call` freezes a caller command before native
+`DirectIntent.Reference.transaction_call` (`TXI1`) freezes a caller command before native
 child admission. It fixes the signed connection, namespace, outer operation and
-one begin, statement, savepoint or settle command. Outer and child operation IDs
+one `begin` (including nullable `deadline`), `statement` (with optional `kv_command`
+distinguishing `put` and `delete`), `log_statement` (`append`, `stream_offset` or
+`queue_ack`; `queue_transfer` rejects), `savepoint` or `settle` command. Outer and child operation IDs
 must differ. Its `DirectClientToken` binding owns original account/token recovery;
 its 37,376-byte reservation covers the bounded command/result record. Generic
 intent execution and progress settlement cannot complete this work.
@@ -2410,12 +2422,14 @@ The signed `transaction.call` operation advances at most the requested bounded
 steps. Its control flag must match a settlement command. It preserves original
 child identities through lost replies, native-owner completion and outer-result
 publication. Partial decisions can be observed while cleanup remains pending;
-only final cleanup closes the outer pending directory entry. Definitive
+only final cleanup closes the outer pending directory entry. Permanent commit
+invalidations during `settle` (`commit`) automatically transition to durable
+abort and cleanup. Definitive
 precondition refusals are durable typed results. Unavailable storage, authority
 or quota does not manufacture rejection. `call_outcome` observes the exact result
 under current authority; statement/savepoint outcome lookup likewise preserves
 original results after rollback or parent closure. Retained catalog history keeps
-frozen DML alive even before native child admission.
+frozen DML, KV mutations and staged log payloads alive even before native child admission.
 
 The caller's cancellation request is sticky observation/workflow state. It does
 not replace the frozen command with abort, undo a decision or establish that a

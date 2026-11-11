@@ -8,17 +8,34 @@ const identity: x.Identity = .{ .begin = .{ .scope = scope, .principal = 4, .ope
 const handle: x.Handle = .{ .definition = p.Growth.current_definition, .identity = identity, .account = @splat(1), .token = @splat(2), .audience = 6, .role = null };
 const directory: x.Directory = .{ .content = .{ .sha256 = @splat(7), .bytes = 128 }, .count = 1 };
 const cut: x.Cut = .{
-    .begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_tables, .objects = directory, .catalog = .{ .partition = 8, .next_lsn = 9 }, .limits = .{ .resident_bytes = 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 3 } },
+    .begin = .{ .definition = p.Growth.current_definition, .identity = identity, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_objects, .objects = directory, .catalog = .{ .partition = 8, .next_lsn = 9 }, .limits = .{ .resident_bytes = 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 10, .statements = 20, .savepoints = 3 } },
     .sources = directory,
     .acquired = .{ .partition = 8, .next_lsn = 10 },
 };
 fn completion(kind: r.Command, outcome: r.Outcome, evidence: @FieldType(r.Transaction, "evidence")) r.CommandCompletion {
-    return .{ .kind = kind, .outcome = outcome, .counts = if (kind == .insert) .{ .matched = 2, .changed = 1 } else null, .operation = .{ .account = @splat(3), .id = 11, .kind = .transaction }, .pending_restart = false, .diagnostic = null, .transaction = .{ .handle = handle, .evidence = evidence } };
+    const counts: ?r.Counts = switch (kind) {
+        .insert, .put, .produce, .enqueue => if (outcome == .rejected) .{ .matched = 0, .changed = 0 } else .{ .matched = 2, .changed = if (kind == .insert) 1 else 2 },
+        else => null,
+    };
+    return .{ .kind = kind, .outcome = outcome, .counts = counts, .operation = .{ .account = @splat(3), .id = 11, .kind = .transaction }, .pending_restart = false, .diagnostic = null, .transaction = .{ .handle = handle, .evidence = evidence } };
 }
 test "provisional SQL counts cannot claim commit or omit their transaction identity" {
     const statement: x.Statement = .{ .transaction = identity, .sequence = 1, .intent = @splat(12) };
     const original = completion(.insert, .provisional, .{ .statement = .{ .identity = statement, .refusal = null } });
     try original.validate();
+    for ([_]r.Command{ .put, .produce, .enqueue, .commit_offset, .ack }) |cmd| {
+        try completion(cmd, .provisional, .{ .statement = .{ .identity = statement, .refusal = null } }).validate();
+    }
+    try completion(.ack, .rejected, .{ .statement = .{ .identity = statement, .refusal = .lease_expired } }).validate();
+    try completion(.commit_offset, .rejected, .{ .statement = .{ .identity = statement, .refusal = .offset_conflict } }).validate();
+    try completion(.produce, .rejected, .{ .statement = .{ .identity = statement, .refusal = .producer_conflict } }).validate();
+    var with_workload = completion(.ack, .provisional, .{ .statement = .{ .identity = statement, .refusal = null } });
+    const target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = .{ .object = .{ .scope = scope, .branch = 1, .object = 19 }, .revision = 1, .digest = @splat(20) }, .partition = 0 };
+    const settlement: p.StreamQueue.Settlement = .{ .operation = .{ .scope = scope, .principal = 4, .operation = 6 }, .lease = .{ .target = target, .claim = identity.begin, .offset = 0, .epoch = 1, .attempt = 1, .expires_ms = 1000 }, .action = .ack };
+    with_workload.workload = .{ .intent = .{ .sha256 = @splat(21), .bytes = 64 }, .binding = .{ .queue = try (p.LogWorkload.QueueRequest{ .settle = settlement }).binding(t.allocator) }, .receipt = .{ .settle = .{ .settlement = settlement, .accepted = .{ .partition = 22, .next_lsn = 2 } } } };
+    try t.expectError(error.UnexpectedWorkloadEvidence, with_workload.validate());
+    try t.expectError(error.InvalidTransactionCompletion, completion(.claim, .provisional, .{ .statement = .{ .identity = statement, .refusal = null } }).validate());
+    try t.expectError(error.InvalidTransactionCompletion, completion(.nack, .provisional, .{ .statement = .{ .identity = statement, .refusal = null } }).validate());
     var wrong = original;
     wrong.outcome = .applied;
     try t.expectError(error.InvalidTransactionCompletion, wrong.validate());

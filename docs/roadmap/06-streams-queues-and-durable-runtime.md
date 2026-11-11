@@ -10,19 +10,16 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
 The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-10),
-based on `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`, selects
-the concrete next implementation sequence after the delivered
-[November 9 log `.tseg` system-column and `STREAM_SLICE` slice](#next-slice-implementation-plan--2026-11-09)
-([#436](https://github.com/spoke-sh/transit/pull/436)),
-[application runtime and transaction-deadline foundation](downstream-application-language.md)
-([#435](https://github.com/spoke-sh/transit/pull/435)) and
-[M12 `transit build` Slice 1](application-build-implementation.md)
-([#437](https://github.com/spoke-sh/transit/pull/437)): bounded Queue metadata
-checkpoints and incremental resident Queue state
-([Storage Unit 3](#additional-storage-review-units-and-sequencing)), followed in
-the same `current_definition` cutover by mixed decision/DLQ qualification and
-concrete formal replay correspondence ([Batch 2](#batch-2--qualify-the-existing-mixed-and-automatic-dlq-owners))
-together with mixed SQL transactions (**Batch 4d**), leaving transactional
+based on `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`, delivers
+bounded Queue metadata checkpoints and incremental resident Queue state
+([Storage Unit 3](#additional-storage-review-units-and-sequencing)) together
+with mixed decision/DLQ qualification, concrete
+[`QueueLeaseTransaction.tla`](../../tests/verification/models/QueueLeaseTransaction.tla)
+Zig replay correspondence ([Batch 2](#batch-2--qualify-the-existing-mixed-and-automatic-dlq-owners))
+and mixed SQL transactions (**Batch 4d**) under the shared
+[`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+cutover `316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
+(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`), leaving transactional
 `Station` (Batches 5–7) and Table write-lifecycle/common-revision completion
 (Batches 8–9) as the remaining implementation waves. Start there,
 together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
@@ -38,9 +35,11 @@ for the current executable declarations, workload operations and inspection form
 ## Next slice implementation plan — 2026-11-10
 
 **Source basis:** `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`.
-The current integrated [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
-is `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
-(`transit.v1.log-tseg-stream-slice.2026-11-09`). Since the November 9 plan was
+This slice advances [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+from `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`) to
+`316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
+(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`). Since the November 9 plan was
 drafted, [#435](https://github.com/spoke-sh/transit/pull/435) delivered the
 first [downstream application runtime](downstream-application-language.md) slice
 (`ApplicationProgram`, structured KV `_revision` guards, versioned SQL row
@@ -53,7 +52,7 @@ commit), [#437](https://github.com/spoke-sh/transit/pull/437) delivered
 [November 9 slice](#next-slice-implementation-plan--2026-11-09) (native `.tseg`
 log-segment system columns, 85-byte `LogSegment.Descriptor`, `LBMETA01`/`LOGVIEW1`
 retirement and finite retained `STREAM_SLICE`). M6 remains **In Progress**; this
-planning update supplies no new runtime qualification.
+slice delivers Stage A (Storage Unit 3) and Stage B (Batch 2 and Batch 4d).
 
 ### Why Queue metadata checkpoints, mixed decision qualification and mixed SQL are next
 

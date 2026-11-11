@@ -6,7 +6,7 @@ const x = r.protocol.Transaction;
 const d = r.protocol.DataLifecycle;
 const Self = @This();
 pub const SessionState = enum { idle, active, failed };
-pub const StatementRefusal = enum { definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit, check_violation };
+pub const StatementRefusal = enum { definition_changed, data_changed, duplicate_key, missing_row, invalid_rows, work_limit, check_violation, conflict, lease_expired, lease_fenced, producer_conflict, offset_conflict };
 handle: x.Handle,
 evidence: union(enum) {
     refused: x.CallRefusal,
@@ -21,7 +21,7 @@ pub fn validate(self: Self, command: r.Command, outcome: r.Outcome) !void {
         .refused => {
             if (outcome != .rejected) return error.InvalidTransactionCompletion;
             switch (command) {
-                .begin, .commit, .rollback, .savepoint, .release_savepoint, .rollback_to_savepoint, .insert, .update, .delete => {},
+                .begin, .commit, .rollback, .savepoint, .release_savepoint, .rollback_to_savepoint, .insert, .update, .delete, .put, .produce, .enqueue, .commit_offset, .ack => {},
                 else => return error.InvalidTransactionCompletion,
             }
         },
@@ -35,7 +35,7 @@ pub fn validate(self: Self, command: r.Command, outcome: r.Outcome) !void {
             if ((outcome == .rejected) != (value.refusal != null)) return error.InvalidTransactionCompletion;
             if (!std.meta.eql(statement.transaction, self.handle.identity) or (outcome != .provisional and outcome != .rejected)) return error.InvalidTransactionCompletion;
             switch (command) {
-                .insert, .update, .delete => {},
+                .insert, .update, .delete, .put, .produce, .enqueue, .commit_offset, .ack => {},
                 else => return error.InvalidTransactionCompletion,
             }
         },

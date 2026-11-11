@@ -30,11 +30,20 @@ pub fn handle(value: c.DirectClientToken.Key, identity: x.Identity) !x.Handle {
 pub fn command(call: Call) g.results.Command {
     return switch (call.work) {
         .begin => .begin,
-        .statement => |work| switch (work.request.binding.action) {
+        .statement => |work| if (work.kv_command) |kv_cmd| switch (kv_cmd) {
+            .put => .put,
+            .delete => .delete,
+        } else switch (work.request.binding.action) {
             .insert => .insert,
             .update => .update,
             .delete => .delete,
             else => unreachable,
+        },
+        .log_statement => |work| switch (work.request.work) {
+            .append => |append| if (append.kind == .stream) .produce else .enqueue,
+            .stream_offset => .commit_offset,
+            .queue_ack => .ack,
+            .queue_transfer => unreachable,
         },
         .savepoint => |work| switch (work.request.action) {
             .create => .savepoint,
@@ -85,15 +94,55 @@ pub fn build(allocator: std.mem.Allocator, io: std.Io, config: g.DatabaseAccount
                         (value.action == .create and current.savepoints >= current.begin.limits.savepoints)) return error.SqlTransactionLimit;
                     result.work = .{ .savepoint = .{ .key = owner, .request = .{ .transaction = value.handle.identity, .operation = operation, .sequence = try std.math.add(u64, current.last_control, 1), .basis = current.revision, .action = value.action } } };
                 } else {
-                    if (value.statement.plan != .dml) return error.UnsupportedTransactionStatement;
+                    switch (value.statement.plan) {
+                        .dml, .kv_write, .log_offset => {},
+                        .log_append => if (value.statement.output != null) return error.UnsupportedTransactionStatement,
+                        .log_settlement => if (value.statement.kind() != .ack) return error.UnsupportedTransactionStatement,
+                        else => return error.UnsupportedTransactionStatement,
+                    }
                     if (current.begin.mode == .read_only) return error.ReadOnlyTransaction;
                     if (current.last_statement >= current.begin.limits.statements) return error.SqlTransactionLimit;
                     var private = caller;
                     private.transaction = .{ .key = owner, .revision = current.revision };
                     var write = try value.statement.bindWrite(allocator, &private, value.values, operation.operation);
                     defer write.deinit();
-                    if (write != .table or try write.workBytes() > config.intent_bytes) return error.GatewayRecordTooLarge;
-                    result.work = .{ .statement = .{ .key = owner, .request = try native.stage(owner, current.revision, try std.math.add(u64, current.last_statement, 1), write.table.parsed.value.work) } };
+                    if (try write.workBytes() > config.intent_bytes) return error.GatewayRecordTooLarge;
+                    const next_sequence = try std.math.add(u64, current.last_statement, 1);
+                    switch (write) {
+                        .table => |table| result.work = .{ .statement = .{ .key = owner, .request = try native.stage(owner, current.revision, next_sequence, table.parsed.value.work) } },
+                        .kv => |kv| {
+                            const kv_cmd: Call.KVCommand = switch (kv.parsed.value.work) {
+                                .put => .put,
+                                .delete => .delete,
+                                .ddl => return error.UnsupportedTransactionStatement,
+                            };
+                            result.work = .{ .statement = .{ .key = owner, .kv_command = kv_cmd, .request = try native.stageKV(owner, current.revision, next_sequence, kv.parsed.value.work.mutation().?) } };
+                        },
+                        .workload => |workload| {
+                            if (workload.parsed.value.projection != null or workload.parsed.value.wait_ms != null) return error.UnsupportedTransactionStatement;
+                            var payload: ?c.DirectTableProtocol.Binary = null;
+                            const log_work: c.DirectTransactionLogWork.Work = switch (workload.parsed.value.work) {
+                                .stream => |stream| switch (stream.work) {
+                                    .append => |append| blk: {
+                                        payload = stream.payload;
+                                        break :blk .{ .append = append };
+                                    },
+                                    .offset => |offset| .{ .stream_offset = offset },
+                                    else => return error.UnsupportedTransactionStatement,
+                                },
+                                .queue => |queue| switch (queue.work) {
+                                    .enqueue => |enqueue| blk: {
+                                        payload = queue.payload;
+                                        break :blk .{ .append = enqueue };
+                                    },
+                                    .settle => |settle| if (settle.action == .ack) .{ .queue_ack = settle } else return error.UnsupportedTransactionStatement,
+                                    else => return error.UnsupportedTransactionStatement,
+                                },
+                            };
+                            result.work = .{ .log_statement = .{ .key = owner, .request = try native.stageLog(owner, current.revision, next_sequence, log_work, payload) } };
+                        },
+                        else => return error.UnsupportedTransactionStatement,
+                    }
                 }
             }
         },
@@ -131,6 +180,7 @@ pub fn project(caller: c.DirectTableClient, state: c.DirectClientToken.Progress,
     const identity: x.Identity = switch (call.work) {
         .begin => |work| .{ .begin = work.operation, .branch = call.connection.branch },
         .statement => |work| work.request.statement.transaction,
+        .log_statement => |work| work.request.statement.transaction,
         .savepoint => |work| work.request.transaction,
         .settle => |work| if (value == .settled) value.settled.begin.identity else (try (Native{ .catalog = caller }).inspect(work.key)).begin.identity,
     };
@@ -151,6 +201,20 @@ pub fn project(caller: c.DirectTableClient, state: c.DirectClientToken.Progress,
                 output.outcome = .provisional;
                 output.matched = row.matched;
                 output.changed = row.affected;
+            },
+            .rejected => |row| {
+                attribution.evidence = .{ .statement = .{ .identity = row.statement, .refusal = std.meta.stringToEnum(g.results.Transaction.StatementRefusal, @tagName(row.reason)) orelse return error.InvalidTransactionCompletion } };
+                output.outcome = .rejected;
+            },
+        },
+        .log_statement => |outcome| switch (outcome) {
+            .provisional => |row| {
+                attribution.evidence = .{ .statement = .{ .identity = row.statement, .refusal = null } };
+                output.outcome = .provisional;
+                if (row.proposed == .append) {
+                    output.matched = row.proposed.append.rows;
+                    output.changed = row.proposed.append.rows;
+                }
             },
             .rejected => |row| {
                 attribution.evidence = .{ .statement = .{ .identity = row.statement, .refusal = std.meta.stringToEnum(g.results.Transaction.StatementRefusal, @tagName(row.reason)) orelse return error.InvalidTransactionCompletion } };

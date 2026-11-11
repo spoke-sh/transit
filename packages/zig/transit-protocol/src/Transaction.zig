@@ -66,7 +66,7 @@ pub const Directory = struct {
 pub const CallRefusal = enum { stale_workspace, statement_conflict, control_conflict, transaction_closed, unsupported_scope, identity_conflict };
 
 pub const Mode = enum { serializable, read_only };
-pub const Selection = enum { explicit_objects, authorized_catalog_tables };
+pub const Selection = enum { explicit_objects, authorized_catalog_objects };
 
 /// Per-transaction admission limits, distinct from result/disclosure reserves.
 /// Expiry is a request to settle/close, never evidence of an abort decision.
