@@ -1919,7 +1919,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                         try t.expect(settled.cleanup_complete);
                         // The saved control cancels the invocation before its
                         // stale head mutation refuses. The original commit wins.
-                        try t.expectError(error.Conflict, manager.applyControl(cancellation.?));
+                        try t.expectError(error.ManagedTableConflict, manager.applyControl(cancellation.?));
                         try t.expect((try T.inspect(client, token)).?.cancel);
                         cancelled_after_commit = true;
                         continue;

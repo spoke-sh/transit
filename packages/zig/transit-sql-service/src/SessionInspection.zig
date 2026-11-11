@@ -15,6 +15,7 @@ kv_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition:
 log_metadata: ?struct { connection: c.DirectTableProtocol.Connection, definition: c.DirectLog.Definition } = null,
 statement: ?g.Statement = null,
 managed: ?g.direct.ManagedTable.Declaration = null,
+program: ?g.direct.ApplicationDeclaration = null,
 managed_revision: ?struct { revision: u64, root: c.DirectRecord.Reference } = null,
 source: bool = false,
 connector_definition: ?c.protocol.DataLifecycle.Definition = null,
@@ -208,6 +209,18 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             const command = (try g.database.ManagedSql.inspect(a, sql, host.dialect)) orelse return error.InvalidSqlSyntax;
             const name = try c.TableMetadata.Name.init(command.name.slice());
             const revision = command.revision;
+            const application: g.direct.ManagedApplication = .{ .client = host.table };
+            if (try g.ManagedOperations.program(host, command.name)) |found| {
+                defer found.deinit();
+                if (revision != null) return error.UnsupportedProgramRevision;
+                const encoded = try c.protocol.Json.valueAlloc(a, found.value);
+                const declared = (try c.protocol.Json.parseFromSlice(g.direct.ApplicationDeclaration, a, encoded)).value;
+                for (declared.resources) |resource| try resource.requireCurrent(host.table);
+                const observed = try application.inspect(declared);
+                const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+                rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = observed }))});
+                return .{ .arena = arena, .name = name, .program = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
+            }
             const response = host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
             defer response.deinit();
             const inspected = response.value.result.managed_inspection;
@@ -265,7 +278,19 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         if (try g.database.ManagedSql.parse(a, sql[parser.lexer.start..], host.dialect)) |parsed_value| {
             var parsed = parsed_value;
             defer parsed.deinit();
-            if (!host.native_profile or host.source != null or selection.snapshot != null or parsed.statement != .create) return error.UnsupportedManagedTable;
+            if (!host.native_profile or host.source != null or selection.snapshot != null) return error.UnsupportedManagedTable;
+            if (parsed.statement == .program) {
+                const prepared = try g.direct.ApplicationSql.prepare(host.table, host.namespace, 0, 1, parsed.statement.program.sql);
+                defer prepared.deinit();
+                const encoded = try c.protocol.Json.valueAlloc(a, prepared.value);
+                const declared = (try c.protocol.Json.parseFromSlice(g.direct.ApplicationDeclaration, a, encoded)).value;
+                var bound = try declared.bind(a);
+                defer bound.deinit();
+                const rows = try a.alloc([]const f.Types.Values.Cell, 1);
+                rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .consumer = "queue_program", .resources = declared.resources, .uses = bound.uses, .limits = declared.limits, .executed = false, .basis = @as(?[]const u8, null) }))});
+                return .{ .arena = arena, .program = declared, .kind = .plan, .rows = rows, .output = &explain_fields };
+            }
+            if (parsed.statement != .create) return error.UnsupportedManagedTable;
             const value = parsed.statement.create;
             const manager: g.direct.ManagedTable = .{ .client = host.table };
             var declared = try manager.prepare(host.namespace, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
@@ -386,6 +411,13 @@ pub fn validate(self: *Self, host: *g.Session) !void {
             const response = try host.table.call(.{ .managed_inspection = .{ .namespace = declared.namespace, .name = declared.name, .expected = try declared.interpretation(self.arena.allocator()), .revision = if (self.managed_revision) |revision| revision.revision else null } });
             defer response.deinit();
             if (self.managed_revision) |revision| try revision.root.requireSame(response.value.result.managed_inspection.completed.?.manifest);
+        }
+    }
+    if (self.program) |declared| {
+        for (declared.resources) |resource| try resource.requireCurrent(host.table);
+        if (self.kind != .plan) {
+            const application: g.direct.ManagedApplication = .{ .client = host.table };
+            _ = try application.inspect(declared);
         }
     }
     if (self.node_storage) try validateNode(host);

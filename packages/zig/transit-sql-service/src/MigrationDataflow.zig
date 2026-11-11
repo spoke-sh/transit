@@ -29,6 +29,7 @@ pub const Planner = struct {
         var parsed = (try g.database.ManagedSql.parse(self.allocator, step.sql, options.dialect)) orelse return error.UnsupportedManagedTable;
         defer parsed.deinit();
         const value: Evidence = if (report.computation) |original| original else switch (parsed.statement) {
+            .program => return error.UnsupportedProgramMigration,
             .create => |create| blk: {
                 if (self.values.contains(create.name.slice())) return error.ManagedTableNameConflict;
                 const manager: g.direct.ManagedTable = .{ .client = self.table.* };
@@ -50,6 +51,7 @@ pub const Planner = struct {
                 break :blk .{ .source = source, .output = output, .sql_sha256 = digest, .existing = null, .producer = identity, .before = null, .after = .initial() };
             },
             .control => |control| blk: {
+                if (control.role != null) return error.UnsupportedProgramMigration;
                 var current = self.values.get(control.name.slice()) orelse load: {
                     const manager: g.direct.ManagedTable = .{ .client = self.table.* };
                     const declared = try manager.find(self.namespace, control.name) orelse return error.CatalogNameNotFound;

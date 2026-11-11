@@ -321,7 +321,19 @@ pub fn applyControl(self: Self, saved: []const u8) !c.storage.TablePartition.Evi
     }
     var output: std.heap.ArenaAllocator = .init(self.client.allocator);
     defer output.deinit();
-    return (try KV.apply(&output, self.client, .{ .mutate = parsed.value.mutation.mutation })).operation orelse error.InvalidKVResponse;
+    const mutation_ = parsed.value.mutation.mutation;
+    const result = KV.apply(&output, self.client, .{ .mutate = mutation_ }) catch |err| {
+        // Preserve an uncertain original. Only a newer head followed by an
+        // absent original receipt proves that this saved CAS can no longer win.
+        // A concurrent successful retry is observed by the receipt read last.
+        const expected = mutation_.binding.expected_data orelse return err;
+        const current = (KV.apply(&output, self.client, .{ .get = .{ .object = mutation_.binding.target, .key = head_key } }) catch return err).value;
+        const receipt = (KV.apply(&output, self.client, .{ .operation = mutation_.binding }) catch return err).operation;
+        if (receipt) |evidence| return evidence;
+        if (current.position.partition == expected.partition and current.position.next_lsn > expected.next_lsn) return error.ManagedTableConflict;
+        return err;
+    };
+    return result.operation orelse error.ManagedTableConflict;
 }
 
 /// Retirement fences new work first. Edges remain until every original
