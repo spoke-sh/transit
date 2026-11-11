@@ -122,7 +122,8 @@ pub fn publish(self: Self, value: Declaration) !Observation {
     const bytes = try value.encode(self.client.allocator);
     defer self.client.allocator.free(bytes);
     const progress = try c.DirectOwnedRecord.stage(self.client, key, value.namespace, value.operation.operation, fingerprint, .{ .bytes = 2 * Declaration.max_bytes }, declaration_format, bytes);
-    if (progress.original.?.phase == .closed or progress.cancel) return error.OwnedRecordClosed;
+    if (progress.original.?.phase == .closed) return error.OwnedRecordClosed;
+    if (progress.cancel) return error.ManagedTableConflict;
     return self.initialize(value, key);
 }
 fn edge(value: Declaration, storage: d.Definition, use: ?q.fuze.ApplicationProgram.Types.Use) !c.DirectDependency.Edge {
@@ -149,6 +150,11 @@ pub fn initialize(self: Self, value: Declaration, key: c.DirectClientToken.Key) 
     });
     _ = try KV.apply(&output, self.client, .{ .declaration = .{ .declaration = create, .command = .admit, .steps = 1 } });
     const installed = try KV.apply(&output, self.client, .{ .declaration = .{ .declaration = create, .command = .execute, .steps = 64 } });
+    if (installed.declaration.operation == .rejected or installed.declaration.operation == .cancelled) {
+        const progress = (try c.DirectClientToken.inspect(self.client, key)).?;
+        if (progress.pending or !progress.cancel) _ = try c.DirectClientToken.update(self.client, .{ .key = key, .expected = progress.revision, .pending = false, .cancel = true, .record = null });
+        return error.ManagedTableNameConflict;
+    }
     if (installed.declaration.operation != .committed) return error.ManagedTableInitializationPending;
     const metadata = (try KV.apply(&output, self.client, .{ .observe = value.object })).definition;
     const initial = Head.initial(try value.digest(self.client.allocator));
