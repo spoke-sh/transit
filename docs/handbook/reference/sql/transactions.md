@@ -20,7 +20,7 @@ admission. See [Streams](../streams.md) for the log composition rules.
 ```sql
 BEGIN ISOLATION LEVEL SERIALIZABLE;
 UPDATE accounts SET balance = 80 WHERE id = 1;
-PUT INTO account_cache (key, value) VALUES ('acct:1', '80');
+PUT INTO account_cache KEY 'acct:1' VALUE '80';
 SAVEPOINT adjusted;
 UPDATE accounts SET balance = 70 WHERE id = 1;
 ROLLBACK TO SAVEPOINT adjusted;
