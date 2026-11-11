@@ -27,13 +27,14 @@ owns the equivalence argument and its limits. The existing `transit-app` tool
 compiles interface definitions within its documented profile; it is not this
 build system. This milestone adds no `transit app` command family.
 
-**Grammar baseline:** the source compiler has a Zig parser, but no independent
-ANTLR grammar for `.transit` modules, builds or tests. The existing
+**Grammar baseline:** the source compiler now has a dedicated
+[ANTLR reference and correspondence corpus](../../contracts/application-source/README.md)
+for `.transit` modules, builds and tests, alongside its Zig parser. The existing
 [SQL grammar](../../contracts/sql/TransitExtensions.g4) and
 [application interface grammar](../../contracts/application/Application.g4)
-cover different entry points; neither establishes source-language coverage.
-Closing this gap is an early `P0` deliverable, not work deferred to the final
-dialect audit. New syntax, static checks, runtime semantics and formal evidence
+cover different entry points. The source slice supplies full template syntax,
+bounded source formatting and the typed-core extension contract. Its finite
+comparisons do not prove general language correctness. New syntax, static checks, runtime semantics and formal evidence
 have separate acceptance gates throughout this milestone.
 
 Extend the [shared data lifecycle](01-declarative-data-lifecycle.md),
@@ -463,14 +464,14 @@ Neither delivered slice completes the milestone.
 ### Next language slice
 
 The [source grammar and typed-core implementation plan](application-source-grammar-implementation.md)
-scopes this next increment for review: independent ANTLR/production-parser
-correspondence for the delivered language, explicit embedded-SQL syntax/stage
-rules, bounded source round-trips and the core extension contract. It includes
-logical commits and acceptance gates; it implements none of the proposed forms.
+records the bounded syntax/core increment: independent ANTLR/production-parser
+comparison, complete embedded-SQL syntax/stage rules, source round-trips and the
+core extension contract. It implements none of the domain/effect forms below.
 
-First close source-grammar parity for the delivered build/test profile and settle
-the typed-core and interface contracts in `P0`/`P1`. Keep existing compiler/test
-behavior and evidence intact. Develop three synthetic design cases incrementally:
+Next select the typed-target case for nominal references, variants, exhaustive
+matching and typed resource exports, extending grammar, static semantics, SQL
+lowering and a selected preservation obligation together. Keep existing
+compiler/test behavior and evidence intact. Develop three synthetic design cases incrementally:
 
 | Case | Language and proof obligation |
 | --- | --- |

@@ -22,15 +22,21 @@ For example, compiling `CREATE KV` is implemented while publishing that
 declaration is planned. A native operation, a UI action or a parser rule does not
 establish an equivalent SQL operation.
 
-The checked owners are [TransitExtensions.g4](../../../../contracts/sql/TransitExtensions.g4)
-and the separate [Application.g4](../../../../contracts/application/Application.g4).
+The checked owners are [TransitExtensions.g4](../../../../contracts/sql/TransitExtensions.g4),
+[Application.g4](../../../../contracts/application/Application.g4) and
+[TransitSource.g4](../../../../contracts/application-source/TransitSource.g4).
 Their [corpus and limits](../../../../contracts/sql/README.md) establish selected
 syntax/AST agreement, not general PostgreSQL or SQL-standard compatibility.
 
 `Application.g4` covers interface/UI declarations. The separate
 [`.transit` source/build/test profile](../../../../contracts/APPLICATION_SOURCE_V1.md)
-has a production Zig parser but no independent ANTLR reference grammar yet.
-Source compilation and emitted-SQL checks do not establish that missing coverage.
+has its own independent ANTLR reference, production AST comparison and bounded
+source formatter. Its [corpus and limits](../../../../contracts/application-source/README.md)
+cover imports, modules, interfaces, builds, tests and complete Table templates.
+Structural syntax is checked even in unused bodies; schema binding, target
+placement and runtime authority retain separate checks. Finite parser and
+round-trip agreement does not establish exhaustive grammar correctness or formal
+preservation of execution.
 
 ## Implemented reads and inspection
 

@@ -42,6 +42,13 @@ build identity. The [build CLI](cli.md#application-source-builds) and
 [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) define syntax,
 resolution, artifacts, diagnostics and resource limits.
 
+The [source grammar](../../../contracts/application-source/README.md) formalizes
+these forms separately from runtime SQL and interface/UI declarations. Complete
+Table-template and expected-row syntax is checked in every body, including unused
+modules and unselected branches. Name resolution, types, target placement and
+execution remain separate stages. A bounded compiler-package formatter supports
+independent source round-trip checks; it is not a CLI command.
+
 This profile rejects runtime-private storage, privileged procedures, effects,
 Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.

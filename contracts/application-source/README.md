@@ -11,6 +11,8 @@ statement root to Table creation, literal mutations and finite single-Table
 queries. Recursive logical types and literals remain available; compile-time
 TYPE arguments still have their smaller, separately checked set. The copied
 type/literal extension productions must follow changes in their SQL owner.
+Unknown scalar type words remain a later binding refusal; structured type forms
+are checked here. Cast recognition likewise does not enable native Table casts.
 The ordinary SQL and interface/UI grammar roots remain separate.
 
 Source names are contextual ASCII words. SQL retains its own reserved names and

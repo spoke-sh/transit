@@ -7,11 +7,15 @@ describes its supported authoring and execution workflow.
 
 The executable source parser is
 [`transit-compiler/Syntax.zig`](../packages/zig/transit-compiler/src/Syntax.zig).
-There is currently no independent ANTLR grammar for this source profile.
+Its independent syntax reference is
+[`TransitSource.g4`](application-source/TransitSource.g4), with a
+[finite corpus and correspondence check](application-source/README.md).
 [`TransitExtensions.g4`](sql/TransitExtensions.g4) checks ordinary SQL and
 [`Application.g4`](application/Application.g4) checks interface/UI declarations;
-neither covers `.transit` imports, modules, builds or tests. Source parser tests
-and emitted-SQL revalidation do not establish independent source-grammar parity.
+neither covers `.transit` imports, modules, builds or tests. The source check
+compares complete ANTLR and production ASTs, byte coordinates, source formatting
+and compiled products. This finite evidence is distinct from native execution
+and formal preservation proofs.
 
 ## Source language
 
@@ -122,6 +126,15 @@ identifier bytes. It reparses emitted output through the same ordinary typed
 owners and compares schema/plan fingerprints and statement order. The SQL is
 complete without source maps, package source, a build interpreter or privileged
 execution. Current runtime authorization and operation identity checks still apply.
+
+The package's bounded source formatter writes the parsed AST to a caller-owned
+writer. It normalizes source names/keywords and expression parentheses, omits
+comments and retains quoted SQL bytes and lexical adjacency. It does not resolve
+imports, bind a catalog or execute tests, and has no public CLI command. Source
+round-trips preserve ordered SQL, bindings, fingerprints and logical test plans;
+source coordinates, input digests and expansion-derived case identities are
+checked separately for the new spelling. Exhausted writer/depth budgets fail
+without establishing a complete artifact.
 
 ## Compilation core and extension obligations
 
