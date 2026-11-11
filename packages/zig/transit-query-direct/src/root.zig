@@ -19,6 +19,7 @@ pub const ManagedTable = @import("ManagedTable.zig");
 pub const ApplicationData = @import("ApplicationData.zig");
 pub const ApplicationDeadline = @import("ApplicationDeadline.zig");
 pub const ApplicationBinding = @import("ApplicationBinding.zig");
+pub const ApplicationSql = @import("ApplicationSql.zig");
 pub const ApplicationDeclaration = @import("ApplicationDeclaration.zig");
 pub const ApplicationExecution = @import("ApplicationExecution.zig");
 pub const ApplicationEffect = @import("ApplicationEffect.zig");

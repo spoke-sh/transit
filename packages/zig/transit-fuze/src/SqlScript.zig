@@ -56,6 +56,7 @@ fn nextFrame(scan: anytype) !?Statement {
     var instruction_start = false;
     var suffix: ?Block = null;
     var create_header = false;
+    var explain_header = false;
     var test_header = false;
     while (try scan.next()) |token| {
         if (!token.closed and (token.kind == .string or token.kind == .quoted or
@@ -72,9 +73,11 @@ fn nextFrame(scan: anytype) !?Statement {
         count += 1;
         if (count == 1) {
             create_header = word(text, token, "CREATE");
+            explain_header = word(text, token, "EXPLAIN");
             compound = word(text, token, "TEST");
         }
-        if (create_header and count <= 5) {
+        if (count == 2 and explain_header) create_header = word(text, token, "CREATE");
+        if (create_header and count <= (if (explain_header) @as(usize, 6) else 5)) {
             inline for (.{ "DATAFLOW", "PROCEDURE", "FUNCTION", "GUARD", "MODULE", "TARGET" }) |kind|
                 if (word(text, token, kind)) {
                     compound = true;
@@ -141,6 +144,18 @@ fn nextFrame(scan: anytype) !?Statement {
     if (depth != 0 or (suffix != null and suffix.? != .expression)) return error.UnbalancedSqlBlock;
     if (parentheses != 0) return error.UnbalancedSqlParentheses;
     return result;
+}
+
+test "script framing keeps EXPLAIN Queue programs intact" {
+    const t = std.testing;
+    const statement = "EXPLAIN CREATE DATAFLOW action FROM QUEUE input AS event AS BEGIN BEGIN ATOMIC REQUIRE event.id > 0 ELSE 'Invalid'; END; END";
+    const source = statement ++ "; SHOW DATAFLOW action;";
+    var scan = try Self.init(source);
+    const first = (try scan.next()).?;
+    try t.expectEqualStrings(statement, source[first.start..first.end]);
+    const second = (try scan.next()).?;
+    try t.expectEqualStrings("SHOW DATAFLOW action", source[second.start..second.end]);
+    try t.expect(try scan.next() == null);
 }
 
 test "script framing preserves compound blocks and independent step boundaries" {
