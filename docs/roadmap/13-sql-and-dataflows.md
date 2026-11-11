@@ -1,6 +1,6 @@
 # 13. Managed computations and WAL-activated dataflows
 
-[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([remaining implementation plan](#implementation-plan-for-remaining-work--2026-11-03); [component delivery record](#delivered-implementation-evidence--2026-10-30))
+[Roadmap](README.md) · [Issue #31](https://github.com/spoke-sh/transit/issues/31) · **Status:** In Progress ([lowered DATAFLOW SQL implementation plan, 2026-11-10](dataflow-sql-implementation.md); [earlier remaining-work plan](#implementation-plan-for-remaining-work--2026-11-03); [component delivery record](#delivered-implementation-evidence--2026-10-30))
 
 Let an application declare a derived result, apply it, and inspect the definition,
 source basis, completed revision and pending or blocked work while Transit owns
@@ -23,6 +23,15 @@ Connecting computations, reactive watches and Station actors to **`TransitLog`
 equivalence with the finite recomputation oracle.
 
 ## Source compilation handoff
+
+The [lowered DATAFLOW SQL implementation plan](dataflow-sql-implementation.md)
+sets the next delivery order at `5df71dc89`: connect ordered Queue DATAFLOW SQL
+to the delivered typed application runtime through ordinary publication,
+migration, activation, recovery and inspection owners. It preserves finite Table
+dataflows and sequences their remaining history/incremental work separately.
+The plan incorporates the recent source/compiler/test, application-runtime,
+Stream-slice and storage-admission increments without treating their union as
+completed qualification. Earlier dated plans below retain their scope and evidence.
 
 [M12](12-application-modules-compilation-and-testing.md) owns recursive `.transit`
 composition, `build.transit`, SQL emission and the shared build/test graph.
