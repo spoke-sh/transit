@@ -33,7 +33,7 @@ class Client:
     def transport(self):
         self.http = http.client.HTTPSConnection('localhost', self.port, context=ssl.create_default_context(cafile=str(self.root / 'certificate.pem')), timeout=40)
 
-    def call(self, action, *, error=None, headers=None, lane=None, patch=None, unavailable=False, capacity=False, discard_response=False):
+    def call(self, action, *, error=None, allow_error=False, headers=None, lane=None, patch=None, unavailable=False, capacity=False, discard_response=False):
         started = time.perf_counter()
         if time.monotonic() - self.last >= .5:
             self.http.close()
@@ -79,7 +79,7 @@ class Client:
         if error:
             assert isinstance(result, dict) and 'err' in result, result
             assert result['err']['code'] in ((error,) if isinstance(error, str) else error), result
-        else:
+        elif not allow_error:
             assert not isinstance(result, dict) or 'err' not in result, result
         if 'batch' in result:
             batch = result['batch']
