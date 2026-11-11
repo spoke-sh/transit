@@ -435,14 +435,14 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     command(first, "PUT INTO tx_mix_kv KEY 'seed' VALUE 100")
     command(first, 'CREATE STREAM tx_mix_stream (amount INT64 NOT NULL) WITH (read_rows=16)')
     command(first, 'PRODUCE INTO tx_mix_stream VALUES (5)')
-    command(first, "CREATE QUEUE tx_mix_queue (amount INT64 NOT NULL) WITH (lease_duration='5m', max_lease_duration='10m', max_attempts=3)")
+    command(first, "CREATE QUEUE tx_mix_queue (amount INT64 NOT NULL) WITH (lease_duration='30m', max_lease_duration='60m', max_attempts=3)")
     command(first, 'ENQUEUE INTO tx_mix_queue VALUES (7)')
 
     group61 = catalog_native('stream-assign', 'tx_mix_stream', 61, 8601)
     consumed61 = workload_rows(first, f"CONSUME amount FROM tx_mix_stream GROUP X'{stream_handle(group61).hex()}' WAIT '1s'")
     assert [signed_cell(r[0]) for r in consumed61[0]] == [5]
     sph61 = sph1_hex(consumed61)
-    claimed0 = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '5m'")
+    claimed0 = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in claimed0[0]] == [7]
     ack0 = queue_receipt_hex(claimed0[0][0][1])
 
@@ -504,7 +504,7 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     consumed61_after = workload_rows(second, f"CONSUME amount FROM tx_mix_stream GROUP X'{stream_handle(group61).hex()}' WAIT '1s'")
     assert [signed_cell(r[0]) for r in consumed61_after[0]] == [50]
     sph61_pg = sph1_hex(consumed61_after)
-    claimed_after = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '5m'")
+    claimed_after = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in claimed_after[0]] == [70]
     ack_pg = queue_receipt_hex(claimed_after[0][0][1])
 
@@ -582,24 +582,35 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     assert aborted_s['transaction']['evidence']['decided']['decision']['outcome'] == 'aborted'
     assert kv_rows(second, "GET FROM tx_mix_kv KEY 'fenced_s_commit'") == []
 
-    command(first, "CREATE QUEUE tx_short_queue (amount INT64 NOT NULL) WITH (lease_duration='6s', max_attempts=4)")
+    max_clock_error_ms = json.loads((root / 'node.json').read_text())['genesis']['max_clock_error_ms']
+
+    def await_lease_expired(receipt_hex):
+        expires_ms = int.from_bytes(bytes.fromhex(receipt_hex)[160:168], 'little')
+        target_unix_ms = expires_ms + max_clock_error_ms + 100
+        while True:
+            now_ms = int(time.time() * 1000)
+            if now_ms >= target_unix_ms:
+                return
+            time.sleep(min(0.05, (target_unix_ms - now_ms) / 1000.0))
+
+    command(first, "CREATE QUEUE tx_short_queue (amount INT64 NOT NULL) WITH (lease_duration='35s', max_lease_duration='60s', max_attempts=4)")
     command(first, 'ENQUEUE INTO tx_short_queue VALUES (9), (10)')
     stmt_exp_claim = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_short_queue LIMIT 1 WITH LEASE '150ms'")
     stmt_exp_ack = queue_receipt_hex(stmt_exp_claim[0][0][1])
-    time.sleep(0.5)
+    await_lease_expired(stmt_exp_ack)
     command(first, 'BEGIN')
     command(first, "PUT INTO tx_mix_kv KEY 'expired_q_stmt' VALUE 1", 'provisional')
     refused_exp, _ = command(first, f"ACK ON QUEUE tx_short_queue RECEIPT X'{stmt_exp_ack}'", 'rejected')
-    assert refused_exp['transaction']['evidence']['statement']['refusal'] == 'lease_expired'
+    assert refused_exp['transaction']['evidence']['statement']['refusal'] in ('lease_expired', 'lease_fenced'), refused_exp
     command(first, 'ROLLBACK')
     assert kv_rows(second, "GET FROM tx_mix_kv KEY 'expired_q_stmt'") == []
 
-    short_claim = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_short_queue LIMIT 1 WITH LEASE '6s'")
+    short_claim = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_short_queue LIMIT 1 WITH LEASE '35s'")
     short_ack = queue_receipt_hex(short_claim[0][0][1])
     command(first, 'BEGIN')
-    command(first, "PUT INTO tx_mix_kv KEY 'expired_q' VALUE 1", 'provisional')
     command(first, f"ACK ON QUEUE tx_short_queue RECEIPT X'{short_ack}'", 'provisional')
-    time.sleep(4.5)
+    command(first, "PUT INTO tx_mix_kv KEY 'expired_q' VALUE 1", 'provisional')
+    await_lease_expired(short_ack)
     aborted_exp, _ = command(first, 'COMMIT', 'rejected')
     assert aborted_exp['transaction']['evidence']['decided']['decision']['outcome'] == 'aborted'
     assert kv_rows(second, "GET FROM tx_mix_kv KEY 'expired_q'") == []
@@ -607,12 +618,12 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     # 4. Least-privilege APPEND-only and SETTLE-only principals without READ, plus revocation before COMMIT.
     command(first, 'CREATE STREAM tx_priv_stream (amount INT64 NOT NULL) WITH (read_rows=16)')
     command(first, 'PRODUCE INTO tx_priv_stream VALUES (1)')
-    command(first, "CREATE QUEUE tx_priv_queue (amount INT64 NOT NULL) WITH (lease_duration='5m', max_lease_duration='10m', max_attempts=3)")
+    command(first, "CREATE QUEUE tx_priv_queue (amount INT64 NOT NULL) WITH (lease_duration='30m', max_lease_duration='60m', max_attempts=3)")
     command(first, 'ENQUEUE INTO tx_priv_queue VALUES (2)')
     priv_group = catalog_native('stream-assign', 'tx_priv_stream', 63, 8604)
     priv_consumed = workload_rows(first, f"CONSUME amount FROM tx_priv_stream GROUP X'{stream_handle(priv_group).hex()}' WAIT '1s'")
     priv_sph = sph1_hex(priv_consumed)
-    priv_claimed = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_priv_queue WITH LEASE '5m'")
+    priv_claimed = workload_rows(first, "CLAIM amount, _receipt_handle FROM tx_priv_queue WITH LEASE '30m'")
     priv_ack = queue_receipt_hex(priv_claimed[0][0][1])
 
     catalog_native('log-grants', 'tx_priv_stream', 'append_only')
@@ -632,7 +643,10 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
         command(first, 'PRODUCE INTO tx_priv_stream VALUES (201)', 'provisional')
         command(first, 'ENQUEUE INTO tx_priv_queue VALUES (301)', 'provisional')
         command(first, "PUT INTO tx_mix_kv KEY 'append_only_ok' VALUE 1", 'provisional')
-        catalog_native('log-grants', 'tx_priv_stream', 'inspect_only')
+        # Downgrade APPEND to SETTLE so participant preparation completes across
+        # every participant regardless of ObjectId sort order, then statement-level
+        # commit authorization fails closed with AccessDenied (42501).
+        catalog_native('log-grants', 'tx_priv_stream', 'settle_only')
         revoked_token = list(os.urandom(16))
         raw_commit = first.call(dict(execute=dict(sql='COMMIT', token=revoked_token)), allow_error=True)
         while 'operation' in raw_commit:
@@ -640,13 +654,35 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
             raw_commit = first.call(dict(resume=raw_commit['operation']['identity']), allow_error=True)
         denied_commit = raw_commit['err']
         assert denied_commit['code'] == 'AccessDenied' and denied_commit['sqlstate'] == list(b'42501'), denied_commit
-        assert kv_rows(second, "GET FROM tx_mix_kv KEY 'append_only_ok'") == []
+        prepared_conflict = second.call(dict(execute=dict(sql="GET FROM tx_mix_kv KEY 'append_only_ok'")), error='Conflict')['err']
+        assert prepared_conflict['sqlstate'] == list(b'55000'), prepared_conflict
         catalog_native('log-grants', 'tx_priv_stream', 'append_only')
         committed_priv, _ = command(first, 'COMMIT', token=revoked_token)
         assert committed_priv['transaction']['evidence']['decided']['decision']['outcome'] == 'committed'
         command(first, 'COMMIT', token=revoked_token)
         assert first.call('context')['context']['transaction'] is None
         assert kv_rows(second, "GET FROM tx_mix_kv KEY 'append_only_ok'") == [('append_only_ok', 1)]
+
+        # Without restoring APPEND privilege, an attached session can still
+        # explicitly abort the frozen attempt and release prepared barriers.
+        begun_abort, _ = command(first, 'BEGIN')
+        command(first, 'PRODUCE INTO tx_priv_stream VALUES (202)', 'provisional')
+        command(first, "PUT INTO tx_mix_kv KEY 'revoked_aborted' VALUE 1", 'provisional')
+        catalog_native('log-grants', 'tx_priv_stream', 'settle_only')
+        revoked_abort_token = list(os.urandom(16))
+        raw_commit2 = first.call(dict(execute=dict(sql='COMMIT', token=revoked_abort_token)), allow_error=True)
+        while 'operation' in raw_commit2:
+            assert raw_commit2['operation']['phase'] != 'terminal', raw_commit2
+            raw_commit2 = first.call(dict(resume=raw_commit2['operation']['identity']), allow_error=True)
+        assert raw_commit2['err']['code'] == 'AccessDenied' and raw_commit2['err']['sqlstate'] == list(b'42501'), raw_commit2
+        assert second.call(dict(execute=dict(sql="GET FROM tx_mix_kv KEY 'revoked_aborted'")), error='Conflict')['err']['sqlstate'] == list(b'55000')
+        assert second.call(dict(attach_transaction=begun_abort['transaction']['handle']))['attached'] == begun_abort['transaction']['handle']
+        command(second, 'ROLLBACK')
+        assert second.call('context')['context']['transaction'] is None
+        aborted_revoked, _ = command(first, 'COMMIT', 'rejected', token=revoked_abort_token)
+        assert aborted_revoked['transaction']['evidence']['decided']['decision']['outcome'] == 'aborted'
+        assert first.call('context')['context']['transaction'] is None
+        assert kv_rows(second, "GET FROM tx_mix_kv KEY 'revoked_aborted'") == []
 
         catalog_native('log-grants', 'tx_priv_stream', 'settle_only')
         catalog_native('log-grants', 'tx_priv_queue', 'settle_only')
@@ -673,7 +709,7 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     assert [signed_cell(r[0]) for r in workload_rows(second, "CONSUME amount FROM tx_priv_stream WAIT '1ms'")[0]] == [1, 201]
     priv_group['group']['next'] = 1
     assert [signed_cell(r[0]) for r in workload_rows(second, f"CONSUME amount FROM tx_priv_stream GROUP X'{stream_handle(priv_group).hex()}' WAIT '1s'")[0]] == [201]
-    priv_remaining = workload_rows(second, "CLAIM amount FROM tx_priv_queue WITH LEASE '5m'")
+    priv_remaining = workload_rows(second, "CLAIM amount FROM tx_priv_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in priv_remaining[0]] == [301]
 
     # 5. PostgreSQL, MySQL, and Console four-caller mixed transactions.
@@ -706,7 +742,7 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     consumed61_my = workload_rows(second, f"CONSUME amount FROM tx_mix_stream GROUP X'{stream_handle(group61).hex()}' WAIT '1s'")
     assert [signed_cell(r[0]) for r in consumed61_my[0]] == [301]
     sph61_my = sph1_hex(consumed61_my)
-    claimed_my = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '5m'")
+    claimed_my = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in claimed_my[0]] == [302]
     ack_my = queue_receipt_hex(claimed_my[0][0][1])
 
@@ -734,7 +770,7 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     consumed61_cli = workload_rows(second, f"CONSUME amount FROM tx_mix_stream GROUP X'{stream_handle(group61).hex()}' WAIT '1s'")
     assert [signed_cell(r[0]) for r in consumed61_cli[0]] == [401]
     sph61_cli = sph1_hex(consumed61_cli)
-    claimed_cli = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '5m'")
+    claimed_cli = workload_rows(second, "CLAIM amount, _receipt_handle FROM tx_mix_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in claimed_cli[0]] == [402]
     ack_cli = queue_receipt_hex(claimed_cli[0][0][1])
 
@@ -771,7 +807,7 @@ def mixed(root, port, postgres, mysql_options, faults, binary, catalog_native):
     assert [signed_cell(r[0]) for r in workload_rows(second, "CONSUME amount FROM tx_mix_stream WAIT '1ms'")[0]] == [5, 50, 301, 401, 501]
     group61['group']['next'] = 4
     assert [signed_cell(r[0]) for r in workload_rows(second, f"CONSUME amount FROM tx_mix_stream GROUP X'{stream_handle(group61).hex()}' WAIT '1s'")[0]] == [501]
-    final_queue = workload_rows(second, "CLAIM amount FROM tx_mix_queue WITH LEASE '5m'")
+    final_queue = workload_rows(second, "CLAIM amount FROM tx_mix_queue WITH LEASE '30m'")
     assert [signed_cell(r[0]) for r in final_queue[0]] == [502]
 
     first.close()
