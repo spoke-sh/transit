@@ -97,7 +97,7 @@ def parse(source):
             if not hasattr(node, 'getRuleIndex'):
                 return
             rule = parser.ruleNames[node.getRuleIndex()]
-            role = {'identifierHole': 'identifier', 'typeHole': 'type', 'valueHole': 'value', 'checkHole': 'operand', 'scalarHole': 'operand'}.get(rule)
+            role = {'identifierHole': 'identifier', 'typeHole': 'type', 'valueHole': 'value', 'checkHole': 'operand', 'scalarHole': 'operand', 'streamHole': 'stream', 'queueHole': 'queue'}.get(rule)
             if role:
                 holes.append({'name': node.sourceName().getText().lower(), 'role': role, **span(node)})
             else:
@@ -105,7 +105,10 @@ def parse(source):
                     visit(child)
         if ctx:
             visit(ctx)
-        return {'kind': 'rows' if rows else result[0]['text'].lower(), 'tokens': result, 'holes': holes}
+        kind = 'rows' if rows else result[0]['text'].lower()
+        if kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
+            kind += '_' + result[2]['text'].lower()
+        return {'kind': kind, 'tokens': result, 'holes': holes}
 
     binary = {'+': 'add', '-': 'subtract', '*': 'multiply', '=': 'equal', '<>': 'not_equal',
               '<': 'less', '<=': 'less_equal', '>': 'greater', '>=': 'greater_equal', 'AND': 'and_', 'OR': 'or_'}
@@ -160,7 +163,11 @@ def parse(source):
                 invoked['result'] = stmt.sourceName().getText().lower() if stmt.AS() else None
                 value = {'use': invoked}
             elif stmt.EXPORT():
-                value = {'table_export': {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}}
+                exported = {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}
+                if stmt.TABLE():
+                    value = {'table_export': exported}
+                else:
+                    value = {'log_export': {'kind': 'stream' if stmt.STREAM() else 'queue', **exported}}
             elif stmt.MATCH():
                 arms = [{'constructor': name(arm.sourceQualifiedName()), 'names': [n.getText().lower() for n in arm.sourceName()],
                          'body': body(arm.body()), 'span': span(arm)} for arm in stmt.matchArm()]
@@ -199,7 +206,7 @@ def parse(source):
             kind = param.parameterKind()
             if kind.MODULE():
                 value = {'module': name(kind.sourceQualifiedName())}
-            elif kind.TABLE():
+            elif kind.TABLE() or kind.STREAM() or kind.QUEUE():
                 columns = []
                 for col in kind.signatureColumn():
                     raw_type = col.sourceType()
@@ -212,7 +219,7 @@ def parse(source):
                 names = [col['name'] for col in columns]
                 if len(columns) > 128 or len(set(names)) != len(names):
                     raise Refusal(span(kind)['start'], 'column bound/duplicate')
-                value = {'table': columns}
+                value = {'table' if kind.TABLE() else 'stream' if kind.STREAM() else 'queue': columns}
             elif kind.sourceParameterName():
                 value = {'named': name(kind.sourceParameterName())}
             else:

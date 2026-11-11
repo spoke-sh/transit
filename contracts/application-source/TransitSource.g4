@@ -14,7 +14,7 @@ definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 parameter: sourceName parameterKind;
 parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName
-    | TABLE LPAREN signatureColumn (COMMA signatureColumn)* RPAREN | sourceParameterName;
+    | (TABLE | STREAM | QUEUE) LPAREN signatureColumn (COMMA signatureColumn)* RPAREN | sourceParameterName;
 sourceBaseType: BIGINT | TEXT | BOOLEAN;
 sourceParameterName: parameterHead (DOT sourceName (DOT sourceName)?)?;
 parameterHead: referenceTypeHead | TRUE | FALSE | NOT;
@@ -27,7 +27,7 @@ sourceQualifiedName: sourceName (DOT sourceName (DOT sourceName)?)?;
 body: sourceStatement*;
 sourceStatement
     : USE sourceCall (AS sourceName)? SEMI
-    | EXPORT TABLE DOLLAR? sourceQualifiedName AS sourceName SEMI
+    | EXPORT (TABLE | STREAM | QUEUE) DOLLAR? sourceQualifiedName AS sourceName SEMI
     | MATCH expression matchArm+ END MATCH SEMI
     | IF expression THEN body (ELSE body)? END IF SEMI
     | TEST STRING USING MODULES LPAREN (sourceCall (COMMA sourceCall)*)? RPAREN AS BEGIN body END SEMI
@@ -55,9 +55,15 @@ sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
     | TYPE sourceType | LPAREN expression RPAREN
     | referenceHead (DOT sourceName (DOT sourceName)?)? (LPAREN (expression (COMMA expression)*)? RPAREN)?;
 
-// Only the delivered single-Table profile, with syntax before schema binding.
-tableTemplate: CREATE PUBLIC TABLE identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+// Delivered public resource profile, with syntax before schema binding.
+tableTemplate: CREATE PUBLIC (TABLE | STREAM | QUEUE) identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+    | PRODUCE INTO streamOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
+    | ENQUEUE INTO queueOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
     | mutationStatement | sourceSelect;
+streamOperand: streamHole | plainIdentifier;
+queueOperand: queueHole | plainIdentifier;
+streamHole: DOLLAR sourceName;
+queueHole: DOLLAR sourceName;
 sourceSelect: SELECT selection FROM identifier sourceTableAlias? whereClause? limitClause?
     | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias?
       whereClause? limitClause? RPAREN AS identifier;
@@ -128,11 +134,12 @@ referenceHead: referenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | M
 referenceTypeHead: typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
     | DOUBLE | CHARACTER;
 sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
-typeWord: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+typeWord: typeWordWithoutLogs | STREAM | QUEUE;
+typeWordWithoutLogs: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
     | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
     | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE
     | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES
-    | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM | STREAM_SLICE | QUEUE | STREAMS | QUEUES
+    | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM_SLICE | STREAMS | QUEUES
     | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | CONSUME | CLAIM | ACK | NACK | EXTEND
     | RECEIPT | LEASE | WAIT | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | START
     | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET

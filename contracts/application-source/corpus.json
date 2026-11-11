@@ -630,5 +630,53 @@
     "name": "contextual-type-name",
     "source": "CREATE DOMAIN NAME AS TEXT IDENTITY 'example.name'; CREATE MODULE Apply(value NAME) AS BEGIN END;",
     "parse": true
+  },
+  {
+    "name": "typed-log-exports",
+    "source": "CREATE MODULE Resources(input IDENTIFIER, output IDENTIFIER) AS BEGIN CREATE PUBLIC QUEUE $input (id BIGINT NOT NULL); CREATE PUBLIC STREAM $output (id BIGINT NOT NULL); EXPORT QUEUE $input AS requests; EXPORT STREAM $output AS events; END; CREATE MODULE Write(input QUEUE(id BIGINT NOT NULL), output STREAM(id BIGINT NOT NULL)) AS BEGIN ENQUEUE INTO $input VALUES (1); PRODUCE INTO $output VALUES (2); END; CREATE TARGET default AS BEGIN USE Resources(NAME 'jobs', NAME 'events') AS r; USE Write(r.requests, r.events); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 4,
+    "sql_expected": [
+      "CREATE QUEUE \"jobs\" ( ID BIGINT NOT NULL )",
+      "CREATE STREAM \"events\" ( ID BIGINT NOT NULL )",
+      "ENQUEUE INTO \"jobs\" VALUES ( 1 )",
+      "PRODUCE INTO \"events\" VALUES ( 2 )"
+    ]
+  },
+  {
+    "name": "wrong-log-kind",
+    "source": "CREATE MODULE Resources(input IDENTIFIER, output IDENTIFIER) AS BEGIN CREATE PUBLIC QUEUE $input (id BIGINT NOT NULL); CREATE PUBLIC STREAM $output (id BIGINT NOT NULL); EXPORT QUEUE $input AS requests; EXPORT STREAM $output AS events; END; CREATE MODULE Write(input QUEUE(id BIGINT NOT NULL), output STREAM(id BIGINT NOT NULL)) AS BEGIN ENQUEUE INTO $input VALUES (1); PRODUCE INTO $output VALUES (2); END; CREATE TARGET default AS BEGIN USE Resources(NAME 'jobs', NAME 'events') AS r; USE Write(r.events, r.requests); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "log-handle-column",
+    "source": "CREATE MODULE Resources(input IDENTIFIER, output IDENTIFIER) AS BEGIN CREATE PUBLIC QUEUE $input (id BIGINT NOT NULL); CREATE PUBLIC STREAM $output (id BIGINT NOT NULL); EXPORT QUEUE $input AS requests; EXPORT STREAM $output AS events; END; CREATE MODULE M(input QUEUE(id BIGINT NOT NULL)) AS BEGIN ENQUEUE INTO jobs ($input) VALUES (1); END; CREATE TARGET default AS BEGIN USE Resources(NAME 'jobs', NAME 'events') AS r; USE M(r.requests); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "unused-malformed-log",
+    "source": "CREATE MODULE unused() AS BEGIN ENQUEUE INTO absent VALUES (1,); END;",
+    "parse": false,
+    "parse_error": "InvalidSourceTemplate",
+    "at": "); END;"
+  },
+  {
+    "name": "log-kind-binding",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC STREAM events (id BIGINT); ENQUEUE INTO events VALUES (1); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "log-words-remain-source-types",
+    "source": "CREATE DOMAIN Stream AS BIGINT IDENTITY 'stream'; CREATE DOMAIN Queue AS BIGINT IDENTITY 'queue'; CREATE MODULE M(s Stream, q Queue) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END; CREATE TARGET default AS BEGIN USE M(Stream(1), Queue(2)); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 1
   }
 ]

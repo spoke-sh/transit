@@ -53,7 +53,7 @@ test "source-private helpers and cycles cannot leak across imports" {
 test "unsupported runtime capabilities and conflicting names reject before output" {
     for ([_][]const u8{
         "CREATE TARGET default AS BEGIN CREATE TABLE hidden (id BIGINT); END;",
-        "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE work (id BIGINT); END;",
+        "CREATE TARGET default AS BEGIN CREATE PUBLIC SINK work (id BIGINT); END;",
         "CREATE TARGET default AS BEGIN CREATE PUBLIC PROCEDURE run() AS BEGIN SELECT 1; END; END;",
     }) |source| try std.testing.expectError(error.RuntimePrivateOrUnsupportedDeclaration, one(source, .{ .compiler_revision = "test" }));
     try std.testing.expectError(error.ConflictingModuleInstance, one("CREATE MODULE M(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT); END; CREATE TARGET default AS BEGIN USE M(NAME 'same'); USE M(NAME 'same'); END;", .{ .compiler_revision = "test" }));

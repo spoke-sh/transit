@@ -180,7 +180,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
     }
     for (sites, used) |site, consumed| {
         if (consumed) continue;
-        if (site.value == .table or site.value == .nominal or (site.value == .symbolic and site.value.symbolic.domain != null) or
+        if (site.value == .table or site.value == .stream or site.value == .queue or site.value == .nominal or (site.value == .symbolic and site.value.symbolic.domain != null) or
             (site.value == .type and site.value.type.domain != null)) return error.InvalidSourceOperand;
     }
     const columns = try output.alloc(Column, checked_table.domains.len);

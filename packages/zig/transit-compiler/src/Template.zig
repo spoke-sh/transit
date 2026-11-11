@@ -3,9 +3,9 @@
 const std = @import("std");
 const f = @import("transit_fuze");
 const Token = f.SqlInput.CompilerScan.Token;
-pub const Role = enum { identifier, type, value, operand };
+pub const Role = enum { identifier, type, value, operand, stream, queue };
 pub const Hole = struct { name: []const u8, role: Role, start: u32, end: u32 };
-pub const Kind = enum { create, insert, update, delete, select, rows };
+pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue };
 pub const Syntax = struct { kind: Kind, tokens: []const Token, holes: []const Hole };
 const Self = @This();
 a: std.mem.Allocator,
@@ -406,13 +406,28 @@ fn clauseWord(self: *Self) bool {
 }
 fn statement(self: *Self) !Kind {
     if (self.take("CREATE")) {
-        if (!self.take("PUBLIC") or !self.take("TABLE")) return error.RuntimePrivateOrUnsupportedDeclaration;
+        if (!self.take("PUBLIC")) return error.RuntimePrivateOrUnsupportedDeclaration;
+        const kind: Kind = if (self.take("TABLE")) .create else if (self.take("STREAM")) .create_stream else if (self.take("QUEUE")) .create_queue else return error.RuntimePrivateOrUnsupportedDeclaration;
         try self.name();
         try self.require("(");
         try self.tableElement();
         while (self.take(",")) try self.tableElement();
         try self.require(")");
-        return .create;
+        return kind;
+    }
+    if (self.is("PRODUCE") or self.is("ENQUEUE")) {
+        const stream = self.take("PRODUCE");
+        if (!stream) try self.require("ENQUEUE");
+        try self.require("INTO");
+        if (!try self.hole(if (stream) .stream else .queue)) try self.name();
+        if (self.take("(")) {
+            try self.name();
+            while (self.take(",")) try self.name();
+            try self.require(")");
+        }
+        try self.require("VALUES");
+        try self.rows(true);
+        return if (stream) .produce else .enqueue;
     }
     if (self.take("INSERT")) {
         try self.require("INTO");

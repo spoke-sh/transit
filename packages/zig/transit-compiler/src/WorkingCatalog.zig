@@ -12,12 +12,15 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
     try f.Sql.validateText(sql);
     var parser = try f.SqlTyped.init(self.scratch, sql, location);
     if (parser.word("CREATE")) {
+        var header = parser;
+        try header.requireWord("CREATE");
+        if (header.word("STREAM") or header.word("QUEUE")) return self.createLog(sql, location);
         var declaration = try f.TableDdl.compile(self.scratch, sql, null, location);
         defer declaration.deinit();
         if (declaration.statement != .create) return error.UnsupportedBuildStatement;
         const create = declaration.statement.create;
         if (create.if_not_exists) return error.UnsupportedBuildStatement;
-        for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, create.name)) return error.ConflictingModuleInstance;
+        try self.unused(create.name);
         const schema = try create.bind(self.entries.items.len + 1);
         const copied = try schema.clone(self.output);
         const entry = try self.output.create(Entry);
@@ -26,6 +29,17 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
         entry.* = .{ .name = try self.output.dupe(u8, create.name), .schema = copied.schema, .domains = domains, .owner = self.owner };
         try self.entries.append(self.output, entry);
         return schema.fingerprint();
+    }
+    if (parser.word("PRODUCE") or parser.word("ENQUEUE")) {
+        const target = try f.LogAppendSql.target(self.scratch, sql, .transit, location);
+        const entry = try self.findResource(target.source.name);
+        if (!std.mem.eql(u8, @tagName(entry.kind), @tagName(target.kind))) return error.SourceTypeMismatch;
+        var prepared = try f.LogAppendSql.Prepared.init(self.scratch, sql, entry.schema, .transit, location);
+        defer prepared.deinit();
+        if (prepared.parameterTypes().len != 0) return error.UnboundBuildParameter;
+        var bound = try prepared.bind(self.scratch, &.{}, location);
+        defer bound.deinit();
+        return bound.rows.plan.fingerprint(self.scratch);
     }
     if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
         const target = try f.TableDml.targetDiagnostic(self.scratch, sql, location);
@@ -54,8 +68,36 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
     return error.UnsupportedBuildStatement;
 }
 pub fn find(self: Self, name: []const u8) !*const Entry {
+    const entry = try self.findResource(name);
+    if (entry.kind != .table) return error.SourceTypeMismatch;
+    return entry;
+}
+pub fn findResource(self: Self, name: []const u8) !*const Entry {
     for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, name)) return entry;
     return error.UnknownBuildTable;
+}
+fn unused(self: Self, name: []const u8) !void {
+    for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, name)) return error.ConflictingModuleInstance;
+}
+fn createLog(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
+    var declaration = try f.LogDdl.compile(self.scratch, sql, .transit, location);
+    defer declaration.deinit();
+    const statement = declaration.statement;
+    if (statement.action != .create) return error.UnsupportedBuildStatement;
+    try self.unused(statement.name);
+    const schema = try statement.action.create.bind(self.entries.items.len + 1);
+    const configuration = try statement.configure(null, schema);
+    if (configuration.configuration.partitioning.count != 1 or configuration.destination == .name) return error.UnsupportedBuildLogConfiguration;
+    const copied = try schema.clone(self.output);
+    const entry = try self.output.create(Entry);
+    const domains = try self.output.alloc(?@import("Graph.zig").Ref, schema.columns.len);
+    @memset(domains, null);
+    entry.* = .{ .name = try self.output.dupe(u8, statement.name), .schema = copied.schema, .domains = domains, .owner = self.owner, .kind = if (statement.kind == .stream) .stream else .queue, .log = configuration };
+    try self.entries.append(self.output, entry);
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update(@tagName(entry.kind));
+    hash.update(&try schema.fingerprint());
+    return hash.finalResult();
 }
 pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
     const target = try f.TableSelect.targetDiagnostic(self.scratch, sql, null);

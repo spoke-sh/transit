@@ -9,10 +9,10 @@ for the complete example.
 ## Application source builds
 
 `transit build` compiles `.transit` modules to ordinary SQL for new Tables,
-literal INSERT/UPDATE/DELETE and finite single-Table SELECT. Typed constructors
+Streams and Queues, literal mutations and log appends, and finite single-Table SELECT. Typed constructors
 accept values, types and other modules; interfaces check module arguments.
 Imports expose public source symbols, and bounded constructor recursion can
-compose repeated instances with explicit, caller-chosen Table names.
+compose repeated instances with explicit, caller-chosen resource names.
 
 A minimal `build.transit` is:
 
@@ -44,7 +44,7 @@ resolution, artifacts, diagnostics and resource limits.
 
 The [source grammar](../../../contracts/application-source/README.md) formalizes
 these forms separately from runtime SQL and interface/UI declarations. Complete
-Table-template and expected-row syntax is checked in every body, including unused
+Resource-template and expected-row syntax is checked in every body, including unused
 modules and unselected branches. Name resolution, types, target placement and
 execution remain separate stages. A bounded compiler-package formatter supports
 independent source round-trip checks; it is not a CLI command.
@@ -66,6 +66,12 @@ direct SQL retains its ordinary type and authorization rules. The
 owns exact syntax, symbolic-checking limits and proof premises. The
 [synthetic example](../../../tests/fixtures/application-typed-targets/README.md)
 shows both resource kinds with raw ID `7` and isolated Table tests.
+
+`STREAM(...)` and `QUEUE(...)` parameters and matching exports preserve distinct
+resource kinds and exact column signatures. Log declarations use single-partition
+defaults with unlimited retention. Literal `PRODUCE INTO` and `ENQUEUE INTO`
+statements use ordinary log preparation and permissions. Explicit log configuration,
+nominal log fields, append metadata and RETURNING remain outside this source profile.
 
 This profile rejects runtime-private storage, privileged procedures, effects,
 Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing

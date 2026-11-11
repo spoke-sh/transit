@@ -50,7 +50,8 @@ END;
 ```
 
 Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, `MODULE
-interface_name`, named domains/variants or exact `TABLE(...)` signatures. Module interfaces describe ordered parameter types; parameter
+interface_name`, named domains/variants or exact `TABLE(...)`, `STREAM(...)` and
+`QUEUE(...)` signatures. Module interfaces describe ordered parameter types; parameter
 names need not match. Qualified references use an import alias and public member.
 Constructors can accept and forward module values, call local/private helpers,
 and recurse under explicit work/depth limits. Import cycles remain forbidden.
@@ -61,8 +62,8 @@ literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN`, named type operands a
 integer `+`, `-`, `*`, comparisons and Boolean AND/OR/NOT. Conditional bodies use
 `IF expression THEN ... [ELSE ...] END IF;`. Conditions must be Boolean.
 Expressions have no ambient environment, time, random, database or effect access.
-Module bodies contain USE, IF, MATCH, Table exports and executable SQL statements; nested declarations
-and runtime-private Table declarations reject in this profile.
+Module bodies contain USE, IF, MATCH, resource exports and executable SQL statements; nested declarations
+and runtime-private resource declarations reject in this profile.
 
 Expression precedence, from tightest to loosest, is unary minus/NOT,
 multiplication, addition/subtraction, comparisons, AND, OR. Binary operators
@@ -105,18 +106,30 @@ positional parameters are not part of this fully bound target profile.
 
 ## Executable target
 
-The initial target supports CREATE TABLE, literal INSERT/UPDATE/DELETE and finite
-single-Table SELECT through Fuze's typed Table owners. Tables are explicitly
+The target supports CREATE TABLE, literal INSERT/UPDATE/DELETE and finite
+single-Table SELECT through Fuze's typed Table owners. It also supports CREATE
+STREAM/QUEUE and literal PRODUCE/ENQUEUE through the shared log owners. Resources are explicitly
 PUBLIC in source, with ordinary runtime permissions; PUBLIC is erased before
 runtime SQL preparation and grants no access. CHECK/key/type/predicate restrictions
 are those of the shared owners. Views, foreign-key resolution, ALTER/DROP,
 multi-source queries, procedures, effects, Queue/COMMAND programs, deadlines,
 publication and migration synthesis reject. No unsupported declaration is omitted.
 
-Declarations and statements execute in lexical composition order. Each Table must
+Log declarations use the ordinary single-partition defaults, including unlimited
+retention. Explicit configuration, dead-letter destinations, nominal log columns,
+append metadata and RETURNING are outside this source profile. Log parameters
+check the complete column signature; Stream and Queue handles are distinct from
+each other and from Table handles. `EXPORT STREAM $name AS events;` and
+`EXPORT QUEUE $name AS requests;` export resources declared by that module.
+An existing typed handle can be forwarded without `$`. Exports grant no runtime
+rights. A log handle is valid only in its matching log target position, never as
+a scalar, column or generic identifier. Source scalar operands in log statements
+must be concrete, non-nominal values; symbolic log operations reject.
+
+Declarations and statements execute in lexical composition order. Each resource must
 precede its users, and each object name may be declared once. Explicit identifier
 arguments bind instances independently of file paths and aliases. Two modules
-claiming one Table name reject, including different dependency versions. Compiler
+claiming one resource name reject, including different dependency versions. Compiler
 ordinals used to compare schemas are not allocated durable object identities.
 
 The compiler maintains a bounded proposed catalog and checks every emitted

@@ -219,12 +219,16 @@ fn signature(self: *Self, expected: Graph.Ref, actual: Graph.Ref, depth: usize) 
         if (std.meta.activeTag(left.kind) != std.meta.activeTag(right.kind)) return error.ModuleInterfaceMismatch;
         if (left.kind == .module) try self.signature(try self.graph.resolve(expected.file, left.kind.module), try self.graph.resolve(actual.file, right.kind.module), depth + 1);
         if (left.kind == .named and !std.meta.eql(try self.graph.resolve(expected.file, left.kind.named), try self.graph.resolve(actual.file, right.kind.named))) return error.ModuleInterfaceMismatch;
-        if (left.kind == .table) {
-            if (left.kind.table.len != right.kind.table.len) return error.ModuleInterfaceMismatch;
-            for (left.kind.table, right.kind.table) |l, r| {
-                if (!std.mem.eql(u8, l.name, r.name) or l.nullable != r.nullable or l.primary != r.primary or !std.mem.eql(u8, l.collation, r.collation) or
-                    !types.Scalar.eql(try types.resolve(self.graph, expected.file, l.type), try types.resolve(self.graph, actual.file, r.type))) return error.ModuleInterfaceMismatch;
-            }
+        switch (left.kind) {
+            inline .table, .stream, .queue => |columns, tag| {
+                const other = @field(right.kind, @tagName(tag));
+                if (columns.len != other.len) return error.ModuleInterfaceMismatch;
+                for (columns, other) |l, r| {
+                    if (!std.mem.eql(u8, l.name, r.name) or l.nullable != r.nullable or l.primary != r.primary or !std.mem.eql(u8, l.collation, r.collation) or
+                        !types.Scalar.eql(try types.resolve(self.graph, expected.file, l.type), try types.resolve(self.graph, actual.file, r.type))) return error.ModuleInterfaceMismatch;
+                }
+            },
+            else => {},
         }
     }
 }
@@ -239,9 +243,9 @@ fn argument(self: *Self, file: usize, kind: s.Kind, value: Value) !void {
                 if (value != .variant or !std.meta.eql(value.variant.definition, ref)) return error.SourceTypeMismatch;
             } else return error.InvalidParameterType;
         },
-        .table => |columns| {
-            if (value != .table) return error.SourceTypeMismatch;
-            try types.signature(self.graph, file, columns, value.table);
+        inline .table, .stream, .queue => |columns, tag| {
+            if (std.meta.activeTag(value) != @field(std.meta.Tag(Value), @tagName(tag))) return error.SourceTypeMismatch;
+            try types.signature(self.graph, file, columns, @field(value, @tagName(tag)));
         },
         .integer, .text, .boolean => {
             if (!types.Scalar.eql(try types.field(self.graph, file, kind), value.scalar() orelse return error.SourceTypeMismatch)) return error.SourceTypeMismatch;
@@ -413,12 +417,29 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
                     if (entry.owner != self.owner) return error.ForeignTableExport;
                     break :blk entry;
                 } else if (value == .table) value.table else return error.SourceTypeMismatch;
-                try exports.append(self.a, .{ .name = exported.alias, .table = table });
+                try exports.append(self.a, .{ .name = exported.alias, .value = .{ .table = table } });
+            },
+            .log_export => |exported| {
+                const exports = self.exports orelse return error.ExportOutsideModule;
+                if (exports.items.len == 64) return error.SourceExportLimit;
+                for (exports.items) |prior| if (std.mem.eql(u8, prior.name, exported.alias)) return error.DuplicateSourceName;
+                const value = try self.reference(file, exported.source, bindings);
+                const entry = if (exported.operand) blk: {
+                    if (value != .identifier) return error.SourceTypeMismatch;
+                    const resource = try self.catalog.findResource(value.identifier);
+                    if (resource.owner != self.owner) return error.ForeignTableExport;
+                    break :blk resource;
+                } else switch (value) {
+                    .stream, .queue => |resource| resource,
+                    else => return error.SourceTypeMismatch,
+                };
+                if (!std.mem.eql(u8, @tagName(entry.kind), @tagName(exported.kind))) return error.SourceTypeMismatch;
+                try exports.append(self.a, .{ .name = exported.alias, .value = entry.value() });
             },
             .match => |input| try self.match(file, input, bindings, depth),
             .sql => |template| {
                 if (self.test_mode and !self.in_case) return error.TestStatementOutsideCase;
-                try self.emit(file, statement.span, template.tokens, bindings);
+                try self.emit(file, statement.span, template, bindings);
             },
             .test_case => |case| try self.testCase(file, statement.span, case, bindings, depth),
             .assertion => |check| try self.assertion(file, statement.span, check, bindings),
@@ -430,7 +451,7 @@ fn reference(self: *Self, file: usize, name: s.Name, bindings: []const Binding) 
         if (name.qualifier == null and std.mem.eql(u8, binding.name, name.member)) return binding.value;
         if (name.qualifier) |qualifier| if (std.mem.eql(u8, binding.name, qualifier)) {
             if (name.constructor != null or binding.value != .instance) return error.SourceTypeMismatch;
-            for (binding.value.instance) |exported| if (std.mem.eql(u8, name.member, exported.name)) return .{ .table = exported.table };
+            for (binding.value.instance) |exported| if (std.mem.eql(u8, name.member, exported.name)) return exported.value;
             return error.UnknownSourceExport;
         };
     }
@@ -549,7 +570,8 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
         },
     };
 }
-fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, bindings: []const Binding) !void {
+fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding) !void {
+    const tokens = template.tokens;
     if (self.in_case and self.actions.items.len == Test.max_actions) return error.TestActionLimit;
     self.file = file;
     self.offset = span.start;
@@ -566,8 +588,13 @@ fn emit(self: *Self, file: usize, span: s.Span, tokens: []const s.Token, binding
     // before the ordinary binder can erase nominal identity into scalar values.
     var digest: [32]u8 = undefined;
     if (is_create) digest = try self.catalog.check(raw, &at);
-    const checked = try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic);
-    try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], &at);
+    const log_statement = switch (template.kind) {
+        .create_stream, .create_queue, .produce, .enqueue => true,
+        else => false,
+    };
+    const checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic);
+    if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, &at);
+    if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], &at);
     self.checked_statements += 1;
     if (self.symbolic) return;
     const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null);
@@ -613,7 +640,7 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
 }
 fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, bindings: []const Binding) !void {
     if (!self.in_case) return error.TestAssertionOutsideCase;
-    try self.emit(file, span, value.sql.tokens, bindings);
+    try self.emit(file, span, value.sql, bindings);
     var query_buffer: [f.Sql.max_statement_bytes]u8 = undefined;
     const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null) else self.steps.items[self.steps.items.len - 1].sql;
     const is_select = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "SELECT");
@@ -651,7 +678,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
     var i: usize = 0;
     var parameter: usize = 0;
     if (tokenIs(text, tokens[0], "CREATE")) {
-        if (tokens.len < 4 or !tokenIs(text, tokens[1], "PUBLIC") or !tokenIs(text, tokens[2], "TABLE")) return error.RuntimePrivateOrUnsupportedDeclaration;
+        if (tokens.len < 4 or !tokenIs(text, tokens[1], "PUBLIC")) return error.RuntimePrivateOrUnsupportedDeclaration;
     }
     while (i < tokens.len) : (i += 1) {
         if (i == 1 and tokenIs(text, tokens[0], "CREATE")) continue;
@@ -707,7 +734,7 @@ fn writeValue(writer: *std.Io.Writer, value: Value) !void {
         .nominal => |v| switch (v.value) {
             inline else => |payload, tag| try writeValue(writer, @unionInit(Value, @tagName(tag), payload)),
         },
-        .table => |table| try quoted(writer, table.name, '"'),
+        .table, .stream, .queue => |table| try quoted(writer, table.name, '"'),
         .symbolic => return error.UnsupportedSymbolicSchema,
         .variant, .instance => return error.InvalidSourceOperand,
         .module => return error.ModuleIsNotSqlOperand,
