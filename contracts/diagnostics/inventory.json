@@ -9358,6 +9358,7 @@
         "Request.context()": "<inferred>",
         "Request.parse()": "<inferred>",
         "Request.validate()": "<inferred>",
+        "Result.jsonParse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
         "Rows.digest()": "<inferred>",
         "Rows.native()": "<inferred>",
         "Statement.digest()": "<inferred>",
@@ -26648,9 +26649,16 @@
         "InvalidJsonConstant": 1,
         "InvalidJsonShape": 11,
         "OutOfMemory": 1,
+        "UnexpectedToken": 4,
+        "UnknownField": 1,
         "WriteFailed": 9
       },
-      "outcomes": {},
+      "outcomes": {
+        "TaggedFixture": [
+          "done",
+          "rows"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
         "HashWriter.drain()": "std . Io . Writer . Error",
@@ -26660,13 +26668,17 @@
         "MatchWriter.flush()": "std . Io . Writer . Error",
         "MatchWriter.flushBuffer()": "std . Io . Writer . Error",
         "MatchWriter.matchSlice()": "std . Io . Writer . Error",
+        "TaggedFixture.jsonParse()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
         "allocationSchedule()": "<inferred>",
         "boundedAllocationSchedule()": "<inferred>",
         "hashBounded()": "<inferred>",
         "parseFromSlice()": "<inferred>",
         "parseFromSliceOwned()": "<inferred>",
+        "parseTaggedPayload()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
+        "parseTaggedUnion()": "std . json . ParseError ( @ TypeOf ( source . * ) )",
         "parseWithOptions()": "<inferred>",
         "shape()": "anyerror",
+        "taggedAllocationSchedule()": "<inferred>",
         "validateShape()": "anyerror",
         "valueAlloc()": "<inferred>",
         "valueAllocBounded()": "<inferred>",
@@ -26674,7 +26686,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 43,
+        "try": 53,
         "catch": 6
       },
       "imports": [

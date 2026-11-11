@@ -279,6 +279,43 @@ pub fn parseFromSlice(comptime T: type, allocator: std.mem.Allocator, bytes: []c
 pub fn parseFromSliceOwned(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
     return parseWithOptions(T, allocator, bytes, .{ .allocate = .alloc_always });
 }
+
+/// Decode a reflected tagged union without reserving a bulk union temporary
+/// for every alternative in one Debug stack frame. Payload decoding remains
+/// with std.json, including its allocation and unknown/duplicate-field rules.
+pub fn parseTaggedUnion(comptime T: type, allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!T {
+    if (try source.next() != .object_begin) return error.UnexpectedToken;
+    const token = try source.nextAllocMax(allocator, .alloc_if_needed, options.max_value_len.?);
+    defer switch (token) {
+        .allocated_string, .allocated_number => |value| allocator.free(value),
+        else => {},
+    };
+    const name = switch (token) {
+        .string, .allocated_string => |value| value,
+        else => return error.UnexpectedToken,
+    };
+    var result: T = undefined;
+    const info = @typeInfo(T).@"union";
+    inline for (info.field_names) |field| {
+        if (std.mem.eql(u8, name, field)) {
+            try parseTaggedPayload(T, field, allocator, source, options, &result);
+            break;
+        }
+    } else return error.UnknownField;
+    if (try source.next() != .object_end) return error.UnexpectedToken;
+    return result;
+}
+
+noinline fn parseTaggedPayload(comptime T: type, comptime field: []const u8, allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions, result: *T) std.json.ParseError(@TypeOf(source.*))!void {
+    const Payload = @FieldType(T, field);
+    if (Payload == void) {
+        if (try source.next() != .object_begin or try source.next() != .object_end) return error.UnexpectedToken;
+        result.* = @unionInit(T, field, {});
+    } else {
+        result.* = @unionInit(T, field, try std.json.innerParse(Payload, allocator, source, options));
+    }
+}
+
 fn parseWithOptions(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8, options: std.json.ParseOptions) !std.json.Parsed(T) {
     const tree = try std.json.parseFromSlice(std.json.Value, allocator, bytes, .{});
     defer tree.deinit();
@@ -342,6 +379,42 @@ fn shape(comptime T: type, value: std.json.Value) anyerror!void {
             }
         },
         else => {},
+    }
+}
+
+const TaggedFixture = union(enum) {
+    done,
+    rows: struct { label: []const u8, values: [2]u8 },
+
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!TaggedFixture {
+        return parseTaggedUnion(TaggedFixture, allocator, source, options);
+    }
+};
+
+fn taggedAllocationSchedule(allocator: std.mem.Allocator) !void {
+    var bytes = "{\"r\\u006fws\":{\"label\":\"retained\",\"values\":[1,2]}}".*;
+    const parsed = try parseFromSliceOwned(TaggedFixture, allocator, &bytes);
+    defer parsed.deinit();
+    @memset(&bytes, 0);
+    try std.testing.expectEqualStrings("retained", parsed.value.rows.label);
+    try std.testing.expectEqual([2]u8{ 1, 2 }, parsed.value.rows.values);
+}
+
+test "bounded tagged union decoder preserves ownership and rejects malformed alternatives" {
+    const a = std.testing.allocator;
+    try std.testing.checkAllAllocationFailures(a, taggedAllocationSchedule, .{});
+    const done = try parseFromSliceOwned(TaggedFixture, a, "{\"done\":{}}");
+    defer done.deinit();
+    try std.testing.expect(done.value == .done);
+    for ([_][]const u8{
+        "{}",                           "{\"unknown\":{}}",          "{\"done\":1}",                                   "{\"done\":{\"x\":1}}",
+        "{\"done\":{},\"done\":{}}",    "{\"done\":{},\"rows\":{}}", "{\"rows\":{\"label\":\"x\",\"values\":\"ab\"}}", "{\"rows\":{\"label\":\"x\",\"label\":\"y\",\"values\":[1,2]}}",
+        "{\"rows\":{\"label\":\"x\"}}",
+    }) |bytes| {
+        if (parseFromSliceOwned(TaggedFixture, a, bytes)) |parsed| {
+            parsed.deinit();
+            return error.MalformedUnionAccepted;
+        } else |_| {}
     }
 }
 

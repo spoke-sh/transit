@@ -991,6 +991,10 @@ pub const Result = union(enum) {
     document_declaration: c.DirectDocument.DeclarationResult,
     document_lookup: ?c.DirectDocument.Definition,
     document_list: StateList,
+
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Result {
+        return p.Json.parseTaggedUnion(Result, allocator, source, options);
+    }
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 
