@@ -467,3 +467,11 @@ EXPLAIN CREATE DATAFLOW share the typed owner's identities and checks. The
 [managed profile](../../docs/handbook/reference/queries.md#managed-table-computations)
 limits execution to one Table and finite recomputation. Parser acceptance does
 not enable these declarations on PostgreSQL/MySQL or standalone gateways.
+
+Lowered ordered Queue bodies use the separate production `ApplicationProgram`
+parser and its [frozen consumer corpus](../../tests/fixtures/application-programs/README.md).
+The ANTLR `managedCommand` root does not yet describe those bodies. The
+[installed Queue profile](../../docs/handbook/reference/queries.md#managed-queue-programs)
+binds native definitions and runs the public-data subset through the same SQL
+service. Its explicit role controls, publisher inspection and rejected host
+facilities are defined in [APPLICATION_PROGRAM_V1](../APPLICATION_PROGRAM_V1.md#installed-sql-profile).

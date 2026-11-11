@@ -28500,6 +28500,40 @@
         "std"
       ]
     },
+    "packages/zig/transit-query-direct/src/ApplicationSql.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 3,
+        "CatalogNameNotFound": 4,
+        "InvalidTableResponse": 1,
+        "ProgramArgumentMismatch": 1,
+        "ProgramTooComplex": 1,
+        "UnsupportedProgramPartitioning": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "table",
+          "kv",
+          "log",
+          "document"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "block()": "anyerror",
+        "expression()": "anyerror",
+        "prepare()": "<inferred>",
+        "resource()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 42,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-query-direct/src/ApplicationTransaction.zig": {
       "errors": {
         "DataflowIdentityConflict": 1,
@@ -28854,9 +28888,10 @@
         "InvalidDataflowControl": 3,
         "InvalidDataflowTransition": 4,
         "InvalidDirectRecord": 7,
-        "InvalidKVResponse": 1,
         "ManagedTableCleanupPending": 1,
+        "ManagedTableConflict": 3,
         "ManagedTableInitializationPending": 2,
+        "ManagedTableNameConflict": 1,
         "OwnedRecordClosed": 1
       },
       "outcomes": {},
@@ -28885,8 +28920,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 87,
-        "catch": 0
+        "try": 88,
+        "catch": 3
       },
       "imports": [
         "root.zig",
@@ -28960,7 +28995,7 @@
         "ManagedTableCleanupPending": 1,
         "ManagedTableConflict": 3,
         "ManagedTableInitializationPending": 2,
-        "ManagedTableNameConflict": 1,
+        "ManagedTableNameConflict": 2,
         "ManagedTableResultBudget": 8,
         "ManagedTableSchemaMismatch": 2,
         "Overflow": 1,
@@ -29034,7 +29069,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 193,
+        "try": 195,
         "catch": 10
       },
       "imports": [
@@ -29214,6 +29249,7 @@
         "ApplicationInvocation.zig",
         "ApplicationReadSet.zig",
         "ApplicationRecovery.zig",
+        "ApplicationSql.zig",
         "ApplicationTransaction.zig",
         "ComputePool.zig",
         "DirectRelationalCompilation.zig",
@@ -36801,31 +36837,41 @@
     },
     "packages/zig/transit-sql-service/src/ManagedOperations.zig": {
       "errors": {
-        "CatalogNameNotFound": 2,
+        "CatalogNameNotFound": 3,
         "DataflowControlChanged": 1,
+        "DataflowIdentityConflict": 2,
         "DataflowSourceChanged": 4,
         "IncompatibleDefinition": 1,
+        "InvalidDataflowTransition": 2,
         "InvalidManagedTableRecord": 2,
         "ManagedTableConflict": 1,
-        "ManagedTableNameConflict": 1,
+        "ManagedTableNameConflict": 3,
         "ManagedTableRequiresCohostedService": 1,
         "SqlOperationBindingChanged": 1,
-        "UnsupportedManagedTable": 1
+        "UnsupportedManagedTable": 1,
+        "UnsupportedProgramMigration": 2
       },
       "outcomes": {
         "Request.action": [
           "publish",
-          "control"
+          "control",
+          "publish_program",
+          "control_program"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "Guard.require()": "<inferred>",
+        "Request.interpretation()": "<inferred>",
+        "Request.validate()": "<inferred>",
         "admit()": "<inferred>",
         "admitReviewed()": "<inferred>",
         "apply()": "<inferred>",
         "definition()": "<inferred>",
+        "namedObject()": "<inferred>",
+        "program()": "<inferred>",
         "read()": "<inferred>",
+        "requireNamed()": "<inferred>",
         "requireProfile()": "<inferred>",
         "resumeOperation()": "<inferred>",
         "status()": "<inferred>",
@@ -36833,7 +36879,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 44,
+        "try": 74,
         "catch": 1
       },
       "imports": [
@@ -36851,7 +36897,8 @@
         "MigrationDependencyUnapplied": 4,
         "MissingManagedTableObservation": 1,
         "TableNotFound": 3,
-        "UnsupportedManagedTable": 2
+        "UnsupportedManagedTable": 2,
+        "UnsupportedProgramMigration": 2
       },
       "outcomes": {},
       "error_sets": {},
@@ -37143,6 +37190,7 @@
       "errors": {
         "AccessDenied": 1,
         "AmbiguousLocalTime": 1,
+        "ApplicationHostUnavailable": 1,
         "AuthorityTimeout": 1,
         "AuthorityUnavailable": 2,
         "Canceled": 1,
@@ -37192,6 +37240,7 @@
         "InvalidAuthentication": 3,
         "InvalidColumnSemantics": 1,
         "InvalidDataflowRevision": 1,
+        "InvalidDataflowTransition": 1,
         "InvalidDocumentOption": 1,
         "InvalidDocumentProfile": 1,
         "InvalidDocumentRetention": 1,
@@ -37246,6 +37295,7 @@
         "ManagedTableResultBudget": 1,
         "MissingColumnSemantics": 1,
         "MissingGatewayTerminal": 2,
+        "MissingProgramNativeBinding": 1,
         "MissingResultObservation": 2,
         "NonexistentLocalTime": 1,
         "NullNotAllowed": 1,
@@ -37253,6 +37303,12 @@
         "OutOfMemory": 1,
         "PostgresCatalogBudget": 1,
         "PostgresCatalogChanged": 1,
+        "ProgramArgumentMismatch": 1,
+        "ProgramNullabilityMismatch": 1,
+        "ProgramResourceKindMismatch": 1,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 1,
         "QueueClaimLimitExceeded": 1,
         "ReadOnlyTransaction": 1,
         "Rejected": 3,
@@ -37314,6 +37370,9 @@
         "UnsupportedPostgresCatalogPattern": 1,
         "UnsupportedPostgresCatalogQuery": 1,
         "UnsupportedPostgresTableDescription": 1,
+        "UnsupportedProgramMigration": 1,
+        "UnsupportedProgramPartitioning": 1,
+        "UnsupportedProgramRevision": 1,
         "UnsupportedScalarFunction": 1,
         "UnsupportedSourceDestination": 1,
         "UnsupportedSourceStatement": 1,
@@ -37396,7 +37455,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 156,
+        "try": 158,
         "catch": 9
       },
       "imports": [
@@ -37411,7 +37470,8 @@
         "CatalogDefinitionChanged": 1,
         "CatalogIdentityConflict": 6,
         "CatalogKindMismatch": 1,
-        "CatalogNameNotFound": 5,
+        "CatalogNameNotFound": 6,
+        "DataflowIdentityConflict": 1,
         "DataflowRevisionNotFound": 1,
         "Forbidden": 1,
         "HistoricalObjectNotSelected": 1,
@@ -37426,7 +37486,8 @@
         "UnsupportedConstruct": 2,
         "UnsupportedHistoricalKind": 4,
         "UnsupportedHistoricalTransaction": 1,
-        "UnsupportedManagedTable": 2,
+        "UnsupportedManagedTable": 3,
+        "UnsupportedProgramRevision": 1,
         "UnsupportedSourceStatement": 1
       },
       "outcomes": {},
@@ -37446,7 +37507,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 155,
+        "try": 175,
         "catch": 2
       },
       "imports": [
@@ -37905,12 +37966,14 @@
     "packages/zig/transit-sql/src/ManagedSql.zig": {
       "errors": {
         "InvalidDataflowRevision": 3,
+        "InvalidDataflowTransition": 1,
         "InvalidSqlSyntax": 3,
         "UnsupportedManagedTable": 1
       },
       "outcomes": {
         "Statement": [
           "create",
+          "program",
           "control"
         ]
       },
@@ -37921,7 +37984,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 24,
+        "try": 28,
         "catch": 1
       },
       "imports": [

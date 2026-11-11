@@ -61,9 +61,10 @@ The native `DirectDocument.Revision` adapter can guard a read of the versioned
 row profile in a serializable common transaction. It compares the exact
 definition and collection data frontier against the acquired cut; the coordinator
 checks that dependency again before committing other writes. Its physical target
-is the existing shared row partition. This adapter does not add SQL
-`BEGIN ATOMIC`, execute installed application programs, or admit partitioned
-tree Documents. See the [direct transaction contract](../../../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action)
+is the existing shared row partition. The installed
+[Queue program profile](../queries.md#managed-queue-programs) composes guarded
+Document reads through this owner. The adapter does not add standalone SQL
+`BEGIN ATOMIC` or admit partitioned tree Documents. See the [direct transaction contract](../../../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action)
 for the native boundary.
 
 Station's collaborative [Document model](../documents.md) and typed

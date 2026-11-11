@@ -6,6 +6,13 @@ in [the data lifecycle schema](data-lifecycle-v1.schema.json). Shape validation
 does not authorize execution, retain source history, prove a transaction decision
 or establish that a worker computed an honest result.
 
+Ordered Queue programs share this lifecycle through the
+[application-program contract](APPLICATION_PROGRAM_V1.md#installed-sql-profile).
+Their installed public-data SQL profile uses exact Queue acquisition, native
+transaction checkpoints and explicit executor roles. Its publisher inspection
+and unsupported REFRESH/revision controls are distinct from the finite Table
+profile below.
+
 ## Identities and publication
 
 A computation has one stable `DataLifecycle.Object` and immutable

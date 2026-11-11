@@ -516,6 +516,75 @@ work; they do not manufacture a terminal result. See the
 wait closure, retained evidence and duplicate handling.
 
 
+## Managed Queue programs
+
+A Queue program declares ordered computation over one input record at a time.
+Native cohosted SQL accepts lowered `CREATE DATAFLOW ... FROM QUEUE` statements
+against existing resources in the selected database and namespace:
+
+```sql
+CREATE QUEUE requests (id BIGINT NOT NULL);
+CREATE TABLE outcomes (id BIGINT PRIMARY KEY);
+CREATE DATAFLOW process_requests FROM QUEUE requests AS request AS BEGIN
+  BEGIN ATOMIC
+    REQUIRE request.id > 0 ELSE 'InvalidId';
+    INSERT INTO outcomes VALUES (request.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+  END;
+END;
+AUTHORIZE DATAFLOW process_requests AS ROLE CURRENT_ROLE;
+ACTIVATE DATAFLOW process_requests;
+ENQUEUE INTO requests VALUES (1);
+SHOW DATAFLOW process_requests;
+```
+
+CREATE parses and type-checks the complete body, freezes native resource
+definitions and budgets, and publishes an inactive declaration. It does not
+acquire input. AUTHORIZE requires an explicit named role, `CURRENT_ROLE` or
+`SESSION_USER`; the selected role must have current dependency rights, including
+Queue acquisition/settlement and reads of write participants. ACTIVATE records
+the desired active state. Completion of either SQL command does not mean that
+an invocation has completed. The database service discovers active programs and
+resumes their original work after replacement, using the installed public-data
+expression host.
+
+The supported body includes typed LET expressions, one-record SELECT and KV GET,
+REQUIRE, IF, atomic KV puts and Table row assertions, Stream/Queue appends and
+public-data failure handlers. Each successful atomic block commits through the
+native transaction owner. The first committed boundary includes the exact Queue
+ACK and a guarded checkpoint; later blocks do not ACK again. A failed block
+enters its failure handler only after its original abort is known. A SELECT
+returning more than one matching row refuses instead of silently choosing one.
+
+`EXPLAIN CREATE DATAFLOW ... FROM QUEUE ...` returns bound resource definitions,
+uses and budgets without publishing or executing. `SHOW DATAFLOW name` currently
+requires the original publication connection and current metadata access to its
+resources plus control KV read access. Its `dataflow` column contains the frozen
+declaration and observed control head: selected executor, pending invocation,
+checkpoint reference, completed/refused counts and retirement cleanup state.
+These are program observations, not finite Table revisions; `SHOW ... REVISION`
+and REFRESH are unsupported. Independent-reader and Board inspection of Queue
+programs are not supplied by this path.
+
+SUSPEND and RETIRE cancel the saved pending invocation before conditionally
+changing control. A lost control race can leave that original invocation
+cancelled; it cannot redirect cancellation to newer work. RESUME preserves the
+definition and selected executor. Retirement prevents new work and removes
+dependency edges after original cleanup. It does not undo committed outputs or
+delete the retained definition. Native name acceptance prevents a Queue program
+and a finite Table computation from owning the same name.
+
+The installed profile requires a single-partition input Queue and at most 13
+resource dependencies. Per invocation it permits 10,000 native requests, 10,000
+scanned rows, 1 MiB result and continuation encodings, and 16 MiB retained work,
+alongside the native transaction limits. Program syntax retains the shared
+64 KiB source, 4,096-node and depth-32 limits; enclosing SQL and saved-record
+limits also apply. Effects, protected responses/handoffs, response pages and
+whole-program deadlines reject before SQL admission. Source compilation,
+migration binding, definition replacement, PostgreSQL/MySQL and standalone
+remote gateway execution remain unsupported for this profile. The exact
+instruction and recovery semantics are in the
+[ordered-program contract](../../../contracts/APPLICATION_PROGRAM_V1.md).
+
 ## Managed Table computations
 
 A managed Table computation declares a finite SELECT, an existing output Table,

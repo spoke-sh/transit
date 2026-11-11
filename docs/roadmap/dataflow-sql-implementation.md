@@ -1,6 +1,6 @@
 # Milestone 13: lowered DATAFLOW SQL implementation
 
-[Milestone 13](13-sql-and-dataflows.md) · [Roadmap](README.md) · **Status:** Planned
+[Milestone 13](13-sql-and-dataflows.md) · [Roadmap](README.md) · **Status:** In Progress
 
 **Plan basis:** local `main` at
 `5df71dc890d24d1587f1d3e8df3688d931a04c81`, 2026-11-10. This is an implementation
@@ -28,6 +28,33 @@ and [downstream application plan](downstream-application-language.md) retain the
 broader acceptance obligations and earlier evidence. Historical references to
 M12 as the dataflow owner predate the insertion of the source-language milestone;
 this plan uses the current numbering throughout.
+
+## First implementation slice
+
+The initial implementation adds the standalone public-data SQL path from unit 1
+and composes the existing installed host from unit 3. `ApplicationSql` resolves
+native definitions; `ManagedOperations` retains typed Queue declarations and
+explicit-role controls; EXPLAIN and publisher-scoped SHOW expose dependencies
+and observed progress. The native name reservation selects the computation
+object, and rejected publications stop recurring initialization. Control
+settlement distinguishes a lost reply from a saved CAS fenced by later progress.
+
+The public contract is the
+[installed SQL profile](../../contracts/APPLICATION_PROGRAM_V1.md#installed-sql-profile).
+The owning installed proof extends
+[`server_managed_tables.py`](../../tests/interfaces/installation/server_managed_tables.py)
+with lowered bodies, original publication/control response loss, changed-token
+refusal, two atomic boundaries, suspend/restart/resume and retirement. Native
+mixed-participant and cancellation proofs remain with
+[`managed_table.zig`](../../tests/catalog/tables/managed_table.zig).
+Registration of these cases is not an executed pass; qualification results belong
+in the PR and proof ledger after the gates finish.
+
+This slice does not close units 1–4 or M13. Migration dependency evidence,
+independent-reader inspection, broader capability/denial schedules, protected
+host composition, emitter correspondence and retained-history/incremental
+execution keep their gates below. Unsupported installed host features reject
+before SQL admission rather than publishing an unexecutable program.
 
 ## Execution boundary and acceptance journey
 

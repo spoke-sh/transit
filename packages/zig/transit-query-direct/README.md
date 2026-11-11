@@ -41,8 +41,11 @@ cleanup use the original role and never substitute a later one. The permanent
 token fingerprint commits the invocation's declaration, role, lease and input
 claim; loading, advancing and executing progress verify it even after original
 payload closure. Readiness
-rechecks current dependency actions through the native owner. These
-typed operations do not yet supply installed SQL execution.
+rechecks current dependency actions through the native owner. `ApplicationSql`
+resolves lowered SQL resource operands through their public metadata owners,
+binds the complete program and checks the installed host profile before
+publication. The cohosted SQL service composes these operations with the default
+public-data host; see the [installed profile](../../../contracts/APPLICATION_PROGRAM_V1.md#installed-sql-profile).
 
 Programs using `SECRET` or `SECRET_CURRENT` must bind the canonical
 `transit.secret_references` KV definition. Compilation records that requirement;

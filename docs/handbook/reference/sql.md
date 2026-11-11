@@ -54,6 +54,13 @@ the selected interface. Connection, source and sink declarations require native 
 interfaces report that their submitted declaration syntax has not been validated. An incomplete `SHOW`
 requires a catalog name; it is not evidence that a named catalog is unsupported.
 
+Cohosted native sessions support [managed Queue programs](queries.md#managed-queue-programs)
+through lowered `CREATE DATAFLOW ... FROM QUEUE ... AS BEGIN ... END` SQL,
+explicit executor authorization and lifecycle controls. This installed profile
+uses existing native data resources and rejects effects, protected responses and
+whole-program deadlines before admission. Publication, activation and invocation
+completion remain separate observations.
+
 Cohosted native sessions also support [managed Table computations](queries.md#managed-table-computations):
 `CREATE DATAFLOW ... INTO ... AS SELECT ...`, explicit lifecycle controls,
 `SHOW DATAFLOW`, `SHOW DATAFLOW name REVISION number` for retained revision metadata,

@@ -1000,7 +1000,7 @@
         "F111",
         "T181-X003"
       ],
-      "deviations": "Cohosted native SQL supports finite one-Table recomputation into an existing schema-matched Table, durable lifecycle controls, publication wakeups, common Table/KV output/checkpoint decisions and SHOW DATAFLOW name REVISION number metadata. The shared Zig reader streams immutable completed rows under current grants; SQL historical row fetching is not exposed. Incremental or ordered change consumers, multi-source plans, dependent computation chains, PostgreSQL/MySQL and standalone gateways are rejected.",
+      "deviations": "Cohosted native SQL supports finite one-Table recomputation, lifecycle controls and retained revision metadata, plus lowered public-data Queue programs through ApplicationProgram with explicit executor authorization and native transaction checkpoints. Queue inspection currently requires the publisher connection; Queue migrations, effects, protected responses, deadlines and multi-partition input reject. Finite historical rows have a shared Zig reader. Incremental change consumers, multi-source relational plans, dependent finite chains, PostgreSQL/MySQL and standalone gateways remain unsupported. The ANTLR managedCommand root covers finite forms; ordered Queue bodies use the production program parser and its frozen corpus.",
       "corpus_sources": [
         "contracts/sql/corpus/statements.json",
         "contracts/diagnostics/grammar.json"
@@ -1106,7 +1106,7 @@
       ]
     }
   ],
-  "sha256": "6eaece580530191cfcc59e0d04180c09b4b1bf00f4df8530dd9397a134ef9442",
+  "sha256": "6de9085dd8dd5b874634ec16294225448231fe3659c6cc488ce99377a857646b",
   "scope": "States describe public runtime entry points, not helper availability or ISO conformance. Physical codecs describe typed TableSchema admission; ENCODING syntax remains reference-only. An implemented feature covers only the stated deviations and fixtures.",
   "compiler_cases": [
     {

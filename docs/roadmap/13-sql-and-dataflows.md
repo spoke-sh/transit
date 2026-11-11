@@ -33,6 +33,12 @@ The plan incorporates the recent source/compiler/test, application-runtime,
 Stream-slice and storage-admission increments without treating their union as
 completed qualification. Earlier dated plans below retain their scope and evidence.
 
+The [first implementation slice](dataflow-sql-implementation.md#first-implementation-slice)
+connects standalone public-data Queue SQL to that runtime, with exact native
+bindings, frozen SQL recovery, explicit role controls and publisher inspection.
+Migration binding, independent inspection and protected host composition remain
+separate gates; this does not complete the milestone.
+
 [M12](12-application-modules-compilation-and-testing.md) owns recursive `.transit`
 composition, `build.transit`, SQL emission and the shared build/test graph.
 Consume its generated `.sql` through the same managed-definition and lifecycle
