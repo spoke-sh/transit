@@ -611,5 +611,24 @@
     "name": "match-arm-bound-65",
     "source": "CREATE MODULE Route(value Choice) AS BEGIN MATCH value WHEN Choice.C0() THEN WHEN Choice.C1() THEN WHEN Choice.C2() THEN WHEN Choice.C3() THEN WHEN Choice.C4() THEN WHEN Choice.C5() THEN WHEN Choice.C6() THEN WHEN Choice.C7() THEN WHEN Choice.C8() THEN WHEN Choice.C9() THEN WHEN Choice.C10() THEN WHEN Choice.C11() THEN WHEN Choice.C12() THEN WHEN Choice.C13() THEN WHEN Choice.C14() THEN WHEN Choice.C15() THEN WHEN Choice.C16() THEN WHEN Choice.C17() THEN WHEN Choice.C18() THEN WHEN Choice.C19() THEN WHEN Choice.C20() THEN WHEN Choice.C21() THEN WHEN Choice.C22() THEN WHEN Choice.C23() THEN WHEN Choice.C24() THEN WHEN Choice.C25() THEN WHEN Choice.C26() THEN WHEN Choice.C27() THEN WHEN Choice.C28() THEN WHEN Choice.C29() THEN WHEN Choice.C30() THEN WHEN Choice.C31() THEN WHEN Choice.C32() THEN WHEN Choice.C33() THEN WHEN Choice.C34() THEN WHEN Choice.C35() THEN WHEN Choice.C36() THEN WHEN Choice.C37() THEN WHEN Choice.C38() THEN WHEN Choice.C39() THEN WHEN Choice.C40() THEN WHEN Choice.C41() THEN WHEN Choice.C42() THEN WHEN Choice.C43() THEN WHEN Choice.C44() THEN WHEN Choice.C45() THEN WHEN Choice.C46() THEN WHEN Choice.C47() THEN WHEN Choice.C48() THEN WHEN Choice.C49() THEN WHEN Choice.C50() THEN WHEN Choice.C51() THEN WHEN Choice.C52() THEN WHEN Choice.C53() THEN WHEN Choice.C54() THEN WHEN Choice.C55() THEN WHEN Choice.C56() THEN WHEN Choice.C57() THEN WHEN Choice.C58() THEN WHEN Choice.C59() THEN WHEN Choice.C60() THEN WHEN Choice.C61() THEN WHEN Choice.C62() THEN WHEN Choice.C63() THEN WHEN Choice.C64() THEN END MATCH; END;",
     "parse": false
+  },
+  {
+    "name": "contextual-name-reference",
+    "source": "CREATE MODULE f(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); END; CREATE MODULE m(name IDENTIFIER) AS BEGIN USE f(name); END; CREATE TARGET default AS BEGIN USE m(NAME 'rows'); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 1
+  },
+  {
+    "name": "contextual-name-constructor",
+    "source": "CREATE DOMAIN NAME AS BIGINT IDENTITY 'example.name'; CREATE MODULE f(value NAME, element TYPE) AS BEGIN CREATE PUBLIC TABLE rows (id $element PRIMARY KEY); INSERT INTO rows VALUES ($value); END; CREATE TARGET default AS BEGIN USE f(NAME(7), TYPE NAME); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 2
+  },
+  {
+    "name": "contextual-type-name",
+    "source": "CREATE DOMAIN NAME AS TEXT IDENTITY 'example.name'; CREATE MODULE Apply(value NAME) AS BEGIN END;",
+    "parse": true
   }
 ]
