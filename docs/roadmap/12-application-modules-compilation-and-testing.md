@@ -33,7 +33,8 @@ for `.transit` modules, builds and tests, alongside its Zig parser. The existing
 [SQL grammar](../../contracts/sql/TransitExtensions.g4) and
 [application interface grammar](../../contracts/application/Application.g4)
 cover different entry points. The source slice supplies full template syntax,
-bounded source formatting and the typed-core extension contract. Its finite
+bounded source formatting, nominal source domains, closed variants, exhaustive
+compile-time matching and typed public Table exports. Its finite
 comparisons do not prove general language correctness. New syntax, static checks, runtime semantics and formal evidence
 have separate acceptance gates throughout this milestone.
 
@@ -469,13 +470,16 @@ comparison, complete embedded-SQL syntax/stage rules, source round-trips and the
 core extension contract. It implements none of the domain/effect forms below.
 
 The [typed-target implementation plan](application-typed-target-implementation.md)
-selects nominal source values, closed variants, exhaustive compile-time matching
-and typed public Table exports. It extends grammar, static semantics, ordinary
+records the delivered nominal source values, closed variants, exhaustive compile-time
+matching and typed public Table exports. The slice extends grammar, static semantics, ordinary
 SQL lowering and selected Lean preservation laws together. The first executable
 case specializes a build for one of two resource kinds; dynamic command inputs,
 query cardinality, runtime domain enforcement and reference-only foreign-key
-exports remain subsequent work. Keep existing compiler/test behavior and
-incomplete qualification records intact. Develop three synthetic design cases
+exports remain subsequent work. The source contract owns the exact symbolic-checking restrictions and Lean premises.
+[Executed qualification](../history/qualification/query.md#typed-target-rebase-and-shared-sql-framing--2026-11-11)
+records the passing component and clean-lane checks and unresolved installation/UI
+and console-latency gates; the slice has not completed its required qualification.
+Keep existing compiler/test behavior and incomplete qualification records intact. Develop three synthetic design cases
 incrementally:
 
 | Case | Language and proof obligation |

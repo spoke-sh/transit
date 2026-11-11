@@ -9,6 +9,261 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Typed-target rebase and shared SQL framing — 2026-11-11
+
+This check asks whether the typed-target slice still composes with the shared SQL
+framer and installed current-v1 runtime after rebasing onto main
+`f0a112ce330b71a2f78ee0db76d08e6397dc397a` (mixed SQL transactions and Queue
+DATAFLOW publication). The eleven feature commits rebased without conflicts;
+range comparison preserved their patches around the upstream editor-framing
+extension. A further regression checks every incomplete prefix of a nested
+source `MATCH`, including partial `END MATCH`, through the same editor framer.
+It must wait for the outer terminator and preserve the following SQL statement.
+This is framing evidence, not source-language execution in the SQL console.
+
+The qualification source is `1fbfacdd867d9107d19ce199508ab82c114bffa0`.
+Compiler/ANTLR checks used clean `a6b66b65e32657ff1554d99b7bd198b37995bc4b`
+immediately before the editor-test-only addition. Later changes update only
+qualification and roadmap documentation. Current semantics remain in the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md) and
+[compiler internals](../../handbook/internals/query-engine.md).
+
+| Executed check | Result and scope |
+| --- | --- |
+| `just test application-compiler` and `just test application-source-grammar` | Passed owning compiler tests and all 126 independent source cases, 95 round trips and seven negative controls. |
+| `just test fuze-types` | Passed the Fuze package tests including the editor/MATCH regression, 46 scalar fixtures and 610 string cases / 16,810 rows. |
+| `just check contracts` | Passed all 20 contract checks against the rebased definition and generated resources. |
+| `just ci clean --lane formal` | Passed all 16 tasks at `1fbfacdd867d`, including three source Lean laws, 48 finite equalities, 16 typed-action/SQL comparisons, four refusals and nine negative controls. The existing updated Queue transaction model and other formal owners also passed. |
+| `just test server-sql-types` | Passed installed native, console, PostgreSQL and MySQL scalar/alias and restart cases. |
+| `just test application-build` | Passed locked offline composition, source-free emitted SQL, exact typed-target rows/counts, restart and revocation. |
+| `just test application-test` | Passed offline isolation, typed rows/counts, refusals, child/remote targets and failure coverage, including the existing 70-row case with its original deadline. |
+
+Commands used pinned `nix develop`; installed checks used `.#ci-experience`.
+A focused installed pass is not a completed installation/UI lane. The successful
+application-test run does not identify the cause of the earlier deadline failures
+or change their recorded outcomes.
+
+The complete formal inventory, clean source identity and retained artifact hashes
+were verified with the run-record verifier. Evidence is under
+`.cache/ci/clean/1fbfacdd867d-transit-ci-u636c25p`; `formal.json` has SHA-256
+`75b3e259e5f42814e953c33afb8e713875da99755e91aca4db057ea16857e675` and
+`preparation.json` has SHA-256
+`3a4093900b01f5085f56b33079de8c76d3c3c4427199d9e64af3ec7baa4d5f0e`.
+The raw log `/tmp/transit-typed-rebase-clean-formal.log` has SHA-256
+`7a4aa4640b3542bc3afcc07a86685572fb8fef0441635d4d3a6011c149272ca1`.
+ANTLR evidence is `.cache/verification/application-source-grammar/run-cqwas8vh`.
+Installed SQL-type evidence is `/tmp/transit-typed-rebase-sql-types.log` (SHA-256
+`f5ebbdc64ef8d7931267936e50d1f54eb638a0387543b6b2aa68f344bb8ea1b6`).
+Application-build evidence is `/tmp/transit-typed-rebase-cli-build.log`
+(`79b64a8c786b9c6b576bf456e703ebe3da6d4b5a73621abf0a2f58a47cac4c54`);
+application-test evidence is `/tmp/transit-typed-rebase-cli-test.log`
+(`f08281c4f29029509efc3944da367470552df8539710c5dbe8bd6ee9a2266513`).
+These are local evidence paths, not portable public artifacts.
+
+Full core, storage/query and installation/UI lanes and the console-latency gate
+have not been rerun after this rebase. Their earlier passes, failures and main
+controls retain the exact pre-rebase sources in the
+[original qualification record](#nominal-source-values-and-typed-table-targets--2026-11-11)
+below. They do not qualify the new base. No budget, deadline, clock/lease guard
+or authority assertion was relaxed; required runtime qualification remains
+incomplete. The scoped Lean laws retain their original premises and limits.
+
+## Nominal source values and typed Table targets — 2026-11-11
+
+This slice implements the scope reviewed in [planning PR #442](https://github.com/spoke-sh/transit/pull/442).
+The question is whether equal scalar IDs from different domains remain distinct
+through module composition and exhaustive specialization, with invalid unselected
+arms rejected before source-free SQL publication. Current semantics belong to the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md),
+[compiler internals](../../handbook/internals/query-engine.md) and
+[verification limits](../../handbook/reference/verification.md).
+
+Implementation source is `2fbcb13351cff85f68031932fc4f0ebdcf56dd77`, based on merged
+main `c3495046171f2716cd32d81484dc30203763b75e`. The clean formal run used
+`93d4eeb0a57dc460a463df55b50f196a2169fdf6`; subsequent changes added three
+contextual-NAME corpus cases and compiler documentation, without changing the
+compiler or formal owners. Commands used the repository's pinned Nix shells.
+Later commits update only qualification and roadmap documentation.
+Focused checks are development evidence; committed clean runs and follow-ups
+identify their source separately. Records below are local evidence, not portable
+public artifacts.
+
+| Executed check | Outcome and boundary |
+| --- | --- |
+| `just test application-compiler`, `just test fuze-types` | Passed owning compiler, allocation-failure and Fuze checks, including the persisted-provenance boundary. Fuze exercised 46 scalar fixtures and 610 string cases / 16,810 rows. |
+| `just test application-source-grammar` | Passed 126 corpus cases, 95 formatter round trips and seven negative controls against the strict ANTLR oracle. |
+| `just test application-source-types` | Passed three Lean laws, 48 finite equalities, 16 independent typed-action/SQL comparisons, four actual compiler refusals and nine negative controls. |
+| SQL and application-interface grammar regressions | Passed independent AST/corpus and interface-model comparisons; these are syntax/model evidence, not installed execution. |
+| `just test application-build` | Passed real offline build/check/cache, source removal before SQL execution, exact rows/counts, restart and revocation; repeated successfully in the retained clean checkout at `2fbcb13351cf`. |
+| `just test application-test` | An earlier full focused run passed. Later candidate and main controls failed the existing 70-row deadline; the new typed cases passed before that failure. Those attempts remain failed, as recorded below. |
+| `just check fast`, `just check contracts` | Passed all 70 fast checks and 20 contract checks. |
+| Locked handbook install and `just transit-docs::check` | Passed formatting/lint, strict TypeScript, 11 content/navigation tests and production build. Dependency installation alone is not a pass. |
+| `just ci clean --lane formal` | Passed all 16 tasks at `93d4eeb0a57d`, including the new source laws and existing SQL/TLA+/correspondence owners. |
+| `just ci clean --lane core` | Passed all 28 tasks at `2fbcb13351cf`: full native checks, properties/simulations, package/SDK/runtime boundaries, SQL wire contracts, Station/storage/service, authorization, upgrade, callers, inspection and state. |
+| `just ci clean --lane storage-query` | Passed all 36 tasks at `2fbcb13351cf`, including compiler/grammar/runner, Fuze, storage, direct transactions and workload results, Documents, queries, publication and Catalog growth/recovery. |
+
+The Lean model covers one scalar payload per constructor and ordered typed Table
+insert actions. Its premises include a typed environment, complete unique arm
+coverage and explicit Table bindings. The axiom audit admits only the reviewed
+`propext` and selection-specific `Quot.sound` dependencies. These results do not
+prove the Zig parser/compiler, arbitrary SQL, native storage, authorization,
+effects or liveness. No new temporal transition or TLA+ model is introduced.
+Source domain annotations are erased after checking; direct SQL retains its
+ordinary scalar semantics. Internal checked evidence is excluded from persisted
+provenance, and this slice does not change the native definition or artifact schema.
+
+An earlier development `application-test` run hit its existing 30-second deadline
+in the existing 70-row case, after the new typed cases passed. The unchanged full
+retry passed, with all 70 rows and terminal coverage. The original failure remains
+in `/tmp/transit-typed-cli-test.log` (SHA-256
+`a99e8766a9f1ff0182e3d76e1306f620e7bc4e44fd3eebe42c948a9f66077b11`);
+the successful retry is `/tmp/transit-typed-cli-test-retry.log`
+(`9108dc2f0c5b550db502b77bc641e84e0f02f924552958ed3dab5b3d9d06bf57`).
+The exact compiled revision of that passing run was not separately captured;
+it is development evidence, not a clean committed-HEAD result.
+The cause was not established; neither deadline nor workload was relaxed.
+
+The first clean installation/UI attempt at `2fbcb13351cf` passed ten tasks,
+including installed SQL types, then failed `managed-tables`: an atomic application
+transaction returned native `ClockUnavailable` / caller `AuthorityUnavailable`.
+The original fixture remains `/var/tmp/transit-table-managed-iajefcyh`, with the
+clean checkout and partial lane records at `/var/tmp/transit-ci-9txvdvdq`.
+A fresh-fixture retry of the complete owning `just test managed-tables` command,
+using that clone's original pinned shell/package directory, passed native recovery,
+effects, cancellation and installed SQL revision/boundary checks. Its log is
+`/tmp/transit-typed-managed-retry-ci-env.log` (SHA-256
+`22f77b403fc19c1807ace05f5bc74b43d84cd15c09980d94adfcf43a8f4b67a7`).
+The failed clean lane is not relabeled as passed. Clock-error/lease guards and
+transaction limits were unchanged; a later synchronized-clock observation does
+not establish the cause of the earlier refusal.
+An intervening retry with a different package-cache environment was interrupted
+during compilation, before fixture execution. Its log remains
+`/tmp/transit-typed-managed-retry.log`; that interruption supplies no runtime pass.
+
+A second fresh clean installation/UI attempt at the same source passed eight
+tasks, including `server-sql-types`, then failed `server-scenarios`. Its foreground
+`SELECT * FROM items` returned SQL `Canceled` (`57014`) while observing the
+successor of a source update. The original attempt had passed this same scenario.
+The second attempt overlapped other owned clean lanes; its timings are not
+isolated performance qualification. No cancellation or deadline rule was changed.
+The failed fixture remains `/var/tmp/transit-server-proof-wlw3k97d`; checkout and
+lane records remain `/var/tmp/transit-ci-sr1l96gj`. The raw log
+`/tmp/transit-typed-clean-installation-retry.log` has SHA-256
+`79d6a29b8742cc9935def3214fd61ce554e0eaea4d4802b04b2a02e4dcfb18c1`.
+Neither clean installation/UI attempt completed its full inventory.
+
+Separate installation follow-ups in the original retained clean checkout passed
+`migrate-lifecycle` and `application-build` at `2fbcb13351cf`. The next
+`application-test` again reached the existing 30-second deadline in its 70-row
+case, after 48 completed actions; the preceding new typed-target cases passed.
+This attempt overlapped the core and storage lanes. The earlier complete
+application-test pass remains evidence for its own run, not a pass for this
+attempt. Records are in
+`/var/tmp/transit-ci-9txvdvdq/src/.cache/ci/runs/installation-followups-k9okbcxp`;
+`record.json` has SHA-256
+`b4e34182cdcff530b9db03e77481ed1b76e9efe78d1b27127bf0bacfe765644e`.
+These are owning-task follow-ups, not a completed clean installation/UI lane.
+
+A further follow-up record passed ten tasks from `application-test-host` through
+Workbench, including source declarations, direct-service faults, SQL lifetimes,
+SQL/local authentication, Board inspection/query and local Station launch.
+`transit-board::computations-test` then failed before Board inspection in the
+same native managed application transaction at input 7, with `ClockUnavailable`
+/ `AuthorityUnavailable`. Its fixture remains
+`/var/tmp/transit-table-managed-board-d3bps060`. The record is
+`/var/tmp/transit-ci-9txvdvdq/src/.cache/ci/runs/installation-followups-2rgq0axj/record.json`
+(SHA-256 `3fd8e422d8e186f56907c376fd1ef9274a1d8beca752e36280879810b5b47d7b`).
+This result supplies no completed Board-computation proof. The clock/lease guard
+and original uncertain transaction outcome remain intact.
+
+The unchanged `just test managed-tables` command also failed on merged main
+`c3495046171f` in the pinned `ci-experience` shell, at the same atomic input 7
+with native `ClockUnavailable` / caller `AuthorityUnavailable`. Provisioning,
+preparation and recovery had passed. This establishes that the refusal is not
+unique to the implementation branch; it does not identify the clock/lease cause
+or supply a runtime pass. The original main fixture remains
+`/var/tmp/transit-table-managed-ecz3_xuq`. Raw log
+`/tmp/transit-typed-baseline-managed.log` has SHA-256
+`644581dc933b26ad5e21e644a1e0bb16650b4f9f5ff1c472d73b7d5ad18991cc`.
+The clean main revision and exact node/caller executable hashes are retained in
+`/tmp/transit-typed-baseline-managed-identity.json`
+(`0981a650094f0e224270579329e887644bc9c36ffe6d891fc8896b7a34eabcaf`).
+
+The remaining `test::declarative-browser` follow-up passed at `2fbcb13351cf`,
+including the production HTTP/WebSocket listener, origin/proxy-peer checks,
+identity population/pagination, logout/restriction/expiry and watch revocation.
+Its complete record and exact log hash were checked under
+`/var/tmp/transit-ci-9txvdvdq/src/.cache/ci/runs/installation-followups-axsn37jg`;
+`record.json` has SHA-256
+`4a277f115c599702485b4584debff19b58bd39feb4dd0772e5c90bd99c22879a`.
+This is the remaining owning-task result, not a complete installation/UI lane.
+
+The unchanged 70-row `application-test` case also failed on merged main
+`c3495046171f`, at the same 30-second limit after 49 actions. Its emitted suite
+SQL digest (`8cdf653dc4906b080e83c4e0ca5e070baa18417516ca442e9ddc01bd09ca09c6`)
+and case/source digests match the candidate failure; input digests correctly
+retain distinct compiler provenance. The main CLI digest is
+`28274aafb8057048bd17b4b33a0bd3c9bf3211bd7f977a567e61abb784cb1d33`.
+Raw log `/tmp/transit-typed-baseline-application-test.log` has SHA-256
+`e84a67997b403b7fc153bd4dbea0d90e1df4a95ebac34ef8f15b43145e6c50a2`.
+The shared failure does not establish its cause, excuse a deadline, or convert
+an incomplete result into a pass.
+
+The pinned `ci-experience` console latency gate completed its full workload but
+failed at both implementation and merged-main control sources:
+
+| Source | Violations | DML-write median / budget | Refresh-read median / budget |
+| --- | --- | --- | --- |
+| `2fbcb13351cf` | 43 | 593 ms / 127.2 ms | 409 ms / 99.6 ms |
+| `c3495046171f` | 49 | 792 ms / 127.2 ms | 527 ms / 99.6 ms |
+
+Both retained all 15 cycles and terminal samples. These single runs establish
+neither cause nor a performance comparison/pass. The task's other heavy work
+was kept out of those measurement windows; unrelated user work remained running.
+No budget, repetition, durability setting or required sample was changed.
+Implementation report `.cache/transit-latency/gate/report.json` has SHA-256
+`47e498ed8d5d32ee5fb2557b3f665d94661d882d95037f3c5d58d2e13a476d57`;
+main-control report
+`/var/tmp/transit-typed-baseline-c349/.cache/transit-latency/gate-main-control/report.json`
+has SHA-256 `3239c847cf65784fa0af43736c27ead8be7c6b54455956f61c11b141aea0662f`.
+Original `startup.jsonl` and `statements.jsonl` remain beside each report. The
+console gate is unresolved and prevents a claim of completed required qualification.
+
+Clean formal evidence is under
+`.cache/ci/clean/93d4eeb0a57d-transit-ci-5gt48g_z` in the implementation worktree.
+Its `formal.json` SHA-256 is
+`c5f2f81a89cd35d94d722897d3d3546afaf16e38ced54f84505c2a4de651053c`;
+`preparation.json` is
+`ba99e2cfa655127a859e31124ba85daa63187c0ffbe91444f4869778e6971134`.
+Source-grammar evidence is `.cache/verification/application-source-grammar/run-_oh1_bki`;
+focused typed-law evidence is `.cache/verification/application-source-types/run-ktogwro5`.
+These selected checks do not qualify all SDK/provider profiles or complete M12.
+Dynamic typed results, reference-only exports, guarded admission and temporal
+runtime work remain under [tracker #430](https://github.com/spoke-sh/transit/issues/430).
+
+Clean core evidence is under `.cache/ci/clean/2fbcb13351cf-transit-ci-teke0leg`.
+Its `core.json` SHA-256 is
+`8e4065419fa5df44877c9a4fa77b55797856b7dd75c2b1ceb774fc7d258cef03`;
+`preparation.json` is
+`6bc9d2ef9f919c18fc92ffde4b244c873912663f864e05d583bd92f9f7fff48a`.
+The complete task inventory and exact retained artifact hashes were independently
+checked with the repository's run-record verifier. The raw log is
+`/tmp/transit-typed-clean-core.log` (SHA-256
+`bd7ec4f753dd67da12aa30e64bd16039bf8e21baccc70f6e2b3eb4afed30f613`).
+
+Clean storage/query evidence is under
+`.cache/ci/clean/2fbcb13351cf-transit-ci-19qe3n74`. Its `storage-query.json`
+SHA-256 is `22497c1bdac88a1569298db51fb2203e85b80fb1a50d779e275ae5cd4ce6cfc5`;
+`preparation.json` is
+`8e4346427974fa75b1888e764b5136487c20341bea739ccacad4f4f1e764fa7c`.
+The run-record verifier checked the complete inventory and exact retained artifacts.
+The final Catalog task initialized all 139 resources, verified their typed values
+and original receipt, and repeated readback after a forced node restart. Its
+1,301 typed Catalog calls preserve the original growth/recovery workload.
+The raw lane log is `/tmp/transit-typed-clean-storage.log` (SHA-256
+`c3c47ef9f09d712360550b0c6d78b1c544f999b2517fa193652bc6e984f08c88`).
+This completed lane does not resolve the installation/UI or console-latency gates.
+
 ## SQL Stream groups and authenticated offsets — 2026-11-03
 
 This review unit implements M6 Batch 3's grouped progress handoff and 4a.1's

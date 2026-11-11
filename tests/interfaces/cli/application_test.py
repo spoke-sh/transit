@@ -120,6 +120,16 @@ def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
         root = Path(temporary)
+        typed = root / 'typed-targets'
+        shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
+        typed_report = invoke(cli, typed)
+        assert typed_report['complete'] and [case['status'] for case in typed_report['cases']] == ['passed', 'passed']
+        assert [case['observation']['rows'] for case in typed_report['cases']] == [2, 1]
+        routing = (typed / 'routing.transit').read_text()
+        source(typed, 'routing.transit', routing.replace('INSERT INTO $sites VALUES ($id)', 'INSERT INTO $machines VALUES ($id)'))
+        refused = invoke(cli, typed, expected=1)
+        assert refused['outcome'] == 'not_submitted' and 'cases' not in refused
+        assert not (typed / '.transit').exists()
         project = root / 'project'
         shutil.copytree(ROOT / 'tests/fixtures/application-tests', project)
         oracle = (project / 'expected.sql').read_text()

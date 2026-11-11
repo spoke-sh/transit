@@ -1,11 +1,13 @@
 //! Proposed schemas only. No live catalog, authorization or execution authority.
 const std = @import("std");
 const f = @import("transit_fuze");
-const Entry = struct { name: []const u8, schema: f.TableSchema.Schema };
+const types = @import("SourceTypes.zig");
+pub const Entry = types.Table;
 const Self = @This();
 output: std.mem.Allocator,
 scratch: std.mem.Allocator,
-entries: std.ArrayList(Entry) = .empty,
+owner: usize = 0,
+entries: std.ArrayList(*const Entry) = .empty,
 pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
     try f.Sql.validateText(sql);
     var parser = try f.SqlTyped.init(self.scratch, sql, location);
@@ -18,7 +20,11 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
         for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, create.name)) return error.ConflictingModuleInstance;
         const schema = try create.bind(self.entries.items.len + 1);
         const copied = try schema.clone(self.output);
-        try self.entries.append(self.output, .{ .name = try self.output.dupe(u8, create.name), .schema = copied.schema });
+        const entry = try self.output.create(Entry);
+        const domains = try self.output.alloc(?@import("Graph.zig").Ref, create.columns.len);
+        @memset(domains, null);
+        entry.* = .{ .name = try self.output.dupe(u8, create.name), .schema = copied.schema, .domains = domains, .owner = self.owner };
+        try self.entries.append(self.output, entry);
         return schema.fingerprint();
     }
     if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
@@ -47,7 +53,7 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
     }
     return error.UnsupportedBuildStatement;
 }
-fn find(self: Self, name: []const u8) !Entry {
+pub fn find(self: Self, name: []const u8) !*const Entry {
     for (self.entries.items) |entry| if (std.mem.eql(u8, entry.name, name)) return entry;
     return error.UnknownBuildTable;
 }
@@ -59,10 +65,7 @@ pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
     for (entry.schema.columns, semantics[0..entry.schema.columns.len]) |column, *item| item.* = column.semantics;
     var prepared = try f.LogicalPrepared.initSemantics(self.scratch, sql, entry.name, try entry.schema.rowType(&fields), try entry.schema.fingerprint(), null, .transit, semantics[0..entry.schema.columns.len]);
     defer prepared.deinit();
-    var bound = try prepared.bind(self.scratch, entry.name, try entry.schema.rowType(&fields), try entry.schema.fingerprint(), &.{}, null);
-    defer bound.deinit();
-    const schema = try bound.plan.outputSchema(&fields);
-    return (try schema.clone(self.output)).type;
+    return (try prepared.outputSchema(self.output)).type;
 }
 
 /// Require a TYPE source operand to occupy a type position in the ordinary
@@ -72,7 +75,7 @@ pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
 pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: []const bool, location: *f.Sql.Location) !void {
     if (std.mem.indexOfScalar(bool, sites, true) == null) return;
     var roles: [f.Sql.max_statement_bytes]f.Sql.TokenRole = @splat(.unknown);
-    var parser = try f.SqlTyped.init(allocator, sql, location);
+    var parser = try f.SqlTyped.initDialect(allocator, sql, location, true, .transit);
     parser.roles = roles[0..sql.len];
     if (parser.word("CREATE")) {
         _ = try f.TableDdl.syntax(&parser, null);

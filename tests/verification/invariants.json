@@ -2941,6 +2941,34 @@
       "model": null,
       "qualification": "Required correspondence and consumer checks; executed scope belongs in docs/history/qualification/query.md. Registration alone establishes no pass.",
       "required_tier": "ordinary"
+    },
+    {
+      "id": "SOURCE-02",
+      "claim": "Nominal source operands and exhaustive compile-time selection preserve the selected ordered typed Table actions before scalar SQL erasure",
+      "owner": "contracts/APPLICATION_SOURCE_V1.md",
+      "implementation": [
+        "packages/zig/transit-compiler/src/SourceTypes.zig",
+        "packages/zig/transit-compiler/src/TypedOperands.zig",
+        "packages/zig/transit-compiler/src/Compiler.zig"
+      ],
+      "profile": "transit_source_v1/nominal-public-Table-specialization",
+      "tasks": [
+        "test::application-source-types",
+        "test::application-source-grammar",
+        "test::application-compiler",
+        "test::application-build",
+        "test::application-test"
+      ],
+      "scenarios": [
+        "Distinct Machine/Site nominal identities with equal raw ID 7",
+        "All reached MATCH arms checked with symbolic payload types; wrong domains and Table signatures refuse",
+        "Exact typed operands, independent emitted SQL, real counts and complete rows",
+        "Three audited Lean laws and sixteen finite source/action comparisons; swapped domain/value/binding and incomplete-proof controls"
+      ],
+      "limits": "Lean models exact source types, de Bruijn binding, one scalar payload per constructor, total checked arm tables and ordered inserts. It assumes well-typed environments and Table bindings; it does not prove the parser, source checker, complete Zig evaluator, SQL/runtime, authority, progress or effects. Finite implementation comparisons are separate from the laws.",
+      "model": "contracts/application-source/TypedTarget.lean",
+      "qualification": "Required checks; executed scope belongs in docs/history/qualification/query.md. Registration or an incomplete run establishes no pass.",
+      "required_tier": "ordinary"
     }
   ]
 }

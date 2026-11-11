@@ -42,27 +42,35 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                 .interface => "INTERFACE",
                 .target => "TARGET",
                 .test_target => "TEST TARGET",
+                .domain => "DOMAIN",
+                .variant => "VARIANT",
             }, def.name });
             if (def.kind == .module or def.kind == .interface) {
                 try writer.writeByte('(');
                 for (def.parameters, 0..) |param, n| {
                     if (n != 0) try writer.writeAll(", ");
                     try writer.print("{s} ", .{param.name});
-                    switch (param.kind) {
-                        .integer => try writer.writeAll("BIGINT"),
-                        .text => try writer.writeAll("TEXT"),
-                        .boolean => try writer.writeAll("BOOLEAN"),
-                        .identifier => try writer.writeAll("IDENTIFIER"),
-                        .type => try writer.writeAll("TYPE"),
-                        .module => |module_name| {
-                            try writer.writeAll("MODULE ");
-                            try self.name(module_name);
-                        },
-                    }
+                    try self.kind(param.kind);
                 }
                 try writer.writeByte(')');
             }
-            if (def.kind != .interface) {
+            if (def.domain) |domain| {
+                try writer.print(" AS {s} IDENTITY ", .{scalarName(domain.base)});
+                try self.string(domain.identity);
+            } else if (def.kind == .variant) {
+                try writer.writeAll(" AS (");
+                for (def.constructors, 0..) |constructor, n| {
+                    if (n != 0) try writer.writeAll(", ");
+                    try writer.print("{s}(", .{constructor.name});
+                    for (constructor.fields, 0..) |field, j| {
+                        if (j != 0) try writer.writeAll(", ");
+                        try writer.print("{s} ", .{field.name});
+                        try self.kind(field.kind);
+                    }
+                    try writer.writeByte(')');
+                }
+                try writer.writeByte(')');
+            } else if (def.kind != .interface) {
                 try writer.writeAll(" AS BEGIN\n");
                 try self.body(def.body, 1);
                 try writer.writeAll("END");
@@ -82,6 +90,7 @@ fn string(self: Self, value: []const u8) !void {
 fn name(self: Self, value: s.Name) !void {
     if (value.qualifier) |qualifier| try self.w.print("{s}.", .{qualifier});
     try self.w.writeAll(value.member);
+    if (value.constructor) |constructor| try self.w.print(".{s}", .{constructor});
 }
 fn precedence(op: s.Binary) u8 {
     return switch (op) {
@@ -108,6 +117,11 @@ fn expr(self: Self, value: *s.Expr, depth: usize, parent: u8, right: bool) anyer
             .boolean => "BOOLEAN",
         }}),
         .reference => |v| try self.name(v),
+        .named_type => |v| {
+            try self.w.writeAll("TYPE ");
+            try self.name(v);
+        },
+        .construct => |v| try self.callDepth(v, depth + 1),
         .unary => |v| {
             try self.w.writeAll(if (v.negative) "- " else "NOT ");
             // Preserve the distinction between a signed literal and unary negation.
@@ -140,11 +154,15 @@ fn expr(self: Self, value: *s.Expr, depth: usize, parent: u8, right: bool) anyer
     }
 }
 fn call(self: Self, value: s.Call) !void {
+    return self.callDepth(value, 0);
+}
+fn callDepth(self: Self, value: s.Call, depth: usize) anyerror!void {
+    if (depth >= 64) return error.SourceDepthLimit;
     try self.name(value.name);
     try self.w.writeByte('(');
     for (value.arguments, 0..) |arg, i| {
         if (i != 0) try self.w.writeAll(", ");
-        try self.expr(arg, 0, 0, false);
+        try self.expr(arg, depth + 1, 0, false);
     }
     try self.w.writeByte(')');
 }
@@ -160,6 +178,32 @@ fn body(self: Self, statements: []const s.Statement, depth: usize) anyerror!void
             .use => |v| {
                 try self.w.writeAll("USE ");
                 try self.call(v);
+                if (v.result) |result| try self.w.print(" AS {s}", .{result});
+            },
+            .table_export => |v| {
+                try self.w.writeAll("EXPORT TABLE ");
+                if (v.operand) try self.w.writeByte('$');
+                try self.name(v.source);
+                try self.w.print(" AS {s}", .{v.alias});
+            },
+            .match => |v| {
+                try self.w.writeAll("MATCH ");
+                try self.expr(v.value, 0, 0, false);
+                try self.w.writeByte('\n');
+                for (v.arms) |arm| {
+                    try self.indent(depth);
+                    try self.w.writeAll("WHEN ");
+                    try self.name(arm.constructor);
+                    try self.w.writeByte('(');
+                    for (arm.names, 0..) |binder, i| {
+                        if (i != 0) try self.w.writeAll(", ");
+                        try self.w.writeAll(binder);
+                    }
+                    try self.w.writeAll(") THEN\n");
+                    try self.body(arm.body, depth + 1);
+                }
+                try self.indent(depth);
+                try self.w.writeAll("END MATCH");
             },
             .conditional => |v| {
                 try self.w.writeAll("IF ");
@@ -221,5 +265,41 @@ fn template(self: Self, value: s.Template.Syntax) !void {
         if (token.kind == .word and !s.Template.numericWord(self.text, token)) {
             for (raw) |byte| try self.w.writeByte(std.ascii.toUpper(byte));
         } else try self.w.writeAll(raw);
+    }
+}
+
+fn scalarName(value: s.ScalarType) []const u8 {
+    return switch (value) {
+        .bigint => "BIGINT",
+        .text => "TEXT",
+        .boolean => "BOOLEAN",
+    };
+}
+fn kind(self: Self, value: s.Kind) anyerror!void {
+    switch (value) {
+        .integer => try self.w.writeAll("BIGINT"),
+        .text => try self.w.writeAll("TEXT"),
+        .boolean => try self.w.writeAll("BOOLEAN"),
+        .identifier => try self.w.writeAll("IDENTIFIER"),
+        .type => try self.w.writeAll("TYPE"),
+        .named => |v| try self.name(v),
+        .module => |v| {
+            try self.w.writeAll("MODULE ");
+            try self.name(v);
+        },
+        .table => |columns| {
+            try self.w.writeAll("TABLE(");
+            for (columns, 0..) |column, i| {
+                if (i != 0) try self.w.writeAll(", ");
+                try self.w.print("{s} ", .{column.name});
+                switch (column.type) {
+                    .scalar => |v| try self.w.writeAll(scalarName(v)),
+                    .named => |v| try self.name(v),
+                }
+                if (column.primary) try self.w.writeAll(" PRIMARY KEY") else if (!column.nullable) try self.w.writeAll(" NOT NULL");
+                if (!std.mem.eql(u8, column.collation, "none")) try self.w.print(" COLLATE {s}", .{column.collation});
+            }
+            try self.w.writeByte(')');
+        },
     }
 }

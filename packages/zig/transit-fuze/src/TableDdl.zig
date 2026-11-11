@@ -14,6 +14,8 @@ pub const Create = struct {
     if_not_exists: bool,
     native_binding: ?@import("NativeBinding.zig").Kind = null,
     columns: []const s.Column,
+    /// Source coordinates only; excluded from schema identity and codecs.
+    column_type_spans: []const Parser.Literal.Span = &.{},
     primary_key: []const s.ColumnId,
     integrity: Constraints.Integrity = .{},
     foreign_keys: []const ForeignKey.Syntax = &.{},
@@ -91,10 +93,12 @@ fn compileContext(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Sche
     const statement = try input.bindWithForeignKeys(arena.allocator(), basis, location, resolver);
     return .{ .arena = arena, .statement = statement };
 }
-const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool };
+const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool, type_span: Parser.Literal.Span };
 fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
     const name = try parser.named(.proposed);
+    const type_start = parser.lexer.start;
     const data_type = try parser.dataType();
+    const type_span: Parser.Literal.Span = .{ .start = type_start, .end = parser.previous_end };
     var value: s.Column = .{ .id = id, .name = name, .type = data_type.type, .max_characters = data_type.max_characters };
     var seen_null = false;
     var seen_default = false;
@@ -154,7 +158,7 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         if (explicit_nullable) return error.NullablePrimaryKey;
         value.nullable = false;
     }
-    return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable };
+    return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable, .type_span = type_span };
 }
 fn semanticBytes(parser: *Parser, expected: @import("Types.zig").Type) ![]const u8 {
     const cell = try parser.value(expected);
@@ -199,6 +203,7 @@ fn create(parser: *Parser) !Create {
 pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool) !Create {
     try parser.require(.left);
     var columns: std.ArrayList(s.Column) = .empty;
+    var type_spans: std.ArrayList(Parser.Literal.Span) = .empty;
     var explicit_null: [s.max_columns]bool = @splat(false);
     var keys: std.ArrayList(s.ColumnId) = .empty;
     var key_names: std.ArrayList(Reference) = .empty;
@@ -227,6 +232,7 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
             const parsed = try column(parser, columns.items.len + 1);
             explicit_null[columns.items.len] = parsed.explicit_nullable;
             try columns.append(parser.allocator, parsed.value);
+            try type_spans.append(parser.allocator, parsed.type_span);
             if (parsed.primary) {
                 if (primary) return error.MultiplePrimaryKeys;
                 primary = true;
@@ -244,7 +250,7 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
         for (keys.items) |id| if (id == columns.items[i].id) return error.DuplicatePrimaryKeyColumn;
         try keys.append(parser.allocator, columns.items[i].id);
     }
-    var result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator), .foreign_keys = try foreign_keys.toOwnedSlice(parser.allocator) };
+    var result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .column_type_spans = try type_spans.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator), .foreign_keys = try foreign_keys.toOwnedSlice(parser.allocator) };
     // Validate all pure shape/default/constraint rules before the catalog assigns
     // a real object identity. The provisional identity is never returned/stored.
     const basis = try result.bindShape(1);
@@ -470,4 +476,17 @@ fn drop(parser: *Parser) !@FieldType(Syntax, "drop") {
 
 test {
     _ = @import("table_ddl_test.zig");
+}
+
+test "column type source spans preserve ordinary schema identity" {
+    const text = "CREATE TABLE items (id BIGINT PRIMARY KEY, note TEXT COLLATE UTF8_BINARY)";
+    var parsed = try compile(std.testing.allocator, text, null, null);
+    defer parsed.deinit();
+    const declaration = parsed.statement.create;
+    try std.testing.expectEqual(2, declaration.column_type_spans.len);
+    try std.testing.expectEqualStrings("BIGINT", text[declaration.column_type_spans[0].start..declaration.column_type_spans[0].end]);
+    try std.testing.expectEqualStrings("TEXT", text[declaration.column_type_spans[1].start..declaration.column_type_spans[1].end]);
+    var without_source = declaration;
+    without_source.column_type_spans = &.{};
+    try std.testing.expectEqualSlices(u8, &try (try declaration.bind(1)).fingerprint(), &try (try without_source.bind(1)).fingerprint());
 }

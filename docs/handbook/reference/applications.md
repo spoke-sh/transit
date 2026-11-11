@@ -49,6 +49,24 @@ modules and unselected branches. Name resolution, types, target placement and
 execution remain separate stages. A bounded compiler-package formatter supports
 independent source round-trip checks; it is not a CLI command.
 
+Nominal source domains distinguish values with equal underlying scalars. For
+example, `CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id';`
+and a separate `SiteId` require explicit constructors and reject cross-domain
+substitution. Closed variants such as `Target.Machine(MachineId(7))` select an
+exhaustive compile-time MATCH. Every reached arm is typechecked, including those
+not emitted. This does not dispatch on a live request or prove that ID `7` exists.
+
+Named instances (`USE Rows(...) AS machines;`) expose typed public Table handles
+through `EXPORT TABLE $name AS rows;`. A parameter such as
+`rows TABLE(id MachineId PRIMARY KEY)` checks the complete admitted signature.
+Assignments and equality predicates preserve the column's nominal type even
+when SQL uses a literal Table name. Final SQL contains ordinary scalar values;
+direct SQL retains its ordinary type and authorization rules. The
+[source specialization contract](../../../contracts/APPLICATION_SOURCE_V1.md#typed-source-specialization)
+owns exact syntax, symbolic-checking limits and proof premises. The
+[synthetic example](../../../tests/fixtures/application-typed-targets/README.md)
+shows both resource kinds with raw ID `7` and isolated Table tests.
+
 This profile rejects runtime-private storage, privileged procedures, effects,
 Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.

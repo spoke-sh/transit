@@ -19,7 +19,8 @@
       "definitions.0.kind": "interface",
       "definitions.0.parameters.5.kind.module": {
         "qualifier": "lib",
-        "member": "inner"
+        "member": "inner",
+        "constructor": null
       }
     }
   },
@@ -245,10 +246,9 @@
     "at": "trailing"
   },
   {
-    "name": "invalid-type-expression",
+    "name": "named-type-expression",
     "source": "CREATE MODULE m() AS BEGIN USE f(TYPE DECIMAL); END;",
-    "parse": false,
-    "at": "DECIMAL"
+    "parse": true
   },
   {
     "name": "invalid-refusal",
@@ -411,5 +411,224 @@
     "parse": false,
     "source": "CREATE MODULE m() AS BEGIN SELECT * FROM t JOIN; END;",
     "at": "JOIN"
+  },
+  {
+    "name": "typed-targets",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); WHEN Target.Site(id) THEN INSERT INTO $sites VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 6,
+    "sql_expected": [
+      "CREATE TABLE \"machines\" ( ID BIGINT PRIMARY KEY )",
+      "CREATE TABLE \"sites\" ( ID BIGINT PRIMARY KEY )",
+      "INSERT INTO \"machines\" VALUES ( 7 )",
+      "INSERT INTO \"sites\" VALUES ( 7 )",
+      "SELECT * FROM MACHINES",
+      "SELECT * FROM SITES"
+    ]
+  },
+  {
+    "name": "duplicate-domain",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE DOMAIN Again AS BIGINT IDENTITY 'example.machine-id'; CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "DuplicateDomainIdentity"
+  },
+  {
+    "name": "nominal-raw",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; INSERT INTO machines VALUES (7); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceDomainMismatch"
+  },
+  {
+    "name": "match-missing",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "NonExhaustiveSourceMatch"
+  },
+  {
+    "name": "match-duplicate",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); WHEN Target.Machine(id) THEN INSERT INTO $sites VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "DuplicateSourceMatchArm"
+  },
+  {
+    "name": "match-wrong-unselected",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); WHEN Target.Site(id) THEN INSERT INTO $machines VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceDomainMismatch"
+  },
+  {
+    "name": "match-capture",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); WHEN Target.Site(sites) THEN INSERT INTO $sites VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), machines.rows, sites.rows); USE Route(Target.Site(SiteId(7)), machines.rows, sites.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "DuplicateSourceName"
+  },
+  {
+    "name": "wrong-handle",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Route(value Target, machines TABLE(id MachineId PRIMARY KEY), sites TABLE(id SiteId PRIMARY KEY)) AS BEGIN MATCH value WHEN Target.Machine(id) THEN INSERT INTO $machines VALUES ($id); WHEN Target.Site(id) THEN INSERT INTO $sites VALUES ($id); END MATCH; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Route(Target.Machine(MachineId(7)), sites.rows, machines.rows); USE Route(Target.Site(SiteId(7)), sites.rows, machines.rows); SELECT * FROM machines; SELECT * FROM sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "TableInterfaceMismatch"
+  },
+  {
+    "name": "export-missing",
+    "source": "CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Bad(name IDENTIFIER) AS BEGIN EXPORT TABLE $name AS rows; END; CREATE TARGET default AS BEGIN USE Bad(NAME 'missing'); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnknownBuildTable"
+  },
+  {
+    "name": "export-foreign",
+    "source": "CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Bad(name IDENTIFIER) AS BEGIN USE Rows(name, TYPE BIGINT); EXPORT TABLE $name AS rows; END; CREATE TARGET default AS BEGIN USE Bad(NAME 't'); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "ForeignTableExport"
+  },
+  {
+    "name": "domain-nullable",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element); EXPORT TABLE $name AS rows; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnsupportedNominalColumn"
+  },
+  {
+    "name": "nested-variant",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE VARIANT Nested AS (Wrap(value Target)); CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "NotSourceDomain"
+  },
+  {
+    "name": "nominal-order",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Read(id MachineId) AS BEGIN SELECT * FROM machines WHERE id < $id; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; USE Read(MachineId(7)); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnsupportedNominalOperation"
+  },
+  {
+    "name": "nominal-aggregate",
+    "source": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'machines', TYPE MachineId) AS machines; USE Rows(NAME 'sites', TYPE SiteId) AS sites; SELECT SUM(id) FROM machines; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnsupportedNominalOperation"
+  },
+  {
+    "name": "imported-types-forwarding",
+    "source": "IMPORT ids FROM 'types.transit'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Forward(name IDENTIFIER) AS BEGIN USE Rows(name, TYPE ids.MachineId) AS inner; EXPORT TABLE inner.rows AS forwarded; END; CREATE MODULE Put(rows TABLE(id ids.MachineId PRIMARY KEY), value ids.Target) AS BEGIN MATCH value WHEN ids.Target.Machine(id) THEN INSERT INTO $rows VALUES ($id); WHEN ids.Target.Site(other) THEN SELECT * FROM $rows; END MATCH; END; CREATE TARGET default AS BEGIN USE Forward(NAME 'machines') AS app; USE Put(app.forwarded, ids.Target.Machine(ids.MachineId(7))); END;",
+    "files": [
+      {
+        "path": "types.transit",
+        "text": "CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); "
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "steps": 2
+  },
+  {
+    "name": "domain-base-bigint",
+    "source": "CREATE DOMAIN Id AS BIGINT IDENTITY 'example.BIGINT'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Put(rows TABLE(id Id PRIMARY KEY), id Id) AS BEGIN IF id = id THEN INSERT INTO $rows VALUES ($id); SELECT * FROM $rows WHERE id <> $id; END IF; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id) AS items; USE Put(items.rows, Id(-7)); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "domain-base-text",
+    "source": "CREATE DOMAIN Id AS TEXT IDENTITY 'example.TEXT'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Put(rows TABLE(id Id PRIMARY KEY), id Id) AS BEGIN IF id = id THEN INSERT INTO $rows VALUES ($id); SELECT * FROM $rows WHERE id <> $id; END IF; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id) AS items; USE Put(items.rows, Id('雪''s')); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "domain-base-boolean",
+    "source": "CREATE DOMAIN Id AS BOOLEAN IDENTITY 'example.BOOLEAN'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Put(rows TABLE(id Id PRIMARY KEY), id Id) AS BEGIN IF id = id THEN INSERT INTO $rows VALUES ($id); SELECT * FROM $rows WHERE id <> $id; END IF; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id) AS items; USE Put(items.rows, Id(TRUE)); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "identity-bound-128",
+    "source": "CREATE DOMAIN Id AS BIGINT IDENTITY 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd';",
+    "parse": true
+  },
+  {
+    "name": "identity-bound-129",
+    "source": "CREATE DOMAIN Id AS BIGINT IDENTITY 'ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd';",
+    "parse": false
+  },
+  {
+    "name": "variant-bound-64",
+    "source": "CREATE VARIANT Choice AS (C0(v BIGINT), C1(v BIGINT), C2(v BIGINT), C3(v BIGINT), C4(v BIGINT), C5(v BIGINT), C6(v BIGINT), C7(v BIGINT), C8(v BIGINT), C9(v BIGINT), C10(v BIGINT), C11(v BIGINT), C12(v BIGINT), C13(v BIGINT), C14(v BIGINT), C15(v BIGINT), C16(v BIGINT), C17(v BIGINT), C18(v BIGINT), C19(v BIGINT), C20(v BIGINT), C21(v BIGINT), C22(v BIGINT), C23(v BIGINT), C24(v BIGINT), C25(v BIGINT), C26(v BIGINT), C27(v BIGINT), C28(v BIGINT), C29(v BIGINT), C30(v BIGINT), C31(v BIGINT), C32(v BIGINT), C33(v BIGINT), C34(v BIGINT), C35(v BIGINT), C36(v BIGINT), C37(v BIGINT), C38(v BIGINT), C39(v BIGINT), C40(v BIGINT), C41(v BIGINT), C42(v BIGINT), C43(v BIGINT), C44(v BIGINT), C45(v BIGINT), C46(v BIGINT), C47(v BIGINT), C48(v BIGINT), C49(v BIGINT), C50(v BIGINT), C51(v BIGINT), C52(v BIGINT), C53(v BIGINT), C54(v BIGINT), C55(v BIGINT), C56(v BIGINT), C57(v BIGINT), C58(v BIGINT), C59(v BIGINT), C60(v BIGINT), C61(v BIGINT), C62(v BIGINT), C63(v BIGINT));",
+    "parse": true
+  },
+  {
+    "name": "variant-bound-65",
+    "source": "CREATE VARIANT Choice AS (C0(v BIGINT), C1(v BIGINT), C2(v BIGINT), C3(v BIGINT), C4(v BIGINT), C5(v BIGINT), C6(v BIGINT), C7(v BIGINT), C8(v BIGINT), C9(v BIGINT), C10(v BIGINT), C11(v BIGINT), C12(v BIGINT), C13(v BIGINT), C14(v BIGINT), C15(v BIGINT), C16(v BIGINT), C17(v BIGINT), C18(v BIGINT), C19(v BIGINT), C20(v BIGINT), C21(v BIGINT), C22(v BIGINT), C23(v BIGINT), C24(v BIGINT), C25(v BIGINT), C26(v BIGINT), C27(v BIGINT), C28(v BIGINT), C29(v BIGINT), C30(v BIGINT), C31(v BIGINT), C32(v BIGINT), C33(v BIGINT), C34(v BIGINT), C35(v BIGINT), C36(v BIGINT), C37(v BIGINT), C38(v BIGINT), C39(v BIGINT), C40(v BIGINT), C41(v BIGINT), C42(v BIGINT), C43(v BIGINT), C44(v BIGINT), C45(v BIGINT), C46(v BIGINT), C47(v BIGINT), C48(v BIGINT), C49(v BIGINT), C50(v BIGINT), C51(v BIGINT), C52(v BIGINT), C53(v BIGINT), C54(v BIGINT), C55(v BIGINT), C56(v BIGINT), C57(v BIGINT), C58(v BIGINT), C59(v BIGINT), C60(v BIGINT), C61(v BIGINT), C62(v BIGINT), C63(v BIGINT), C64(v BIGINT));",
+    "parse": false
+  },
+  {
+    "name": "duplicate-match-binder",
+    "source": "CREATE MODULE M(value Choice) AS BEGIN MATCH value WHEN Choice.Both(x, x) THEN END MATCH; END;",
+    "parse": false
+  },
+  {
+    "name": "nullable-signature-key",
+    "source": "CREATE MODULE M(rows TABLE(id BIGINT NULL PRIMARY KEY)) AS BEGIN END;",
+    "parse": false
+  },
+  {
+    "name": "private-domain-import",
+    "source": "IMPORT ids FROM 'types.transit'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Forward(name IDENTIFIER) AS BEGIN USE Rows(name, TYPE ids.MachineId) AS inner; EXPORT TABLE inner.rows AS forwarded; END; CREATE MODULE Put(rows TABLE(id ids.MachineId PRIMARY KEY), value ids.Target) AS BEGIN MATCH value WHEN ids.Target.Machine(id) THEN INSERT INTO $rows VALUES ($id); WHEN ids.Target.Site(other) THEN SELECT * FROM $rows; END MATCH; END; CREATE TARGET default AS BEGIN USE Forward(NAME 'machines') AS app; USE Put(app.forwarded, ids.Target.Machine(ids.MachineId(7))); END;",
+    "files": [
+      {
+        "path": "types.transit",
+        "text": "CREATE DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id'; CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId)); "
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "error": "PrivateSourceSymbol"
+  },
+  {
+    "name": "derived-raw-projection-with-nominal-column",
+    "source": "CREATE DOMAIN Id AS BIGINT IDENTITY 'example.id'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY, note BIGINT); END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id); SELECT SUM(note) FROM (SELECT note FROM items) AS raw; SELECT COUNT(*) FROM items; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "match-arm-bound-64",
+    "source": "CREATE MODULE Route(value Choice) AS BEGIN MATCH value WHEN Choice.C0() THEN WHEN Choice.C1() THEN WHEN Choice.C2() THEN WHEN Choice.C3() THEN WHEN Choice.C4() THEN WHEN Choice.C5() THEN WHEN Choice.C6() THEN WHEN Choice.C7() THEN WHEN Choice.C8() THEN WHEN Choice.C9() THEN WHEN Choice.C10() THEN WHEN Choice.C11() THEN WHEN Choice.C12() THEN WHEN Choice.C13() THEN WHEN Choice.C14() THEN WHEN Choice.C15() THEN WHEN Choice.C16() THEN WHEN Choice.C17() THEN WHEN Choice.C18() THEN WHEN Choice.C19() THEN WHEN Choice.C20() THEN WHEN Choice.C21() THEN WHEN Choice.C22() THEN WHEN Choice.C23() THEN WHEN Choice.C24() THEN WHEN Choice.C25() THEN WHEN Choice.C26() THEN WHEN Choice.C27() THEN WHEN Choice.C28() THEN WHEN Choice.C29() THEN WHEN Choice.C30() THEN WHEN Choice.C31() THEN WHEN Choice.C32() THEN WHEN Choice.C33() THEN WHEN Choice.C34() THEN WHEN Choice.C35() THEN WHEN Choice.C36() THEN WHEN Choice.C37() THEN WHEN Choice.C38() THEN WHEN Choice.C39() THEN WHEN Choice.C40() THEN WHEN Choice.C41() THEN WHEN Choice.C42() THEN WHEN Choice.C43() THEN WHEN Choice.C44() THEN WHEN Choice.C45() THEN WHEN Choice.C46() THEN WHEN Choice.C47() THEN WHEN Choice.C48() THEN WHEN Choice.C49() THEN WHEN Choice.C50() THEN WHEN Choice.C51() THEN WHEN Choice.C52() THEN WHEN Choice.C53() THEN WHEN Choice.C54() THEN WHEN Choice.C55() THEN WHEN Choice.C56() THEN WHEN Choice.C57() THEN WHEN Choice.C58() THEN WHEN Choice.C59() THEN WHEN Choice.C60() THEN WHEN Choice.C61() THEN WHEN Choice.C62() THEN WHEN Choice.C63() THEN END MATCH; END;",
+    "parse": true
+  },
+  {
+    "name": "match-arm-bound-65",
+    "source": "CREATE MODULE Route(value Choice) AS BEGIN MATCH value WHEN Choice.C0() THEN WHEN Choice.C1() THEN WHEN Choice.C2() THEN WHEN Choice.C3() THEN WHEN Choice.C4() THEN WHEN Choice.C5() THEN WHEN Choice.C6() THEN WHEN Choice.C7() THEN WHEN Choice.C8() THEN WHEN Choice.C9() THEN WHEN Choice.C10() THEN WHEN Choice.C11() THEN WHEN Choice.C12() THEN WHEN Choice.C13() THEN WHEN Choice.C14() THEN WHEN Choice.C15() THEN WHEN Choice.C16() THEN WHEN Choice.C17() THEN WHEN Choice.C18() THEN WHEN Choice.C19() THEN WHEN Choice.C20() THEN WHEN Choice.C21() THEN WHEN Choice.C22() THEN WHEN Choice.C23() THEN WHEN Choice.C24() THEN WHEN Choice.C25() THEN WHEN Choice.C26() THEN WHEN Choice.C27() THEN WHEN Choice.C28() THEN WHEN Choice.C29() THEN WHEN Choice.C30() THEN WHEN Choice.C31() THEN WHEN Choice.C32() THEN WHEN Choice.C33() THEN WHEN Choice.C34() THEN WHEN Choice.C35() THEN WHEN Choice.C36() THEN WHEN Choice.C37() THEN WHEN Choice.C38() THEN WHEN Choice.C39() THEN WHEN Choice.C40() THEN WHEN Choice.C41() THEN WHEN Choice.C42() THEN WHEN Choice.C43() THEN WHEN Choice.C44() THEN WHEN Choice.C45() THEN WHEN Choice.C46() THEN WHEN Choice.C47() THEN WHEN Choice.C48() THEN WHEN Choice.C49() THEN WHEN Choice.C50() THEN WHEN Choice.C51() THEN WHEN Choice.C52() THEN WHEN Choice.C53() THEN WHEN Choice.C54() THEN WHEN Choice.C55() THEN WHEN Choice.C56() THEN WHEN Choice.C57() THEN WHEN Choice.C58() THEN WHEN Choice.C59() THEN WHEN Choice.C60() THEN WHEN Choice.C61() THEN WHEN Choice.C62() THEN WHEN Choice.C63() THEN WHEN Choice.C64() THEN END MATCH; END;",
+    "parse": false
+  },
+  {
+    "name": "contextual-name-reference",
+    "source": "CREATE MODULE f(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); END; CREATE MODULE m(name IDENTIFIER) AS BEGIN USE f(name); END; CREATE TARGET default AS BEGIN USE m(NAME 'rows'); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 1
+  },
+  {
+    "name": "contextual-name-constructor",
+    "source": "CREATE DOMAIN NAME AS BIGINT IDENTITY 'example.name'; CREATE MODULE f(value NAME, element TYPE) AS BEGIN CREATE PUBLIC TABLE rows (id $element PRIMARY KEY); INSERT INTO rows VALUES ($value); END; CREATE TARGET default AS BEGIN USE f(NAME(7), TYPE NAME); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 2
+  },
+  {
+    "name": "contextual-type-name",
+    "source": "CREATE DOMAIN NAME AS TEXT IDENTITY 'example.name'; CREATE MODULE Apply(value NAME) AS BEGIN END;",
+    "parse": true
   }
 ]

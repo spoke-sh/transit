@@ -1,0 +1,4 @@
+CREATE PUBLIC MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN
+  CREATE PUBLIC TABLE $name (id $element PRIMARY KEY);
+  EXPORT TABLE $name AS rows;
+END;

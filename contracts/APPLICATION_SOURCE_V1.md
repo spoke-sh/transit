@@ -21,8 +21,8 @@ and formal preservation proofs.
 
 `build.transit` and imported files use the same grammar. Names are case-insensitive
 ASCII identifiers; quoted SQL identifiers retain SQL semantics. Source declarations
-are modules, interfaces, targets, imports and repository dependencies. Modules and
-interfaces are private unless declared PUBLIC. Targets are selected by name in
+are modules, interfaces, domains, variants, targets, imports and repository
+dependencies. Modules, interfaces and types are private unless declared PUBLIC. Targets are selected by name in
 the entry file. Imports expose only public declarations. All source files are
 parsed before evaluation; duplicate names, missing imports and cycles reject.
 
@@ -49,19 +49,19 @@ AS BEGIN
 END;
 ```
 
-Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, or `MODULE
-interface_name`. Module interfaces describe ordered parameter types; parameter
+Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, `MODULE
+interface_name`, named domains/variants or exact `TABLE(...)` signatures. Module interfaces describe ordered parameter types; parameter
 names need not match. Qualified references use an import alias and public member.
 Constructors can accept and forward module values, call local/private helpers,
 and recurse under explicit work/depth limits. Import cycles remain forbidden.
 
 `USE constructor(arguments);` evaluates a constructor. Compile-time expressions
 include parameter references, module references, signed integer/text/Boolean
-literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN`, parentheses, checked
+literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN`, named type operands and constructors, parentheses, checked
 integer `+`, `-`, `*`, comparisons and Boolean AND/OR/NOT. Conditional bodies use
 `IF expression THEN ... [ELSE ...] END IF;`. Conditions must be Boolean.
 Expressions have no ambient environment, time, random, database or effect access.
-Module bodies contain USE, IF and executable SQL statements; nested declarations
+Module bodies contain USE, IF, MATCH, Table exports and executable SQL statements; nested declarations
 and runtime-private Table declarations reject in this profile.
 
 Expression precedence, from tightest to loosest, is unary minus/NOT,
@@ -135,6 +135,97 @@ round-trips preserve ordered SQL, bindings, fingerprints and logical test plans;
 source coordinates, input digests and expansion-derived case identities are
 checked separately for the new spelling. Exhausted writer/depth budgets fail
 without establishing a complete artifact.
+
+## Typed source specialization
+
+Nominal domains, closed variants and Table instance exports are compile-time
+forms. They provide source type checking and do not install runtime domain types,
+validate external IDs, grant access or dispatch on live request values.
+
+```text
+CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id';
+CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id';
+CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId));
+```
+
+A domain wraps BIGINT, TEXT or BOOLEAN. Its identity is 1–128 UTF-8 bytes,
+compared exactly; its definition fixes the base type. Import the original public
+declaration to share a domain. Independent declarations with the same identity
+reject, even with equal base types. Paths, aliases and physical representations
+are not nominal identity. Constructors such as `MachineId(7)` accept a base
+value; implicit conversion, rebranding, unwrapping, arithmetic and ordering
+reject. Equality/inequality require the same domain. Named parameter kinds and
+`TYPE imported.MachineId` retain that type through module interfaces.
+
+A variant has 1–64 unique constructors, each with at most 64 unique scalar/domain
+fields. Nested/recursive variants reject. `Target.Machine(MachineId(7))` constructs
+a value; imported constructors use `types.Target.Machine(...)`. Source references
+have at most three components. A variant cannot become an SQL operand.
+
+`MATCH value WHEN Target.Machine(id) THEN ... WHEN Target.Site(id) THEN ...
+END MATCH;` requires every constructor exactly once, with exact arity. Binders
+are lexical and cannot shadow existing bindings/imports. All arms of a reached
+specialization are typechecked with symbolic payload types; unselected arms
+produce no output. No dummy source value establishes a binding. Branch catalogs
+are isolated and only the selected branch contributes definitions afterward.
+Reached symbolic callees check scalar parameters by their declared types,
+including both paths of an IF over a symbolic Boolean; recursive edges check
+signatures without evaluating invented values. Symbolic IF paths cannot change
+catalog shape or exports. Symbolic SQL scalar operands require an exact physical
+parameter type. Schema/type/identifier expressions must remain concrete.
+Ordinary IF evaluation outside symbolic checking retains its concrete stage rules.
+Recursion and all-arm checking share the existing work/depth/memory quotas.
+
+`USE Factory(arguments) AS instance;` retains an immutable instance export map.
+`EXPORT TABLE $name AS rows;` exports an already declared PUBLIC Table owned by
+that invocation. `EXPORT TABLE instance.rows AS rows;` forwards an existing
+export without re-instantiation. An instance has at most 64 unique exports.
+A typed Table parameter can also forward its existing handle through `EXPORT TABLE rows AS alias;`.
+A parameter such as `rows TABLE(id MachineId PRIMARY KEY)` requires an exact
+ordered column/key/nullability/collation signature. Signature columns use the
+three scalar types or nominal domains, with optional NULL/NOT NULL, PRIMARY KEY
+and COLLATE clauses. Omitted collation matches the native `none` descriptor;
+explicit collation must match exactly. Runtime schema limits also apply. Defaults, CHECK constraints
+and other semantic column options cannot be hidden by a smaller signature.
+A Table value becomes a quoted name only in a Table position; it is not an
+IDENTIFIER, scalar, type, permission or durable catalog ID.
+
+A nominal TYPE hole annotates a non-null Table column before erasure to its
+ordinary physical type. Defaults and CHECK expressions involving nominal columns
+reject. Source accesses through literal names and identifier parameters consult
+the same annotated schema. Direct projection, same-domain equality/inequality,
+and direct typed INSERT/UPDATE assignments are admitted; raw nominal-position
+literals, casts, arithmetic, ordering and nominal-discarding functions/aggregates
+reject. Unannotated columns retain the ordinary Table profile. Row assertions
+observe base values and do not construct source values from database results.
+
+The checked representation retains nominal definitions, operand roles and exact
+Table bindings separately from scalar SQL fingerprints. Generated SQL contains
+only ordinary Table operations, in selected lexical order. Direct SQL remains
+subject to its scalar contract and current authorization; no type sidecar is
+needed to execute it. Source/provenance digests include type and export inputs.
+This extension does not change native wire/storage or lock/cache definitions.
+
+Derived projections carrying nominal columns reject; derived queries over raw
+columns retain ordinary semantics. A Table handle is valid only in a Table-name
+position. Explicit literal/IDENTIFIER Table names consult the same annotation
+catalog, so they cannot bypass nominal operand checks.
+
+The in-memory checked statement retains its Table/schema, ordered column domains
+and scalar assignment/predicate operands before final SQL emission. It is not a
+persisted IR, additional authority or mandatory runtime sidecar. The current
+native definition, lock and artifact formats are unchanged.
+
+The [typed-target specification](application-source/TypedTarget.lean) proves
+nominal substitution, selection from a checked total arm table, and ordered
+action preservation for a fragment with one scalar payload per constructor and
+Table inserts. Exact source types, well-typed environments and signatures are
+premises; de Bruijn variables express capture-free payload substitution. The
+laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
+SQL encoding, runtime, authorization or effects. Independent finite comparisons
+connect synthetic source, Lean source/action interpretations, checked Zig
+operands and ordinary SQL. Real CLI execution is separate evidence. This slice
+adds no temporal state or TLA+ model.
 
 ## Compilation core and extension obligations
 

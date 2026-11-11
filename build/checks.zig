@@ -1251,6 +1251,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     source_grammar.has_side_effects = true;
     source_grammar.stdio = .inherit;
     b.step("test-application-source-grammar", "Compare independent source grammar, ASTs, formatter and compiled products").dependOn(&source_grammar.step);
+    const source_types = b.addSystemCommand(&.{ "python3", "-B" });
+    source_types.addFileArg(b.path("tests/runner/launch.py"));
+    source_types.addFileArg(b.path("tests/query/application_source/types.py"));
+    source_types.addArtifactArg(source_grammar_driver);
+    source_types.has_side_effects = true;
+    source_types.stdio = .inherit;
+    b.step("test-application-source-types", "Check nominal source laws and independent typed action correspondence").dependOn(&source_types.step);
     const source_grammar_install = b.addInstallArtifact(source_grammar_driver, .{});
     b.step("source-grammar-driver", "Build private source syntax/product projection").dependOn(&source_grammar_install.step);
     const application_host = b.addExecutable(.{ .name = "application-test-host", .root_module = b.createModule(.{

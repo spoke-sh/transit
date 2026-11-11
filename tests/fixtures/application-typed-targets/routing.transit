@@ -1,0 +1,15 @@
+IMPORT ids FROM 'types.transit';
+CREATE PUBLIC MODULE Route(
+  value ids.Target,
+  machines TABLE(id ids.MachineId PRIMARY KEY),
+  sites TABLE(id ids.SiteId PRIMARY KEY)
+) AS BEGIN
+  MATCH value
+    WHEN ids.Target.Machine(id) THEN INSERT INTO $machines VALUES ($id);
+    WHEN ids.Target.Site(id) THEN INSERT INTO $sites VALUES ($id);
+  END MATCH;
+END;
+CREATE PUBLIC MODULE CheckMachine(rows TABLE(id ids.MachineId PRIMARY KEY), id ids.MachineId) AS BEGIN
+  ASSERT COMMAND (INSERT INTO $rows VALUES ($id)) MATCHED 1 CHANGED 1;
+  ASSERT STATEMENT (INSERT INTO $rows VALUES ($id)) FAILS WITH 'duplicate_key';
+END;

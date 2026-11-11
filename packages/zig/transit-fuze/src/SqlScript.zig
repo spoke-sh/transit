@@ -10,7 +10,7 @@ pub const Statement = struct {
     end: u32,
     first: [3]?Token,
 };
-const Block = enum { body, conditional, expression, loop };
+const Block = enum { body, conditional, expression, loop, match };
 const Self = @This();
 scan: input.SourceScan,
 
@@ -109,6 +109,7 @@ fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
             const expected = switch (kind) {
                 .conditional => "IF",
                 .loop => "FOR",
+                .match => "MATCH",
                 .expression => "CASE",
                 .body => unreachable,
             };
@@ -132,7 +133,7 @@ fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
             // BEGIN ATOMIC also starts the first failure-handler instruction;
             // searched CASE owns its expression END, unlike a name such as
             // table.case or a SELECT alias named end.
-            const block: ?Block = if (word(text, token, "BEGIN") and (opens_body or instruction_start or try followingWord(scan, "ATOMIC"))) .body else if (word(text, token, "CASE") and try followingWord(scan, "WHEN")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else null;
+            const block: ?Block = if (word(text, token, "BEGIN") and (opens_body or instruction_start or try followingWord(scan, "ATOMIC"))) .body else if (word(text, token, "CASE") and try followingWord(scan, "WHEN")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else if (instruction_start and word(text, token, "MATCH")) .match else null;
             if (block) |kind| {
                 if (depth == blocks.len) return error.SqlNestingTooDeep;
                 blocks[depth] = kind;
@@ -143,7 +144,7 @@ fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
                 depth -= 1;
                 suffix = if (blocks[depth] == .body) null else blocks[depth];
                 instruction_start = false;
-            } else if (depth > 0 and (blocks[depth - 1] == .conditional or blocks[depth - 1] == .loop) and
+            } else if (depth > 0 and (blocks[depth - 1] == .conditional or blocks[depth - 1] == .loop or blocks[depth - 1] == .match) and
                 (word(text, token, "THEN") or word(text, token, "ELSE") or word(text, token, "DO")))
             {
                 instruction_start = true;
@@ -301,4 +302,22 @@ test "compiler files exceed migration input without widening runtime admission" 
     try t.expectEqual(null, try script.next());
     try t.expectError(error.StatementTooLarge, Compiler.init(text));
     try t.expectError(error.StatementTooLarge, init(text[0..70010]));
+}
+
+test "source MATCH framing nests with IF and preserves contextual SQL words" {
+    const source = "CREATE MODULE route(value Target) AS BEGIN MATCH value WHEN Target.One(id) THEN IF TRUE THEN SELECT match, when FROM items; END IF; WHEN Target.Two(id) THEN MATCH value WHEN Target.One(x) THEN WHEN Target.Two(y) THEN END MATCH; END MATCH; END; SELECT 7;";
+    var script = try Compiler.init(source);
+    const first = (try script.next()).?;
+    try std.testing.expectEqualStrings(source[0 .. source.len - " SELECT 7;".len - 1], source[first.start..first.end]);
+    // The editor shares this framer: nested arm terminators must not submit
+    // an incomplete source declaration, including a partial END MATCH suffix.
+    for (0..first.end + 1) |end| try std.testing.expectEqual(null, try editorTerminator(source[0..end]));
+    try std.testing.expectEqual(first.end + 1, (try editorTerminator(source)).?);
+    try std.testing.expectEqualStrings("SELECT 7", blk: {
+        const following = (try script.next()).?;
+        break :blk source[following.start..following.end];
+    });
+    try std.testing.expect((try script.next()) == null);
+    var invalid = try Compiler.init("CREATE TARGET default AS BEGIN MATCH value WHEN Choice.One() THEN END IF; END;");
+    try std.testing.expectError(error.UnbalancedSqlBlock, invalid.next());
 }
