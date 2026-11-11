@@ -238,7 +238,8 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, bindings: []c
                 self.instance = before_instance;
                 self.expansion = before_expansion;
             },
-            .sql => |tokens| {
+            .sql => |template| {
+                const tokens = template.tokens;
                 if (self.test_mode and !self.in_case) return error.TestStatementOutsideCase;
                 try self.emit(file, statement.span, tokens, bindings);
             },
@@ -380,12 +381,13 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
 }
 fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, bindings: []const Binding) !void {
     if (!self.in_case) return error.TestAssertionOutsideCase;
-    try self.emit(file, span, value.sql, bindings);
+    try self.emit(file, span, value.sql.tokens, bindings);
     const step = self.steps.items[self.steps.items.len - 1];
-    const is_select = tokenIs(self.graph.sources[file].text, value.sql[0], "SELECT");
-    const is_create = tokenIs(self.graph.sources[file].text, value.sql[0], "CREATE");
+    const is_select = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "SELECT");
+    const is_create = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "CREATE");
     const expected: Test.Expectation = switch (value.expected) {
-        .rows => |tokens| blk: {
+        .rows => |template| blk: {
+            const tokens = template.tokens;
             if (!is_select) return error.TestRowsRequired;
             const schema = try self.catalog.querySchema(step.sql);
             var buffer: [f.Sql.max_statement_bytes]u8 = undefined;
@@ -421,8 +423,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
         if (i == 1 and tokenIs(text, tokens[0], "CREATE")) continue;
         const token = tokens[i];
         const raw = text[token.start..token.end];
-        const joined = i > 0 and token.kind == .symbol and tokens[i - 1].kind == .symbol and tokens[i - 1].end == token.start and
-            ((std.mem.indexOfAny(u8, text[tokens[i - 1].start..tokens[i - 1].end], "<>") != null and std.mem.indexOfAny(u8, raw, "=>") != null) or (std.mem.eql(u8, raw, "|") and std.mem.eql(u8, text[tokens[i - 1].start..tokens[i - 1].end], "|")));
+        const joined = s.Template.joinsLexeme(text, tokens, i);
         if (writer.end != 0 and !joined) writer.writeByte(' ') catch return error.BuildStatementLimit;
         if (token.kind == .symbol and std.mem.eql(u8, raw, "$")) {
             i += 1;

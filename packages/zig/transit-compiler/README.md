@@ -15,12 +15,30 @@ source text or operand values. Resolution provenance enters the build digest
 through `Options.resolution_digest`; supplying source never establishes trust or
 runtime permissions.
 
-Source parsing and graph checks precede target evaluation. A proposed catalog
+Source parsing checks complete Table templates and assertion rows in every body,
+including unused modules and both IF branches. `Syntax.Template` retains token
+spans and typed-hole roles without inventing values or catalog bindings. Name,
+type, target and schema checks retain their later stages. A proposed catalog
 stages schemas in lexical composition order. Fuze checks each expanded statement;
 a second catalog reparses the emitted SQL and compares ordered schema/plan
 fingerprints. Temporary statement allocations use a reusable scratch arena;
 retained schemas and output use the product arena. Both allocators share one
 stable `transit-memory` budget. Inputs have separate aggregate/file bounds.
+
+`Format.write(text, file, writer)` writes source from a parsed `Syntax.File` to
+a caller-bounded writer. Keep the immutable source and AST allocator alive for
+the call. It performs no I/O or allocation, omits comments, preserves quoted SQL
+bytes and token adjacency, and prints expressions with precedence-preserving
+parentheses. Output exhaustion and expression/body depth beyond 64 fail; a
+partial writer buffer is not a complete formatted artifact. Source coordinates,
+digests and expansion-position-derived case identities may change after formatting;
+explicit runtime bindings, ordered SQL and logical test expectations do not.
+This facility adds no formatter CLI command.
+
+The [independent source grammar](../../../contracts/application-source/README.md)
+and its private verification executable compare source ASTs, exact UTF-8 byte
+coordinates, source round-trips and compiled products. ANTLR and its Python
+adapter are verification tools, not package or installed-runtime dependencies.
 
 The package `test` step exercises recursive higher-order construction, typed
 arguments, source visibility, explicit object bindings, deterministic emission,
