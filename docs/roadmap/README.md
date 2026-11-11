@@ -43,11 +43,13 @@ qualify their contribution as they land. These are evaluation goals, not current
 measurements, and they do not assume that modeling or reasoning is solved.
 
 The [planned source/build model](../handbook/reference/applications.md#planned-source-language-and-build-model)
-provides the authoring path: recursively compose `.transit` modules, describe
-builds in that same dialect, and emit executable `.sql` for statements or
-explicit migrations. [M12](12-application-modules-compilation-and-testing.md) owns
-that language and toolchain; later compilation and language adapters reuse its
-semantics rather than introducing another build or execution authority.
+provides the authoring path: recursively compose typed `.transit` modules,
+describe builds in that same language, and emit executable `.sql` for statements
+or explicit migrations. [M12](12-application-modules-compilation-and-testing.md)
+owns source ANTLR grammar, the typed core, effect/ownership/transition contracts
+and selected TLA+/Lean correspondence gates alongside that toolchain. Later
+compilation and language adapters reuse its semantics rather than introducing
+another build or execution authority.
 
 ## Performance ambition
 
@@ -125,7 +127,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Bounded recursive Table modules and `transit build` are delivered; broader abstractions, explicit-basis migration synthesis and `transit test` through the same emitter remain |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Bounded recursive Table builds and isolated Table tests are delivered. Next: source ANTLR parity and typed-core contracts; extend domain types, higher-order interfaces, effects/ownership, transitions and selected TLA+/Lean correspondence through SQL lowering, explicit-basis migrations and workflow tests |
 
 ### Phase II: Data composition, performance and interface coverage
 

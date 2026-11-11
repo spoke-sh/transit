@@ -22,6 +22,7 @@ Consume the delivered [storage](02-storage-and-query-performance.md),
 [shared clients](09-client-foundation-and-language-apis.md),
 [historical interpretation](10-standards-and-catalogs.md),
 [indexes](11-indexing-and-access-paths.md),
+[typed application compilation](12-application-modules-compilation-and-testing.md),
 [managed computations](13-sql-and-dataflows.md),
 [selected structures and optimizations](14-data-structures-and-performance.md),
 [Document profiles and exchange lifecycle](17-document-profiles-and-gateway-exchange-lifecycle.md),
@@ -40,6 +41,10 @@ Earlier milestones retain their correctness, recovery, authorization and resourc
 gates. Preserve existing models through their cutovers and revise them with
 intentional contract changes. This milestone adds systematic formal coverage;
 its delivery position cannot justify postponing a known correctness defect.
+M12 owns selected language-core/transition/lowering proofs, temporal models and
+native correspondence checks as its constructs are admitted. Extend those
+attributed results here; do not defer their initial correctness gates or infer
+full compiler/runtime refinement from source grammar or generated-model agreement.
 Contract investigations for later providers may overlap once their prerequisites
 exist; a new deployment profile must recheck the assumptions of any reused model.
 
