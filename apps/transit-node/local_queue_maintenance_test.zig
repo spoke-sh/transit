@@ -63,6 +63,7 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     defer admission.allocator(false).free(held_response);
     try t.expectError(error.OutOfMemory, admission.allocator(false).alloc(u8, 1));
     var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState(), .admission = &admission };
+    host.options.logs.queue.queue_checkpoint_soft_frames = 32;
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator(), .next_kind = .queue };
@@ -113,6 +114,15 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     // Verify QueueCheckpointBacklog transient backpressure and retry after standalone
     // checkpoint maintenance (archive.enabled == false), with zero memory leak.
     {
+        const tight_options: c.storage.QueuePartition.Options = .{
+            .queue_checkpoint_soft_frames = 1,
+            .queue_checkpoint_hard_frames = 2,
+            .queue_checkpoint_hard_mode = .refuse,
+        };
+        const previous_queue_options = host.options.logs.queue;
+        host.options.logs.queue = tight_options;
+        defer host.options.logs.queue = previous_queue_options;
+        _ = try settle(&work, service, settings, signed, &allocations, false, &peak);
         var cached: ?c.DirectQueue.Cached = null;
         defer if (cached) |*value| value.deinit();
         var scratch: std.heap.ArenaAllocator = .init(t.allocator);
@@ -120,11 +130,6 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         var output: std.heap.ArenaAllocator = .init(t.allocator);
         defer output.deinit();
         const environment: c.DirectQueue.Environment = .{ .clock = @import("LocalLogClock.zig").source(service.engine) };
-        const tight_options: c.storage.QueuePartition.Options = .{
-            .queue_checkpoint_soft_frames = 1,
-            .queue_checkpoint_hard_frames = 2,
-            .queue_checkpoint_hard_mode = .refuse,
-        };
         const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 91 } } }};
         var buffer: [8192]u8 = undefined;
         for (0..2) |step| {

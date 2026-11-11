@@ -155,9 +155,9 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
             /// Bounded scheduling source scans; independent of the wheel capacity.
             queue_timer_read_work: u32 = 4096,
             /// Soft dirty-frame watermark requesting background Queue checkpointing.
-            queue_checkpoint_soft_frames: u32 = 32,
+            queue_checkpoint_soft_frames: u32 = 256,
             /// Hard dirty-frame ceiling before foreground coalescing or refusal.
-            queue_checkpoint_hard_frames: u32 = 256,
+            queue_checkpoint_hard_frames: u32 = 1024,
             queue_checkpoint_hard_mode: enum { coalesce, refuse } = .coalesce,
             /// Same physical namespace and authority, with deployment control reserve.
             /// Only progress/closure and physical recovery use this capability.
@@ -348,8 +348,16 @@ pub fn Owner(comptime kind: p.StreamQueueDeclaration.Kind) type {
         }
         fn compactQueueOverlayIfNeeded(self: *Self) !void {
             if (kind != .queue or self.private_position != null) return;
-            if (self.candidate_objects.used > self.candidate_objects.buffer.len / 2 or
-                self.candidate_objects.count > self.candidate_objects.entries.len / 2)
+            const byte_threshold = @min(
+                self.candidate_objects.buffer.len / 2,
+                @max(@as(usize, 128 * 1024), self.candidate_objects.compacted_used *| 2),
+            );
+            const count_threshold = @min(
+                self.candidate_objects.entries.len / 2,
+                @max(@as(u32, 64), self.candidate_objects.compacted_count *| 2),
+            );
+            if (self.candidate_objects.used > byte_threshold or
+                self.candidate_objects.count > count_threshold)
             {
                 try @import("QueueCandidateObjects.zig").compact(self.candidate_objects, &self.store, &self.scratch, self.root, self.queue_selection);
             }

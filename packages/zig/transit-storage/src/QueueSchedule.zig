@@ -235,6 +235,16 @@ fn epoch(basis: Merge.Basis) ![32]u8 {
     return result;
 }
 
+pub fn needsMaintenance(before: Root, basis: Merge.Basis) !bool {
+    try before.validate();
+    try basis.validate();
+    if (before.work != null) return true;
+    if (before.sweep == null or (before.sweep.?.complete and !std.mem.eql(u8, &before.sweep.?.epoch, &try epoch(basis)))) return true;
+    if (before.pending_chunks != 0) return true;
+    if (!before.sweep.?.complete) return true;
+    return false;
+}
+
 /// One private maintenance unit: bounded merge progress, one pending promotion,
 /// or one finite-sweep transition. New appends may extend pending work without
 /// replacing frozen merge inputs. No clock or current grant is retained here.

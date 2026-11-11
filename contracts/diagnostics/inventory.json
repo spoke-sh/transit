@@ -45499,6 +45499,7 @@
         "inspectRun()": "<inferred>",
         "loadBuffer()": "<inferred>",
         "maintain()": "<inferred>",
+        "needsMaintenance()": "<inferred>",
         "nextEvent()": "<inferred>",
         "pendingKey()": "<inferred>",
         "promote()": "<inferred>",
@@ -45511,7 +45512,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 105,
+        "try": 108,
         "catch": 2
       },
       "imports": [

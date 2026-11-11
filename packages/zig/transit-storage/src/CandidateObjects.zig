@@ -29,6 +29,8 @@ entries: []Entry,
 slots: []u32,
 used: usize = 0,
 count: u32 = 0,
+compacted_used: usize = 0,
+compacted_count: u32 = 0,
 first_pending: u32 = vacant,
 last_pending: u32 = vacant,
 
@@ -69,6 +71,8 @@ pub fn rollback(self: *Self, saved: Mark) void {
     std.debug.assert(saved.used <= self.used and saved.count <= self.count);
     self.used = saved.used;
     self.count = saved.count;
+    self.compacted_used = @min(self.compacted_used, saved.used);
+    self.compacted_count = @min(self.compacted_count, saved.count);
     self.first_pending = vacant;
     self.last_pending = vacant;
     self.rebuildSlots();
@@ -76,6 +80,8 @@ pub fn rollback(self: *Self, saved: Mark) void {
 pub fn clear(self: *Self) void {
     self.used = 0;
     self.count = 0;
+    self.compacted_used = 0;
+    self.compacted_count = 0;
     self.first_pending = vacant;
     self.last_pending = vacant;
     @memset(self.slots, vacant);
@@ -109,6 +115,8 @@ pub fn compactSelected(self: *Self, selection: anytype) void {
     }
     self.used = write_used;
     self.count = write_count;
+    self.compacted_used = write_used;
+    self.compacted_count = write_count;
     self.first_pending = vacant;
     self.last_pending = vacant;
     self.rebuildSlots();
