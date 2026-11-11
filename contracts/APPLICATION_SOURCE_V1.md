@@ -136,6 +136,68 @@ source coordinates, input digests and expansion-derived case identities are
 checked separately for the new spelling. Exhausted writer/depth budgets fail
 without establishing a complete artifact.
 
+## Typed source specialization
+
+Nominal domains, closed variants and Table instance exports are compile-time
+forms. They provide source type checking and do not install runtime domain types,
+validate external IDs, grant access or dispatch on live request values.
+
+```text
+CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id';
+CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id';
+CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId));
+```
+
+A domain wraps BIGINT, TEXT or BOOLEAN. Its identity is 1–128 UTF-8 bytes,
+compared exactly; its definition fixes the base type. Import the original public
+declaration to share a domain. Independent declarations with the same identity
+reject, even with equal base types. Paths, aliases and physical representations
+are not nominal identity. Constructors such as `MachineId(7)` accept a base
+value; implicit conversion, rebranding, unwrapping, arithmetic and ordering
+reject. Equality/inequality require the same domain. Named parameter kinds and
+`TYPE imported.MachineId` retain that type through module interfaces.
+
+A variant has 1–64 unique constructors, each with at most 64 unique scalar/domain
+fields. Nested/recursive variants reject. `Target.Machine(MachineId(7))` constructs
+a value; imported constructors use `types.Target.Machine(...)`. Source references
+have at most three components. A variant cannot become an SQL operand.
+
+`MATCH value WHEN Target.Machine(id) THEN ... WHEN Target.Site(id) THEN ...
+END MATCH;` requires every constructor exactly once, with exact arity. Binders
+are lexical and cannot shadow existing bindings/imports. All arms of a reached
+specialization are typechecked with symbolic payload types; unselected arms
+produce no output. No dummy source value establishes a binding. Branch catalogs
+are isolated and only the selected branch contributes definitions afterward.
+Recursion and all-arm checking share the existing work/depth/memory quotas.
+
+`USE Factory(arguments) AS instance;` retains an immutable instance export map.
+`EXPORT TABLE $name AS rows;` exports an already declared PUBLIC Table owned by
+that invocation. `EXPORT TABLE instance.rows AS rows;` forwards an existing
+export without re-instantiation. An instance has at most 64 unique exports.
+A parameter such as `rows TABLE(id MachineId PRIMARY KEY)` requires an exact
+ordered column/key/nullability/collation signature. Signature columns use the
+three scalar types or nominal domains, with optional NULL/NOT NULL, PRIMARY KEY
+and COLLATE clauses. Runtime schema limits also apply. Defaults, CHECK constraints
+and other semantic column options cannot be hidden by a smaller signature.
+A Table value becomes a quoted name only in a Table position; it is not an
+IDENTIFIER, scalar, type, permission or durable catalog ID.
+
+A nominal TYPE hole annotates a non-null Table column before erasure to its
+ordinary physical type. Defaults and CHECK expressions involving nominal columns
+reject. Source accesses through literal names and identifier parameters consult
+the same annotated schema. Direct projection, same-domain equality/inequality,
+and direct typed INSERT/UPDATE assignments are admitted; raw nominal-position
+literals, casts, arithmetic, ordering and nominal-discarding functions/aggregates
+reject. Unannotated columns retain the ordinary Table profile. Row assertions
+observe base values and do not construct source values from database results.
+
+The checked representation retains nominal definitions, operand roles and exact
+Table bindings separately from scalar SQL fingerprints. Generated SQL contains
+only ordinary Table operations, in selected lexical order. Direct SQL remains
+subject to its scalar contract and current authorization; no type sidecar is
+needed to execute it. Source/provenance digests include type and export inputs.
+This extension does not change native wire/storage or lock/cache definitions.
+
 ## Compilation core and extension obligations
 
 The implemented chain is source AST, resolved graph, bounded typed evaluation,
