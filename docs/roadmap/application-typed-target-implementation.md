@@ -1,12 +1,14 @@
 # Nominal values, typed Table exports and exhaustive source matching
 
-[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented — qualification in progress**
+[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented — required qualification incomplete**
 
-The implementation follows merged planning PR #442. The executable source
-contract now owns the delivered syntax and restrictions; this document retains
-the reviewed scope. Compiler and correspondence checks are executing against the
-implementation, while the complete required qualification remains in progress.
-This status is not a clean-lane or runtime pass.
+The implementation follows merged planning PR #442. The executable [source contract](../../contracts/APPLICATION_SOURCE_V1.md)
+owns the delivered syntax and restrictions; this document retains the reviewed
+scope. [Executed qualification](../history/qualification/query.md#nominal-source-values-and-typed-table-targets--2026-11-11)
+records passing compiler, grammar, Lean and native checks alongside unresolved
+installation/UI and console-latency gates. Several runtime and latency failures
+also reproduced on merged main; they remain failures. This status does not
+establish completed qualification or milestone acceptance.
 
 Let an application distinguish two resource kinds even when their IDs have the
 same scalar representation, pass a Table through a checked module interface,
@@ -82,9 +84,10 @@ exports that preserve native foreign keys.
 
 ## Language and identity decisions
 
-Freeze the following forms in `APPLICATION_SOURCE_V1` and the ANTLR corpus before
-implementing their parser. The spellings here are **proposed**, not runnable
-syntax in the merged compiler:
+The reviewed plan required these forms in `APPLICATION_SOURCE_V1` and the ANTLR
+corpus before parser implementation. They are now implemented; the
+[source contract](../../contracts/APPLICATION_SOURCE_V1.md) owns the executable
+forms and restrictions. The example below preserves the reviewed design:
 
 ```text
 CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine-id';
