@@ -217,15 +217,16 @@ attempt can retain one truthful decision through preparation, authority changes,
 coordinator replacement and lost replies. It starts unfrozen, with no prepared
 participants or decision, an authorized first-epoch coordinator and unknown
 caller knowledge. Its finite domains contain two written participants, two
-epochs, commit/abort outcomes and Boolean availability, conflict and permission.
+epochs, two native ownership generations, permanent retirement, commit/abort
+outcomes and Boolean availability, conflict and permission.
 Preparation is monotone. Recovery adopts the current epoch without changing the
 original attempt or decision. Losing a reply changes knowledge only.
 
 Invariants require freezing before a decision, complete preparation before
 commit, one immutable original decision, current publication/disclosure authority,
-fenced publication and truthful terminal observations. Six independent controls
+fenced publication and truthful terminal observations. Eight independent controls
 remove freezing, preparation completeness, epoch fencing, publication authority,
-decision stability and disclosure checks. Each must produce its named invariant
+decision stability, disclosure, native generation and executable lifetime checks. Each must produce its named invariant
 violation. No fairness or liveness assumption is made. Repeated failures,
 revocation and unavailable participants may prevent progress indefinitely.
 
@@ -236,9 +237,14 @@ automated negative-control replay through
 directory; `commit` verifies complete membership and calls current owner checks
 under the supplied guard; `append` uses the conditional, epoch-fenced log;
 terminal `commit`/`abort` retries return the original decision; `observe` checks
-current authority; `recover` reconstructs history without dispatch. All six
+current authority; `recover` reconstructs history without dispatch. All eight
 negative-control counterexample traces are replayed against the real Zig
 `TransactionDecisionLog` and must be rejected or preserve the safe projection.
+Two further concrete schedules commit before replacement or retirement, lose
+the reply and recover the same decision. Native lifecycle is abstracted by a
+verification callback under the real decision guard; this model does not execute
+the process authority. The signed local-node tests separately cover that
+composition.
 The [component tests](../../../packages/zig/transit-storage/src/transaction_decision_test.zig)
 further exercise these operations with disk reopen, lost replies, pre/post-append failure,
 stale epochs, missing preparations and denied callbacks.
