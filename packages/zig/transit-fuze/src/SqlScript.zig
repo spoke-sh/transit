@@ -37,13 +37,20 @@ pub const Compiler = struct {
         return .{ .scan = try input.CompilerScan.init(text) };
     }
     pub fn next(self: *Compiler) !?Statement {
-        return nextFrame(&self.scan);
+        return nextFrame(&self.scan, false);
     }
 };
 pub fn next(self: *Self) !?Statement {
-    return nextFrame(&self.scan);
+    return nextFrame(&self.scan, false);
 }
-fn nextFrame(scan: anytype) !?Statement {
+/// Editor input may end at any token or block boundary. Return only an explicit
+/// outer terminator, using the same compound grammar as source-file framing.
+pub fn editorTerminator(text: []const u8) !?u32 {
+    var scan = try input.SourceScan.init(text);
+    _ = try nextFrame(&scan, true) orelse return null;
+    return @intCast(scan.position);
+}
+fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
     const text = scan.text;
     var result: ?Statement = null;
     var count: usize = 0;
@@ -56,25 +63,34 @@ fn nextFrame(scan: anytype) !?Statement {
     var instruction_start = false;
     var suffix: ?Block = null;
     var create_header = false;
+    var explain_header = false;
     var test_header = false;
     while (try scan.next()) |token| {
         if (!token.closed and (token.kind == .string or token.kind == .quoted or
             token.kind == .comment and std.mem.startsWith(u8, text[token.start..token.end], "/*")))
+        {
+            if (editing) return null;
             return error.UnterminatedSqlToken;
+        }
         if (token.kind == .space or token.kind == .comment) continue;
         const symbol = token.kind == .symbol;
         const byte = text[token.start];
         if (result == null) {
-            if (symbol and byte == ';') continue;
+            if (symbol and byte == ';') {
+                if (editing) return .{ .start = token.start, .end = token.end, .first = @splat(null) };
+                continue;
+            }
             result = .{ .start = token.start, .end = token.end, .first = @splat(null) };
         }
         if (count < 3) result.?.first[count] = .{ .kind = token.kind, .start = token.start, .end = token.end, .closed = token.closed };
         count += 1;
         if (count == 1) {
             create_header = word(text, token, "CREATE");
+            explain_header = word(text, token, "EXPLAIN");
             compound = word(text, token, "TEST");
         }
-        if (create_header and count <= 5) {
+        if (count == 2 and explain_header) create_header = word(text, token, "CREATE");
+        if (create_header and count <= (if (explain_header) @as(usize, 6) else 5)) {
             inline for (.{ "DATAFLOW", "PROCEDURE", "FUNCTION", "GUARD", "MODULE", "TARGET" }) |kind|
                 if (word(text, token, kind)) {
                     compound = true;
@@ -100,6 +116,8 @@ fn nextFrame(scan: anytype) !?Statement {
                 result.?.end = token.end;
                 continue;
             }
+            if (editing and token.kind == .word and scan.position == text.len and
+                std.ascii.startsWithIgnoreCase(expected, text[token.start..token.end])) return null;
             if (kind != .expression) return error.UnbalancedSqlBlock;
         }
         if (symbol and byte == '(') {
@@ -138,9 +156,22 @@ fn nextFrame(scan: anytype) !?Statement {
         }
         result.?.end = token.end;
     }
+    if (editing) return null;
     if (depth != 0 or (suffix != null and suffix.? != .expression)) return error.UnbalancedSqlBlock;
     if (parentheses != 0) return error.UnbalancedSqlParentheses;
     return result;
+}
+
+test "script framing keeps EXPLAIN Queue programs intact" {
+    const t = std.testing;
+    const statement = "EXPLAIN CREATE DATAFLOW action FROM QUEUE input AS event AS BEGIN BEGIN ATOMIC REQUIRE event.id > 0 ELSE 'Invalid'; END; END";
+    const source = statement ++ "; SHOW DATAFLOW action;";
+    var scan = try Self.init(source);
+    const first = (try scan.next()).?;
+    try t.expectEqualStrings(statement, source[first.start..first.end]);
+    const second = (try scan.next()).?;
+    try t.expectEqualStrings("SHOW DATAFLOW action", source[second.start..second.end]);
+    try t.expect(try scan.next() == null);
 }
 
 test "script framing preserves compound blocks and independent step boundaries" {

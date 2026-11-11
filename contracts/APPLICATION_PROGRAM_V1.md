@@ -22,12 +22,56 @@ process replacement and cancellation cleanup; it does
 not qualify the complete browser application. `ApplicationRecovery` reopens
 original invocations for the database service's bounded discovery sweeps.
 An explicitly composed physical HTTP effect worker is implemented in
-`transit-serving-http.ApplicationEffectRuntime`. SQL publication, deployed host
-composition, ingress and response operations remain integration work tracked by
-[#430](https://github.com/spoke-sh/transit/issues/430). Local compiler success
-does not establish that a SQL service can install or run a program.
+`transit-serving-http.ApplicationEffectRuntime`. Native cohosted SQL composes
+publication, explicit role controls, publisher inspection and the database
+service's default public-data host. Deployed effect-host composition, ingress,
+response operations and migration binding remain integration work tracked by
+[#430](https://github.com/spoke-sh/transit/issues/430). The installed SQL profile
+is narrower than the typed instruction/runtime contract below.
+
+## Installed SQL profile
+
+`ManagedSql` delegates complete Queue bodies to `ApplicationProgram`.
+`ApplicationSql` resolves exactly the referenced native definitions through
+signed metadata calls and binds them with `ApplicationDeclaration`; preparation
+performs no acquisition, publication or effects. Unsupported host requirements
+and input Queues with more than one partition reject before admission.
+`ManagedOperations` retains the typed declaration or exact saved control request
+in its existing `DFS1` SQL operation envelope, using additive `publish_program`
+and `control_program` action variants. Existing finite actions retain their
+encoding and meaning. Recovery does not reparse SQL or choose another role.
+
+CREATE publishes an inactive definition. AUTHORIZE requires `AS ROLE` with a
+named role, `CURRENT_ROLE`/`CURRENT_USER` or `SESSION_USER`, resolved through the
+current native authorization owner. ACTIVATE, SUSPEND, RESUME and RETIRE use the
+saved definition and expected control. REFRESH is refused. Native name acceptance
+selects the control object; a token-account lookup cannot override that choice.
+A rejected control-object publication retains its original refusal and stops
+publication retries. Successful publication remains permanently retained.
+
+SHOW uses the original publisher connection, current resource metadata checks
+and control KV reads. Buffered and terminal disclosure repeat those checks.
+It returns the frozen declaration and observed head, including executor role,
+pending invocation, checkpoint reference and completion/refusal counters.
+It does not resolve checkpoint payloads into historical results or enable
+independent-reader inspection. EXPLAIN binds definitions and returns dependency
+uses and limits without allocating a durable identity or running a program.
+
+SQL freezes per-invocation limits of 10,000 requests, 10,000 scanned rows,
+1 MiB each for result/continuation encodings and 16 MiB retained bytes, plus
+`DirectTransaction.default_limits`. Existing source, node, dependency and native
+saved-record limits apply together. The installed host rejects effects,
+protected values/responses, response pages, handoffs and deadlines. Explicit
+transactions, database-wire/remote gateway admission, Queue program migrations
+and definition replacement are unsupported. The source compiler's existing
+Table profile is unchanged; this interface consumes executable lowered SQL.
 
 ## Definition and compilation
+
+LET bindings are lexical. In a SELECT predicate, an existing program binding
+takes precedence over a bare column name; column lookup occurs only when that
+name is absent from the lexical environment. Use distinct local names when a
+predicate must address the current row's column.
 
 A definition has a scoped catalog identity, immutable source digest, exact
 resource definitions, publication connection, input Queue and acquisition

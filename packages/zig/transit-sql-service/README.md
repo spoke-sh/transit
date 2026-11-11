@@ -16,8 +16,14 @@ and [CLI workflow](../../../docs/handbook/reference/cli.md#application-sql-migra
 
 Migration source framing uses Fuze's bounded `SqlScript` scanner: files can reach
 64 KiB while executable statements retain their owner's limits. Compound Queue
-dataflow bodies remain whole source steps for diagnostics, but have no installed
-execution owner. Framing cannot turn unsupported program syntax into an operation.
+dataflow bodies and their EXPLAIN forms remain whole statements. Standalone
+cohosted SQL binds the supported public-data profile through `ApplicationSql`,
+retains typed `ManagedOperations` requests and publishes/controls them through
+`ManagedApplication`. Recovery preserves the original definition and executor
+role. Queue bodies are classified as computations in migration plans but reject
+until their typed migration dependency evidence is implemented. Framing alone
+does not establish migration support. See the
+[installed program contract](../../../contracts/APPLICATION_PROGRAM_V1.md#installed-sql-profile).
 
 `Registry` owns bounded sessions and retained response batches. `Session` maps
 configured database names to Catalog bindings. `ReadSources` composes cleanup

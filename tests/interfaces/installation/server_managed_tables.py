@@ -10,6 +10,8 @@ import sys
 import time
 
 from interfaces.installation.server_direct_tables import LifecycleFixture as Fixture
+from interfaces.installation.server_application_faults import ExistingKey, native, post
+from interfaces.installation.server_sources import settle
 from interfaces.cli.table_console import records
 from harness.sql_placement import Probe
 from interfaces.sql_sessions.local import Client
@@ -200,6 +202,161 @@ def byte_boundary(fixture):
     print('Managed SQL: byte-boundary pages and all 63 wide output rows verified.', flush=True)
 
 
+def denied_executor(fixture):
+    # SQL selects an existing role; policy publication has its own native owner.
+    key = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    port, realm = fixture.config['ports']['node'], fixture.record()['realm']
+
+    def query(kind):
+        return post(port, '/v1/query', native(key, realm, 0, kind), retry_unavailable=True)
+
+    def authority(kind):
+        return query(dict(authorization=dict(role=None, kind=kind)))['body']['authorization']
+
+    def command(value):
+        sequence = query(dict(capabilities={}))['principal_sequence'] + 1
+        signed = native(key, realm, 0, dict(authorization=value), sequence)
+        return post(port, '/v1/command', signed, retry_unavailable=True)['position']
+
+    name = b'program_denied_executor'.hex()
+    action = dict(create_role=dict(name=name, login=False, create_role=False))
+    change = command(dict(begin=dict(expected_revision=authority(dict(identity={}))['revision'], role=None, action=action)))
+    deadline = time.monotonic() + 30
+    while True:
+        current = authority(dict(change=change))['body']['change']
+        if current['status'] == 'ready':
+            command(dict(publish=change))
+            assert authority(dict(change=change))['body']['change']['status'] == 'published'
+            assert authority(dict(resolve=name))['body']['resolve'] is not None
+            return
+        assert current['status'] == 'preparing' and time.monotonic() < deadline, current
+        command(dict(advance=change))
+
+
+def program_control(fixture, sql):
+    # Progress can fence a saved head CAS. Preserve each original until its
+    # terminal rejection is proved; only then issue a distinct control intent.
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        for _ in range(8):
+            token = list(os.urandom(16))
+            try:
+                submitted = client.execute(sql, token=token)['operation']
+            except AssertionError as failure:
+                detail = failure.args[0] if failure.args else None
+                error = detail.get('err', {}) if isinstance(detail, dict) else {}
+                if error.get('code') != 'DataflowLeaseFenced' or error.get('operation') is not None:
+                    raise
+                print('Managed SQL: control preparation fenced before admission.', flush=True)
+                continue
+            original = settle(client, dict(token=token), outcomes=('applied', 'rejected'))
+            assert original['identity'] == submitted['identity'], original
+            assert client.execute(sql, token=token)['operation'] == original
+            if original['outcome'] == 'applied':
+                return
+            print(f'Managed SQL: original control {original["identity"]["id"]} is terminally rejected; issuing a new intent.', flush=True)
+        raise AssertionError('Control did not apply after eight separately settled intents')
+    finally:
+        client.close()
+
+
+def queue_program(fixture):
+    denied_executor(fixture)
+    fixture.console('CREATE QUEUE program_input (id BIGINT NOT NULL);\n'
+                    'CREATE QUEUE program_partitioned (id BIGINT NOT NULL) PARTITIONS 2;\n'
+                    'CREATE TABLE program_output (id BIGINT PRIMARY KEY);\n'
+                    'ENQUEUE INTO program_input VALUES (1);\n')
+    source = '''CREATE DATAFLOW ordered_program FROM QUEUE program_input AS event AS BEGIN
+      LET requested_id = event.id;
+      BEGIN ATOMIC
+        REQUIRE requested_id > 0 ELSE 'InvalidInput';
+        INSERT INTO program_output VALUES (requested_id) ON CONFLICT (id) DO ASSERT SAME ROW;
+      END;
+      LET observed = SELECT * FROM program_output WHERE id = event.id;
+      REQUIRE observed.id = requested_id ELSE 'MissingCommittedRow';
+      BEGIN ATOMIC
+        INSERT INTO program_output VALUES (requested_id + 100) ON CONFLICT (id) DO ASSERT SAME ROW;
+      END;
+    END'''
+    plan = json.loads(records(fixture.console('EXPLAIN ' + source + ';\n')[-1])[0]['plan'])
+    assert plan['consumer'] == 'queue_program' and plan['executed'] is False, plan
+    assert len(plan['resources']) == 2 and len(plan['uses']) == 2, plan
+    publication_token = list(os.urandom(16))
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        client.call(dict(execute=dict(sql=source, token=publication_token)), discard_response=True)
+        publication = settle(client, dict(token=publication_token))
+        assert publication['command'] == 'create_dataflow' and publication['identity']['kind'] == 'dataflow', publication
+        assert client.execute(source, token=publication_token)['operation'] == publication
+        client.call(dict(execute=dict(sql=source.replace('requested_id + 100', 'requested_id + 200'), token=publication_token)), error='SqlTokenConflict')
+    finally:
+        client.close()
+    published = observation(fixture, 'ordered_program')
+    assert published['observation']['head']['control']['state'] == 'published', published
+    assert published['observation']['head']['executor_role'] is None, published
+    assert records(fixture.console('SELECT id FROM program_output;\n')[-1]) == []
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        for sql, code in (
+            ('AUTHORIZE DATAFLOW ordered_program', 'InvalidDataflowTransition'),
+            ('REFRESH DATAFLOW ordered_program', 'InvalidDataflowTransition'),
+            ('SHOW DATAFLOW ordered_program REVISION 1', 'UnsupportedProgramRevision'),
+            ('CREATE DATAFLOW ordered_program INTO managed_output AS SELECT id FROM managed_input', 'ManagedTableNameConflict'),
+            ('AUTHORIZE DATAFLOW ordered_program AS ROLE PUBLIC', 'InvalidSqlRole'),
+            ('AUTHORIZE DATAFLOW ordered_program AS ROLE program_denied_executor', 'AccessDenied'),
+            ("CREATE DATAFLOW partitioned_program FROM QUEUE program_partitioned AS event AS BEGIN REQUIRE TRUE ELSE 'Unused'; END", 'UnsupportedProgramPartitioning'),
+            ("CREATE DATAFLOW deadline_program FROM QUEUE program_input AS event WITH (DEADLINE = '5s') AS BEGIN REQUIRE TRUE ELSE 'Unused'; END", 'ApplicationHostUnavailable'),
+            ("CREATE DATAFLOW wrong_type FROM QUEUE program_input AS event AS BEGIN REQUIRE event.id ELSE 'Unused'; END", 'ProgramTypeMismatch'),
+        ):
+            failure = client.call(dict(execute=dict(sql=sql, token=[37]*16)), error=code)
+            assert failure['err']['operation'] is None, failure
+    finally:
+        client.close()
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        authorize = 'AUTHORIZE DATAFLOW ordered_program AS ROLE CURRENT_ROLE'
+        token = list(os.urandom(16))
+        client.call(dict(execute=dict(sql=authorize, token=token)), discard_response=True)
+        authorized = settle(client, dict(token=token))
+        assert authorized['command'] == 'control_dataflow', authorized
+        assert client.execute(authorize, token=token)['operation'] == authorized
+    finally:
+        client.close()
+    assert observation(fixture, 'ordered_program')['observation']['head']['control']['state'] == 'authorized'
+    assert records(fixture.console('SELECT id FROM program_output;\n')[-1]) == []
+    dataflow_command(fixture, 'ACTIVATE DATAFLOW ordered_program')
+    first = await_head(fixture, 'ordered_program', lambda head: head['completed'] == 1)
+    assert first['observation']['head']['checkpoint'] is not None, first
+    assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 101]
+    fixture.console('ENQUEUE INTO program_input VALUES (0);\n')
+    failed = await_head(fixture, 'ordered_program', lambda head: head['refused'] == first['observation']['head']['refused'] + 1)
+    assert failed['observation']['head']['completed'] == 1, failed
+    assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 101]
+    program_control(fixture, 'SUSPEND DATAFLOW ordered_program')
+    await_head(fixture, 'ordered_program', lambda head: head['pending'] is None)
+    fixture.console('ENQUEUE INTO program_input VALUES (2);\n')
+    fixture.stop(kill=True)
+    fixture.start()
+    fixture.ready(timeout=300)
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        assert settle(client, dict(token=publication_token)) == publication
+    finally:
+        client.close()
+    suspended = observation(fixture, 'ordered_program')
+    assert suspended['declaration'] == published['declaration']
+    assert suspended['observation']['head']['completed'] == 1, suspended
+    assert suspended['observation']['head']['control']['state'] == 'suspended', suspended
+    dataflow_command(fixture, 'RESUME DATAFLOW ordered_program')
+    await_head(fixture, 'ordered_program', lambda head: head['completed'] == 2)
+    assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 2, 101, 102]
+    program_control(fixture, 'RETIRE DATAFLOW ordered_program')
+    await_head(fixture, 'ordered_program', lambda head: head['retirement_complete'])
+    fixture.console('ENQUEUE INTO program_input VALUES (3);\n')
+    assert sorted(int(row['id']) for row in records(fixture.console('SELECT id FROM program_output;\n')[-1])) == [1, 2, 101, 102]
+    print('Managed SQL: lowered Queue program, explicit executor, ordered atomic outputs, retained restart and retirement verified.', flush=True)
+
+
 def run(cli, node, host, board, gateway):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     os.environ['TEST_TRANSIT_BOARD_BINARY'] = str(Path(board).resolve())
@@ -270,6 +427,7 @@ def run(cli, node, host, board, gateway):
         finally:
             client.close()
         page_boundaries(fixture)
+        queue_program(fixture)
         fixture.console('CREATE TABLE failed_input (id BIGINT NOT NULL);\nCREATE TABLE failed_output (id BIGINT PRIMARY KEY);\nINSERT INTO failed_input (id) VALUES (1),(1);\nCREATE DATAFLOW failed_projection INTO failed_output AS SELECT id FROM failed_input;\nAUTHORIZE DATAFLOW failed_projection;\nACTIVATE DATAFLOW failed_projection;\n')
         failed = await_head(fixture, 'failed_projection', lambda head: head['blocked'] == 'execution_failed' and head['pending'] is None)['observation']['head']
         assert failed['revision'] == 0

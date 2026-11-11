@@ -512,6 +512,23 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     defer metadata.deinit();
     const resources = [_]q.ApplicationBinding{.{ .value = .{ .log = metadata.value.result.log_lookup.? } }};
     const source = "CREATE DATAFLOW application_example FROM QUEUE application_input AS event AS BEGIN REQUIRE event.id > 0 ELSE 'InvalidInput'; END;";
+    const from_sql = try q.ApplicationSql.prepare(client, 1, 739990, 739991, source);
+    defer from_sql.deinit();
+    try t.expectEqualStrings("application_example", from_sql.value.name.slice());
+    try t.expectEqualDeep(resources[0], from_sql.value.resources[0]);
+    const preview = try q.ApplicationSql.prepare(client, 1, 0, 1, source);
+    defer preview.deinit();
+    try t.expect(preview.value.object.object != 0);
+    try t.expectEqual(1, preview.value.resources.len);
+    // Both kinds share the native name reservation. A losing program retains
+    // the original rejection and cannot leave recurring publication work.
+    const collision = try q.ApplicationSql.prepare(client, 1, 739992, 739993, "CREATE DATAFLOW managed_projection FROM QUEUE application_input AS event AS BEGIN REQUIRE TRUE ELSE 'Unused'; END;");
+    defer collision.deinit();
+    const application: A = .{ .client = client };
+    try t.expectError(error.ManagedTableNameConflict, application.publish(collision.value));
+    const refused = (try c.DirectClientToken.inspect(client, application.nameKey(1, collision.value.name))).?;
+    try t.expect(refused.cancel and !refused.pending);
+    try t.expectError(error.ManagedTableConflict, application.publish(collision.value));
     var program = try q.fuze.ApplicationProgram.parse(client.allocator, source, null);
     defer program.deinit();
     var digest: [32]u8 = undefined;
@@ -1902,7 +1919,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                         try t.expect(settled.cleanup_complete);
                         // The saved control cancels the invocation before its
                         // stale head mutation refuses. The original commit wins.
-                        try t.expectError(error.Conflict, manager.applyControl(cancellation.?));
+                        try t.expectError(error.ManagedTableConflict, manager.applyControl(cancellation.?));
                         try t.expect((try T.inspect(client, token)).?.cancel);
                         cancelled_after_commit = true;
                         continue;

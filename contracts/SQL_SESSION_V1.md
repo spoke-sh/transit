@@ -626,6 +626,34 @@ provenance remain unchanged; target definition, schema, acceptance frontier and
 mapping policy are separate observation fields. Prepared CURRENT targets resolve
 once. Metadata preparation has zero data reads, pin acquisitions or mutations.
 
+## Native Queue dataflows
+
+Native cohosted sessions accept the public-data Queue program profile described
+in [APPLICATION_PROGRAM_V1](APPLICATION_PROGRAM_V1.md#installed-sql-profile).
+CREATE and controls produce ordinary `dataflow` command outcomes. Applied CREATE
+means the immutable declaration and dependency/control state were published;
+applied ACTIVATE means the control transition completed, not that input was
+consumed. The original SQL token, fingerprint, declaration identity and saved
+control bytes remain the recovery basis. A different body cannot reuse that
+token. No request timeout or lost result creates a replacement operation.
+
+AUTHORIZE requires an explicit role operand for Queue programs. The service
+resolves it before saving the native control request; recovery cannot resolve it
+again against changed names or settings. Publication and controls require the
+native cohosted profile outside an explicit transaction. PostgreSQL/MySQL,
+source-backed sessions and standalone remote gateways do not admit this profile.
+
+SHOW and EXPLAIN use the shared result lifecycle. Their metadata observations
+list exact resource definitions with `independent_observations`, not an atomic
+data cut. SHOW additionally names the computation definition and currently uses
+the publisher's original connection. It rechecks current resource metadata and
+control KV read permission at preparation, advancement, buffered disclosure and
+terminal repetition. EXPLAIN does not publish, acquire Queue input or dispatch
+effects. Queue checkpoints are not accepted by the finite `SHOW ... REVISION`
+interface. Unsupported host facilities and multi-partition input reject before
+SQL admission. Migration planning recognizes the computation owner and rejects
+Queue programs until its dependency-evidence adapter is implemented.
+
 ## Native connector declarations
 
 Native cohosted sessions admit CREATE CONNECTION, CREATE SOURCE, RETIRE SOURCE

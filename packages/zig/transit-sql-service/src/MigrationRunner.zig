@@ -112,11 +112,12 @@ fn classifyStatement(
             .step_index = step_index,
             .owner = .computation,
             .effect = switch (managed.statement) {
-                .create => .create_dataflow,
+                .create, .program => .create_dataflow,
                 .control => .control_dataflow,
             },
             .object_name = try allocator.dupe(u8, switch (managed.statement) {
                 .create => |v| v.name.slice(),
+                .program => |v| v.name.slice(),
                 .control => |v| v.name.slice(),
             }),
             .sql = try allocator.dupe(u8, stmt_sql),
@@ -1930,8 +1931,8 @@ test "migration framing retains whole procedural bodies and source coordinates" 
     try t.expectEqual(2, steps[0].line);
     try t.expectEqual(7, steps[1].line);
     try t.expect(std.mem.endsWith(u8, steps[0].sql, "END"));
-    // Framing never grants unsupported bodies an execution owner.
-    try t.expectEqual(.service, steps[0].owner);
+    // The computation owner validates the installed program profile.
+    try t.expectEqual(.computation, steps[0].owner);
     try t.expectEqual(.computation, steps[1].owner);
     try t.expectError(error.UnterminatedSqlToken, splitStatements(arena.allocator(), "SELECT 1; /* missing end"));
 }

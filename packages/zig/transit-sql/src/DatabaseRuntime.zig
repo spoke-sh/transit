@@ -555,6 +555,7 @@ fn managedStep(self: *Self) !bool {
     }
 }
 fn managedOne(self: *Self, manager: g.direct.ManagedTable, declared: g.direct.ManagedTable.Declaration, entry: c.DirectClientToken.Progress) !void {
+    if (entry.cancel) return;
     if (entry.pending) _ = try manager.initialize(declared, entry.receipt.binding.key);
     if (try manager.start(declared) != null) self.managed_pending = true;
 }
@@ -638,6 +639,7 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
             },
         }
     } else {
+        if (entry.cancel) return;
         const declared = try manager.load(entry.receipt.binding.intent.external.record);
         defer declared.deinit();
         if (entry.pending) _ = try manager.initialize(declared.value, entry.receipt.binding.key);

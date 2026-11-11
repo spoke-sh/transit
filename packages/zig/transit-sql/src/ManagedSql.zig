@@ -5,7 +5,8 @@ const f = g.fuze;
 const Name = g.catalog.TableAuthority.Name;
 pub const Statement = union(enum) {
     create: struct { name: Name, output: Name, sql: []const u8 },
-    control: struct { name: Name, command: g.catalog.protocol.Dataflow.Command },
+    program: struct { name: Name, sql: []const u8 },
+    control: struct { name: Name, command: g.catalog.protocol.Dataflow.Command, role: ?f.AuthorizationSql.Role = null },
 };
 pub const Prepared = struct {
     arena: std.heap.ArenaAllocator,
@@ -43,6 +44,11 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
             return null;
         }
         const name = try Name.init(try parser.name());
+        if (parser.word("FROM")) {
+            var program = try f.ApplicationProgram.parse(a, owned, null);
+            defer program.deinit();
+            return .{ .arena = arena, .statement = .{ .program = .{ .name = name, .sql = owned } } };
+        }
         if (!try parser.takeWord("INTO")) return error.InvalidSqlSyntax;
         const output = try Name.init(try parser.name());
         if (!try parser.takeWord("AS")) return error.InvalidSqlSyntax;
@@ -55,8 +61,13 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
         if (try parser.takeWord(entry[0])) {
             if (!try parser.takeWord("DATAFLOW")) return error.InvalidSqlSyntax;
             const name = try Name.init(try parser.name());
+            const role = if (try parser.takeWord("AS")) selected: {
+                if (entry[1] != .authorize) return error.InvalidDataflowTransition;
+                try parser.requireWord("ROLE");
+                break :selected try f.AuthorizationSql.role(&parser, false);
+            } else null;
             try parser.finish();
-            return .{ .arena = arena, .statement = .{ .control = .{ .name = name, .command = entry[1] } } };
+            return .{ .arena = arena, .statement = .{ .control = .{ .name = name, .command = entry[1], .role = role } } };
         }
     }
     arena.deinit();
@@ -74,4 +85,18 @@ test "managed SQL preserves names and query text and rejects trailing controls" 
     try t.expectEqual(g.catalog.protocol.Dataflow.Command.suspend_computation, control.statement.control.command);
     try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "ACTIVATE DATAFLOW item trailing", .transit));
     try t.expect(try parse(t.allocator, "CREATE TABLE input (id BIGINT)", .transit) == null);
+}
+
+test "lowered Queue programs retain the complete ordered body and explicit executor" {
+    const t = std.testing;
+    const sql = "CREATE DATAFLOW action FROM QUEUE requests AS request AS BEGIN BEGIN ATOMIC IF request.id > 0 THEN REQUIRE TRUE ELSE 'Denied'; END IF; END; END;";
+    var program = (try parse(t.allocator, sql, .transit)).?;
+    defer program.deinit();
+    try t.expectEqualStrings(sql, program.statement.program.sql);
+    try t.expectEqualStrings("action", program.statement.program.name.slice());
+    var control = (try parse(t.allocator, "AUTHORIZE DATAFLOW action AS ROLE CURRENT_ROLE", .transit)).?;
+    defer control.deinit();
+    try t.expectEqual(.current_role, control.statement.control.role.?);
+    try t.expectError(error.InvalidDataflowTransition, parse(t.allocator, "ACTIVATE DATAFLOW action AS ROLE writer", .transit));
+    try t.expectError(error.MutationOutsideAtomic, parse(t.allocator, "CREATE DATAFLOW action FROM QUEUE requests AS request AS BEGIN INSERT INTO rows VALUES (request.id) ON CONFLICT (id) DO ASSERT SAME ROW; END;", .transit));
 }

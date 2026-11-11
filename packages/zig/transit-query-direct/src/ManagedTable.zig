@@ -297,6 +297,11 @@ pub fn initialize(self: Self, value: Declaration, token: c.DirectClientToken.Key
     });
     _ = try KV.apply(&output, self.client, .{ .declaration = .{ .declaration = create, .command = .admit, .steps = 1 } });
     const initialized = try KV.apply(&output, self.client, .{ .declaration = .{ .declaration = create, .command = .execute, .steps = 64 } });
+    if (initialized.declaration.operation == .rejected or initialized.declaration.operation == .cancelled) {
+        const progress = (try c.DirectClientToken.inspect(self.client, token)).?;
+        if (progress.pending or !progress.cancel) _ = try c.DirectClientToken.update(self.client, .{ .key = token, .expected = progress.revision, .pending = false, .cancel = true, .record = null });
+        return error.ManagedTableNameConflict;
+    }
     if (initialized.declaration.operation != .committed) return error.ManagedTableInitializationPending;
     const metadata = (try KV.apply(&output, self.client, .{ .observe = value.object })).definition;
     const head = Head.initial(try value.digest(self.client.allocator));

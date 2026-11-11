@@ -106,7 +106,7 @@ pub const Prepared = union(enum) {
                 .select, .relational, .kv_get => .read,
                 .ddl, .dml, .document_ddl, .kv_ddl, .kv_write, .namespace_change, .log_ddl, .log_append, .log_consume, .log_claim, .log_settlement, .log_offset => .operation,
             },
-            .managed => .operation,
+            .managed => |value| if (value.statement == .program) .unsupported else .operation,
             .inspection, .source, .captured, .workload => .read,
             .probe, .settings => if (self.readOnly()) .read else .unsupported,
             .transaction, .connector => .unsupported,
@@ -308,6 +308,14 @@ pub const Read = struct {
                 if (prepared.managed) |declared| {
                     metadata.consistency = .independent_observations;
                     metadata.definitions = try allocator.dupe(p.DataLifecycle.Definition, if (prepared.kind == .plan) &.{ declared.source.interpretation.interpretation, declared.output.interpretation.interpretation } else &.{ try declared.interpretation(allocator), declared.source.interpretation.interpretation, declared.output.interpretation.interpretation });
+                }
+                if (prepared.program) |declared| {
+                    metadata.consistency = .independent_observations;
+                    const extra: usize = if (prepared.kind == .plan) 0 else 1;
+                    const definitions = try allocator.alloc(p.DataLifecycle.Definition, declared.resources.len + extra);
+                    if (extra == 1) definitions[0] = try declared.interpretation(allocator);
+                    for (declared.resources, definitions[extra..]) |resource, *definition| definition.* = resource.interpretation();
+                    metadata.definitions = definitions;
                 }
                 if (prepared.source) {
                     const definition = self.host.source.?.definition;
@@ -1065,6 +1073,13 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SettingOutOfRange, error.InvalidSettingValue, error.InvalidSettingUnit => .{ "22023".*, "Setting value exceeds its type or administrator ceiling" },
         error.UnknownSetting => .{ "42704".*, "Unknown registered setting" },
         error.InvalidDataflowRevision => .{ "22023".*, "Revision must be a positive unsigned 64-bit integer" },
+        error.ApplicationHostUnavailable, error.MissingProgramNativeBinding => .{ "0A000".*, "The installed DATAFLOW host does not support this program's required facilities" },
+        error.UnsupportedProgramPartitioning => .{ "0A000".*, "Queue DATAFLOW execution requires one input partition" },
+        error.UnsupportedProgramMigration => .{ "0A000".*, "Queue DATAFLOW migration binding is not supported" },
+        error.UnsupportedProgramRevision => .{ "0A000".*, "Queue DATAFLOW checkpoints are not finite Table revisions" },
+        error.InvalidDataflowTransition => .{ "55000".*, "DATAFLOW control conflicts with its lifecycle or executor selection" },
+        error.ProgramTypeMismatch, error.ProgramNullabilityMismatch, error.ProgramArgumentMismatch, error.ProgramResourceKindMismatch => .{ "42804".*, "DATAFLOW operands do not match their bound native types" },
+        error.ProgramTooComplex, error.ProgramTooDeep => .{ "54000".*, "DATAFLOW exceeds its bounded syntax or dependency budget" },
         error.SourceSchemaMismatch => .{ "42804".*, "SOURCE destination requires the exact seven-column non-null capture envelope" },
         error.UnsupportedSourceDestination => .{ "0A000".*, "SOURCE destination requires one Stream partition without routing or compaction" },
         error.SourceExecutionUnsupported => .{ "0A000".*, "Connector execution is not available; declaration publication does not send HTTP" },

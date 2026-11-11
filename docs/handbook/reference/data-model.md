@@ -104,6 +104,7 @@ implemented interface.
 | [Interactive](queries.md#interactive-sessions) | Execute a finite query against fresh source snapshots | A logical session and bounded cursor; inspect complete rows and source evidence, then close it |
 | [Captured](queries.md#recovery-and-display) | Execute a frozen query with recoverable progress and retained results | The original accepted request, input basis, progress and verified result; inspect its recorded outcome after disconnect or worker loss |
 | [Maintained](queries.md#relational-boundary) | Publish successive complete results as source history advances | The definition, recorded source vectors, completed revisions and deltas; inspect the last complete result and any stopped or pending successor |
+| [Queue program](queries.md#managed-queue-programs) | Apply ordered public-data instructions to each claimed input | The immutable definition, explicit executor role, original invocation, native transaction checkpoints and completion/refusal counters |
 
 Supported operators and callers differ by lifetime. The console executes finite
 interactive queries and has explicit captured query operations. Typed Zig owners
@@ -198,6 +199,7 @@ interfaces provide different portions of that experience:
 | [KV](state.md) | Typed direct declaration, atomic batches, point reads, retained pins, original-operation recovery, rename and DROP; scoped policy and dependency restrictions; native mixed transaction participation | Executable console SQL publication and query syntax |
 | [Documents](documents.md) | Typed named-resource admission, original caller allocation, actual writer initialization, publication, rename, logical DROP and inspection; exact dependency registration and DROP RESTRICT; offline SQL definition compilation | Executable console SQL publication and automatic dependency reconciliation |
 | [Named captured/maintained relations](queries.md#relational-boundary) | Immutable definitions, saved exact source registrations, separate authorization and explicit activation through typed Zig owners; definition retirement, original result/revision attribution and actual source-vector freshness | Atomic cross-owner publication/reconciliation; SQL view/subscription adapters and automatic service-managed scheduling |
+| [Managed Queue programs](queries.md#managed-queue-programs) | Lowered cohosted SQL publication, explicit role controls, public-data execution and original recovery; publisher inspection and retirement cleanup | Source emission, migration binding, independent inspection, effects/responses, whole-program deadlines and multi-partition input |
 | [Connections, connector sources and sinks](connectors.md) | Recorded connector operations and explicit application source bindings | Executable SQL declarations and shared dependency administration |
 | [Permissions](security.md) and [retention](retention.md) | Native authorization, selected SQL administration plans, `policyReferences` inspection with read-privilege redaction, and explicit supported retention policies | One declaration/reconciliation surface covering all data kinds and computations |
 
