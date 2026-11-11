@@ -32,6 +32,59 @@ comparison inputs, not allocated runtime identities. Statement scratch resets
 between preparations; retained schemas/output and scratch backing allocations
 share one compiler memory budget.
 
+The typed-target implementation at source `16cf8399e` asks whether equal physical
+values can remain distinct during composition without introducing a second
+runtime type authority. [SourceTypes](../../../packages/zig/transit-compiler/src/SourceTypes.zig)
+retains the resolved domain declaration alongside its scalar type and value.
+Explicit domain identities must be unique in the resolved graph. Immutable
+Table handles retain their binding, native schema, column annotations and
+declaring invocation; interfaces compare the exact schema and domains. Forwarding
+a handle preserves that binding rather than allocating another Table.
+
+[TypedOperands](../../../packages/zig/transit-compiler/src/TypedOperands.zig)
+checks assignments, predicates and projections using the owning Fuze ASTs and
+source spans. Nominal operands remain typed beside temporary SQL parameters
+until their resolved column roles have been checked. Only then does emission
+replace them with scalar literals. Literal names, identifier parameters and
+Table handles all resolve through the same annotation catalog, so changing a
+Table's spelling cannot bypass its source constraints. Native plan fingerprints
+alone cannot catch a swapped domain when both values encode the integer `7`;
+the separate checked representation retains the Table, column, domain and
+operand for independent comparisons. It is in-memory evidence, excluded from
+persisted artifact provenance.
+
+[Compiler](../../../packages/zig/transit-compiler/src/Compiler.zig) checks every
+arm of a reached exhaustive MATCH with symbolic payload types and forked
+proposed catalogs. These checks emit no actions and publish no schema changes
+to the caller. The selected concrete arm then contributes its ordered statements.
+Symbolic callees abstract scalar arguments to their declared types, checking
+both symbolic IF paths. A recursive edge is discharged only against an active
+symbolic check with the same definition, scalar types and concrete
+identifier/Table/type/module bindings. This prevents a previously checked body
+from justifying a recursive call with a different Table. Acquiring exports from
+such a discharged edge, or changing schema/export shape under a symbolic IF,
+rejects. Branch allocations and checking consume the existing compiler budgets.
+
+The [source verification owner](../../../tests/query/application_source/README.md)
+defines reproducible grammar, Lean and finite correspondence checks. The
+[Lean specification](../../../contracts/application-source/TypedTarget.lean)
+models typed substitution, complete unique arm selection and preservation of
+ordered bound inserts for one scalar payload per constructor. Its source
+interpreter extends an environment; specialization substitutes into a typed
+action program. Independent expectations compare both interpretations with
+Zig's checked actions and emitted SQL, including equal raw values in different
+domains. This is a model proof plus finite implementation comparisons, not a
+proof of the Zig parser, checker, SQL executor or all compiler programs. Real
+[CLI fixtures](../../../tests/fixtures/application-typed-targets/README.md)
+separately exercise source-free SQL, counts, rows and current authority.
+
+This design pays for checking every reached arm and retaining annotations before
+erasure. It avoids inventing runtime tags or trusting a build artifact as a
+grant. Direct SQL still accepts its ordinary physical types; nominal construction
+proves neither resource existence nor authorization. Dynamic variants, query
+cardinality, effects and temporal behavior require their own contracts and
+verification beyond this compile-time specialization.
+
 Source syntax checks complete Table templates and expected rows before graph
 evaluation, including unused modules and both conditional branches. Template
 holes retain identifier, type, value or unresolved-operand roles and byte spans;
@@ -83,8 +136,9 @@ set or implied authorization. TLA+ models must identify temporal abstractions,
 fairness assumptions and their correspondence with native traces. Selected Lean
 theorems must identify the typed-core transformation and preservation claim.
 Introduce those executable checks with the relevant constructs. This grammar
-slice supplies finite syntax/lowering comparisons; it adds no temporal theorem
-or Lean proof.
+and typed-target implementation supplies syntax/lowering comparisons and the
+limited Lean laws described above; it adds no temporal theorem or proof for
+these broader constructs.
 
 The proposed equivalence condition is that preparing generated SQL produces the
 same bound definitions, expression semantics and operation boundaries as the
