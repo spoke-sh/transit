@@ -2,6 +2,13 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
+The [remaining implementation plan](application-remaining-implementation.md)
+proposes the delivery sequence from the merged compiler and typed-target baseline
+at `bc849156a`: public-data Queue program emission, richer typed composition,
+runtime module boundaries, protected workflows, explicit-basis migrations,
+definition replacement and deterministic replay qualification. It preserves the
+P0–P6 scope and outstanding qualification below; it is proposed for review.
+
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a typed declarative application language stored as `.transit`,
 with SQL as its relational foundation and independently executable output.
