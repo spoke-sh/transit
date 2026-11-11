@@ -18,6 +18,13 @@ value metadata owns its schema fields and names. Read, write, dispatch and guard
 dependencies remain distinct. Neither operation performs a catalog lookup,
 publishes a computation, executes an effect or grants native authority.
 
+`ApplicationProgram.Schema.bindField` describes native logical fields for that
+same binder without requiring a live Catalog or importing a database runtime.
+The installed public-data host and offline target checks share
+`ApplicationProgram.Types.Requirements.publicData()` as their facility profile.
+The profile describes implementation support; current runtime authorization and
+exact resource-definition validation remain separate checks.
+
 `ApplicationProgram.Codec` retains the exact instruction tree and source digest
 under the current contract definition, with a separate 1 MiB encoding limit.
 Loading verifies canonical bytes, syntax depth, unique node coverage, atomic

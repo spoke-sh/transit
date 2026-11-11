@@ -13,7 +13,7 @@ pub fn recovery(self: *Self) q.ApplicationRecovery.Host {
     return .{ .context = self, .ready = requireReady, .bind = bind };
 }
 pub fn available() a.Types.Requirements {
-    return .{ .functions = .initMany(&.{ .random_token, .digest, .commitment, .now, .seconds, .current_revision, .url, .json_object, .s256, .length, .secure_equal, .operation_id, .json_value, .json_integer, .identity_digest }) };
+    return a.Types.Requirements.publicData();
 }
 pub fn requireReady(_: *anyopaque, allocator: std.mem.Allocator, declaration: q.ManagedApplication.Declaration) !void {
     var bound = try declaration.bind(allocator);
