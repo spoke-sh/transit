@@ -1,6 +1,7 @@
 //! Source syntax only. File and repository I/O stay with the caller.
 const std = @import("std");
 const f = @import("transit_fuze");
+pub const Template = @import("Template.zig");
 pub const Token = f.SqlInput.CompilerScan.Token;
 pub const Span = struct { start: u32, end: u32 };
 pub const Name = struct { qualifier: ?[]const u8 = null, member: []const u8 };
@@ -24,9 +25,9 @@ pub const Expr = struct {
 pub const Call = struct { name: Name, arguments: []const *Expr };
 pub const Case = struct { name: []const u8, setup: []const Call, body: []const Statement };
 pub const Assertion = struct {
-    sql: []const Token,
+    sql: Template.Syntax,
     expected: union(enum) {
-        rows: []const Token,
+        rows: Template.Syntax,
         command: struct { matched: u64, changed: u64 },
         refusal: enum { duplicate_key, check_violation },
     },
@@ -34,7 +35,7 @@ pub const Assertion = struct {
 pub const Statement = struct { span: Span, value: union(enum) {
     use: Call,
     conditional: struct { condition: *Expr, yes: []const Statement, no: []const Statement },
-    sql: []const Token,
+    sql: Template.Syntax,
     test_case: Case,
     assertion: Assertion,
 } };
@@ -209,11 +210,11 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
             break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
         } else if (self.take("ASSERT")) blk: {
             const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
-            const sql = try self.parenthesized();
+            const sql = try self.template(try self.parenthesized(), false);
             const expected: @FieldType(Assertion, "expected") = switch (kind) {
                 .rows => rows: {
                     try self.require("EQUAL");
-                    break :rows .{ .rows = try self.parenthesized() };
+                    break :rows .{ .rows = try self.template(try self.parenthesized(), true) };
                 },
                 .command => command: {
                     try self.require("MATCHED");
@@ -245,11 +246,15 @@ fn parseBody(self: *Self, conditional: bool) anyerror![]const Statement {
             while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
             const sql = self.tokens[begin..self.index];
             try self.require(";");
-            break :blk .{ .sql = sql };
+            break :blk .{ .sql = try self.template(sql, false) };
         };
         try result.append(self.a, .{ .span = self.span(start), .value = value });
     }
     return result.toOwnedSlice(self.a);
+}
+fn template(self: *Self, tokens: []const Token, rows: bool) !Template.Syntax {
+    const end = if (self.index > 0) self.tokens[self.index - 1].start else self.at();
+    return Template.parse(self.a, self.text, tokens, end, rows, self.location);
 }
 fn parseCall(self: *Self) !Call {
     const name = try self.parseName();

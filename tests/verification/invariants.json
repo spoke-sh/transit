@@ -2905,6 +2905,34 @@
       "model": null,
       "qualification": "Commands and source-specific completed evidence belong in docs/history/qualification/catalog.md; registration alone establishes no pass.",
       "required_tier": "ordinary"
+    },
+    {
+      "id": "SOURCE-01",
+      "claim": "Independent source syntax, production ASTs and bounded formatting preserve ordered Table SQL and logical test products",
+      "owner": "contracts/APPLICATION_SOURCE_V1.md",
+      "implementation": [
+        "packages/zig/transit-compiler/src/Syntax.zig",
+        "packages/zig/transit-compiler/src/Template.zig",
+        "packages/zig/transit-compiler/src/Format.zig",
+        "packages/zig/transit-compiler/src/Compiler.zig"
+      ],
+      "profile": "transit_source_v1/Table",
+      "tasks": [
+        "test::application-source-grammar",
+        "test::application-compiler",
+        "test::application-build",
+        "test::application-test"
+      ],
+      "scenarios": [
+        "Complete source/template syntax and typed-hole sites",
+        "Malformed unused bodies and stage refusals",
+        "UTF-8 byte coordinates and source formatting",
+        "Independent AST, precedence and coverage negative controls"
+      ],
+      "limits": "Finite corpus and deterministic variants; syntax/lowering correspondence is not a runtime, temporal-model or theorem proof.",
+      "model": null,
+      "qualification": "Required correspondence and consumer checks; executed scope belongs in docs/history/qualification/query.md. Registration alone establishes no pass.",
+      "required_tier": "ordinary"
     }
   ]
 }

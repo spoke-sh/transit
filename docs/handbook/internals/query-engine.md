@@ -18,7 +18,8 @@ they do not establish an automatic SQL materialized-view service.
 
 [transit-compiler](../../../packages/zig/transit-compiler/README.md) accepts
 resolved immutable source buffers and compiler/resolution identity. It parses
-source with Fuze's shared file framer, resolves public imports and interfaces,
+source with Fuze's shared file framer and the compiler's source/template parser,
+resolves public imports and interfaces,
 and evaluates the selected target under explicit limits. A proposed catalog
 stages new schemas in composition order; it has no durable object allocation,
 live grants or execution authority.
@@ -30,6 +31,18 @@ compares ordered schema/plan fingerprints. Its synthetic schema ordinals are
 comparison inputs, not allocated runtime identities. Statement scratch resets
 between preparations; retained schemas/output and scratch backing allocations
 share one compiler memory budget.
+
+Source syntax checks complete Table templates and expected rows before graph
+evaluation, including unused modules and both conditional branches. Template
+holes retain identifier, type, value or unresolved-operand roles and byte spans;
+syntax checking supplies neither dummy values nor a catalog. Name/type/target
+checks and native execution retain their own stages. The independent
+[source grammar check](../../../contracts/application-source/README.md) compares
+ANTLR trees with the actual source AST, hand-authored expectations and bounded
+source round-trips. It separately verifies attribution and case-identity
+derivation while comparing emitted SQL, bindings, fingerprints and test actions.
+The grammar tools and private projection executable are verification facilities,
+not dependencies of the installed compiler.
 
 The CLI owns bounded file capture, explicit Git fetch, locks and atomic output
 publication. It includes the executable digest as well as the build revision in
@@ -59,6 +72,19 @@ Runtime execution prepares that SQL through the ordinary statement owners. Fuze
 plans and Catalog descriptors remain internal shared representations; generated
 SQL must carry the complete executable meaning rather than depend on a separate
 source interpreter or privileged build-time result.
+
+The [compilation core contract](../../../contracts/APPLICATION_SOURCE_V1.md#compilation-core-and-extension-obligations)
+sets the information each extension must preserve: nominal/domain identity,
+cardinality and cell states, interface obligations, ordered guards/effects,
+capability ownership, state transitions and exact observation/proof basis.
+These are obligations on future representations and emitted operations, not
+placeholder runtime nodes. Missing information cannot become an empty effect
+set or implied authorization. TLA+ models must identify temporal abstractions,
+fairness assumptions and their correspondence with native traces. Selected Lean
+theorems must identify the typed-core transformation and preservation claim.
+Introduce those executable checks with the relevant constructs. This grammar
+slice supplies finite syntax/lowering comparisons; it adds no temporal theorem
+or Lean proof.
 
 The proposed equivalence condition is that preparing generated SQL produces the
 same bound definitions, expression semantics and operation boundaries as the
@@ -107,8 +133,9 @@ ordered outcomes against hand-expanded SQL, then test migration replay after
 source/dependency changes and revocation between compilation and execution.
 `transit test` must exercise the same emitter and real database components, with
 explicit test-only clock/effect controls. These are proposed checks; current
-[qualification evidence](../../history/qualification/README.md) does not establish
-this source language, its performance or external-provider recovery.
+[qualification evidence](../../history/qualification/README.md) covers the bounded
+Table source/build/test profile, not these broader features, their performance or
+external-provider recovery.
 
 ## Original Stream and Queue wait attempts
 

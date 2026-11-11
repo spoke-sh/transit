@@ -632,6 +632,10 @@ runtime-upgrade:
 sql-grammar:
     nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/query/sql/grammar.py
 
+# Independent source grammar, actual compiler ASTs, formatter and products.
+application-source-grammar:
+    nix shell .#sql-tools --command zig build test-application-source-grammar -Doptimize=ReleaseSafe
+
 # Independent application grammar/model and actual compiler round-trip.
 application-grammar:
     zig build transit-app

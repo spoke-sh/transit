@@ -1,0 +1,415 @@
+[
+  {
+    "name": "empty",
+    "source": "; /* outer /* nested */ comment */ ; -- eof",
+    "parse": true,
+    "expected": {
+      "definitions": [],
+      "imports": [],
+      "dependencies": []
+    }
+  },
+  {
+    "name": "interface",
+    "source": "CREATE PUBLIC INTERFACE Factory(name IDENTIFIER, value BIGINT, element TYPE, text TEXT, flag BOOLEAN, factory MODULE lib.Inner);",
+    "parse": true,
+    "checks": {
+      "definitions.0.name": "factory",
+      "definitions.0.public": true,
+      "definitions.0.kind": "interface",
+      "definitions.0.parameters.5.kind.module": {
+        "qualifier": "lib",
+        "member": "inner"
+      }
+    }
+  },
+  {
+    "name": "imports",
+    "source": "IMPORT rows FROM 'röws.transit'; IMPORT pkg FROM PACKAGE common FILE 'build.transit'; DEPENDENCY common FROM 'https://example.invalid/library.git' REVISION '0123456789012345678901234567890123456789' SUBDIRECTORY 'src';",
+    "parse": true,
+    "checks": {
+      "imports.0.path": "röws.transit",
+      "imports.1.package": "common",
+      "dependencies.0.subdirectory": "src"
+    }
+  },
+  {
+    "name": "precedence",
+    "source": "CREATE MODULE m() AS BEGIN USE f(1 + 2 * 3 < 9 AND NOT FALSE OR TRUE, -9223372036854775808, NAME 'it''s', TYPE BOOLEAN); END;",
+    "parse": true,
+    "checks": {
+      "definitions.0.body.0.value.use.arguments.0.value.binary.op": "or_",
+      "definitions.0.body.0.value.use.arguments.1.value.integer": -9223372036854775808
+    }
+  },
+  {
+    "name": "table-build",
+    "source": "CREATE MODULE rows(t IDENTIFIER, v BIGINT, ty TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id $ty PRIMARY KEY, note TEXT); INSERT INTO $t VALUES ($v, '雪 $inert;'); END; CREATE TARGET default AS BEGIN USE rows(NAME 'items', 7, TYPE BIGINT); UPDATE items SET note = 'it''s' WHERE id = 7; DELETE FROM items WHERE id = 9; SELECT id, note FROM items WHERE id <= 8 LIMIT 5; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 5,
+    "sql_expected": [
+      "CREATE TABLE \"items\" ( ID BIGINT PRIMARY KEY , NOTE TEXT )",
+      "INSERT INTO \"items\" VALUES ( 7 , '雪 $inert;' )",
+      "UPDATE ITEMS SET NOTE = 'it''s' WHERE ID = 7",
+      "DELETE FROM ITEMS WHERE ID = 9",
+      "SELECT ID , NOTE FROM ITEMS WHERE ID <= 8 LIMIT 5"
+    ]
+  },
+  {
+    "name": "tests",
+    "source": "CREATE MODULE rows() AS BEGIN CREATE PUBLIC TABLE items (id BIGINT PRIMARY KEY); END; CREATE TEST TARGET tests AS BEGIN TEST 'rows' USING MODULES (rows()) AS BEGIN ASSERT COMMAND (INSERT INTO items VALUES (7)) MATCHED 1 CHANGED 1; ASSERT ROWS (SELECT * FROM items) EQUAL ((7)); ASSERT STATEMENT (INSERT INTO items VALUES (7)) FAILS WITH 'duplicate_key'; END; END;",
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 1
+  },
+  {
+    "name": "unused-malformed-table",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC TABLE t (id); END;",
+    "parse": false,
+    "at": "); END;",
+    "parse_error": "InvalidSourceTemplate"
+  },
+  {
+    "name": "unselected-malformed-insert",
+    "source": "CREATE TARGET default AS BEGIN IF FALSE THEN INSERT INTO t VALUES (1,); END IF; END;",
+    "parse": false,
+    "at": ")",
+    "parse_error": "InvalidSourceTemplate"
+  },
+  {
+    "name": "unused-unsupported",
+    "source": "CREATE MODULE unused() AS BEGIN COMMIT; END;",
+    "parse": false,
+    "at": "COMMIT",
+    "parse_error": "UnsupportedBuildStatement"
+  },
+  {
+    "name": "malformed-expected-rows",
+    "source": "CREATE MODULE unused() AS BEGIN ASSERT ROWS (SELECT * FROM t) EQUAL ((1,)); END;",
+    "parse": false,
+    "at": "));",
+    "parse_error": "InvalidSourceTemplate"
+  },
+  {
+    "name": "positional-parameter",
+    "source": "CREATE MODULE unused() AS BEGIN INSERT INTO t VALUES ($1); END;",
+    "parse": false,
+    "at": "$1",
+    "parse_error": "InvalidSourceOperand"
+  },
+  {
+    "name": "quoted-source-name",
+    "source": "CREATE MODULE \"m\"() AS BEGIN END;",
+    "parse": false,
+    "at": "\"m\"",
+    "parse_error": "InvalidSourceName"
+  },
+  {
+    "name": "missing-terminator",
+    "source": "CREATE MODULE m() AS BEGIN END",
+    "parse": false,
+    "at_eof": true
+  },
+  {
+    "name": "unknown-table-stage",
+    "source": "CREATE TARGET default AS BEGIN SELECT * FROM absent; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnknownBuildTable"
+  },
+  {
+    "name": "eager-booleans",
+    "source": "CREATE TARGET default AS BEGIN IF FALSE AND missing THEN CREATE PUBLIC TABLE t (id BIGINT); END IF; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "UnknownSourceSymbol"
+  },
+  {
+    "name": "assertion-stage",
+    "source": "CREATE TARGET default AS BEGIN ASSERT ROWS (SELECT * FROM t) EQUAL (); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "TestAssertionOutsideCase"
+  },
+  {
+    "name": "all-expressions",
+    "source": "CREATE MODULE m() AS BEGIN IF NOT FALSE THEN USE f(1 - 2 - 3, -(1), -(-1), (1 + 2) * 3, 1 <> 2, 1 < 2, 1 > 2, 1 >= 2, 1 <= 2, TRUE AND FALSE OR TRUE, 'it''s 雪', TYPE TEXT, NAME 'name'); ELSE USE f(); END IF; END;",
+    "parse": true
+  },
+  {
+    "name": "contextual-names",
+    "source": "CREATE MODULE begin(case BIGINT, end BOOLEAN) AS BEGIN IF end THEN CREATE PUBLIC TABLE case (begin BIGINT, end BIGINT); INSERT INTO case VALUES ($case, 2); SELECT begin AS end, end AS begin FROM case; END IF; END; CREATE TARGET default AS BEGIN USE begin(1, TRUE); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "logical-types",
+    "source": "CREATE MODULE types() AS BEGIN CREATE PUBLIC TABLE t (a INT8, b UINT64, c DECIMAL(12, 2), d VARCHAR(40), e TIMESTAMP WITH TIME ZONE, f STRUCT(x BIGINT NOT NULL OPTIONAL, y LIST(TEXT)), g ARRAY(INT64, 4), h MAP(TEXT NOT NULL, BIGINT), i UNION(left BIGINT, right TEXT), j RANGE<BIGINT>, k MULTIRANGE<DATE>, l VECTOR(4, FLOAT32)); END;",
+    "parse": true
+  },
+  {
+    "name": "type-holes",
+    "source": "CREATE MODULE m(t IDENTIFIER, ty TYPE, n BIGINT, v TEXT) AS BEGIN CREATE PUBLIC TABLE $t (id BIGINT, x LIST($ty), y ARRAY($ty, $n), z VECTOR($n, FLOAT32)); INSERT INTO $t VALUES ($n, LIST($n), ARRAY($n), LIST($n)); SELECT $t.* FROM $t LIMIT $n; END;",
+    "parse": true
+  },
+  {
+    "name": "typed-literals",
+    "source": "CREATE MODULE m() AS BEGIN INSERT INTO t VALUES (NULL, MISSING, TRUE, FALSE, +1, -2, 1.5, 2e3, 4.5e-2, '01'::BYTEA, '1'::UINT64, '2'::FLOAT64, X 'abcd', DATE '2020-01-01', TIME '12:00:00', TIMESTAMP '2020-01-01 12:00:00', UUID 'id', JSON '{}', STRUCT(1, 'x'), ROW(1), LIST(), ARRAY(1,2), MAP('x',1), INTERVAL(1,2,3), UNION(left,1)); END;",
+    "parse": true
+  },
+  {
+    "name": "constraints",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, n BIGINT DEFAULT 0, s TEXT COLLATE ASCII_CI, PRIMARY KEY (id), CONSTRAINT nonnegative CHECK (n >= 0 AND n <= id)); INSERT INTO t (id,n,s) VALUES (2,DEFAULT,'x'); SELECT * FROM t; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "check-hole",
+    "source": "CREATE MODULE m(n BIGINT) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, CHECK (id >= $n)); END;",
+    "parse": true
+  },
+  {
+    "name": "select-forms",
+    "source": "CREATE MODULE m() AS BEGIN SELECT COUNT(*) AS n FROM t; SELECT SUM(id) FROM t AS a WHERE NOT (a.id < 0 OR a.id IS NULL); SELECT COUNT(*) FROM (SELECT id FROM t WHERE id >= 0 LIMIT 2) AS subset; SELECT t.* FROM t; SELECT id AS other FROM t aliased WHERE id IS NOT MISSING; SELECT DECIMAL_ADD(x, y) AS total FROM t; END;",
+    "parse": true
+  },
+  {
+    "name": "empty-rows",
+    "source": "CREATE TEST TARGET tests AS BEGIN TEST 'empty' USING MODULES () AS BEGIN ASSERT ROWS (SELECT id FROM t) EQUAL (); ASSERT COMMAND (CREATE PUBLIC TABLE t (id BIGINT)) MATCHED 0 CHANGED 0; ASSERT STATEMENT (UPDATE t SET id = -1) FAILS WITH 'check_violation'; END; END;",
+    "parse": true
+  },
+  {
+    "name": "quoted-and-inert",
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE \"$name\" (\"it\"\"s\" TEXT); INSERT INTO \"$name\" VALUES ('$value -- /* ;'); END; -- trailing",
+    "parse": true
+  },
+  {
+    "name": "dependency-default",
+    "source": "DEPENDENCY lib FROM '/tmp/repo' REVISION '0123456789012345678901234567890123456789';",
+    "parse": true
+  },
+  {
+    "name": "unicode-crlf-location",
+    "source": "-- 雪\r\nCREATE MODULE m() AS BEGIN INSERT INTO t VALUES ('é',); END;",
+    "parse": false,
+    "at": ");"
+  },
+  {
+    "name": "missing-expression",
+    "source": "CREATE MODULE m() AS BEGIN USE f(1 + ); END;",
+    "parse": false,
+    "at": ");"
+  },
+  {
+    "name": "source-not-equal-spelling",
+    "source": "CREATE MODULE m() AS BEGIN USE f(1 != 2); END;",
+    "parse": false,
+    "at": "!="
+  },
+  {
+    "name": "empty-body-statement",
+    "source": "CREATE MODULE m() AS BEGIN ; END;",
+    "parse": false,
+    "at": ";"
+  },
+  {
+    "name": "raw-private-table",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE TABLE t (id BIGINT); END;",
+    "parse": false
+  },
+  {
+    "name": "malformed-select",
+    "source": "CREATE MODULE unused() AS BEGIN SELECT FROM t; END;",
+    "parse": false,
+    "at": "FROM"
+  },
+  {
+    "name": "malformed-update",
+    "source": "CREATE MODULE unused() AS BEGIN UPDATE t SET id =; END;",
+    "parse": false,
+    "at": ";"
+  },
+  {
+    "name": "malformed-delete",
+    "source": "CREATE MODULE unused() AS BEGIN DELETE t; END;",
+    "parse": false,
+    "at": "t;"
+  },
+  {
+    "name": "extra-input",
+    "source": "CREATE MODULE m() AS BEGIN END; trailing",
+    "parse": false,
+    "at": "trailing"
+  },
+  {
+    "name": "invalid-type-expression",
+    "source": "CREATE MODULE m() AS BEGIN USE f(TYPE DECIMAL); END;",
+    "parse": false,
+    "at": "DECIMAL"
+  },
+  {
+    "name": "invalid-refusal",
+    "source": "CREATE MODULE m() AS BEGIN ASSERT STATEMENT (INSERT INTO t VALUES (1)) FAILS WITH 'other'; END;",
+    "parse": false
+  },
+  {
+    "name": "count-overflow",
+    "source": "CREATE MODULE m() AS BEGIN ASSERT COMMAND (DELETE FROM t) MATCHED 18446744073709551616 CHANGED 0; END;",
+    "parse": false
+  },
+  {
+    "name": "integer-overflow",
+    "source": "CREATE MODULE m() AS BEGIN USE f(9223372036854775808); END;",
+    "parse": false
+  },
+  {
+    "name": "wrong-argument-type",
+    "source": "CREATE MODULE m(n BIGINT) AS BEGIN END; CREATE TARGET default AS BEGIN USE m('text'); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "wrong-target-kind",
+    "source": "CREATE TEST TARGET default AS BEGIN END;",
+    "parse": true,
+    "compile": "build",
+    "error": "WrongSourceTargetKind"
+  },
+  {
+    "name": "build-reaches-test",
+    "source": "CREATE TARGET default AS BEGIN TEST 'case' USING MODULES () AS BEGIN SELECT * FROM t; END; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "TestInBuildTarget"
+  },
+  {
+    "name": "runtime-parameter-hidden",
+    "source": "CREATE MODULE m() AS BEGIN SELECT * FROM t WHERE id = $1; END;",
+    "parse": false,
+    "at": "$1"
+  },
+  {
+    "name": "module-operand",
+    "source": "CREATE INTERFACE i(); CREATE MODULE m(v MODULE i) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); INSERT INTO t VALUES ($v); END; CREATE MODULE empty() AS BEGIN END; CREATE TARGET default AS BEGIN USE m(empty); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "ModuleIsNotSqlOperand"
+  },
+  {
+    "name": "test-target-sql",
+    "source": "CREATE TEST TARGET tests AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END;",
+    "parse": true,
+    "compile": "test_suite",
+    "error": "TestStatementOutsideCase"
+  },
+  {
+    "name": "lexical-units-build",
+    "source": "CREATE MODULE m(n BIGINT, v TEXT) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, f FLOAT64, b BYTEA, u UINT64); INSERT INTO t VALUES (-$n, 1.25e-2, X 'abcd', $n); SELECT * FROM t WHERE id != 2; END; CREATE TARGET default AS BEGIN USE m(1, '7'); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 3
+  },
+  {
+    "name": "scalar-holes",
+    "parse": true,
+    "source": "CREATE MODULE m() AS BEGIN SELECT DECIMAL_ADD($a, $t.$b), TIME_BUCKET($a AT TIME ZONE $zone, 10), id AT TIME ZONE $zone FROM t; END;"
+  },
+  {
+    "name": "check-contextual-column",
+    "parse": true,
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, missing BIGINT, CHECK (id = missing AND id > 1 AND id <> $n)); END;"
+  },
+  {
+    "name": "sum-wildcard",
+    "parse": false,
+    "source": "CREATE MODULE m() AS BEGIN SELECT SUM(*) FROM t; END;",
+    "at": "*"
+  },
+  {
+    "name": "scalar-float",
+    "parse": false,
+    "source": "CREATE MODULE m() AS BEGIN SELECT DECIMAL_ADD(id, 1.25) FROM t; END;"
+  },
+  {
+    "name": "imported-build",
+    "parse": true,
+    "compile": "build",
+    "steps": 3,
+    "source": "/* 雪 */ IMPORT lib FROM 'lib.transit'; CREATE TARGET default AS BEGIN USE lib.compose(lib.rows); SELECT * FROM items; END;",
+    "files": [
+      {
+        "path": "lib.transit",
+        "text": "CREATE PUBLIC INTERFACE Factory(n BIGINT); CREATE PUBLIC MODULE rows(n BIGINT) AS BEGIN CREATE PUBLIC TABLE items (id BIGINT); INSERT INTO items VALUES ($n); END; CREATE PUBLIC MODULE compose(make MODULE Factory) AS BEGIN USE make(42); END;"
+      }
+    ],
+    "step_sites": [
+      {
+        "definition": {
+          "source": "root/lib.transit",
+          "at": "CREATE PUBLIC TABLE"
+        },
+        "call": {
+          "source": "root/lib.transit",
+          "at": "USE make"
+        }
+      },
+      {
+        "definition": {
+          "source": "root/lib.transit",
+          "at": "INSERT INTO"
+        },
+        "call": {
+          "source": "root/lib.transit",
+          "at": "USE make"
+        }
+      },
+      {
+        "definition": {
+          "source": "root/build.transit",
+          "at": "SELECT *"
+        },
+        "call": null
+      }
+    ]
+  },
+  {
+    "name": "imported-tests",
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 2,
+    "source": "/* 雪 */ IMPORT lib FROM 'lib.transit'; CREATE TEST TARGET tests AS BEGIN USE lib.cases(7); USE lib.cases(9); END;",
+    "files": [
+      {
+        "path": "lib.transit",
+        "text": "CREATE MODULE setup(n BIGINT) AS BEGIN CREATE PUBLIC TABLE items (id BIGINT); INSERT INTO items VALUES ($n); END; CREATE PUBLIC MODULE cases(n BIGINT) AS BEGIN TEST 'roundtrip' USING MODULES (setup(n)) AS BEGIN ASSERT ROWS (SELECT * FROM items) EQUAL (($n)); END; END;"
+      }
+    ]
+  },
+  {
+    "name": "contextual-type",
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE t (id SELECT, v VECTOR(3, DOUBLE)); END;",
+    "parse": true
+  },
+  {
+    "name": "qualified-check-hole",
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE t (id BIGINT, CHECK (id = $t.$id)); END;",
+    "parse": true
+  },
+  {
+    "name": "implicit-alias-hole",
+    "parse": true,
+    "compile": "build",
+    "steps": 2,
+    "source": "CREATE MODULE m(a IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); SELECT $a.id FROM t $a; END; CREATE TARGET default AS BEGIN USE m(NAME 'alias'); END;"
+  },
+  {
+    "name": "clause-as-alias",
+    "parse": false,
+    "source": "CREATE MODULE m() AS BEGIN SELECT * FROM t JOIN; END;",
+    "at": "JOIN"
+  }
+]

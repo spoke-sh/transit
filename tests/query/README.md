@@ -8,6 +8,7 @@ expectations and qualification boundaries.
 
 | Area | Entry points |
 | --- | --- |
+| Application source grammar, ASTs and source round-trips | [Source correspondence](application_source/README.md) |
 | Independent SQL grammar, plans and rewrites | [SQL checks](sql/README.md) |
 | Logical values, source descriptors and codecs | [logical/](logical/), [Arrow](arrow/) |
 | Spatial reference bytes, exact determinants and planar geometry | [Spatial oracle](logical/spatial.py), [compiled adapter](logical/spatial.zig); `just test::spatial` |

@@ -50,6 +50,7 @@
     ],
     "storage-query": [
       "test::application-compiler",
+      "test::application-source-grammar",
       "test::application-runner",
       "test::arrow",
       "test::fuze-types",
@@ -1267,6 +1268,25 @@
         ],
         "resources": [
           "formal-cpu"
+        ]
+      },
+      "application-source-reference": {
+        "paths": [
+          "contracts/application-source/TransitSource.g4",
+          "contracts/application-source/corpus.json"
+        ],
+        "prefixes": [
+          "tests/query/application_source/"
+        ],
+        "depends_on": [],
+        "tasks": [
+          "test::application-source-grammar",
+          "test::application-compiler",
+          "test::application-build",
+          "test::application-test"
+        ],
+        "resources": [
+          "native-build"
         ]
       }
     }

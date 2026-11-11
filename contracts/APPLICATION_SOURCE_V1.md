@@ -7,11 +7,15 @@ describes its supported authoring and execution workflow.
 
 The executable source parser is
 [`transit-compiler/Syntax.zig`](../packages/zig/transit-compiler/src/Syntax.zig).
-There is currently no independent ANTLR grammar for this source profile.
+Its independent syntax reference is
+[`TransitSource.g4`](application-source/TransitSource.g4), with a
+[finite corpus and correspondence check](application-source/README.md).
 [`TransitExtensions.g4`](sql/TransitExtensions.g4) checks ordinary SQL and
 [`Application.g4`](application/Application.g4) checks interface/UI declarations;
-neither covers `.transit` imports, modules, builds or tests. Source parser tests
-and emitted-SQL revalidation do not establish independent source-grammar parity.
+neither covers `.transit` imports, modules, builds or tests. The source check
+compares complete ANTLR and production ASTs, byte coordinates, source formatting
+and compiled products. This finite evidence is distinct from native execution
+and formal preservation proofs.
 
 ## Source language
 
@@ -60,6 +64,38 @@ Expressions have no ambient environment, time, random, database or effect access
 Module bodies contain USE, IF and executable SQL statements; nested declarations
 and runtime-private Table declarations reject in this profile.
 
+Expression precedence, from tightest to loosest, is unary minus/NOT,
+multiplication, addition/subtraction, comparisons, AND, OR. Binary operators
+associate left; comparisons are not comparison chains. AND and OR evaluate both
+operands, so an error in either operand is observable even when the other operand
+determines the Boolean result. This precedence is separate from SQL precedence.
+Names are at most 63 ASCII bytes and source names are unquoted. Empty top-level
+statements are allowed; empty body statements are not. Strings use doubled
+single quotes, comments may nest, and no keyword interpretation occurs inside
+strings or quoted SQL identifiers.
+
+### Validation stages
+
+| Stage | Required checks | Does not establish |
+| --- | --- | --- |
+| Encoding/framing | UTF-8, bounded complete tokens and blocks | Source or SQL syntax |
+| Source/template syntax | Complete declarations, expressions, admitted Table templates and expected rows in **all** bodies | Name resolution, operand type, target reachability or valid schema |
+| Graph/type/target | Imports/interfaces, typed bounded evaluation, target/case placement and ordinary schema/plan binding | Runtime authority or execution |
+| Native execution | Current permission, constraints, original accepted operations and complete outcomes | Broader effect/provider qualification |
+
+Structural template checks include unused modules and both branches of IF.
+Malformed SQL and SQL outside the closed Table source profile cannot be hidden
+in unreachable bodies. This is an intentional earlier refusal than the former
+framing-only body parser. It changes no emitted SQL for valid supported programs
+and changes no persisted lock/cache or native definition. Unresolved names,
+wrong operand kinds and invalid target/case placement retain their later checks.
+The parser never invents catalog bindings or dummy SQL values to validate a hole.
+
+Spans are zero-based UTF-8 byte offsets with exclusive ends; diagnostic lines
+and byte columns start at one. ANTLR character offsets must be converted before
+comparison. Source spelling, source digests and expansion-position-derived test
+identities are provenance, separate from explicit durable object bindings.
+
 `$parameter` is a typed source syntax operand, never string interpolation.
 Identifier operands encode one quoted identifier; values encode one SQL literal;
 type operands encode an admitted logical type. Holes inside strings, comments or
@@ -90,6 +126,43 @@ identifier bytes. It reparses emitted output through the same ordinary typed
 owners and compares schema/plan fingerprints and statement order. The SQL is
 complete without source maps, package source, a build interpreter or privileged
 execution. Current runtime authorization and operation identity checks still apply.
+
+The package's bounded source formatter writes the parsed AST to a caller-owned
+writer. It normalizes source names/keywords and expression parentheses, omits
+comments and retains quoted SQL bytes and lexical adjacency. It does not resolve
+imports, bind a catalog or execute tests, and has no public CLI command. Source
+round-trips preserve ordered SQL, bindings, fingerprints and logical test plans;
+source coordinates, input digests and expansion-derived case identities are
+checked separately for the new spelling. Exhausted writer/depth budgets fail
+without establishing a complete artifact.
+
+## Compilation core and extension obligations
+
+The implemented chain is source AST, resolved graph, bounded typed evaluation,
+ordered SQL/test products, then independent ordinary SQL rebind. These are
+in-process compiler stages, not a persisted public IR or a new execution
+authority. A verification projection does not become a runtime dependency.
+
+Future language extensions must carry the following information through their
+typed representation and ordinary SQL lowering. They are obligations, not
+implemented syntax or proved properties:
+
+| Information | Static/lowering obligation | Runtime or proof owner |
+| --- | --- | --- |
+| Object/domain/definition identity | Keep nominal references distinct despite identical scalar encodings; preserve explicit instance bindings in SQL | Catalog definition and operation checks; selected identity-preservation lemmas |
+| Types, cardinality and cell states | Preserve one/optional/many and value/NULL/missing/type-error/conflict; check variants and refinements | Shared Fuze types and native constraints; selected type/refinement preservation |
+| Query/command/module signatures | Check inputs, outputs and behavioral obligations; specialization cannot widen effects | Ordinary statement preparation and current authorization |
+| Ordered guards and effects | Retain refusal order, read/write dependencies, atomic boundaries and time/random inputs in executable operations | Transaction/effect owners; temporal interleavings and native trace correspondence |
+| Capabilities and protected values | Track ownership, settlement and disclosure; emit explicit authorized operations and secret references | Live policy/fencing, connector settlement and information-flow proofs |
+| Transitions and observation basis | Preserve before/after states, original operation identity and exact evidence; unknown is not success | Durable history and observation owners; temporal safety/liveness under stated fairness |
+| Proof basis | Identify property, assumptions, abstraction, bounds and exact source/SQL/tool artifacts | Independently executed models, native traces and selected Lean theorems |
+
+Absent information is unsupported, never an empty effect set or presumed proof.
+Later transition/effect constructs must supply explicit TLA+ abstractions and
+native trace projections when introduced. Later typed-core transformations must
+state and check selected Lean preservation obligations with their lowering.
+Shared generation of a model and SQL does not itself prove correspondence.
+This source grammar slice adds no temporal-model result or Lean theorem.
 
 ## Resolution and locks
 

@@ -1,6 +1,13 @@
 # Application source grammar and typed-core contract implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Planned** · Proposal for review
+[Milestone 12](12-application-modules-compilation-and-testing.md#next-language-slice) · **Status: Implemented; qualification in progress**
+
+The reviewed scope below is implemented by the dedicated source grammar,
+structural Table templates, compiler-package formatter and independent
+AST/product comparison. It adds no domain/effect syntax or new formal theorem.
+The implementation starts from merged planning PR #440 at `66fcb5931`.
+The acceptance commands below remain requirements, not passing evidence until
+their completed runs are recorded in the qualification ledger.
 
 Give application authors an independently checked definition of the language
 already accepted by `transit build` and `transit test`, and give subsequent
@@ -244,8 +251,8 @@ semantics or tooling changes.
 | Bounds and diagnostics | Existing 1 MiB/file, aggregate source, nesting, work, memory and SQL-output limits remain enforced; at/over-bound and allocation-failure cases produce no complete artifact; Unicode/CRLF coordinates remain correct |
 | Consumer preservation | Existing real `transit build`/`transit test` fixtures retain SQL, typed results, command counts and refusals under frozen offline resolution; verification tooling is absent from the installed runtime dependency closure |
 
-The proposed task is `just test::application-source-grammar`; it does not exist
-yet. It builds the private Zig driver, generates ANTLR with the pinned SQL tools
+The delivered task is `just test::application-source-grammar`.
+It builds the private Zig driver, generates ANTLR with the pinned SQL tools
 and runs the independent adapter through `tests/runner/launch.py`. Generated
 parsers and raw evidence stay in a unique ignored
 `.cache/verification/application-source-grammar/` run directory. Bound subprocess
@@ -290,9 +297,9 @@ truthfully rather than relaxing deadlines. Runtime SQL scalar or adapter changes
 would additionally require the SQL interface validation loop and are outside the
 intended scope.
 
-This planning PR requires the documentation baseline only; it adds no grammar,
-compiler or runner implementation. Record actual implementation evidence in the
-qualification ledger, not as a passing checkbox in this plan.
+The original planning PR required the documentation baseline only. The
+implementation requires all affected gates above. Record actual implementation
+evidence in the qualification ledger, not as a passing checkbox in this plan.
 
 ## Following slice
 

@@ -1220,6 +1220,25 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-application-runner", "Verify typed isolated application assertions").dependOn(&application_tests.step);
     const application_compiler = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") }));
     b.step("test-application-compiler", "Verify bounded typed module compilation and emission equivalence").dependOn(&application_compiler.step);
+    const source_grammar_driver = b.addExecutable(.{ .name = "transit-source-grammar-driver", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/query/application_source/driver.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
+            .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
+        },
+    }) });
+    const source_grammar = b.addSystemCommand(&.{ "python3", "-B" });
+    source_grammar.addFileArg(b.path("tests/runner/launch.py"));
+    source_grammar.addFileArg(b.path("tests/query/application_source/verify.py"));
+    source_grammar.addArtifactArg(source_grammar_driver);
+    source_grammar.has_side_effects = true;
+    source_grammar.stdio = .inherit;
+    b.step("test-application-source-grammar", "Compare independent source grammar, ASTs, formatter and compiled products").dependOn(&source_grammar.step);
+    const source_grammar_install = b.addInstallArtifact(source_grammar_driver, .{});
+    b.step("source-grammar-driver", "Build private source syntax/product projection").dependOn(&source_grammar_install.step);
     const application_host = b.addExecutable(.{ .name = "application-test-host", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/application_test_host.zig"),
         .target = target,
