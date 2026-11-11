@@ -636,6 +636,10 @@ sql-grammar:
 application-source-grammar:
     nix shell .#sql-tools --command zig build test-application-source-grammar -Doptimize=ReleaseSafe
 
+# Source-only nominal substitution, exhaustive selection and specialization laws.
+application-source-types:
+    nix shell --inputs-from . nixpkgs#lean4 --command zig build test-application-source-types -Doptimize=ReleaseSafe
+
 # Independent application grammar/model and actual compiler round-trip.
 application-grammar:
     zig build transit-app

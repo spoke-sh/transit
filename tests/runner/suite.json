@@ -3,6 +3,7 @@
   "lanes": {
     "formal": [
       "test::sql-rewrites",
+      "test::application-source-types",
       "test::model-delivery",
       "test::queue-lease-transaction-model",
       "test::wal-model",
@@ -1274,7 +1275,8 @@
       "application-source-reference": {
         "paths": [
           "contracts/application-source/TransitSource.g4",
-          "contracts/application-source/corpus.json"
+          "contracts/application-source/corpus.json",
+          "contracts/application-source/TypedTarget.lean"
         ],
         "prefixes": [
           "tests/query/application_source/"
@@ -1284,10 +1286,12 @@
           "test::application-source-grammar",
           "test::application-compiler",
           "test::application-build",
-          "test::application-test"
+          "test::application-test",
+          "test::application-source-types"
         ],
         "resources": [
-          "native-build"
+          "native-build",
+          "formal-cpu"
         ]
       }
     }

@@ -285,7 +285,7 @@ def main():
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": [["just", "transit-board::install"]]}
-    assert LANES["formal"] == ["test::sql-rewrites", "test::model-delivery", "test::queue-lease-transaction-model",
+    assert LANES["formal"] == ["test::sql-rewrites", "test::application-source-types", "test::model-delivery", "test::queue-lease-transaction-model",
                                "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
                                "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
                                "test::console-model", "test::statement-result-model", "test::table-transaction-model",

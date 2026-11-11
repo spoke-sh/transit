@@ -673,6 +673,17 @@
           "tests/runner/launch.py",
           "tests/interfaces/sql_wire/type_inventory.py"
         ]
+      },
+      {
+        "id": "application-source-proof-inventory",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/launch.py",
+          "tests/query/application_source/types.py",
+          "--check-inventory"
+        ]
       }
     ],
     "contracts": [
