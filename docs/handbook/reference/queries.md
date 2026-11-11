@@ -566,6 +566,10 @@ requires the original publication connection and current metadata access to its
 resources plus control KV read access. Its `dataflow` column contains the frozen
 declaration and observed control head: selected executor, pending invocation,
 checkpoint reference, completed/refused counts and retirement cleanup state.
+The counters describe recorded invocations. An active program may retain a
+pending acquisition on an empty Queue; cancelling it through SUSPEND or RETIRE
+adds a refusal without consuming input. Exact counts do not establish Queue
+emptiness or worker idleness.
 These are program observations, not finite Table revisions; `SHOW ... REVISION`
 and REFRESH are unsupported. Independent-reader and Board inspection of Queue
 programs are not supplied by this path.

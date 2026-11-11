@@ -53,6 +53,10 @@ SHOW uses the original publisher connection, current resource metadata checks
 and control KV reads. Buffered and terminal disclosure repeat those checks.
 It returns the frozen declaration and observed head, including executor role,
 pending invocation, checkpoint reference and completion/refusal counters.
+These counters describe recorded invocations, not Queue emptiness or worker
+idleness. An active program can retain a pending acquisition while its Queue is
+empty; cancelling that acquisition through SUSPEND or RETIRE records a refusal
+even though it consumed no input.
 It does not resolve checkpoint payloads into historical results or enable
 independent-reader inspection. EXPLAIN binds definitions and returns dependency
 uses and limits without allocating a durable identity or running a program.
