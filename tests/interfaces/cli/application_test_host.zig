@@ -125,11 +125,11 @@ const WorkflowAuthority = struct {
         lookup.deinit();
         const owner = try context.authority.authorize(.{ .create_role = .{ .name = try .init("workflow_owner") } });
         _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = owner } });
-        _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = g.catalog.TableAuthority.select } });
+        _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.inspect | g.catalog.KVAuthority.read } });
         var case = product.cases[0];
         case.actions = case.actions[case.actions.len - 1 ..];
         try require((try runner.run(case)).passed);
-        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.TableAuthority.select } });
+        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.read } });
         if (runner.run(case)) |_| return error.RevokedWorkflowPassed else |err| try denied(context.session, err);
         _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = context.role } });
         const input = try context.session.table.call(.{ .log_lookup = .{ .namespace = 1, .name = "input" } });
