@@ -63,6 +63,7 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     defer admission.allocator(false).free(held_response);
     try t.expectError(error.OutOfMemory, admission.allocator(false).alloc(u8, 1));
     var host: Host = .{ .configuration = service.configuration, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState(), .admission = &admission };
+    host.options.logs.queue.queue_checkpoint_soft_frames = 32;
     defer host.deinit();
     var allocations: c.fuze.memory.AllocationProbe = .{ .parent = t.allocator };
     var work: Work = .{ .host = &host, .allocator = allocations.allocator(), .next_kind = .queue };
@@ -90,35 +91,83 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         var frames = try data.log().read(t.allocator, initial.partition, lsn, 1);
         defer frames.deinit();
         const recorded = try c.storage.LogPartitionRecord.decode(t.allocator, frames.frames[0], initial.partition, lsn);
-        // Physical scheduling cleanup needs no clock and may precede refusal
-        // of an expiry unit. It must not settle either accepted lease.
-        try t.expect(recorded.record.action == .queue_schedule);
+        // Physical scheduling cleanup and standalone metadata checkpoints need
+        // no clock and may precede refusal of an expiry unit. Neither settles
+        // an accepted lease.
+        try t.expect(recorded.record.action == .queue_schedule or recorded.record.action == .checkpoint);
     }
-    try check(&data, initial, declared, claimed, authority.guard(), 2, false);
+    try check(&data, initial, declared, claimed, authority.guard(), 2, false, false);
     // The upper bound has reached the deadline; the lower bound has not.
     // The older lease on partition zero can expire, but these two cannot.
     var peak: usize = work.last_peak_bytes;
     clock.now = 2105;
     service.engine.clock = .{ .context = &clock, .read = Clock.read };
     _ = try settle(&work, service, settings, signed, &allocations, false, &peak);
-    try check(&data, initial, declared, claimed, authority.guard(), 2, false);
+    try check(&data, initial, declared, claimed, authority.guard(), 2, true, false);
     clock.now = 2110;
     const limits = native.limits;
-    native.limits.bytes = native.allocated; // Expiry uses reserved control capacity.
+    native.limits.bytes = native.allocated; // Expiry and standalone Queue checkpoints use reserved control capacity.
     defer native.limits = limits;
     _ = try settle(&work, service, settings, signed, &allocations, false, &peak);
-    try check(&data, initial, declared, claimed, authority.guard(), 0, false);
+    try check(&data, initial, declared, claimed, authority.guard(), 0, true, false);
     native.limits = limits;
+    // Verify QueueCheckpointBacklog transient backpressure and retry after standalone
+    // checkpoint maintenance (archive.enabled == false), with zero memory leak.
+    {
+        const tight_options: c.storage.QueuePartition.Options = .{
+            .queue_checkpoint_soft_frames = 1,
+            .queue_checkpoint_hard_frames = 2,
+            .queue_checkpoint_hard_mode = .refuse,
+        };
+        const previous_queue_options = host.options.logs.queue;
+        host.options.logs.queue = tight_options;
+        defer host.options.logs.queue = previous_queue_options;
+        _ = try settle(&work, service, settings, signed, &allocations, false, &peak);
+        var cached: ?c.DirectQueue.Cached = null;
+        defer if (cached) |*value| value.deinit();
+        var scratch: std.heap.ArenaAllocator = .init(t.allocator);
+        defer scratch.deinit();
+        var output: std.heap.ArenaAllocator = .init(t.allocator);
+        defer output.deinit();
+        const environment: c.DirectQueue.Environment = .{ .clock = @import("LocalLogClock.zig").source(service.engine) };
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 91 } } }};
+        var buffer: [8192]u8 = undefined;
+        for (0..2) |step| {
+            _ = scratch.reset(.retain_capacity);
+            _ = output.reset(.retain_capacity);
+            const identity: p.DataLifecycle.Operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 29000 + step };
+            const payload = try c.storage.LogBatch.encode(schema, identity, .queue, &.{.{ .cells = &cells }}, &buffer);
+            const work_req: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = identity, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } };
+            const res = try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, tight_options, environment, .{ .mutate = .{ .work = work_req, .payload = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), payload) } }, policy);
+            try t.expectEqual(@as(u64, 41 + step), res.operation.?.enqueue.next);
+        }
+        _ = scratch.reset(.retain_capacity);
+        _ = output.reset(.retain_capacity);
+        const blocked_op: p.DataLifecycle.Operation = .{ .scope = target.interpretation.object.scope, .principal = 101, .operation = 29002 };
+        const blocked_payload = try c.storage.LogBatch.encode(schema, blocked_op, .queue, &.{.{ .cells = &cells }}, &buffer);
+        const blocked_work: c.DirectQueueMutation.Request = .{ .enqueue = .{ .target = target, .operation = blocked_op, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(blocked_payload) } };
+        const encoded_payload = try c.DirectTableProtocol.Binary.encode(scratch.allocator(), blocked_payload);
+        try t.expectError(error.QueueCheckpointBacklog, c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, tight_options, environment, .{ .mutate = .{ .work = blocked_work, .payload = encoded_payload } }, policy));
+        // Operation ID remains open (not permanently refused) and succeeds once
+        // standalone Queue checkpoint maintenance drains the dirty backlog.
+        const observed = try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, tight_options, environment, .{ .operation = blocked_work }, policy);
+        try t.expect(observed.operation == null);
+        cached.?.deinit();
+        cached = null;
+        _ = try settle(&work, service, settings, signed, &allocations, false, &peak);
+        const accepted = try c.DirectQueue.apply(scratch.allocator(), output.allocator(), &catalog, &cached, tight_options, environment, .{ .mutate = .{ .work = blocked_work, .payload = encoded_payload } }, policy);
+        try t.expectEqual(@as(u64, 43), accepted.operation.?.enqueue.next);
+    }
     settings.flush.enabled = true;
     settings.archive = .{ .enabled = true, .work_frames = 8 };
     settings.compact = true;
     const units = try settle(&work, service, settings, signed, &allocations, true, &peak);
-    try check(&data, initial, declared, claimed, authority.guard(), 0, true);
+    try check(&data, initial, declared, claimed, authority.guard(), 0, true, true);
     try t.expectEqual(work.memory.used, admission.maintenance.used.load(.acquire));
     try t.expect(admission.maintenance.peak.load(.acquire) > 0);
     // Settle all work through the owning public composition. The original expired
     // claim remains open; payload retention must preserve its older read basis.
-    clock.now = 2120;
+    clock.now = 2220;
     {
         var cached: ?c.DirectQueue.Cached = null;
         defer if (cached) |*value| value.deinit();
@@ -128,7 +177,7 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
         defer output.deinit();
         const environment: c.DirectQueue.Environment = .{ .clock = @import("LocalLogClock.zig").source(service.engine) };
         var operation: u64 = 20041;
-        var remaining: u32 = 40;
+        var remaining: u32 = 43;
         while (remaining != 0) {
             _ = scratch.reset(.retain_capacity);
             _ = output.reset(.retain_capacity);
@@ -155,13 +204,13 @@ pub fn exercise(service: *Service, declared: c.DirectLog.Definition, schema: c.f
     var retained = try c.storage.QueuePartition.open(t.allocator, data.log(), data.objects(), initial, authority.guard(), .{});
     defer retained.deinit() catch unreachable;
     while (!(try retained.recoverStep(authority.guard(), 16)).complete) {}
-    try t.expectEqual(@as(u64, 40), retained.owner.root.retained_from);
-    try t.expectEqual(@as(u64, 40), retained.owner.root.queue.?.terminal);
+    try t.expectEqual(@as(u64, 43), retained.owner.root.retained_from);
+    try t.expectEqual(@as(u64, 43), retained.owner.root.queue.?.terminal);
     try t.expect(retained.owner.root.batches == null and retained.owner.root.segments == null);
     var original = try retained.readClaimPage(declared.stored, .{ .receipt = claimed, .next = 0 }, .{ .rows = 2 }, t.allocator, authority.guard());
     defer original.deinit();
     try t.expect(original.cursor.complete() and original.len == 2);
-    try t.expectEqual(@as(u64, 40), original.basis.cut.retained_from);
+    try t.expectEqual(@as(u64, 43), original.basis.cut.retained_from);
     for (original.rows()) |row| try t.expectEqual(p.QueueRead.State.acked, row.lease.state);
     std.debug.print("Native Queue maintenance: {d} physical units, {d} terminal-retention units, {d} peak bytes; expiry preserves open claims under reserved capacity.\n", .{ units, retention_units, peak });
 }
@@ -186,7 +235,7 @@ fn settle(work: *Work, service: *Service, settings: p.Storage.Maintenance, signe
     return units;
 }
 
-fn check(data: *backend.DataStore, initial: c.storage.LogInitialization.Request, declared: c.DirectLog.Definition, claimed: p.StreamQueue.ClaimReceipt, guard: c.storage.PublicationGuard, active: u64, archived: bool) !void {
+fn check(data: *backend.DataStore, initial: c.storage.LogInitialization.Request, declared: c.DirectLog.Definition, claimed: p.StreamQueue.ClaimReceipt, guard: c.storage.PublicationGuard, active: u64, checkpointed: bool, archived: bool) !void {
     var queue = try c.storage.QueuePartition.open(t.allocator, data.log(), data.objects(), initial, guard, .{});
     defer queue.deinit() catch unreachable;
     while (!(try queue.recoverStep(guard, 16)).complete) {}
@@ -210,9 +259,10 @@ fn check(data: *backend.DataStore, initial: c.storage.LogInitialization.Request,
         }
     }
     try t.expectEqual(@as(u64, 0), queue.owner.root.retained_from);
-    try t.expectEqual(@as(u64, 40), queue.owner.root.next_offset);
+    try t.expect(queue.owner.root.next_offset >= 40);
+    if (checkpointed) try t.expect(queue.owner.root.recovery != null);
     if (archived) {
-        try t.expectEqual(@as(u64, 40), queue.owner.root.sealed_through);
+        try t.expectEqual(queue.owner.root.next_offset, queue.owner.root.sealed_through);
         try t.expect(queue.owner.root.archive.through > 1 and queue.owner.root.recovery != null);
         try t.expectError(error.WalHistoryTrimmed, data.log().read(t.allocator, initial.partition, 0, 1));
     }

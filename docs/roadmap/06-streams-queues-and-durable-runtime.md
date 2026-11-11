@@ -9,16 +9,19 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 `TransitLog` (`TWAL1`) and `.tseg` segments, and re-architect `Station` on top
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
-The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-09),
-based on `origin/main` at `b42ef803ba7b861a0a6dd732865ac9390c09941d`, delivers
-native `.tseg` log-segment system columns and `LBMETA01`/`LOGVIEW1` retirement
-([Storage Units 1–2](#additional-storage-review-units-and-sequencing)) together
-with finite retained `STREAM_SLICE` (Batch 4c) under the shared
+The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-10),
+based on `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`, delivers
+bounded Queue metadata checkpoints and incremental resident Queue state
+([Storage Unit 3](#additional-storage-review-units-and-sequencing)) together
+with mixed decision/DLQ qualification, concrete
+[`QueueLeaseTransaction.tla`](../../tests/verification/models/QueueLeaseTransaction.tla)
+Zig replay correspondence ([Batch 2](#batch-2--qualify-the-existing-mixed-and-automatic-dlq-owners))
+and mixed SQL transactions (**Batch 4d**) under the shared
 [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
-cutover `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
-(`transit.v1.log-tseg-stream-slice.2026-11-09`), leaving bounded Queue metadata
-checkpoints ([Storage Unit 3](#additional-storage-review-units-and-sequencing)),
-mixed SQL and transactional Station as the next remaining units. Start there,
+cutover `316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
+(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`), leaving transactional
+`Station` (Batches 5–7) and Table write-lifecycle/common-revision completion
+(Batches 8–9) as the remaining implementation waves. Start there,
 together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
 and [November 7 implementation plan](#implementation-plan--2026-11-07); the
 [November 5 completion plan](#completion-plan-at-current-main--2026-11-05) and
@@ -28,6 +31,381 @@ The [earlier source audit](#source-baseline-and-remaining-gaps) and dated progre
 records preserve their original attribution. Delivery-sequence SQL examples
 below illustrate proposed scope; use the [SQL reference](../handbook/reference/sql/streaming.md)
 for the current executable declarations, workload operations and inspection forms.
+
+## Next slice implementation plan — 2026-11-10
+
+**Source basis:** `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`.
+This slice advances [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+from `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`
+(`transit.v1.log-tseg-stream-slice.2026-11-09`) to
+`316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
+(`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`). Since the November 9 plan was
+drafted, [#435](https://github.com/spoke-sh/transit/pull/435) delivered the
+first [downstream application runtime](downstream-application-language.md) slice
+(`ApplicationProgram`, structured KV `_revision` guards, versioned SQL row
+Document policy reads, `ApplicationTransaction` Queue consumer execution,
+bounded HTTP effects and immutable `Transaction.Deadline` enforcement at common
+commit), [#437](https://github.com/spoke-sh/transit/pull/437) delivered
+[M12](12-application-modules-compilation-and-testing.md)'s initial
+`transit-compiler` and `transit build` Table/block-framing slice, and
+[#436](https://github.com/spoke-sh/transit/pull/436) delivered M6's
+[November 9 slice](#next-slice-implementation-plan--2026-11-09) (native `.tseg`
+log-segment system columns, 85-byte `LogSegment.Descriptor`, `LBMETA01`/`LOGVIEW1`
+retirement and finite retained `STREAM_SLICE`). M6 remains **In Progress**; this
+slice delivers Stage A (Storage Unit 3) and Stage B (Batch 2 and Batch 4d).
+
+### Why Queue metadata checkpoints, mixed decision qualification and mixed SQL are next
+
+With Storage Units 1–2 and Batch 4c (`STREAM_SLICE`) delivered in
+[#436](https://github.com/spoke-sh/transit/pull/436), the next two items in the
+[post-436 sequence](#sequencing-after-this-slice) and the
+[November 7 ordered review sequence](#ordered-review-units) are
+**Storage Unit 3** (bounded Queue metadata checkpoints) and **Batch 2 + Batch 4d**
+(mixed decision/DLQ qualification and mixed SQL transactions). Executing these
+two stages together as one slice—under one coordinated
+[`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+cutover—resolves three architectural dependencies at the cleanest boundary before
+`Station` migration (Batches 5–7):
+
+1. **Qualify Queue recovery, DLQ transfers and formal correspondence once over
+   the final Queue storage path.** Today
+   [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig)
+   stages candidate `TDIX`, `TBMP0001`, `QTBUF001`, `LOGEVID1` and `QCLAIM01`
+   objects to `TransitObjectStore` before every `TWAL1` Queue frame. Landing
+   **Stage A (Storage Unit 3)** first so foreground Queue operations commit
+   through append-only `TWAL1` frames and bounded resident checkpoints means
+   **Stage B (Batch 2)** proves multi-participant prepare/decision/finalize
+   faults, competing [`LocalQueueTransfers`](../../apps/transit-node/LocalQueueTransfers.zig)
+   DLQ recovery, `DirectStorageGraph` mark/grace/sweep safety and concrete
+   [`QueueLeaseTransaction.tla`](../../tests/verification/models/QueueLeaseTransaction.tla)
+   Zig replay directly on the checkpointed Queue owner—avoiding a duplicate
+   re-qualification pass across a later Queue storage format change and
+   establishing the zero-foreground-object-`PUT` write path required before
+   Batch 5's `Station` turn baseline.
+2. **Consolidate protocol, persisted-intent and SQL session/result cutovers
+   while unblocking M12 and M13.** Native mixed transactions already stage Table,
+   KV, Stream `PRODUCE`, Stream `COMMIT OFFSET` (`SPH1`) and Queue `ENQUEUE`/`ACK`
+   actions in [`DirectCatalog.zig`](../../packages/zig/transit-catalog/src/DirectCatalog.zig)
+   and [`LogTransaction.zig`](../../packages/zig/transit-storage/src/LogTransaction.zig),
+   and [`DirectLogPreparedOffset.zig`](../../packages/zig/transit-catalog/src/DirectLogPreparedOffset.zig)
+   already binds `SPH1` progress handles. Pairing **Batch 4d** with Stage A and
+   Batch 2 folds `Transaction.Selection`, `DirectTransactionCall` (`TXI1`),
+   [`SQL_SESSION_V1`](../../contracts/SQL_SESSION_V1.md) and
+   [`SQL_RESULTS_V1`](../../contracts/SQL_RESULTS_V1.md) updates into the same
+   `Growth.current_definition` cutover, directly unblocking
+   [M12](12-application-modules-compilation-and-testing.md)'s next `.transit`
+   compiler slices (`CREATE COMMAND`, Queue consumer lowering and `BEGIN ATOMIC`
+   procedure emission) and [M13](13-sql-and-dataflows.md) R8's atomic
+   progress/outbox commit boundary.
+3. **Keep `Station` actor decoupling and M7's Document participant cleanly
+   isolated.** Neither Stage A nor Stage B depends on `transit-station` actor
+   internals or on [M7](07-document-storage-and-station-decoupling.md) C5's
+   pending partitioned `Document` transaction participant; partitioned
+   `DOCUMENT` targets remain fail-closed in `DirectTransaction` until M7 C5
+   lands, and Batches 5–7 then build the transactional `Station` runner directly
+   on top of Stage A's checkpointed Queues and Stage B's qualified mixed
+   decision owner.
+
+This slice is organized as two sequential stages across five reviewable units:
+
+- **Stage A (Storage Unit 3): Bounded Queue metadata checkpoints and incremental
+  resident Queue state.** Eliminate synchronous foreground `TransitObjectStore`
+  `PUT`s on Queue `ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`, lease
+  expiration and timer-wheel advancement by making `TWAL1` `LOGPART1` frames the
+  sole foreground durability write, maintaining incremental resident lease-heap,
+  timing-wheel, `key_fifo` affinity and `.tack` Roaring overlays under M3's
+  [`DirectStorageMemory`](../../apps/transit-node/DirectStorageMemory.zig)
+  quotas, and materializing authenticated `LCHECK01` Queue metadata checkpoints
+  independently of `archive.enabled`.
+- **Stage B (Batch 2 and Batch 4d): Mixed decision/DLQ qualification, concrete
+  `QueueLeaseTransaction` replay and mixed SQL transactions.** Wire a concrete
+  Zig state-replay bridge into
+  [`queue_lease_transaction_model.py`](../../tests/verification/models/queue_lease_transaction_model.py),
+  complete installed prepare/decision/finalize, deadline/lease/policy fence,
+  competing DLQ and `DirectStorageGraph` collector proofs, and extend
+  `DirectCatalog`, `DirectTransactionCall`, `TransactionWork`,
+  `SessionTransaction`, `transit-sql-results` and `transit-sql-client` so
+  interactive `BEGIN ... COMMIT` SQL transactions atomically compose `TABLE` and
+  `KV` mutations with `STREAM` `PRODUCE`/`COMMIT OFFSET` and `QUEUE`
+  `ENQUEUE`/`ACK` actions across all four supported SQL callers.
+
+**Application outcome:** Queue workloads commit foreground `ENQUEUE`, `CLAIM`,
+`ACK`, `NACK` and `EXTEND LEASE` operations in one `TWAL1` append without
+small-object `PUT` storms while preserving exact recovery of accepted claims,
+renewals, FIFO head blocking and retry schedules across restarts; and
+applications and compiled `.transit` procedures can execute `BEGIN ... COMMIT`
+SQL transactions (with `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`) that read/mutate
+`TABLE` and `KV` state, append to `STREAM`s and `QUEUE`s, settle authenticated
+`STREAM` `SPH1` offsets and `ACK` leased `QUEUE` work under one recoverable
+atomic decision.
+
+### Adjacent milestone context and handoffs at `91be427a8`
+
+| Adjacent milestone | Landed context or upcoming pull | Boundary enforced in this slice |
+| --- | --- | --- |
+| [M3: Live storage and memory admission](03-live-storage-and-sql-cutover.md#next-slice-implementation-plan--2026-11-08) ([#431](https://github.com/spoke-sh/transit/pull/431), [#432](https://github.com/spoke-sh/transit/pull/432)) | [`DirectStorageMemory`](../../apps/transit-node/DirectStorageMemory.zig) and [`DirectRequestMemory`](../../apps/transit-node/DirectRequestMemory.zig) enforce disjoint `data`, `control`, `maintenance` and `collection` quotas; `c81a09570` guards authoritative Queue clock observations | Charge resident uncheckpointed Queue deltas, checkpoint materialization, mixed SQL workspaces and collector sweeps to their owning M3 pools; dirty Queue delta backpressure must never starve `control` or `collection` |
+| [M4: Statement results](04-statement-results-and-consumption.md), [M5: Transactions](05-transactions-and-atomic-composition.md) | Shared `StatementResult` attribution (`Outcome.provisional` inside active transactions, `Outcome.applied` at `COMMIT`), `TXDEC1` single-record decisions, `TXS1` savepoints and conservative Table conflict checks | Mixed SQL KV writes, `PRODUCE`/`ENQUEUE` appends, `COMMIT OFFSET` and `ACK` return `Outcome.provisional` (with staged append row counts and no fabricated pre-commit offsets); `COMMIT` remains the sole authoritative publication point |
+| [M7: Document storage and Station decoupling](07-document-storage-and-station-decoupling.md#protected-source-staging-and-operation-discovery-plan--2026-11-05) | Protected Document source staging and logical deletion guards exist; [#435](https://github.com/spoke-sh/transit/pull/435) added read-only versioned SQL row Document policy reads (`DirectDocument.Revision`), while M7 C5's partitioned tree `Document` transaction participant is still pending | Keep partitioned `DOCUMENT` targets explicitly refused (`UnsupportedTransactionParticipant`) in both native and SQL mixed transactions until M7 C5 supplies common cuts, prepare/finalize and savepoints; M7 C5/C7 gates Batch 7's Document-dependent Station consumer cutover |
+| [M8: Gateway ingress](08-gateway-architecture-and-protocol-ingress.md#next-slice--inherited-command-deadlines-and-cancellation), [M9: Shared clients](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01) | Inherited monotonic command deadlines ([#392](https://github.com/spoke-sh/transit/issues/392)), `NativeServer` `4 data / 2 control / 4 wait` lanes, [#435](https://github.com/spoke-sh/transit/pull/435)'s immutable `Transaction.Deadline` (`7ed06be4f`), and `LocalRecoveryStore` pre-dispatch token persistence | Propagate optional `Transaction.Deadline` through `DirectTransactionCall.beginRequest` and SQL `BEGIN`; persist canonical mixed SQL statement/commit tokens before dispatch; keep [#211 Table latency](https://github.com/spoke-sh/transit/issues/211) scoped to Batch 8 |
+| [M10: Standards and catalogs](10-standards-and-catalogs.md), [M11: Indexing](11-indexing-and-access-paths.md) | Frozen catalog/schema revisions and $\tau \perp \kappa \perp \epsilon$ collation descriptors across Table, KV, Stream and Queue schemas | Bind exact schema/collation revisions in Queue checkpoints and mixed SQL intents; `.tseg` $\le 64\text{ KiB}$ suffix-range footers and fine-grained key-range SSI remain M11 scope |
+| [M12: `.transit` modules, builds and testing](12-application-modules-compilation-and-testing.md) ([build plan](application-build-implementation.md), [#437](https://github.com/spoke-sh/transit/pull/437)) & [downstream application runtime](downstream-application-language.md) ([#435](https://github.com/spoke-sh/transit/pull/435)) | `transit build` Slice 1 compiles Table modules and frames compound SQL blocks; `ApplicationTransaction` runs typed Queue consumer turns with structured KV `_revision` guards and bounded HTTP effects | Stage B's qualified mixed decisions and mixed SQL lowering give `transit build` (`CREATE COMMAND`, `BEGIN ATOMIC` procedure lowering) and `transit test` one shared SQL/native transaction commit boundary without a parallel application commit protocol |
+| [M13: Managed computations and dataflows](13-sql-and-dataflows.md#next-source-slice-owned-capture-storage-and-readers--2026-11-07) | [#436](https://github.com/spoke-sh/transit/pull/436) delivered finite `STREAM_SLICE`; `TXR1`, `CPR1`, `SOR1` and [#419](https://github.com/spoke-sh/transit/pull/419) protected `SOURCE` capture Stream attachments (`source-captures/`) share `DirectStorageGraph` | Stage B proves mark/grace/sweep GC safety across `TXR1`/`CPR1`/`SOR1`/capture roots and checkpointed Queue/Stream owners, and supplies M13 R8's atomic progress/output commit gate |
+| [M14: Runtime performance](14-data-structures-and-performance.md), [M24: Storage providers](24-storage-providers-and-concurrency.md) | Reusable `scratch` arenas (`.retain_capacity`) and zero foreground `TransitObjectStore` `PUT`s on Queue hot paths | Stage A eliminates per-turn `.tack`/`TDIX`/`LOGEVID1`/`QCLAIM01` object writes and full cache invalidations on Queue hot paths; cloud/EFS provider cost qualification remains M24's gate |
+| [M21: Branches](21-branches-merges-and-restore.md), [M23: Formal correspondence](23-formal-semantics-and-correspondence.md) | Streams, Queues and mixed transactions are scoped to `branch == 1`; `TransactionDecision.tla` and `TransactionWorkspace.tla` have concrete Zig replay bridges | Enforce `branch == 1` and ensure checkpoints never reactivate copied Queue leases, timers or ACK authority; add concrete Zig replay correspondence (`queue_lease_transaction_state.zig`) to `QueueLeaseTransaction.tla` |
+
+### Source baseline at `91be427a8` and component gaps
+
+| Component owner | Current behavior at `91be427a8` | Gap to close in this slice |
+| --- | --- | --- |
+| [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig), [`QueuePartition.zig`](../../packages/zig/transit-storage/src/QueuePartition.zig), [`LogPartitionRecord.zig`](../../packages/zig/transit-storage/src/LogPartitionRecord.zig), [`QueueCandidateObjects.zig`](../../packages/zig/transit-storage/src/QueueCandidateObjects.zig) | Every `TWAL1` `LOGPART1` frame already records the full `LogEvidence.Record` (`action.operation`), `.queue_expire`, `.queue_schedule` and inline `LOGBAT01` append payload, yet `publish`, `expireQueueOne` and `scheduleQueueUnit` synchronously call `persistQueue` (`putImmutableBatch`) before `log.append`, writing `TDIX`, `TBMP0001`, `QTBUF001` and `LOGEVID1` objects on every foreground Queue mutation | Decouple foreground Queue `TWAL1` publication from `TransitObjectStore` staging: commit transitions via `log.append` against bounded resident Queue overlays (`Tack`, `QueueIndex`, receipts/batches/producers) and materialize `TDIX`/`TBMP0001`/`QTBUF001`/`LOGEVID1` objects only on bounded `LCHECK01` checkpoints and required transaction/trim barriers |
+| [`QueueSelection.zig`](../../packages/zig/transit-storage/src/QueueSelection.zig), [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig) | `claimSelected` stages a `QCLAIM01` (`queue-selections/{x}.data`) object directly to `self.objects` during foreground `CLAIM`, and `candidateClaim` reloads `QCLAIM01` from `self.objects` during recovery | Carry the bounded claimed-item selection ($\le 256$ leases) inline in the `TWAL1` claim transition or reconstruct/retain it in bounded resident delta state until checkpoint materialization so foreground `CLAIM` performs zero `TransitObjectStore` `PUT`s while preserving exact original empty/nonempty selection replay |
+| [`QueueLeaseHeap.zig`](../../packages/zig/transit-storage/src/QueueLeaseHeap.zig), [`QueueVisibilityCache.zig`](../../packages/zig/transit-storage/src/QueueVisibilityCache.zig), [`QueueTimingWheel.zig`](../../packages/zig/transit-storage/src/QueueTimingWheel.zig), [`QueueAffinity.zig`](../../packages/zig/transit-storage/src/QueueAffinity.zig) | Foreground `append`/`claim`/`settle` update some caches, while `expireQueueOne` and `scheduleQueueUnit` invalidate `lease_heap`, `visibility_cache` and `affinity_cache` and trigger object persistence on every expired lease or timer merge step | Maintain `QueueLeaseHeap`, `QueueVisibilityCache` / `QueueTimingWheel` and `QueueAffinity` incrementally across `append`, `claim`, `settle`, `queue_expire` and `queue_schedule` transitions using reusable `scratch` arenas without per-step full invalidation or foreground object writes |
+| [`LocalLogMaintenance.zig`](../../apps/transit-node/LocalLogMaintenance.zig), [`LogHistory.zig`](../../packages/zig/transit-storage/src/LogHistory.zig) | `LogPartition.checkpoint()` (`LCHECK01`) is invoked only inside `archiveMaintenanceUnit` when `archive.enabled` is true; `recoverStep` / `verifyTransition` verify every WAL batch against persisted `TDIX` roots | Add standalone bounded Queue/Stream metadata checkpoint scheduling in `LocalLogMaintenance` independent of `archive.enabled`, enforce dirty-delta soft/hard watermarks under `DirectStorageMemory`, and recover `QueuePartition` by loading `LCHECK01` plus folding post-checkpoint `TWAL1` deltas |
+| [`DirectStorageGraph.zig`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig) | `.log_partition` / `.log_history` enqueue `.log_root` (`TDIX` root traversal) for every WAL frame since `checkpoint.next_lsn` | Traverse the latest materialized `LCHECK01` checkpoint root (and any materialized barrier roots) together with sealed `.tseg` segments, active `TLPREP1`/`TXLSRC1` transaction artifacts, `#419` `SOURCE` captures and post-checkpoint `TWAL1` frames without requiring per-turn `TDIX` objects |
+| [`DirectTransaction.zig`](../../packages/zig/transit-catalog/src/DirectTransaction.zig), [`LogTransaction.zig`](../../packages/zig/transit-storage/src/LogTransaction.zig), [`LocalQueueTransfers.zig`](../../apps/transit-node/LocalQueueTransfers.zig), [`queue_lease_transaction_model.py`](../../tests/verification/models/queue_lease_transaction_model.py) | Native mixed prepare/decision/finalize, `DirectTransactionSavepoint` (`TXS1`), `Transaction.Deadline` (`beforeDecision`) and `LocalQueueTransfers` exist; `queue_lease_transaction_model.py` runs TLC + 9 negative controls with `"No storage/runtime correspondence claimed"` | Add `queue_lease_transaction_state.zig` concrete trace replay against `QueuePartition`/`LogTransaction`/`DirectTransaction` (including `Transaction.Deadline`), and execute the installed Batch 2 multi-participant fault, competing DLQ and `TXR1`/`CPR1`/`SOR1`/capture GC matrices |
+| [`DirectCatalog.zig`](../../packages/zig/transit-catalog/src/DirectCatalog.zig), [`DirectTransactionCall.zig`](../../packages/zig/transit-catalog/src/DirectTransactionCall.zig), [`Transaction.zig`](../../packages/zig/transit-protocol/src/Transaction.zig) | `DirectTransactionCall.beginRequest` hardcodes `.selection = .authorized_catalog_tables` and `.deadline = null`; `selectTransactionTable` skips `.kv`; `beginTransactionBounded` checks `.read` (unless `capture_owner != null`) on explicit log targets; `DirectTransactionCall` (`TXI1`) encodes `statement` (`DirectTransactionWorkspace.Request`) but has no `log_statement` variant | Admit authorized `.table`, `.kv` and `.stream`/`.queue` partitions (plus optional explicit object/partition targets and `Transaction.Deadline`) in `SERIALIZABLE` SQL `BEGIN`, admit `APPEND`/`SETTLE`-only principals on log participants while enforcing exact per-action rights on staging/prepare/commit, keep `.document` refused, and add `log_statement` to `DirectTransactionCall` (`TXI1`) |
+| [`TransactionWork.zig`](../../packages/zig/transit-sql/src/TransactionWork.zig), [`Statement.zig`](../../packages/zig/transit-sql/src/Statement.zig), [`SessionTransaction.zig`](../../packages/zig/transit-sql-service/src/SessionTransaction.zig), [`Transaction.zig`](../../packages/zig/transit-sql-results/src/Transaction.zig), [`Client.zig`](../../packages/zig/transit-sql-client/src/Client.zig) | `TransactionWork` admits only Table `SELECT` and Table DML (`INSERT`/`UPDATE`/`DELETE`); `SessionTransaction` rejects `.kv_get`, `.kv_write`, `.log_append`, `.log_settlement` and `.log_offset`; `transit-sql-results/src/Transaction.zig` validates `.statement` only for `.insert`/`.update`/`.delete` | Lower `GET`/`PUT`/`DELETE` on `KV`, `PRODUCE INTO`/`ENQUEUE INTO` (without `RETURNING`), `COMMIT OFFSET ON STREAM ... RECEIPT` (`SPH1`) and `ACK ON QUEUE ... RECEIPT` inside active `READ WRITE` SQL transactions with `Outcome.provisional` attribution, savepoint support and full recovery parity across native, console, PostgreSQL and MySQL callers |
+
+### Stage A — Bounded Queue metadata checkpoints and incremental resident Queue state (Storage Unit 3)
+
+1. **Freeze the WAL-authoritative Queue transition and checkpoint contract.**
+   - Update [`contracts/TRANSIT_STORAGE_V1.md`](../../contracts/TRANSIT_STORAGE_V1.md)
+     and [`contracts/QUEUE_V1.md`](../../contracts/QUEUE_V1.md) so a foreground
+     Queue mutation (`append`, `claim`, `settle` `.ack`/`.nack`/`.extend`,
+     `releaseRead`) and background lease/timer transition (`queue_expire`,
+     `queue_schedule`) require only one synchronous `TransitLog` (`TWAL1`)
+     `LOGPART1` append carrying its authenticated
+     [`LogEvidence.Record`](../../packages/zig/transit-storage/src/LogEvidence.zig)
+     (plus inline `LOGBAT01` row bytes on `append` and compact selected item
+     ordinals/lease metadata on `claim`, bounded to $\le 256$ leases). Foreground
+     Queue execution performs **zero** `TransitObjectStore` `PUT`s to
+     `data-index/` (`TDIX`), `bitmap-containers/` (`TBMP0001`),
+     `queue-time-buffers/` (`QTBUF001`), `log-evidence/` (`LOGEVID1`) or
+     `queue-selections/` (`QCLAIM01`).
+   - Anchor each materialized Queue metadata checkpoint in `LCHECK01`
+     (`log-checkpoints/`) to an exact `checkpoint_lsn` (`next_lsn`), binding the
+     content-addressed roots for `receipts`, `batches`, `producers`, `segments`,
+     `hidden` and `QueueIndex.Root` (`items`, `sidecars` inline 488-byte
+     `TACK0001`, `keys`, `read_releases`, `visibility`, `attempts`, `schedule`)
+     together with any sealed `QCLAIM01` / `LOGEVID1` records up to
+     `checkpoint_lsn`.
+   - Define deterministic crash recovery in
+     [`LogPartition.zig`](../../packages/zig/transit-storage/src/LogPartition.zig)
+     and `LogRecovery.zig`: load and verify the latest `LCHECK01` checkpoint
+     roots, then fold committed `TWAL1` `LOGPART1` frames in
+     `[checkpoint.next_lsn, tip)` into the bounded resident overlay in strict LSN
+     order. Recovery reconstructs accepted appends, exact original empty and
+     nonempty `CLAIM` selections, renewed lease handles, `ACK`/`NACK`
+     settlements, `_attempt` counters, retry/delayed schedules and `key_fifo`
+     blocking identically to pre-crash execution without re-running predicates
+     against wall-clock time or accepting duplicate work.
+2. **Maintain incremental resident Queue overlays and M3 memory backpressure.**
+   - Separate the last materialized `QueueCandidateObjects` checkpoint snapshot
+     from a bounded resident delta overlay in `LogPartition.Owner(.queue)`
+     covering uncheckpointed `Tack` Roaring state transitions
+     (`Available`/`Acquired`/`Acked`/`Terminal`), `QueueItem` descriptors,
+     `key_fifo` active head bindings, original receipt/selection maps and
+     pending timer mutations.
+   - Charge resident uncheckpointed Queue delta state, foreground staging and
+     background checkpoint writers explicitly through
+     [`DirectStorageMemory`](../../apps/transit-node/DirectStorageMemory.zig)
+     (`data` for foreground request staging, `control` for bounded resident
+     partition delta overlays, `maintenance` for background checkpoint/segment
+     flushes, preserving `collection` headroom) and reuse partition/worker
+     `scratch` arenas (`.retain_capacity`) so steady-state `ENQUEUE`, `CLAIM`,
+     `ACK`, `NACK` and `EXTEND LEASE` allocate zero unbounded heap buffers.
+   - Update [`QueueLeaseHeap.zig`](../../packages/zig/transit-storage/src/QueueLeaseHeap.zig),
+     [`QueueVisibilityCache.zig`](../../packages/zig/transit-storage/src/QueueVisibilityCache.zig) /
+     [`QueueTimingWheel.zig`](../../packages/zig/transit-storage/src/QueueTimingWheel.zig)
+     and [`QueueAffinity.zig`](../../packages/zig/transit-storage/src/QueueAffinity.zig)
+     incrementally on `append`, `claim`, `settle`, `queue_expire` and
+     `queue_schedule` instead of invalidating and rebuilding resident caches on
+     every expiration or schedule step.
+   - Enforce explicit per-partition and node-wide uncheckpointed delta bounds
+     (`max_uncheckpointed_frames`, `max_uncheckpointed_bytes`): crossing the soft
+     watermark signals [`LocalLogMaintenance`](../../apps/transit-node/LocalLogMaintenance.zig);
+     reaching the hard ceiling either coalesces a synchronous checkpoint under
+     the partition publication guard or refuses new foreground work with a typed
+     backpressure error (`StorageMemoryLimit` / `QueueCheckpointBacklog`), never
+     growing resident memory unboundedly or dropping accepted work.
+3. **Decouple checkpoint maintenance from archiving and align storage-graph barriers.**
+   - Extend [`LocalLogMaintenance.zig`](../../apps/transit-node/LocalLogMaintenance.zig)
+     under `LocalMaintenanceAuthority` so Queue and Stream metadata checkpoints
+     execute on dirty-delta and elapsed-LSN budgets even when
+     `archive.enabled == false`. Require a materialized `LCHECK01` checkpoint at
+     or beyond the trim cut before `trimArchived` advances `checkpoint.next_lsn`.
+   - Preserve exact object-publication barriers for `LogRead` / `QueueRead`
+     payload pins, `transaction_pin` (`TXLSRC1`) and `transaction_prepare`
+     (`TLPREP1`): either materialize a coalesced checkpoint barrier when pinning
+     or preparing a dirty Queue participant, or bind the exact checkpoint root
+     plus bounded WAL delta range in `TXLSRC1`/`TLPREP1`, and update
+     [`DirectStorageGraph.zig`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+     (`.log_partition` and `.log_history`) to mark the latest materialized
+     `LCHECK01` root, sealed `.tseg` segments, active `TLPREP1`/`TXLSRC1`
+     preparations, `#419` `SOURCE` captures and retained `TWAL1` frames without
+     demanding unmaterialized per-turn `TDIX` objects.
+
+### Stage B — Mixed decision qualification, formal replay correspondence and mixed SQL transactions (Batch 2 and Batch 4d)
+
+1. **Complete `QueueLeaseTransaction` concrete Zig replay and Batch 2 fault/collector proofs.**
+   - Add `tests/verification/models/queue_lease_transaction_state.zig` and wire
+     [`queue_lease_transaction_model.py`](../../tests/verification/models/queue_lease_transaction_model.py)
+     (matching `transaction_decision_state.zig` and
+     `transaction_workspace_state.zig`) so every exhausted TLC trace and every
+     guard-removal counterexample (`CheckTackPartition`, `CheckKeyFifo`,
+     `CheckLeaseEpochFence`, `CheckAtomicTurn`, `CheckSegmentReclaim`,
+     `CheckLeaseTimeFence`, `CheckPolicyFence`, `CheckRetainedPayload`,
+     `CheckDlqDurability`, plus a `Transaction.Deadline` commit-expiry control)
+     replays concretely against [`QueuePartition`](../../packages/zig/transit-storage/src/QueuePartition.zig),
+     [`LogTransaction`](../../packages/zig/transit-storage/src/LogTransaction.zig)
+     and [`DirectTransaction`](../../packages/zig/transit-catalog/src/DirectTransaction.zig).
+   - Execute the installed multi-participant Batch 2 fault and recovery suite over
+     Stage A's checkpointed Queue owner:
+     - Single `TXDEC1` decision combining `TABLE` DML, `KV` `PUT`/`DELETE`,
+       `STREAM` `PRODUCE`, `STREAM` `COMMIT OFFSET` (`SPH1`), `QUEUE` `ENQUEUE`
+       and `QUEUE` `ACK` (`_lease_epoch`), including multiple statements on the
+       same partition, absent-key KV/Table guards and nested `SAVEPOINT` /
+       `ROLLBACK TO SAVEPOINT`.
+     - Fault injection before/after each `TPREP1` and `TLPREP1` participant
+       preparation, after `TXDEC1` append with lost reply, during participant
+       finalization, and before cleanup—verifying zero partial visibility to
+       concurrent public readers and handler-free completion of committed
+       decisions across restart.
+     - Grant revocation, definition/policy epoch change, `_lease_epoch` expiry
+       without reassignment, competing foreground `CLAIM`/`ACK`/`COMMIT OFFSET`
+       conflicts and immutable `Begin.deadline` expiry at `beforeDecision`,
+       confirming pre-decision expiry/revocation aborts cleanly while an already
+       appended `TXDEC1` commit finalizes deterministically.
+     - Competing [`LocalQueueTransfers`](../../apps/transit-node/LocalQueueTransfers.zig)
+       automatic DLQ maintenance workers across worker replacement, destination
+       `DROP`/rename/policy denial, capacity refusal and checkpoint/trim pressure,
+       recovering protected original transfer transactions before selecting fresh
+       exhausted items.
+     - [`DirectStorageGraph`](../../packages/zig/transit-catalog/src/DirectStorageGraph.zig)
+       mark/grace/sweep schedules interleaving `TXR1` (`DirectTransactionRecord`),
+       `CPR1` progress replacement, `SOR1` source staging/closure and [#419](https://github.com/spoke-sh/transit/pull/419)
+       protected `SOURCE` capture Stream attachments with Queue checkpoints,
+       open claims and aborted preparations.
+2. **Extend SQL `BEGIN` selection and `DirectTransactionCall` (`TXI1`) for mixed participants.**
+   - Update [`Transaction.Selection`](../../packages/zig/transit-protocol/src/Transaction.zig)
+     and `DirectCatalog.beginTransactionBounded` / `selectTransactionTable` in
+     [`DirectCatalog.zig`](../../packages/zig/transit-catalog/src/DirectCatalog.zig):
+     - In `SERIALIZABLE` (`READ WRITE`) mode, SQL `BEGIN` selects authorized
+       `.table`, `.kv` and `.stream`/`.queue` partitions within
+       `limits.participants` (and supports optional explicit participant object/partition
+       selection for bounded footprints in large catalogs), freezing the common
+       cut in `TransactionDirectory`. In `READ ONLY` mode, SQL `BEGIN` pins
+       authorized readable state objects (`TABLE`, `KV`) and refuses any state or
+       log mutation statement.
+     - Fix log participant admission in `beginTransactionBounded` so an
+       interactive transaction admits a `.stream` or `.queue` partition when the
+       principal holds any transaction-admissible log permission (`READ`,
+       `APPEND` or `SETTLE`) rather than requiring `READ` for append-only or
+       settle-only principals, while enforcing the exact action right (`.append`
+       for `PRODUCE`/`ENQUEUE`, `.settle` for `ACK`/`COMMIT OFFSET`) at
+       statement staging, `prepare` and `beforeDecision`.
+     - Keep partitioned `.document` targets fail-closed
+       (`UnsupportedTransactionParticipant`) until [M7](07-document-storage-and-station-decoupling.md)
+       C5 lands, and propagate optional `Transaction.Deadline` through
+       [`DirectTransactionCall.zig`](../../packages/zig/transit-catalog/src/DirectTransactionCall.zig)
+       (`beginRequest`).
+   - Extend [`DirectTransactionCall`](../../packages/zig/transit-catalog/src/DirectTransactionCall.zig)
+     (`TXI1` `0x54584931`) with `log_statement` (`DirectTransactionLogWork.Work`:
+     `.append`, `.stream_offset`, `.queue_ack`) alongside `statement`
+     (`DirectTransactionWorkspace.Request` for `TABLE` DML and `stageKV`),
+     recording deterministic statement sequence identities, provisional outcomes
+     and savepoint-retained consumed tokens for exact recovery after lost replies.
+3. **Lower mixed SQL statements through `TransactionWork`, `SessionTransaction` and shared callers (Batch 4d).**
+   - Extend [`TransactionWork.zig`](../../packages/zig/transit-sql/src/TransactionWork.zig),
+     [`Statement.zig`](../../packages/zig/transit-sql/src/Statement.zig),
+     [`SessionTransaction.zig`](../../packages/zig/transit-sql-service/src/SessionTransaction.zig),
+     [`transit-sql-results/src/Transaction.zig`](../../packages/zig/transit-sql-results/src/Transaction.zig),
+     [`contracts/SQL_SESSION_V1.md`](../../contracts/SQL_SESSION_V1.md),
+     [`contracts/SQL_RESULTS_V1.md`](../../contracts/SQL_RESULTS_V1.md) and
+     [`docs/handbook/reference/sql/transactions.md`](../handbook/reference/sql/transactions.md)
+     to admit inside an active `SERIALIZABLE READ WRITE` SQL transaction:
+     - **`KV` reads and mutations:** `GET ... FROM <kv>` reads through
+       `DirectCatalog.kvAccess` (`overlayTransactionRead`) so uncommitted `PUT`
+       and `DELETE` mutations in the same transaction are visible privately to
+       that transaction while remaining invisible outside it; `PUT INTO <kv>`
+       and `DELETE FROM <kv>` stage workspace mutations via `stageKV` and emit
+       `Outcome.provisional` command completion.
+     - **`STREAM` and `QUEUE` appends:** `PRODUCE INTO <stream> ...` and
+       `ENQUEUE INTO <queue> ...` (without `RETURNING`) stage validated batches
+       via `stageTransactionLog` (`.append`) and emit `Outcome.provisional`
+       command completion carrying the staged row count and **no fabricated
+       offsets** (offsets become authoritative only when `COMMIT` finalizes the
+       prepared batch). `PRODUCE`/`ENQUEUE ... RETURNING` inside an attached
+       transaction fails closed with a typed diagnostic.
+     - **Authenticated `STREAM` offset and `QUEUE` ACK settlements:**
+       `COMMIT OFFSET ON STREAM <stream> RECEIPT <sph1_handle>` (reusing
+       [`DirectLogPreparedOffset`](../../packages/zig/transit-catalog/src/DirectLogPreparedOffset.zig))
+       and `ACK ON QUEUE <queue> RECEIPT <lease_handle>` (reusing
+       [`DirectLogPreparedSettlement`](../../packages/zig/transit-catalog/src/DirectLogPreparedSettlement.zig))
+       stage `.stream_offset` and `.queue_ack` guards/settlements on the
+       matching log participant and emit `Outcome.provisional` command completion.
+   - Keep acquisition, analytical scans and non-transactional workload verbs
+     explicitly refused inside an active SQL transaction without implicitly
+     autocommitting or dropping the transaction's saved identity: `CLAIM ... FROM`,
+     `CONSUME ... FROM`, `SELECT ... FROM STREAM_SLICE(...)`, `NACK ON QUEUE`,
+     `EXTEND LEASE ON QUEUE`, DDL and partitioned `DOCUMENT` operations fail
+     closed per [`SQL_SESSION_V1`](../../contracts/SQL_SESSION_V1.md).
+   - Preserve end-to-end wire and recovery parity across native SQL, console,
+     PostgreSQL, MySQL and [`transit-sql-client`](../../packages/zig/transit-sql-client/src/Client.zig):
+     persist canonical caller tokens in `LocalRecoveryStore` before dispatch,
+     invalidate open read cursors on `ROLLBACK TO SAVEPOINT` while retaining
+     consumed statement tokens, map transaction state/serialization refusals to
+     `SQLSTATE 25000` / `40001`, and recover uncertain `COMMIT` outcomes via
+     `Client.attachTransaction`.
+4. **Execute one coordinated current-v1 definition cutover.**
+   - Advance [`Growth.current_definition`](../../packages/zig/transit-protocol/src/Growth.zig)
+     once for the combined Stage A Queue checkpoint/WAL format and Stage B
+     `Transaction.Selection` / `TXI1` / `SQL_SESSION_V1` / `SQL_RESULTS_V1`
+     changes, regenerate all schemas, ABI contracts, diagnostics and fixtures
+     together via `just check contracts`, and verify fail-closed rejection of
+     missing or pre-cutover definitions before execution.
+
+### Ordered review units for the 2026-11-10 slice
+
+| Unit | Scope and primary packages | Review exit gate |
+| --- | --- | --- |
+| **1A. WAL-authoritative Queue overlay and incremental resident caches** | `contracts/TRANSIT_STORAGE_V1.md`, `contracts/QUEUE_V1.md`, `transit-storage` (`LogPartition`, `QueuePartition`, `LogPartitionRecord`, `QueueCandidateObjects`, `QueueSelection`, `QueueLeaseHeap`, `QueueVisibilityCache`, `QueueTimingWheel`, `QueueAffinity`) | Foreground `ENQUEUE`, `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`, `queue_expire` and `queue_schedule` commit via `TWAL1` with zero foreground `TransitObjectStore` `PUT`s; incremental resident caches match reference state; `LCHECK01` + `TWAL1` delta recovery reconstructs exact receipts, empty/nonempty claims, renewals, FIFO head blocking and retry schedules |
+| **1B. Standalone Queue checkpoint maintenance, backpressure and storage-graph audit** | `apps/transit-node` (`LocalLogMaintenance`, `DirectStorageMemory`), `transit-storage` (`LogHistory`, `LogTransaction`), `transit-catalog` (`DirectStorageGraph`) | `LocalLogMaintenance` checkpoints dirty Queue/Stream metadata independently of `archive.enabled`; soft/hard dirty-delta watermarks enforce bounded resident memory under `DirectStorageMemory`; `DirectStorageGraph` verifies `LCHECK01`, `.tseg`, `TLPREP1`/`TXLSRC1`, `#419` captures and post-checkpoint `TWAL1` frames with zero orphan leaks |
+| **2A. `QueueLeaseTransaction` concrete Zig replay and Batch 2 fault/GC qualification** | `tests/verification/models/` (`queue_lease_transaction_state.zig`, `queue_lease_transaction_model.py`, `QueueLeaseTransaction.tla`), `tests/storage/`, `tests/catalog/`, `apps/transit-node` (`LocalQueueTransfers`) | Exhausted TLC states and all guard-removal counterexamples (including `Transaction.Deadline`) replay concretely against `QueuePartition`/`LogTransaction`/`DirectTransaction`; installed multi-participant prepare/decision/finalize faults, competing DLQ worker recovery and `TXR1`/`CPR1`/`SOR1`/capture mark-grace-sweep schedules pass |
+| **2B. Mixed SQL participant selection, `TXI1` log calls and statement lowering** | `transit-protocol` (`Transaction`, `Growth`), `transit-catalog` (`DirectCatalog`, `DirectTransactionCall`), `transit-sql` (`TransactionWork`, `Statement`), `transit-sql-service` (`SessionTransaction`, `Session`), `transit-sql-results` (`Transaction`), `transit-sql-client`, `contracts/SQL_SESSION_V1.md`, `contracts/SQL_RESULTS_V1.md`, `docs/handbook/reference/sql/` | `BEGIN ... COMMIT` SQL transactions stage and commit `TABLE`, `KV`, `STREAM` (`PRODUCE`, `COMMIT OFFSET`) and `QUEUE` (`ENQUEUE`, `ACK`) actions with `Outcome.provisional` attribution, `SAVEPOINT` rollback, `APPEND`/`SETTLE`-only principal support, `Transaction.Deadline` propagation and fail-closed refusals for `CLAIM`/`CONSUME`/`STREAM_SLICE`/`NACK`/`EXTEND LEASE`/`DOCUMENT`; `Growth.current_definition` and all generated contracts/fixtures update together |
+| **2C. Installed four-caller SQL session matrix and cross-milestone handoff verification** | `tests/interfaces/sql_sessions/`, `tests/query/`, `docs/history/qualification/` | Native SQL, console (`console-latency-gate`), PostgreSQL and MySQL mixed-transaction, savepoint, disconnect/reattach, lease/grant expiry and uncertain-`COMMIT` suites pass under M3 memory admission; M12 `BEGIN ATOMIC` / application transaction compatibility and M13 capture/progress regressions pass |
+
+### Acceptance matrix for the 2026-11-10 slice
+
+| Required case | Acceptance oracle |
+| --- | --- |
+| Zero foreground Queue object `PUT`s and exact delta recovery | Foreground `ENQUEUE`, predicate/routed `CLAIM`, `ACK`, `NACK`, `EXTEND LEASE`, lease expiry and timer advancement emit zero `TransitObjectStore` `PUT`s (`TDIX`, `TBMP0001`, `QTBUF001`, `LOGEVID1`, `QCLAIM01`); crash/restart at any post-checkpoint `TWAL1` frame recovers identical `Tack` state, original empty/nonempty claim rows, renewed handles, `_attempt` counts, retry schedules and `key_fifo` blocking |
+| Standalone checkpoint maintenance and M3 memory backpressure | With `archive.enabled == false`, `LocalLogMaintenance` materializes `LCHECK01` checkpoints and bounds post-checkpoint replay work; sustained Queue churn under tight `DirectStorageMemory` quotas triggers coalesced checkpointing or typed backpressure refusal without exceeding `data`/`control`/`maintenance` budgets, starving `collection`, or leaking memory on teardown |
+| Formal model and concrete Zig correspondence (`QueueLeaseTransaction`) | `just test::queue-lease-transaction-model` exhausts the safe model and replays traces + all negative-control counterexamples (`_lease_epoch`, `key_fifo`, `.tack` partition exclusivity, DLQ durability, policy/time/deadline fences, pinned-segment retention) against real `QueuePartition`, `LogTransaction` and `DirectTransaction` state transitions |
+| Multi-participant prepare/decision/finalize, DLQ and GC safety (Batch 2) | Crash before/after `TPREP1`/`TLPREP1`, after `TXDEC1` with lost reply, and during finalization discloses no partial Table/KV/Stream/Queue state; committed `TXDEC1` finishes without handler replay even after subsequent lease expiry or grant revocation; competing `LocalQueueTransfers` workers recover original protected transfers without double-enqueuing DLQ items; `DirectStorageGraph` mark/grace/sweep preserves live `TXR1`/`CPR1`/`SOR1`/`#419` capture/Queue roots and reclaims aborted/closed orphans |
+| Mixed SQL atomicity, private `KV` overlay and provisional attribution (Batch 4d) | Inside `BEGIN ... COMMIT`, `GET` sees uncommitted `PUT`/`DELETE` on `KV` while external readers see neither Table/KV writes, `PRODUCE`/`ENQUEUE` rows, advanced `STREAM` group checkpoints nor settled `QUEUE` leases until `COMMIT`; provisional append completions report staged row counts without fabricated offsets; `ROLLBACK` and `ROLLBACK TO SAVEPOINT` discard staged Table, KV, append, offset and ACK actions while retaining consumed statement tokens |
+| Principal least-privilege, fences and unsupported-verb refusals in SQL | Append-only and settle-only principals succeed on `PRODUCE`/`ENQUEUE` and `ACK`/`COMMIT OFFSET` inside `BEGIN ... COMMIT` without requiring `READ`, while unauthorized actions fail closed; expired `_lease_epoch`, stale `SPH1` group generation/checkpoint, revoked grants or expired `Transaction.Deadline` before `TXDEC1` abort the entire transaction cleanly; `CLAIM`, `CONSUME`, `STREAM_SLICE`, `NACK`, `EXTEND LEASE`, `PRODUCE ... RETURNING`, DDL and partitioned `DOCUMENT` statements inside active SQL transactions refuse without silent autocommit |
+| Four-caller wire parity and uncertain `COMMIT` recovery | Native SQL, console, PostgreSQL (`psql`) and MySQL wire sessions preserve `LocalRecoveryStore` pre-dispatch tokens, `SQLSTATE 25000`/`40001` diagnostics, disconnect/reattach (`Client.attachTransaction`) and exact original `COMMIT`/`ROLLBACK` outcomes after lost transport replies |
+
+### Sequencing after the 2026-11-10 slice
+
+1. **Batches 5–7 — Transactional `Station` behavior, durable services and
+   consumer cutover:** Implement the private transactional `Station` runner over
+   declared `key_fifo` inbox `QUEUE`s, `TABLE`/`KV` state, replay `STREAM`s and
+   effect outbox `QUEUE`s (Batch 5), migrate calls/replies, timers, registry,
+   supervision and outbound connector effects (Batch 6), integrate
+   [M7](07-document-storage-and-station-decoupling.md) C5/C7's partitioned
+   `Document` transaction participant before switching Document-dependent
+   consumers, and remove legacy writable `Station`/courier paths in one
+   current-v1 cutover (Batch 7).
+2. **Batches 8–9 — Table write lifecycle, provider cost and integrated
+   completion:** Close account-wide token/partition commitment, proposed
+   `TRUNCATE` and [#211 Table latency](https://github.com/spoke-sh/transit/issues/211)
+   with [M3](03-live-storage-and-sql-cutover.md) and
+   [M8](08-gateway-architecture-and-protocol-ingress.md) (Batch 8), complete
+   [Storage Unit 4](#additional-storage-review-units-and-sequencing) maintenance
+   and log/Station benchmark baselines, and execute the full Batch 9
+   common-revision qualification matrix before marking M6 **Completed**.
 
 ## Next slice implementation plan — 2026-11-09
 

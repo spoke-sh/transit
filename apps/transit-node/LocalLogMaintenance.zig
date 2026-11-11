@@ -13,11 +13,12 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
         fn runtime(partition: *Partition) *(if (kind == .stream) Partition else @FieldType(Partition, "owner")) {
             return if (kind == .stream) partition else &partition.owner;
         }
-        pub const recovery_frames = 16;
+        pub const recovery_frames: u16 = if (kind == .stream) 16 else 256;
         const Hints = [64]?Partition.RecoveryState;
         const Class = enum {
             flush,
             archive,
+            checkpoint,
             trim,
             compact,
             expire,
@@ -29,6 +30,9 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 return switch (self) {
                     .flush => settings.flush.enabled,
                     .archive, .trim => settings.archive.enabled,
+                    // Queue metadata checkpoints bound cold-reopen WAL replay
+                    // independently of optional WAL archiving.
+                    .checkpoint => kind == .queue,
                     // Queue scheduling cleanup is control progress, independent
                     // of optional Stream payload compaction settings.
                     .compact => kind == .queue or settings.compact,
@@ -53,13 +57,14 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             control: backend.DataStore,
             data: backend.DataStore,
             stream: Partition,
-            fn create(allocator: std.mem.Allocator, native: *backend.Backend, initial: c.storage.LogInitialization.Request, guard: c.storage.PublicationGuard) !*Workspace {
+            fn create(allocator: std.mem.Allocator, native: *backend.Backend, initial: c.storage.LogInitialization.Request, guard: c.storage.PublicationGuard, options: c.DirectTransactionLog.Options) !*Workspace {
                 const self = try allocator.create(Workspace);
                 errdefer allocator.destroy(self);
                 self.* = .{ .allocator = allocator, .control = .{ .backend = native, .control = true, .scratch_allocator = allocator }, .data = .{ .backend = native, .scratch_allocator = allocator }, .stream = undefined };
-                self.stream = try Partition.open(allocator, self.data.log(), self.data.objects(), initial, guard, .{
-                    .control = .{ .log = self.control.log(), .objects = self.control.objects() },
-                });
+                var configured = if (kind == .stream) options.stream else options.queue;
+                configured.clock = null;
+                configured.control = .{ .log = self.control.log(), .objects = self.control.objects() };
+                self.stream = try Partition.open(allocator, self.data.log(), self.data.objects(), initial, guard, configured);
                 return self;
             }
             fn destroy(self: *Workspace) void {
@@ -134,6 +139,10 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 return false;
             }
             const initial = try definition.genesis(target.ordinal);
+            if (active.workspace == null and !try hasCandidateWork(allocator, data.log(), initial, definition.stored, selected, host.options.logs)) {
+                active.clear();
+                return false;
+            }
             if (self.hints == null) {
                 const values = try allocator.create(Hints);
                 values.* = @splat(null);
@@ -146,7 +155,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             if (active.workspace) |workspace| {
                 if (workspace.data.backend != native) return error.InvalidTableOwner;
                 try runtime(&workspace.stream).root.initialization.requireSame(initial);
-            } else active.workspace = try Workspace.create(allocator, native, initial, authority.guard());
+            } else active.workspace = try Workspace.create(allocator, native, initial, authority.guard(), host.options.logs);
             const workspace = active.workspace.?;
             const stream = &workspace.stream;
             // A cold history longer than one replay budget resumes next turn. Clearing
@@ -163,6 +172,10 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             defer if (runtime(stream).root.next_lsn != before or !runtime(stream).ready) host.notifyLogs();
             switch (selected) {
                 .archive => return stream.archiveMaintenanceUnit(.{ .frames = settings.archive.work_frames }, authority.guard()),
+                .checkpoint => {
+                    if (kind == .stream or !runtime(stream).needsCheckpoint()) return false;
+                    return stream.checkpointMaintenanceUnit(authority.guard());
+                },
                 .compact => return if (kind == .stream)
                     stream.compactionMaintenanceUnit(definition.stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard())
                 else
@@ -199,6 +212,64 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                     return runtime(stream).root.next_lsn != before;
                 },
             }
+        }
+
+        fn hasCandidateWork(
+            allocator: std.mem.Allocator,
+            log: c.storage.TransitLog.Log,
+            initial: c.storage.LogInitialization.Request,
+            stored: c.storage.LogDeclaration.Stored,
+            selected: Class,
+            options: c.DirectTransactionLog.Options,
+        ) !bool {
+            const tail = try log.tail(initial.partition);
+            if (tail <= 1) return false;
+            var latest = log.read(allocator, initial.partition, tail - 1, 1) catch |err| switch (err) {
+                error.OutOfMemory => return err,
+                else => return true,
+            };
+            defer latest.deinit();
+            if (latest.frames.len != 1) return true;
+            var scratch: std.heap.ArenaAllocator = .init(allocator);
+            defer scratch.deinit();
+            const decoded = c.storage.LogPartitionRecord.decode(scratch.allocator(), latest.frames[0], initial.partition, tail - 1) catch |err| switch (err) {
+                error.OutOfMemory => return err,
+                else => return true,
+            };
+            const root = decoded.record.root;
+            if (!std.meta.eql(root.initialization, initial)) return true;
+            if (root.transaction != null) return false;
+            return switch (selected) {
+                .flush => root.sealed_through != root.next_offset,
+                .archive => root.maintenance.archive_target != null or root.maintenance.archive_source_lsn > root.maintenance.archived_source_lsn,
+                .trim => root.archive.through != 0 and root.recovery != null,
+                .checkpoint => blk: {
+                    if (kind == .stream) break :blk false;
+                    const checkpoint_lsn = if (root.recovery) |ref| ref.next_lsn else 0;
+                    if (root.maintenance.archive_source_lsn <= checkpoint_lsn) break :blk false;
+                    const floor: u64 = if (checkpoint_lsn == 0) 1 else checkpoint_lsn + 1;
+                    const uncheckpointed: u64 = if (root.next_lsn > floor) root.next_lsn - floor else 1;
+                    break :blk uncheckpointed >= options.queue.queue_checkpoint_soft_frames;
+                },
+                .compact => if (kind == .stream) blk: {
+                    if (stored.retired) break :blk root.compaction != null or root.maintenance.rewrite_target != null;
+                    break :blk root.compaction != null or
+                        root.maintenance.rewrite_target != null or
+                        root.maintenance.rewrite_source_lsn > root.maintenance.rewritten_source_lsn or
+                        root.maintenance.compaction_source_lsn > root.maintenance.compacted_through_lsn;
+                } else blk: {
+                    const q_root = root.queue orelse break :blk true;
+                    const basis = c.storage.QueueIndex.timerBasis(q_root);
+                    const eligible = c.storage.QueueSchedule.needsMaintenance(q_root.eligible, basis) catch break :blk true;
+                    if (eligible) break :blk true;
+                    break :blk c.storage.QueueSchedule.needsMaintenance(q_root.deadlines, basis) catch true;
+                },
+                .expire => if (kind == .queue)
+                    (if (root.queue) |q_root| q_root.active != 0 else true)
+                else
+                    root.compaction == null and root.retained_from < root.sealed_through,
+                .retention => if (kind == .queue) root.retained_from < root.sealed_through else false,
+            };
         }
     };
 }

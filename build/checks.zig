@@ -1119,6 +1119,20 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     resident_owner_cache_model.stdio = .inherit;
     resident_owner_cache_model.addPassthruArgs();
     b.step("test-resident-owner-cache-model", "Check resident owner and ReadCache model and replay counterexamples against Zig").dependOn(&resident_owner_cache_model.step);
+    const queue_lease_transaction_trace = b.addExecutable(.{ .name = "queue-lease-transaction-state-trace", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/verification/models/queue_lease_transaction_state.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+    }) });
+    const queue_lease_transaction_model = b.addSystemCommand(&.{ "python3", "-B" });
+    queue_lease_transaction_model.addFileArg(b.path("tests/runner/launch.py"));
+    queue_lease_transaction_model.addFileArg(b.path("tests/verification/models/queue_lease_transaction_model.py"));
+    queue_lease_transaction_model.addArtifactArg(queue_lease_transaction_trace);
+    queue_lease_transaction_model.has_side_effects = true;
+    queue_lease_transaction_model.stdio = .inherit;
+    queue_lease_transaction_model.addPassthruArgs();
+    b.step("test-queue-lease-transaction-model", "Check Queue lease and turn-commit model and replay counterexamples against Zig").dependOn(&queue_lease_transaction_model.step);
     const statement_result_trace = b.addExecutable(.{ .name = "statement-result-state-trace", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/verification/models/statement_result_state.zig"),
         .target = target,

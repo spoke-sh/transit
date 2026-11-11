@@ -147,6 +147,18 @@ pub fn archiveMaintenanceUnit(self: *Self, limits: @import("LogHistory.zig").Lim
 pub fn checkpoint(self: *Self, cut: p.DataLifecycle.Position, guard: Guard) !@import("LogRecovery.zig").Reference {
     return self.owner.checkpoint(cut, guard);
 }
+pub fn uncheckpointedFrames(self: *const Self) u64 {
+    return self.owner.uncheckpointedFrames();
+}
+pub fn hasPendingCheckpoint(self: *const Self) bool {
+    return self.owner.hasPendingCheckpoint();
+}
+pub fn needsCheckpoint(self: *const Self) bool {
+    return self.owner.needsCheckpoint();
+}
+pub fn checkpointMaintenanceUnit(self: *Self, guard: Guard) !bool {
+    return self.owner.checkpointMaintenanceUnit(guard);
+}
 pub fn trimArchived(self: *Self, guard: Guard) !u64 {
     return self.owner.trimArchived(guard);
 }

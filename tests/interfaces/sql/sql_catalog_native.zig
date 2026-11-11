@@ -306,6 +306,36 @@ pub fn main(init: std.process.Init) !void {
         try privileges(&admin, client, config, role, if (writes) c.TableAuthority.insert | c.TableAuthority.update | c.TableAuthority.delete else c.TableAuthority.select, allowed);
         return support.print(init, .{ .write = if (writes) allowed else null, .read = if (!writes) allowed else null });
     }
+    if (std.mem.eql(u8, mode, "log-grants")) {
+        if (args.len != 6) return error.Usage;
+        const role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;
+        client.connection.role = config.owner_role;
+        const lookup = client.call(.{ .log_lookup = .{ .namespace = 1, .name = args[4] } }) catch blk: {
+            client.connection.role = role;
+            break :blk try client.call(.{ .log_lookup = .{ .namespace = 1, .name = args[4] } });
+        };
+        defer lookup.deinit();
+        const metadata = lookup.value.result.log_lookup orelse return error.CatalogNameNotFound;
+        const object = c.TableAuthority.reference(metadata.declaration.properties.authorization);
+        if (std.mem.eql(u8, args[5], "owner")) {
+            _ = try admin.authorization(.{ .transfer_object = .{ .object = object, .owner = role } });
+            return support.print(init, .{ .profile = "owner", .privileges = c.LogAuthority.all_privileges });
+        }
+        _ = try admin.authorization(.{ .transfer_object = .{ .object = object, .owner = config.owner_role } });
+        _ = try admin.authorization(.{ .revoke_privileges = .{ .object = object, .grantee = role, .privileges = c.LogAuthority.all_privileges, .behavior = .cascade } });
+        const mask: u64 = if (std.mem.eql(u8, args[5], "append_only"))
+            c.LogAuthority.inspect | c.LogAuthority.append
+        else if (std.mem.eql(u8, args[5], "settle_only"))
+            c.LogAuthority.inspect | c.LogAuthority.settle
+        else if (std.mem.eql(u8, args[5], "inspect_only"))
+            c.LogAuthority.inspect
+        else if (std.mem.eql(u8, args[5], "none"))
+            0
+        else
+            return error.Usage;
+        if (mask != 0) _ = try admin.authorization(.{ .grant = .{ .object = object, .grantee = role, .privileges = mask } });
+        return support.print(init, .{ .profile = args[5], .privileges = mask });
+    }
     if (std.mem.eql(u8, mode, "external-ddl-admin")) {
         client.connection.role = (try admin.query(.{ .authorization = .{ .kind = .{ .resolve = try .init("gateway-caller") } } })).body.authorization.body.resolve.id;
         const operation = try std.fmt.parseInt(u64, args[4], 10);

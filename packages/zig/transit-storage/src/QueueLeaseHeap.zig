@@ -15,6 +15,17 @@ pub fn clear(self: *Self) void {
 pub fn peek(self: *const Self) ?Lease {
     return if (self.len == 0) null else self.entries[0];
 }
+pub fn lessLease(a: Lease, b: Lease) bool {
+    return less(a, b);
+}
+pub fn max(self: *const Self) ?Lease {
+    if (self.len == 0) return null;
+    var best = self.entries[self.len / 2];
+    for (self.entries[self.len / 2 + 1 .. self.len]) |candidate| {
+        if (less(best, candidate)) best = candidate;
+    }
+    return best;
+}
 fn less(a: Lease, b: Lease) bool {
     return a.expires_ms < b.expires_ms or (a.expires_ms == b.expires_ms and a.offset < b.offset);
 }
@@ -54,6 +65,37 @@ pub fn removeExact(self: *Self, expected: Lease) !void {
         at = child;
     }
     self.entries[at] = last;
+}
+
+/// Remove an exact active lease anywhere in the resident prefix, preserving
+/// min-heap order without allocation. Returns false when outside the prefix.
+pub fn remove(self: *Self, expected: Lease) bool {
+    const found = for (self.entries[0..self.len], 0..) |current, index| {
+        if (std.meta.eql(current, expected)) break index;
+    } else return false;
+    self.len -= 1;
+    if (found == self.len) return true;
+    const replacement = self.entries[self.len];
+    var at = found;
+    if (at != 0 and less(replacement, self.entries[(at - 1) / 2])) {
+        while (at != 0) {
+            const parent = (at - 1) / 2;
+            if (!less(replacement, self.entries[parent])) break;
+            self.entries[at] = self.entries[parent];
+            at = parent;
+        }
+        self.entries[at] = replacement;
+        return true;
+    }
+    while (at * 2 + 1 < self.len) {
+        var child = at * 2 + 1;
+        if (child + 1 < self.len and less(self.entries[child + 1], self.entries[child])) child += 1;
+        if (!less(self.entries[child], replacement)) break;
+        self.entries[at] = self.entries[child];
+        at = child;
+    }
+    self.entries[at] = replacement;
+    return true;
 }
 
 fn fixture(offset: u64, expires: u64) Lease {

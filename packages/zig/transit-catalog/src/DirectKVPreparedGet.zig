@@ -65,6 +65,7 @@ pub fn checkValues(self: *const Self, allocator: std.mem.Allocator, values: []co
 pub const Read = struct {
     arena: std.heap.ArenaAllocator,
     definition: c.DirectKV.Definition,
+    workspace: ?c.protocol.Transaction.ReadView = null,
     cells: ?[2]f.Types.Values.Cell,
     emitted: bool = false,
     subject: ?c.DirectKV.Definition = null,
@@ -104,6 +105,7 @@ pub fn open(self: *const Self, allocator: std.mem.Allocator, client: c.DirectTab
     return .{
         .arena = arena,
         .definition = try self.definition.cloneInto(arena.allocator()),
+        .workspace = result.value.workspace,
         .cells = cells,
     };
 }

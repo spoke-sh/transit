@@ -183,7 +183,11 @@ additional payload READ rights. Data appends, consumption and acquisition
 still require their exact preparation interpretation. GROUP binds an explicit
 native assignment/checkpoint binary descriptor. COMMIT OFFSET binds the original
 read receipt and authenticated completion progress, using the same workload
-token and command-result lifecycle. Attached-transaction workloads remain outside the SQL execution profile.
+token and command-result lifecycle. Inside an attached serializable read/write
+transaction, non-`RETURNING` `PRODUCE INTO` and `ENQUEUE INTO`, `COMMIT OFFSET`
+and `ACK` execute as provisional workspace statements; `PRODUCE`/`ENQUEUE
+RETURNING`, `CONSUME`, `STREAM_SLICE`, `CLAIM`, `NACK` and `EXTEND LEASE`
+refuse with SQLSTATE `0A000` without implicit autocommit.
 
 ### Queue wait attempts
 
@@ -283,17 +287,24 @@ SAVEPOINT name, RELEASE [SAVEPOINT] name, and ROLLBACK [WORK|TRANSACTION] TO
 [SAVEPOINT] name. Defaults are serializable read/write. Other isolation levels,
 chaining, nested transactions and multiple statements in one request reject.
 The [transaction reference](../docs/handbook/reference/sql/transactions.md) defines
-the supported local Table domain and exclusions.
+the supported local mixed-participant domain and exclusions.
 
-BEGIN acquires the current authorized catalog Table set under one stable
-name/definition basis. Reads and DML use the exact private workspace revision;
-DDL, captured/source queries and configuration mutations cannot join it. Statement
+BEGIN acquires the current authorized catalog object set (`authorized_catalog_objects`:
+accessible Tables, row Documents, direct KV stores, and partitioned Streams/Queues
+under their mode-specific rights) under one stable
+name/definition basis. Table/KV reads, Table DML, KV `PUT`/`DELETE`, and
+non-`RETURNING` `PRODUCE INTO`/`ENQUEUE INTO`, `COMMIT OFFSET` and `ACK` use the
+exact private workspace revision; append-only and settle-only principals can
+stage transactional Stream/Queue work without Stream/Queue `READ` grants.
+DDL, `PRODUCE`/`ENQUEUE RETURNING`, `CONSUME`, `STREAM_SLICE`, `CLAIM`, `NACK`,
+`EXTEND LEASE`, captured/source queries and configuration mutations cannot join
+it and fail with SQLSTATE `0A000` without implicit commit. Statement
 completion is provisional as defined in [logical results](SQL_RESULTS_V1.md).
 Savepoints preserve original statement identities and conflict dependencies.
 A statement error leaves the attachment failed; ROLLBACK or ROLLBACK TO an existing
 savepoint can recover it. Failed or pending work never implicitly commits.
 
-Each control or private DML first binds the caller account/token to its exact
+Each control or private state/log statement first binds the caller account/token to its exact
 native child command through `DirectTransactionCall`. The outer operation receipt,
 child statement/control identity and transaction decision remain distinct.
 Bounded retries and database recovery advance that frozen command; neither

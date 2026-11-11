@@ -142,8 +142,10 @@ and sequence. Queue `WITH (visible_at = timestamp)` accepts a nonnegative UTC
 timestamp with whole-millisecond precision. See the
 [exact append grammar](../../../../contracts/sql/README.md) for operand types.
 Declared append row/byte budgets and SQL text, parameter, intent and result
-budgets apply independently. An append cannot execute inside an attached
-interactive transaction in this profile.
+budgets apply independently. Inside an attached `SERIALIZABLE` read/write
+transaction, `PRODUCE INTO` and `ENQUEUE INTO` without `RETURNING` execute as
+provisional workspace statements without fabricating offsets before `COMMIT`;
+`RETURNING` inside an attached transaction is refused with SQLSTATE `0A000`.
 
 `RETURNING` projects application columns and unqualified `_partition`/`_offset`
 metadata from the original native append receipt. `*` expands only application
@@ -235,8 +237,8 @@ the same settlement even after reassignment. Reassignment fences further deliver
 of the old grouped read, including buffered and reopened results; the original
 operation and accepted settlement remain recoverable. Closing results advances
 no offset and releases no native pin. Group assignment and read release remain native
-operations. Attached interactive workload transactions remain outside this SQL
-profile.
+operations. Inside an attached `SERIALIZABLE` read/write transaction,
+`COMMIT OFFSET` executes provisionally and publishes atomically at `COMMIT`.
 
 ### Wait for a Stream frontier
 
@@ -413,7 +415,10 @@ Retry an uncertain ACK using the same token and original SQL/parameters. Its
 accepted result remains recoverable after expiry, rename or retirement without
 acknowledging again. A different token submits a different operation. ACK does not
 release the original claim's payload-read pin or erase its original result.
-ACK is outside attached interactive transactions in this SQL profile.
+Inside an attached `SERIALIZABLE` read/write transaction, `ACK` executes
+provisionally and revalidates live lease ownership and expiry under the commit
+guard; `NACK` and `EXTEND LEASE` remain standalone operations (`0A000` inside an
+attached transaction).
 
 ## Return Queue work for retry
 

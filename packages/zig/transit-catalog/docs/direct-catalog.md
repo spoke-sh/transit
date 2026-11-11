@@ -517,9 +517,12 @@ references. Transaction admission atomically reserves a coordination partition
 with its token receipt; it establishes no acquired snapshot or commit decision.
 Its explicit Table/KV and Stream/Queue partition selection is paged and its ceilings come from
 `Options.transaction_limits`. Caller-built token bindings accept explicit selections only.
-The signed `transaction.begin` operation also supports `authorized_catalog_tables`: it
-walks the catalog and freezes every currently SELECT-authorized direct Table under
-one publication and policy fence.
+The signed `transaction.begin` operation also supports `authorized_catalog_objects`: it
+walks the catalog and freezes every currently accessible direct Table, row Document,
+direct KV store, and partitioned Stream/Queue (requiring READ, APPEND, or SETTLE in
+serializable mode, or READ in read-only mode; source-captured Streams require APPEND)
+under one publication and policy fence. Append-only and settle-only principals can
+stage, execute, inspect and commit transactional log actions without Stream/Queue READ.
 Generic progress updates reject these entries; only their transaction owner can
 replace recovery records or request settlement.
 

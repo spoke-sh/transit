@@ -34,14 +34,26 @@ destination definitions, and publishes retained dependency edges atomically.
 
 The internal `transit-storage.QueuePartition` accepts enqueue payloads and their
 initial FIFO/eligibility/`.tack` state in the same WAL record as producer
-deduplication and the original receipt. It shares physical sealing, archives,
+deduplication and the original receipt. Foreground Queue transitions (`enqueue`,
+`claim`, `settle`, `releaseClaimRead`, `cancel`, `refuse`, `expireOne`,
+`scheduleMaintenanceUnit`, and `expireTerminalHistory`) publish authoritatively
+through one synchronous `LOGPART1` WAL append without foreground
+`TransitObjectStore` metadata `PUT`s, retaining uncheckpointed index pages,
+`.tack` bitmap containers, timer buffers/runs, receipts and `QCLAIM01` selections
+in the bounded `CandidateObjects` overlay until `checkpoint` (`LCHECK01`) or a
+physical/transaction barrier (`flush`, `archive`, `pinTransactionSource`,
+`releaseTransactionSource`, `evaluateTransaction`, `prepareTransaction`)
+materializes the reachable object closure. It shares physical sealing, archives,
 checkpoints and bounded recovery with the Stream owner. Replay reconstructs the
-complete Queue candidate without object writes. Bounded claims now publish their
-original selection, acquired bits, epochs, attempts and deadlines together.
+complete Queue candidate from the latest verified checkpoint and post-checkpoint
+WAL tail without object writes. Bounded claims publish their inline `QCLAIM01`
+selection bytes, acquired bits, epochs, attempts and deadlines together.
 Original empty and nonempty outcomes survive restart and expiry; new selection
 requires a new operation. Capacity exhaustion refuses instead of publishing a
 false empty result. ACK, NACK, renewal and bounded expiry also publish complete
-successor roots with current authorization and conservative deadline checks.
+successor roots with current authorization and conservative deadline checks,
+while incrementally maintaining resident `DeadlineCache`, `QueueVisibilityCache`
+and `QueueAffinity` prefixes.
 Bounded original-claim reads return owned payload rows and separately observed
 lease status. The catalog adapter `DirectQueue.apply` binds those
 operations to current native Queue grants and the shared operation namespace.
@@ -358,10 +370,15 @@ Every selected offset lies within those original boundaries. The acceptance posi
 cut. Metadata is bounded to 16 KiB and a selection to 4,096 rows, additionally
 restricted by the declaration and owner budgets. Missing or foreign
 definitions, noncanonical metadata, duplicate offsets, trailing bytes and
-truncation reject. An empty claim has no selection artifact; its receipt remains
-the original empty result. The storage owner verifies the exact selection during
-claim publication and replay. The artifact alone supplies no publication,
-retention or current-authority guarantee.
+truncation reject. Nonempty claim `LOGPART1` frames carry the exact canonical
+`QCLAIM01` bytes inline as their trailing payload, verified against
+`claim.receipt.leases` on encode and decode; empty claims carry zero trailing
+payload bytes and no selection artifact, while their receipt remains the
+original empty result. Checkpoints and physical/transaction barriers materialize
+referenced `queue-selections/{sha256}.data` objects alongside open claims'
+frozen `source.batches` and `source.segments` directories. The storage owner
+verifies the exact selection during claim publication and replay. The artifact
+alone supplies no publication, retention or current-authority guarantee.
 
 ## Explicit original payload-read closure
 

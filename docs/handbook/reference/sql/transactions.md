@@ -1,26 +1,31 @@
-# Table transactions
+# Transactions
 
 A transaction retains a common catalog and data cut, reads its own private Table
-changes, and publishes one commit or abort decision. Native SQL, the console,
-PostgreSQL and MySQL share these controls through the database runtime. The
-supported domain is one local catalog and branch, with multiple Tables under
-one fenced authority.
+and direct KV changes, stages private Stream and Queue actions, and publishes one
+commit or abort decision. Native SQL, the console, PostgreSQL and MySQL share
+these controls through the database runtime. The supported domain is one local
+catalog and branch, combining accessible Tables, row Documents, direct KV stores
+and partitioned Streams/Queues under one fenced authority.
 
-SQL BEGIN selects Tables only. The typed transaction client also supports
-explicit direct KV participants and private KV reads, plus Stream/Queue
-partitions as retained read dependencies. These partitions share the original
-common cut, current read authorization, serializable conflict checks and pin
-cleanup. Native typed controls can also stage Stream/Queue appends, authenticated
-offset commits and fenced ACKs under the same decision and savepoint lifecycle;
-SQL does not yet expose those log statements. Document targets reject before
-admission. See [Streams](../streams.md) for the native composition profile.
+SQL `BEGIN` discovers `authorized_catalog_objects` under one stable catalog
+basis: Tables and direct KV stores with current `READ` rights, plus Stream and
+Queue partitions with current `READ`, `APPEND`, or `SETTLE` rights in
+`SERIALIZABLE` read/write mode (or `READ` rights in `READ ONLY` mode;
+source-captured Streams require `APPEND`). Append-only (`INSPECT` + `APPEND`)
+and settle-only (`INSPECT` + `SETTLE`) principals can execute transactional
+`PRODUCE INTO`, `ENQUEUE INTO`, `COMMIT OFFSET` and `ACK` without Stream/Queue
+`READ` grants. Partitioned `causal_crdt` Document targets reject before
+admission. See [Streams](../streams.md) for the log composition rules.
 
 ```sql
 BEGIN ISOLATION LEVEL SERIALIZABLE;
 UPDATE accounts SET balance = 80 WHERE id = 1;
+PUT INTO account_cache KEY 'acct:1' VALUE '80';
 SAVEPOINT adjusted;
 UPDATE accounts SET balance = 70 WHERE id = 1;
 ROLLBACK TO SAVEPOINT adjusted;
+PRODUCE INTO account_events VALUES (1, 'debited');
+ACK ON QUEUE settlement_jobs RECEIPT $1;
 COMMIT;
 ```
 
@@ -31,33 +36,45 @@ SERIALIZABLE` can be explicit, in either order. Other isolation levels, nested
 BEGIN, chaining and autocommit-off are unsupported. No operation implicitly
 commits a transaction to accommodate unsupported work.
 
-BEGIN selects the currently authorized catalog Tables under one stable catalog
+BEGIN selects the currently authorized catalog objects under one stable catalog
 basis. Data includes committed, unflushed WAL changes. Later statements cannot
-add a newly created or newly accessible Table to that cut. Names and definitions
+add a newly created or newly accessible object to that cut. Names and definitions
 remain those captured at BEGIN; current permissions govern every read, buffered
 batch and commit. Retaining a cut never preserves a revoked grant.
 
-Supported statements are finite Table SELECT, INSERT, UPDATE and DELETE, with
-their existing types, predicates, primary-key and NOT NULL constraints. The
-selected relational join/group profile can read multiple private Tables at the
-same revision. DDL, authorization/configuration changes, captured queries,
-source-bound KV/Document queries and external effects do not participate.
-Metadata results keep their catalog/settings observation; they do not invent
-a data snapshot. An error leaves the attached session requiring ROLLBACK or
-ROLLBACK TO a saved point before further data work.
+Supported statements are finite Table `SELECT`, `INSERT`, `UPDATE` and `DELETE`,
+direct KV `GET`, `PUT` and `DELETE`, and Stream/Queue non-`RETURNING` `PRODUCE
+INTO`, non-`RETURNING` `ENQUEUE INTO`, authenticated `COMMIT OFFSET` and
+lease-fenced `ACK`. The selected relational join/group profile can read multiple
+private Tables at the same revision, and private `GET` reads uncommitted KV
+writes from the same workspace. DDL, `PRODUCE`/`ENQUEUE RETURNING`, `CONSUME`,
+`STREAM_SLICE`, `CLAIM`, `NACK`, `EXTEND LEASE`, authorization/configuration
+changes, captured queries and external effects fail with SQLSTATE `0A000`
+without implicit autocommit. Metadata results keep their catalog/settings
+observation; they do not invent a data snapshot. An error leaves the attached
+session requiring ROLLBACK or ROLLBACK TO a saved point before further data work.
 
 ## Outcomes and conflicts
 
-DML matched/changed counts are **provisional**: they describe the completed
-statement in the private workspace. COMMIT supplies the actual durable decision.
-Read results identify the original cut and private workspace revision; their
-completion does not imply transaction commit. Previously delivered rows and
-counts cannot be retracted by rollback.
+Table DML, KV `PUT`/`DELETE`, and non-`RETURNING` `PRODUCE INTO`/`ENQUEUE INTO`
+matched/changed counts are **provisional**: they describe the completed
+statement in the private workspace without fabricating public log offsets before
+`COMMIT`. `COMMIT OFFSET` and `ACK` likewise complete provisionally without
+relational row counts. `COMMIT` supplies the actual durable decision and makes
+Table, KV, Stream and Queue changes visible together. Read results identify the
+original cut and private workspace revision; their completion does not imply
+transaction commit. Uncommitted Stream and Queue appends remain behind the
+commit barrier and are not readable before `COMMIT`. Previously delivered rows
+and counts cannot be retracted by rollback.
 
-Serializable commits validate conservative whole-Table logical versions,
-including selected read dependencies and absent/predicate reads. Concurrent
-changes on disjoint keys of the same selected Table can conflict. A failed
-validation records abort through the original attempt. Physical flush,
+Serializable commits validate conservative whole-Table, KV and log logical
+frontiers, including selected read dependencies, absent/predicate reads, live
+Queue lease expiry/fencing, producer sequence fencing and consumer-group
+generations. Concurrent changes on a selected Table, KV store or log partition
+with a read or write dependency conflict (`40001`). Pure append-only or
+settle-only log participants validate their staged actions, producer/lease/group
+fences and definition stability without requiring `READ`. A failed validation
+records abort through the original attempt. Physical flush, checkpointing,
 compaction and pin bookkeeping do not constitute logical changes. This profile
 does not claim distributed atomicity or strict real-time serializability.
 Read-only transactions can finish on their retained cut despite later writes.

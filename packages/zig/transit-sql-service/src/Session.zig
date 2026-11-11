@@ -247,6 +247,7 @@ pub const Read = struct {
             else
                 sourceBasis(value)) else null,
             .workload => |*value| .{ .workload = try value.observation() },
+            .kv_get => |kv_get| if (kv_get.workspace) |view| try self.transactionBasis(allocator, &.{view}) else null,
             else => null,
         };
     }
@@ -1001,7 +1002,7 @@ fn releasePinsWithin(self: *Self, read: *Read) void {
     };
 }
 pub fn write(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values.Atom) !g.results.CommandCompletion {
-    if (prepared.* == .native and prepared.native.isWorkload()) {
+    if (self.transaction.handle == null and prepared.* == .native and prepared.native.isWorkload()) {
         if (prepared.fields().len != 0) return error.SqlRowsRequired;
         return (try self.executeWorkload(prepared, values, null, null)).completion();
     }
@@ -1108,7 +1109,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.SqlTransactionLimit => .{ "54000".*, "Transaction statement or savepoint limit reached; settle the transaction" },
         error.SqlTransactionClosed => .{ "25000".*, "Transaction is closing or already decided; inspect its original operation" },
         error.TransactionReadChanged => .{ "55000".*, "Transaction workspace changed; discard the old result cursor" },
-        error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation, error.UnsupportedLogTransaction => .{ "0A000".*, "Operation is outside the selected serializable Table transaction profile" },
+        error.UnsupportedTransactionStatement, error.UnsupportedTransactionIsolation, error.UnsupportedLogTransaction => .{ "0A000".*, "Operation is outside the selected serializable SQL transaction profile" },
         error.ReadOnlyTransaction => .{ "25006".*, "The transaction is read only" },
         error.SqlTransactionRejected => blk: {
             const completion = self.transaction_completion orelse break :blk .{ "XX000".*, "Missing transaction outcome" };
@@ -1120,7 +1121,11 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
                 .invalid_rows => .{ "23000".*, "Row constraints rejected the transaction statement" },
                 .check_violation => .{ "23514".*, "A CHECK constraint rejected the transaction statement" },
                 .work_limit => .{ "54000".*, "Transaction statement work budget exceeded" },
-                .data_changed, .definition_changed => .{ "40001".*, "Transaction source changed" },
+                .data_changed, .definition_changed, .conflict => .{ "40001".*, "Transaction source changed" },
+                .lease_expired => .{ "40001".*, "Queue lease expired before transaction statement acceptance" },
+                .lease_fenced => .{ "40001".*, "Queue lease receipt was superseded before transaction statement acceptance" },
+                .producer_conflict => .{ "40001".*, "Producer sequence conflicts with Stream or Queue state" },
+                .offset_conflict => .{ "40001".*, "Stream progress receipt conflicts with consumer group state" },
             };
             break :blk .{ "55000".*, "The original transaction command was refused; inspect its recorded outcome" };
         },
@@ -1178,6 +1183,7 @@ pub fn diagnostic(self: *Self, err: anyerror) struct { state: [5]u8, message: []
         error.CrossPartitionLogAppend => .{ "0A000".*, "This append spans partitions and requires transaction composition" },
         error.QueueClaimLimitExceeded => .{ "54000".*, "Claim exceeds the declared Queue budget" },
         error.IncompatibleDefinition => .{ "0A000".*, "Retained descriptor belongs to another Transit definition" },
+        error.InvalidStreamHandle => .{ "22023".*, "Stream progress receipt rejected" },
         error.InvalidQueueLeaseHandle, error.InvalidLogSettlementOperand => .{ "22023".*, "Queue lease receipt rejected" },
         error.InvalidQueueWait => .{ "22023".*, "WAIT duration must be between 1 and 1000 milliseconds" },
         error.InvalidQueueLeaseDuration => .{ "22023".*, "Lease duration exceeds the declared Queue policy" },

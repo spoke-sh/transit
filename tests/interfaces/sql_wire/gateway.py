@@ -299,8 +299,9 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
                     integrity(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions)
                     return
                 if slice == 'transactions':
-                    from interfaces.sql_sessions.transactions import run as transactions
-                    transactions(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, session_faults, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), str(Path(console).resolve()))
+                    from interfaces.sql_sessions import transactions
+                    transactions.CATALOG_NATIVE = lambda mode, *args: call(catalog, mode, *args)
+                    transactions.run(root, session_port, *client_options(root, sql_port, mysql_port), restart_sessions, session_faults, lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), str(Path(console).resolve()))
                     return
                 sessions(root, session_port, client_options(root,sql_port,mysql_port)[0], restart_sessions, str(Path(console).resolve()), lambda allowed: call(catalog, 'external-role', 'allow' if allowed else 'deny'), select_source, lambda: call(ledger, 'source-pin-status'), {'sessions-basic': (), 'sessions-kv': (('kv', 41),), 'sessions-table': (('table', 41),)}.get(slice), session_faults, lambda: server.pid, lambda allowed: call(catalog, 'external-read-grants', 'allow' if allowed else 'deny'))
                 return

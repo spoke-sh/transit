@@ -64,10 +64,11 @@ accounting; a failed settlement or interrupted command wakes recovery with the
 original token and frozen intent. Status remains observation-only; ordinary
 retries never recompile accepted SQL against later data.
 
-`SessionTransaction` attaches temporary sessions to Catalog-owned Table
+`SessionTransaction` attaches temporary sessions to Catalog-owned mixed-object
 transactions. `TransactionSql` parses common BEGIN/COMMIT/ROLLBACK and savepoint
-controls; `TransactionWork` freezes each caller command before native admission.
-Private reads bypass the independent read-pin cache and retain one exact workspace
+controls; `TransactionWork` freezes each caller command (Table DML, KV `PUT`/`DELETE`,
+non-`RETURNING` `PRODUCE INTO`/`ENQUEUE INTO`, `COMMIT OFFSET` and `ACK`) before native admission.
+Private Table and KV reads bypass the independent read-pin cache and retain one exact workspace
 revision. The shared result model reports provisional counts and actual decisions.
 See [Table transactions](../../../docs/handbook/reference/sql/transactions.md) for
 scope, session loss, conflicts and resource limits.
@@ -86,8 +87,10 @@ outcome using progress notifications; result delivery never submits another
 append. Positional `CONSUME` shares admission and original-result recovery;
 its finite cut, predicate and optional LIMIT are frozen independently of output
 batches. Its descriptor requires mutation admission because accepting a read
-retains native history. Stream WAIT, Queue payload predicates and
-attached-transaction workloads remain outside this execution profile.
+retains native history. Inside an attached serializable transaction, non-`RETURNING`
+`PRODUCE INTO`/`ENQUEUE INTO`, `COMMIT OFFSET` and `ACK` execute provisionally;
+`RETURNING`, `CONSUME`, `STREAM_SLICE`, `CLAIM`, `NACK` and `EXTEND LEASE` refuse
+with `0A000`.
 
 `ConfigurationOperations` records the original reload identity and expected
 configuration generation in Catalog before dispatch. `CapturedOperations` stages

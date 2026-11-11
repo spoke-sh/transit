@@ -197,6 +197,34 @@ pub fn earliestReady(self: *const Self, after: ?Event) ?Ready {
     return result;
 }
 
+pub fn hasCapacity(self: *const Self) bool {
+    return self.free != none;
+}
+
+pub fn earliestAny(self: *const Self) ?Event {
+    var result: ?Event = null;
+    for (self.entries) |entry| {
+        if (entry.state != .waiting and entry.state != .ready) continue;
+        if (result == null or Event.less(entry.event, result.?)) result = entry.event;
+    }
+    return result;
+}
+
+pub fn maxActive(self: *const Self) ?Ready {
+    var result: ?Ready = null;
+    for (self.entries, 0..) |entry, index| {
+        if (entry.state != .waiting and entry.state != .ready) continue;
+        if (result == null or Event.less(result.?.event, entry.event)) {
+            result = .{ .handle = .{ .index = @intCast(index), .generation = entry.generation }, .event = entry.event };
+        }
+    }
+    return result;
+}
+
+pub fn maxEvent(self: *const Self) ?Event {
+    return if (self.maxActive()) |found| found.event else null;
+}
+
 test "queue timing wheel skips empty time ranges with bounded resumable cascades" {
     const t = std.testing;
     var entries: [12]Entry = undefined;

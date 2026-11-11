@@ -5,13 +5,15 @@ const c = @import("root.zig");
 const p = c.protocol;
 const d = p.DataLifecycle;
 const Self = @This();
+pub const KVCommand = enum { put, delete };
 connection: c.DirectTableProtocol.Connection,
 namespace: u64,
 /// Caller-command identity, distinct from the operation executed by its owner.
 operation: u64,
 work: union(enum) {
-    begin: struct { key: c.DirectClientToken.Key, fingerprint: [32]u8, operation: d.Operation, mode: p.Transaction.Mode, limits: p.Transaction.Limits, budget: c.DirectClientToken.Budget },
-    statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request },
+    begin: struct { key: c.DirectClientToken.Key, fingerprint: [32]u8, operation: d.Operation, mode: p.Transaction.Mode, deadline: ?p.Transaction.Deadline = null, limits: p.Transaction.Limits, budget: c.DirectClientToken.Budget },
+    statement: struct { key: c.DirectClientToken.Key, kv_command: ?KVCommand = null, request: c.DirectTransactionWorkspace.Request },
+    log_statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request },
     savepoint: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request },
     settle: struct { key: c.DirectClientToken.Key, operation: d.Operation, command: c.DirectTransactionControl.Command },
 },
@@ -32,13 +34,21 @@ pub fn validate(self: Self) !void {
     const owner: d.Operation = switch (self.work) {
         .begin => |value| blk: {
             try value.limits.validate();
+            if (value.deadline) |deadline| try deadline.validate();
             try value.budget.validate();
             if (std.mem.allEqual(u8, &value.fingerprint, 0)) return error.InvalidClientToken;
             break :blk value.operation;
         },
         .statement => |value| blk: {
             try value.request.validate();
+            if (value.kv_command != null and value.request.binding.action != .insert) return error.InvalidTransactionWork;
             break :blk value.request.binding.identity;
+        },
+        .log_statement => |value| blk: {
+            try value.request.validate();
+            if (value.request.work == .queue_transfer) return error.InvalidTransactionWork;
+            try self.key().connection.owner(value.request.statement.transaction.begin);
+            break :blk value.request.work.operation();
         },
         .savepoint => |value| blk: {
             try value.request.validate();
@@ -53,7 +63,7 @@ pub fn beginRequest(self: Self) !c.DirectTransactionRequest.Begin {
     try self.validate();
     if (self.work != .begin) return error.TransactionOperationRequired;
     const value = self.work.begin;
-    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_tables, .limits = value.limits, .deadline = null, .budget = value.budget };
+    return .{ .key = value.key, .fingerprint = value.fingerprint, .operation = value.operation, .namespace = self.namespace, .mode = value.mode, .selection = .authorized_catalog_objects, .limits = value.limits, .deadline = value.deadline, .budget = value.budget };
 }
 pub const reservation_bytes = c.DirectTransactionWorkspace.max_bytes + c.DirectIntent.max_bytes + 512;
 pub const format: u32 = 0x54584931;
@@ -62,6 +72,7 @@ pub const Result = union(enum) {
     rejected: Refusal,
     begun: p.Transaction.Cut,
     statement: c.storage.TableWorkspace.Outcome,
+    log_statement: c.DirectTransactionLogWork.Outcome,
     savepoint: c.DirectTransactionSavepoint.Result,
     settled: c.DirectTransactionControl.Status,
     pub fn validate(self: Result, connection: c.DirectTableProtocol.Connection) !void {
@@ -81,6 +92,14 @@ pub const Result = union(enum) {
                 }
                 if (outcome == .provisional and outcome.provisional.affected > outcome.provisional.matched) return error.InvalidTableResponse;
             },
+            .log_statement => |outcome| {
+                switch (outcome) {
+                    inline else => |value| {
+                        try value.statement.validate();
+                        try connection.owner(value.statement.transaction.begin);
+                    },
+                }
+            },
             .savepoint => |value| {
                 try value.validate();
                 try connection.owner(value.request.operation);
@@ -99,7 +118,7 @@ pub const Result = union(enum) {
         if (self == .rejected) return;
         switch (call.work) {
             .begin => |work| {
-                if (self != .begun or !std.meta.eql(self.begun.begin.identity.begin, work.operation) or self.begun.begin.mode != work.mode or !std.meta.eql(self.begun.begin.limits, work.limits)) return error.InvalidTableResponse;
+                if (self != .begun or !std.meta.eql(self.begun.begin.identity.begin, work.operation) or self.begun.begin.mode != work.mode or !std.meta.eql(self.begun.begin.deadline, work.deadline) or !std.meta.eql(self.begun.begin.limits, work.limits)) return error.InvalidTableResponse;
             },
             .statement => |work| {
                 if (self != .statement) return error.InvalidTableResponse;
@@ -107,6 +126,10 @@ pub const Result = union(enum) {
                     inline else => |value| value.statement,
                 };
                 if (!std.meta.eql(statement, work.request.statement)) return error.InvalidTableResponse;
+            },
+            .log_statement => |work| {
+                if (self != .log_statement) return error.InvalidTableResponse;
+                try (c.DirectTransactionLogWork.Completed{ .request = work.request, .outcome = self.log_statement }).validate();
             },
             .savepoint => |work| {
                 if (self != .savepoint or !std.meta.eql(self.savepoint.request, work.request)) return error.InvalidTableResponse;

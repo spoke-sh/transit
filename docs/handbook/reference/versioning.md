@@ -108,7 +108,7 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`.
+`316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`.
 
 The application foundation combines typed KV fields, capability values, native
 browser bindings, ordered program and original-effect records, composed request

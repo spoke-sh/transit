@@ -3803,7 +3803,7 @@ test "transaction admission refusals do not allocate partitions or consume token
     const binding = try transactionToken(&catalog, 55, 1, 9);
     const before = catalog.store.root;
     var changed = binding;
-    changed.intent.transaction.begin.selection = .authorized_catalog_tables;
+    changed.intent.transaction.begin.selection = .authorized_catalog_objects;
     try t.expectError(error.InvalidTransactionBegin, catalog.clientToken(.{ .bind = changed }, access.policy()));
     try t.expectEqualDeep(before, catalog.store.root);
     changed = binding;
@@ -4830,14 +4830,14 @@ test "transaction server selection freezes authorized catalog and preserves orig
         .namespace = 1,
         .mode = .read_only,
         .deadline = null,
-        .selection = .authorized_catalog_tables,
+        .selection = .authorized_catalog_objects,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
     };
     access.denied_metadata = 111;
     const receipt = try catalog.beginTransaction(request, access.policy());
     try t.expectEqual(@as(u64, 11), receipt.binding.intent.transaction.begin.objects.count);
-    try t.expectEqual(.authorized_catalog_tables, receipt.binding.intent.transaction.begin.selection);
+    try t.expectEqual(.authorized_catalog_objects, receipt.binding.intent.transaction.begin.selection);
     const cut = try catalog.acquireTransaction(request.key, access.policy());
     try t.expectEqual(@as(u64, 11), cut.cut.sources.count);
     // Later catalog growth and a racing proposed identity cannot change the
@@ -6074,7 +6074,7 @@ test "transaction log source cuts recover original pins and common decisions thr
                 cursor = page.next orelse break;
             }
             try t.expectEqual(@as(u64, 4), count);
-            access.denied_privileges = .{ .id = 112, .mask = c.LogAuthority.read };
+            access.denied_privileges = .{ .id = 112, .mask = c.LogAuthority.read | c.LogAuthority.append | c.LogAuthority.settle };
             try t.expectError(error.CatalogDenied, catalog.acquireTransaction(receipt.binding.key, access.policy()));
             try t.expectError(error.CatalogDenied, catalog.settleTransaction(receipt.binding.key, operation, .commit, 16, access.policy()));
             access.denied_privileges = null;
@@ -6084,7 +6084,7 @@ test "transaction log source cuts recover original pins and common decisions thr
             try t.expectEqualDeep(acquired.cut, (try catalog.inspectTransaction(receipt.binding.key, access.policy())).cut.?);
             // A committed decision still cleans up its pins after data-read
             // revocation. Closure uses current control rights, not data access.
-            access.denied_privileges = .{ .id = 112, .mask = c.LogAuthority.read };
+            access.denied_privileges = .{ .id = 112, .mask = c.LogAuthority.read | c.LogAuthority.append | c.LogAuthority.settle };
             const settled = try catalog.settleTransaction(receipt.binding.key, operation, .commit, 16, access.policy());
             try t.expect(settled.cleanup_complete and settled.observation.decided.outcome == .committed);
             const before = catalog.store.root;
@@ -7397,14 +7397,14 @@ test "mixed Table KV transaction preserves private reads rights and one decision
                 const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = template.fingerprint, .operation = template.intent.transaction.begin.identity.begin, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &selection }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
                 _ = try catalog.beginTransaction(begin, access.policy());
                 _ = try catalog.acquireTransaction(token, access.policy());
-                // Ordinary SQL selection remains Table-only even when a KV
-                // object is declared in the same authorized namespace.
-                var tables_only = begin;
-                tables_only.key.token = @splat(2);
-                tables_only.operation.operation = 9100;
-                tables_only.selection = .authorized_catalog_tables;
-                try t.expectEqual(@as(u64, 1), (try catalog.beginTransaction(tables_only, access.policy())).binding.intent.transaction.begin.objects.count);
-                _ = try catalog.settleTransaction(tables_only.key, .{ .scope = scope, .principal = 1, .operation = 9101 }, .abort, 8, access.policy());
+                // Ordinary SQL selection discovers both authorized Table and KV
+                // objects in the selected namespace.
+                var all_objects = begin;
+                all_objects.key.token = @splat(2);
+                all_objects.operation.operation = 9100;
+                all_objects.selection = .authorized_catalog_objects;
+                try t.expectEqual(@as(u64, 2), (try catalog.beginTransaction(all_objects, access.policy())).binding.intent.transaction.begin.objects.count);
+                _ = try catalog.settleTransaction(all_objects.key, .{ .scope = scope, .principal = 1, .operation = 9101 }, .abort, 8, access.policy());
                 const binding: p.DataLifecycle.Binding = .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 500 }, .target = kv_object, .action = .insert, .expected_definition = metadata.interpretation.interpretation, .expected_data = null, .intent = undefined };
                 var changes: [6]s.KVPartition.Change = undefined;
                 const keys = [_][]const u8{ "one", "two", "three", "four", "five", "six" };
@@ -9965,7 +9965,7 @@ test "historical common transaction cut transfers retention through cleanup lost
         .namespace = 1,
         .mode = .read_only,
         .deadline = null,
-        .selection = .authorized_catalog_tables,
+        .selection = .authorized_catalog_objects,
         .limits = c.DirectTransaction.default_limits,
         .budget = template.budget,
     }, access.policy());
@@ -10107,7 +10107,7 @@ test "historical common transaction collection and abandonment preserve independ
         _ = try selectedTransaction(&catalog, &access, 2);
         _ = try insertSelectedTable(&catalog, &access, "selected_0", 600);
         const template = try transactionToken(&catalog, 9500, 2, 0);
-        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_tables, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
+        _ = try catalog.beginTransaction(.{ .key = template.key, .fingerprint = template.fingerprint, .operation = template.intent.transaction.identity(), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget }, access.policy());
         const acquired = try catalog.acquireTransaction(template.key, access.policy());
         for ([_]u64{ 10, 11 }, 1..) |object, sequence| {
             const statement = try workspaceRequest(&catalog, &access, template.key, object, sequence, 700 + sequence);
@@ -10626,7 +10626,7 @@ fn ownedRecordTransaction(catalog: *D, access: *Access, operation: u64, token: u
         .namespace = 1,
         .mode = mode,
         .deadline = null,
-        .selection = .authorized_catalog_tables,
+        .selection = .authorized_catalog_objects,
         .limits = limits,
         .budget = template.budget,
     }, access.policy());
@@ -12424,4 +12424,179 @@ test "SOURCE SINK disk recovery protects connection and rechecks current use" {
     // Name reuse never changes the original receipt or its immutable binding.
     try t.expectEqualDeep(accepted, (try catalog.sourceOperation(request, .inspect, access.policy())).operation);
     try t.expectEqual(.stale_definition, (try connectorExecute(&catalog, &access, try connectorCreation(80, 109, "stale", request.intent.action.create.payload))).reason);
+}
+
+test "authorized catalog object selection and TXI1 log calls enforce least privilege and GC roots" {
+    var wal = s.LocalWal.LocalWal.initMemory(t.allocator);
+    defer wal.deinit();
+    var objects = s.LocalSegmentStore.LocalSegmentStore.initMemory(t.allocator);
+    defer objects.deinit();
+    var catalog = try owner(&wal, &objects);
+    defer catalog.deinit();
+    var access: Access = .{ .exclusive = true };
+    try catalog.initialize(access.policy());
+
+    const table = try creation(10, 100, "rows");
+    _ = try catalog.admit(table, access.policy());
+    _ = try catalog.perform(table.binding, access.policy());
+
+    var kv_columns: [2]c.fuze.TableSchema.Column = undefined;
+    const spec: s.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
+    var kv_create = try creation(11, 101, "state");
+    kv_create.intent.kind = .kv;
+    kv_create.intent.action.create.schema = spec.schema(11, &kv_columns);
+    kv_create.binding.intent = try kv_create.intent.digest(t.allocator);
+    _ = try catalog.admit(kv_create, access.policy());
+    _ = try catalog.perform(kv_create.binding, access.policy());
+
+    const doc = try documentCreation(12, 102, "docs");
+    _ = try catalog.admit(doc, access.policy());
+    _ = try catalog.perform(doc.binding, access.policy());
+
+    const stream = try logCreation(.stream, 13, 103, "events", 2);
+    _ = try catalog.admitLog(stream, access.policy());
+    _ = try catalog.logOperation(stream.binding, .execute, access.policy());
+    _ = try catalog.logOperation(stream.binding, .execute, access.policy());
+    const stream_def = (try catalog.resolveLog(1, try .init("events"), access.policy())).?;
+    const stream_target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = stream_def.stored.declaration.interpretation, .partition = 0 };
+
+    const queue = try logCreation(.queue, 14, 104, "jobs", 1);
+    _ = try catalog.admitLog(queue, access.policy());
+    _ = try catalog.logOperation(queue.binding, .execute, access.policy());
+    const queue_def = (try catalog.resolveLog(1, try .init("jobs"), access.policy())).?;
+    const queue_target: p.StreamQueue.Partition = .{ .definition = p.Growth.current_definition, .interpretation = queue_def.stored.declaration.interpretation, .partition = 0 };
+
+    var clock: QueueClock = .{ .now = .exact(100) };
+    var cached_queue: ?c.DirectQueue.Cached = null;
+    defer if (cached_queue) |*value| value.deinit();
+    const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 99 } } }};
+    var batch_bytes: [4096]u8 = undefined;
+    const seed_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 200 };
+    const seed_payload = try s.LogBatch.encode(queue.intent.action.create.schema, seed_op, .queue, &.{.{ .cells = &cells, .visible_ms = 50 }}, &batch_bytes);
+    const seed_encoded = try c.DirectTableProtocol.Binary.encode(t.allocator, seed_payload);
+    defer t.allocator.free(seed_encoded.base64);
+    _ = try queueCall(&catalog, &access, &cached_queue, &clock, .{ .mutate = .{ .work = .{ .enqueue = .{ .target = queue_target, .operation = seed_op, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(seed_payload) } }, .payload = seed_encoded } }, 256);
+    const claim = (try queueCall(&catalog, &access, &cached_queue, &clock, .{ .mutate = .{ .work = .{ .claim = .{ .target = queue_target, .operation = .{ .scope = scope, .principal = 1, .operation = 201 }, .maximum = 1, .lease_ms = 500, .predicate = null } }, .payload = null } }, 256)).operation.?.claim;
+    const leased_page = try queueCall(&catalog, &access, &cached_queue, &clock, .{ .page = .{ .cursor = .{ .receipt = claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }, 256);
+    defer leased_page.deinit(t.allocator);
+    const held_lease = leased_page.page.rows[0].lease.original;
+
+    const template = try transactionToken(&catalog, 9000, 1, 0);
+    // Partitioned causal_crdt Document targets remain fail-closed.
+    const doc_target: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9000 }, .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &.{.{ .object = .{ .scope = scope, .branch = 1, .object = 12 }, .kind = .document, .partition = 0 }} }, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+    try t.expectError(error.UnsupportedTransactionParticipant, catalog.beginTransaction(doc_target, access.policy()));
+
+    // READ ONLY SQL selection includes Table, KV and row Document (3), skipping Stream and Queue.
+    const ro_begin: c.DirectTransactionRequest.Begin = .{ .key = template.key, .fingerprint = template.fingerprint, .operation = .{ .scope = scope, .principal = 1, .operation = 9001 }, .namespace = 1, .mode = .read_only, .deadline = null, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .budget = template.budget };
+    try t.expectEqual(@as(u64, 3), (try catalog.beginTransaction(ro_begin, access.policy())).binding.intent.transaction.begin.objects.count);
+    _ = try catalog.settleTransaction(ro_begin.key, .{ .scope = scope, .principal = 1, .operation = 9002 }, .abort, 8, access.policy());
+
+    const environment: c.DirectTransactionLog.Environment = .{ .clock = clock.source() };
+    catalog.log_environment = &environment;
+    defer catalog.log_environment = null;
+
+    // APPEND-only principal on Stream (no READ, no SETTLE): SERIALIZABLE selection still admits
+    // Table (1) + KV (1) + row Document (1) + Stream partitions (2) + Queue partition (1) = 6 participants.
+    access.denied_privileges = .{ .id = stream_def.properties.authorization, .mask = c.LogAuthority.read | c.LogAuthority.settle };
+    var call_budget = template.budget;
+    call_budget.bytes = c.DirectTransactionCall.reservation_bytes;
+    var tx1_key = template.key;
+    tx1_key.token = @splat(10);
+    var call1_key = template.key;
+    call1_key.token = @splat(11);
+    const begin_call1: c.DirectTransactionCall = .{
+        .connection = template.key.connection,
+        .namespace = 1,
+        .operation = 9100,
+        .work = .{ .begin = .{ .key = tx1_key, .fingerprint = @splat(11), .operation = .{ .scope = scope, .principal = 1, .operation = 9101 }, .mode = .serializable, .deadline = .{ .floor_ms = 50, .expires_ms = 500 }, .limits = c.DirectTransaction.default_limits, .budget = template.budget } },
+    };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call1_key, .fingerprint = @splat(11), .intent = .{ .transaction_call = begin_call1 }, .budget = call_budget } }, access.policy());
+    const begun1 = (try catalog.transactionCall(call1_key, 16, false, false, access.policy())).?.begun;
+    try t.expectEqual(@as(u64, 6), begun1.sources.count);
+    try t.expectEqual(@as(u64, 500), begun1.begin.deadline.?.expires_ms);
+
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const kv_meta = (try c.DirectKV.apply(arena.allocator(), arena.allocator(), &catalog, .{ .observe = kv_create.binding.target }, access.policy())).definition;
+    const kv_val = "v1".*;
+    const kv_changes = [_]s.KVPartition.Change{.{ .put = .{ .key = "k1", .value = .{ .value = .{ .atom = .{ .bytes = &kv_val } } } } }};
+    const kv_mut = try c.DirectKVClient.prepareMutation(&arena, .{ .definition = p.Growth.current_definition, .identity = .{ .scope = scope, .principal = 1, .operation = 9102 }, .target = kv_create.binding.target, .action = .insert, .expected_definition = kv_meta.interpretation.interpretation, .expected_data = null, .intent = undefined }, spec, &kv_changes);
+    const rev1 = (try catalog.inspectTransaction(tx1_key, access.policy())).revision;
+    const kv_req = try catalog.stageTransactionKV(tx1_key, rev1, 1, kv_mut, access.policy());
+    var call_kv_key = template.key;
+    call_kv_key.token = @splat(12);
+    const kv_call: c.DirectTransactionCall = .{ .connection = template.key.connection, .namespace = 1, .operation = 9103, .work = .{ .statement = .{ .key = tx1_key, .kv_command = .put, .request = kv_req } } };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call_kv_key, .fingerprint = @splat(12), .intent = .{ .transaction_call = kv_call }, .budget = call_budget } }, access.policy());
+    try t.expectEqual(@as(u64, 1), (try catalog.transactionCall(call_kv_key, 8, false, false, access.policy())).?.statement.provisional.affected);
+
+    const rev2 = (try catalog.inspectTransaction(tx1_key, access.policy())).revision;
+    const append_op: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 1, .operation = 9104 };
+    var stream_bytes: [4096]u8 = undefined;
+    const stream_payload = try s.LogBatch.encode(stream.intent.action.create.schema, append_op, .stream, &.{.{ .cells = &cells, .visible_ms = 0 }}, &stream_bytes);
+    const log_req = try catalog.stageTransactionLog(tx1_key, rev2, 2, .{ .append = .{ .target = stream_target, .operation = append_op, .kind = .stream, .producer = null, .rows = 1, .payload = s.LogBatch.content(stream_payload) } }, stream_payload, access.policy());
+    var call_log_key = template.key;
+    call_log_key.token = @splat(13);
+    const log_call: c.DirectTransactionCall = .{ .connection = template.key.connection, .namespace = 1, .operation = 9105, .work = .{ .log_statement = .{ .key = tx1_key, .request = log_req } } };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call_log_key, .fingerprint = @splat(13), .intent = .{ .transaction_call = log_call }, .budget = call_budget } }, access.policy());
+
+    // Bound TXI1 log_statement tokens mark staged payload objects before execution.
+    var graph: @import("direct_storage_graph_test.zig").Workspace = .{};
+    defer graph.deinit();
+    try graph.enqueue(.{ .catalog_history = try .init(try catalog.store.recoveryState()) });
+    var job: usize = 0;
+    while (job < graph.jobs.items.len) : (job += 1) {
+        var graph_work = graph.jobs.items[job];
+        while (!try c.DirectStorageGraph.step(t.allocator, &catalog.store.index, wal.log(), &graph_work, &graph)) {}
+    }
+    var payload_key: [96]u8 = undefined;
+    try t.expect(graph.marks.contains(try s.LogTransactionActions.payloadKey(log_req.work.append.payload, &payload_key)));
+
+    const log_out = (try catalog.transactionCall(call_log_key, 8, false, false, access.policy())).?.log_statement;
+    try t.expectEqual(@as(u64, 1), log_out.provisional.proposed.append.rows);
+    try t.expectEqualDeep(log_out, (try catalog.transactionCallOutcome(call_log_key, access.policy())).?.log_statement);
+
+    // Revoking APPEND before commit denies commit; restoring APPEND allows commit without READ.
+    access.denied_privileges = .{ .id = stream_def.properties.authorization, .mask = c.LogAuthority.read | c.LogAuthority.append | c.LogAuthority.settle };
+    var call_commit1_key = template.key;
+    call_commit1_key.token = @splat(14);
+    const commit1_call: c.DirectTransactionCall = .{ .connection = template.key.connection, .namespace = 1, .operation = 9106, .work = .{ .settle = .{ .key = tx1_key, .operation = .{ .scope = scope, .principal = 1, .operation = 9107 }, .command = .commit } } };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call_commit1_key, .fingerprint = @splat(14), .intent = .{ .transaction_call = commit1_call }, .budget = call_budget } }, access.policy());
+    try t.expectError(error.CatalogDenied, catalog.transactionCall(call_commit1_key, 16, true, false, access.policy()));
+    access.denied_privileges = .{ .id = stream_def.properties.authorization, .mask = c.LogAuthority.read | c.LogAuthority.settle };
+    const settled1 = (try catalog.transactionCall(call_commit1_key, 16, true, false, access.policy())).?.settled;
+    try t.expectEqual(.committed, settled1.observation.decided.outcome);
+
+    // SETTLE-only principal on Queue (no READ, no APPEND): admits Queue participant, rejects ENQUEUE,
+    // accepts ACK, and auto-aborts via TXI1 settle when Transaction.Deadline elapses before commit.
+    access.denied_privileges = .{ .id = queue_def.properties.authorization, .mask = c.LogAuthority.read | c.LogAuthority.append };
+    var tx2_key = template.key;
+    tx2_key.token = @splat(20);
+    var call2_key = template.key;
+    call2_key.token = @splat(21);
+    const begin_call2: c.DirectTransactionCall = .{
+        .connection = template.key.connection,
+        .namespace = 1,
+        .operation = 9200,
+        .work = .{ .begin = .{ .key = tx2_key, .fingerprint = @splat(21), .operation = .{ .scope = scope, .principal = 1, .operation = 9201 }, .mode = .serializable, .deadline = .{ .floor_ms = 50, .expires_ms = 200 }, .limits = c.DirectTransaction.default_limits, .budget = template.budget } },
+    };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call2_key, .fingerprint = @splat(21), .intent = .{ .transaction_call = begin_call2 }, .budget = call_budget } }, access.policy());
+    try t.expectEqual(@as(u64, 6), (try catalog.transactionCall(call2_key, 16, false, false, access.policy())).?.begun.sources.count);
+
+    const tx2_rev = (try catalog.inspectTransaction(tx2_key, access.policy())).revision;
+    try t.expectError(error.CatalogDenied, catalog.stageTransactionLog(tx2_key, tx2_rev, 1, .{ .append = .{ .target = queue_target, .operation = .{ .scope = scope, .principal = 1, .operation = 9202 }, .kind = .queue, .producer = null, .rows = 1, .payload = s.LogBatch.content(seed_payload) } }, seed_payload, access.policy()));
+
+    const ack_req = try catalog.stageTransactionLog(tx2_key, tx2_rev, 1, .{ .queue_ack = .{ .operation = .{ .scope = scope, .principal = 1, .operation = 9203 }, .lease = held_lease, .action = .ack } }, null, access.policy());
+    var call_ack_key = template.key;
+    call_ack_key.token = @splat(22);
+    const ack_call: c.DirectTransactionCall = .{ .connection = template.key.connection, .namespace = 1, .operation = 9204, .work = .{ .log_statement = .{ .key = tx2_key, .request = ack_req } } };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call_ack_key, .fingerprint = @splat(22), .intent = .{ .transaction_call = ack_call }, .budget = call_budget } }, access.policy());
+    try t.expect((try catalog.transactionCall(call_ack_key, 8, false, false, access.policy())).?.log_statement == .provisional);
+
+    clock.now = .exact(250);
+    var call_commit2_key = template.key;
+    call_commit2_key.token = @splat(23);
+    const commit2_call: c.DirectTransactionCall = .{ .connection = template.key.connection, .namespace = 1, .operation = 9205, .work = .{ .settle = .{ .key = tx2_key, .operation = .{ .scope = scope, .principal = 1, .operation = 9206 }, .command = .commit } } };
+    _ = try catalog.clientToken(.{ .bind = .{ .key = call_commit2_key, .fingerprint = @splat(23), .intent = .{ .transaction_call = commit2_call }, .budget = call_budget } }, access.policy());
+    const settled2 = (try catalog.transactionCall(call_commit2_key, 16, true, false, access.policy())).?.settled;
+    try t.expectEqual(.aborted, settled2.observation.decided.outcome);
 }

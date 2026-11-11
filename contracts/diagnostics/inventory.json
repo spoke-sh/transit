@@ -4780,7 +4780,7 @@
     },
     "packages/zig/transit-catalog/src/DirectCatalog.zig": {
       "errors": {
-        "AccessDenied": 5,
+        "AccessDenied": 9,
         "BranchIdentityConflict": 1,
         "BranchNameConflict": 1,
         "BranchNotFound": 1,
@@ -4791,12 +4791,12 @@
         "BranchSourceChanged": 3,
         "BufferTooSmall": 2,
         "CatalogDefinitionChanged": 2,
-        "CatalogDenied": 100,
+        "CatalogDenied": 103,
         "CatalogDependencyOwned": 1,
-        "CatalogHistoryMissing": 1,
+        "CatalogHistoryMissing": 2,
         "CatalogIdentityConflict": 10,
         "CatalogKindMismatch": 18,
-        "CatalogNameHashCollision": 2,
+        "CatalogNameHashCollision": 3,
         "CatalogNameNotFound": 1,
         "CatalogNamespaceMissing": 4,
         "CatalogNotInitialized": 1,
@@ -4822,7 +4822,7 @@
         "DocumentSourceOperationRequired": 7,
         "DocumentSourceWorkLimit": 1,
         "DuplicatePrimaryKey": 1,
-        "Forbidden": 10,
+        "Forbidden": 13,
         "ForeignKeyDefinitionRequired": 1,
         "ForeignKeyScopeUnsupported": 1,
         "ForeignKeySetNullRequiresNullableColumn": 1,
@@ -4855,8 +4855,8 @@
         "InvalidCatalogDescriptor": 10,
         "InvalidClientToken": 2,
         "InvalidDirectCatalogCompletion": 1,
-        "InvalidDirectCatalogEntry": 18,
-        "InvalidDirectCatalogName": 2,
+        "InvalidDirectCatalogEntry": 19,
+        "InvalidDirectCatalogName": 3,
         "InvalidDirectCatalogOperation": 30,
         "InvalidDirectCatalogTransition": 1,
         "InvalidDirectRecord": 4,
@@ -4890,17 +4890,17 @@
         "InvalidTransactionCut": 13,
         "InvalidTransactionDirectory": 2,
         "InvalidTransactionPreparation": 1,
-        "InvalidTransactionRead": 6,
+        "InvalidTransactionRead": 7,
         "InvalidTransactionRecord": 2,
         "InvalidTransactionTransfer": 1,
         "InvalidTransactionWork": 9,
         "InvalidTransactionWorkspace": 9,
         "LogCatalogRequestRequired": 1,
-        "LogDeclarationConflict": 12,
-        "LogGroupFenced": 1,
-        "LogOffsetConflict": 1,
-        "LogProducerConflict": 1,
-        "LogRetentionWindowElapsed": 1,
+        "LogDeclarationConflict": 13,
+        "LogGroupFenced": 2,
+        "LogOffsetConflict": 2,
+        "LogProducerConflict": 2,
+        "LogRetentionWindowElapsed": 2,
         "LogTimeUnavailable": 1,
         "LogTransactionSourceNotPinned": 1,
         "LogTransactionSourceReleased": 1,
@@ -4923,8 +4923,8 @@
         "QueueDependencyRetained": 1,
         "QueueDestinationChanged": 1,
         "QueueDestinationSchemaMismatch": 1,
-        "QueueLeaseExpired": 2,
-        "QueueLeaseFenced": 1,
+        "QueueLeaseExpired": 3,
+        "QueueLeaseFenced": 2,
         "QueueTimeUnavailable": 2,
         "ReadOnlyTransaction": 5,
         "SourceCaptureMissing": 1,
@@ -4954,14 +4954,14 @@
         "TransactionControlConflict": 1,
         "TransactionControlPending": 6,
         "TransactionCutNotAcquired": 3,
-        "TransactionDeadlineElapsed": 1,
+        "TransactionDeadlineElapsed": 2,
         "TransactionFrozen": 1,
         "TransactionIdentityConflict": 16,
         "TransactionMemoryLimit": 11,
         "TransactionObjectNotSelected": 5,
         "TransactionOperationRequired": 26,
         "TransactionPreparationMissing": 3,
-        "TransactionPrepared": 5,
+        "TransactionPrepared": 6,
         "TransactionReadChanged": 5,
         "TransactionRecordClosed": 2,
         "TransactionRecordPending": 3,
@@ -4974,7 +4974,7 @@
         "UnsupportedHistoricalTransaction": 1,
         "UnsupportedLogTransaction": 1,
         "UnsupportedTableAction": 4,
-        "UnsupportedTransactionParticipant": 3,
+        "UnsupportedTransactionParticipant": 2,
         "UnsupportedTransactionRead": 5,
         "WorkloadServiceUnavailable": 1
       },
@@ -5309,6 +5309,7 @@
         "resolveResource()": "<inferred>",
         "resolveSource()": "<inferred>",
         "resolveState()": "<inferred>",
+        "resolveTransactionLog()": "<inferred>",
         "resolveTransactionRead()": "<inferred>",
         "resourceAllocation()": "<inferred>",
         "resourceAllocationRequirements()": "<inferred>",
@@ -5329,6 +5330,7 @@
         "schema()": "<inferred>",
         "selectHistory()": "<inferred>",
         "selectHistoryTable()": "<inferred>",
+        "selectTransactionLog()": "<inferred>",
         "selectTransactionTable()": "<inferred>",
         "settle()": "<inferred>",
         "settleTransaction()": "<inferred>",
@@ -5357,6 +5359,7 @@
         "terminal()": "<inferred>",
         "transactionCall()": "anyerror",
         "transactionCallOutcome()": "anyerror",
+        "transactionLogAdmission()": "<inferred>",
         "transactionLogOutcome()": "<inferred>",
         "transactionLogOutcomeBounded()": "<inferred>",
         "transactionLogSources()": "<inferred>",
@@ -5389,10 +5392,10 @@
         "verifyQueueBinding()": "<inferred>",
         "verifyStreamBinding()": "<inferred>"
       },
-      "open_error_set_uses": 13,
+      "open_error_set_uses": 14,
       "propagation": {
-        "try": 2917,
-        "catch": 32
+        "try": 2954,
+        "catch": 35
       },
       "imports": [
         "DirectCatalogIntent.zig",
@@ -8401,7 +8404,7 @@
         "InvalidDocumentStorageGraph": 17,
         "InvalidHistoricalDirectory": 3,
         "InvalidLogCatalogOperation": 1,
-        "InvalidLogStorageGraph": 47,
+        "InvalidLogStorageGraph": 48,
         "InvalidQueueDestination": 2,
         "InvalidSourceCaptureState": 3,
         "InvalidSourceDeclaration": 2,
@@ -8552,7 +8555,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 667,
+        "try": 673,
         "catch": 1
       },
       "imports": [
@@ -9632,8 +9635,8 @@
         "CatalogIdentityConflict": 1,
         "DataIdentityConflict": 1,
         "InvalidClientToken": 1,
-        "InvalidTableResponse": 9,
-        "InvalidTransactionWork": 1,
+        "InvalidTableResponse": 10,
+        "InvalidTransactionWork": 3,
         "ReadOnlyTransaction": 1,
         "TransactionControlConflict": 1,
         "TransactionControlPending": 1,
@@ -9648,16 +9651,22 @@
         "TransactionStatementPending": 1
       },
       "outcomes": {
+        "KVCommand": [
+          "put",
+          "delete"
+        ],
         "Result": [
           "rejected",
           "begun",
           "statement",
+          "log_statement",
           "savepoint",
           "settled"
         ],
         "work": [
           "begin",
           "statement",
+          "log_statement",
           "savepoint",
           "settle"
         ]
@@ -9672,7 +9681,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 21,
+        "try": 27,
         "catch": 0
       },
       "imports": [
@@ -9869,7 +9878,7 @@
         "OutOfMemory": 1,
         "TransactionMemoryLimit": 1,
         "TransactionReadChanged": 1,
-        "UnsupportedTransactionRead": 3
+        "UnsupportedTransactionRead": 4
       },
       "outcomes": {},
       "error_sets": {},
@@ -9931,7 +9940,7 @@
       "outcomes": {
         "Begin.selection": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ],
         "Request": [
           "call",
@@ -26252,7 +26261,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288\""
+          "@\"316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da\""
         ],
         "Effect.phase": [
           "pending",
@@ -27598,7 +27607,7 @@
         ],
         "Selection": [
           "explicit_objects",
-          "authorized_catalog_tables"
+          "authorized_catalog_objects"
         ],
         "StateKind": [
           "table",
@@ -36379,7 +36388,12 @@
           "missing_row",
           "invalid_rows",
           "work_limit",
-          "check_violation"
+          "check_violation",
+          "conflict",
+          "lease_expired",
+          "lease_fenced",
+          "producer_conflict",
+          "offset_conflict"
         ],
         "evidence": [
           "refused",
@@ -36477,7 +36491,7 @@
     },
     "packages/zig/transit-sql-results/src/root.zig": {
       "errors": {
-        "InvalidCommandCompletion": 13,
+        "InvalidCommandCompletion": 12,
         "InvalidCommandCounts": 2,
         "InvalidResultRow": 1,
         "MissingWorkloadCoverage": 1,
@@ -37213,6 +37227,7 @@
         "InvalidSinkRetryPolicy": 1,
         "InvalidSqlOperationReference": 3,
         "InvalidSqlSyntax": 1,
+        "InvalidStreamHandle": 1,
         "InvalidStreamPolicy": 1,
         "InvalidStreamSliceBounds": 1,
         "InvalidStreamTimestampColumn": 1,
@@ -37381,7 +37396,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 155,
+        "try": 156,
         "catch": 9
       },
       "imports": [
@@ -37522,7 +37537,7 @@
         "SqlTransactionRejected": 1,
         "SqlTransactionRequired": 1,
         "TransactionIdentityConflict": 3,
-        "UnsupportedTransactionStatement": 7
+        "UnsupportedTransactionStatement": 9
       },
       "outcomes": {},
       "error_sets": {},
@@ -38365,7 +38380,7 @@
       "errors": {
         "CatalogIdentityConflict": 1,
         "GatewayRecordTooLarge": 1,
-        "InvalidTransactionCompletion": 1,
+        "InvalidTransactionCompletion": 2,
         "MissingGatewayTerminal": 1,
         "ReadOnlyTransaction": 1,
         "SqlTransactionClosed": 1,
@@ -38373,7 +38388,7 @@
         "SqlTransactionPending": 1,
         "TransactionIdentityConflict": 1,
         "TransactionOperationRequired": 2,
-        "UnsupportedTransactionStatement": 1
+        "UnsupportedTransactionStatement": 9
       },
       "outcomes": {
         "Request": [
@@ -38395,7 +38410,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -43260,7 +43275,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 12,
-        "catch": 2
+        "catch": 3
       },
       "imports": [
         "TransitObjectStore.zig",
@@ -44457,11 +44472,12 @@
     },
     "packages/zig/transit-storage/src/LogPartition.zig": {
       "errors": {
+        "CandidateObjectBudgetExceeded": 4,
         "InvalidLogArchive": 3,
         "InvalidLogBatch": 2,
         "InvalidLogExpiration": 14,
         "InvalidLogGroup": 1,
-        "InvalidLogHistory": 41,
+        "InvalidLogHistory": 44,
         "InvalidLogPreparation": 16,
         "InvalidLogRecovery": 4,
         "InvalidLogRecoveryBudget": 1,
@@ -44475,7 +44491,7 @@
         "InvalidQueueHead": 1,
         "InvalidQueueReadBudget": 1,
         "InvalidQueueSchedule": 1,
-        "InvalidQueueScheduleBudget": 2,
+        "InvalidQueueScheduleBudget": 3,
         "InvalidQueueSelection": 2,
         "InvalidQueueTimerBudget": 3,
         "InvalidStreamBudget": 3,
@@ -44519,6 +44535,7 @@
         "LogTransactionSourceReleased": 2,
         "OutstandingTailBorrows": 1,
         "PrivateLogWorkspace": 8,
+        "QueueCheckpointBacklog": 2,
         "QueueClaimMissing": 2,
         "QueueDestinationSchemaMismatch": 1,
         "QueueItemMissing": 8,
@@ -44552,6 +44569,10 @@
           "unsealed",
           "untimed",
           "not_due"
+        ],
+        "Owner().<return>.Options.queue_checkpoint_hard_mode": [
+          "coalesce",
+          "refuse"
         ]
       },
       "error_sets": {},
@@ -44578,6 +44599,7 @@
         "Owner().<return>.candidateQueueSchedule()": "<inferred>",
         "Owner().<return>.candidateSettlement()": "<inferred>",
         "Owner().<return>.checkpoint()": "<inferred>",
+        "Owner().<return>.checkpointMaintenanceUnit()": "<inferred>",
         "Owner().<return>.claim()": "<inferred>",
         "Owner().<return>.claimNonempty()": "<inferred>",
         "Owner().<return>.claimReadReleased()": "<inferred>",
@@ -44585,6 +44607,7 @@
         "Owner().<return>.claimSelected()": "<inferred>",
         "Owner().<return>.close()": "<inferred>",
         "Owner().<return>.commitOffset()": "<inferred>",
+        "Owner().<return>.compactQueueOverlayIfNeeded()": "<inferred>",
         "Owner().<return>.compactStep()": "<inferred>",
         "Owner().<return>.compactionMaintenanceUnit()": "<inferred>",
         "Owner().<return>.compactionProgress()": "<inferred>",
@@ -44597,6 +44620,7 @@
         "Owner().<return>.decodeValue()": "<inferred>",
         "Owner().<return>.deinit()": "<inferred>",
         "Owner().<return>.encodeTransferPayload()": "<inferred>",
+        "Owner().<return>.ensureQueueCheckpointHeadroom()": "<inferred>",
         "Owner().<return>.evaluateTransaction()": "<inferred>",
         "Owner().<return>.evaluateTransactionBounded()": "<inferred>",
         "Owner().<return>.expirationObservation()": "<inferred>",
@@ -44613,6 +44637,7 @@
         "Owner().<return>.loadEvidence()": "<inferred>",
         "Owner().<return>.loadRead()": "<inferred>",
         "Owner().<return>.materialize()": "<inferred>",
+        "Owner().<return>.materializeQueueRoot()": "<inferred>",
         "Owner().<return>.materializeWithinBudget()": "<inferred>",
         "Owner().<return>.nextPosition()": "<inferred>",
         "Owner().<return>.nextProducer()": "<inferred>",
@@ -44628,8 +44653,10 @@
         "Owner().<return>.progress()": "<inferred>",
         "Owner().<return>.protectedOffset()": "<inferred>",
         "Owner().<return>.publish()": "<inferred>",
+        "Owner().<return>.publishClaim()": "<inferred>",
         "Owner().<return>.publishMaintenance()": "<inferred>",
         "Owner().<return>.publishRecord()": "<inferred>",
+        "Owner().<return>.publishSelected()": "<inferred>",
         "Owner().<return>.putGroup()": "<inferred>",
         "Owner().<return>.queueCanonicalKey()": "<inferred>",
         "Owner().<return>.queueDeadline()": "<inferred>",
@@ -44677,17 +44704,19 @@
         "Owner().<return>.verifyCompactionStep()": "<inferred>",
         "Owner().<return>.verifyDecisionTime()": "<inferred>",
         "Owner().<return>.verifyGroup()": "<inferred>",
+        "Owner().<return>.verifyMaterializedRoots()": "<inferred>",
         "Owner().<return>.verifyPrepared()": "<inferred>",
         "Owner().<return>.verifyPreparedBounded()": "<inferred>",
         "Owner().<return>.verifyRewrite()": "<inferred>",
+        "Owner().<return>.verifyRootReferences()": "<inferred>",
         "Owner().<return>.verifyTransferPayload()": "<inferred>",
         "Owner().<return>.verifyTransition()": "<inferred>",
         "Owner().<return>.verifyValue()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 910,
-        "catch": 20
+        "try": 946,
+        "catch": 27
       },
       "imports": [
         "BitmapDirectory.zig",
@@ -44737,7 +44766,7 @@
         "IncompatibleDefinition": 2,
         "InvalidLogArchive": 1,
         "InvalidLogExpiration": 1,
-        "InvalidLogHistory": 12,
+        "InvalidLogHistory": 13,
         "InvalidLogPreparation": 2,
         "InvalidLogRecovery": 2,
         "InvalidLogRoot": 2,
@@ -44746,6 +44775,7 @@
         "InvalidQueueExpiration": 1,
         "InvalidQueueRoot": 2,
         "InvalidQueueSchedule": 1,
+        "InvalidQueueSelection": 1,
         "InvalidStreamCompaction": 10,
         "LogDeclarationConflict": 4,
         "LogPayloadConflict": 1,
@@ -45295,32 +45325,40 @@
       "outcomes": {
         "Domain": [
           "plain",
+          "receipts",
           "sidecars",
           "bitmap",
           "keys",
           "levels",
+          "run_chunks",
           "blob"
         ]
       },
       "error_sets": {},
       "error_returns": {
+        "compact()": "<inferred>",
         "leaf()": "<inferred>",
         "persist()": "<inferred>",
         "schedule()": "<inferred>",
+        "selectReachable()": "<inferred>",
         "tree()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 46,
         "catch": 0
       },
       "imports": [
         "BitmapDirectory.zig",
         "CandidateObjects.zig",
+        "LogEvidence.zig",
         "LogPartitionRecord.zig",
         "OrderedKeyIndex.zig",
+        "QueueReadRelease.zig",
         "QueueSchedule.zig",
+        "QueueSelection.zig",
         "QueueTimeDirectory.zig",
+        "QueueTimeRun.zig",
         "Tack.zig",
         "TreeStore.zig",
         "std"
@@ -45417,7 +45455,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 138,
+        "try": 139,
         "catch": 1
       },
       "imports": [
@@ -45511,6 +45549,7 @@
         "archiveMaintenanceUnit()": "<inferred>",
         "cancel()": "<inferred>",
         "checkpoint()": "<inferred>",
+        "checkpointMaintenanceUnit()": "<inferred>",
         "claim()": "<inferred>",
         "claimNonempty()": "<inferred>",
         "claimReadiness()": "<inferred>",
@@ -45622,6 +45661,7 @@
         "inspectRun()": "<inferred>",
         "loadBuffer()": "<inferred>",
         "maintain()": "<inferred>",
+        "needsMaintenance()": "<inferred>",
         "nextEvent()": "<inferred>",
         "pendingKey()": "<inferred>",
         "promote()": "<inferred>",
@@ -45634,7 +45674,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 105,
+        "try": 108,
         "catch": 2
       },
       "imports": [
@@ -45651,7 +45691,7 @@
     "packages/zig/transit-storage/src/QueueSelection.zig": {
       "errors": {
         "IncompatibleDefinition": 2,
-        "InvalidQueueSelection": 13,
+        "InvalidQueueSelection": 14,
         "QueueClaimConflict": 1,
         "QueueSelectionBudgetExceeded": 1,
         "QueueSelectionMissing": 1,
@@ -45671,11 +45711,12 @@
         "objectKey()": "<inferred>",
         "requireLease()": "<inferred>",
         "stage()": "<inferred>",
+        "stageEncoded()": "<inferred>",
         "validateContent()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 29,
+        "try": 31,
         "catch": 0
       },
       "imports": [
@@ -45866,7 +45907,7 @@
       "open_error_set_uses": 0,
       "propagation": {
         "try": 0,
-        "catch": 1
+        "catch": 8
       },
       "imports": [
         "QueueTimingWheel.zig",

@@ -144,7 +144,7 @@ pub fn inspectSelection(allocator: std.mem.Allocator, objects: c.storage.Transit
             try entry.participant.validate(reference.begin.identity);
             switch (entry.participant) {
                 .state => try entry.participant.requireLocalState(reference.begin),
-                .log => if (reference.begin.selection != .explicit_objects) return error.InvalidTransactionBegin,
+                .log => if (reference.begin.selection != .explicit_objects and reference.begin.mode == .read_only) return error.InvalidTransactionBegin,
                 .document => return error.UnsupportedTransactionParticipant,
             }
             if (entry.participant.writes()) return error.InvalidTransactionBegin;

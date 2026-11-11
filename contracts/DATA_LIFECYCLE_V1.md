@@ -35,8 +35,8 @@ The neutral local profile names one catalog and branch one. `Identity.begin`
 is the original caller operation, independent of a SQL session, worker, name or
 storage epoch. `Begin` freezes the mode (`serializable` or `read_only`), selected
 object/partition directory (`objects`), catalog name/definition observation and
-admitted limits. `explicit_objects` and `authorized_catalog_tables` distinguish the scope: a
-filtered authorized directory makes no claim about inaccessible Tables. The
+admitted limits. `explicit_objects` and `authorized_catalog_objects` distinguish the scope: a
+filtered authorized directory makes no claim about inaccessible objects. The
 directory is immutable and paged, with an explicit count and content commitment;
 that count is not a resident array capacity. A later statement cannot extend it.
 
@@ -71,8 +71,9 @@ Tables and KV require a null ordinal; Documents, Streams and Queues require an
 explicit `u32` ordinal, including zero. An ordinal is not a physical WAL partition ID.
 Directories order by object then ordinal, with state's null ordinal first. A
 single object cannot occur with different kinds. Exact retries preserve the
-whole target; a name change cannot retarget it. The installed Table-only SQL
-selection remains Table-only.
+whole target; a name change cannot retarget it. Server-owned
+`authorized_catalog_objects` selection admits accessible Table, row-Document,
+direct KV and partitioned Stream/Queue objects under their mode-specific rights.
 
 `StateGuard` binds the exact interpretation, accepted partition frontier and
 last logical-change frontier. Its `source` is a logical comparison basis, not a
@@ -121,7 +122,7 @@ retain and release these pins through their owning partition.
 log participant's optional `actions` is an immutable paged directory: null means
 a read dependency; a present directory is nonempty. One Queue partition's ACK
 and enqueue share this directory, one successor and one preparation. The write
-count counts owners, not actions. `requireLocalTable` restricts SQL selection to
+count counts owners, not actions. `requireLocalTable` restricts Table-only callers to
 Table entries. `requireLocalState` accepts Table and direct KV state entries;
 both reject writes in read-only mode. The native catalog composes Table/direct KV
 state with Stream/Queue append and settlement participants. Document and the
@@ -206,8 +207,7 @@ its validation does not acquire pins or establish a usable index.
 The neutral [Stream](STREAM_V1.md) and [Queue](QUEUE_V1.md) bindings reuse these
 identities for original append receipts, finite offset coverage, fenced consumer
 checkpoints and Queue settlement evidence. They are included in the reflected
-schema without enabling native operations or changing the Table-only participant
-gate described above.
+schema without enabling native operations by schema validation alone.
 
 | Type | Meaning |
 | --- | --- |
