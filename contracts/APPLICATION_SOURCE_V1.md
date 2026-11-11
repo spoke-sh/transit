@@ -507,6 +507,9 @@ and native-definition rejection remains in force.
 The same isolated test host executes public Queue programs and their controls
 through ordinary SQL owners. `ASSERT ROWS (CONSUME ...) EQUAL (...)` checks complete
 typed Stream results using the existing multiset and byte budgets.
+Lifecycle controls execute as plain statements; command-count assertions reject
+them because they have no matched/changed counts. Constraint-refusal assertions
+remain limited to Table INSERT, UPDATE and DELETE.
 
 ```text
 ASSERT WORKFLOW NAME 'process' COMPLETED 1 REFUSED 2 WITHIN 1000 OBSERVATIONS;

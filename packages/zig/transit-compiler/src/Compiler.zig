@@ -647,7 +647,6 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
     var query_buffer: [f.Sql.max_statement_bytes]u8 = undefined;
     const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null) else self.steps.items[self.steps.items.len - 1].sql;
     const is_select = value.sql.kind == .select or value.sql.kind == .consume;
-    const is_create = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "CREATE");
     const expected: Test.Expectation = switch (value.expected) {
         .rows => |template| blk: {
             const tokens = template.tokens;
@@ -665,11 +664,11 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
             break :blk .{ .rows = rows };
         },
         .command => |counts| blk: {
-            if (is_select) return error.TestCommandRequired;
+            if (is_select or value.sql.kind == .control) return error.TestCommandRequired;
             break :blk .{ .command = .{ .matched = counts.matched, .changed = counts.changed } };
         },
         .refusal => |reason| blk: {
-            if (is_select or is_create) return error.TestMutationRequired;
+            if (value.sql.kind != .insert and value.sql.kind != .update and value.sql.kind != .delete) return error.TestMutationRequired;
             break :blk .{ .refusal = if (reason == .duplicate_key) .duplicate_key else .check_violation };
         },
     };
