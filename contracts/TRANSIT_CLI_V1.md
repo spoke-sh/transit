@@ -15,7 +15,7 @@ over the SQL session without reading `.transitrc` startup files.
 `transit build` compiles typed source modules offline and publishes independently
 executable SQL. Its options, frozen resolution and output/diagnostic streams are
 defined by [Application source and build v1](APPLICATION_SOURCE_V1.md).
-`transit test` runs explicitly selected Table tests through that same compiler
+`transit test` runs explicitly selected Table and public Queue-program tests through that same compiler
 and isolated local database owners; the source contract owns its bounds and reports.
 These are the only public commands. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated

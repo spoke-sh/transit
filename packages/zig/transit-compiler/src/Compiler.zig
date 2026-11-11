@@ -324,6 +324,7 @@ fn fork(self: *Self) !Self {
     result.symbolic = true;
     if (!self.symbolic) result.checking_count = 0;
     result.catalog.entries = try self.catalog.entries.clone(self.a);
+    result.catalog.programs = try self.catalog.programs.clone(self.a);
     result.steps = .empty;
     result.actions = .empty;
     result.cases = .empty;
@@ -443,6 +444,7 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
             },
             .test_case => |case| try self.testCase(file, statement.span, case, bindings, depth),
             .assertion => |check| try self.assertion(file, statement.span, check, bindings),
+            .workflow => |check| try self.workflow(file, statement.span, check, bindings),
         }
     }
 }
@@ -572,6 +574,7 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
 }
 fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding) !void {
     const tokens = template.tokens;
+    if (self.symbolic and (template.kind == .program or template.kind == .control)) return error.UnsupportedSymbolicProgram;
     if (self.in_case and self.actions.items.len == Test.max_actions) return error.TestActionLimit;
     self.file = file;
     self.offset = span.start;
@@ -589,7 +592,7 @@ fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bin
     var digest: [32]u8 = undefined;
     if (is_create) digest = try self.catalog.check(raw, &at);
     const log_statement = switch (template.kind) {
-        .create_stream, .create_queue, .produce, .enqueue => true,
+        .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
         else => false,
     };
     const checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic);
@@ -643,7 +646,7 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
     try self.emit(file, span, value.sql, bindings);
     var query_buffer: [f.Sql.max_statement_bytes]u8 = undefined;
     const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null) else self.steps.items[self.steps.items.len - 1].sql;
-    const is_select = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "SELECT");
+    const is_select = value.sql.kind == .select or value.sql.kind == .consume;
     const is_create = tokenIs(self.graph.sources[file].text, value.sql.tokens[0], "CREATE");
     const expected: Test.Expectation = switch (value.expected) {
         .rows => |template| blk: {
@@ -671,6 +674,19 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
         },
     };
     if (!self.symbolic) self.actions.items[self.actions.items.len - 1].expectation = expected;
+}
+fn workflow(self: *Self, file: usize, span: s.Span, value: s.Workflow, bindings: []const Binding) !void {
+    if (!self.in_case) return error.TestAssertionOutsideCase;
+    if (self.symbolic) return error.UnsupportedSymbolicProgram;
+    if (self.actions.items.len == Test.max_actions) return error.TestActionLimit;
+    if (value.observations == 0 or value.observations > Test.max_observations) return error.TestObservationLimit;
+    const name = try self.expression(file, value.name, bindings, 0);
+    if (name != .identifier) return error.SourceTypeMismatch;
+    const program = for (self.catalog.programs.items) |program| {
+        if (std.mem.eql(u8, program.name, name.identifier)) break program;
+    } else return error.UnknownBuildProgram;
+    if (program.control.state != .active and program.control.state != .suspended and program.control.state != .retired) return error.InvalidDataflowTransition;
+    try self.actions.append(self.a, .{ .expectation = .{ .workflow = .{ .name = name.identifier, .completed = value.completed, .refused = value.refused, .observations = value.observations } }, .location = location(self.graph.sources[file], span.start) });
 }
 fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool, allocator: std.mem.Allocator, sites: ?*std.ArrayList(Operands.Site)) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;

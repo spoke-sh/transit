@@ -281,6 +281,10 @@ def main():
                 same(case['steps'], len(got['product']['steps']))
             if 'cases' in case:
                 same(case['cases'], len(got['product']['cases']))
+            if 'workflow_expected' in case:
+                observed = [action['expected'] for item in got['product']['cases'] for action in item['actions'] if action['kind'] == 'workflow']
+                same(case['workflow_expected'], observed, case['name'] + '.independent-workflow')
+                assert all(action['step'] is None for item in got['product']['cases'] for action in item['actions'] if action['kind'] == 'workflow'), 'Workflow assertion became SQL execution'
         same(logical(ast), logical(reference.parse(got['formatted'])), case['name'] + '.format-reference')
         round_inputs.append({**case, 'source': got['formatted'], 'files': [
             {**f, 'text': formatted_files[f"{case['name']}:{f['path']}"]} for f in case.get('files', [])]})
@@ -296,6 +300,17 @@ def main():
             same(semantic_product(original['product']), semantic_product(got['product']), case['name'] + '.product')
         same(original.get('compile_error'), got.get('compile_error'), case['name'] + '.refusal')
     meta['negative_controls'] = controls(by_name['table-build']['ast'], by_name['tests']['product'])
+    workflows = by_name['queue-program-tests']['product']
+    for field in ('completed', 'refused', 'observations'):
+        damaged = copy.deepcopy(workflows)
+        action = next(a for a in damaged['cases'][0]['actions'] if a['kind'] == 'workflow')
+        action['expected'][field] += 1
+        try:
+            same(workflows, damaged)
+        except AssertionError:
+            meta['negative_controls'].append('changed-workflow-' + field)
+        else:
+            raise AssertionError('Workflow control passed: ' + field)
     precedence = by_name['precedence']['ast']
     wrong = copy.deepcopy(precedence)
     wrong['definitions'][0]['body'][0]['value']['use']['arguments'][0]['value']['binary']['op'] = 'and_'

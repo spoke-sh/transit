@@ -188,6 +188,10 @@ fn execute(init: std.process.Init, directory: std.Io.Dir, path: []const u8, dead
     var active: std.atomic.Value(bool) = .init(false);
     const session = try g.Session.initOptions(init.gpa, init.io, &config, 0, runtime, credential, "transit", .transit, &cancellation, &active, .{ .capture_settings = false, .deadline = deadline });
     defer session.deinit();
+    // This host owns the real local endpoint and database scheduler. Select the
+    // same native SQL profile as a cohosted caller; owner authorization remains
+    // mandatory for every publication, control and observation.
+    session.native_profile = true;
     const scope = session.withDeadline(deadline);
     defer scope.restore();
     var worker: Worker = .{ .runtime = runtime };

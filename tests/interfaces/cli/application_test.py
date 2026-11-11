@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute the real Table test command under network and executable denial."""
+"""Execute real Table/Queue tests under network and executable denial."""
 import ctypes
 import errno
 import platform
@@ -120,6 +120,19 @@ def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
         root = Path(temporary)
+        programs = root / 'queue-programs'
+        shutil.copytree(ROOT / 'tests/fixtures/application-queue-programs', programs)
+        program_report = invoke(cli, programs)
+        assert program_report['complete'] and [case['status'] for case in program_report['cases']] == ['passed', 'passed'], program_report
+        assert [case['observation']['rows'] for case in program_report['cases']] == [2, 0], program_report
+        program_source = (programs / 'build.transit').read_text()
+        source(programs, 'build.transit', program_source.replace("EQUAL ((7, 'accepted:ready'))", "EQUAL ((8, 'accepted:ready'))", 1))
+        wrong = invoke(cli, programs, expected=1)
+        assert wrong['cases'][0]['status'] == 'failed' and wrong['cases'][0]['observation']['failure'] == 'rows', wrong
+        source(programs, 'build.transit', program_source.replace('COMPLETED 1 REFUSED 2 WITHIN 1000', 'COMPLETED 2 REFUSED 2 WITHIN 1'))
+        incomplete = invoke(cli, programs, expected=1)
+        assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete
+        source(programs, 'build.transit', program_source)
         typed = root / 'typed-targets'
         shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
         typed_report = invoke(cli, typed)

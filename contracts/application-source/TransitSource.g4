@@ -32,14 +32,15 @@ sourceStatement
     | IF expression THEN body (ELSE body)? END IF SEMI
     | TEST STRING USING MODULES LPAREN (sourceCall (COMMA sourceCall)*)? RPAREN AS BEGIN body END SEMI
     | ASSERT assertion SEMI
+    | ASSERT WORKFLOW expression COMPLETED INTEGER REFUSED INTEGER WITHIN INTEGER OBSERVATIONS SEMI
     | tableTemplate SEMI
     ;
 matchArm: WHEN sourceQualifiedName LPAREN (sourceName (COMMA sourceName)*)? RPAREN THEN body;
 sourceCall: sourceQualifiedName LPAREN (expression (COMMA expression)*)? RPAREN;
 assertion
-    : ROWS LPAREN tableTemplate RPAREN EQUAL LPAREN expectedRows? RPAREN
-    | COMMAND LPAREN tableTemplate RPAREN MATCHED INTEGER CHANGED INTEGER
-    | STATEMENT LPAREN tableTemplate RPAREN FAILS WITH STRING
+    : ROWS LPAREN simpleTemplate RPAREN EQUAL LPAREN expectedRows? RPAREN
+    | COMMAND LPAREN simpleTemplate RPAREN MATCHED INTEGER CHANGED INTEGER
+    | STATEMENT LPAREN simpleTemplate RPAREN FAILS WITH STRING
     ;
 expectedRows: expectedRow (COMMA expectedRow)*;
 expectedRow: LPAREN literal (COMMA literal)* RPAREN;
@@ -56,14 +57,53 @@ sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
     | referenceHead (DOT sourceName (DOT sourceName)?)? (LPAREN (expression (COMMA expression)*)? RPAREN)?;
 
 // Delivered public resource profile, with syntax before schema binding.
-tableTemplate: CREATE PUBLIC (TABLE | STREAM | QUEUE) identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+tableTemplate: simpleTemplate | sourceProgram;
+simpleTemplate: CREATE PUBLIC (TABLE | STREAM | QUEUE) identifier LPAREN tableElement (COMMA tableElement)* RPAREN
     | PRODUCE INTO streamOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
     | ENQUEUE INTO queueOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
+    | sourceProgramControl
+    | CONSUME (STAR | columnReference outputAlias? (COMMA columnReference outputAlias?)*) FROM streamOperand (AS identifier)? whereClause? limitClause?
     | mutationStatement | sourceSelect;
 streamOperand: streamHole | plainIdentifier;
 queueOperand: queueHole | plainIdentifier;
 streamHole: DOLLAR sourceName;
 queueHole: DOLLAR sourceName;
+tableOperand: tableHole | programName;
+tableHole: DOLLAR sourceName;
+programResourceName: identifierHole | programName;
+programQueue: queueHole | programName;
+programStream: streamHole | programName;
+sourceProgram: CREATE PUBLIC DATAFLOW programResourceName FROM QUEUE programQueue AS programName
+    (WHERE programExpression)? AS BEGIN programBlock (ON FAILURE programName programBlock)? END;
+sourceProgramControl: AUTHORIZE DATAFLOW programResourceName AS ROLE CURRENT_ROLE
+    | (ACTIVATE | SUSPEND | RESUME | RETIRE) DATAFLOW programResourceName;
+programBlock: programInstruction*;
+programInstruction
+    : LET programName EQ (programSelect | programExpression) SEMI
+    | REQUIRE programExpression ELSE sourceString SEMI
+    | BEGIN ATOMIC programBlock END SEMI
+    | IF programExpression THEN programBlock (ELSE programBlock)? END IF SEMI
+    | INSERT INTO tableOperand VALUES programArguments ON CONFLICT LPAREN programName (COMMA programName)* RPAREN DO ASSERT SAME ROW SEMI
+    | PRODUCE INTO programStream VALUES programArguments SEMI
+    | ENQUEUE INTO programQueue VALUES programArguments SEMI;
+programSelect: SELECT (STAR | programName (COMMA programName)*) FROM tableOperand (WHERE programExpression)?;
+programArguments: LPAREN (programExpression (COMMA programExpression)*)? RPAREN;
+programExpression: programOr;
+programOr: programAnd (OR programAnd)*;
+programAnd: programComparison (AND programComparison)*;
+programComparison: programConcat ((EQ | LT | GT | LE | GE | NE) programConcat | IS NOT? NULL_)*;
+programConcat: programAdd (CONCAT programAdd)*;
+programAdd: programUnary ((PLUS | MINUS) programUnary)*;
+// Recognize expression token structure without the ambiguous NOT/comparison
+// recursion. Ordered-expression precedence is checked by the ordinary binder.
+programUnary: NOT programUnary | MINUS programUnary | programPrimary;
+programPrimary: (LPAREN programExpression RPAREN | valueHole | NULL_ | TRUE | FALSE | INTEGER | STRING
+    | CASE WHEN programExpression THEN programExpression ELSE programExpression END
+    | CAST LPAREN programExpression AS TEXT RPAREN
+    | ROW programArguments | programAtomName programArguments?) (DOT programName)*;
+programName: sourceName | QUOTED_IDENTIFIER;
+programAtomName: typeWordOrdinary | STREAM | QUEUE | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
+    | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE | QUOTED_IDENTIFIER;
 sourceSelect: SELECT selection FROM identifier sourceTableAlias? whereClause? limitClause?
     | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias?
       whereClause? limitClause? RPAREN AS identifier;
@@ -102,7 +142,7 @@ tableConstraint: (CONSTRAINT identifier)? checkConstraint;
 identifier: identifierHole | plainIdentifier;
 plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND;
+sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -135,7 +175,8 @@ referenceTypeHead: typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE 
     | DOUBLE | CHARACTER;
 sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
 typeWord: typeWordWithoutLogs | STREAM | QUEUE;
-typeWordWithoutLogs: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+typeWordWithoutLogs: typeWordOrdinary | NULL_ | CASE | CAST;
+typeWordOrdinary: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
     | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
     | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE
     | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES
@@ -156,11 +197,11 @@ typeWordWithoutLogs: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_
     | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING
     | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES
     | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON
-    | SHOW | STORAGE | DESCRIBE | NULL_ | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT
+    | SHOW | STORAGE | DESCRIBE | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT
     | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
     | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
     | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME
-    | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN;
+    | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 
 IMPORT: 'IMPORT';
 DEPENDENCY: 'DEPENDENCY';
@@ -201,3 +242,17 @@ IDENTITY: 'IDENTITY';
 EXPORT: 'EXPORT';
 MATCH: 'MATCH';
 WHEN: 'WHEN';
+LET: 'LET';
+REQUIRE: 'REQUIRE';
+ATOMIC: 'ATOMIC';
+DO: 'DO';
+SAME: 'SAME';
+FAILURE: 'FAILURE';
+CASE: 'CASE';
+CAST: 'CAST';
+CONCAT: '||';
+WORKFLOW: 'WORKFLOW';
+COMPLETED: 'COMPLETED';
+REFUSED: 'REFUSED';
+WITHIN: 'WITHIN';
+OBSERVATIONS: 'OBSERVATIONS';

@@ -1,0 +1,26 @@
+IMPORT resources FROM 'resources.transit';
+IMPORT workflow FROM 'workflow.transit';
+
+CREATE MODULE Pipeline() AS BEGIN
+  USE resources.Resources(NAME 'requests', NAME 'accepted', NAME 'events') AS data;
+  USE workflow.Workflow(NAME 'process', data.input, data.state, data.output);
+END;
+
+CREATE TARGET default AS BEGIN
+  USE Pipeline();
+  ENQUEUE INTO requests VALUES (7, 'ready'), (0, 'invalid'), (8, 'reject');
+END;
+
+CREATE TEST TARGET tests AS BEGIN
+  TEST 'commits and refusals' USING MODULES (Pipeline()) AS BEGIN
+    ENQUEUE INTO requests VALUES (7, 'ready'), (0, 'invalid'), (8, 'reject');
+    ASSERT WORKFLOW NAME 'process' COMPLETED 1 REFUSED 2 WITHIN 1000 OBSERVATIONS;
+    ASSERT ROWS (SELECT id, body FROM accepted) EQUAL ((7, 'accepted:ready'));
+    ASSERT ROWS (CONSUME id, body FROM events) EQUAL ((7, 'accepted:ready'));
+  END;
+  TEST 'isolated empty pipeline' USING MODULES (Pipeline()) AS BEGIN
+    ASSERT WORKFLOW NAME 'process' COMPLETED 0 REFUSED 0 WITHIN 1 OBSERVATIONS;
+    ASSERT ROWS (SELECT id, body FROM accepted) EQUAL ();
+    ASSERT ROWS (CONSUME id, body FROM events) EQUAL ();
+  END;
+END;

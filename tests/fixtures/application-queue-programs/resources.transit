@@ -1,0 +1,8 @@
+CREATE PUBLIC MODULE Resources(input_name IDENTIFIER, state_name IDENTIFIER, output_name IDENTIFIER) AS BEGIN
+  CREATE PUBLIC QUEUE $input_name (id BIGINT NOT NULL, body TEXT NOT NULL);
+  CREATE PUBLIC TABLE $state_name (id BIGINT PRIMARY KEY, body TEXT NOT NULL);
+  CREATE PUBLIC STREAM $output_name (id BIGINT NOT NULL, body TEXT NOT NULL);
+  EXPORT QUEUE $input_name AS input;
+  EXPORT TABLE $state_name AS state;
+  EXPORT STREAM $output_name AS output;
+END;

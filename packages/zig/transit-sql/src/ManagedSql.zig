@@ -56,19 +56,8 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
         if (!try parser.takeWord("SELECT")) return error.UnsupportedManagedTable;
         return .{ .arena = arena, .statement = .{ .create = .{ .name = name, .output = output, .sql = tail } } };
     }
-    const commands = .{ .{ "AUTHORIZE", .authorize }, .{ "ACTIVATE", .activate }, .{ "SUSPEND", .suspend_computation }, .{ "RESUME", .resume_computation }, .{ "REFRESH", .refresh }, .{ "RETIRE", .retire } };
-    inline for (commands) |entry| {
-        if (try parser.takeWord(entry[0])) {
-            if (!try parser.takeWord("DATAFLOW")) return error.InvalidSqlSyntax;
-            const name = try Name.init(try parser.name());
-            const role = if (try parser.takeWord("AS")) selected: {
-                if (entry[1] != .authorize) return error.InvalidDataflowTransition;
-                try parser.requireWord("ROLE");
-                break :selected try f.AuthorizationSql.role(&parser, false);
-            } else null;
-            try parser.finish();
-            return .{ .arena = arena, .statement = .{ .control = .{ .name = name, .command = entry[1], .role = role } } };
-        }
+    if (try f.ApplicationControl.parse(&parser)) |control| {
+        return .{ .arena = arena, .statement = .{ .control = .{ .name = try Name.init(control.name), .command = control.command, .role = control.role } } };
     }
     arena.deinit();
     return null;

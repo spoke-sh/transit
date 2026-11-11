@@ -1,0 +1,16 @@
+CREATE PUBLIC MODULE Workflow(name IDENTIFIER,
+  input QUEUE(id BIGINT NOT NULL, body TEXT NOT NULL),
+  state TABLE(id BIGINT PRIMARY KEY, body TEXT NOT NULL),
+  output STREAM(id BIGINT NOT NULL, body TEXT NOT NULL)) AS BEGIN
+  CREATE PUBLIC DATAFLOW $name FROM QUEUE $input AS request AS BEGIN
+    REQUIRE request.id > 0 ELSE 'InvalidId';
+    LET body = 'accepted:' || request.body;
+    BEGIN ATOMIC
+      INSERT INTO $state VALUES (request.id, body) ON CONFLICT (id) DO ASSERT SAME ROW;
+      REQUIRE request.body <> 'reject' ELSE 'RejectedBody';
+      PRODUCE INTO $output VALUES (request.id, body);
+    END;
+  END;
+  AUTHORIZE DATAFLOW $name AS ROLE CURRENT_ROLE;
+  ACTIVATE DATAFLOW $name;
+END;

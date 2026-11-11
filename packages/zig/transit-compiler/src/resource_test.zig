@@ -49,3 +49,34 @@ test "resource kind, shape, ownership and unsupported nominal log columns reject
 test "log template syntax is checked in unused modules" {
     try std.testing.expectError(error.InvalidSourceTemplate, compile("CREATE MODULE unused() AS BEGIN ENQUEUE INTO absent VALUES (1,); END; CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT); END;"));
 }
+
+const program =
+    \\CREATE MODULE Workflow(name IDENTIFIER, input QUEUE(id BIGINT NOT NULL, body TEXT NOT NULL), output STREAM(id BIGINT NOT NULL, body TEXT NOT NULL)) AS BEGIN
+    \\  CREATE PUBLIC TABLE accepted (id BIGINT PRIMARY KEY, body TEXT NOT NULL);
+    \\  CREATE PUBLIC DATAFLOW $name FROM QUEUE $input AS request AS BEGIN
+    \\    LET body = request.body || '!';
+    \\    REQUIRE request.id > 0 ELSE 'InvalidId';
+    \\    BEGIN ATOMIC
+    \\      INSERT INTO accepted VALUES (request.id, body) ON CONFLICT (id) DO ASSERT SAME ROW;
+    \\      PRODUCE INTO $output VALUES (request.id, body);
+    \\    END;
+    \\  END;
+    \\  AUTHORIZE DATAFLOW $name AS ROLE CURRENT_ROLE;
+    \\  ACTIVATE DATAFLOW $name;
+    \\END;
+;
+test "Queue program emission binds public resources and preserves ordered atomic instructions" {
+    const result = try compile(resources ++ program ++ "CREATE TARGET default AS BEGIN USE Resources(NAME 'jobs', NAME 'events') AS r; USE Workflow(NAME 'process', r.requests, r.events); END;");
+    defer result.deinit();
+    try std.testing.expectEqual(6, result.steps.len);
+    try std.testing.expect(std.mem.indexOf(u8, result.steps[3].sql, "BEGIN ATOMIC INSERT INTO ACCEPTED") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result.steps[3].sql, "REQUEST . BODY || '!'") != null);
+    try std.testing.expectEqualStrings("ACTIVATE DATAFLOW \"process\"", result.steps[5].sql);
+}
+test "program validation preserves atomic and lifecycle boundaries" {
+    try std.testing.expectError(error.MutationOutsideAtomic, compile("CREATE MODULE unused() AS BEGIN CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN ENQUEUE INTO q VALUES (1); END; END;"));
+    try std.testing.expectError(error.InvalidDataflowTransition, compile("CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN REQUIRE TRUE ELSE 'No'; END; ACTIVATE DATAFLOW p; END;"));
+    try std.testing.expectError(error.ProgramTypeMismatch, compile("CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN REQUIRE request.id ELSE 'No'; END; END;"));
+    try std.testing.expectError(error.ApplicationHostUnavailable, compile("CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN LET secret = SECRET('key'); END; END;"));
+    try std.testing.expectError(error.UnsupportedNominalProgram, compile("CREATE DOMAIN Id AS BIGINT IDENTITY 'id'; CREATE MODULE M(ty TYPE) AS BEGIN CREATE PUBLIC TABLE state (id $ty PRIMARY KEY); CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC INSERT INTO state VALUES (request.id) ON CONFLICT (id) DO ASSERT SAME ROW; END; END; END; CREATE TARGET default AS BEGIN USE M(TYPE Id); END;"));
+}

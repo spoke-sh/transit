@@ -32,7 +32,7 @@ publish `application.sql` and its provenance under `.transit/build/`. Execute
 that SQL separately through an ordinary caller, for example
 `transit console --no-rc -f PATH/application.sql`. Source packages and build
 metadata are unnecessary at execution; current authorization still applies.
-`PUBLIC` exposes a runtime Table for ordinary access and grants no permission.
+`PUBLIC` exposes a runtime resource for ordinary access and grants no permission.
 The compiler starts with an empty proposed catalog and does not consult a server.
 
 Repository dependencies name exact commits and package subdirectories in source.
@@ -44,7 +44,7 @@ resolution, artifacts, diagnostics and resource limits.
 
 The [source grammar](../../../contracts/application-source/README.md) formalizes
 these forms separately from runtime SQL and interface/UI declarations. Complete
-Resource-template and expected-row syntax is checked in every body, including unused
+resource-template and expected-row syntax is checked in every body, including unused
 modules and unselected branches. Name resolution, types, target placement and
 execution remain separate stages. A bounded compiler-package formatter supports
 independent source round-trip checks; it is not a CLI command.
@@ -73,8 +73,15 @@ defaults with unlimited retention. Literal `PRODUCE INTO` and `ENQUEUE INTO`
 statements use ordinary log preparation and permissions. Explicit log configuration,
 nominal log fields, append metadata and RETURNING remain outside this source profile.
 
-This profile rejects runtime-private storage, privileged procedures, effects,
-Queue/COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
+Public Queue programs compose those resources through `CREATE PUBLIC DATAFLOW`
+and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, IF, Table inserts and log
+appends use the installed ordered-program binder; mutations require an atomic
+block. Building emits SQL and never activates it. The
+[program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
+defines exact supported instructions, schemas and limits.
+
+This profile rejects runtime-private storage, privileged procedures, protected
+effects, COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 
 ## Isolated application Table tests
@@ -112,13 +119,25 @@ Passing requires complete assertions and successful cleanup. The
 owns syntax and exact limits. Subject/grant controls, virtual clocks, effects,
 HTTP simulation and workflow replay remain unsupported source features.
 
+Public Queue programs use the same isolated cases. After submitting inputs,
+`ASSERT WORKFLOW NAME 'process' COMPLETED 1 REFUSED 2 WITHIN 1000 OBSERVATIONS;`
+waits for exact recorded counters under current rights. Active programs can still
+have a pending acquisition for their next input; this assertion does not establish
+Queue emptiness or program idleness.
+It does not treat activation as completion or replay input. Follow it with Table
+and `CONSUME` row assertions to check state and Stream output. Exhausted polling
+or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md)
+illustrates success, refusal, atomic rollback and isolation; the
+[test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
+defines observation limits and scope.
+
 ## Planned source language and build model
 
 The proposed authoring language is a higher-order Transit SQL dialect stored in
 `.transit` files. Ordinary SQL forms its executable foundation; typed modules,
 imports, parameters and compile-time composition organize larger programs.
 `build.transit` is a program in that same dialect. The implemented build profile
-above covers recursive Table composition. The
+above covers recursive public-resource and Queue-program composition. The
 proposed broader language uses the same graph to select richer
 outputs and tests. The following sections describe that larger design; they do
 not extend the executable capabilities listed above.
@@ -210,7 +229,7 @@ immutable: recovery uses the original migration and accepted operation identitie
 even after source, compiler or dependency changes. A successful build neither
 applies a migration nor proves that an existing deployment matches its basis.
 
-The delivered Table test profile above resolves the same graph and uses the same
+The delivered Table and public Queue test profile above resolves the same graph and uses the same
 SQL emitter as `transit build`. Extensions for application clocks, effect mocks
 and workflow fault schedules remain planned. Test controls stay distinct from
 deployable SQL. Local tests qualify only their executed scenarios, not external

@@ -104,7 +104,9 @@ a host failure stops execution and marks the remaining cases `not_run`.
 Exit 0 requires every case and its cleanup to pass; invalid options exit 2, and
 compilation, assertion, runtime or cleanup failures exit 1. Zero selected cases
 reject. `--fetch`, `--out`, `--check`, connection options and `--verify-replay` are
-not test options. See [Table test declarations](applications.md#isolated-application-table-tests)
+not test options. Cases can exercise Tables and public Queue programs, including
+bounded workflow progress and finite Stream results. See
+[application test declarations](applications.md#isolated-application-table-tests)
 for the executable source profile.
 
 The compiler retains its build budgets. A suite admits at most 128 cases and

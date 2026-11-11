@@ -26,10 +26,10 @@
   },
   {
     "name": "imports",
-    "source": "IMPORT rows FROM 'röws.transit'; IMPORT pkg FROM PACKAGE common FILE 'build.transit'; DEPENDENCY common FROM 'https://example.invalid/library.git' REVISION '0123456789012345678901234567890123456789' SUBDIRECTORY 'src';",
+    "source": "IMPORT rows FROM 'r\u00f6ws.transit'; IMPORT pkg FROM PACKAGE common FILE 'build.transit'; DEPENDENCY common FROM 'https://example.invalid/library.git' REVISION '0123456789012345678901234567890123456789' SUBDIRECTORY 'src';",
     "parse": true,
     "checks": {
-      "imports.0.path": "röws.transit",
+      "imports.0.path": "r\u00f6ws.transit",
       "imports.1.package": "common",
       "dependencies.0.subdirectory": "src"
     }
@@ -45,13 +45,13 @@
   },
   {
     "name": "table-build",
-    "source": "CREATE MODULE rows(t IDENTIFIER, v BIGINT, ty TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id $ty PRIMARY KEY, note TEXT); INSERT INTO $t VALUES ($v, '雪 $inert;'); END; CREATE TARGET default AS BEGIN USE rows(NAME 'items', 7, TYPE BIGINT); UPDATE items SET note = 'it''s' WHERE id = 7; DELETE FROM items WHERE id = 9; SELECT id, note FROM items WHERE id <= 8 LIMIT 5; END;",
+    "source": "CREATE MODULE rows(t IDENTIFIER, v BIGINT, ty TYPE) AS BEGIN CREATE PUBLIC TABLE $t (id $ty PRIMARY KEY, note TEXT); INSERT INTO $t VALUES ($v, '\u96ea $inert;'); END; CREATE TARGET default AS BEGIN USE rows(NAME 'items', 7, TYPE BIGINT); UPDATE items SET note = 'it''s' WHERE id = 7; DELETE FROM items WHERE id = 9; SELECT id, note FROM items WHERE id <= 8 LIMIT 5; END;",
     "parse": true,
     "compile": "build",
     "steps": 5,
     "sql_expected": [
       "CREATE TABLE \"items\" ( ID BIGINT PRIMARY KEY , NOTE TEXT )",
-      "INSERT INTO \"items\" VALUES ( 7 , '雪 $inert;' )",
+      "INSERT INTO \"items\" VALUES ( 7 , '\u96ea $inert;' )",
       "UPDATE ITEMS SET NOTE = 'it''s' WHERE ID = 7",
       "DELETE FROM ITEMS WHERE ID = 9",
       "SELECT ID , NOTE FROM ITEMS WHERE ID <= 8 LIMIT 5"
@@ -135,7 +135,7 @@
   },
   {
     "name": "all-expressions",
-    "source": "CREATE MODULE m() AS BEGIN IF NOT FALSE THEN USE f(1 - 2 - 3, -(1), -(-1), (1 + 2) * 3, 1 <> 2, 1 < 2, 1 > 2, 1 >= 2, 1 <= 2, TRUE AND FALSE OR TRUE, 'it''s 雪', TYPE TEXT, NAME 'name'); ELSE USE f(); END IF; END;",
+    "source": "CREATE MODULE m() AS BEGIN IF NOT FALSE THEN USE f(1 - 2 - 3, -(1), -(-1), (1 + 2) * 3, 1 <> 2, 1 < 2, 1 > 2, 1 >= 2, 1 <= 2, TRUE AND FALSE OR TRUE, 'it''s \u96ea', TYPE TEXT, NAME 'name'); ELSE USE f(); END IF; END;",
     "parse": true
   },
   {
@@ -194,7 +194,7 @@
   },
   {
     "name": "unicode-crlf-location",
-    "source": "-- 雪\r\nCREATE MODULE m() AS BEGIN INSERT INTO t VALUES ('é',); END;",
+    "source": "-- \u96ea\r\nCREATE MODULE m() AS BEGIN INSERT INTO t VALUES ('\u00e9',); END;",
     "parse": false,
     "at": ");"
   },
@@ -339,7 +339,7 @@
     "parse": true,
     "compile": "build",
     "steps": 3,
-    "source": "/* 雪 */ IMPORT lib FROM 'lib.transit'; CREATE TARGET default AS BEGIN USE lib.compose(lib.rows); SELECT * FROM items; END;",
+    "source": "/* \u96ea */ IMPORT lib FROM 'lib.transit'; CREATE TARGET default AS BEGIN USE lib.compose(lib.rows); SELECT * FROM items; END;",
     "files": [
       {
         "path": "lib.transit",
@@ -381,7 +381,7 @@
     "parse": true,
     "compile": "test_suite",
     "cases": 2,
-    "source": "/* 雪 */ IMPORT lib FROM 'lib.transit'; CREATE TEST TARGET tests AS BEGIN USE lib.cases(7); USE lib.cases(9); END;",
+    "source": "/* \u96ea */ IMPORT lib FROM 'lib.transit'; CREATE TEST TARGET tests AS BEGIN USE lib.cases(7); USE lib.cases(9); END;",
     "files": [
       {
         "path": "lib.transit",
@@ -540,7 +540,7 @@
   },
   {
     "name": "domain-base-text",
-    "source": "CREATE DOMAIN Id AS TEXT IDENTITY 'example.TEXT'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Put(rows TABLE(id Id PRIMARY KEY), id Id) AS BEGIN IF id = id THEN INSERT INTO $rows VALUES ($id); SELECT * FROM $rows WHERE id <> $id; END IF; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id) AS items; USE Put(items.rows, Id('雪''s')); END;",
+    "source": "CREATE DOMAIN Id AS TEXT IDENTITY 'example.TEXT'; CREATE MODULE Rows(name IDENTIFIER, element TYPE) AS BEGIN CREATE PUBLIC TABLE $name (id $element PRIMARY KEY); EXPORT TABLE $name AS rows; END; CREATE MODULE Put(rows TABLE(id Id PRIMARY KEY), id Id) AS BEGIN IF id = id THEN INSERT INTO $rows VALUES ($id); SELECT * FROM $rows WHERE id <> $id; END IF; END; CREATE TARGET default AS BEGIN USE Rows(NAME 'items', TYPE Id) AS items; USE Put(items.rows, Id('\u96ea''s')); END;",
     "parse": true,
     "compile": "build",
     "steps": 3
@@ -678,5 +678,104 @@
     "parse": true,
     "compile": "build",
     "steps": 1
+  },
+  {
+    "name": "queue-program-build",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE requests (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC TABLE accepted (id BIGINT PRIMARY KEY, body TEXT NOT NULL); CREATE PUBLIC STREAM events (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC DATAFLOW process FROM QUEUE requests AS request AS BEGIN LET body = request.body || '!'; REQUIRE request.id > 0 ELSE 'InvalidId'; BEGIN ATOMIC IF request.body <> '' THEN INSERT INTO accepted VALUES (request.id, body) ON CONFLICT (id) DO ASSERT SAME ROW; PRODUCE INTO events VALUES (request.id, body); ELSE REQUIRE FALSE ELSE 'Empty'; END IF; END; END; AUTHORIZE DATAFLOW process AS ROLE CURRENT_ROLE; ACTIVATE DATAFLOW process; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 6
+  },
+  {
+    "name": "program-value-hole",
+    "source": "CREATE MODULE M(n BIGINT) AS BEGIN CREATE PUBLIC QUEUE requests (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW process FROM QUEUE requests AS request AS BEGIN REQUIRE request.id > $n ELSE 'No'; END; END; CREATE TARGET default AS BEGIN USE M(2); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 2
+  },
+  {
+    "name": "program-wrong-type",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE requests (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC TABLE accepted (id BIGINT PRIMARY KEY, body TEXT NOT NULL); CREATE PUBLIC STREAM events (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE requests AS request AS BEGIN REQUIRE request.id ELSE 'No'; END; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "ProgramTypeMismatch"
+  },
+  {
+    "name": "program-control-order",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE requests (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC TABLE accepted (id BIGINT PRIMARY KEY, body TEXT NOT NULL); CREATE PUBLIC STREAM events (id BIGINT NOT NULL, body TEXT NOT NULL); CREATE PUBLIC DATAFLOW process FROM QUEUE requests AS request AS BEGIN LET body = request.body || '!'; REQUIRE request.id > 0 ELSE 'InvalidId'; BEGIN ATOMIC IF request.body <> '' THEN INSERT INTO accepted VALUES (request.id, body) ON CONFLICT (id) DO ASSERT SAME ROW; PRODUCE INTO events VALUES (request.id, body); ELSE REQUIRE FALSE ELSE 'Empty'; END IF; END; END; ACTIVATE DATAFLOW process; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "InvalidDataflowTransition"
+  },
+  {
+    "name": "program-mutation-outside-atomic",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN ENQUEUE INTO q VALUES (1); END; END;",
+    "parse": false,
+    "parse_error": "MutationOutsideAtomic",
+    "at": "ENQUEUE"
+  },
+  {
+    "name": "queue-program-tests",
+    "source": "CREATE TEST TARGET tests AS BEGIN TEST 'progress' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC STREAM s (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC PRODUCE INTO s VALUES (request.id); END; END; AUTHORIZE DATAFLOW p AS ROLE CURRENT_ROLE; ACTIVATE DATAFLOW p; ENQUEUE INTO q VALUES (1); ASSERT WORKFLOW NAME 'p' COMPLETED 1 REFUSED 0 WITHIN 3 OBSERVATIONS; ASSERT ROWS (CONSUME id FROM s) EQUAL ((1)); END; END;",
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 1,
+    "workflow_expected": [
+      {
+        "name": "p",
+        "completed": 1,
+        "refused": 0,
+        "observations": 3
+      }
+    ]
+  },
+  {
+    "name": "workflow-budget",
+    "source": "CREATE TEST TARGET tests AS BEGIN TEST 'progress' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC STREAM s (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC PRODUCE INTO s VALUES (request.id); END; END; AUTHORIZE DATAFLOW p AS ROLE CURRENT_ROLE; ACTIVATE DATAFLOW p; ENQUEUE INTO q VALUES (1); ASSERT WORKFLOW NAME 'p' COMPLETED 1 REFUSED 0 WITHIN 1001 OBSERVATIONS; ASSERT ROWS (CONSUME id FROM s) EQUAL ((1)); END; END;",
+    "parse": true,
+    "compile": "test_suite",
+    "error": "TestObservationLimit"
+  },
+  {
+    "name": "workflow-missing-program",
+    "source": "CREATE TEST TARGET tests AS BEGIN TEST 'progress' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC STREAM s (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC PRODUCE INTO s VALUES (request.id); END; END; AUTHORIZE DATAFLOW p AS ROLE CURRENT_ROLE; ACTIVATE DATAFLOW p; ENQUEUE INTO q VALUES (1); ASSERT WORKFLOW NAME 'unknown' COMPLETED 1 REFUSED 0 WITHIN 3 OBSERVATIONS; ASSERT ROWS (CONSUME id FROM s) EQUAL ((1)); END; END;",
+    "parse": true,
+    "compile": "test_suite",
+    "error": "UnknownBuildProgram"
+  },
+  {
+    "name": "stream-read-kind",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT); CONSUME id FROM q; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "program-read-and-failure-handler",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); CREATE PUBLIC STREAM s (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN LET prior = SELECT id FROM t WHERE id = request.id; REQUIRE NOT request.id < 0 ELSE 'Invalid'; LET label = CASE WHEN request.id = 1 THEN 'one' ELSE CAST(request.id AS TEXT) END; BEGIN ATOMIC INSERT INTO t VALUES (request.id) ON CONFLICT (id) DO ASSERT SAME ROW; END; ON FAILURE failure BEGIN ATOMIC PRODUCE INTO s VALUES (request.id); END; END; END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 4
+  },
+  {
+    "name": "program-read-wrong-kind",
+    "source": "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN LET prior = SELECT id FROM q WHERE id = request.id; END; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceTypeMismatch"
+  },
+  {
+    "name": "program-nested-atomic",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC BEGIN ATOMIC REQUIRE TRUE ELSE 'No'; END; END; END; END;",
+    "parse": false,
+    "parse_error": "NestedAtomicProgram",
+    "at": "BEGIN ATOMIC REQUIRE"
+  },
+  {
+    "name": "program-incomplete-read",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN LET prior = SELECT; END; END;",
+    "parse": false,
+    "parse_error": "InvalidSourceTemplate",
+    "at": "; END; END;"
   }
 ]

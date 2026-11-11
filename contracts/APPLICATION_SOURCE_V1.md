@@ -80,12 +80,12 @@ strings or quoted SQL identifiers.
 | Stage | Required checks | Does not establish |
 | --- | --- | --- |
 | Encoding/framing | UTF-8, bounded complete tokens and blocks | Source or SQL syntax |
-| Source/template syntax | Complete declarations, expressions, admitted Table templates and expected rows in **all** bodies | Name resolution, operand type, target reachability or valid schema |
+| Source/template syntax | Complete declarations, expressions, admitted resource/program templates and expected rows in **all** bodies | Name resolution, operand type, target reachability or valid schema |
 | Graph/type/target | Imports/interfaces, typed bounded evaluation, target/case placement and ordinary schema/plan binding | Runtime authority or execution |
 | Native execution | Current permission, constraints, original accepted operations and complete outcomes | Broader effect/provider qualification |
 
 Structural template checks include unused modules and both branches of IF.
-Malformed SQL and SQL outside the closed Table source profile cannot be hidden
+Malformed SQL and SQL outside the closed source profile cannot be hidden
 in unreachable bodies. This is an intentional earlier refusal than the former
 framing-only body parser. It changes no emitted SQL for valid supported programs
 and changes no persisted lock/cache or native definition. Unresolved names,
@@ -112,7 +112,7 @@ STREAM/QUEUE and literal PRODUCE/ENQUEUE through the shared log owners. Resource
 PUBLIC in source, with ordinary runtime permissions; PUBLIC is erased before
 runtime SQL preparation and grants no access. CHECK/key/type/predicate restrictions
 are those of the shared owners. Views, foreign-key resolution, ALTER/DROP,
-multi-source queries, procedures, effects, Queue/COMMAND programs, deadlines,
+multi-source queries, procedures, effects, COMMAND programs, deadlines,
 publication and migration synthesis reject. No unsupported declaration is omitted.
 
 Log declarations use the ordinary single-partition defaults, including unlimited
@@ -125,6 +125,9 @@ An existing typed handle can be forwarded without `$`. Exports grant no runtime
 rights. A log handle is valid only in its matching log target position, never as
 a scalar, column or generic identifier. Source scalar operands in log statements
 must be concrete, non-nominal values; symbolic log operations reject.
+Finite `CONSUME` reads admit column/wildcard projections, explicit aliases,
+predicates and LIMIT through the ordinary Stream owner. Group handles, waits and
+claim/settlement controls remain outside the source profile.
 
 Declarations and statements execute in lexical composition order. Each resource must
 precede its users, and each object name may be declared once. Explicit identifier
@@ -139,6 +142,32 @@ identifier bytes. It reparses emitted output through the same ordinary typed
 owners and compares schema/plan fingerprints and statement order. The SQL is
 complete without source maps, package source, a build interpreter or privileged
 execution. Current runtime authorization and operation identity checks still apply.
+
+### Public Queue programs
+
+`CREATE PUBLIC DATAFLOW name FROM QUEUE input AS request AS BEGIN ... END;`
+lowers to the installed [ordered program](APPLICATION_PROGRAM_V1.md) profile.
+The source supports LET expressions and finite Table reads, REQUIRE, IF, atomic
+blocks, Table INSERT with `ON CONFLICT (...) DO ASSERT SAME ROW`, and Stream/Queue
+appends. Mutations require an atomic block; nesting atomic blocks rejects even
+in unused modules. Failure handlers use `ON FAILURE name` and the same admitted
+instructions. Expressions and branch/result types use the ordinary program binder.
+
+Programs bind at most thirteen proposed Table/log dependencies. The input is one
+Queue partition. Exact resource kinds, schemas, keys, instruction order and atomic
+boundaries survive a separate parse/bind of emitted SQL. Nominal resource columns,
+symbolic program declarations/controls, KV/Document dependencies, protected
+values, effects, responses, handoff, pages, deadlines and native helper dependencies
+reject. The installed host's shared capability declaration determines available
+functions. Runtime publication still freezes native definitions and checks
+current rights; proposed schemas and static capability checks grant neither.
+
+Source lifecycle controls are `AUTHORIZE DATAFLOW name AS ROLE CURRENT_ROLE`,
+ACTIVATE, SUSPEND, RESUME and RETIRE. A prior program declaration and the shared
+lifecycle transition rules are required. Controls are emitted as separate
+statements. Building never applies them, and activation completion does not mean
+that a Queue input has completed. All emitted statements retain the ordinary
+4,096-byte SQL limit, including a complete program body.
 
 The package's bounded source formatter writes the parsed AST to a caller-owned
 writer. It normalizes source names/keywords and expression parentheses, omits
@@ -472,3 +501,34 @@ results do not qualify workflow replay, provider idempotency or physical
 power-loss durability. This additive source grammar and local test product
 change no persistent source lock/cache shape or native format; existing format
 and native-definition rejection remains in force.
+
+## Queue program tests
+
+The same isolated test host executes public Queue programs and their controls
+through ordinary SQL owners. `ASSERT ROWS (CONSUME ...) EQUAL (...)` checks complete
+typed Stream results using the existing multiset and byte budgets.
+
+```text
+ASSERT WORKFLOW NAME 'process' COMPLETED 1 REFUSED 2 WITHIN 1000 OBSERVATIONS;
+```
+
+WORKFLOW takes a source IDENTIFIER expression, including an identifier parameter.
+It resolves an already declared active, suspended or retired program in the case's proposed
+catalog. The control inspects the exact native program declaration and recorded
+completed/refused counters. It submits no SQL,
+does not activate work and never retries an input. Counts exceeding either
+expectation fail immediately; insufficient progress after the requested number
+of observations fails. The observation budget is explicit, positive and at most
+1,000. Polls wait 10 ms between attempts and remain subject to the ordinary
+session deadline, current authorization, case memory and action limits.
+
+Before reporting a match, the runner rechecks current disclosure and the same
+frozen declaration. A timeout, revoked permission or incompatible definition
+cannot pass. Matching counters describe that observation; they do not establish
+that a Queue has no later or unclaimed input or that the program is idle. Active
+programs retain a pending acquisition while waiting for another input. Cancelling
+that acquisition can add a refused attempt even without consuming input; these
+are native counters, not application business-outcome counts. Exact output
+and state assertions remain separate. Zero counts are useful for a fresh empty
+case, not as proof that submitted work finished. These tests use the real local
+database and clock; no virtual-time, effect replay or provider claim follows.

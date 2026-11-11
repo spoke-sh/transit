@@ -17,6 +17,7 @@ pub fn check(template: s.Syntax, bindings: []const types.Binding) !Operands.Chec
             },
             .stream => if (value != .stream and value != .identifier) return error.SourceTypeMismatch,
             .queue => if (value != .queue and value != .identifier) return error.SourceTypeMismatch,
+            .table => if (value != .table and value != .identifier) return error.SourceTypeMismatch,
             .value, .operand => if (value != .integer and value != .text and value != .boolean) return error.UnsupportedLogOperand,
         }
     }

@@ -258,6 +258,11 @@ fn body(self: Self, statements: []const s.Statement, depth: usize) anyerror!void
                     },
                 }
             },
+            .workflow => |v| {
+                try self.w.writeAll("ASSERT WORKFLOW ");
+                try self.expr(v.name, 0, 0, false);
+                try self.w.print(" COMPLETED {d} REFUSED {d} WITHIN {d} OBSERVATIONS", .{ v.completed, v.refused, v.observations });
+            },
         }
         try self.w.writeAll(";\n");
     }

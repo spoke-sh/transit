@@ -43,6 +43,7 @@ pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
 pub const SqlInput = @import("SqlInput.zig");
 pub const SqlScript = @import("SqlScript.zig");
 pub const ApplicationProgram = @import("ApplicationProgram.zig");
+pub const ApplicationControl = @import("ApplicationControl.zig");
 pub const TableSchema = @import("TableSchema.zig");
 pub const TableWitness = @import("TableWitness.zig");
 pub const TableRow = @import("TableRow.zig");

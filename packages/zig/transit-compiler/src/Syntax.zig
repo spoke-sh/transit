@@ -39,6 +39,7 @@ pub const Assertion = struct {
         refusal: enum { duplicate_key, check_violation },
     },
 };
+pub const Workflow = struct { name: *Expr, completed: u64, refused: u64, observations: u64 };
 pub const Statement = struct { span: Span, value: union(enum) {
     use: Call,
     table_export: struct { source: Name, operand: bool, alias: []const u8 },
@@ -48,6 +49,7 @@ pub const Statement = struct { span: Span, value: union(enum) {
     sql: Template.Syntax,
     test_case: Case,
     assertion: Assertion,
+    workflow: Workflow,
 } };
 pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{} };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
@@ -317,6 +319,18 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
             try self.require(";");
             break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
         } else if (self.take("ASSERT")) blk: {
+            if (self.take("WORKFLOW")) {
+                const name = try self.expression(0);
+                try self.require("COMPLETED");
+                const completed = try self.count();
+                try self.require("REFUSED");
+                const refused = try self.count();
+                try self.require("WITHIN");
+                const observations = try self.count();
+                try self.require("OBSERVATIONS");
+                try self.require(";");
+                break :blk .{ .workflow = .{ .name = name, .completed = completed, .refused = refused, .observations = observations } };
+            }
             const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
             const sql = try self.template(try self.parenthesized(), false);
             const expected: @FieldType(Assertion, "expected") = switch (kind) {

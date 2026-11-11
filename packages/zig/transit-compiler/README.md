@@ -25,6 +25,14 @@ fingerprints. Temporary statement allocations use a reusable scratch arena;
 retained schemas and output use the product arena. Both allocators share one
 stable `transit-memory` budget. Inputs have separate aggregate/file bounds.
 
+Ordered public Queue programs and explicit lifecycle controls use the same graph.
+`ProgramCheck` collects proposed dependencies and uses Fuze's program schema,
+type and capability owners before comparing the emitted instruction tree and
+schema bindings. Runtime publication, authorization, progress and completion
+remain separate. Nominal program columns, symbolic program declarations/controls
+and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
+expectations extend the local test product without adding a source interpreter.
+
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
 Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log
 target kinds until ordinary log preparation. Log declarations use the shared

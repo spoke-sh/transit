@@ -3,9 +3,9 @@
 const std = @import("std");
 const f = @import("transit_fuze");
 const Token = f.SqlInput.CompilerScan.Token;
-pub const Role = enum { identifier, type, value, operand, stream, queue };
+pub const Role = enum { identifier, type, value, operand, table, stream, queue };
 pub const Hole = struct { name: []const u8, role: Role, start: u32, end: u32 };
-pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue };
+pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue, consume, program, control };
 pub const Syntax = struct { kind: Kind, tokens: []const Token, holes: []const Hole };
 const Self = @This();
 a: std.mem.Allocator,
@@ -404,9 +404,160 @@ fn clauseWord(self: *Self) bool {
     inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |word| if (self.is(word)) return true;
     return false;
 }
+fn programName(self: *Self) !void {
+    if (!self.tag(.word) and !self.tag(.quoted)) return self.invalid();
+    if (self.tag(.word) and self.raw().len > 63) return error.InvalidSourceName;
+    self.i += 1;
+}
+fn resourceName(self: *Self, role: Role) !void {
+    if (!try self.hole(role)) try self.programName();
+}
+fn programArguments(self: *Self) anyerror!void {
+    try self.require("(");
+    if (self.take(")")) return;
+    while (true) {
+        try self.programExpression(0);
+        if (!self.take(",")) break;
+    }
+    try self.require(")");
+}
+fn programPrimary(self: *Self) anyerror!void {
+    if (self.take("NOT")) return self.programExpression(3);
+    if (self.take("-")) return self.programExpression(6);
+    if (self.take("(")) {
+        try self.programExpression(0);
+        try self.require(")");
+    } else if (try self.hole(.value)) {} else if (self.take("NULL") or self.take("TRUE") or self.take("FALSE")) {} else if (self.take("CASE")) {
+        try self.require("WHEN");
+        try self.programExpression(0);
+        try self.require("THEN");
+        try self.programExpression(0);
+        try self.require("ELSE");
+        try self.programExpression(0);
+        try self.require("END");
+    } else if (self.take("CAST")) {
+        try self.require("(");
+        try self.programExpression(0);
+        try self.require("AS");
+        try self.require("TEXT");
+        try self.require(")");
+    } else if (self.tag(.number) or self.tag(.string)) {
+        self.i += 1;
+    } else {
+        try self.programName();
+        if (self.is("(")) try self.programArguments();
+    }
+    while (self.take(".")) try self.programName();
+}
+fn programExpression(self: *Self, minimum: u8) anyerror!void {
+    try self.enter();
+    defer self.depth -= 1;
+    try self.programPrimary();
+    while (true) {
+        if (minimum <= 3 and self.take("IS")) {
+            _ = self.take("NOT");
+            try self.require("NULL");
+            continue;
+        }
+        const precedence: u8 = if (self.is("OR")) 1 else if (self.is("AND")) 2 else if (self.is("=") or self.is("<") or self.is(">")) 3 else if (self.is("|")) 4 else if (self.is("+") or self.is("-")) 5 else break;
+        if (precedence < minimum) break;
+        const concatenation = self.is("|");
+        const less = self.is("<");
+        const comparison_ = less or self.is(">");
+        self.i += 1;
+        const adjacent = self.i < self.tokens.len and self.tokens[self.i - 1].end == self.tokens[self.i].start;
+        if (concatenation) {
+            if (!adjacent) return self.invalid();
+            try self.require("|");
+        } else if (comparison_ and adjacent) {
+            _ = self.take("=") or (less and self.take(">"));
+        }
+        try self.programExpression(precedence + 1);
+    }
+}
+fn programBlock(self: *Self, atomic: bool) anyerror!void {
+    try self.enter();
+    defer self.depth -= 1;
+    while (!self.is("END") and !self.is("ELSE") and !self.is("ON")) {
+        if (self.take("LET")) {
+            try self.programName();
+            try self.require("=");
+            if (self.take("SELECT")) {
+                if (!self.take("*")) {
+                    try self.programName();
+                    while (self.take(",")) try self.programName();
+                }
+                try self.require("FROM");
+                try self.resourceName(.table);
+                if (self.take("WHERE")) try self.programExpression(0);
+            } else try self.programExpression(0);
+        } else if (self.take("REQUIRE")) {
+            try self.programExpression(0);
+            try self.require("ELSE");
+            try self.string();
+        } else if (self.take("BEGIN")) {
+            if (atomic) return error.NestedAtomicProgram;
+            try self.require("ATOMIC");
+            try self.programBlock(true);
+            try self.require("END");
+        } else if (self.take("IF")) {
+            try self.programExpression(0);
+            try self.require("THEN");
+            try self.programBlock(atomic);
+            if (self.take("ELSE")) try self.programBlock(atomic);
+            try self.require("END");
+            try self.require("IF");
+        } else if (self.take("INSERT")) {
+            if (!atomic) return error.MutationOutsideAtomic;
+            try self.require("INTO");
+            try self.resourceName(.table);
+            try self.require("VALUES");
+            try self.programArguments();
+            try self.require("ON");
+            try self.require("CONFLICT");
+            try self.require("(");
+            try self.programName();
+            while (self.take(",")) try self.programName();
+            try self.require(")");
+            try self.require("DO");
+            try self.require("ASSERT");
+            try self.require("SAME");
+            try self.require("ROW");
+        } else if (self.is("PRODUCE") or self.is("ENQUEUE")) {
+            if (!atomic) return error.MutationOutsideAtomic;
+            const stream = self.take("PRODUCE");
+            if (!stream) try self.require("ENQUEUE");
+            try self.require("INTO");
+            try self.resourceName(if (stream) .stream else .queue);
+            try self.require("VALUES");
+            try self.programArguments();
+        } else return error.UnsupportedProgramInstruction;
+        try self.require(";");
+    }
+}
+fn program(self: *Self) !Kind {
+    try self.resourceName(.identifier);
+    try self.require("FROM");
+    try self.require("QUEUE");
+    try self.resourceName(.queue);
+    try self.require("AS");
+    try self.programName();
+    if (self.take("WHERE")) try self.programExpression(0);
+    try self.require("AS");
+    try self.require("BEGIN");
+    try self.programBlock(false);
+    if (self.take("ON")) {
+        try self.require("FAILURE");
+        try self.programName();
+        try self.programBlock(false);
+    }
+    try self.require("END");
+    return .program;
+}
 fn statement(self: *Self) !Kind {
     if (self.take("CREATE")) {
         if (!self.take("PUBLIC")) return error.RuntimePrivateOrUnsupportedDeclaration;
+        if (self.take("DATAFLOW")) return self.program();
         const kind: Kind = if (self.take("TABLE")) .create else if (self.take("STREAM")) .create_stream else if (self.take("QUEUE")) .create_queue else return error.RuntimePrivateOrUnsupportedDeclaration;
         try self.name();
         try self.require("(");
@@ -414,6 +565,18 @@ fn statement(self: *Self) !Kind {
         while (self.take(",")) try self.tableElement();
         try self.require(")");
         return kind;
+    }
+    if (self.is("AUTHORIZE") or self.is("ACTIVATE") or self.is("SUSPEND") or self.is("RESUME") or self.is("RETIRE")) {
+        const authorize = self.is("AUTHORIZE");
+        self.i += 1;
+        try self.require("DATAFLOW");
+        try self.resourceName(.identifier);
+        if (authorize) {
+            try self.require("AS");
+            try self.require("ROLE");
+            try self.require("CURRENT_ROLE");
+        }
+        return .control;
     }
     if (self.is("PRODUCE") or self.is("ENQUEUE")) {
         const stream = self.take("PRODUCE");
@@ -463,6 +626,19 @@ fn statement(self: *Self) !Kind {
         try self.select();
         return .select;
     }
+    if (self.take("CONSUME")) {
+        if (!self.take("*")) while (true) {
+            try self.reference();
+            if (self.take("AS")) try self.name();
+            if (!self.take(",")) break;
+        };
+        try self.require("FROM");
+        if (!try self.hole(.stream)) try self.name();
+        if (self.take("AS")) try self.name();
+        if (self.take("WHERE")) try self.predicate();
+        if (self.take("LIMIT")) try self.unsigned();
+        return .consume;
+    }
     return error.UnsupportedBuildStatement;
 }
 
@@ -477,6 +653,7 @@ pub fn joinsLexeme(text: []const u8, tokens: []const Token, index: usize) bool {
     const right = text[current.start..current.end];
     if (previous.kind == .symbol and current.kind == .symbol) {
         return (std.mem.indexOfAny(u8, left, "<>!") != null and std.mem.indexOfAny(u8, right, "=>") != null) or
+            (std.mem.eql(u8, left, "|") and std.mem.eql(u8, right, "|")) or
             (std.mem.eql(u8, left, ":") and std.mem.eql(u8, right, ":"));
     }
     if (previous.kind == .number and (std.mem.eql(u8, right, ".") or (current.kind == .word and (right[0] == 'e' or right[0] == 'E')))) return true;
