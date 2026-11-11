@@ -22,7 +22,8 @@
     "cycles": 15,
     "warm_reads": 2,
     "worker_interval_ms": 10,
-    "cpus": 4
+    "cpus": 4,
+    "statement_runs": 5
   },
   "startup": {
     "fresh_ready_ms": 5550.605,

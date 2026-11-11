@@ -192,6 +192,8 @@ def main():
                         help='sample unchanged empty/one-row SELECTs per statement cycle; requires --statements --repeat 1')
     parser.add_argument('--statements', action='store_true',
                         help='persistent human table console: empty/warm SELECT, INSERT/UPDATE/DELETE, refreshed SELECT, verified JSON readback')
+    parser.add_argument('--statement-run-index', type=int, choices=range(100), default=0,
+                        help='ordinal of this fresh installation in a fixed statement sampling series')
     parser.add_argument('--resources', action='store_true',
                         help='sample owned process/thread/RSS/PSS counts between timed statements (Linux)')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
@@ -288,6 +290,7 @@ def main():
               binaries.items()}, 'source_rows': args.rows, 'historical_result_profile': args.historical_result_profile, 'instrumented': args.instrument,
               'age_queries': args.age_queries, 'repeat': args.repeat, 'cycles': args.cycles, 'warm_reads': args.warm_reads, 'execution': 'server_session',
               'resource_snapshots': args.resources,
+              'statement_run_index': args.statement_run_index,
               'local_trace': args.local_trace,
               'startup_restarts': args.startup_restarts,
               'startup_ui': args.startup_ui,
