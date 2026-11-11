@@ -303,9 +303,12 @@ evidence in the qualification ledger, not as a passing checkbox in this plan.
 
 ## Following slice
 
-After syntax/core qualification, select the typed-target case for nominal
-references, variants, exhaustive matching and typed resource exports. Add its
-grammar, semantics, SQL lowering and a small preservation obligation together.
+The [typed-target plan](application-typed-target-implementation.md) selects the
+next bounded part of the nominal-reference/variant case: nominal source values,
+typed public Table exports and exhaustive compile-time matching, with grammar,
+SQL lowering and selected Lean preservation obligations. It preserves this
+slice's outstanding qualification record and separates source type safety from
+runtime domain enforcement and the later dynamic command case.
 Then admit one-use continuation and capacity transitions as their ordinary
 transaction/effect owners qualify, with TLA+ interleavings and native trace
 replay. Full application compilation, effect simulation and migration synthesis

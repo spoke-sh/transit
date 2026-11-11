@@ -53,7 +53,10 @@ another build or execution authority.
 The [source grammar and typed-core slice](application-source-grammar-implementation.md)
 adds independent ANTLR/Zig comparisons, embedded SQL and stage checks,
 source round-trips and the contract for subsequent language features. The next
-language slice selects nominal references, variants and typed resource exports.
+[typed-target slice](application-typed-target-implementation.md) plans nominal
+source values, closed variants, exhaustive compile-time matching and typed
+public Table exports, with selected Lean laws and independent SQL execution.
+Dynamic typed commands and reference-only exports remain subsequent work.
 
 ## Performance ambition
 

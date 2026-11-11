@@ -468,10 +468,15 @@ records the bounded syntax/core increment: independent ANTLR/production-parser
 comparison, complete embedded-SQL syntax/stage rules, source round-trips and the
 core extension contract. It implements none of the domain/effect forms below.
 
-Next select the typed-target case for nominal references, variants, exhaustive
-matching and typed resource exports, extending grammar, static semantics, SQL
-lowering and a selected preservation obligation together. Keep existing
-compiler/test behavior and evidence intact. Develop three synthetic design cases incrementally:
+The [typed-target implementation plan](application-typed-target-implementation.md)
+selects nominal source values, closed variants, exhaustive compile-time matching
+and typed public Table exports. It extends grammar, static semantics, ordinary
+SQL lowering and selected Lean preservation laws together. The first executable
+case specializes a build for one of two resource kinds; dynamic command inputs,
+query cardinality, runtime domain enforcement and reference-only foreign-key
+exports remain subsequent work. Keep existing compiler/test behavior and
+incomplete qualification records intact. Develop three synthetic design cases
+incrementally:
 
 | Case | Language and proof obligation |
 | --- | --- |
