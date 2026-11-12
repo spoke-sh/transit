@@ -5,6 +5,7 @@
 const std = @import("std");
 pub const Parser = @import("ApplicationProgramParser.zig");
 pub const Types = @import("ApplicationProgramTypes.zig");
+pub const Schema = @import("ApplicationSchema.zig");
 pub const Codec = @import("ApplicationProgramCodec.zig");
 pub const Values = @import("ApplicationValue.zig");
 pub const Evaluation = @import("ApplicationExpression.zig");

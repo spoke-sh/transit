@@ -9,7 +9,7 @@ session: *g.Session,
 rows: usize = 0,
 bytes: usize = 0,
 action: usize = 0,
-pub const Failure = enum { rows, counts, expected_refusal, refusal_reason };
+pub const Failure = enum { rows, counts, expected_refusal, refusal_reason, workflow_counts, workflow_progress };
 pub const Outcome = struct { passed: bool, actions: usize, failure: ?Failure = null };
 
 pub fn run(self: *Self, case: t.Case) !Outcome {
@@ -17,7 +17,11 @@ pub fn run(self: *Self, case: t.Case) !Outcome {
     defer self.allocator.free(buffer);
     for (case.actions, 0..) |action, index| {
         self.action = index;
-        if (try self.execute(case.steps[action.step].sql, action.expectation, buffer)) |failure| return .{ .passed = false, .actions = index + 1, .failure = failure };
+        const failure = if (action.expectation == .workflow) blk: {
+            if (action.step != null) return error.TestInvalidExpectation;
+            break :blk try self.workflow(action.expectation.workflow);
+        } else try self.execute(case.steps[action.step orelse return error.TestInvalidExpectation].sql, action.expectation, buffer);
+        if (failure) |reason| return .{ .passed = false, .actions = index + 1, .failure = reason };
     }
     return .{ .passed = true, .actions = case.actions.len };
 }
@@ -27,11 +31,11 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
     defer session.end();
     const prepared = try session.prepare(sql);
     defer session.destroy(prepared);
-    if (prepared.* != .native) return error.TestUnexpectedStatementOwner;
+    if (prepared.* != .native and prepared.* != .managed) return error.TestUnexpectedStatementOwner;
     if (prepared.fields().len != 0) {
         if (expectation != .complete and expectation != .rows) return error.TestInvalidExpectation;
         const expected = if (expectation == .rows) expectation.rows else null;
-        const schema = prepared.native.output.?.type;
+        const schema: g.fuze.Types.Type = .{ .structure = prepared.fields() };
         if (expected) |value| if (!std.mem.eql(u8, &try value.schema.fingerprint(), &try schema.fingerprint())) return .rows;
         var bag = try Bag.init(self.allocator, if (expected) |value| value.values else &.{});
         defer bag.deinit();
@@ -65,7 +69,7 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
         try read.validateDisclosure();
         return if (expected != null and (!equal or bag.remaining != 0)) .rows else null;
     }
-    const completion = session.write(prepared, &.{}) catch |err| {
+    const completion = (if (prepared.* == .managed) self.managed(sql, prepared) else session.write(prepared, &.{})) catch |err| {
         if (err != error.GatewayMutationRejected or expectation != .refusal) return err;
         const terminal = session.terminal orelse return error.TestMissingTerminal;
         try terminal.validate();
@@ -79,7 +83,7 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
         return if (matched) null else .refusal_reason;
     };
     try completion.validate();
-    try session.validateWireCompletion(prepared, completion);
+    if (prepared.* != .managed) try session.validateWireCompletion(prepared, completion);
     return switch (expectation) {
         .complete => null,
         .refusal => .expected_refusal,
@@ -87,8 +91,73 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
             const counts = completion.counts orelse return error.TestMissingCounts;
             break :blk if (counts.matched == expected.matched and counts.changed == expected.changed) null else .counts;
         },
-        .rows => error.TestInvalidExpectation,
+        .rows, .workflow => error.TestInvalidExpectation,
     };
+}
+
+fn managed(self: *Self, sql: []const u8, prepared: *g.Session.Prepared) !g.results.CommandCompletion {
+    const session = self.session;
+    var token: g.session_protocol.Token = undefined;
+    try session.io.randomSecure(&token);
+    var fingerprint: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(sql, &fingerprint, .{});
+    var acceptance_possible = false;
+    const admitted = try g.StatementOperations.admit(session, prepared, &.{}, token, fingerprint, &acceptance_possible);
+    session.operation = admitted.identity.id;
+    const reference: g.SessionOperations.Reference = .{ .id = admitted.identity.id, .kind = .dataflow, .nonce = token };
+    // Submit once. Settlement advances only the retained operation, exactly as
+    // the native SQL service does; an uncertain admission fails this case.
+    while (true) {
+        try session.deadline.check(session.io);
+        try session.current();
+        const observed = try g.StatementOperations.resumeOperation(session, reference);
+        if (!std.meta.eql(observed.identity, admitted.identity) or !std.meta.eql(observed.token, token)) return error.TestInvalidTerminal;
+        if (observed.phase == .terminal) {
+            if (observed.outcome != .applied and observed.outcome != .unchanged) return error.TestProgramStatementFailed;
+            const completion = try observed.completion();
+            try session.current();
+            const verified = try g.StatementOperations.status(session, reference);
+            if (!std.meta.eql(completion, try verified.completion())) return error.TestInvalidTerminal;
+            return completion;
+        }
+        try session.io.sleep(.fromMilliseconds(10), .awake);
+    }
+}
+
+fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Failure {
+    if (expected.observations == 0 or expected.observations > t.max_observations) return error.TestObservationLimit;
+    const session = self.session;
+    try session.begin();
+    defer session.end();
+    try g.ManagedOperations.requireProfile(session);
+    try session.current();
+    const declaration = try session.fresh(g.ManagedOperations.program, .{ session, try g.catalog.TableAuthority.Name.init(expected.name) }) orelse return error.TestMissingProgram;
+    defer declaration.deinit();
+    var remaining = expected.observations;
+    while (remaining > 0) : (remaining -= 1) {
+        try session.deadline.check(session.io);
+        try session.current();
+        const observed = try session.fresh(observeWorkflow, .{ session, declaration.value });
+        try observed.head.validate();
+        if (observed.head.completed > expected.completed or observed.head.refused > expected.refused) return .workflow_counts;
+        if (observed.head.completed == expected.completed and observed.head.refused == expected.refused) {
+            // Recheck disclosure against the same frozen declaration. A new
+            // definition or a namespace permission alone cannot stand in for it.
+            try session.current();
+            const disclosed = try session.fresh(observeWorkflow, .{ session, declaration.value });
+            if (disclosed.head.completed == expected.completed and disclosed.head.refused == expected.refused) return null;
+        }
+        if (remaining > 1) try session.io.sleep(.fromMilliseconds(10), .awake);
+    }
+    return .workflow_progress;
+}
+
+fn observeWorkflow(session: *g.Session, declaration: g.direct.ApplicationDeclaration) !g.direct.ManagedApplication.Observation {
+    // Match SHOW DATAFLOW's exact definition and metadata-disclosure checks.
+    // Permission on the control row alone cannot disclose stale dependencies.
+    for (declaration.resources) |resource| try resource.requireCurrent(session.table);
+    const manager: g.direct.ManagedApplication = .{ .client = session.table };
+    return manager.inspect(declaration);
 }
 
 /// Keys borrow the compiler product. Hash collisions still compare complete

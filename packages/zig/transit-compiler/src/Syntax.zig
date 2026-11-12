@@ -5,7 +5,7 @@ pub const Template = @import("Template.zig");
 pub const Token = f.SqlInput.CompilerScan.Token;
 pub const Span = struct { start: u32, end: u32 };
 pub const Name = struct { qualifier: ?[]const u8 = null, member: []const u8, constructor: ?[]const u8 = null };
-pub const Kind = union(enum) { integer, text, boolean, identifier, type, module: Name, named: Name, table: []const Column };
+pub const Kind = union(enum) { integer, text, boolean, identifier, type, module: Name, named: Name, table: []const Column, stream: []const Column, queue: []const Column };
 pub const Parameter = struct { name: []const u8, kind: Kind };
 pub const ScalarType = enum { bigint, text, boolean };
 pub const TypeRef = union(enum) { scalar: ScalarType, named: Name };
@@ -39,14 +39,17 @@ pub const Assertion = struct {
         refusal: enum { duplicate_key, check_violation },
     },
 };
+pub const Workflow = struct { name: *Expr, completed: u64, refused: u64, observations: u64 };
 pub const Statement = struct { span: Span, value: union(enum) {
     use: Call,
     table_export: struct { source: Name, operand: bool, alias: []const u8 },
+    log_export: struct { kind: enum { stream, queue }, source: Name, operand: bool, alias: []const u8 },
     match: struct { value: *Expr, arms: []const Arm },
     conditional: struct { condition: *Expr, yes: []const Statement, no: []const Statement },
     sql: Template.Syntax,
     test_case: Case,
     assertion: Assertion,
+    workflow: Workflow,
 } };
 pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{} };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
@@ -225,6 +228,13 @@ pub fn decodeString(a: std.mem.Allocator, text: []const u8) ![]const u8 {
     }
     return result.toOwnedSlice(a);
 }
+fn takeSignature(self: *Self, word: []const u8) bool {
+    if (!self.is(word) or self.index + 1 == self.tokens.len) return false;
+    const next = self.tokens[self.index + 1];
+    if (!std.mem.eql(u8, self.text[next.start..next.end], "(")) return false;
+    self.index += 1;
+    return true;
+}
 fn parseParameters(self: *Self) ![]const Parameter {
     try self.require("(");
     var result: std.ArrayList(Parameter) = .empty;
@@ -233,7 +243,7 @@ fn parseParameters(self: *Self) ![]const Parameter {
         if (result.items.len == 64) return error.SourceParameterLimit;
         const parameter_name = try self.identifier();
         for (result.items) |prior| if (std.mem.eql(u8, prior.name, parameter_name)) return error.DuplicateSourceName;
-        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("MODULE")) .{ .module = try self.parseName() } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else .{ .named = try self.parseName() };
+        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("MODULE")) .{ .module = try self.parseName() } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else if (self.takeSignature("STREAM")) .{ .stream = try self.tableSignature() } else if (self.takeSignature("QUEUE")) .{ .queue = try self.tableSignature() } else .{ .named = try self.parseName() };
         try result.append(self.a, .{ .name = parameter_name, .kind = kind });
         if (self.take(")")) break;
         try self.require(",");
@@ -254,13 +264,13 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
             try self.require(";");
             break :blk .{ .use = call };
         } else if (self.take("EXPORT")) blk: {
-            try self.require("TABLE");
+            const kind: enum { table, stream, queue } = if (self.take("TABLE")) .table else if (self.take("STREAM")) .stream else if (self.take("QUEUE")) .queue else return error.InvalidSourceSyntax;
             const operand = self.take("$");
             const source = try self.parseName();
             try self.require("AS");
             const alias = try self.identifier();
             try self.require(";");
-            break :blk .{ .table_export = .{ .source = source, .operand = operand, .alias = alias } };
+            break :blk if (kind == .table) .{ .table_export = .{ .source = source, .operand = operand, .alias = alias } } else .{ .log_export = .{ .kind = if (kind == .stream) .stream else .queue, .source = source, .operand = operand, .alias = alias } };
         } else if (self.take("MATCH")) blk: {
             const value = try self.expression(0);
             var arms: std.ArrayList(Arm) = .empty;
@@ -309,8 +319,23 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
             try self.require(";");
             break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
         } else if (self.take("ASSERT")) blk: {
+            if (self.take("WORKFLOW")) {
+                const name = try self.expression(0);
+                try self.require("COMPLETED");
+                const completed = try self.count();
+                try self.require("REFUSED");
+                const refused = try self.count();
+                try self.require("WITHIN");
+                const observations = try self.count();
+                try self.require("OBSERVATIONS");
+                try self.require(";");
+                break :blk .{ .workflow = .{ .name = name, .completed = completed, .refused = refused, .observations = observations } };
+            }
             const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
             const sql = try self.template(try self.parenthesized(), false);
+            // Assertions contain simple statements in the reference grammar.
+            // An empty compound body can otherwise pass shared SQL framing.
+            if (sql.kind == .program) return error.UnsupportedTestAssertion;
             const expected: @FieldType(Assertion, "expected") = switch (kind) {
                 .rows => rows: {
                     try self.require("EQUAL");

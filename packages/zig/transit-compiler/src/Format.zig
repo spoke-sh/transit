@@ -186,6 +186,12 @@ fn body(self: Self, statements: []const s.Statement, depth: usize) anyerror!void
                 try self.name(v.source);
                 try self.w.print(" AS {s}", .{v.alias});
             },
+            .log_export => |v| {
+                try self.w.writeAll(if (v.kind == .stream) "EXPORT STREAM " else "EXPORT QUEUE ");
+                if (v.operand) try self.w.writeByte('$');
+                try self.name(v.source);
+                try self.w.print(" AS {s}", .{v.alias});
+            },
             .match => |v| {
                 try self.w.writeAll("MATCH ");
                 try self.expr(v.value, 0, 0, false);
@@ -252,6 +258,11 @@ fn body(self: Self, statements: []const s.Statement, depth: usize) anyerror!void
                     },
                 }
             },
+            .workflow => |v| {
+                try self.w.writeAll("ASSERT WORKFLOW ");
+                try self.expr(v.name, 0, 0, false);
+                try self.w.print(" COMPLETED {d} REFUSED {d} WITHIN {d} OBSERVATIONS", .{ v.completed, v.refused, v.observations });
+            },
         }
         try self.w.writeAll(";\n");
     }
@@ -287,8 +298,13 @@ fn kind(self: Self, value: s.Kind) anyerror!void {
             try self.w.writeAll("MODULE ");
             try self.name(v);
         },
-        .table => |columns| {
-            try self.w.writeAll("TABLE(");
+        inline .table, .stream, .queue => |columns, tag| {
+            try self.w.writeAll(switch (tag) {
+                .table => "TABLE(",
+                .stream => "STREAM(",
+                .queue => "QUEUE(",
+                else => unreachable,
+            });
             for (columns, 0..) |column, i| {
                 if (i != 0) try self.w.writeAll(", ");
                 try self.w.print("{s} ", .{column.name});

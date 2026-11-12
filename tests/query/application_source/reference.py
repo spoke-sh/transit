@@ -42,10 +42,20 @@ def parse(source):
     def span(ctx):
         return {'start': offsets[ctx.start.start], 'end': offsets[ctx.stop.stop + 1]}
 
-    def bounds(node):
+    def bounds(node, atomic=False):
         if not hasattr(node, 'getRuleIndex'):
             return
         rule = parser.ruleNames[node.getRuleIndex()]
+        if rule == 'programInstruction':
+            if node.LET() and node.programExpression() and node.programExpression().start.text.upper() == 'SELECT':
+                following = tokens.tokens[node.programExpression().start.tokenIndex + 1]
+                raise Refusal(offsets[following.start], 'LET SELECT requires a complete read')
+            if node.BEGIN():
+                if atomic:
+                    raise Refusal(span(node)['start'], 'nested atomic program')
+                atomic = True
+            elif (node.INSERT() or node.PRODUCE() or node.ENQUEUE()) and not atomic:
+                raise Refusal(span(node)['start'], 'mutation outside atomic program')
         if rule in ('sourceName', 'referenceHead') and len(node.getText().encode()) > 63:
             raise Refusal(span(node)['start'], 'name bound')
         if rule == 'parameters':
@@ -63,7 +73,7 @@ def parse(source):
         if rule == 'sourceStatement' and len(node.matchArm()) > 64:
             raise Refusal(span(node)['start'], 'arm bound')
         for child in node.children or []:
-            bounds(child)
+            bounds(child, atomic)
     bounds(root)
 
     def string(token):
@@ -97,7 +107,7 @@ def parse(source):
             if not hasattr(node, 'getRuleIndex'):
                 return
             rule = parser.ruleNames[node.getRuleIndex()]
-            role = {'identifierHole': 'identifier', 'typeHole': 'type', 'valueHole': 'value', 'checkHole': 'operand', 'scalarHole': 'operand'}.get(rule)
+            role = {'identifierHole': 'identifier', 'typeHole': 'type', 'valueHole': 'value', 'checkHole': 'operand', 'scalarHole': 'operand', 'tableHole': 'table', 'streamHole': 'stream', 'queueHole': 'queue'}.get(rule)
             if role:
                 holes.append({'name': node.sourceName().getText().lower(), 'role': role, **span(node)})
             else:
@@ -105,7 +115,14 @@ def parse(source):
                     visit(child)
         if ctx:
             visit(ctx)
-        return {'kind': 'rows' if rows else result[0]['text'].lower(), 'tokens': result, 'holes': holes}
+        kind = 'rows' if rows else result[0]['text'].lower()
+        if kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
+            kind += '_' + result[2]['text'].lower()
+        elif kind == 'create' and result[2]['text'] == 'DATAFLOW':
+            kind = 'program'
+        elif kind in ('authorize', 'activate', 'suspend', 'resume', 'retire'):
+            kind = 'control'
+        return {'kind': kind, 'tokens': result, 'holes': holes}
 
     binary = {'+': 'add', '-': 'subtract', '*': 'multiply', '=': 'equal', '<>': 'not_equal',
               '<': 'less', '<=': 'less_equal', '>': 'greater', '>=': 'greater_equal', 'AND': 'and_', 'OR': 'or_'}
@@ -160,7 +177,11 @@ def parse(source):
                 invoked['result'] = stmt.sourceName().getText().lower() if stmt.AS() else None
                 value = {'use': invoked}
             elif stmt.EXPORT():
-                value = {'table_export': {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}}
+                exported = {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}
+                if stmt.TABLE():
+                    value = {'table_export': exported}
+                else:
+                    value = {'log_export': {'kind': 'stream' if stmt.STREAM() else 'queue', **exported}}
             elif stmt.MATCH():
                 arms = [{'constructor': name(arm.sourceQualifiedName()), 'names': [n.getText().lower() for n in arm.sourceName()],
                          'body': body(arm.body()), 'span': span(arm)} for arm in stmt.matchArm()]
@@ -173,6 +194,11 @@ def parse(source):
                 if not 1 <= len(label.encode()) <= 128 or any(ord(c) < 32 or ord(c) == 127 for c in label):
                     raise Refusal(span(stmt)['start'], 'case label')
                 value = {'test_case': {'name': label, 'setup': [call(c) for c in stmt.sourceCall()], 'body': body(stmt.body(0))}}
+            elif stmt.WORKFLOW():
+                counts = [int(c.getText()) for c in stmt.INTEGER()]
+                if any(c >= 2 ** 64 for c in counts):
+                    raise Refusal(span(stmt)['start'], 'count bound')
+                value = {'workflow': {'name': expr(stmt.expression()), **dict(zip(('completed', 'refused', 'observations'), counts))}}
             elif stmt.ASSERT():
                 assertion = stmt.assertion()
                 if assertion.ROWS():
@@ -187,7 +213,7 @@ def parse(source):
                     if reason not in ('duplicate_key', 'check_violation'):
                         raise Refusal(span(assertion)['start'], 'refusal kind')
                     expected = {'refusal': reason}
-                value = {'assertion': {'sql': template(assertion.tableTemplate()), 'expected': expected}}
+                value = {'assertion': {'sql': template(assertion.simpleTemplate()), 'expected': expected}}
             else:
                 value = {'sql': template(stmt.tableTemplate())}
             result.append({'span': span(stmt), 'value': value})
@@ -199,7 +225,7 @@ def parse(source):
             kind = param.parameterKind()
             if kind.MODULE():
                 value = {'module': name(kind.sourceQualifiedName())}
-            elif kind.TABLE():
+            elif kind.TABLE() or kind.STREAM() or kind.QUEUE():
                 columns = []
                 for col in kind.signatureColumn():
                     raw_type = col.sourceType()
@@ -212,7 +238,7 @@ def parse(source):
                 names = [col['name'] for col in columns]
                 if len(columns) > 128 or len(set(names)) != len(names):
                     raise Refusal(span(kind)['start'], 'column bound/duplicate')
-                value = {'table': columns}
+                value = {'table' if kind.TABLE() else 'stream' if kind.STREAM() else 'queue': columns}
             elif kind.sourceParameterName():
                 value = {'named': name(kind.sourceParameterName())}
             else:

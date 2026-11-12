@@ -25,8 +25,23 @@ pub const Scalar = struct {
     }
 };
 pub const Primitive = union(enum) { integer: i64, text: []const u8, boolean: bool };
-pub const Table = struct { name: []const u8, schema: f.TableSchema.Schema, domains: []const ?Graph.Ref, owner: usize };
-pub const Export = struct { name: []const u8, table: *const Table };
+pub const ResourceKind = enum { table, stream, queue };
+pub const Table = struct {
+    name: []const u8,
+    schema: f.TableSchema.Schema,
+    domains: []const ?Graph.Ref,
+    owner: usize,
+    kind: ResourceKind = .table,
+    log: ?f.LogDdl.Configured = null,
+    pub fn value(self: *const Table) Value {
+        return switch (self.kind) {
+            .table => .{ .table = self },
+            .stream => .{ .stream = self },
+            .queue => .{ .queue = self },
+        };
+    }
+};
+pub const Export = struct { name: []const u8, value: Value };
 pub const Variant = struct { definition: Graph.Ref, constructor: usize, fields: []const Value };
 pub const Value = union(enum) {
     integer: i64,
@@ -38,6 +53,8 @@ pub const Value = union(enum) {
     nominal: struct { type: Scalar, value: Primitive },
     variant: Variant,
     table: *const Table,
+    stream: *const Table,
+    queue: *const Table,
     instance: []const Export,
     symbolic: Scalar,
     pub fn scalar(self: Value) ?Scalar {
@@ -153,7 +170,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             Graph.hashPart(into, graph.getDefinition(v.definition).constructors[v.constructor].name);
             for (v.fields) |item| try hashValue(item, graph, into, depth + 1);
         },
-        .table => |table| {
+        .table, .stream, .queue => |table| {
             Graph.hashPart(into, table.name);
             into.update(&try table.schema.fingerprint());
             for (table.schema.columns, table.domains) |column, ref| {
@@ -163,7 +180,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
         },
         .instance => |exports| for (exports) |item| {
             Graph.hashPart(into, item.name);
-            try hashValue(.{ .table = item.table }, graph, into, depth + 1);
+            try hashValue(item.value, graph, into, depth + 1);
         },
     }
 }
@@ -183,7 +200,7 @@ fn sameValue(left: Value, right: Value, depth: usize) bool {
         .identifier => |v| std.mem.eql(u8, v, right.identifier),
         .type => |v| Scalar.eql(v, right.type),
         .module => |v| std.meta.eql(v, right.module),
-        .table => |v| v == right.table,
+        inline .table, .stream, .queue => |v, tag| v == @field(right, @tagName(tag)),
         .variant => |v| blk: {
             if (!std.meta.eql(v.definition, right.variant.definition) or v.constructor != right.variant.constructor or v.fields.len != right.variant.fields.len) break :blk false;
             for (v.fields, right.variant.fields) |l, r| if (!sameValue(l, r, depth + 1)) break :blk false;

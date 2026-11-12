@@ -56,10 +56,14 @@ compilation and language adapters reuse its semantics rather than introducing
 another build or execution authority.
 The [source grammar and typed-core slice](application-source-grammar-implementation.md)
 adds independent ANTLR/Zig comparisons, embedded SQL and stage checks,
-source round-trips and the contract for subsequent language features. The next
-[typed-target slice](application-typed-target-implementation.md) plans nominal
+source round-trips and the contract for subsequent language features. The
+[typed-target slice](application-typed-target-implementation.md) implements nominal
 source values, closed variants, exhaustive compile-time matching and typed
 public Table exports, with selected Lean laws and independent SQL execution.
+Its required qualification remains incomplete. The
+[remaining M12 implementation plan](application-remaining-implementation.md)
+proposes public-data Queue program emission next, followed by richer types,
+runtime encapsulation, protected workflows, migrations and replay qualification.
 Dynamic typed commands and reference-only exports remain subsequent work.
 
 ## Performance ambition
@@ -138,7 +142,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Bounded Table builds/tests and the [source grammar/core slice](application-source-grammar-implementation.md) are delivered. Next: nominal references, variants and typed exports; extend effects/ownership, transitions and selected TLA+/Lean correspondence through SQL lowering, explicit-basis migrations and workflow tests |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Table builds/tests, source grammar and nominal/variant/typed Table exports are implemented; required qualification remains incomplete. The [remaining implementation plan](application-remaining-implementation.md) proposes public-data Queue emission, richer typed composition, runtime boundaries, protected workflows, explicit-basis migrations, replacement and replay proofs |
 
 ### Phase II: Data composition, performance and interface coverage
 

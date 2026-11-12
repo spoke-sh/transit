@@ -69,9 +69,10 @@ select a venue, strategy, latency target or monetary representation for you.
 
 The [source-to-SQL toolchain](applications.md#application-source-builds)
 places recursive `.transit` module composition and `build.transit` evaluation
-outside runtime authority. `transit build` emits executable Table SQL, and
+outside runtime authority. `transit build` emits executable Table, Stream, Queue
+and Queue program SQL, and
 `transit test` exercises that SQL through isolated local database owners.
-The database consumes generated SQL through ordinary statement and migration
+The database consumes generated SQL through ordinary statement
 owners; it needs no source repositories or build interpreter. Compilation grants
 no rights and preserves the runtime's authorization and definition boundaries.
 The compiler depends on shared Fuze types and plans, independently of Station.

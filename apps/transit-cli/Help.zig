@@ -10,7 +10,7 @@ pub const root =
     \\  console   Open an SQL console
     \\  migrate   Plan, apply and verify application schema migrations
     \\  build     Compile application modules to executable SQL
-    \\  test      Run isolated application Table tests
+    \\  test      Run isolated Table and Queue program tests
     \\
     \\Options:
     \\  --help     Show this help
@@ -93,7 +93,7 @@ pub const build =
 ;
 
 pub const @"test" =
-    \\Run application Table tests in fresh local databases.
+    \\Run Table and Queue program tests in fresh local databases.
     \\
     \\Usage: transit test [-f FILE] [--target NAME]
     \\                    [--override NAME=DIRECTORY] [--format text|json] [--help]

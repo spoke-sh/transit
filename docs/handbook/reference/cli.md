@@ -23,8 +23,8 @@ transit test [-f FILE] [--target NAME] [OPTIONS]
 | `server` | Run the local supervisor in the foreground. Missing installation paths are initialized automatically; existing empty directories are refused. The local profile starts Board by default; `--no-ui` runs headlessly |
 | `console` | Independent local/remote SQL sessions, interactive and batch results, terminal assistance and service-owned operation recovery |
 | `migrate` | Reviewable, resumable application schema and data migration lifecycle (`plan`, `inspect`, `apply`, `status`, `resume`, `verify`) over ordered `.sql` sources or saved plans (`transit_migration_plan_v1`) |
-| `build` | Compile typed modules to executable Table SQL and provenance with frozen dependencies |
-| `test` | Compile and run explicit Table cases in isolated local databases |
+| `build` | Compile typed modules to SQL for public Tables, Streams, Queues and Queue programs, with provenance and frozen dependencies |
+| `test` | Compile and run explicit Table and Queue program cases in isolated local databases |
 
 The installed server starts from defaults and overlays the first existing
 `./transit.yaml`, `$XDG_CONFIG_HOME/transit.yaml` (default `~/.config/transit.yaml`) or `/etc/transit/transit.yaml`; `--config`
@@ -104,8 +104,15 @@ a host failure stops execution and marks the remaining cases `not_run`.
 Exit 0 requires every case and its cleanup to pass; invalid options exit 2, and
 compilation, assertion, runtime or cleanup failures exit 1. Zero selected cases
 reject. `--fetch`, `--out`, `--check`, connection options and `--verify-replay` are
-not test options. See [Table test declarations](applications.md#isolated-application-table-tests)
+not test options. Cases can exercise Tables and public Queue programs, including
+bounded workflow progress and finite Stream results. See
+[application test declarations](applications.md#isolated-application-table-tests)
 for the executable source profile.
+
+Queue program tests require the local deployment's synchronized Linux kernel
+clock, with the same 10-second maximum uncertainty as the installed server.
+Missing or inadmissible trusted time cannot authorize a Queue lease. Case
+deadlines use a separate awake clock; tests do not substitute it for trusted time.
 
 The compiler retains its build budgets. A suite admits at most 128 cases and
 1,024 actions per case. Each case permits 10,000 expected/observed rows, 16 MiB of

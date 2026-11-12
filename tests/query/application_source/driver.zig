@@ -141,6 +141,7 @@ fn product(out: *std.json.Stringify, value: *c.Product) !void {
                     try out.endObject();
                 },
                 .command => |counts| try out.write(counts),
+                .workflow => |expected| try out.write(expected),
                 .refusal => |reason| try out.write(@tagName(reason)),
                 .complete => try out.write(null),
             }

@@ -3,21 +3,29 @@
 [TransitSource.g4](TransitSource.g4) defines the bounded `.transit` source
 profile in [Application source v1](../APPLICATION_SOURCE_V1.md). Its root is
 `sourceFile`, including complete input consumption. Imports, modules, interfaces,
-domains, closed variants, typed Table exports, targets and test controls are compile-time forms, not ordinary runtime SQL.
+domains, closed variants, typed resource exports, targets and test controls are compile-time forms, not ordinary runtime SQL.
 
 The grammar imports [TransitExtensions.g4](../sql/TransitExtensions.g4) with the
 same pinned ANTLR 4.13.2 tools. Source overrides add typed holes and narrow the
-statement root to Table creation, literal mutations and finite single-Table
-queries. Recursive logical types and literals remain available; compile-time
+statement root to Table/Stream/Queue creation, literal mutations and log appends,
+and finite single-Table queries. Recursive logical types and literals remain available; compile-time
 TYPE arguments still have their smaller, separately checked set. The copied
 type/literal extension productions must follow changes in their SQL owner.
 Unknown scalar type words remain a later binding refusal; structured type forms
 are checked here. Cast recognition likewise does not enable native Table casts.
 The ordinary SQL and interface/UI grammar roots remain separate.
 
+Public Queue program templates include ordered expressions, Table reads,
+guarded branches and atomic writes/appends. Their expanded SQL uses the installed
+program parser and type binder. Lifecycle controls remain separate statements.
+The reference checker also enforces atomic placement in unused bodies. Finite
+Stream reads and bounded WORKFLOW assertions share the existing test root;
+assertion controls do not enter emitted SQL.
+
 Source names are contextual ASCII words. SQL retains its own reserved names and
 quoted identifier rules. A source hole records its role (identifier, type, value,
-or an operand whose binding may be a column or value) and UTF-8 byte span.
+matching Stream/Queue target, or an operand whose binding may be a column or value)
+and UTF-8 byte span.
 Neither grammar acceptance nor a hole's syntactic role grants a binding, policy
 right or runtime capability. Stage checks, quotas and supported execution remain
 with the source contract and ordinary statement owners.

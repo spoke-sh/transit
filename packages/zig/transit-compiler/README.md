@@ -1,6 +1,6 @@
 # Transit source compiler
 
-Pure, bounded compilation of `.transit` modules to ordinary Table SQL. The
+Pure, bounded compilation of `.transit` modules to ordinary SQL. The
 [application source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
 syntax, visibility, supported statements and limits. The package depends on
 Fuze's public typed statement owners, the protocol's diagnostics and the memory
@@ -15,7 +15,7 @@ source text or operand values. Resolution provenance enters the build digest
 through `Options.resolution_digest`; supplying source never establishes trust or
 runtime permissions.
 
-Source parsing checks complete Table templates and assertion rows in every body,
+Source parsing checks complete Table and log templates and assertion rows in every body,
 including unused modules and both IF branches. `Syntax.Template` retains token
 spans and typed-hole roles without inventing values or catalog bindings. Name,
 type, target and schema checks retain their later stages. A proposed catalog
@@ -25,8 +25,19 @@ fingerprints. Temporary statement allocations use a reusable scratch arena;
 retained schemas and output use the product arena. Both allocators share one
 stable `transit-memory` budget. Inputs have separate aggregate/file bounds.
 
+Ordered public Queue programs and explicit lifecycle controls use the same graph.
+`ProgramCheck` collects proposed dependencies and uses Fuze's program schema,
+type and capability owners before comparing the emitted instruction tree and
+schema bindings. Runtime publication, authorization, progress and completion
+remain separate. Nominal program columns, symbolic program declarations/controls
+and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
+expectations extend the local test product without adding a source interpreter.
+
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
-Table interfaces. `TypedOperands` binds source annotations to Fuze-owned target,
+Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log
+target kinds until ordinary log preparation. Log declarations use the shared
+single-partition defaults; nominal log fields and symbolic log operands reject.
+`TypedOperands` binds source annotations to Fuze-owned target,
 column and parameter spans. Nominal values stay typed alongside temporary SQL
 parameters until the check succeeds; final scalar SQL emission then records the
 checked assignments/predicates. The `Step.checked` projection is in-memory evidence;

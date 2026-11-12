@@ -6,14 +6,16 @@ pub const max_cases = 128;
 pub const max_actions = 1024;
 pub const max_rows = 10000;
 pub const max_result_bytes = 16 * 1024 * 1024;
+pub const max_observations = 1000;
 pub const Rows = struct { schema: f.Types.Type, values: []const []const u8 };
 pub const Expectation = union(enum) {
     complete,
     rows: Rows,
     command: struct { matched: u64, changed: u64 },
     refusal: enum { duplicate_key, check_violation },
+    workflow: struct { name: []const u8, completed: u64, refused: u64, observations: u64 },
 };
-pub const Action = struct { step: usize, expectation: Expectation, location: p.Diagnostic.Location };
+pub const Action = struct { step: ?usize = null, expectation: Expectation, location: p.Diagnostic.Location };
 pub const Case = struct {
     name: []const u8,
     identity: [32]u8,

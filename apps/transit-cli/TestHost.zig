@@ -136,7 +136,10 @@ fn execute(init: std.process.Init, directory: std.Io.Dir, path: []const u8, dead
     const credential_path = try std.fs.path.join(a, &.{ path, "credential.json" });
     var diagnostics: telemetry.Runtime = .init(init.io, "transit-test", .{ .level = .off });
     const local = try node.LocalRuntime.open(init, .{
-        .genesis = .{ .realm = bootstrap.realm, .root_key = root.public_key.toBytes() },
+        // Queue leases use the same synchronized kernel clock and uncertainty
+        // envelope as the installed server. Missing trusted time must still
+        // refuse progress; the test host never substitutes its budget clock.
+        .genesis = .{ .realm = bootstrap.realm, .root_key = root.public_key.toBytes(), .max_clock_error_ms = 10000 },
         .local_directory = storage_path,
         .resident_pages = 32,
         .storage = .{ .limits = .{ .bytes = storage.bytes, .control_bytes = storage.control_bytes } },
@@ -188,6 +191,10 @@ fn execute(init: std.process.Init, directory: std.Io.Dir, path: []const u8, dead
     var active: std.atomic.Value(bool) = .init(false);
     const session = try g.Session.initOptions(init.gpa, init.io, &config, 0, runtime, credential, "transit", .transit, &cancellation, &active, .{ .capture_settings = false, .deadline = deadline });
     defer session.deinit();
+    // This host owns the real local endpoint and database scheduler. Select the
+    // same native SQL profile as a cohosted caller; owner authorization remains
+    // mandatory for every publication, control and observation.
+    session.native_profile = true;
     const scope = session.withDeadline(deadline);
     defer scope.restore();
     var worker: Worker = .{ .runtime = runtime };

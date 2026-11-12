@@ -13,6 +13,15 @@ bytes form a bounded multiset, preserving duplicate counts and NULL without
 retaining borrowed cells across batches. Command counts and refusal reasons come
 from verified owner outcomes. No write is replayed to obtain a convenient result.
 
+Public Queue programs execute through the managed SQL owner. A
+[WORKFLOW assertion](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
+observes exact recorded completed/refused counts under the
+same frozen declaration, current authorization and a bounded polling budget.
+Activation alone cannot satisfy it. Stream row assertions retain normal result
+completion and disclosure checks. A matching counter observation does not assert
+program idleness; host cleanup still joins workers and readers. These controls observe the real database;
+they do not simulate clocks, effects or recovery.
+
 `Bootstrap` provisions a disposable realm through signed public native and policy
 operations. The root key is separate from the statement caller. The embedding
 CLI owns its private directory, local endpoint, storage quotas, runtime activation,

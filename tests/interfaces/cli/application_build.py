@@ -18,6 +18,7 @@ from interfaces.cli.table_console import records
 from interfaces.installation.server import Fixture
 from interfaces.sql_sessions.local import Client
 from interfaces.cli.migrate_lifecycle import disable_sql_credential
+from interfaces.installation.server_managed_tables import await_head, observation
 
 
 def offline(interrupt_publish=False):
@@ -259,7 +260,29 @@ def typed_journey(cli, root):
     return sql
 
 
-def execute_program(cli, sql, typed_sql):
+def queue_journey(cli, root):
+    fixture = REPO / 'tests/fixtures/application-queue-programs'
+    project = root / 'queue-project'
+    shutil.copytree(fixture, project)
+    checked = cli_build(cli, project, '--check')
+    assert checked['statements'] == 7 and not (project / '.transit').exists()
+    product = cli_build(cli, project)
+    sql = (Path(product['directory']) / 'application.sql').read_text()
+    assert sql == (fixture / 'expected.sql').read_text()
+    assert cli_build(cli, project)['reused']
+    original = (project / 'workflow.transit').read_text()
+    for changed in (original.replace('PRODUCE INTO $output', 'ENQUEUE INTO $output'),
+                    original.replace('REQUIRE request.id > 0', 'REQUIRE request.id'),
+                    original.replace('AUTHORIZE DATAFLOW $name AS ROLE CURRENT_ROLE;', '')):
+        source(project, 'workflow.transit', changed)
+        refused = cli_build(cli, project, expected=1)
+        assert refused['outcome'] == 'not_submitted' and refused['location'] is not None, refused
+        assert (Path(product['directory']) / 'application.sql').read_text() == sql
+    shutil.rmtree(project)
+    return sql
+
+
+def execute_program(cli, sql, typed_sql, queue_sql):
     fixture = Fixture(cli)
     fixture.use_private_runtime()
     passed = False
@@ -300,14 +323,53 @@ def execute_program(cli, sql, typed_sql):
                         if value.get('completion', {}).get('kind') == 'insert']
         assert typed_counts == [{'matched': '1', 'changed': '1'}] * 2
         outcomes += typed_outcomes
+        declarations, enqueue = queue_sql.rsplit('\n', 2)[:2]
+        fixture.console(declarations)
+        # Lose the reply to the emitted append and settle only its original
+        # token. Changed source or SQL cannot manufacture another accepted input.
+        client = Client(fixture.console_config(), fixture.record()['definition']).open()
+        try:
+            token = list(os.urandom(16))
+            client.call(dict(execute=dict(sql=enqueue, token=token)), discard_response=True)
+            original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+            assert original['matched'] == original['changed'] == 3, original
+            client.call(dict(execute=dict(sql=enqueue.replace("'ready'", "'changed'"), token=token)), error='SqlTokenConflict')
+            assert client.call(dict(status=dict(token=token)))['operation']['identity'] == original['identity']
+        finally:
+            client.close()
+        settled = await_head(fixture, 'process', lambda head: head['completed'] + head['refused'] >= 3)
+        head = settled['observation']['head']
+        assert (head['completed'], head['refused']) == (1, 2), settled
+        queue_outcomes = fixture.console('SELECT id, body FROM accepted; CONSUME id, body FROM events;')
+        assert [records(value) for value in queue_outcomes if 'schema' in value] == [[{'id': '7', 'body': 'accepted:ready'}]] * 2, queue_outcomes
+        outcomes += queue_outcomes
+        # Active programs retain an acquisition while waiting for their next
+        # input. Fence that exact empty acquisition before retaining work across
+        # restart; its cancellation is a separately recorded refused attempt.
+        await_head(fixture, 'process', lambda h: h['attempt'] == 4 and h['pending'] is not None)
+        fixture.console('SUSPEND DATAFLOW process;')
+        suspended = await_head(fixture, 'process', lambda h: h['pending'] is None)['observation']['head']
+        assert (suspended['completed'], suspended['refused']) == (1, 3), suspended
+        fixture.console("ENQUEUE INTO requests VALUES (9, 'retained input');")
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
         assert records(fixture.console('SELECT * FROM second_items;')[-1]) == [{'id': '9'}]
         assert records(fixture.console('SELECT * FROM sites;')[-1]) == [{'id': '7'}]
+        recovered = observation(fixture, 'process')['observation']['head']
+        assert (recovered['completed'], recovered['refused'], recovered['checkpoint']) == (1, 3, suspended['checkpoint']), recovered
+        assert recovered['control']['state'] == 'suspended', recovered
+        fixture.console('RESUME DATAFLOW process;')
+        resumed = await_head(fixture, 'process', lambda h: h['completed'] >= 2)
+        assert resumed['observation']['head']['refused'] == 3, resumed
+        expected = [{'id': '7', 'body': 'accepted:ready'}, {'id': '9', 'body': 'accepted:retained input'}]
+        for statement in ('SELECT id, body FROM accepted;', 'CONSUME id, body FROM events;'):
+            assert sorted(records(fixture.console(statement)[-1]), key=lambda row: int(row['id'])) == expected
         disable_sql_credential(fixture.root, fixture.config['ports'], installation=fixture.installation)
         fixture.console('SELECT * FROM first_items;', expected=1)
         fixture.console('SELECT * FROM machines;', expected=1)
+        fixture.console('CONSUME * FROM events;', expected=1)
+        fixture.console('SHOW DATAFLOW process;', expected=1)
         passed = True
         return outcomes
     finally:
@@ -323,9 +385,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
         sql = compiler_journey(cli, Path(temporary)).read_text()
         typed_sql = typed_journey(cli, Path(temporary))
-        generated = execute_program(cli, sql, typed_sql)
+        queue_sql = queue_journey(cli, Path(temporary))
+        generated = execute_program(cli, sql, typed_sql, queue_sql)
         oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
-                                 (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text())
+                                 (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
+                                 (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):

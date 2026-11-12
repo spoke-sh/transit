@@ -12672,15 +12672,16 @@
         "BuildStatementLimit": 6,
         "BuildWorkLimit": 1,
         "DuplicateSourceMatchArm": 1,
-        "DuplicateSourceName": 4,
+        "DuplicateSourceName": 5,
         "DuplicateTestCase": 1,
         "EmptyBuildTarget": 1,
         "EmptyTestCase": 1,
         "EmptyTestTarget": 1,
-        "ExportOutsideModule": 1,
-        "ForeignTableExport": 1,
+        "ExportOutsideModule": 2,
+        "ForeignTableExport": 2,
         "InvalidBuildBudget": 1,
         "InvalidCompilerIdentity": 1,
+        "InvalidDataflowTransition": 1,
         "InvalidInstanceName": 1,
         "InvalidModuleInterface": 1,
         "InvalidParameterType": 1,
@@ -12697,22 +12698,25 @@
         "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
         "SourceDepthLimit": 4,
-        "SourceExportLimit": 1,
+        "SourceExportLimit": 2,
         "SourceFileLimit": 1,
-        "SourceTypeMismatch": 27,
-        "TestActionLimit": 1,
-        "TestAssertionOutsideCase": 1,
+        "SourceTypeMismatch": 31,
+        "TestActionLimit": 2,
+        "TestAssertionOutsideCase": 2,
         "TestCaseLimit": 1,
         "TestCommandRequired": 1,
         "TestInBuildTarget": 1,
         "TestMutationRequired": 1,
+        "TestObservationLimit": 1,
         "TestResultBytesLimit": 1,
         "TestRowsLimit": 1,
         "TestRowsRequired": 1,
         "TestStatementOutsideCase": 1,
+        "UnknownBuildProgram": 1,
         "UnknownSourceExport": 1,
         "UnknownSourceOperand": 1,
         "UnsupportedRecursiveExports": 1,
+        "UnsupportedSymbolicProgram": 2,
         "UnsupportedSymbolicSchema": 2,
         "WriteFailed": 1,
         "WrongSourceTargetKind": 1
@@ -12749,15 +12753,17 @@
         "tick()": "<inferred>",
         "validateInterfaces()": "<inferred>",
         "verify()": "<inferred>",
+        "workflow()": "<inferred>",
         "writeValue()": "<inferred>"
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 119,
+        "try": 128,
         "catch": 18
       },
       "imports": [
         "Graph.zig",
+        "ResourceOperands.zig",
         "SourceTypes.zig",
         "Syntax.zig",
         "Test.zig",
@@ -12789,7 +12795,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 133,
+        "try": 140,
         "catch": 0
       },
       "imports": [
@@ -12847,6 +12853,61 @@
         "std"
       ]
     },
+    "packages/zig/transit-compiler/src/ProgramCheck.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 3,
+        "InvalidCatalogName": 1,
+        "ProgramTooComplex": 1,
+        "SourceTypeMismatch": 1,
+        "UnsupportedBuildProgramDependency": 1,
+        "UnsupportedNominalProgram": 1,
+        "UnsupportedProgramPartitioning": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "block()": "anyerror",
+        "check()": "<inferred>",
+        "resource()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 22,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceTypes.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-compiler/src/ResourceOperands.zig": {
+      "errors": {
+        "SourceTypeMismatch": 5,
+        "UnknownSourceOperand": 1,
+        "UnsupportedLogOperand": 1,
+        "UnsupportedNominalLog": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "SourceTypes.zig",
+        "Template.zig",
+        "TypedOperands.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-compiler/src/SourceTypes.zig": {
       "errors": {
         "BuildWorkLimit": 2,
@@ -12866,6 +12927,11 @@
           "text",
           "boolean"
         ],
+        "ResourceKind": [
+          "table",
+          "stream",
+          "queue"
+        ],
         "Value": [
           "integer",
           "text",
@@ -12876,6 +12942,8 @@
           "nominal",
           "variant",
           "table",
+          "stream",
+          "queue",
           "instance",
           "symbolic"
         ]
@@ -12908,7 +12976,7 @@
         "DuplicateSourceName": 4,
         "InvalidDomainIdentity": 1,
         "InvalidSourceName": 2,
-        "InvalidSourceSyntax": 6,
+        "InvalidSourceSyntax": 7,
         "InvalidTestCount": 3,
         "InvalidTestName": 2,
         "InvalidTestStatement": 1,
@@ -12919,7 +12987,7 @@
         "SourceParameterLimit": 5,
         "UnsupportedSourceDeclaration": 1,
         "UnsupportedSourceType": 1,
-        "UnsupportedTestAssertion": 1,
+        "UnsupportedTestAssertion": 2,
         "UnsupportedTestRefusal": 1
       },
       "outcomes": {
@@ -12973,7 +13041,9 @@
           "type",
           "module",
           "named",
-          "table"
+          "table",
+          "stream",
+          "queue"
         ],
         "ScalarType": [
           "bigint",
@@ -12983,17 +13053,28 @@
         "Statement.value": [
           "use",
           "table_export",
+          "log_export",
           "match",
           "conditional",
           "sql",
           "test_case",
-          "assertion"
+          "assertion",
+          "workflow"
+        ],
+        "Statement.value.log_export.kind": [
+          "stream",
+          "queue"
         ],
         "TypeRef": [
           "scalar",
           "named"
         ],
         "parseBody().kind": [
+          "table",
+          "stream",
+          "queue"
+        ],
+        "parseBody().kind#2": [
           "rows",
           "command",
           "refusal"
@@ -13026,7 +13107,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 146,
+        "try": 156,
         "catch": 2
       },
       "imports": [
@@ -13037,12 +13118,15 @@
     },
     "packages/zig/transit-compiler/src/Template.zig": {
       "errors": {
-        "InvalidSourceName": 1,
+        "InvalidSourceName": 2,
         "InvalidSourceOperand": 1,
         "InvalidSourceTemplate": 1,
-        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "MutationOutsideAtomic": 2,
+        "NestedAtomicProgram": 1,
+        "RuntimePrivateOrUnsupportedDeclaration": 2,
         "SourceDepthLimit": 1,
-        "UnsupportedBuildStatement": 1
+        "UnsupportedBuildStatement": 1,
+        "UnsupportedProgramInstruction": 1
       },
       "outcomes": {
         "Kind": [
@@ -13051,13 +13135,23 @@
           "update",
           "delete",
           "select",
-          "rows"
+          "rows",
+          "create_stream",
+          "create_queue",
+          "produce",
+          "enqueue",
+          "consume",
+          "program",
+          "control"
         ],
         "Role": [
           "identifier",
           "type",
           "value",
-          "operand"
+          "operand",
+          "table",
+          "stream",
+          "queue"
         ],
         "dataType().<enum>": [
           "fields",
@@ -13089,8 +13183,15 @@
         "nullable()": "<inferred>",
         "parse()": "<inferred>",
         "predicate()": "anyerror",
+        "program()": "<inferred>",
+        "programArguments()": "anyerror",
+        "programBlock()": "anyerror",
+        "programExpression()": "anyerror",
+        "programName()": "<inferred>",
+        "programPrimary()": "anyerror",
         "reference()": "<inferred>",
         "require()": "<inferred>",
+        "resourceName()": "<inferred>",
         "rows()": "<inferred>",
         "scalar()": "anyerror",
         "select()": "<inferred>",
@@ -13101,9 +13202,9 @@
         "timeZone()": "<inferred>",
         "unsigned()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 9,
       "propagation": {
-        "try": 138,
+        "try": 243,
         "catch": 0
       },
       "imports": [
@@ -13153,30 +13254,39 @@
     },
     "packages/zig/transit-compiler/src/WorkingCatalog.zig": {
       "errors": {
-        "ConflictingModuleInstance": 1,
+        "ConflictingModuleInstance": 2,
         "InvalidSourceTypeOperand": 1,
-        "UnboundBuildParameter": 1,
+        "SourceTypeMismatch": 4,
+        "UnboundBuildParameter": 3,
+        "UnknownBuildProgram": 1,
         "UnknownBuildTable": 1,
-        "UnsupportedBuildStatement": 4
+        "UnsupportedBuildLogConfiguration": 1,
+        "UnsupportedBuildProgramControl": 1,
+        "UnsupportedBuildStatement": 5
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "check()": "<inferred>",
+        "createLog()": "<inferred>",
         "find()": "<inferred>",
+        "findResource()": "<inferred>",
         "querySchema()": "<inferred>",
+        "unused()": "<inferred>",
         "verifyTypeOperands()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 30,
+        "try": 62,
         "catch": 1
       },
       "imports": [
         "Graph.zig",
+        "ProgramCheck.zig",
         "SourceTypes.zig",
         "std",
-        "transit_fuze"
+        "transit_fuze",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-compiler/src/root.zig": {
@@ -15894,6 +16004,28 @@
         "std"
       ]
     },
+    "packages/zig/transit-fuze/src/ApplicationControl.zig": {
+      "errors": {
+        "InvalidCatalogName": 1,
+        "InvalidDataflowTransition": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "AuthorizationSql.zig",
+        "SqlTyped.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-fuze/src/ApplicationCursor.zig": {
       "errors": {
         "InvalidProgramNode": 29,
@@ -16230,6 +16362,7 @@
         "ApplicationProgramCodec.zig",
         "ApplicationProgramParser.zig",
         "ApplicationProgramTypes.zig",
+        "ApplicationSchema.zig",
         "ApplicationStep.zig",
         "ApplicationValue.zig",
         "PerfectHash.zig",
@@ -16417,6 +16550,30 @@
         "ApplicationProgram.zig",
         "NativeBinding.zig",
         "Sql.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-fuze/src/ApplicationSchema.zig": {
+      "errors": {
+        "ProgramTooComplex": 2,
+        "ProgramTooDeep": 2,
+        "ProgramTypeMismatch": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bindField()": "<inferred>",
+        "bindType()": "anyerror",
+        "requireType()": "anyerror"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 6,
+        "catch": 0
+      },
+      "imports": [
+        "ApplicationProgram.zig",
+        "Types.zig",
         "std"
       ]
     },
@@ -23824,6 +23981,7 @@
       },
       "imports": [
         "AnalyticalSql.zig",
+        "ApplicationControl.zig",
         "ApplicationProgram.zig",
         "AuthorizationSql.zig",
         "Batch.zig",
@@ -28148,9 +28306,9 @@
         "ProgramCardinalityMismatch": 1,
         "ProgramResourceKindMismatch": 3,
         "ProgramRowAssertionFailed": 2,
-        "ProgramTooComplex": 3,
-        "ProgramTooDeep": 3,
-        "ProgramTypeMismatch": 27,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 23,
         "ProtectedProgramValue": 1,
         "QueryResultBudget": 2,
         "TableDefinitionChanged": 7,
@@ -28164,8 +28322,6 @@
         "RowContext.evaluate()": "anyerror",
         "RowContext.lookup()": "anyerror",
         "assertSameRow()": "<inferred>",
-        "bindField()": "<inferred>",
-        "bindType()": "anyerror",
         "currentRevision()": "<inferred>",
         "currentRevisionObserved()": "<inferred>",
         "documentRevision()": "<inferred>",
@@ -28178,14 +28334,13 @@
         "prepareAppend()": "<inferred>",
         "prepareInsert()": "<inferred>",
         "preparePut()": "<inferred>",
-        "requireType()": "anyerror",
         "rowCells()": "<inferred>",
         "rowValue()": "<inferred>",
         "select()": "<inferred>"
       },
-      "open_error_set_uses": 7,
+      "open_error_set_uses": 5,
       "propagation": {
-        "try": 97,
+        "try": 91,
         "catch": 1
       },
       "imports": [
@@ -38145,8 +38300,7 @@
     "packages/zig/transit-sql/src/ManagedSql.zig": {
       "errors": {
         "InvalidDataflowRevision": 3,
-        "InvalidDataflowTransition": 1,
-        "InvalidSqlSyntax": 3,
+        "InvalidSqlSyntax": 2,
         "UnsupportedManagedTable": 1
       },
       "outcomes": {
@@ -38163,7 +38317,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 22,
         "catch": 1
       },
       "imports": [
@@ -47879,10 +48033,13 @@
       "errors": {
         "GatewayMutationRejected": 1,
         "TestIncompleteResult": 1,
-        "TestInvalidExpectation": 2,
-        "TestInvalidTerminal": 2,
+        "TestInvalidExpectation": 4,
+        "TestInvalidTerminal": 4,
         "TestMissingCounts": 1,
+        "TestMissingProgram": 1,
         "TestMissingTerminal": 1,
+        "TestObservationLimit": 1,
+        "TestProgramStatementFailed": 1,
         "TestResultBytesLimit": 1,
         "TestRowsLimit": 2,
         "TestUnexpectedStatementOwner": 1
@@ -47892,18 +48049,23 @@
           "rows",
           "counts",
           "expected_refusal",
-          "refusal_reason"
+          "refusal_reason",
+          "workflow_counts",
+          "workflow_progress"
         ]
       },
       "error_sets": {},
       "error_returns": {
         "Bag.init()": "<inferred>",
         "execute()": "<inferred>",
-        "run()": "<inferred>"
+        "managed()": "<inferred>",
+        "observeWorkflow()": "<inferred>",
+        "run()": "<inferred>",
+        "workflow()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 44,
         "catch": 1
       },
       "imports": [
@@ -48728,7 +48890,7 @@
       "definition": "CREATE PUBLIC ? ( MODULE sourceName parameters AS BEGIN body END | DOMAIN sourceName AS sourceBaseType IDENTITY STRING | VARIANT sourceName AS LPAREN variantConstructor ( COMMA variantConstructor ) * RPAREN | INTERFACE sourceName parameters | TEST ? TARGET sourceName AS BEGIN body END ) SEMI",
       "parameters": "LPAREN ( parameter ( COMMA parameter ) * ) ? RPAREN",
       "parameter": "sourceName parameterKind",
-      "parameterKind": "BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName | TABLE LPAREN signatureColumn ( COMMA signatureColumn ) * RPAREN | sourceParameterName",
+      "parameterKind": "BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName | ( TABLE | STREAM | QUEUE ) LPAREN signatureColumn ( COMMA signatureColumn ) * RPAREN | sourceParameterName",
       "sourceBaseType": "BIGINT | TEXT | BOOLEAN",
       "sourceParameterName": "parameterHead ( DOT sourceName ( DOT sourceName ) ? ) ?",
       "parameterHead": "referenceTypeHead | TRUE | FALSE | NOT",
@@ -48739,10 +48901,10 @@
       "variantConstructor": "sourceName parameters",
       "sourceQualifiedName": "sourceName ( DOT sourceName ( DOT sourceName ) ? ) ?",
       "body": "sourceStatement *",
-      "sourceStatement": "USE sourceCall ( AS sourceName ) ? SEMI | EXPORT TABLE DOLLAR ? sourceQualifiedName AS sourceName SEMI | MATCH expression matchArm + END MATCH SEMI | IF expression THEN body ( ELSE body ) ? END IF SEMI | TEST STRING USING MODULES LPAREN ( sourceCall ( COMMA sourceCall ) * ) ? RPAREN AS BEGIN body END SEMI | ASSERT assertion SEMI | tableTemplate SEMI",
+      "sourceStatement": "USE sourceCall ( AS sourceName ) ? SEMI | EXPORT ( TABLE | STREAM | QUEUE ) DOLLAR ? sourceQualifiedName AS sourceName SEMI | MATCH expression matchArm + END MATCH SEMI | IF expression THEN body ( ELSE body ) ? END IF SEMI | TEST STRING USING MODULES LPAREN ( sourceCall ( COMMA sourceCall ) * ) ? RPAREN AS BEGIN body END SEMI | ASSERT assertion SEMI | ASSERT WORKFLOW expression COMPLETED INTEGER REFUSED INTEGER WITHIN INTEGER OBSERVATIONS SEMI | tableTemplate SEMI",
       "matchArm": "WHEN sourceQualifiedName LPAREN ( sourceName ( COMMA sourceName ) * ) ? RPAREN THEN body",
       "sourceCall": "sourceQualifiedName LPAREN ( expression ( COMMA expression ) * ) ? RPAREN",
-      "assertion": "ROWS LPAREN tableTemplate RPAREN EQUAL LPAREN expectedRows ? RPAREN | COMMAND LPAREN tableTemplate RPAREN MATCHED INTEGER CHANGED INTEGER | STATEMENT LPAREN tableTemplate RPAREN FAILS WITH STRING",
+      "assertion": "ROWS LPAREN simpleTemplate RPAREN EQUAL LPAREN expectedRows ? RPAREN | COMMAND LPAREN simpleTemplate RPAREN MATCHED INTEGER CHANGED INTEGER | STATEMENT LPAREN simpleTemplate RPAREN FAILS WITH STRING",
       "expectedRows": "expectedRow ( COMMA expectedRow ) *",
       "expectedRow": "LPAREN literal ( COMMA literal ) * RPAREN",
       "expression": "sourceOr",
@@ -48754,7 +48916,33 @@
       "sourceMultiply": "sourceUnary ( STAR sourceUnary ) *",
       "sourceUnary": "MINUS sourceUnary | NOT sourceUnary | sourceAtom",
       "sourceAtom": "INTEGER | STRING | TRUE | FALSE | NAME STRING | TYPE sourceType | LPAREN expression RPAREN | referenceHead ( DOT sourceName ( DOT sourceName ) ? ) ? ( LPAREN ( expression ( COMMA expression ) * ) ? RPAREN ) ?",
-      "tableTemplate": "CREATE PUBLIC TABLE identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN | mutationStatement | sourceSelect",
+      "tableTemplate": "simpleTemplate | sourceProgram",
+      "simpleTemplate": "CREATE PUBLIC ( TABLE | STREAM | QUEUE ) identifier LPAREN tableElement ( COMMA tableElement ) * RPAREN | PRODUCE INTO streamOperand ( LPAREN identifier ( COMMA identifier ) * RPAREN ) ? VALUES mutationRow ( COMMA mutationRow ) * | ENQUEUE INTO queueOperand ( LPAREN identifier ( COMMA identifier ) * RPAREN ) ? VALUES mutationRow ( COMMA mutationRow ) * | sourceProgramControl | CONSUME ( STAR | columnReference outputAlias ? ( COMMA columnReference outputAlias ? ) * ) FROM streamOperand ( AS identifier ) ? whereClause ? limitClause ? | mutationStatement | sourceSelect",
+      "streamOperand": "streamHole | plainIdentifier",
+      "queueOperand": "queueHole | plainIdentifier",
+      "streamHole": "DOLLAR sourceName",
+      "queueHole": "DOLLAR sourceName",
+      "tableOperand": "tableHole | programName",
+      "tableHole": "DOLLAR sourceName",
+      "programResourceName": "identifierHole | programName",
+      "programQueue": "queueHole | programName",
+      "programStream": "streamHole | programName",
+      "sourceProgram": "CREATE PUBLIC DATAFLOW programResourceName FROM QUEUE programQueue AS programName ( WHERE programExpression ) ? AS BEGIN programBlock ( ON FAILURE programName programBlock ) ? END",
+      "sourceProgramControl": "AUTHORIZE DATAFLOW programResourceName AS ROLE CURRENT_ROLE | ( ACTIVATE | SUSPEND | RESUME | RETIRE ) DATAFLOW programResourceName",
+      "programBlock": "programInstruction *",
+      "programInstruction": "LET programName EQ ( programSelect | programExpression ) SEMI | REQUIRE programExpression ELSE sourceString SEMI | BEGIN ATOMIC programBlock END SEMI | IF programExpression THEN programBlock ( ELSE programBlock ) ? END IF SEMI | INSERT INTO tableOperand VALUES programArguments ON CONFLICT LPAREN programName ( COMMA programName ) * RPAREN DO ASSERT SAME ROW SEMI | PRODUCE INTO programStream VALUES programArguments SEMI | ENQUEUE INTO programQueue VALUES programArguments SEMI",
+      "programSelect": "SELECT ( STAR | programName ( COMMA programName ) * ) FROM tableOperand ( WHERE programExpression ) ?",
+      "programArguments": "LPAREN ( programExpression ( COMMA programExpression ) * ) ? RPAREN",
+      "programExpression": "programOr",
+      "programOr": "programAnd ( OR programAnd ) *",
+      "programAnd": "programComparison ( AND programComparison ) *",
+      "programComparison": "programConcat ( ( EQ | LT | GT | LE | GE | NE ) programConcat | IS NOT ? NULL_ ) *",
+      "programConcat": "programAdd ( CONCAT programAdd ) *",
+      "programAdd": "programUnary ( ( PLUS | MINUS ) programUnary ) *",
+      "programUnary": "NOT programUnary | MINUS programUnary | programPrimary",
+      "programPrimary": "( LPAREN programExpression RPAREN | valueHole | NULL_ | TRUE | FALSE | INTEGER | STRING | CASE WHEN programExpression THEN programExpression ELSE programExpression END | CAST LPAREN programExpression AS TEXT RPAREN | ROW programArguments | programAtomName programArguments ? ) ( DOT programName ) *",
+      "programName": "sourceName | QUOTED_IDENTIFIER",
+      "programAtomName": "typeWordOrdinary | STREAM | QUEUE | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE | QUOTED_IDENTIFIER",
       "sourceSelect": "SELECT selection FROM identifier sourceTableAlias ? whereClause ? limitClause ? | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias ? whereClause ? limitClause ? RPAREN AS identifier",
       "sourceTableAlias": "AS identifier | sourceImplicitAlias",
       "sourceImplicitAlias": "identifierHole | legacyIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword",
@@ -48776,7 +48964,7 @@
       "tableConstraint": "( CONSTRAINT identifier ) ? checkConstraint",
       "identifier": "identifierHole | plainIdentifier",
       "plainIdentifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword",
-      "sourceKeyword": "DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND",
+      "sourceKeyword": "DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS",
       "dataType": "typeHole | sourceDataType",
       "sourceDataType": "scalarTypeName ( LPAREN sourceUnsigned ( COMMA sourceUnsigned ) ? RPAREN ) ? ( ( WITH | WITHOUT ) TIME ZONE ) ? | ( STRUCT | ROW | UNION ) LPAREN typeField ( COMMA typeField ) * RPAREN | LIST LPAREN dataType nullability ? RPAREN | ARRAY LPAREN dataType nullability ? COMMA sourceUnsigned RPAREN | MAP LPAREN dataType nullability ? COMMA dataType nullability ? RPAREN | ( RANGE | MULTIRANGE ) LT dataType GT | VECTOR LPAREN sourceUnsigned COMMA ( sourceName | typeHole ) RPAREN",
       "scalarTypeName": "scalarTypeWord | DOUBLE PRECISION ? | CHARACTER VARYING ?",
@@ -48791,7 +48979,9 @@
       "referenceHead": "referenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE",
       "referenceTypeHead": "typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR | DOUBLE | CHARACTER",
       "sourceWord": "typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE",
-      "typeWord": "IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM | STREAM_SLICE | QUEUE | STREAMS | QUEUES | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | CONSUME | CLAIM | ACK | NACK | EXTEND | RECEIPT | LEASE | WAIT | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | DATABASES | SCHEMAS | ASC | DESC | NULLS | FIRST | LAST | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER | SELECT | WHERE | LIMIT | COUNT | SUM | IS | AND | OR | BYTEA | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | COLLATE | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON | SHOW | STORAGE | DESCRIBE | NULL_ | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN",
+      "typeWord": "typeWordWithoutLogs | STREAM | QUEUE",
+      "typeWordWithoutLogs": "typeWordOrdinary | NULL_ | CASE | CAST",
+      "typeWordOrdinary": "IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION | STREAM_SLICE | STREAMS | QUEUES | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | CONSUME | CLAIM | ACK | NACK | EXTEND | RECEIPT | LEASE | WAIT | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | DATABASES | SCHEMAS | ASC | DESC | NULLS | FIRST | LAST | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER | SELECT | WHERE | LIMIT | COUNT | SUM | IS | AND | OR | BYTEA | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | COLLATE | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON | SHOW | STORAGE | DESCRIBE | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS",
       "IMPORT": "'IMPORT'",
       "DEPENDENCY": "'DEPENDENCY'",
       "SUBDIRECTORY": "'SUBDIRECTORY'",
@@ -48828,7 +49018,21 @@
       "IDENTITY": "'IDENTITY'",
       "EXPORT": "'EXPORT'",
       "MATCH": "'MATCH'",
-      "WHEN": "'WHEN'"
+      "WHEN": "'WHEN'",
+      "LET": "'LET'",
+      "REQUIRE": "'REQUIRE'",
+      "ATOMIC": "'ATOMIC'",
+      "DO": "'DO'",
+      "SAME": "'SAME'",
+      "FAILURE": "'FAILURE'",
+      "CASE": "'CASE'",
+      "CAST": "'CAST'",
+      "CONCAT": "'||'",
+      "WORKFLOW": "'WORKFLOW'",
+      "COMPLETED": "'COMPLETED'",
+      "REFUSED": "'REFUSED'",
+      "WITHIN": "'WITHIN'",
+      "OBSERVATIONS": "'OBSERVATIONS'"
     }
   }
 }

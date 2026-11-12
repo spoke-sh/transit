@@ -46,6 +46,12 @@ pub const Requirements = struct {
     functions: std.EnumSet(ast.Function) = .empty,
     features: std.EnumSet(Feature) = .empty,
 
+    /// Facilities implemented by the installed public-data host. Source target
+    /// checking and host readiness use this same declaration; it grants no rights.
+    pub fn publicData() Requirements {
+        return .{ .functions = .initMany(&.{ .random_token, .digest, .commitment, .now, .seconds, .current_revision, .url, .json_object, .s256, .length, .secure_equal, .operation_id, .json_value, .json_integer, .identity_digest }) };
+    }
+
     pub fn requireAvailable(self: Requirements, available: Requirements) !void {
         if (self.functions.differenceWith(available.functions).count() != 0 or
             self.features.differenceWith(available.features).count() != 0) return error.ApplicationHostUnavailable;

@@ -14,7 +14,8 @@ and provenance. Explicit `--fetch` prepares pinned dependencies; normal builds
 verify frozen content without network access. See the
 [application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
 
-`transit test` compiles the same source graph and runs explicit Table cases in
+`transit test` compiles the same source graph and runs explicit Table and public
+Queue-program cases in
 private local databases. It uses real SQL session and authorization owners without
 listeners or server configuration. See the
 [test CLI reference](../../docs/handbook/reference/cli.md#application-table-tests)

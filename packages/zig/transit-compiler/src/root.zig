@@ -11,4 +11,5 @@ pub const Product = Compiler.Product;
 test {
     _ = @import("tests.zig");
     _ = @import("source_test.zig");
+    _ = @import("resource_test.zig");
 }
