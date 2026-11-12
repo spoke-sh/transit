@@ -5,6 +5,7 @@ const c = @import("transit_catalog");
 const p = c.protocol;
 const wire = c.client;
 const Self = @This();
+const Transaction = @import("Transaction.zig");
 
 allocator: std.mem.Allocator,
 authority: wire.Client,
@@ -77,6 +78,14 @@ pub const KVOutcome = struct {
     value: union(enum) { result: c.DirectKVClient.Result, failure: Failure },
     attempt: c.DirectTableClient.Attempt,
     pub fn mutationAttempted(self: KVOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
+
+pub const TransactionOutcome = struct {
+    value: union(enum) { result: Transaction.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: TransactionOutcome) bool {
         return self.attempt.mutation != null;
     }
 };
@@ -216,6 +225,21 @@ pub fn callQueue(self: *Self, output: *std.heap.ArenaAllocator, action: c.Direct
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = c.DirectQueueClient.apply(output, caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+/// Shared transaction steps preserve attempt evidence and durable journal failures.
+pub fn callTransaction(self: *Self, transaction: *Transaction, action: Transaction.Action) error{Busy}!TransactionOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = transaction.apply(caller, action) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };

@@ -213,6 +213,7 @@ pub const DirectQueueTransferPlan = @import("DirectQueueTransferPlan.zig");
 pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
+pub const DirectTransactionSession = @import("DirectTransactionSession.zig");
 
 pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
 

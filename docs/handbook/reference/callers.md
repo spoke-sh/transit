@@ -44,6 +44,17 @@ failure remains separate from a known command outcome. The KV adapter saves exac
 mutations before dispatch and observes their original binding under current rights.
 Neither adapter resubmits work when an outcome is missing.
 
+The data client's [shared transaction API](../../../packages/zig/transit-data-client/README.md#shared-transactions)
+owns typed statement sequencing, savepoints, durable request checkpoints and
+bounded settlement over the database transaction owner. Ordinary callers use
+`Context.callTransaction` and an explicit journal; `TransactionRecovery` provides
+a local-file adapter. Station supplies an actor journal above the same API.
+SQL commands and managed programs reuse its neutral preparation/execution helpers
+with their existing service-owned records. A saved request can be resumed only
+under its original identity and current authorization; a local checkpoint failure
+preserves any verified completion separately. Closing a context does not decide
+the transaction or release its durable pins.
+
 Catalog descriptions carry six authorization domain identifiers: database,
 schema, table, stream, queue and KV. Each must be a positive native counter, and all
 six must be distinct. The current definition requires all six domains; missing

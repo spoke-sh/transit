@@ -26,6 +26,49 @@ through the context. See the
 [recovery guide](docs/recovery.md) for ownership, atomic publication, original-token
 observation and qualification limits.
 
+## Shared transactions
+
+`Transaction` owns a database transaction's original Begin, settlement operation
+and statement/control cursor. It uses `DirectTransactionSession` in Catalog;
+neither package imports Station. SQL command preparation and managed program
+execution use the same neutral helpers. Their service-owned command and
+continuation records remain their persistence owners.
+
+Call `Context.callTransaction(handle, transaction, action)` with `begin`,
+`acquire`, `write`, `savepoint`, `advance`, `inspect`, `settle` or native `recover`.
+Writes accept prepared Table work, a KV mutation, or Stream/Queue work and its
+optional payload. The API selects the next statement from the current workspace,
+stages it, checkpoints the exact request, executes it and checkpoints completion.
+It refuses new work while a saved statement/control is unresolved or settlement
+has begun. Savepoints use the same sequence, persistence and bounded-resume rules.
+Reads in native embedding hosts use `Transaction.privateClient` with existing
+typed readers; this checks the current private workspace before returning its
+client view. The context facade currently exposes transaction writes and controls;
+it does not add a transaction-bound Table result reader.
+
+Supply a durable `Transaction.Journal` callback, or use
+[`TransactionRecovery`](docs/recovery.md#transaction-adapter) over the local store.
+`Transaction.init` copies explicit selection targets; `borrowed` lets an embedding
+host lend targets it already owns. Inputs, journal and client must outlive their
+calls. Keep the context at a stable address, serialize access to its state and
+join calls before `deinit`. Deinitialization neither commits nor rolls back.
+
+`advance(steps)` resumes the saved request with its original identity. It never
+reruns an application callback or invents a replacement operation. A
+`checkpoint_failed` result preserves the verified statement/savepoint completion
+and the local storage error separately; the cursor remains pending. Reload after
+uncertain local publication, then resume the original. All native statement
+outcomes remain provisional until the database's common decision.
+
+`settle` uses the frozen settlement operation and at most 1–256 steps (default 8).
+Commit requires resolved statement/control progress. Explicit abort can close an
+uncertain prefix; a recorded commit decision still wins. `cleanup_complete`
+separately reports release of pins and barriers. Inspection, settlement and
+native recovery use reserved control admission during context closure. Ordinary
+callers use saved-request advancement and explicit settlement. Native `recover`
+requires the original execution binding and current recovery authority; it
+cannot request a new commit. Absence, timeout and local close do not prove abort.
+
 ## Construction and ownership
 
 Supply an allocator, `std.Io`, explicit endpoint, native catalog connection and

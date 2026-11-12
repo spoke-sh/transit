@@ -496,6 +496,16 @@ See the [capture contract](../../../contracts/SOURCE_V1.md#owned-capture-represe
 
 ### Transaction and query callers
 
+`DirectTransactionSession` owns reusable caller sequencing, exact-request
+checkpointing, savepoint preparation and bounded settlement above the signed
+`DirectTransactionClient`. Its journal callback must retain original work before
+dispatch. A verified completion survives a later checkpoint failure, and unresolved
+requests block new statements. The database continues to own acquisition,
+acceptance, decisions and cleanup. SQL commands and managed program continuations
+reuse its neutral helpers with their existing service-owned persistence. The
+[shared data client](../transit-data-client/README.md#shared-transactions) exposes
+owned contexts and optional local journals; Station is a consumer above this API.
+
 `DirectTransaction.Reference` binds a begin descriptor and mandatory purpose
 through that token owner. Ordinary callers use `interactive`; protected purposes
 can be admitted and changed only by their catalog composition owner.

@@ -9,6 +9,8 @@ pub const LocalRecoveryStore = @import("LocalRecoveryStore.zig");
 pub const sql = @import("transit_sql_client");
 pub const SqlRecovery = @import("SqlRecovery.zig");
 pub const KVRecovery = @import("KVRecovery.zig");
+pub const Transaction = @import("Transaction.zig");
+pub const TransactionRecovery = @import("TransactionRecovery.zig");
 pub const DirectMigration = catalog.DirectMigration;
 
 test {
@@ -20,8 +22,11 @@ test {
     _ = LocalRecoveryStore;
     _ = SqlRecovery;
     _ = KVRecovery;
+    _ = Transaction;
+    _ = TransactionRecovery;
     _ = DirectMigration;
     _ = @import("catalog_test.zig");
     _ = @import("capture_reader_test.zig");
     _ = @import("sql_recovery_test.zig");
+    _ = @import("transaction_test.zig");
 }
