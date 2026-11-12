@@ -44,13 +44,13 @@ expectations extend the local test product without adding a source interpreter.
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
 Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log
 target kinds until ordinary log preparation. Log declarations use the shared
-single-partition defaults; nominal log fields and symbolic log operands reject.
-`TypedOperands` binds source annotations to Fuze-owned target,
+single-partition defaults; symbolic log operands reject.
+`TypedOperands` binds nominal Table and log columns, appends and finite reads to Fuze-owned target,
 column and parameter spans. Nominal values stay typed alongside temporary SQL
 parameters until the check succeeds; final scalar SQL emission then records the
 checked assignments/predicates. The `Step.checked` projection is in-memory evidence;
 installed artifacts still contain ordinary SQL and existing provenance fields.
-All Table spellings use the annotation catalog. A raw ID cannot enter a nominal
+All resource spellings use the annotation catalog. A raw ID cannot enter a nominal
 column just because the underlying SQL type agrees.
 
 MATCH checking forks proposed catalogs and uses typed symbolic payloads for every

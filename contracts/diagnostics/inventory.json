@@ -12912,8 +12912,7 @@
       "errors": {
         "SourceTypeMismatch": 5,
         "UnknownSourceOperand": 1,
-        "UnsupportedLogOperand": 1,
-        "UnsupportedNominalLog": 1
+        "UnsupportedLogOperand": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -12934,9 +12933,13 @@
     },
     "packages/zig/transit-compiler/src/SourceDiagnostic.zig": {
       "errors": {
+        "MissingRequiredField": 1,
+        "NullNotAllowed": 1,
         "OutOfMemory": 1,
         "ProgramTooComplex": 1,
-        "ProgramTooDeep": 1
+        "ProgramTooDeep": 1,
+        "UnsupportedNominalColumn": 1,
+        "UnsupportedNominalOperation": 1
       },
       "outcomes": {
         "Family": [
@@ -13281,8 +13284,9 @@
         "InvalidSourceTypeOperand": 1,
         "SourceDomainMismatch": 2,
         "SourceTableBindingMismatch": 1,
-        "SourceTypeMismatch": 2,
-        "UnsupportedBuildStatement": 1,
+        "SourceTypeMismatch": 4,
+        "UnsupportedBuildStatement": 2,
+        "UnsupportedLogOperand": 1,
         "UnsupportedNominalColumn": 2,
         "UnsupportedNominalOperation": 4
       },
@@ -13295,6 +13299,9 @@
       "error_sets": {},
       "error_returns": {
         "check()": "<inferred>",
+        "consume()": "<inferred>",
+        "declaration()": "<inferred>",
+        "insert()": "<inferred>",
         "parameters()": "<inferred>",
         "predicate()": "<inferred>",
         "scalar()": "<inferred>",
@@ -13303,7 +13310,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 62,
         "catch": 0
       },
       "imports": [

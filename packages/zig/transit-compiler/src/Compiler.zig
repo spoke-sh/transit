@@ -632,7 +632,8 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
         .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
         else => false,
     };
-    const checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
+    const resource_checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else null;
+    const checked = if (template.kind == .program or template.kind == .control) resource_checked.? else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
     self.context = .{};
     if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, at);
     if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], at);

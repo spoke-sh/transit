@@ -139,6 +139,8 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "ForeignTableExport", .type },
     .{ "InvalidParameterType", .type },
     .{ "InvalidRowWidth", .type },
+    .{ "MissingRequiredField", .type },
+    .{ "NullNotAllowed", .type },
     .{ "InvalidTestSchema", .type },
     .{ "InvalidVariantConstructor", .type },
     .{ "ModuleInterfaceMismatch", .type },
@@ -184,7 +186,6 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "UnsupportedBuildStatement", .capability },
     .{ "UnsupportedLogOperand", .capability },
     .{ "UnsupportedNominalColumn", .capability },
-    .{ "UnsupportedNominalLog", .capability },
     .{ "UnsupportedNominalOperation", .capability },
     .{ "UnsupportedNominalProgram", .capability },
     .{ "UnsupportedProgramInstruction", .capability },
@@ -211,7 +212,13 @@ pub fn project(err: anyerror, at: ?d.Location, call: ?d.Location, instance: ?[]c
     const name = @errorName(err);
     const family = families.get(name) orelse if (std.mem.indexOf(u8, name, "Limit") != null or err == error.OutOfMemory or err == error.ProgramTooComplex or err == error.ProgramTooDeep) Family.limit else if (std.mem.startsWith(u8, name, "Unsupported")) Family.capability else Family.internal;
     const selected = rule(family);
-    var result = d.init(selected.code, selected.category, selected.stage, .not_submitted, .local_before_dispatch, selected.message) catch unreachable;
+    const message = switch (err) {
+        error.MissingRequiredField, error.NullNotAllowed => "A required column is missing or NULL. Supply a non-null value for each required destination column, preserving its declared source domain.",
+        error.UnsupportedNominalColumn => "A nominal column must be NOT NULL and cannot have a DEFAULT or participate in a CHECK constraint. Supply explicitly typed values and use an explicit runtime guard for additional validation.",
+        error.UnsupportedNominalOperation => "This operation cannot preserve a source domain. Use direct assignments, same-domain equality/inequality or null tests; keep arithmetic, ordering, casts and function arguments on ordinary scalar fields.",
+        else => selected.message,
+    };
+    var result = d.init(selected.code, selected.category, selected.stage, .not_submitted, .local_before_dispatch, message) catch unreachable;
     result.location = at;
     result.text(.native_cause, .owner, name) catch unreachable;
     if (call) |value| result.fact(.first_occurrence, .caller, .{ .location = value }) catch unreachable;

@@ -5736,6 +5736,10 @@
         {
           "source": "apps/transit-cli/EnvelopeDiagnostic.zig",
           "name": "source diagnostics show primary and related filenames with safe terminal text"
+        },
+        {
+          "source": "packages/zig/transit-compiler/src/resource_test.zig",
+          "name": "nominal log checks cover literal names identifier holes metadata and omitted fields"
         }
       ],
       "exceptions": [],
@@ -6136,6 +6140,14 @@
           "code": "application.source.type",
           "category": "binding"
         },
+        "MissingRequiredField": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "NullNotAllowed": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
         "InvalidTestSchema": {
           "code": "application.source.type",
           "category": "binding"
@@ -6313,10 +6325,6 @@
           "category": "unsupported"
         },
         "UnsupportedNominalColumn": {
-          "code": "application.source.unsupported",
-          "category": "unsupported"
-        },
-        "UnsupportedNominalLog": {
           "code": "application.source.unsupported",
           "category": "unsupported"
         },

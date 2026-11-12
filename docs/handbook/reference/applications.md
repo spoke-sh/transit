@@ -70,8 +70,12 @@ shows both resource kinds with raw ID `7` and isolated Table tests.
 `STREAM(...)` and `QUEUE(...)` parameters and matching exports preserve distinct
 resource kinds and exact column signatures. Log declarations use single-partition
 defaults with unlimited retention. Literal `PRODUCE INTO` and `ENQUEUE INTO`
-statements use ordinary log preparation and permissions. Explicit log configuration,
-nominal log fields, append metadata and RETURNING remain outside this source profile.
+statements use ordinary log preparation and permissions. Non-null log fields can
+carry source domains: matching values remain typed through appends and finite
+CONSUME projections and equality predicates. Raw or foreign-domain values reject,
+including through literal resource names. These annotations do not validate
+externally supplied IDs or grant permission. Explicit log configuration,
+append metadata and RETURNING remain outside this source profile.
 
 Public Queue programs compose those resources through `CREATE PUBLIC DATAFLOW`
 and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, IF, Table inserts and log

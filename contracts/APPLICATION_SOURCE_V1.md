@@ -116,7 +116,7 @@ multi-source queries, procedures, effects, COMMAND programs, deadlines,
 publication and migration synthesis reject. No unsupported declaration is omitted.
 
 Log declarations use the ordinary single-partition defaults, including unlimited
-retention. Explicit configuration, dead-letter destinations, nominal log columns,
+retention. Explicit configuration, dead-letter destinations,
 append metadata and RETURNING are outside this source profile. Log parameters
 check the complete column signature; Stream and Queue handles are distinct from
 each other and from Table handles. `EXPORT STREAM $name AS events;` and
@@ -124,9 +124,16 @@ each other and from Table handles. `EXPORT STREAM $name AS events;` and
 An existing typed handle can be forwarded without `$`. Exports grant no runtime
 rights. A log handle is valid only in its matching log target position, never as
 a scalar, column or generic identifier. Source scalar operands in log statements
-must be concrete, non-nominal values; symbolic log operations reject.
+must be concrete; symbolic log operations reject. Nominal TYPE holes annotate
+non-null log fields under the same rules as Table columns. PRODUCE and ENQUEUE
+require matching source domains in each destination field, including explicit
+column lists; omitted required fields reject. Literal resource names and
+IDENTIFIER parameters consult the same annotations. Raw and foreign-domain
+values cannot enter a nominal field, and nominal values cannot enter raw fields.
 Finite `CONSUME` reads admit column/wildcard projections, explicit aliases,
-predicates and LIMIT through the ordinary Stream owner. Group handles, waits and
+predicates and LIMIT through the ordinary Stream owner. Direct nominal columns
+and same-domain equality/inequality predicates retain their annotations until
+erasure; metadata fields remain ordinary scalars. Group handles, waits and
 claim/settlement controls remain outside the source profile.
 
 Declarations and statements execute in lexical composition order. Each resource must
@@ -232,7 +239,7 @@ and other semantic column options cannot be hidden by a smaller signature.
 A Table value becomes a quoted name only in a Table position; it is not an
 IDENTIFIER, scalar, type, permission or durable catalog ID.
 
-A nominal TYPE hole annotates a non-null Table column before erasure to its
+A nominal TYPE hole annotates a non-null Table, Stream or Queue column before erasure to its
 ordinary physical type. Defaults and CHECK expressions involving nominal columns
 reject. Source accesses through literal names and identifier parameters consult
 the same annotated schema. Direct projection, same-domain equality/inequality,

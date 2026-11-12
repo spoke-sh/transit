@@ -27,7 +27,10 @@ fn at(self: *Self, span: Span) ?types.Value {
     return null;
 }
 fn target(self: *Self, span: Span, table: *const types.Table) !void {
-    if (self.at(span)) |value| if (value == .table and value.table != table) return error.SourceTableBindingMismatch;
+    if (self.at(span)) |value| switch (value) {
+        .table, .stream, .queue => |resource| if (resource != table) return error.SourceTableBindingMismatch,
+        else => {},
+    };
 }
 fn scalar(self: *Self, span: Span, table: *const types.Table, column: usize, role: @FieldType(Operand, "role")) !void {
     const expected = table.domains[column];
@@ -95,6 +98,75 @@ fn parameters(self: *Self, expected: []const f.Types.Type) !void {
     };
     if (index != expected.len) return error.InvalidSourceOperand;
 }
+fn declaration(self: *Self, output: std.mem.Allocator, catalog: *Catalog, create: f.TableDdl.Create) !*const types.Table {
+    const table = try catalog.findResource(create.name);
+    const domains = try output.alloc(?Graph.Ref, create.columns.len);
+    @memset(domains, null);
+    for (create.columns, create.column_type_spans, 0..) |column, span, i| {
+        if (self.at(span)) |value| {
+            self.context.* = .{ .offset = span.start, .name = table.name, .column = table.schema.columns[i].name };
+            if (value != .type) return error.InvalidSourceTypeOperand;
+            domains[i] = value.type.domain;
+            if (domains[i] != null) {
+                if (column.nullable or column.default != null) return error.UnsupportedNominalColumn;
+                for (create.integrity.checks) |constraint| if (constraint.referencesColumn(column.id)) return error.UnsupportedNominalColumn;
+            }
+        }
+    }
+    const annotated = try output.create(types.Table);
+    annotated.* = table.*;
+    annotated.domains = domains;
+    // The just-created definition is immutable once exported.
+    catalog.entries.items[catalog.entries.items.len - 1] = annotated;
+    return annotated;
+}
+fn insert(self: *Self, input: @FieldType(@FieldType(f.TableDml.Syntax, "action"), "insert"), table: *const types.Table) !void {
+    const width = if (input.columns) |columns| columns.len else table.schema.columns.len;
+    for (input.rows) |row| {
+        if (row.values.len != width) return error.InvalidRowWidth;
+        for (row.values, 0..) |value, i| {
+            const column = if (input.columns) |columns| try columns[i].resolve(table.name, table.schema.columns, null) else i;
+            try self.scalar(value.span, table, column, .assignment);
+        }
+    }
+    if (input.columns) |columns| for (table.domains, table.schema.columns) |domain, column| {
+        if (domain != null) {
+            const present = for (columns) |chosen| {
+                if (std.mem.eql(u8, chosen.name, column.name)) break true;
+            } else false;
+            if (!present) {
+                self.context.* = .{ .name = table.name, .column = column.name, .expected = self.graph.getDefinition(domain.?).domain.?.identity, .actual = "omitted column" };
+                return error.SourceDomainMismatch;
+            }
+        }
+    };
+}
+/// Reuse the workload owner's selected input layout, including metadata. This
+/// temporary view is only for source annotations; its schema is never emitted.
+fn consume(self: *Self, table: *const types.Table, prepared: *const f.LogConsumeSql.Prepared) !void {
+    var view = table.*;
+    const fields = prepared.template.descriptor.type.structure;
+    const columns = try self.a.alloc(f.TableSchema.Column, fields.len);
+    const domains = try self.a.alloc(?Graph.Ref, fields.len);
+    for (fields, prepared.fields, columns, domains, 0..) |field, selected, *column, *domain, i| {
+        domain.* = null;
+        if (selected == .column) {
+            const index = try table.schema.index(selected.column);
+            column.* = table.schema.columns[index];
+            domain.* = table.domains[index];
+        } else column.* = .{ .id = i + 1, .name = switch (selected) {
+            .partition => "_partition",
+            .offset => "_offset",
+            else => return error.UnsupportedLogOperand,
+        }, .type = field.type, .nullable = field.nullable };
+    }
+    view.schema.columns = columns;
+    view.domains = domains;
+    const input = prepared.template.syntax;
+    _ = try self.selection(input.selection, &view, input.qualifier);
+    if (input.predicate) |predicate_| try self.predicate(predicate_, &view, input.qualifier);
+    try self.parameters(prepared.parameterTypes());
+}
 
 pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, sql: []const u8, sites: []const Site, symbolic: bool, context: *Context) !Checked {
     const used = try a.alloc(bool, sites.len);
@@ -103,29 +175,40 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
     var checked_table: *const types.Table = undefined;
     var parser = try f.SqlTyped.initDialect(a, sql, null, true, .transit);
     if (parser.word("CREATE")) {
-        const declaration = try f.TableDdl.syntax(&parser, null);
-        try parser.finish();
-        if (declaration != .create) return error.UnsupportedBuildStatement;
-        const create = declaration.create;
-        const table = try catalog.find(create.name);
-        const domains = try output.alloc(?Graph.Ref, create.columns.len);
-        @memset(domains, null);
-        for (create.columns, create.column_type_spans, 0..) |column, span, i| {
-            if (self.at(span)) |value| {
-                if (value != .type) return error.InvalidSourceTypeOperand;
-                domains[i] = value.type.domain;
-                if (domains[i] != null) {
-                    if (column.nullable or column.default != null) return error.UnsupportedNominalColumn;
-                    for (create.integrity.checks) |constraint| if (constraint.referencesColumn(column.id)) return error.UnsupportedNominalColumn;
-                }
-            }
+        var header = parser;
+        try header.requireWord("CREATE");
+        if (header.word("STREAM") or header.word("QUEUE")) {
+            var log = try f.LogDdl.compile(a, sql, .transit, null);
+            defer log.deinit();
+            if (log.statement.action != .create) return error.UnsupportedBuildStatement;
+            checked_table = try self.declaration(output, catalog, log.statement.action.create);
+        } else {
+            const input = try f.TableDdl.syntax(&parser, null);
+            try parser.finish();
+            if (input != .create) return error.UnsupportedBuildStatement;
+            checked_table = try self.declaration(output, catalog, input.create);
         }
-        const annotated = try output.create(types.Table);
-        annotated.* = table.*;
-        annotated.domains = domains;
-        // The just-created definition is immutable once exported.
-        catalog.entries.items[catalog.entries.items.len - 1] = annotated;
-        checked_table = annotated;
+    } else if (parser.word("PRODUCE") or parser.word("ENQUEUE")) {
+        const selected = try f.LogAppendSql.target(a, sql, .transit, null);
+        const table = try catalog.findResource(selected.source.name);
+        checked_table = table;
+        if (!std.mem.eql(u8, @tagName(table.kind), @tagName(selected.kind))) return error.SourceTypeMismatch;
+        self.context.* = .{ .name = table.name };
+        try self.target(selected.source.span, table);
+        var prepared = try f.LogAppendSql.Prepared.init(a, sql, table.schema, .transit, null);
+        defer prepared.deinit();
+        try self.insert(prepared.template.syntax.action.insert, table);
+        try self.parameters(prepared.parameterTypes());
+    } else if (parser.word("CONSUME")) {
+        const selected = try f.LogConsumeSql.target(a, sql, .transit, null);
+        const table = try catalog.findResource(selected.name);
+        checked_table = table;
+        if (table.kind != .stream) return error.SourceTypeMismatch;
+        self.context.* = .{ .name = table.name };
+        try self.target(selected.span, table);
+        var prepared = try f.LogConsumeSql.Prepared.init(a, sql, table.schema, .transit, null);
+        defer prepared.deinit();
+        try self.consume(table, &prepared);
     } else if (parser.word("SELECT")) {
         const input = try f.TableSelect.syntax(&parser, null);
         try parser.finish();
@@ -150,24 +233,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
         checked_table = table;
         try self.target(input.subject_span, table);
         switch (input.action) {
-            .insert => |insert| {
-                const width = if (insert.columns) |columns| columns.len else table.schema.columns.len;
-                for (insert.rows) |row| {
-                    if (row.values.len != width) return error.InvalidRowWidth;
-                    for (row.values, 0..) |value, i| {
-                        const column = if (insert.columns) |columns| try columns[i].resolve(table.name, table.schema.columns, null) else i;
-                        try self.scalar(value.span, table, column, .assignment);
-                    }
-                }
-                if (insert.columns) |columns| for (table.domains, table.schema.columns) |domain, column| {
-                    if (domain != null) {
-                        const present = for (columns) |chosen| {
-                            if (std.mem.eql(u8, chosen.name, column.name)) break true;
-                        } else false;
-                        if (!present) return error.SourceDomainMismatch;
-                    }
-                };
-            },
+            .insert => |input_| try self.insert(input_, table),
             .update => |assignments| for (assignments) |assignment| {
                 const column = try assignment.column.resolve(table.name, table.schema.columns, null);
                 try self.scalar(assignment.value.span, table, column, .assignment);

@@ -13,12 +13,12 @@ pub fn check(template: s.Syntax, bindings: []const types.Binding) !Operands.Chec
             .identifier => if (value != .identifier) return error.SourceTypeMismatch,
             .type => {
                 if (value != .type) return error.SourceTypeMismatch;
-                if (value.type.domain != null) return error.UnsupportedNominalLog;
             },
             .stream => if (value != .stream and value != .identifier) return error.SourceTypeMismatch,
             .queue => if (value != .queue and value != .identifier) return error.SourceTypeMismatch,
             .table => if (value != .table and value != .identifier) return error.SourceTypeMismatch,
-            .value, .operand => if (value != .integer and value != .text and value != .boolean) return error.UnsupportedLogOperand,
+            .value, .operand => if (value != .integer and value != .text and value != .boolean and
+                !(value == .nominal and template.kind != .program and template.kind != .control)) return error.UnsupportedLogOperand,
         }
     }
     return .{ .table = "", .schema = @splat(0), .columns = &.{}, .operands = &.{} };
