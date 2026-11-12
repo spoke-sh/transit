@@ -329,3 +329,7 @@ keep their own execution scopes. Current behavior and numeric limits live with
 the package and handbook, while executed results belong in qualification history.
 Broader actor scheduling, automatic accepted-claim payload release, native-origin
 call correlation and public replacement remain later work; M6 stays In Progress.
+
+The executed [runtime qualification](../history/qualification/runtime.md#private-transactional-station-behavior--2026-11-12)
+and [retained comparison](../history/qualification/performance.md#private-transactional-station-comparison--2026-11-12)
+record the tested sources, failures, recovery boundaries and measured cost.

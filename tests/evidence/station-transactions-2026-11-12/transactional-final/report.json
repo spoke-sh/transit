@@ -1,0 +1,179 @@
+{
+  "completed": true,
+  "source": {
+    "revision": "4c19523ddf46da888c5f2d8bd6e80e6696193a4b",
+    "dirty": false,
+    "toolchain": {
+      "flake_lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+      "python_version": "3.13.15 (main, Aug  5 2026, 12:25:43) [GCC 15.3.0]",
+      "executables": {
+        "python": "/nix/store/sc8j4gs7giafyr1g7njyy0sxb8f26wdj-python3-3.13.15-env/bin/python3.13",
+        "nix": "/nix/store/g1bq7lardr5fpbx6g36crbs9amf7pda5-nix-3.8.5/bin/nix",
+        "zig": "/nix/store/z00l6pzdnz193c9cj3l77xc33a57x9x9-transit-zig",
+        "just": "/nix/store/lccvn99vpz9xz6c9faamsqas3kb2r78h-just-1.51.0/bin/just"
+      }
+    }
+  },
+  "definition": "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2",
+  "source_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "binaries": [
+    {
+      "path": "transit-node",
+      "bytes": 111786824,
+      "sha256": "0734d3ea395e2681b038d0f8ac35959e66ce1794b9cadcb6df4b627881342c2c"
+    },
+    {
+      "path": "transit-direct-table-proof",
+      "bytes": 95010128,
+      "sha256": "8781796e8b0768739ba47e2a37b8838abfb8228360e32bd9fbdc3326d2f691b2"
+    }
+  ],
+  "config": {
+    "warmup": 3,
+    "repeat": 20
+  },
+  "machine": {
+    "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+    "cpu_count": 48,
+    "load": [
+      2.755859375,
+      3.71826171875,
+      3.91455078125
+    ],
+    "affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47
+    ]
+  },
+  "method": {
+    "runtime": "private transactional handler",
+    "state_bytes": 128,
+    "outputs_per_turn": 1,
+    "additional_work": "one Table insert, two private Table reads and one journal append per turn",
+    "timer": "pending discovery through original decision and cleanup confirmation",
+    "excludes": [
+      "input admission",
+      "independent verification",
+      "effect dispatch"
+    ],
+    "client_allocations": "runner, signed catalog caller and HTTP transport",
+    "server_allocations": "unmeasured",
+    "wal_requests": "unmeasured",
+    "object_requests": "unmeasured",
+    "physical_syncs": "unmeasured",
+    "cpu_cycles": "unmeasured"
+  },
+  "node_before": {
+    "pid": 3292139,
+    "start_ticks": 51685019,
+    "user_ticks": 34,
+    "system_ticks": 56,
+    "minor_faults": 38034,
+    "major_faults": 0,
+    "rss_bytes": 130744320,
+    "lifetime_peak_rss_bytes": 130744320,
+    "read_bytes": 0,
+    "write_bytes": 5230592,
+    "rchar": 6453008,
+    "wchar": 1001666
+  },
+  "seconds": 264.82557666295907,
+  "node_after": {
+    "pid": 3292139,
+    "start_ticks": 51685019,
+    "user_ticks": 16262,
+    "system_ticks": 5269,
+    "minor_faults": 6124377,
+    "major_faults": 0,
+    "rss_bytes": 215392256,
+    "lifetime_peak_rss_bytes": 226476032,
+    "read_bytes": 0,
+    "write_bytes": 186757120,
+    "rchar": 8804105417,
+    "wchar": 37631189
+  },
+  "verification": {
+    "attempts": 23,
+    "successful": 23,
+    "failed": 0,
+    "refused": 0,
+    "unknown": 0,
+    "turn_ns": {
+      "samples": 20,
+      "min_ns": 5078328766,
+      "p50_ns": 12217972197.0,
+      "p95_ns": 19818793319,
+      "p99_ns": null,
+      "max_ns": 21057781691,
+      "total_ns": 251808119964
+    },
+    "client_backing": {
+      "alloc_attempts": 27837,
+      "alloc_successes": 27837,
+      "resize_attempts": 42650,
+      "resize_successes": 35911,
+      "growing_resize_attempts": 42650,
+      "remap_attempts": 10660,
+      "remap_successes": 10290,
+      "frees": 27837,
+      "requested_bytes": 287770484,
+      "acquired_bytes": 257879700,
+      "released_bytes": 257879700,
+      "forbidden_attempts": 0
+    },
+    "passed": true
+  },
+  "recovery": {
+    "restarts": 2,
+    "signal": "SIGKILL",
+    "replacement_principal": 1018,
+    "handler_calls": 0,
+    "passed": true
+  }
+}
