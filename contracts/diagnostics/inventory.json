@@ -16364,12 +16364,11 @@
         "integer()": "<inferred>",
         "literal()": "<inferred>",
         "lower()": "anyerror",
-        "lowered()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 29,
+        "try": 28,
         "catch": 0
       },
       "imports": [
