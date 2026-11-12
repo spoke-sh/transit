@@ -705,13 +705,13 @@ test("reactive workbook retains drafts, complete inputs and independent results 
   }[] = [];
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("response", async (response) => {
-    if (
-      response.url().endsWith("/api/v1/workbook") &&
-      response.request().postDataJSON()?.action.evaluate &&
-      response.ok()
-    )
-      evaluations.push((await response.json()).status);
+  await page.route("**/api/v1/workbook", async (route) => {
+    if (!route.request().postDataJSON().action.evaluate) return route.fallback();
+    // Capture the real response before delivery so assertions do not depend on
+    // Chromium retaining its network response body for an async event listener.
+    const response = await route.fetch();
+    if (response.ok()) evaluations.push((await response.json()).status);
+    await route.fulfill({ response });
   });
   await page.goto("/workbook");
   await expect(page.getByRole("heading", { name: "Workbook", exact: true })).toBeVisible();
