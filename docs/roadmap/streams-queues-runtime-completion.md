@@ -5,8 +5,11 @@
 Milestone 6 has its database foundations and a private transactional Station
 behavior. Completing it still requires the public runtime replacement, durable
 services and effects, migration of existing consumers, Table commit and latency
-work, and qualification of the complete system at one revision. Most remaining
-effort sits in service migration and proof of the complete replacement.
+work, and qualification of the complete system at one revision. The next
+architectural step is a shared higher-level database transaction API. Station
+must consume that API, with the private runner reduced to a thin qualification
+client. Most remaining effort sits in service migration and proof of the
+complete replacement.
 
 Plan for **15–21 review units and 19–32 engineer-weeks of direct work**. Allowing
 roughly 25% for integration and investigation gives **about 24–40 engineer-weeks**.
@@ -32,7 +35,8 @@ remains the detailed record of Batch 5 and its consumer handoff.
 | Streams and Queues | Declarations, typed operations, SQL workloads, groups/offsets, bounded waits, predicate-aware claims, renewal, native `.tseg` log columns and finite `STREAM_SLICE` | Complete the resource, maintenance, offered-load and recovery matrix; retain original failed campaigns separately |
 | Queue storage | WAL-authoritative foreground transitions, bounded metadata overlays, checkpoints and incremental resident scheduling state | Prove the integrated actor/transaction/collector workload under pressure; standalone zero-metadata-PUT operations do not imply zero transaction-barrier object work |
 | Mixed transactions | Table/KV state, Stream/Queue appends, authenticated offsets and Queue ACKs through one decision; SQL composition and savepoints | Extend to the qualified M7 Document participant before migrating Document-dependent consumers; retain full fault and policy coverage |
-| Station Batch 5 | Internal real Table/KV handler, native execution condition, retained original work and replacement recovery | Public services, scheduling, payload closure, effects, consumer migration and performance qualification remain open |
+| Shared transaction API | `DirectTransactionClient` exposes explicit begin/acquire/inspect/stage/execute/settle operations; callers compose their lifecycle | Extract reusable transaction orchestration and recovery into the shared database client foundation; expose bounded owned transaction handles without Station dependencies |
+| Station Batch 5 | Internal real Table/KV handler, native execution condition, retained original work and replacement recovery | Consume the shared transaction API; retain actor semantics in Station and use the private runner only for qualification. Public services, scheduling, effects and consumer migration remain open |
 | Application Queue programs | Managed program execution and public `.transit` Queue builds/tests reuse database owners | These do not replace arbitrary Station handlers, authenticated actor calls or existing SDK services |
 | Table write lifecycle | `commit_saved` returns the original partition outcome; Catalog token bookkeeping still settles separately | Account-wide token/commit composition, TRUNCATE and the inherited matched latency objectives |
 
@@ -56,7 +60,56 @@ That establishes useful private behavior and recovery coverage. It does not
 establish public service replacement, a combined actor-population/collection
 campaign, or completion at this plan's newer HEAD.
 
-## Performance changes the next implementation priority
+## Required API and ownership boundaries
+
+The target dependency direction is **application → Station behavior API → shared
+database transaction API → database transaction owners**. Ordinary data clients
+use the same transaction API directly. SQL and managed programs share its neutral
+transaction lifecycle through their existing adapters. Accepted database work
+executes and recovers without a Station runner or application callback.
+
+This is proposed implementation work. The current
+[`DirectTransactionClient`](../../packages/zig/transit-catalog/src/DirectTransactionClient.zig)
+supplies individual signed operations. The
+[shared data context](../../packages/zig/transit-data-client/docs/context.md)
+does not yet own a native transaction handle with the complete lifecycle below.
+The [M9 transaction facet](09-client-foundation-and-language-apis.md#4-own-results-and-transactions-through-the-shared-context)
+already owns that public client direction; M6 implements the necessary shared
+foundation with it before extending Station services.
+
+| Layer | Owns | Boundary |
+| --- | --- | --- |
+| Database transaction owners in Catalog/storage | Durable acceptance, snapshots/private workspaces, participant preparation, current authorization/fencing, common decision, accepted-work recovery and finalization | Remain authoritative after client or Station loss; never invoke handlers or depend on Station |
+| Shared transaction lifecycle and data API | Owned transaction context, typed reads/writes/appends/settlements, statement sequence, savepoints, bounded batching, saved original identities, submission/observation, recovery and cleanup of client-owned work | Reuse the existing decision owner; preserve provisional/applied/unknown outcomes and caller-supplied I/O, budgets and recovery storage |
+| SQL and managed-program adapters | SQL lowering/session attribution or program instruction semantics and invocation checkpoints | Reuse the neutral lifecycle; keep their public semantics without separate generic transaction recovery loops |
+| Station behavior layer | Actor/behavior identity, native execution condition, handler dispatch, inbox/state/journal/outbox mapping, calls, timers, supervision and failure policy | Supply actor-specific bindings and typed work to the shared API; do not sequence low-level transaction RPCs or own a second commit/recovery state machine |
+| Private qualification runner | Fixture composition, failure injection, independent outcome checks and measurements | Exercise the same Station/data APIs intended for consumers; contain no transaction semantics that production callers would need to copy |
+
+Place reusable neutral caller-lifecycle machinery alongside the existing
+transaction client in `transit-catalog`, and expose its owned handles through
+`transit-data-client`'s existing Context/admission/recovery interfaces. Station
+consumes that higher-level data API. SQL and program adapters can depend on the
+neutral module without routing through their own SQL client or the Station
+framework. Preserve package checks rejecting Station imports below this layer;
+the database must not depend on consumer SDKs.
+
+Client recovery means retaining and observing the original operation through
+the database owner. It does not move durable commit authority into a host loop.
+Station retains actor-specific association and failure disposition, while the
+shared lifecycle owns transaction attempt sequencing and settlement. Local
+handle closure cannot imply rollback, Queue ACK or durable read release.
+Unknown outcomes never authorize rerunning a callback or creating a fresh token.
+The optional native execution condition remains a neutral authority input;
+ordinary transactions do not acquire actor identities or Station records.
+
+**Decoupling acceptance:** an independent data caller and the Station fixture
+must exercise the same shared lifecycle over Table/KV, log appends and Queue
+settlement. The ordinary caller must build and run without Station. Removing
+the private runner must leave all reusable transaction behavior available through
+the shared API. Existing SQL/program adapters must retain their own attribution
+and recovery guarantees while using the common transaction machinery.
+
+## Performance qualification through the shared API
 
 The [retained private comparison](../history/qualification/performance.md#private-transactional-station-comparison--2026-11-12)
 reports a **12,015.7 ms median and 19,272.0 ms p95** for the private runner,
@@ -80,9 +133,15 @@ Queue transaction barriers can also materialize metadata that standalone Queue
 operations retain in memory. Attribute these costs before changing durability
 or recovery boundaries.
 
-**Recommended next slice:** qualify and optimize the private composition before
-adding the full service stack. Calls/replies contracts can be designed alongside
-that work; public activation waits for the performance and resource gates.
+**Recommended next slice:** define and implement the shared transaction lifecycle,
+then migrate the private Station composition to it before adding the full service
+stack. Keep its existing workload as a regression oracle and add an ordinary
+data-client workload through the same API. Profile and optimize common batching,
+submission and recovery costs in their shared owners. The 12-second observation
+measures the current composition; it does not establish an inherent transaction
+cost or justify a Station-specific execution path. Calls/replies contracts can
+be designed alongside this work; public activation waits for the API,
+performance and resource gates.
 M6 currently selects absolute latency objectives for Tables, not Station.
 Freeze a reviewed Station regression budget from matched workloads before
 activation; this plan does not invent a new absolute target or weaken Table's
@@ -100,7 +159,7 @@ until A and B establish the cost and migration inventory.
 | Unit | Review units | Engineer-weeks | Existing milestone scope |
 | --- | ---: | ---: | --- |
 | A. Reconcile qualification and freeze the replacement inventory | 1 | 1–2 | Batches 0–2 and outstanding Batch 5 gates |
-| B. Bound and optimize transactional turn execution | 2–3 | 3–5 | Batch 5 follow-through, R7/R9 resource and performance obligations |
+| B. Extract the shared transaction API and migrate Station to it | 2–3 | 3–5 | M9 transaction facet; Batch 5 follow-through and R7/R9 obligations |
 | C. Implement authenticated durable calls and replies | 1–2 | 2–3 | Batch 6 |
 | D. Migrate timers, scheduling, names and supervision | 2–3 | 2–4 | Batch 6 |
 | E. Migrate effects and retained Query consumers | 2–3 | 2–4 | Batch 7 |
@@ -111,8 +170,12 @@ until A and B establish the cost and migration inventory.
 
 Review units are independently assessable outcomes; a shared-definition cutover
 may require several of them to merge together. The contingency range rounds the
-total rather than promising an exact schedule. There is no defensible percentage
-complete based on file count or merged batches: the remaining consumer and
+total rather than promising an exact schedule. B's allowance covers the shared
+lifecycle/API extraction, consumer migration and measured common-path work;
+it is not a separate budget for optimizing a private Station orchestrator.
+Re-estimate after its contract and extraction audit if the shared client work
+exceeds this allowance. There is no defensible percentage complete based on
+file count or merged batches: the remaining consumer and
 qualification work is disproportionately broad.
 
 With one engineer, the budget is roughly six to ten working months including
@@ -151,35 +214,72 @@ proof. Separate old diagnostic investigations from current regressions and
 missing executable coverage. Do not call the broader Batch 5 matrix complete
 solely because its 18 installed schedules pass.
 
-## B Bound and optimize transactional turn execution
+## B Extract the shared transaction API and migrate Station to it
 
-Start in [the private runner](../../packages/zig/transit-station/src/transactional/Runner.zig),
-the shared Catalog/transaction clients and the owning storage publication paths.
-Measure discovery, claim, retained progress, reads, statement staging/execution,
-decision, finalization and cleanup separately while retaining one end-to-end
-sample. Attribute foreground versus background requests and client versus server
-allocation. Repeat with increasing retained history to investigate the observed
-growth; keep payload, cache, durability and hardware/load conditions fixed.
+Deliver the [ownership boundaries](#required-api-and-ownership-boundaries) by
+defining the contract before extracting the shared implementation. Keep the
+existing database decision, authorization and recovery contracts authoritative
+throughout.
 
-Coalesce bounded state staging and redundant metadata/inspection where the
-shared owners permit it. Reuse buffers and immutable definitions within their
-valid lifetimes. Any removal of a durable progress write must retain enough
-accepted evidence to recover the exact original claim, statement and decision
-after loss at that boundary. Ordinary database clients must remain independent
-of Station; do not add a special actor commit protocol or raw provider shortcut.
+1. **Freeze the shared lifecycle and extraction map.** Audit
+   [DirectTransactionClient](../../packages/zig/transit-catalog/src/DirectTransactionClient.zig),
+   [SQL TransactionWork](../../packages/zig/transit-sql/src/TransactionWork.zig),
+   [ApplicationTransaction](../../packages/zig/transit-query-direct/src/ApplicationTransaction.zig)
+   and the [private runner](../../packages/zig/transit-station/src/transactional/Runner.zig).
+   Identify common sequencing, original-work retention, submission, observation,
+   settlement and cleanup; retain domain-specific behavior in its adapter.
+   Specify explicit participants/cuts, typed work, savepoints, deadlines,
+   authority conditions, memory ownership and pre-dispatch persistence. Distinguish
+   prepared, submitted/unknown, provisional, committed/aborted and cleanup-pending
+   observations using the existing typed semantics. Publish fixtures and failure
+   transitions before implementation. API names remain a contract-review choice.
+2. **Implement and expose the shared transaction lifecycle.** Build the
+   neutral orchestration once above Catalog's existing operations, with owned
+   handles in the shared data context. Reuse M9's explicit recovery store and
+   reserved control admission; support service-owned durable references through
+   an adapter rather than requiring a local filesystem in every host. Own bounded
+   statement sequencing/batching, source/result lifetimes, saved identities,
+   commit/abort observation and deterministic local cleanup. Recovery resumes the
+   exact accepted work; no fresh token, callback retry, silent snapshot replacement
+   or hidden polling loop. Database owners continue preparation, durable decision
+   recovery and finalization independently of caller liveness. First prove the
+   API through an ordinary installed data caller without Station.
+3. **Migrate consumers and qualify common-path cost.** Replace the private runner's
+   low-level acquire/inspect/stage/execute/settle sequencing with calls to the new
+   shared API. Retain only actor binding, handler dispatch, turn mapping and
+   Station failure policy in the behavior layer. Route common SQL/program
+   orchestration through the same neutral machinery while preserving their
+   session, invocation and checkpoint contracts. Keep the private driver as the
+   fault/measurement fixture. Exercise the same shared transaction lifecycle from
+   ordinary data and Station clients, then optimize the largest measured common
+   costs with both consumers as regression controls.
 
-Add recoverable closure for accepted claim payload reads after the turn and
-required replay dependencies settle. ACK, local result disposal and payload
-release remain separate. Reuse bounded shared-client operations for this work;
-do not silently release a claim that replacement recovery still needs.
+Measure discovery, claim, retained progress, reads, staging/execution, decision,
+finalization and cleanup separately while retaining end-to-end samples. Attribute
+shared client, Station mapping and server work separately. Repeat with increasing
+retained history under fixed payload, cache, durability and hardware/load
+conditions. Coalesce bounded staging and redundant metadata/inspection in the
+shared owners and reuse valid buffers/definitions. Any removed durable progress
+write must leave sufficient accepted evidence to recover the exact original
+claim, statement and decision after loss at that boundary.
 
-**Exit:** the existing installed/fault oracles still pass, larger-than-cache
-population and history tests stay within declared budgets, and matched complete
-measurements explain the dominant costs and satisfy the reviewed replacement
-budget. Report the larger 1 KiB/six-key workload separately from the common
-128-byte case. Failed or unresolved attempts remain in the report. Allocation
-traffic must be measured after warmup; a memory ceiling alone is not evidence
-of the architecture's zero steady-state allocation goal.
+Add recoverable claim payload-read closure through shared data operations after
+the turn and required replay dependencies settle. Station supplies the decision
+that its actor-specific use is complete. ACK, local result disposal and durable
+read release retain separate lifetimes; replacement must still recover every
+payload it needs.
+
+**Exit:** independent ordinary and Station callers pass lost-reply, conflict,
+revocation, stale-generation, expired-lease, cancellation, savepoint and recovery
+tests through the shared lifecycle. The ordinary client has no Station import,
+actor bootstrap or private runner dependency; applicable optional-actor guards
+are tested separately. The runner contains no independent transaction settlement
+loop, and SQL/program recovery semantics remain intact. Existing installed
+oracles and larger-than-cache population/history tests pass within unchanged
+budgets. Matched measurements explain dominant costs and satisfy the reviewed
+replacement budget. Report the larger 1 KiB/six-key workload separately, retain
+failed/unresolved attempts, and measure allocations after warmup; a memory
+ceiling alone does not establish the zero steady-state allocation goal.
 
 ## C Implement authenticated durable calls and replies
 
@@ -189,7 +289,9 @@ wait state and terminal disposition in declared data. Bind actor-origin evidence
 to the native execution condition and common decision; a payload's claimed PID
 or a similar application row cannot authenticate a call.
 
-Compose receiver ACK, state, journal and reply/outbound intent in one decision.
+Use B's shared transaction API to compose receiver ACK, state, journal and
+reply/outbound intent in one decision. Station supplies correlation and actor
+semantics without reimplementing transaction sequencing or recovery.
 Resolve an uncertain earlier decision before executing the handler again.
 Preserve `block_input`, `stop`, poisoned reads and explicit retry semantics.
 Distinguish local await cancellation, durable wait closure and external work
@@ -203,8 +305,9 @@ and all generated consumers agree on the replacement contract.
 ## D Migrate timers scheduling names and supervision
 
 Implement durable timer registration, original scheduled inputs, closure and
-restart recovery on declared data. Reuse Queue waits and timing owners with
-bounded registration/recheck, saturation recovery and joined cancellation.
+restart recovery on declared data through the shared data/transaction APIs.
+Reuse Queue waits and timing owners with bounded registration/recheck,
+saturation recovery and joined cancellation.
 Park idle actors without one resident worker or timer per retained actor.
 Native PID ownership, suspension and permanent retirement remain authoritative.
 
@@ -222,6 +325,8 @@ latency. Verify control progress under quotas and cancellation/join at shutdown.
 
 Replace connector persistence with declared intent, attempt, capture and outcome
 owners, following [connector semantics](../handbook/reference/connectors.md).
+Compose their database changes through B's shared API; connector-specific
+attempt and unknown-outcome policy remains with the connector.
 Only a committed, currently authorized intent permits dispatch. Unknown outcomes
 retain each connector's recovery/retry policy; Queue redelivery cannot establish
 exactly-once remote execution. Replay and finalization must dispatch zero effects.
@@ -245,6 +350,9 @@ Table helpers and foreign turn actions, bindings/host APIs, all affected languag
 SDKs, examples, installation/bootstrap, launchers/controllers and Board metadata
 interpretation. Preserve the separate Catalog `DirectTableBridge` and native
 authority primitives that still have supported non-Station consumers.
+Expose Station behavior APIs above the shared transaction layer; do not export
+the private runner as another user-facing runtime or require SDKs to copy its
+former orchestration.
 
 Before the Document consumers switch, require M7's direct lifecycle, partitioned
 transaction preparation/common-decision visibility, savepoints and original
@@ -304,6 +412,9 @@ Station services/effects; bounded memory and collection; compatible consumer
 replacement; and the inherited performance gates. Preserve negative controls
 and distinguish finite models, concrete replay, process faults and provider
 assumptions. Process death does not establish physical power-loss durability.
+Require the independent data-client and Station qualification journeys to use
+the same shared transaction lifecycle, with package checks enforcing its
+independence from Station.
 
 Promote supported behavior and exact limits into the public references,
 components and contracts as each unit lands. Record commands, sources, raw
@@ -319,18 +430,26 @@ create a circular requirement for M6's private Table/KV services to finish first
 Storage memory admission, current authorization, deadlines and retained-root
 traversal remain prerequisites throughout.
 
+B's order is shared contract → shared implementation and ordinary caller proof
+→ thin Station consumer and common-path qualification. C–F depend on that API;
+their new services cannot accumulate another low-level transaction loop while
+waiting for extraction.
+
 M12's Queue compiler/program delivery is reusable context, not a reason to
-reimplement the runner or add source-language features to M6. M9/M22 own broader
-language API expansion, but existing affected SDKs must migrate in F. M13 owns
-continuous computations; M14 owns wider optimization and scorecards; M24/M25/M27
+reimplement the runner or add source-language features to M6. M6 B and M9's
+transaction facet share one implementation and contract; M6 does not wait for
+M9's full language redesign. M9/M22 own broader language API expansion, while
+existing affected SDKs migrate in F. M13 owns continuous computations;
+M14 owns wider optimization and scorecards; M24/M25/M27
 own new providers, replication and distributed execution. Those future scopes
 do not excuse M6's existing latency, resource or recovery obligations.
 
-For the first implementation PR, make A concrete and add B's bounded phase and
-allocation attribution to the existing private driver. Preserve its workload
-and independent oracle. A subsequent PR can then optimize the largest measured
-cost with matching fault/recovery proofs. Revisit the remaining estimate using
-that result and the completed consumer inventory before expanding services.
+For the first implementation PR, make A concrete and deliver B's shared API
+contract, extraction map and executable lifecycle fixtures. Preserve the existing
+private driver's workload, independent oracle and phase attribution as regression
+evidence. Next implement the shared lifecycle with an ordinary data caller, then
+migrate Station and optimize measured common costs. Revisit the estimate after
+the extraction audit and these measurements before expanding services.
 
 ## Validation required for review and implementation
 
@@ -349,6 +468,10 @@ Implementation uses the existing registered `station-transaction`, `station`,
 `direct-workload-result`, `storage-collection`, `sql-transactions` and
 transaction/Queue model tasks as relevant. Extend the owning suites for the
 missing cases rather than treating their current pass as new coverage.
+Add the independent shared-transaction client journey and package dependency
+checks with B, using real transaction owners and the same fault matrix as the
+Station composition. A wrapper compiling over the old runner does not satisfy
+the decoupling gate.
 The measurement recipes are `test::log-runtime-baseline`,
 `test::station-turn-baseline` and `test::station-transaction-baseline`; their
 linked guides own arguments and controls.

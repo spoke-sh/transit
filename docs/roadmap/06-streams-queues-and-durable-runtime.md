@@ -11,8 +11,10 @@ of those database primitives and [supported transactions](05-transactions-and-at
 
 The [completion implementation plan, 2026-11-12](streams-queues-runtime-completion.md)
 assesses remaining work at `main` revision `6552747cf58a81cab0c60ad5c39e8e1568e9a007`.
-It proposes qualification and cost reduction for the private Station runner
-before durable services, effects and the public consumer cutover, alongside
+It first extracts a shared higher-level database transaction API and makes
+Station a consumer, with the private runner retained as a thin qualification
+fixture. Shared lifecycle/resource/cost qualification precedes durable services,
+effects and the public consumer cutover, alongside
 Table commit/latency work and final qualification at one revision. Its estimate
 is 15–21 review units and 19–32 engineer-weeks before integration contingency;
 M7's Document participant is a separate dependency. M6 remains **In Progress**.
