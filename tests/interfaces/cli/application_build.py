@@ -539,7 +539,7 @@ def resume_typed_queue(fixture, token, identity):
             assert sorted(records(value), key=lambda row: int(row['id'])) == expected, value
     return outcomes
 
-def execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql):
+def execute_program(cli, sql, typed_sql, queue_sql):
     fixture = Fixture(cli)
     fixture.use_private_runtime()
     passed = False
@@ -580,8 +580,6 @@ def execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql):
                         if value.get('completion', {}).get('kind') == 'insert']
         assert typed_counts == [{'matched': '1', 'changed': '1'}] * 2
         outcomes += typed_outcomes
-        typed_queue_rows, typed_token, typed_identity = install_typed_queue(fixture, typed_queue_sql)
-        outcomes += typed_queue_rows
         declarations, enqueue = queue_sql.rsplit('\n', 2)[:2]
         fixture.console(declarations)
         # Lose the reply to the emitted append and settle only its original
@@ -613,7 +611,6 @@ def execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql):
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
-        outcomes += resume_typed_queue(fixture, typed_token, typed_identity)
         assert records(fixture.console('SELECT * FROM second_items;')[-1]) == [{'id': '9'}]
         assert records(fixture.console('SELECT * FROM sites;')[-1]) == [{'id': '7'}]
         recovered = observation(fixture, 'process')['observation']['head']
@@ -630,9 +627,6 @@ def execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql):
         fixture.console('SELECT * FROM machines;', expected=1)
         fixture.console('CONSUME * FROM events;', expected=1)
         fixture.console('SHOW DATAFLOW process;', expected=1)
-        fixture.console('CONSUME * FROM typed_events_a;', expected=1)
-        fixture.console('SHOW DATAFLOW typed_process_a;', expected=1)
-        fixture.console('SELECT * FROM typed_accepted_a;', expected=1)
         passed = True
         return outcomes
     finally:
@@ -643,6 +637,34 @@ def execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql):
             print(f'Private failed application build execution: {fixture.root}', file=sys.stderr)
 
 
+
+def execute_typed_queue(cli, sql):
+    # Keep the existing untyped schedule's authority/resource inventory intact.
+    # This installation still exercises both explicitly named typed pipelines.
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        outcomes, token, identity = install_typed_queue(fixture, sql)
+        fixture.stop(kill=True)
+        fixture.start()
+        fixture.ready()
+        outcomes += resume_typed_queue(fixture, token, identity)
+        disable_sql_credential(fixture.root, fixture.config['ports'], installation=fixture.installation)
+        fixture.console('CONSUME * FROM typed_events_a;', expected=1)
+        fixture.console('SHOW DATAFLOW typed_process_a;', expected=1)
+        fixture.console('SELECT * FROM typed_accepted_a;', expected=1)
+        passed = True
+        return outcomes
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed typed Queue execution: {fixture.root}', file=sys.stderr)
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
@@ -650,11 +672,12 @@ def main():
         typed_sql = typed_journey(cli, Path(temporary))
         queue_sql = queue_journey(cli, Path(temporary))
         typed_queue_sql = typed_queue_journey(cli, Path(temporary))
-        generated = execute_program(cli, sql, typed_sql, queue_sql, typed_queue_sql)
+        generated = execute_program(cli, sql, typed_sql, queue_sql)
+        generated += execute_typed_queue(cli, typed_queue_sql)
         oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
-                                 (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text(),
-                                 (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
+                                 (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
+        oracle += execute_typed_queue(cli, (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):

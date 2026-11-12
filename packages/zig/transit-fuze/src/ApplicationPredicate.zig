@@ -99,18 +99,14 @@ fn lower(self: *Self, expression: *const a.Expression, depth: usize) anyerror!vo
     }
 }
 
-fn lowered(program: a.Program, schema: f.TableSchema.Schema) !?Self {
-    const predicate = program.predicate orelse return null;
-    var builder: Self = .{ .schema = schema, .alias = program.input };
-    try builder.lower(predicate, 0);
-    return builder;
-}
 /// Check the acquisition profile without fabricating a catalog identity. This
 /// uses the same lowering and schema/collation validation as native encoding.
 pub fn validate(program: a.Program, schema: f.TableSchema.Schema) !void {
     try a.Codec.validate(program);
     try schema.validate();
-    const builder = try lowered(program, schema) orelse return;
+    const predicate = program.predicate orelse return;
+    var builder: Self = .{ .schema = schema, .alias = program.input };
+    try builder.lower(predicate, 0);
     var fields: [f.TableSchema.max_columns]f.WorkloadProjection.Field = undefined;
     for (schema.columns, fields[0..schema.columns.len]) |field, *slot| slot.* = .{ .column = field.id };
     const layout = try f.WorkloadProjection.schemaLayout(schema, fields[0..schema.columns.len], .claim);
@@ -121,7 +117,9 @@ pub fn compile(allocator: std.mem.Allocator, program: a.Program, target: p.Strea
     try target.validate();
     try schema.validate();
     if (schema.object != target.interpretation.object.object) return error.SourceChanged;
-    const builder = try lowered(program, schema) orelse return null;
+    const predicate = program.predicate orelse return null;
+    var builder: Self = .{ .schema = schema, .alias = program.input };
+    try builder.lower(predicate, 0);
     var fields: [f.TableSchema.max_columns]f.WorkloadProjection.Field = undefined;
     for (schema.columns, fields[0..schema.columns.len]) |field, *slot| slot.* = .{ .column = field.id };
     const layout = try f.WorkloadProjection.schemaLayout(schema, fields[0..schema.columns.len], .claim);
