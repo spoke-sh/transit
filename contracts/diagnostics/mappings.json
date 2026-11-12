@@ -5880,6 +5880,58 @@
           "code": "application.source.type",
           "category": "binding"
         },
+        "ProgramArgumentMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "UnknownProgramVariable": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "UnknownProgramField": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "UnknownProgramResource": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "UnknownColumn": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "DuplicateProgramVariable": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "DuplicateProgramField": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "DuplicateProgramResource": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "LiteralOutOfRange": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidQueuePredicate": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnknownProgramFunction": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "PredicateTooLarge": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "UnbalancedSqlBlock": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
         "ModuleIsNotSqlOperand": {
           "code": "application.source.type",
           "category": "binding"

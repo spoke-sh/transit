@@ -12994,11 +12994,19 @@
     },
     "packages/zig/transit-compiler/src/SourceDiagnostic.zig": {
       "errors": {
+        "DuplicateProgramField": 1,
+        "DuplicateProgramResource": 1,
+        "DuplicateProgramVariable": 1,
+        "InvalidQueuePredicate": 1,
         "MissingRequiredField": 1,
         "NullNotAllowed": 1,
         "OutOfMemory": 1,
         "ProgramTooComplex": 1,
         "ProgramTooDeep": 1,
+        "UnknownColumn": 1,
+        "UnknownProgramField": 1,
+        "UnknownProgramResource": 1,
+        "UnknownProgramVariable": 1,
         "UnsupportedNominalColumn": 1,
         "UnsupportedNominalOperation": 1
       },
