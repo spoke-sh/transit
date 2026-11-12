@@ -18,13 +18,14 @@ pub fn build(b: *std.Build) void {
     });
     const tests = b.addTest(.{ .root_module = module });
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
+    const data = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize });
     // Private qualification composition only; the public Station root, ABI and
     // installed runtime do not expose a second writable behavior profile.
     const transactional = b.addModule("station_transaction_internal", .{
         .root_source_file = b.path("src/transactional/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }},
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_data_client", .module = data.module("transit_data_client") } },
     });
     const private_tests = b.addTest(.{ .root_module = transactional, .filters = &.{"private transactional"} });
     const private_run = b.addRunArtifact(private_tests);

@@ -8,6 +8,7 @@ const x = p.Transaction;
 const d = p.DataLifecycle;
 const Call = c.DirectTransactionCall;
 const Native = c.DirectTransactionClient;
+const Lifecycle = c.DirectTransactionSession;
 
 pub const Request = union(enum) {
     begin: x.Mode,
@@ -92,7 +93,7 @@ pub fn build(allocator: std.mem.Allocator, io: std.Io, config: g.DatabaseAccount
                 if (comptime tag == .savepoint) {
                     if (current.last_control >= current.begin.limits.statements or
                         (value.action == .create and current.savepoints >= current.begin.limits.savepoints)) return error.SqlTransactionLimit;
-                    result.work = .{ .savepoint = .{ .key = owner, .request = .{ .transaction = value.handle.identity, .operation = operation, .sequence = try std.math.add(u64, current.last_control, 1), .basis = current.revision, .action = value.action } } };
+                    result.work = .{ .savepoint = .{ .key = owner, .request = try Lifecycle.prepareSavepoint(current, operation, value.action) } };
                 } else {
                     switch (value.statement.plan) {
                         .dml, .kv_write, .log_offset => {},
@@ -107,16 +108,15 @@ pub fn build(allocator: std.mem.Allocator, io: std.Io, config: g.DatabaseAccount
                     var write = try value.statement.bindWrite(allocator, &private, value.values, operation.operation);
                     defer write.deinit();
                     if (try write.workBytes() > config.intent_bytes) return error.GatewayRecordTooLarge;
-                    const next_sequence = try std.math.add(u64, current.last_statement, 1);
                     switch (write) {
-                        .table => |table| result.work = .{ .statement = .{ .key = owner, .request = try native.stage(owner, current.revision, next_sequence, table.parsed.value.work) } },
+                        .table => |table| result.work = .{ .statement = .{ .key = owner, .request = (try Lifecycle.prepare(caller, owner, current, .{ .table = table.parsed.value.work })).state } },
                         .kv => |kv| {
                             const kv_cmd: Call.KVCommand = switch (kv.parsed.value.work) {
                                 .put => .put,
                                 .delete => .delete,
                                 .ddl => return error.UnsupportedTransactionStatement,
                             };
-                            result.work = .{ .statement = .{ .key = owner, .kv_command = kv_cmd, .request = try native.stageKV(owner, current.revision, next_sequence, kv.parsed.value.work.mutation().?) } };
+                            result.work = .{ .statement = .{ .key = owner, .kv_command = kv_cmd, .request = (try Lifecycle.prepare(caller, owner, current, .{ .kv = kv.parsed.value.work.mutation().? })).state } };
                         },
                         .workload => |workload| {
                             if (workload.parsed.value.projection != null or workload.parsed.value.wait_ms != null) return error.UnsupportedTransactionStatement;
@@ -139,7 +139,7 @@ pub fn build(allocator: std.mem.Allocator, io: std.Io, config: g.DatabaseAccount
                                     else => return error.UnsupportedTransactionStatement,
                                 },
                             };
-                            result.work = .{ .log_statement = .{ .key = owner, .request = try native.stageLog(owner, current.revision, next_sequence, log_work, payload) } };
+                            result.work = .{ .log_statement = .{ .key = owner, .request = (try Lifecycle.prepare(caller, owner, current, .{ .log = .{ .work = log_work, .payload = payload } })).log } };
                         },
                         else => return error.UnsupportedTransactionStatement,
                     }

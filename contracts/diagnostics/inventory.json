@@ -10053,6 +10053,85 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTransactionSession.zig": {
+      "errors": {
+        "InvalidTransactionSession": 3,
+        "InvalidTransactionSteps": 1,
+        "ReadOnlyTransaction": 1,
+        "TransactionCutNotAcquired": 1,
+        "TransactionExecutionRequired": 1,
+        "TransactionFrozen": 1,
+        "TransactionIdentityConflict": 2,
+        "TransactionSavepointLimit": 1,
+        "TransactionSessionChanged": 1,
+        "TransactionSessionIdle": 1,
+        "TransactionSessionPending": 3,
+        "TransactionSessionSettling": 2,
+        "TransactionStatementLimit": 1
+      },
+      "outcomes": {
+        "Action": [
+          "begin",
+          "acquire",
+          "inspect",
+          "write",
+          "advance",
+          "savepoint",
+          "settle",
+          "recover"
+        ],
+        "Event": [
+          "original",
+          "statement",
+          "statement_complete",
+          "control",
+          "control_complete",
+          "settlement"
+        ],
+        "Result": [
+          "begun",
+          "acquired",
+          "status",
+          "statement",
+          "savepoint",
+          "recovered",
+          "checkpoint_failed"
+        ],
+        "Result.checkpoint_failed.completion": [
+          "statement",
+          "savepoint"
+        ],
+        "Write": [
+          "table",
+          "kv",
+          "log"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Journal.save()": "anyerror",
+        "State.validate()": "<inferred>",
+        "apply()": "<inferred>",
+        "checkpoint()": "<inferred>",
+        "execute()": "<inferred>",
+        "prepare()": "<inferred>",
+        "prepareSavepoint()": "<inferred>",
+        "privateClient()": "<inferred>",
+        "ready()": "<inferred>",
+        "resumePending()": "<inferred>",
+        "stepsValid()": "<inferred>",
+        "writable()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 45,
+        "catch": 2
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTransactionWorkspace.zig": {
       "errors": {
         "InvalidTransactionWorkspace": 14,
@@ -11690,6 +11769,7 @@
         "DirectTransactionRecord.zig",
         "DirectTransactionRequest.zig",
         "DirectTransactionSavepoint.zig",
+        "DirectTransactionSession.zig",
         "DirectTransactionWorkspace.zig",
         "DirectWorkloadIntent.zig",
         "DirectWorkloadResult.zig",
@@ -13459,7 +13539,7 @@
     },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 7,
+        "Busy": 8,
         "InvalidArgument": 1
       },
       "outcomes": {
@@ -13490,6 +13570,10 @@
         "StreamOutcome.value": [
           "result",
           "failure"
+        ],
+        "TransactionOutcome.value": [
+          "result",
+          "failure"
         ]
       },
       "error_sets": {
@@ -13513,6 +13597,9 @@
         ],
         "callStream().<error>": [
           "Busy"
+        ],
+        "callTransaction().<error>": [
+          "Busy"
         ]
       },
       "error_returns": {
@@ -13523,14 +13610,16 @@
         "callQueue()": "error { Busy }",
         "callSource()": "error { Busy }",
         "callStream()": "error { Busy }",
+        "callTransaction()": "error { Busy }",
         "init()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 15
+        "catch": 17
       },
       "imports": [
+        "Transaction.zig",
         "std",
         "transit_catalog"
       ]
@@ -13575,6 +13664,8 @@
         "callQueueWithAdmission()": "<inferred>",
         "callStream()": "<inferred>",
         "callStreamWithAdmission()": "<inferred>",
+        "callTransaction()": "<inferred>",
+        "callTransactionWithAdmission()": "<inferred>",
         "callWithAdmission()": "<inferred>",
         "cancelSql()": "<inferred>",
         "catalogConnection()": "<inferred>",
@@ -13596,7 +13687,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 49,
         "catch": 9
       },
       "imports": [
@@ -13604,6 +13695,7 @@
         "AdmissionQueue.zig",
         "Catalog.zig",
         "SqlSession.zig",
+        "Transaction.zig",
         "std",
         "transit_catalog",
         "transit_sql_client"
@@ -13747,6 +13839,61 @@
         "transit_sql_client"
       ]
     },
+    "packages/zig/transit-data-client/src/Transaction.zig": {
+      "errors": {
+        "Busy": 2,
+        "TransactionSessionPending": 1,
+        "TransactionSessionSettling": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>",
+        "borrowed()": "<inferred>",
+        "init()": "<inferred>",
+        "privateClient()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/TransactionRecovery.zig": {
+      "errors": {
+        "InvalidTransactionSession": 1,
+        "RecoveryAdapterBound": 2,
+        "RecoveryKeyConflict": 2,
+        "RecoveryRecordCapacity": 1,
+        "RecoveryRecordMissing": 2,
+        "RecoveryRevisionConflict": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "create()": "<inferred>",
+        "encode()": "<inferred>",
+        "init()": "<inferred>",
+        "key()": "<inferred>",
+        "load()": "<inferred>",
+        "save()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 20,
+        "catch": 1
+      },
+      "imports": [
+        "LocalRecoveryStore.zig",
+        "Transaction.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
     "packages/zig/transit-data-client/src/root.zig": {
       "errors": {},
       "outcomes": {},
@@ -13766,6 +13913,8 @@
         "KVRecovery.zig",
         "LocalRecoveryStore.zig",
         "SqlRecovery.zig",
+        "Transaction.zig",
+        "TransactionRecovery.zig",
         "transit_catalog",
         "transit_sql_client"
       ]
@@ -28877,8 +29026,7 @@
         "ProgramResourceKindMismatch": 1,
         "TableDefinitionChanged": 1,
         "TableNotFound": 2,
-        "TransactionCapacity": 1,
-        "TransactionCutNotAcquired": 1
+        "TransactionCapacity": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -28892,7 +29040,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -38806,7 +38954,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 25,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -43529,12 +43677,13 @@
         "ActorIdentityConflict": 13,
         "ActorInputUnavailable": 1,
         "ActorNotInitialized": 1,
-        "ActorProgressConflict": 1,
+        "ActorProgressConflict": 2,
         "ActorProgressUnresolved": 5,
-        "ActorStatementRefused": 2,
+        "ActorSavepointUnsupported": 1,
+        "ActorStatementRefused": 1,
         "HandlerStopped": 2,
         "InvalidTableKey": 1,
-        "TurnCapacity": 1
+        "TurnCapacity": 2
       },
       "outcomes": {
         "Handler.failure": [
@@ -43566,6 +43715,8 @@
       "error_returns": {
         "Handler.run()": "anyerror",
         "Hook.hit()": "anyerror",
+        "Journal.save()": "<inferred>",
+        "Journal.transaction()": "<inferred>",
         "Reader.get()": "<inferred>",
         "Reader.row()": "<inferred>",
         "Reader.table()": "<inferred>",
@@ -43574,7 +43725,6 @@
         "bootstrap()": "<inferred>",
         "cellActor()": "<inferred>",
         "cellBytes()": "<inferred>",
-        "execute()": "<inferred>",
         "finish()": "<inferred>",
         "init()": "<inferred>",
         "inspect()": "<inferred>",
@@ -43582,19 +43732,21 @@
         "point()": "<inferred>",
         "publish()": "<inferred>",
         "recover()": "<inferred>",
+        "requireStatement()": "<inferred>",
         "retryBlocked()": "<inferred>",
         "save()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 109,
+        "try": 102,
         "catch": 2
       },
       "imports": [
         "Actor.zig",
         "Turn.zig",
         "std",
-        "transit_catalog"
+        "transit_catalog",
+        "transit_data_client"
       ]
     },
     "packages/zig/transit-station/src/transactional/Turn.zig": {

@@ -2,6 +2,8 @@
 const std = @import("std");
 const t = std.testing;
 const c = @import("transit_catalog");
+const data = @import("transit_data_client");
+const Transaction = data.Transaction;
 const p = c.protocol;
 const d = p.DataLifecycle;
 const KV = c.DirectKVClient;
@@ -27,11 +29,66 @@ const LogInput = struct {
 const Saved = struct {
     definition: p.Growth.Definition,
     key: c.DirectClientToken.Key,
+    recovery: data.LocalRecoveryStore.Key,
     object: d.Object,
     table_statement: c.DirectTransactionWorkspace.Request,
     kv_statement: c.DirectTransactionWorkspace.Request,
     commit: d.Operation,
     logs: ?Logs,
+};
+const Caller = struct {
+    context: *data.Context,
+    handle: data.Context.Handle,
+    fn deinit(self: *Caller) void {
+        const allocator = self.context.allocator;
+        self.context.close(.none) catch unreachable;
+        self.context.deinit() catch unreachable;
+        allocator.destroy(self.context);
+    }
+    fn call(self: *Caller, transaction: *Transaction, action: Transaction.Action) !Transaction.Result {
+        const outcome = try self.context.callTransaction(self.handle, transaction, action);
+        return switch (outcome.value) {
+            .result => |value| value,
+            .failure => |failure| failure.cause,
+        };
+    }
+    fn unknown(self: *Caller, transaction: *Transaction, action: Transaction.Action) !void {
+        const outcome = try self.context.callTransaction(self.handle, transaction, action);
+        try t.expect(outcome.value == .failure);
+        try t.expectEqual(error.InvalidTableResponse, outcome.value.failure.cause);
+        try t.expect(outcome.mutationAttempted());
+        try t.expectEqual(.transaction, outcome.attempt.mutation.?.action);
+        try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
+    }
+};
+fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
+    const context = try init.gpa.create(data.Context);
+    errdefer init.gpa.destroy(context);
+    context.* = try data.Context.init(init.gpa, init.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
+    errdefer {
+        context.close(.none) catch unreachable;
+        context.deinit() catch unreachable;
+    }
+    const handle = try context.openCatalog(.{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
+    return .{ .context = context, .handle = handle };
+}
+fn recoveryStore(init: std.process.Init, path: []const u8) !data.LocalRecoveryStore {
+    const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(path) orelse ".", .{});
+    defer parent.close(init.io);
+    const name = try std.fmt.allocPrint(init.arena.allocator(), "{s}.recovery", .{std.fs.path.basename(path)});
+    return data.LocalRecoveryStore.open(init.gpa, init.io, parent, name, .{});
+}
+const CheckpointFault = struct {
+    journal: Transaction.Journal,
+    failed: bool = false,
+    fn save(raw: *anyopaque, previous: Transaction.State, state: Transaction.State, event: Transaction.Event) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (!self.failed and event == .statement_complete) {
+            self.failed = true;
+            return error.InjectedCheckpointFailure;
+        }
+        try self.journal.save(self.journal.context, previous, state, event);
+    }
 };
 fn load(init: std.process.Init, path: []const u8) !Saved {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(64 * 1024));
@@ -92,12 +149,12 @@ fn prepareInputs(init: std.process.Init, client: c.DirectTableClient, output: *s
     try t.expectEqual(@as(usize, 1), claimed.rows.len);
     return .{ .stream = stream, .queue = queue, .claim = claim, .offset = .{ .stream_offset = .{ .commit = .{ .operation = operation(client, 642013), .group = group, .coverage = try progress.coverage(), .expected_next = 0, .next = 1 }, .progress = progress } }, .ack = .{ .queue_ack = .{ .operation = operation(client, 642014), .lease = claimed.rows[0].lease.original, .action = .ack } } };
 }
-fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, key: c.DirectClientToken.Key, input: LogInput) !Logs {
-    const tx: Tx = .{ .catalog = client };
+fn privateLogs(client: c.DirectTableClient, caller: *Caller, transaction: *Transaction, output: *std.heap.ArenaAllocator, input: LogInput) !Logs {
     var logs: Logs = .{ .stream = input.stream, .queue = input.queue, .claim = input.claim, .statements = undefined };
     for ([_]c.DirectTransactionLogWork.Work{ input.offset, input.ack }, 0..) |work, i| {
-        logs.statements[i] = try tx.stageLog(key, (try tx.inspect(key)).revision, 3 + i, work, null);
-        try t.expect((try tx.executeLog(key, logs.statements[i])) == .provisional);
+        const completion = (try caller.call(transaction, .{ .write = .{ .log = .{ .work = work } } })).statement.log;
+        logs.statements[i] = completion.request;
+        try t.expect(completion.outcome == .provisional);
     }
     var buffer: [8192]u8 = undefined;
     for ([_]p.StreamQueue.Partition{ input.stream, input.queue }, 0..) |target, i| {
@@ -105,8 +162,15 @@ fn privateLogs(client: c.DirectTableClient, output: *std.heap.ArenaAllocator, ke
         const identity = operation(client, 642015 + i);
         const bytes = try appendPayload(target, identity, kind, &buffer);
         const work: c.DirectTransactionLogWork.Work = .{ .append = .{ .target = target, .operation = identity, .kind = if (i == 0) .stream else .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(bytes) } };
-        logs.statements[i + 2] = try tx.stageLog(key, (try tx.inspect(key)).revision, 5 + i, work, try c.DirectTableProtocol.Binary.encode(output.allocator(), bytes));
-        if (i == 0) try t.expect((try tx.executeLog(key, logs.statements[i + 2])) == .provisional);
+        const action: Transaction.Action = .{ .write = .{ .log = .{ .work = work, .payload = try c.DirectTableProtocol.Binary.encode(output.allocator(), bytes) } } };
+        if (i == 0) {
+            const completion = (try caller.call(transaction, action)).statement.log;
+            logs.statements[i + 2] = completion.request;
+            try t.expect(completion.outcome == .provisional);
+        } else {
+            try caller.unknown(transaction, action);
+            logs.statements[i + 2] = transaction.state.statement.?.log;
+        }
     }
     return logs;
 }
@@ -192,7 +256,12 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     const metadata = (try KV.apply(&output, client, .{ .observe = declaration.binding.target })).definition;
     const input = if (with_logs) try prepareInputs(init, client, &output, role) else null;
     const key: c.DirectClientToken.Key = .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = @splat(9), .token = @splat(6) };
-    const tx: Tx = .{ .catalog = client };
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var store = try recoveryStore(init, path);
+    defer store.deinit();
+    var recovery = try data.TransactionRecovery.init(init.gpa, &store);
+    defer recovery.deinit();
     var targets = [_]p.Transaction.Target{
         .{ .object = declaration.binding.target, .kind = .kv, .partition = null },
         .{ .object = created.value.result.ddl.committed.binding.target, .kind = .table, .partition = null },
@@ -203,14 +272,25 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
         targets[2] = .{ .object = logs.stream.interpretation.object, .kind = .stream, .partition = 0 };
         targets[3] = .{ .object = logs.queue.interpretation.object, .kind = .queue, .partition = 0 };
     }
-    _ = try tx.begin(.{ .key = key, .fingerprint = @splat(7), .operation = operation(client, 642100), .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = targets[0..@as(usize, if (with_logs) 4 else 2)] }, .limits = c.DirectTransaction.default_limits, .budget = .{} });
-    _ = try tx.acquire(key);
+    var transaction = try recovery.create(.{ .begin = .{ .key = key, .fingerprint = @splat(7), .operation = operation(client, 642100), .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = targets[0..@as(usize, if (with_logs) 4 else 2)] }, .limits = c.DirectTransaction.default_limits, .budget = .{} }, .settlement = operation(client, 642101) });
+    defer transaction.deinit();
+    _ = try caller.call(&transaction, .begin);
+    _ = try caller.call(&transaction, .acquire);
     var insert = try c.DirectTablePreparedDml.prepare(init.gpa, client, 1, "INSERT INTO atomic_rows (id) VALUES ($1)", .transit, null);
     defer insert.deinit();
     var work = try insert.bind(init.gpa, client, 642011, &.{.{ .signed = 42 }}, .bulk, null);
     defer work.deinit();
-    const table_statement = try tx.stage(key, (try tx.inspect(key)).revision, 1, work.parsed.value.work);
-    try t.expectEqual(@as(u64, 1), (try tx.execute(key, table_statement)).provisional.affected);
+    var fault: CheckpointFault = .{ .journal = transaction.journal };
+    transaction.journal = .{ .context = &fault, .save = CheckpointFault.save };
+    const known = try caller.call(&transaction, .{ .write = .{ .table = work.parsed.value.work } });
+    try t.expect(known == .checkpoint_failed);
+    try t.expectEqual(error.InjectedCheckpointFailure, known.checkpoint_failed.cause);
+    try t.expectEqual(@as(u64, 1), known.checkpoint_failed.completion.statement.state.outcome.provisional.affected);
+    const table_statement = transaction.state.statement.?.state;
+    try t.expectError(error.TransactionSessionPending, caller.call(&transaction, .{ .write = .{ .table = work.parsed.value.work } }));
+    const resumed = (try caller.call(&transaction, .{ .advance = 8 })).statement.state;
+    try t.expectEqualDeep(table_statement, resumed.request);
+    try t.expectEqual(@as(u64, 1), resumed.outcome.provisional.affected);
     var binding = declaration.binding;
     binding.identity = operation(client, 642012);
     binding.action = .insert;
@@ -219,20 +299,34 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
     var changes: [6]c.storage.KVPartition.Change = undefined;
     for (&changes, keys) |*change, name| change.* = .{ .put = .{ .key = name, .value = .{ .value = .{ .atom = .{ .bytes = &payload } } }, .expect = .absent } };
     const mutation = try KV.prepareMutation(&output, binding, spec, &changes);
-    const kv_statement = try tx.stageKV(key, (try tx.inspect(key)).revision, 2, mutation);
-    var saved: Saved = .{ .definition = p.Growth.current_definition, .key = key, .object = declaration.binding.target, .table_statement = table_statement, .kv_statement = kv_statement, .commit = operation(client, 642101), .logs = null };
+    var saved: Saved = .{ .definition = p.Growth.current_definition, .key = key, .recovery = recovery.identity.?, .object = declaration.binding.target, .table_statement = table_statement, .kv_statement = undefined, .commit = operation(client, 642101), .logs = null };
     if (input) |logs| {
-        try t.expectEqual(@as(u64, 6), (try tx.execute(key, kv_statement)).provisional.affected);
-        saved.logs = try privateLogs(client, &output, key, logs);
+        const completion = (try caller.call(&transaction, .{ .write = .{ .kv = mutation } })).statement.state;
+        try t.expectEqual(@as(u64, 6), completion.outcome.provisional.affected);
+        saved.kv_statement = completion.request;
+        saved.logs = try privateLogs(client, &caller, &transaction, &output, logs);
+    } else {
+        try caller.unknown(&transaction, .{ .write = .{ .kv = mutation } });
+        saved.kv_statement = transaction.state.statement.?.state;
     }
+    try t.expect(transaction.state.statement != null);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = try p.Json.valueAllocBounded(init.arena.allocator(), saved, 64 * 1024) });
-    if (saved.logs) |logs| {
-        try t.expectError(error.InvalidTableResponse, tx.executeLog(key, logs.statements[3]));
-    } else try t.expectError(error.InvalidTableResponse, tx.execute(key, kv_statement));
 }
 pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
     const saved = try load(init, path);
     const tx: Tx = .{ .catalog = client };
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var store = try recoveryStore(init, path);
+    defer store.deinit();
+    var recovery = try data.TransactionRecovery.init(init.gpa, &store);
+    defer recovery.deinit();
+    var transaction = try recovery.load(saved.recovery);
+    defer transaction.deinit();
+    try t.expect(transaction.state.statement != null);
+    const pending = transaction.state.statement.?;
+    const resumed = (try caller.call(&transaction, .{ .advance = 8 })).statement;
+    try t.expectEqualDeep(pending, resumed.request());
     const original = (try tx.statementOutcome(saved.key, saved.kv_statement)).?;
     try t.expectEqual(@as(u64, 6), original.provisional.affected);
     try t.expectEqualDeep(original, try tx.execute(saved.key, saved.kv_statement));
@@ -248,25 +342,35 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
         }
         _ = try visibleLogs(client, &output, logs, false);
     }
-    var private = client;
-    private.transaction = .{ .key = saved.key, .revision = (try tx.inspect(saved.key)).revision };
+    const private = try transaction.privateClient(client);
     const value = (try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "six" } })).value;
     try t.expect(value.workspace != null);
     try t.expectEqualSlices(u8, &payload, value.value.?.value.atom.bytes);
-    try t.expectError(error.InvalidTableResponse, tx.settle(saved.key, saved.commit, .commit, 8));
+    try caller.unknown(&transaction, .{ .settle = .{ .command = .commit } });
 }
 pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const u8) !void {
     const saved = try load(init, path);
     const tx: Tx = .{ .catalog = client };
-    const known = try tx.inspect(saved.key);
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var store = try recoveryStore(init, path);
+    defer store.deinit();
+    var recovery = try data.TransactionRecovery.init(init.gpa, &store);
+    defer recovery.deinit();
+    var transaction = try recovery.load(saved.recovery);
+    defer transaction.deinit();
+    try t.expectEqual(.commit, transaction.state.command.?);
+    const known = (try caller.call(&transaction, .inspect)).status;
     try t.expect(known.observation == .decided and known.observation.decided.outcome == .committed);
-    const result = try tx.settle(saved.key, saved.commit, .commit, 8);
+    caller.context.beginClose();
+    const result = (try caller.call(&transaction, .{ .settle = .{ .command = .commit } })).status;
     try t.expectEqualDeep(known.observation, result.observation);
     try t.expect(result.cleanup_complete);
     try t.expectEqual(@as(u64, 6), (try tx.statementOutcome(saved.key, saved.kv_statement)).?.provisional.affected);
     var output: std.heap.ArenaAllocator = .init(init.gpa);
     defer output.deinit();
     try visible(client, &output, saved.object, true);
+    try verifySavepoints(init, client, saved, &store);
     if (saved.logs) |logs| {
         const held_lease = (try visibleLogs(client, &output, logs, true)).?;
         // 4-participant Transaction.Deadline expiry: when commit runs after the
@@ -324,4 +428,55 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         try t.expectEqual(@as(u64, 3), (try Stream.apply(&output, client, .{ .observe = logs.stream })).cut.next);
         try t.expectEqual(@as(u64, 2), (try Queue.apply(&output, client, .{ .observe = logs.queue })).cut.next);
     }
+}
+
+fn verifySavepoints(init: std.process.Init, client: c.DirectTableClient, saved: Saved, store: *data.LocalRecoveryStore) !void {
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var recovery = try data.TransactionRecovery.init(init.gpa, store);
+    defer recovery.deinit();
+    var key = saved.key;
+    key.token = @splat(8);
+    const targets = [_]p.Transaction.Target{.{ .object = saved.object, .kind = .kv, .partition = null }};
+    var transaction = try recovery.create(.{
+        .begin = .{ .key = key, .fingerprint = @splat(9), .operation = operation(client, 642300), .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = null, .budget = .{} },
+        .settlement = operation(client, 642306),
+    });
+    defer transaction.deinit();
+    _ = try caller.call(&transaction, .begin);
+    _ = try caller.call(&transaction, .acquire);
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+    const name = try c.TableAuthority.Name.init("keep_seven");
+    for ([_][]const u8{ "seven", "eight" }, 0..) |word, index| {
+        var binding = saved.kv_statement.binding;
+        binding.identity = operation(client, 642301 + 2 * index);
+        const mutation = try KV.prepareMutation(&output, binding, spec, &.{.{ .put = .{ .key = word, .value = .{ .value = .{ .atom = .{ .bytes = &payload } } }, .expect = .absent } }});
+        const result = (try caller.call(&transaction, .{ .write = .{ .kv = mutation } })).statement.state;
+        try t.expectEqual(@as(u64, 1), result.outcome.provisional.affected);
+        if (index == 0) {
+            const control = (try caller.call(&transaction, .{ .savepoint = .{ .operation = operation(client, 642302), .action = .{ .create = name }, .steps = 1 } })).savepoint;
+            try t.expect(control.completed != null);
+        }
+    }
+    var rollback = (try caller.call(&transaction, .{ .savepoint = .{ .operation = operation(client, 642304), .action = .{ .rollback = name }, .steps = 1 } })).savepoint;
+    for (0..4) |_| {
+        if (rollback.completed != null) break;
+        rollback = (try caller.call(&transaction, .{ .advance = 1 })).savepoint;
+    }
+    try t.expect(rollback.completed != null);
+    try t.expectEqual(@as(u64, 2), transaction.state.last_statement);
+    const private = try transaction.privateClient(client);
+    try t.expect((try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "seven" } })).value.value != null);
+    try t.expect((try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "eight" } })).value.value == null);
+    try t.expect((try caller.call(&transaction, .{ .savepoint = .{ .operation = operation(client, 642305), .action = .{ .release = name }, .steps = 1 } })).savepoint.completed != null);
+    var closed = (try caller.call(&transaction, .{ .settle = .{ .command = .abort, .steps = 1 } })).status;
+    for (0..16) |_| {
+        if (closed.cleanup_complete) break;
+        closed = (try caller.call(&transaction, .{ .settle = .{ .command = .abort, .steps = 1 } })).status;
+    }
+    try t.expect(closed.cleanup_complete);
+    try t.expect(closed.observation == .decided and closed.observation.decided.outcome == .aborted);
+    for ([_][]const u8{ "seven", "eight" }) |word|
+        try t.expect((try KV.apply(&output, client, .{ .get = .{ .object = saved.object, .key = word } })).value.value == null);
 }
