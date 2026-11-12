@@ -24,7 +24,9 @@ DEFAULT_WORKLOAD = {
     'warm_reads': 2,
     'worker_interval_ms': 10,
     'cpus': 4,
+    'statement_runs': 5,
 }
+COLD_READS = ('select_cold', 'document_select_cold')
 STATEMENT_CASES = (
     'select_cold',
     'select_empty',
@@ -307,14 +309,44 @@ def extract_metrics(startup_records, statement_records, workload=None):
     }
 
 
+def extract_series_metrics(startup_records, statement_runs, workload):
+    require(len(statement_runs) == workload['statement_runs'], 'Incomplete statement runs')
+    extracted = []
+    for index, records in enumerate(statement_runs):
+        require(records and records[0].get('statement_run_index') == index,
+                'Missing, duplicate or out-of-order statement run')
+        for field in ('source_revision', 'binary_revision', 'source_diff_sha256',
+                      'driver_sha256', 'driver_helpers', 'executables'):
+            require(records[0].get(field) is not None
+                    and records[0][field] == statement_runs[0][0].get(field),
+                    f'Statement run {field} mismatch')
+        extracted.append(extract_metrics(startup_records, records, workload))
+
+    # Every installation must satisfy the existing steady-state and resource
+    # limits. Only the single first read is pooled across fresh installations;
+    # repeating SELECT in the original session would measure a warm read.
+    metrics = {'startup': extracted[0]['startup']}
+    for category in ('statement_classes', 'statements', 'resources'):
+        metrics[category] = {
+            key: max(item[category][key] for item in extracted)
+            for key in extracted[0][category]
+        }
+    metrics['cold_reads'] = {}
+    for case in COLD_READS:
+        values = [item['statements'][case] for item in extracted]
+        metrics['cold_reads'][case] = distribution([int(value * 1_000_000) for value in values])
+        metrics['statements'][case] = metrics['cold_reads'][case]['p50_ms']
+    return metrics
+
+
 def freeze_budgets(runs, *, max_regression_pct=20.0, fast_read_threshold_ms=50.0,
                    fast_read_noise_floor_ms=15.0, cycle_pss_growth_ratio_max=1.15,
                    workload=None):
     require(runs, 'At least one complete calibration run is required to freeze budgets')
     workload = dict(DEFAULT_WORKLOAD if workload is None else workload)
-    extracted = [extract_metrics(startup, statements, workload) for startup, statements in runs]
+    extracted = [extract_series_metrics(startup, statements, workload) for startup, statements in runs]
     revisions = {startup[0].get('source_revision') for startup, _ in runs} | {
-        statements[0].get('source_revision') for _, statements in runs
+        records[0].get('source_revision') for _, statements in runs for records in statements
     }
     require(len(revisions) == 1 and next(iter(revisions)), 'Calibration runs must share one source_revision')
     # Periodic 1-second supervisor/maintenance ticks can overlap any individual
@@ -362,10 +394,10 @@ def freeze_budgets(runs, *, max_regression_pct=20.0, fast_read_threshold_ms=50.0
     }
 
 
-def assess(startup_records, statement_records, budgets):
+def assess(startup_records, statement_runs, budgets):
     require(budgets.get('version') == 1 and budgets.get('definition') == DEFINITION,
             'Unsupported or foreign console latency budget definition')
-    metrics = extract_metrics(startup_records, statement_records, budgets['workload'])
+    metrics = extract_series_metrics(startup_records, statement_runs, budgets['workload'])
     comparisons = []
     violations = []
 
@@ -429,6 +461,15 @@ def assess(startup_records, statement_records, budgets):
     }
 
 
+def statement_paths(directory, workload):
+    return [directory / f'statements-{index}.jsonl' for index in range(workload['statement_runs'])]
+
+
+def read_run(directory, workload):
+    return (read_jsonl(directory / 'startup.jsonl'),
+            [read_jsonl(path) for path in statement_paths(directory, workload)])
+
+
 def run_workload(cli, node, host, output_dir, workload):
     output_dir.mkdir(parents=True, exist_ok=True)
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -459,20 +500,24 @@ def run_workload(cli, node, host, output_dir, workload):
                 os.sched_setaffinity(0, previous)
 
     startup_path = output_dir / 'startup.jsonl'
-    statements_path = output_dir / 'statements.jsonl'
+    paths = statement_paths(output_dir, workload)
+    # A failed invocation must not leave an earlier run's later samples usable.
+    for path in [startup_path, *paths]:
+        path.write_text('')
     invoke(startup_path, [
         '--startup-restarts', str(workload['startup_restarts']),
         *(['--startup-default'] if workload['startup_default'] else []),
     ])
-    invoke(statements_path, [
-        '--statements',
-        '--repeat', str(workload['repeat']),
-        '--cycles', str(workload['cycles']),
-        '--warm-reads', str(workload['warm_reads']),
-        '--resources',
-        '--worker-interval-ms', str(workload['worker_interval_ms']),
-    ])
-    return startup_path, statements_path
+    for index, path in enumerate(paths):
+        invoke(path, [
+            '--statements',
+            '--statement-run-index', str(index),
+            '--repeat', str(workload['repeat']),
+            '--cycles', str(workload['cycles']),
+            '--warm-reads', str(workload['warm_reads']),
+            '--resources',
+            '--worker-interval-ms', str(workload['worker_interval_ms']),
+        ])
 
 
 def main():
@@ -484,7 +529,7 @@ def main():
     parser.add_argument('--output', type=Path, default=ROOT / '.cache/transit-latency/gate',
                         help='directory for raw JSONL transcripts and gate report')
     parser.add_argument('--from-dir', type=Path, action='append', default=[],
-                        help='existing directory containing startup.jsonl and statements.jsonl')
+                        help='existing directory containing startup.jsonl and statements-N.jsonl')
     parser.add_argument('--freeze', action='store_true',
                         help='recalibrate and write budgets.json from measured transcripts')
     parser.add_argument('--check-only', action='store_true',
@@ -504,8 +549,7 @@ def main():
         if not directories:
             run_workload(args.cli.resolve(), args.node.resolve(), args.host.resolve(), args.output, workload)
             directories = [args.output]
-        runs = [(read_jsonl(directory / 'startup.jsonl'), read_jsonl(directory / 'statements.jsonl'))
-                for directory in directories]
+        runs = [read_run(directory, workload) for directory in directories]
         frozen = freeze_budgets(runs, workload=workload)
         args.budgets.write_text(json.dumps(frozen, indent=2) + '\n')
         print(json.dumps({'action': 'frozen', 'budgets': str(args.budgets),
@@ -525,13 +569,12 @@ def main():
             run_workload(args.cli.resolve(), args.node.resolve(), args.host.resolve(), args.output, workload)
             directory = args.output
         startup_path = directory / 'startup.jsonl'
-        statements_path = directory / 'statements.jsonl'
-        evaluation = assess(read_jsonl(startup_path), read_jsonl(statements_path), budgets)
+        evaluation = assess(*read_run(directory, workload), budgets)
         report.update(
             completed=True,
             budgets_sha256=digest(args.budgets),
             startup_sha256=digest(startup_path),
-            statements_sha256=digest(statements_path),
+            statements_sha256={path.name: digest(path) for path in statement_paths(directory, workload)},
             **evaluation,
         )
     except BaseException as error:
