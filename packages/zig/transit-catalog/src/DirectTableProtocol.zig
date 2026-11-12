@@ -435,14 +435,15 @@ pub const Request = struct {
     borrow: ?c.DirectReadDelegation.Borrow = null,
     lease: ?c.DirectClientToken.Lease = null,
     transaction: ?c.DirectTransactionRead.Context = null,
+    execution: ?p.Transaction.Execution,
     proof: p.Authorization.Proof,
-    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null, transaction: ?c.DirectTransactionRead.Context = null };
+    pub const Input = struct { definition: p.Growth.Definition, connection: Connection, nonce: [16]u8, action: Action, delegation: ?c.DirectReadDelegation, closure: ?c.DirectReadDelegation.Closure = null, borrow: ?c.DirectReadDelegation.Borrow = null, lease: ?c.DirectClientToken.Lease = null, transaction: ?c.DirectTransactionRead.Context = null, execution: ?p.Transaction.Execution = null };
     pub fn context(value: Input, allocator: std.mem.Allocator) ![32]u8 {
         _ = allocator;
         return p.Json.hashBounded("transit.table.direct.request.v1\x00", value, max_request_bytes) catch |err| return if (err == error.WriteFailed) error.TablePayloadTooLarge else err;
     }
     pub fn input(self: Request) Input {
-        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
+        return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction, .execution = self.execution };
     }
     /// Private staging and reader retention change durable bookkeeping without
     /// publishing a new source or declaration. They must not turn a SELECT's
@@ -503,6 +504,11 @@ pub const Request = struct {
     pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
+        if (self.execution) |execution| {
+            try execution.validate();
+            if (execution.realm != self.connection.scope.realm or execution.principal != self.connection.principal or execution.input != null) return error.InvalidTransactionExecution;
+            if (self.delegation != null or self.borrow != null or self.closure != null) return error.InvalidTableDelegation;
+        }
         if (self.transaction) |context_value| {
             try context_value.allow(self.action);
             if (!std.meta.eql(context_value.key.connection, self.connection)) return error.CatalogIdentityConflict;
@@ -556,7 +562,12 @@ pub const Request = struct {
             .schema_projection => |value| try value.validate(connection),
             .transaction => |value| {
                 try value.validate();
-                if (!std.meta.eql(value.key().connection, connection)) return error.CatalogIdentityConflict;
+                var original = value.key().connection;
+                if (value == .recover) {
+                    original.principal = connection.principal;
+                    original.role = connection.role;
+                }
+                if (!std.meta.eql(original, connection)) return error.CatalogIdentityConflict;
             },
             inline .log_preview, .log_admit => |value| try value.validate(allocator, connection),
             .log_operation => |value| {
@@ -980,6 +991,10 @@ pub const Result = union(enum) {
     document_declaration: c.DirectDocument.DeclarationResult,
     document_lookup: ?c.DirectDocument.Definition,
     document_list: StateList,
+
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!Result {
+        return p.Json.parseTaggedUnion(Result, allocator, source, options);
+    }
 };
 pub const Response = struct { definition: p.Growth.Definition, context: [32]u8, policy_revision: u64, subject: p.Authorization.Verified, result: Result };
 

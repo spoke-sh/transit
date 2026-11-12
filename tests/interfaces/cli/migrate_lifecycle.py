@@ -79,7 +79,7 @@ def update_ledger_version(root, ports, version_id, mutator):
 
     def call_table(action, nonce_seed):
         body = dict(definition=record['definition'], connection=connection, nonce=[nonce_seed] * 16,
-                    action=action, delegation=None, closure=None, borrow=None, lease=None, transaction=None)
+                    action=action, delegation=None, closure=None, borrow=None, lease=None, transaction=None, execution=None)
         ctx = hashlib.sha256(b'transit.table.direct.request.v1\x00' + compact(body)).digest()
         claim = dict(definition=record['definition'], realm=realm, principal=principal,
                      credential_epoch=identity['credential_epoch'], role=binding['role'],

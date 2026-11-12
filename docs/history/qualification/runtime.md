@@ -9,6 +9,186 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Private transactional Station behavior — 2026-11-12
+
+At source `5d7e0fd19264009c91f92ceca7676da4895b3fd2`, the private
+[Station composition](../../../packages/zig/transit-station/README.md#private-transactional-behavior-composition)
+uses the common database transaction for Table state, direct KV state, one
+original Queue ACK, a journal append and an output intent. The native PID's
+current principal, generation and executable remain the execution authority.
+The current-v1 definition is
+`cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2`.
+This is an internal compiled-handler profile; public Station consumers still
+use the native turn implementation.
+
+The [installed driver](../../../tests/runtime/station/transactional.py) exercises
+18 schedules against signed callers and disk storage. Its independent oracle
+checks exact Table/KV values, journal and output payloads, original source and
+transaction attribution, and the accepted input ACK. Eleven schedules kill the
+worker at retained-progress boundaries. Every schedule kills/restarts the node
+twice, rotates to a new principal/key and repeats the oracle with zero handler
+calls. The saved original binding remains byte-for-byte unchanged. Separate
+cases cover 128-byte state, a 1 KiB value and six changed KV keys, poisoned reads,
+handler exception, capacity refusal, stop and native ownership replacement.
+
+The owning component checks complement those installed boundaries:
+
+- Native authority and signed Catalog dispatch reject stale ownership without
+  relying on a policy-epoch change, forged code/workload, revoked recovery and
+  unauthorized protected disclosure. Recovery after retirement requires its
+  current scoped authority; it cannot create a fresh commit.
+- Catalog decision checks order ownership replacement against publication and
+  preserve accepted decisions through lost acknowledgements. Replacement may
+  only settle the original identity. The Queue decision test compares the full
+  frozen claim with the accepted receipt, rejecting altered lease duration,
+  predicate or row maximum without a decision. Accepted ACK replay needs no
+  fresh clock observation.
+- The turn builder owns scratch-derived values and poisons the draft after
+  caught read, byte/count or allocation failures. The installed runner keeps
+  its 64 MiB allocation ceiling. Existing mixed-participant and retained-root
+  suites exercise their database owners; these are distinct from a combined
+  installed actor-population/collection pressure campaign.
+- The transaction decision model explores 15,683 finite states with eight
+  negative controls and concrete decision/replacement/retirement schedules.
+  The Queue model retains nine negative controls and five concrete schedules.
+  These are bounded models and selected owner replays, not exhaustive runtime
+  refinement, physical power-loss or distributed-provider qualification.
+
+| Boundary | Executed test owner | Limit |
+| --- | --- | --- |
+| Native owner, grants and replacement recovery | [Core authority](../../../packages/zig/transit-core/src/growing_test.zig), [signed local dispatch](../../../apps/transit-node/local_catalog_policy_test.zig) | Local authority and signed caller schedules |
+| Decision ordering and original settlement | [Catalog transactions](../../../packages/zig/transit-catalog/src/direct_catalog_test.zig), [decision model](../../../tests/verification/models/README.md#finite-transaction-decision-model) | Bounded model and selected real-owner replays |
+| Exact claim, expiry, uncertain time and clock-free accepted replay | [Queue transaction decisions](../../../packages/zig/transit-storage/src/queue_partition_test.zig) | Disk-backed participant tests; no physical power-loss claim |
+| Scratch ownership and refused handler work | [Turn builder](../../../packages/zig/transit-station/src/transactional/Turn.zig), [installed runner](../../../tests/runtime/station/transactional.py) | Four configured ceilings, allocation failure and selected installed failures |
+| Paged backlog and retained roots | [Queue index](../../../packages/zig/transit-storage/src/queue_index_test.zig), [local collection](../../../tests/storage/local/direct_collection.zig) | Database-owner qualification, not an installed actor-population/collection campaign |
+
+Clean-source validation preserves the source of each result:
+
+| Clean lane | Committed source | Outcome |
+| --- | --- | --- |
+| `core` | `5d7e0fd19264` | 28/28 tasks passed, including 20 contract checks and 48 independent package builds |
+| `installation-ui` | `5d7e0fd19264` | 26/26 tasks passed, including Board/docs checks, installed SQL types, managed execution, Board computation recovery and declarative browser proofs |
+| `interfaces-sql` | `5d7e0fd19264` | 8/8 tasks passed, including TLS, allocation controls, gateway/session behavior, integrity/history, Stream/Queue declarations and mixed transactions |
+| `browser` (`--browser-system-deps preinstalled`) | `5d7e0fd19264` | 9/9 tasks passed, including Board, HTTP/gRPC, reactive views/lifecycles, workbench and computation proofs |
+| `browser` after atomic fixture publication (`--browser-system-deps preinstalled`) | `7b978a36babc` | 9/9 tasks passed with the corrected marker and acknowledgement handshake |
+| `formal` | `53de18f167b1` | 16/16 tasks passed |
+| `storage-query` | `5d7e0fd19264` | 37/37 tasks passed, including all 18 private Station schedules, mixed decisions, Queue transfers, collection and 139-resource restart readback |
+| All four SDK lanes (`sdks`) | `46abd436d646` | 16/16 tasks passed |
+
+At the same `5d7e0fd19264` source, the
+[hosted console and SQL interface job](https://github.com/spoke-sh/transit/actions/runs/43199741795/job/131119968039)
+passes the complete five-installation console gate and all 28 installed scalar
+interface cases. The four-CPU GitHub runner records Document/KV/Stream writes
+at 62/70/58 ms, peak PSS of 1,474,556,928 bytes and a memory-growth ratio of
+1.1399. Every latency and memory budget passes. All six raw measurement files
+identify the clean implementation revision and executable SHA-256
+`187cb0d4300239128bdd2d24e93a7183b1847332525c9b308f4dfe707f3ca9fa`.
+The unchanged budget file hashes to
+`d3fcbdc583e6e445d9c840aa7e51b91712597242aa28bc13e0b51d7fe8f3db67`.
+The local failures below remain separate observations; the hosted pass does not
+establish their cause or qualify the shared local environment.
+
+The `e73c635edd64` fixture-only change supplies the required nullable
+execution field in six independent Python request signers. The stricter frozen
+Queue-claim check at `53de18f167b1` affects the private guarded transaction path;
+public Station SDK consumers retain their existing native profile. The table
+keeps these tested source identities distinct instead of relabeling older runs
+as executions of a later commit. The subsequent merge `feae88768aebb` incorporates
+upstream console-latency sampling changes only. At `4c19523dd`, the installed
+Station oracle checks exact Table row sets without assuming physical scan order;
+the private runtime is unchanged at that oracle correction. The later
+`b24c048d2` change stores only native ownership fields in the reusable Catalog
+client context and reconstructs the unchanged full wire condition at signing.
+It rejects conversion of a transaction condition containing an input claim.
+Before that commit, all 13 focused Catalog client tests and four private
+Station tests pass. The signed/persisted transaction condition, exact claim
+verification and recovery semantics are unchanged. The later `2f4ea51a0`
+diagnostic change maps invalid prerequisites to a binding failure while preserving uncertainty after dispatch.
+At `5d7e0fd19`, the independent outcome expectations include that cause. The
+focused client/diagnostic suite passes 14 tests, and the outcome owner executes
+3,791 projections across 24 declared surfaces with its negative controls.
+
+Earlier runs remain failures or incomplete evidence. Derived signing/query
+commitments and TypeScript validator digests initially drifted after the shared
+cutover; their owning generators corrected them. A widened JSON result union
+exposed a default Debug worker-stack overflow; selected-payload decoding fixed
+it without increasing the stack or request limits. Initial installed schedules
+also exposed fixture assumptions about bounded cleanup and replacement
+credential registration, which were corrected before the complete run. The
+compact client constructor also required its reviewed diagnostic registry/inventory and independent
+read/dispatch outcome expectations. Earlier clean runs stopped at those missing declarations; the complete subsequent
+projections preserve local binding failures and unknown dispatched outcomes.
+Six independent Python interface fixtures also required the explicit nullable
+execution field in their signed request shape; the browser rejection identified that remaining migration, and the real
+HTTP authorization proof passes after the correction.
+
+One installation run at `46abd436d6461405760697169f26c32c4f6b37e2` timed out
+waiting for a 65-row MySQL INSERT. The retained installation was restarted with
+its matching executable and operation 120 inspected through public control.
+Its original terminal result was `applied`, with 65 matched and 65 changed rows;
+the INSERT was not resubmitted. This confirms the original outcome without
+establishing why its foreground wait expired. Fresh SQL types gates pass
+at `e73c635edd64b6083c624c5a6a501381b4ee45a1` and
+`5d7e0fd19264009c91f92ceca7676da4895b3fd2` with unchanged limits. Separate
+SQL terminal-completion and live-view snapshot-coverage waits also failed during
+the overlapping clean runs. Two later managed-application runs refused input 7 with
+`ClockUnavailable` / `AuthorityUnavailable`. Their original installations remain
+retained. Read-only inspection of the accepted Queue receipts found lease
+expiries at `2026-11-11T23:14:08.367Z` and `2026-11-12T02:19:02.898Z`; the
+respective refusals at `23:14:07.838Z` and `02:18:55.208Z` fall inside the
+configured ±10-second uncertainty envelope around those expiries. The original
+30-second claims no longer establish liveness at those decisions. This is a
+safe refusal, not evidence of an unsynchronized host clock. It does not identify
+which source or environmental cost caused the elapsed work. Their later
+results are recorded with the validation above; test, lease and clock bounds
+remain unchanged. Superseded clean runs stopped before completion are not passes.
+
+The [hosted lifecycle browser proof](https://github.com/spoke-sh/transit/actions/runs/43199741795/job/131119969556)
+at `5d7e0fd19264` fails after observing a valid `rotate-viewer` marker followed
+by `rotate-viewerr`. Its fixture overwrites the marker while Python can still
+hold an open reader. A [deterministic negative control](../../../apps/transit-board-web/browser/stage-marker.test.mjs)
+reads the old 13-byte stage, overwrites that inode with `replace-viewer`, and reads the final byte
+from the new stage, reproducing the exact malformed value. At
+`7b978a36babc0bd611aeeef57923809e9d2fd417`, stage requests and acknowledgements
+publish complete adjacent files by atomic rename. The existing reader then
+retains one complete stage, while a new reader sees its successor. Both unit
+controls and the full Board check pass. The committed-source clean browser lane passes all nine tasks, including
+live views, the complete lifecycle sequence, workbench and computations.
+No browser assertions, deadlines, authority rules or runtime behavior change.
+The original hosted failure remains failed evidence.
+The other selected jobs in that [hosted run](https://github.com/spoke-sh/transit/actions/runs/43199741795) pass, including core, storage/query,
+installation/UI, interfaces, formal checks, native builds, all four SDK lanes
+and launchers. The original aggregate remains failed because of its browser
+result; the corrected clean proof qualifies the later fixture source separately.
+
+The complete five-installation console gate at `4c19523dd` exceeds the
+Document/KV/Stream write budgets and the absolute proportional-set-size limit.
+The sequential control at upstream `62c93c46b0e75a30c15c89057cbc0baf7195b4be`
+passes every latency limit, with Document/KV/Stream write metrics of
+125/127/122 ms and 1,419,142,144 peak PSS bytes. That control still fails its
+memory-growth-ratio limit (1.1586 against 1.15). Both original local complete reports
+remain failures. The same upstream source passes its
+[CI console job](https://github.com/spoke-sh/transit/actions/runs/43141530822/job/130929596266)
+on a GitHub-hosted four-CPU runner: the write metrics are 68/73/64 ms,
+peak PSS is 1,391,343,616 bytes and growth is 1.1403. This separate environment
+observation does not qualify the feature branch or isolate the source of the
+local cost. The compact client context at `b24c048d2` then passes every latency and
+memory limit except the KV write class (131 ms against 127.2 ms). Its
+Document/Stream write classes are 123/122 ms, peak PSS is 1,480,572,928 bytes
+and memory growth is 1.1447. This complete local run remains failed. The
+subsequent hosted branch pass is recorded above with its own environment and
+source. No budget, lease, clock or durability limit changed during these
+investigations.
+
+The [implementation handoff](../../roadmap/station-transaction-implementation.md#implemented-ownership-and-later-consumer-cutover)
+keeps public calls/replies, timers, supervision, effect dispatch, automatic
+accepted-claim payload closure and SDK/runtime replacement separate. The larger
+actor/backlog population and integrated actor collection-pressure matrix is not
+qualified by these 18 schedules. The installed driver interrupts retained turn
+progress boundaries; it does not inject every before/after bootstrap, dependency
+publication and transport-exchange failure from the planning matrix. The shared
+Catalog lost-reply tests remain component evidence. Milestone 6 remains In Progress.
+
 ## Direct exchange producers and backpressure — 2026-10-24
 
 `nix develop --command just test::direct-captured-query --exchange-workers-only`

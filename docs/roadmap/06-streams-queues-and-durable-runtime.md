@@ -9,7 +9,17 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 `TransitLog` (`TWAL1`) and `.tseg` segments, and re-architect `Station` on top
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
-The [next-slice implementation plan](#next-slice-implementation-plan--2026-11-10),
+The [next-slice implementation plan, 2026-11-11](station-transaction-implementation.md)
+records **Batch 5: one private transactional Station behavior**, based on
+`main` at `bc849156ad91e9f022ad9a9204c47f654a209a57`. The private implementation
+adds a native actor execution guard at the common decision, retained turn
+recovery, a real Table/KV handler and installed worker-replacement fault proofs.
+Its acceptance matrix distinguishes these checks from broader resource and
+collection qualification.
+Public activation and service/consumer migration remain Batches 6–7; M6 remains
+**In Progress**.
+
+The [November 10 implementation slice](#next-slice-implementation-plan--2026-11-10),
 based on `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`, delivers
 bounded Queue metadata checkpoints and incremental resident Queue state
 ([Storage Unit 3](#additional-storage-review-units-and-sequencing)) together
@@ -21,8 +31,10 @@ and mixed SQL transactions (**Batch 4d**) under the shared
 cutover `316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`
 (`transit.v1.queue-checkpoints-mixed-sql.2026-11-10`), leaving transactional
 `Station` (Batches 5–7) and Table write-lifecycle/common-revision completion
-(Batches 8–9) as the remaining implementation waves. Start there,
-together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
+(Batches 8–9) as the remaining implementation waves. That slice landed in
+merge `134cea87f` (#443); its broader acceptance matrix remains a qualification
+obligation, not a consequence of the merge. The plan above carries those gates
+forward, together with the [November 8 storage reconciliation](#roadmap-reconciliation-after-427--2026-11-08)
 and [November 7 implementation plan](#implementation-plan--2026-11-07); the
 [November 5 completion plan](#completion-plan-at-current-main--2026-11-05) and
 [Stream WAIT slice](#next-slice-sql-stream-wait-4a2--2026-11-05) retain their dated

@@ -9,6 +9,76 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Private transactional Station comparison — 2026-11-12
+
+The [retained comparison](../../../tests/evidence/station-transactions-2026-11-12/README.md)
+compares the public native handler at `68b65d06c32b6e47e14e7fa66692e0ce61f48478`
+with the private common-transaction runner. Both use three warmups, twenty
+measured turns, the same independently checked 128-byte state sequence and one
+output intent per input. The private case additionally inserts a Table row,
+performs two private Table reads and appends a journal entry; its input is a
+typed Queue payload rather than a native integer message.
+
+At `b24c048d2`, the complete private run passes all 23 original outcomes and
+both SIGKILL restart oracles with a different authorized worker and zero
+handler calls. Its saved binding is unchanged. This repeats the comparison
+after compacting the reusable client context; the earlier complete run at
+`4c19523dd` remains source-attributed evidence. The measured private cost is
+substantially higher than the native control; this profile qualifies the private
+composition's correctness and records its current cost. Public replacement
+still needs performance qualification; this client does not meet the goal of
+zero steady-state allocations.
+
+| Run | Median | p95 | Measured turns |
+| --- | --- | --- | --- |
+| Native initial, November 11 | 68.7 ms | 82.7 ms | 20 |
+| Native repeat before first private attempt | 69.0 ms | 84.7 ms | 20 |
+| Native control before corrected comparison | 69.0 ms | 86.9 ms | 20 |
+| Private transactional runner, complete corrected comparison | 12,218.0 ms | 19,818.8 ms | 20 |
+| Native control before compact client comparison | 67.0 ms | 80.5 ms | 20 |
+| Private transactional runner, compact client context | 12,015.7 ms | 19,272.0 ms | 20 |
+
+The private runner's high-water mark is 18,389,712 bytes against its 64 MiB
+ceiling. Across twenty measured turns its client probe records 27,836 allocation
+successes, 10,289 successful remaps and 257,360,870 acquired backing bytes. Those
+are accumulated traffic, not simultaneously resident bytes. The paired native
+control records 735 allocations and 928 successful remaps in its narrower probe.
+Private samples range from 4.53 to 20.22 seconds. The first five measured turns
+have a 5.84-second median; the last five have an 18.48-second median. The
+experiment does not isolate that trend's cause or establish large-population
+behavior. Batching, retained-progress cost and allocation work remain performance follow-ups before a public cutover.
+
+The native timer spans accepted-input preparation through commit confirmation,
+including private recorder writes. The private timer spans pending discovery,
+claim, handler, publication across five participants, decision and cleanup. Neither
+includes input admission, independent verification or external dispatch. Their
+allocation probes differ: the native probe excludes its private recorder, while
+the private probe includes the runner and signed Catalog caller. The node's
+resource window also differs: native verification happens during the measured
+caller process. The private window includes immediate KV readback, while its
+complete Table/journal/input/output restart oracle runs afterward. Raw
+CPU ticks, RSS and I/O counters are retained without a normalized cross-profile
+ratio. Server allocations, physical syncs and CPU cycles remain unmeasured.
+
+Each profile uses ReleaseSafe binaries, synchronous local disk durability, one
+resident storage page and unlimited retention. The private runner keeps its
+64 MiB ceiling, original five-minute Queue claims and 30-second client exchange
+bound. Runs are sequential on the shared 48-logical-CPU host with retained OS
+caches. No owned heavy build or other proof overlaps measurement; external load
+is uncontrolled. These observations establish no new latency budget or physical
+power-loss qualification.
+
+The first private run at `feae88768aebb086b51841e77959380107ddf20a`
+confirmed all 23 turns but failed the restart oracle: that test incorrectly
+expected a physical Table scan in numeric primary-key order. Its original
+report remains `completed: false`, with every attempt and sample retained. The
+correction at `4c19523dd` checks the exact independent value set and rejects
+foreign and duplicate rows. The corrected caller verifies all 23 original
+outcomes twice across a further SIGKILL restart, without rerunning a handler or
+changing the saved binding. The fresh corrected run then passes the full driver,
+including both restart checks; its independent output and journal oracles cover
+every turn.
+
 ## Installed scenario qualification — 2026-11-04
 
 The registered `just test::server-scenarios` task passes from a clean checkout of

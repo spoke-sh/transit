@@ -5540,6 +5540,10 @@
           "code": "catalog.invalid_transaction_read",
           "category": "binding"
         },
+        "InvalidTransactionExecution": {
+          "code": "catalog.invalid_execution_condition",
+          "category": "binding"
+        },
         "TransactionReadChanged": {
           "code": "catalog.transaction_read_changed",
           "category": "conflict"

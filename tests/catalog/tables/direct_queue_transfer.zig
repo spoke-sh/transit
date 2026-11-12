@@ -86,7 +86,7 @@ pub fn prepare(init: std.process.Init, client: c.DirectTableClient, role: u64, p
         .{ .object = destination.interpretation.object, .kind = .queue, .partition = 0 },
     };
     const tx: Tx = .{ .catalog = client };
-    _ = try tx.begin(.{ .key = key, .fingerprint = @splat(0x45), .operation = operation(client, 643100), .namespace = 1, .mode = .serializable, .deadline = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = .{} });
+    _ = try tx.begin(.{ .key = key, .fingerprint = @splat(0x45), .operation = operation(client, 643100), .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = .{} });
     _ = try tx.acquire(key);
     const payload = try c.storage.LogBatch.encode(schema(destination.interpretation.object.object), operation(client, 643007), .queue, &.{.{ .cells = &cells }}, &buffer);
     const work: c.DirectTransactionLogWork.Work = .{ .queue_transfer = .{ .operation = operation(client, 643006), .source = .{ .nack = lease }, .destination = .{ .target = destination, .operation = operation(client, 643007), .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } } };

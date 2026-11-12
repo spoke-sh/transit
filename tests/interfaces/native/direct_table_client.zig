@@ -144,6 +144,7 @@ fn write(init: std.process.Init, client: c.DirectTableClient, profile: *Profile,
             .identity = .{ .begin = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 900001 }, .branch = 1 },
             .mode = .serializable,
             .deadline = null,
+            .execution = null,
             .selection = .explicit_objects,
             .objects = .{ .content = .{ .bytes = 100, .sha256 = @splat(73) }, .count = 0 },
             .catalog = .{ .partition = profile.catalog.partition, .next_lsn = 1 },
@@ -725,6 +726,13 @@ pub fn main(init: std.process.Init) !void {
         const client: c.DirectTableClient = .{ .allocator = init.gpa, .authority = &native, .service = &service, .connection = .{ .scope = profile.catalog.scope, .branch = 1, .audience = profile.catalog.audience, .principal = 101, .role = null }, .key = try key(29) };
         const directory = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(args[3]) orelse ".", .{});
         defer directory.close(init.io);
+        if (std.mem.startsWith(u8, args[2], "station-transaction-")) {
+            @import("fixture_transactional_station").run(init, client, &admin, profile.role, args[3], args[2]["station-transaction-".len..]) catch |err| {
+                std.debug.print("Private Station {s}: {s}; native={any} data={any}\n", .{ args[2], @errorName(err), native.last_rejection, service.last_rejection });
+                return err;
+            };
+            return;
+        }
         if (std.mem.eql(u8, args[2], "log-baseline-measure") or std.mem.eql(u8, args[2], "log-baseline-recover")) {
             try @import("fixture_log_runtime").execute(init, client, profile.role, args[3], std.mem.eql(u8, args[2], "log-baseline-recover"), &output.interface);
             return output.interface.flush();

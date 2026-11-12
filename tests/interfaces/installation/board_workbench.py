@@ -48,7 +48,7 @@ def direct_client(fixture, definition, connection, seed):
     def direct(action, expected=200):
         body = dict(definition=definition, connection=connection, nonce=[91]*16,
                     action=action, delegation=None, closure=None,
-                    borrow=None, lease=None, transaction=None)
+                    borrow=None, lease=None, transaction=None, execution=None)
         context = hashlib.sha256(b'transit.table.direct.request.v1\0' + compact(body)).digest()
         claim = dict(definition=definition, realm=realm, principal=principal,
                      credential_epoch=identity['credential_epoch'], role=None,

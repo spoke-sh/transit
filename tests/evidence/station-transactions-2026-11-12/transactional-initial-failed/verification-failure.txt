@@ -1,0 +1,6 @@
+TRANSIT_STATION_TRANSACTION_BASELINE='.cache/performance/station-transaction-feae' zig build test-station-transaction -Doptimize=ReleaseSafe
+Direct Table station-transaction proof: /var/tmp/transit-table-station-transaction-0s17twr2
+Direct Table provision: passed
+expected 42, found 43
+Private Station station-transaction-verify-measured: TestExpectedEqual; native=null data=null
+error: TestExpectedEqual

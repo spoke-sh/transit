@@ -32,6 +32,11 @@ The [shared client resource baseline](client-foundation-2026-10-29/README.md)
 retains verified installed SQL workloads with process/thread/memory snapshots
 and statement timings for subsequent shared-context and I/O-pool comparisons.
 
+The [private transactional Station comparison](station-transactions-2026-11-12/README.md)
+retains native and private handler measurements, exact state/output oracles,
+original restart failures and separate corrected verification for the future
+public consumer cutover.
+
 The earlier generated-output archive remains available at its
 [original source revision](https://github.com/spoke-sh/transit/tree/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/verification/results).
 The [file disposition map](../../docs/roadmap/development-workflow-migration.json)

@@ -127,15 +127,21 @@ fn dispatchWithSeed(service: anytype, action: c.DirectTableProtocol.Action, dele
     return dispatchContext(service, action, delegation, borrow, seed, null);
 }
 fn dispatchContext(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8, transaction: ?c.DirectTransactionRead.Context) !Response {
+    return dispatchIdentity(service, action, delegation, borrow, seed, transaction, 101);
+}
+fn dispatchIdentity(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8, transaction: ?c.DirectTransactionRead.Context, principal: u64) !Response {
+    return dispatchExecution(service, action, delegation, borrow, seed, transaction, principal, null);
+}
+fn dispatchExecution(service: anytype, action: c.DirectTableProtocol.Action, delegation: ?c.DirectReadDelegation, borrow: ?c.DirectReadDelegation.Borrow, seed: u8, transaction: ?c.DirectTransactionRead.Context, principal: u64, execution: ?p.Transaction.Execution) !Response {
     const w = c.DirectTableProtocol;
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const alloc = arena.allocator();
-    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = 101, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action, .transaction = transaction };
+    const input: w.Request.Input = .{ .definition = g.current_definition, .connection = .{ .scope = service.configuration.scope, .branch = service.configuration.branch, .audience = service.configuration.audience, .principal = principal, .role = null }, .delegation = delegation, .borrow = borrow, .nonce = @splat(7), .action = action, .transaction = transaction, .execution = execution };
     const context = try w.Request.context(input, alloc);
-    const executor = if (borrow) |value| value.binding.executor else if (delegation) |value| value.binding.executor else 101;
-    const signed = if (delegation != null) try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (borrow != null) 33 else 31)) else try proofWithSeed(service.engine, context, seed);
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .transaction = input.transaction, .proof = signed };
+    const executor = if (borrow) |value| value.binding.executor else if (delegation) |value| value.binding.executor else principal;
+    const signed = try a.Proof.sign(.{ .definition = g.current_definition, .realm = 42, .principal = executor, .credential_epoch = (try service.engine.principal(executor)).credential_epoch, .role = null, .audience = service.configuration.audience, .context = context }, try key(if (delegation != null) (if (borrow != null) @as(u8, 33) else 31) else seed));
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .borrow = input.borrow, .transaction = input.transaction, .execution = input.execution, .proof = signed };
     const bytes = try p.Json.valueAlloc(alloc, request);
     const parsed = try w.Request.parse(alloc, bytes);
     const response = try t.allocator.create(std.json.Parsed(w.Response));
@@ -1752,7 +1758,7 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     }
     const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null };
     const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(81) };
-    const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .deadline = null, .budget = .{} };
+    const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = null, .budget = .{} };
     const begun = try dispatch(service, .{ .transaction = .{ .begin = begin } });
     defer begun.deinit();
     try t.expect(begun.value.result.transaction.begun.binding.intent.transaction.begin.objects.count >= 12);
@@ -1888,6 +1894,56 @@ fn transactionDispatch(service: *@import("LocalTableService.zig"), owner_role: u
     try Fence.run(&fence_context, service.engine);
     const next_guard = try api.make_guard(api.context, allocator, requirement, null);
     try t.expectError(error.StaleStorageEpoch, next_guard.acquire(next_guard.context));
+}
+
+fn nativeExecutionSchedule(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const engine = service.engine;
+    _ = try change(engine, .{ .bind_credential = .{ .principal = 102, .role = owner_role, .public_key = (try key(31)).public_key.toBytes() } });
+    for ([_]bool{ false, true }, 0..) |committed, ordinal| {
+        const pid = try command(engine, .{ .spawn = .{} });
+        _ = try change(engine, .{ .grant = .{ .object = .{ .kind = .process, .id = pid }, .grantee = owner_role, .privileges = p.permission(.execute) | p.permission(.inspect) } });
+        _ = try command(engine, .{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 101 } });
+        const scope = service.configuration.scope;
+        const execution: p.Transaction.Execution = .{ .realm = 42, .pid = pid, .principal = 101, .generation = 1, .code = 1, .workload = null, .input = null };
+        const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = .{ .scope = scope, .branch = 1, .audience = service.configuration.audience, .principal = 101, .role = null }, .account = @splat(31), .token = @splat(@as(u8, @intCast(ordinal + 1))) };
+        const begin: c.DirectTransactionRequest.Begin = .{ .key = token, .fingerprint = @splat(32), .operation = .{ .scope = scope, .principal = 101, .operation = 140000 + ordinal * 2 }, .namespace = 1, .mode = .serializable, .selection = .{ .explicit_objects = &.{} }, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = execution, .budget = .{} };
+        var forged = begin;
+        forged.execution.?.code += 1;
+        try t.expectError(error.StaleGeneration, dispatch(service, .{ .transaction = .{ .begin = forged } }));
+        (try dispatch(service, .{ .transaction = .{ .begin = begin } })).deinit();
+        (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
+        const operation: p.DataLifecycle.Operation = .{ .scope = scope, .principal = 101, .operation = begin.operation.operation + 1 };
+        const settle: c.DirectTransactionRequest.Request = .{ .settle = .{ .key = token, .operation = operation, .command = .commit, .steps = 1 } };
+        if (committed) (try dispatch(service, .{ .transaction = settle })).deinit();
+        (try dispatchExecution(service, .describe, null, null, 29, null, 101, execution)).deinit();
+        const policy_revision = engine.head.authorization.revision;
+        _ = try command(engine, .{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 102 } });
+        try t.expectEqual(policy_revision, engine.head.authorization.revision);
+        try t.expectError(error.StaleGeneration, dispatchExecution(service, .describe, null, null, 29, null, 101, execution));
+        if (!committed) try t.expectError(error.StaleGeneration, dispatch(service, .{ .transaction = settle }));
+        const recovery: c.DirectTransactionRequest.Request = .{ .recover = .{ .key = token, .execution = execution, .close_input = false, .work = .{ .settle = .{ .operation = operation, .steps = 1 } } } };
+        const result = try dispatchIdentity(service, .{ .transaction = recovery }, null, null, 31, null, 102);
+        defer result.deinit();
+        const settled = result.value.result.transaction.recovered.?.status;
+        try t.expect(settled.cleanup_complete);
+        if (committed) try t.expectEqual(.committed, settled.observation.decided.outcome) else try t.expectEqual(.aborted, settled.observation.decided.outcome);
+        const Replace = struct {
+            fn run(raw: *anyopaque, authority: *Engine) !void {
+                const actor: *const u64 = @ptrCast(@alignCast(raw));
+                _ = try command(authority, .{ .own = .{ .pid = actor.*, .expected_generation = 2, .worker = 101 } });
+            }
+        };
+        var actor = pid;
+        service.before_reply = .{ .context = &actor, .run = Replace.run };
+        defer service.before_reply = null;
+        try t.expectError(error.StaleGeneration, dispatchIdentity(service, .{ .transaction = .{ .recover = .{ .key = token, .execution = execution, .close_input = false, .work = .inspect } } }, null, null, 31, null, 102));
+        service.before_reply = null;
+        try t.expectEqual(policy_revision, engine.head.authorization.revision);
+    }
+}
+
+test "signed native transaction execution and new principal recovery preserve the authority fence" {
+    try dataSchedule(nativeExecutionSchedule);
 }
 
 test "signed transaction controls preserve paged policy and private atomic work" {
@@ -3013,7 +3069,7 @@ fn ownedRecordsDispatch(service: *@import("LocalTableService.zig"), owner_role: 
     var references: [4]c.DirectRecord.Reference = undefined;
     for (&requests, &references, 0..) |*request, *reference, i| {
         const token: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(80), .token = @splat(@as(u8, @intCast(81 + i))) };
-        (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 + i }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .deadline = null, .budget = .{} } } })).deinit();
+        (try dispatch(service, .{ .transaction = .{ .begin = .{ .key = token, .fingerprint = @splat(82), .operation = .{ .scope = scope, .principal = 101, .operation = 110000 + i }, .namespace = 1, .mode = .serializable, .selection = .authorized_catalog_objects, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = null, .budget = .{} } } })).deinit();
         (try dispatch(service, .{ .transaction = .{ .acquire = token } })).deinit();
         const guarded = try c.DirectRecord.encodeGuarded(allocator, connection, &.{binding.target}, "candidate");
         request.* = .{ .stage_transaction = .{ .transaction = token, .format = c.DirectRecord.guarded_bit | 17, .bytes = try w.Binary.encode(allocator, guarded) } };

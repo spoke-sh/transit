@@ -210,6 +210,12 @@ test "transaction selection signature binds partition ordinals and rejects ambig
     const original = parsed.value.request;
     try original.validate(t.allocator);
     try original.proof.verify(parsed.value.public_key);
+    var stripped = original;
+    stripped.execution = null;
+    try t.expectError(error.InvalidAuthorizationCredential, stripped.validate(t.allocator));
+    stripped = original;
+    stripped.execution.?.generation += 1;
+    try t.expectError(error.InvalidAuthorizationCredential, stripped.validate(t.allocator));
     const selected = original.action.transaction.begin.selection.explicit_objects;
     try t.expectEqual(@as(usize, 2), selected.len);
     try t.expectEqual(@as(u32, 0), selected[0].partition.?);
@@ -220,6 +226,12 @@ test "transaction selection signature binds partition ordinals and rejects ambig
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
     changed = original;
     changed.action.transaction.begin.deadline = null;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.begin.execution = null;
+    try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
+    changed = original;
+    changed.action.transaction.begin.execution.?.generation += 1;
     try t.expectError(error.InvalidAuthorizationCredential, changed.validate(t.allocator));
     changed = original;
     changed.action.transaction.begin.selection = .{ .explicit_objects = &targets };

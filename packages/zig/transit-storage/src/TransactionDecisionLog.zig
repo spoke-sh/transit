@@ -269,11 +269,37 @@ fn commitBounded(self: *Self, prepared_directory: x.Directory, verification: Ver
         };
         after = page.next orelse break;
     }
-    if ((has_log_writes or self.binding.begin.deadline != null) and verification.before_decision == null) return error.MissingTransactionVerification;
+    try self.verifyInput(&selected);
+    if ((has_log_writes or self.binding.begin.deadline != null or self.binding.begin.execution != null) and verification.before_decision == null) return error.MissingTransactionVerification;
     if (verification.before_decision) |check| try check(verification.context);
     try self.append(.{ .decision = decision }, fence);
     if (self.lose_reply) return error.LostAcknowledgement;
     return decision;
+}
+
+fn verifyInput(self: *Self, selected: *Directory) !void {
+    const execution = self.binding.begin.execution orelse return;
+    const input = execution.input orelse return;
+    const target: x.Target = .{ .object = input.target.interpretation.object, .kind = .queue, .partition = input.target.partition };
+    const participant = (try selected.get(target) orelse return error.MissingTransactionInput).participant;
+    if (participant != .log or participant.log.actions == null) return error.MissingTransactionInput;
+    try input.target.requireSame(participant.log.guard.source.target);
+    var actions = try self.actionDirectory(participant.log);
+    defer actions.deinit();
+    var after: ?Actions.Cursor = null;
+    var found = false;
+    while (true) {
+        const page = try actions.page(after);
+        for (page.entries) |entry| if (entry) |value| {
+            if (value.work.action != .queue_ack) continue;
+            const ack = value.work.action.queue_ack;
+            if (!std.meta.eql(ack.lease.claim, input.operation)) continue;
+            if (found) return error.InvalidTransactionInput;
+            found = true;
+        };
+        after = page.next orelse break;
+    }
+    if (!found) return error.MissingTransactionInput;
 }
 
 fn actionDirectory(self: *Self, participant: @FieldType(x.Participant, "log")) !Actions {

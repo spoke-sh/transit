@@ -40,6 +40,17 @@ separate transactions. The example's saved binding identifies the catalog,
 branch and Table; replacing a worker cannot redirect accepted work to a different
 object. See [Tables](tables.md) for direct operation and retained-read semantics.
 
+## Private transactional behavior work
+
+An internal qualification runner composes a declared Queue input, direct KV and
+Table state, a replay Stream and output intents through one database transaction.
+Its native PID execution condition is checked at the common decision; Queue lease
+ownership remains a separate requirement. Replacement settles original work
+without running the handler again. This runner is absent from the public Station
+API and SDKs. The [package owner](../../../packages/zig/transit-station/README.md#private-transactional-behavior-composition)
+describes its limits and proof entry points. Existing behavior, call and state
+APIs retain the semantics described on this page.
+
 ## Names and registries
 
 A registry namespace is an application naming scope, not a security realm.

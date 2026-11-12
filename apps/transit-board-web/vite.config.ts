@@ -120,7 +120,11 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts", "../../packages/ts/transit-board-client/src/**/*.test.ts"],
+    include: [
+      "src/**/*.test.ts",
+      "browser/*.test.mjs",
+      "../../packages/ts/transit-board-client/src/**/*.test.ts",
+    ],
   },
   lint: {
     ignorePatterns: ["src/routeTree.gen.ts"],

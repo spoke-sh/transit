@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
+import { publishStage } from "./stage-marker.mjs";
 const expect = baseExpect.configure({ timeout: 40000 });
 const config = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const browser = await chromium.launch({
@@ -31,7 +32,7 @@ for (const page of [counter, peer, board]) {
   });
 }
 async function stage(name) {
-  writeFileSync(config.marker, name);
+  publishStage(config.marker, name);
   const until = Date.now() + 90000;
   while (
     !existsSync(config.marker + "-ack") ||

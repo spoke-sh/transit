@@ -96,6 +96,44 @@ pub const Deadline = struct {
     }
 };
 
+/// Native execution authority frozen into ordinary database work. The data
+/// owner delegates verification to native authority while holding its fence;
+/// neither a Queue lease nor an application row can satisfy this condition.
+pub const Execution = struct {
+    realm: u64,
+    pid: u64,
+    principal: u64,
+    generation: u64,
+    code: u32,
+    /// Exact provider executable, when this PID has a managed runtime binding.
+    workload: ?[32]u8,
+    /// Optional original Queue acquisition, frozen before dispatch. A recovery
+    /// owner may close this exact acquisition after settling the transaction.
+    input: ?q.Claim,
+
+    pub fn validate(self: Execution) !void {
+        if (self.realm == 0 or self.realm > p.max_counter or self.pid == 0 or
+            self.pid > p.max_counter or self.principal > p.max_counter or
+            self.generation == 0 or self.generation > p.max_counter or self.code == 0)
+            return error.InvalidTransactionExecution;
+        if (self.input) |claim| {
+            try claim.validate();
+            if (claim.maximum != 1 or claim.operation.principal != self.principal or claim.operation.scope.realm != self.realm)
+                return error.TransactionIdentityConflict;
+        }
+    }
+
+    pub fn requireIdentity(self: Execution, identity: Identity) !void {
+        try self.validate();
+        if (self.realm != identity.begin.scope.realm or self.principal != identity.begin.principal)
+            return error.TransactionIdentityConflict;
+        if (self.input) |claim| {
+            try identity.requireObject(claim.target.interpretation.object);
+            if (std.meta.eql(claim.operation, identity.begin)) return error.TransactionIdentityConflict;
+        }
+    }
+};
+
 pub const Begin = struct {
     definition: p.Growth.Definition,
     identity: Identity,
@@ -107,6 +145,7 @@ pub const Begin = struct {
     catalog: d.Position,
     limits: Limits,
     deadline: ?Deadline,
+    execution: ?Execution,
 
     pub fn validate(self: Begin) !void {
         try self.identity.validate();
@@ -114,6 +153,7 @@ pub const Begin = struct {
         try self.catalog.validate();
         try self.limits.validate();
         if (self.deadline) |deadline| try deadline.validate();
+        if (self.execution) |execution| try execution.requireIdentity(self.identity);
         if (self.catalog.next_lsn == 0 or self.objects.count > self.limits.participants)
             return error.InvalidTransactionBegin;
     }

@@ -1920,8 +1920,11 @@ const TransactionVerification = struct {
     }
 };
 
-test "log transaction Queue decision rechecks live leases and recovers accepted ACK without a clock" {
-    for ([_]bool{ false, true }) |commit| {
+test "log transaction Queue decision rechecks frozen claims and live leases and recovers accepted ACK without a clock" {
+    const Mode = enum { expired, commit, changed_lease, changed_predicate, changed_maximum };
+    for (std.enums.values(Mode)) |mode| {
+        const commit = mode == .commit;
+        const changed = mode == .changed_lease or mode == .changed_predicate or mode == .changed_maximum;
         var tmp = t.tmpDir(.{});
         defer tmp.cleanup();
         var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
@@ -1941,7 +1944,7 @@ test "log transaction Queue decision rechecks live leases and recovers accepted 
         var bytes: [8192]u8 = undefined;
         const first = try request(&declared, 2, &bytes);
         _ = try owner.enqueue(initial.declared, first.append, first.payload, policy.guard());
-        const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = 1, .lease_ms = 100, .predicate = null }, policy.guard());
+        const claim = try owner.claim(initial.declared, .{ .target = initial.target(), .operation = operation(20), .maximum = if (mode == .changed_maximum) 2 else 1, .lease_ms = 100, .predicate = null }, policy.guard());
         const lease = try selectedLease(owner.owner.objects, claim, 0);
         const identity: p.Transaction.Identity = .{ .begin = operation(100), .branch = 1 };
         const basis = owner.owner.root;
@@ -1963,6 +1966,11 @@ test "log transaction Queue decision rechecks live leases and recovers accepted 
         var binding: s.TransactionDecisionLog.Binding = .{ .begin = fixtures.begin(participants), .attempt = fixtures.attempt(participants) };
         binding.begin.identity = identity;
         binding.begin.limits.resident_bytes = limits.resident_bytes;
+        var frozen_claim = claim.claim;
+        frozen_claim.maximum = 1;
+        if (mode == .changed_lease) frozen_claim.lease_ms += 1;
+        if (mode == .changed_predicate) frozen_claim.predicate = try p.QueuePredicate.init("different accepted selection");
+        binding.begin.execution = .{ .realm = identity.begin.scope.realm, .pid = 7, .principal = identity.begin.principal, .generation = 1, .code = 1, .workload = null, .input = frozen_claim };
         binding.attempt.transaction = identity;
         binding.attempt.operation.principal = identity.begin.principal;
         var journal = try s.TransactionDecisionLog.init(t.allocator, wal.log(), objects.objectStore(), 99, binding);
@@ -1974,11 +1982,17 @@ test "log transaction Queue decision rechecks live leases and recovers accepted 
         try preparations.put(.{ .prepared = prepared });
         const sealed = try preparations.seal();
         var verify: TransactionVerification = .{ .owner = &owner, .policy = &policy };
-        var incomplete_checks = verify.callbacks();
-        incomplete_checks.before_decision = null;
-        try t.expectError(error.MissingTransactionVerification, journal.commit(sealed, incomplete_checks, policy.guard()));
+        if (!changed) {
+            var incomplete_checks = verify.callbacks();
+            incomplete_checks.before_decision = null;
+            try t.expectError(error.MissingTransactionVerification, journal.commit(sealed, incomplete_checks, policy.guard()));
+        }
         try t.expectEqual(@as(u64, 1), try wal.log().tail(99));
-        if (commit) {
+        if (changed) {
+            try t.expectError(error.QueueClaimConflict, journal.commit(sealed, verify.callbacks(), policy.guard()));
+            try t.expectEqual(@as(u64, 1), try wal.log().tail(99));
+            _ = try journal.abort(policy.guard());
+        } else if (commit) {
             _ = try journal.commit(sealed, verify.callbacks(), policy.guard());
         } else {
             // Time advances after the expensive prepare validation. The final

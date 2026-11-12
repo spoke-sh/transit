@@ -34,6 +34,7 @@ pub const entries = [_]Entry{
     .{ .cause = error.InvalidTableReadBudget, .code = "catalog.invalid_read_budget", .category = .limit, .message = "The requested read exceeds its explicit row or encoded-byte budget." },
     .{ .cause = error.UnsupportedTransactionRead, .code = "catalog.unsupported_transaction_read", .category = .unsupported, .message = "This interface cannot represent the requested private transaction view. Use its transaction-aware read operations." },
     .{ .cause = error.InvalidTransactionRead, .code = "catalog.invalid_transaction_read", .category = .binding, .message = "The private read requires its original transaction token, active revision and qualified snapshot handle." },
+    .{ .cause = error.InvalidTransactionExecution, .code = "catalog.invalid_execution_condition", .category = .binding, .message = "Supply the complete native execution binding. A request prerequisite cannot carry an input claim; retain that claim in the original transaction condition." },
     .{ .cause = error.TransactionReadChanged, .code = "catalog.transaction_read_changed", .category = .conflict, .message = "The transaction workspace changed. Close the stale cursor and explicitly inspect the current revision before preparing new work." },
 
     .{ .cause = error.InvalidProjection, .code = "catalog.invalid_projection", .category = .binding, .message = "Select increasing unique column ordinals from the retained schema, including every primary-key column." },

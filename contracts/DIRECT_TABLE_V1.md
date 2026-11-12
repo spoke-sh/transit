@@ -2206,11 +2206,56 @@ checks from installed service qualification.
 ### Signed transaction action
 
 `Action.transaction` carries `DirectTransactionRequest.Request`. `begin` requires
-`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, nullable `deadline`, `selection`,
+`key`, nonzero SHA-256 `fingerprint`, `operation`, `namespace`, `mode`, nullable `deadline` and `execution`, `selection`,
 `limits` and token `budget`. Explicit selection IDs are strictly increasing;
 `authorized_catalog_objects` is discovered and frozen by the owner. The original
 account/token binding wins a race; matching fingerprints recover that accepted
 begin without reselecting the catalog. A different fingerprint conflicts.
+Changing or removing the frozen deadline or execution condition also conflicts.
+
+`execution`, when present, binds native realm/PID, owner principal, generation,
+code, nullable managed workload digest and nullable original Queue `input` claim. Its principal and realm must match
+the original transaction. Admission and the final decision check native
+execution rights, ownership and executable lifecycle under native authority
+exclusion. Ordinary database transactions use null. Missing persisted fields
+are rejected, rather than interpreted as null. See the
+[neutral execution condition](DATA_LIFECYCLE_V1.md#native-execution-condition).
+
+`Request.execution` is a separate required nullable signed prerequisite for a
+whole direct request. It requires `input = null`, matches the connection realm
+and principal, and cannot accompany delegation, borrowed reads or delegated
+closure. Every publication guard and final response observation checks that
+current native activation. This lets a native host fence progress writes and
+Queue acquisition at the same authority boundary as transaction admission. The
+frozen transaction condition still governs its decision independently.
+
+`recover` carries the original `key`, exact `execution`, required `close_input`
+boolean, and `work`: `inspect`
+or `settle` with the saved attempt `operation` and `steps` in 1–256. The signed
+connection may use a replacement principal and selected role in the same
+catalog/branch/audience. Current CONNECT and either native PID admin authority
+or the current executable owner's execute and inspect rights are required.
+Recovery checks the persisted condition and only accepts ordinary interactive
+transactions with that condition; protected SOURCE and Queue transfer owners
+remain separate. No original credential is re-signed or impersonated.
+
+The result is `recovered`, a nullable `{status, input}` record. Null observes no token and does
+not itself cancel a delayed admission. Settlement aborts undecided original
+work or finalizes its existing decision, always using the saved attempt
+identity. It cannot create a new commit. Replaced/retired execution and expired
+leases cannot undo a committed decision. Native recovery authority is rechecked
+after response buffering, including ownership changes without a policy change.
+
+`close_input = true` requires settlement and a non-null frozen input. After
+cleanup completes, the owner cancels exactly that original acquisition under
+current recovery and Queue rights. The result's `input` is its original claim
+receipt if already accepted, or its irreversible missing-work closure. It is
+null until transaction cleanup completes. A delayed missing claim cannot acquire
+new work after closure; an accepted claim and its lease remain unchanged. This
+operation does not release an accepted claim's retained payload. A different
+claim cannot be substituted. Missing BEGIN remains an observation of absence,
+not cancellation; a host must fence delayed admission before clearing discovery.
+
 
 `acquire` and `inspect` carry the original key. `stage` carries `key`, required `basis` catalog revision, `sequence`
 and native `work` (bulk rows or statement, never DDL), and returns a frozen private

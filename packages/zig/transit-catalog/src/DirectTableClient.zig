@@ -21,6 +21,10 @@ credential_epoch: ?u64 = null,
 delegation: ?c.DirectReadDelegation = null,
 lease: ?c.DirectClientToken.Lease = null,
 transaction: ?c.DirectTransactionRead.Context = null,
+/// Optional native execution prerequisite, checked under each publication fence.
+/// Requests cannot carry an input claim; keep that transaction-owned payload
+/// out of every ordinary caller value and its enclosing service contexts.
+execution: ?Execution = null,
 /// Current original-caller permission to close a saved delegation. This never
 /// renews read authority for the accepted computation.
 closure: ?c.DirectReadDelegation.Closure = null,
@@ -29,6 +33,27 @@ borrow: ?c.DirectReadDelegation.Borrow = null,
 /// Per-invocation evidence for an embedding caller. Clear it explicitly before
 /// starting a new host action; nested reads must not erase a mutation attempt.
 attempt: ?*Attempt = null,
+
+/// Owned request prerequisite. The complete condition, including any original
+/// input acquisition, remains in the transaction's immutable BEGIN record.
+pub const Execution = struct {
+    realm: u64,
+    pid: u64,
+    principal: u64,
+    generation: u64,
+    code: u32,
+    workload: ?[32]u8,
+
+    pub fn init(value: p.Transaction.Execution) !Execution {
+        if (value.input != null) return error.InvalidTransactionExecution;
+        try value.validate();
+        return .{ .realm = value.realm, .pid = value.pid, .principal = value.principal, .generation = value.generation, .code = value.code, .workload = value.workload };
+    }
+
+    pub fn condition(self: Execution) p.Transaction.Execution {
+        return .{ .realm = self.realm, .pid = self.pid, .principal = self.principal, .generation = self.generation, .code = self.code, .workload = self.workload, .input = null };
+    }
+};
 
 /// Owns the parsed response arena. Borrowed fields remain valid until deinit;
 /// moving this value transfers its single cleanup obligation. Cleanup takes a
@@ -230,6 +255,46 @@ test "Queue wait cancellation retains its original claim identity as unknown wor
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
 
+test "request execution owns its condition and cannot discard a transaction claim" {
+    const t = std.testing;
+    const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
+    defer fixture.deinit();
+    const connection = fixture.value.request.connection;
+    const activation: p.Transaction.Execution = .{ .realm = connection.scope.realm, .pid = 7, .principal = connection.principal, .generation = 3, .code = 1, .workload = @as([32]u8, @splat(9)), .input = null };
+    var transport = wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
+    defer transport.deinit();
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(1));
+    var caller: Self = .{ .allocator = t.allocator, .authority = &transport, .service = &transport, .connection = connection, .key = key, .credential_epoch = 7, .execution = try Execution.init(activation) };
+    const request = try caller.signed(.describe, @splat(5));
+    try request.proof.verify(key.public_key.toBytes());
+    try t.expectEqualDeep(activation, request.execution.?);
+    var expected = request.input();
+    expected.execution = activation;
+    try t.expectEqual(try w.Request.context(expected, t.allocator), request.proof.claim.context);
+    // Neither a moved caller nor a later activation may alter the saved request.
+    var moved = caller;
+    caller.execution = null;
+    moved.execution.?.generation += 1;
+    const next = try moved.signed(.describe, @splat(5));
+    try t.expectEqualDeep(activation, request.execution.?);
+    try t.expect(!std.meta.eql(request.proof.claim.context, next.proof.claim.context));
+    var changed = request;
+    changed.execution = next.execution;
+    if (changed.validate(t.allocator)) |_| return error.UnboundRequest else |_| {}
+    moved.execution.?.generation = 0;
+    try t.expectError(error.InvalidTransactionExecution, moved.signed(.describe, @splat(5)));
+    var claimed = activation;
+    claimed.input = .{
+        .target = .{ .definition = p.Growth.current_definition, .interpretation = fixture.value.request.action.dependency_operation.binding.edge.source, .partition = 0 },
+        .operation = .{ .scope = connection.scope, .principal = connection.principal, .operation = 7 },
+        .maximum = 1,
+        .lease_ms = 1000,
+        .predicate = null,
+    };
+    try claimed.validate();
+    try t.expectError(error.InvalidTransactionExecution, Execution.init(claimed));
+}
+
 test "observed signing epoch needs no identity round trip and binds the complete request" {
     const t = std.testing;
     const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, edge_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-dependency-v1.json"));
@@ -274,14 +339,14 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
         if (self.delegation == null) return error.InvalidTableDelegation;
         try c.DirectReadDelegation.Closure.allow(action);
     }
-    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction };
+    const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction, .execution = if (self.execution) |value| value.condition() else null };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const context = try w.Request.context(input, self.allocator);
     const proof = if (self.credential_epoch) |epoch|
         try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = authority.realm, .principal = authority.principal, .credential_epoch = epoch, .role = authority.role, .audience = self.connection.audience, .context = context }, self.key)
     else
         (try authority.proof(self.connection.audience, context)).signed;
-    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .transaction = input.transaction, .proof = proof };
+    const request: w.Request = .{ .definition = input.definition, .connection = input.connection, .nonce = input.nonce, .action = input.action, .delegation = input.delegation, .closure = input.closure, .borrow = input.borrow, .lease = input.lease, .transaction = input.transaction, .execution = input.execution, .proof = proof };
     try request.validate(self.allocator);
     return request;
 }

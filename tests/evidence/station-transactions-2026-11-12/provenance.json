@@ -1,0 +1,310 @@
+{
+  "purpose": "Preserve native and private Station cost/correctness comparison, including failed oracle and original-outcome recheck, beyond ordinary CI retention. Not a test input or latency budget.",
+  "sources": {
+    "native": "68b65d06c32b6e47e14e7fa66692e0ce61f48478",
+    "transactional_initial": "feae88768aebb086b51841e77959380107ddf20a",
+    "transactional_final": "4c19523ddf46da888c5f2d8bd6e80e6696193a4b",
+    "transactional_compact_client": "b24c048d24d4045c0876fe0306d08c73b7adb902"
+  },
+  "drivers": {
+    "transactional_initial": [
+      {
+        "path": "tests/performance/load/station_transaction.py",
+        "sha256": "38e8674bdf7686973cd148b3996fe98462f087ba362a4be29c9a2a63ccb1ef85"
+      },
+      {
+        "path": "tests/runtime/station/transactional.zig",
+        "sha256": "a725452159ddc4b12a929523991258597677ffbed95b0c40e07f9fcdf0be8ab5"
+      },
+      {
+        "path": "tests/storage/tables/direct_table_service.py",
+        "sha256": "da584879122867855e630aa1bcca1edf74fb956f5ad3d931d6989c1be583018c"
+      },
+      {
+        "path": "packages/zig/transit-station/src/transactional/Runner.zig",
+        "sha256": "09184a693a3a267c228c7bf68377ca1f6e1fe487c0a88184669f6238c4593067"
+      },
+      {
+        "path": "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "sha256": "5322d7cefe8f5982d2a18e399c4dae47f10f4cec7c02ecc8602de43432551532"
+      }
+    ],
+    "transactional_final": [
+      {
+        "path": "tests/performance/load/station_transaction.py",
+        "sha256": "38e8674bdf7686973cd148b3996fe98462f087ba362a4be29c9a2a63ccb1ef85"
+      },
+      {
+        "path": "tests/runtime/station/transactional.zig",
+        "sha256": "fea3e288f74cfdfc0b2e973915f3e4d4da6136b15b0b8cf9b02114135adaf648"
+      },
+      {
+        "path": "tests/storage/tables/direct_table_service.py",
+        "sha256": "da584879122867855e630aa1bcca1edf74fb956f5ad3d931d6989c1be583018c"
+      },
+      {
+        "path": "packages/zig/transit-station/src/transactional/Runner.zig",
+        "sha256": "09184a693a3a267c228c7bf68377ca1f6e1fe487c0a88184669f6238c4593067"
+      },
+      {
+        "path": "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "sha256": "5322d7cefe8f5982d2a18e399c4dae47f10f4cec7c02ecc8602de43432551532"
+      }
+    ],
+    "transactional_compact_client": [
+      {
+        "path": "tests/performance/load/station_transaction.py",
+        "sha256": "38e8674bdf7686973cd148b3996fe98462f087ba362a4be29c9a2a63ccb1ef85"
+      },
+      {
+        "path": "tests/runtime/station/transactional.zig",
+        "sha256": "fea3e288f74cfdfc0b2e973915f3e4d4da6136b15b0b8cf9b02114135adaf648"
+      },
+      {
+        "path": "tests/storage/tables/direct_table_service.py",
+        "sha256": "da584879122867855e630aa1bcca1edf74fb956f5ad3d931d6989c1be583018c"
+      },
+      {
+        "path": "packages/zig/transit-station/src/transactional/Runner.zig",
+        "sha256": "25673c957a594ecc54c62f36ca7c098edd09e160d84c88552a0ad948d8094d92"
+      },
+      {
+        "path": "packages/zig/transit-catalog/src/DirectTableClient.zig",
+        "sha256": "d9648638c5fc84fb8c29315720f64acac3317130dc245ae8389100b46cf18119"
+      }
+    ]
+  },
+  "original_recheck": {
+    "passed": true,
+    "source": "4c19523ddf46da888c5f2d8bd6e80e6696193a4b",
+    "log": ".cache/m6-retained-comparison-oracle.log",
+    "session": 86373,
+    "handler_calls": 0,
+    "original_binding_unchanged": true,
+    "verification_runs": 2,
+    "sigkill_between_verifications": true,
+    "native_binary_sha256": "0734d3ea395e2681b038d0f8ac35959e66ce1794b9cadcb6df4b627881342c2c",
+    "caller_binary_sha256": "8781796e8b0768739ba47e2a37b8838abfb8228360e32bd9fbdc3326d2f691b2"
+  },
+  "artifacts": [
+    {
+      "source": ".cache/performance/station-original/report.json",
+      "retained": "native-initial/report.json",
+      "bytes": 12511,
+      "sha256": "28f9d77b2855f59bfc3eef3fec082f0499a7cf6008a4a3c8df2b34400300021b",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-original/measure.stdout",
+      "retained": "native-initial/measure.stdout",
+      "bytes": 19666,
+      "sha256": "302404321f79b6861b2ab337234b237b78756b4cdc46c67082a65116d746af93",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-original/measure.stderr",
+      "retained": "native-initial/measure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-original/recover.stdout",
+      "retained": "native-initial/recover.stdout",
+      "bytes": 3582,
+      "sha256": "70bc5ed5b6680848d69eaadb66e84afd595050be8c3f27dc081f03386d7d2f91",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-original/recover.stderr",
+      "retained": "native-initial/recover.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-repeat/report.json",
+      "retained": "native-repeat/report.json",
+      "bytes": 12521,
+      "sha256": "be29aa1c0a0489caeaa840b5470ebcc88605e61c4324b990ffd3a8543dd47c4b",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-repeat/measure.stdout",
+      "retained": "native-repeat/measure.stdout",
+      "bytes": 19666,
+      "sha256": "4fbc189d0c4ff8c80c4c7008b0bab2ff0cba13108d1caac1792810bde121a9b0",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-repeat/measure.stderr",
+      "retained": "native-repeat/measure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-repeat/recover.stdout",
+      "retained": "native-repeat/recover.stdout",
+      "bytes": 3582,
+      "sha256": "70bc5ed5b6680848d69eaadb66e84afd595050be8c3f27dc081f03386d7d2f91",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-repeat/recover.stderr",
+      "retained": "native-repeat/recover.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-final/report.json",
+      "retained": "native-final/report.json",
+      "bytes": 12525,
+      "sha256": "43b88ec74d29dd54aa0a7bf033c0eee31ffab9a311498be1b75417512b6482a7",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-final/measure.stdout",
+      "retained": "native-final/measure.stdout",
+      "bytes": 19666,
+      "sha256": "4a5c412bd9d701f4395c2768e92571dd65fc6607c5db157380972703cb9c40bd",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-final/measure.stderr",
+      "retained": "native-final/measure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-final/recover.stdout",
+      "retained": "native-final/recover.stdout",
+      "bytes": 3582,
+      "sha256": "70bc5ed5b6680848d69eaadb66e84afd595050be8c3f27dc081f03386d7d2f91",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-final/recover.stderr",
+      "retained": "native-final/recover.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-context/report.json",
+      "retained": "native-context/report.json",
+      "bytes": 12519,
+      "sha256": "950cdc3e9f599337a40e76a50d9011f3bb5e8fa73a1a96449ce89c3fa139444d",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-context/measure.stdout",
+      "retained": "native-context/measure.stdout",
+      "bytes": 19666,
+      "sha256": "6779f0e1d3132e108ba320511ac8fdb841e970bc41dca354bb36c0588fd272fc",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-context/measure.stderr",
+      "retained": "native-context/measure.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-context/recover.stdout",
+      "retained": "native-context/recover.stdout",
+      "bytes": 3582,
+      "sha256": "70bc5ed5b6680848d69eaadb66e84afd595050be8c3f27dc081f03386d7d2f91",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-native-control-context/recover.stderr",
+      "retained": "native-context/recover.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-feae/report.json",
+      "retained": "transactional-initial-failed/report.json",
+      "bytes": 4084,
+      "sha256": "96c48e49b94e85bc073a08efe03840168acdf2fd9b5817a3e42973008dd1bf2c",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-feae/measure.jsonl",
+      "retained": "transactional-initial-failed/measure.jsonl",
+      "bytes": 20720,
+      "sha256": "81ccf293a2cfc9f4ac0170db53619156c723bb4cd1d791a3cbd4cbf052e2826d",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-feae/diagnostics.log",
+      "retained": "transactional-initial-failed/diagnostics.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-final/report.json",
+      "retained": "transactional-final/report.json",
+      "bytes": 4226,
+      "sha256": "22f9a58051c545fabde6cef398c344f98959fb2eda3f4fee05a1b10e4032ca74",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-final/measure.jsonl",
+      "retained": "transactional-final/measure.jsonl",
+      "bytes": 20721,
+      "sha256": "d8ae19445e6f17ed73b74d294b0c1bb89deca7e6c0bf1d9bc84e0b12c36696e2",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-final/diagnostics.log",
+      "retained": "transactional-final/diagnostics.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-context/report.json",
+      "retained": "transactional-compact-client/report.json",
+      "bytes": 4226,
+      "sha256": "8192110fb4d387e84ff9fe17b904b57f6f74103fae293dded2aafa16368c9a14",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-context/measure.jsonl",
+      "retained": "transactional-compact-client/measure.jsonl",
+      "bytes": 20720,
+      "sha256": "26fa126ef047c036369c0ebffb8e217e670e44f9030c87a4d7d47973590cb50d",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/performance/station-transaction-context/diagnostics.log",
+      "retained": "transactional-compact-client/diagnostics.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/m6-retained-comparison-oracle.log",
+      "retained": "retained-oracle.stdout",
+      "bytes": 154,
+      "sha256": "06e02de28dad5d90fa73736424008fe11f4f9c0584deb8fa729745a3c1feaa44",
+      "transformation": "none"
+    },
+    {
+      "source": ".cache/m6-station-transaction-comparison.log",
+      "source_sha256": "f8aab2d4d94173173013b059eabee41ee1b5c3cbeb2937b1bea62674726cfb01",
+      "source_bytes": 50869,
+      "retained": "transactional-initial-failed/verification-failure.txt",
+      "bytes": 405,
+      "sha256": "83b07f3e76ecbd44acfaf6799ead5a4010696ed833f2abda1489953f3bbcd768",
+      "transformation": "Exact first six lines; remaining ordinary node diagnostics stay in ignored output. No selected bytes edited."
+    }
+  ]
+}

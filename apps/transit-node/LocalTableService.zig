@@ -106,6 +106,7 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     else if (request.borrow) |borrow| try borrow.proof(request.delegation.?, allocator) else if (request.delegation) |delegation| delegation.proof else request.proof;
     const original_context = if (request.closure != null or request.borrow != null) original.claim.context else if (request.delegation) |delegation| try delegation.binding.context(allocator) else context;
     var policy = try Policy.init(self.engine, self.configuration, original, original_context, if (request.delegation != null) request.proof else null);
+    policy.request_execution = request.execution;
     policy.paged = request.action == .transaction or request.transaction != null;
     const owner = self.engine.journal.backend;
     var observation = self.engine.journal.observe;

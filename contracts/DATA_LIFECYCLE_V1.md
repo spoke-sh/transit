@@ -40,6 +40,42 @@ filtered authorized directory makes no claim about inaccessible objects. The
 directory is immutable and paged, with an explicit count and content commitment;
 that count is not a resident array capacity. A later statement cannot extend it.
 
+### Native execution condition
+
+`Begin.execution` is a required nullable native authority condition. A non-null
+value freezes realm, PID, principal, ownership generation, code and nullable
+managed workload digest, plus a required nullable `input` claim. It grants no rights. The original principal and realm
+must match `Begin.identity`; removing or changing the condition changes that
+identity's commitment. Ordinary data transactions use null and remain independent
+of any actor runtime.
+
+The native owner checks current scoped execute rights, exact owner/generation,
+code/workload and its existing process lifecycle, failure, lifetime and dependency
+rules. The local Catalog holds database exclusion before acquiring native shared
+authority exclusion. The final verification callback runs under that same native
+fence immediately before `TXDEC1` append; native replacement, suspension and
+retirement require the exclusive side. Policy epoch equality alone is insufficient
+because ownership changes need not change policy. An unavailable verifier refuses
+guarded admission/commit. Queue lease and deadline conditions remain independent.
+
+A non-null `input` freezes one original Queue claim (`maximum = 1`) before
+acquisition dispatch. Its target scope and principal match the transaction; its
+operation differs from BEGIN. A committed decision must include exactly one ACK
+for that original claim in the selected Queue participant. Under the decision
+fence, the Queue owner compares the frozen claim with its accepted receipt,
+including target, selection predicate, maximum rows and requested lease duration.
+Ordinary Queue lease verification also checks the actual lease and trusted time. Recovery may close
+a missing acquisition after original settlement; this does not NACK an accepted
+lease or turn receipt lookup into current execution authority.
+
+Decision replay does not re-run execution eligibility. Current native recovery
+authority can inspect, abort undecided original work or finish its durable
+decision through the [signed recovery operation](DIRECT_TABLE_V1.md#signed-transaction-action).
+Neither a Queue lease nor an application row establishes native execution or
+actor-origin evidence. This primitive does not activate a Station replacement.
+
+### Commit deadline
+
 `Begin.deadline` is a required nullable field. Null means no additional transaction
 commit deadline; a value freezes an authoritative UTC `floor_ms` and exclusive
 `expires_ms`, with `expires_ms > floor_ms`. The same caller token cannot replace

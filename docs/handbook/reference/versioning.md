@@ -108,12 +108,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`316801f7fa965d47bc3501e8c601fa0136073fd417dabd5dcd0d8b64fdf368da`.
+`cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2`.
 
 The application foundation combines typed KV fields, capability values, native
 browser bindings, ordered program and original-effect records, composed request
-fences, current connector indexes and optional immutable transaction deadlines
-with aggregate storage admission. All matching callers, generated bindings and
+fences, current connector indexes, optional immutable transaction deadlines and
+native execution conditions with aggregate storage admission. Guarded original
+transactions support current-authority recovery by a replacement principal.
+All matching callers, generated bindings and
 signing fixtures use this definition. Earlier definitions reject before opening
 retained state or admitting work; there is no fallback decoder or automatic
 conversion. A nullable transaction deadline is mandatory in the current wire

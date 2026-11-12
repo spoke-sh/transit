@@ -390,6 +390,69 @@ const Fixture = struct {
     }
 };
 
+test "transaction execution uses native ownership and current grants with separate replacement recovery" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const rights = core.permission(.execute) | core.permission(.inspect);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = rights, .pid = pid } });
+    const next_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    _ = try f.root(.{ .grant = .{ .subject = 65537, .public_key = next_key.public_key.toBytes(), .permissions = rights, .pid = pid } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 65536 } });
+    const a = core.protocol.Authorization;
+    const original: a.Subject = .{ .signed = try a.Proof.sign(.{
+        .definition = g.current_definition,
+        .realm = 42,
+        .principal = 65536,
+        .credential_epoch = (try f.engine.principal(65536)).credential_epoch,
+        .role = null,
+        .audience = 17,
+        .context = @splat(7),
+    }, f.worker_key) };
+    _ = try f.engine.authenticateDomain(original, 17);
+    const condition: core.protocol.Transaction.Execution = .{ .realm = 42, .pid = pid, .principal = 65536, .generation = 1, .code = 1, .workload = null, .input = null };
+    try f.engine.requireTransactionExecution(condition, original, false);
+    var forged = condition;
+    forged.code = 2;
+    try t.expectError(error.StaleGeneration, f.engine.requireTransactionExecution(forged, original, false));
+    forged = condition;
+    forged.workload = @splat(1);
+    try t.expectError(error.StaleGeneration, f.engine.requireTransactionExecution(forged, original, false));
+    // Ownership replacement need not change the authorization epoch.
+    const policy_revision = f.engine.head.authorization.revision;
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65537 } });
+    try t.expectEqual(policy_revision, f.engine.head.authorization.revision);
+    try t.expectError(error.StaleGeneration, f.engine.requireTransactionExecution(condition, original, false));
+    const replacement: a.Subject = .{ .signed = try a.Proof.sign(.{
+        .definition = g.current_definition,
+        .realm = 42,
+        .principal = 65537,
+        .credential_epoch = (try f.engine.principal(65537)).credential_epoch,
+        .role = null,
+        .audience = 17,
+        .context = @splat(8),
+    }, next_key) };
+    _ = try f.engine.authenticateDomain(replacement, 17);
+    try f.engine.requireTransactionExecution(condition, replacement, true);
+    try t.expectError(error.StaleGeneration, f.engine.requireTransactionExecution(condition, replacement, false));
+    _ = try f.root(.{ .revoke = 65537 });
+    try t.expectError(error.Forbidden, f.engine.requireTransactionExecution(condition, replacement, true));
+    _ = try f.root(.{ .terminate = pid });
+    const administrator: a.Subject = .{ .signed = try a.Proof.sign(.{
+        .definition = g.current_definition,
+        .realm = 42,
+        .principal = 0,
+        .credential_epoch = (try f.engine.principal(0)).credential_epoch,
+        .role = null,
+        .audience = 17,
+        .context = @splat(9),
+    }, f.root_key) };
+    _ = try f.engine.authenticateDomain(administrator, 17);
+    try f.engine.requireTransactionExecution(condition, administrator, true);
+    try t.expectError(error.RetiredProcess, f.engine.requireTransactionExecution(condition, administrator, false));
+}
+
 test "authorization preview runs candidate validation without provider writes or reserved identities" {
     var f: Fixture = .{};
     defer f.deinit();

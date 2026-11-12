@@ -20,6 +20,8 @@ const Event = enum {
     Policy,
     Availability,
     Conflict,
+    Replace,
+    Retire,
 };
 
 const scope: p.DataLifecycle.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
@@ -43,6 +45,7 @@ fn beginRecord(directory: x.Directory) x.Begin {
         .identity = identity,
         .mode = .serializable,
         .deadline = null,
+        .execution = .{ .realm = scope.realm, .pid = 7, .principal = 0, .generation = 1, .code = 1, .workload = null, .input = null },
         .selection = .explicit_objects,
         .objects = directory,
         .catalog = .{ .partition = 1, .next_lsn = 1 },
@@ -95,13 +98,21 @@ const Access = struct {
     policy_epoch: u64 = 1,
     available: bool = true,
     conflict: bool = false,
+    generation: u64 = 1,
+    retired: bool = false,
+    held: bool = false,
 
     fn acquire(raw: *anyopaque) !J.Guard.Fence {
         const self: *@This() = @ptrCast(@alignCast(raw));
         if (!self.allowed) return error.AccessDenied;
+        if (self.held) return error.NestedAuthorityFence;
+        self.held = true;
         return .{ .writer_epoch = self.owner_epoch, .policy_epoch = self.policy_epoch };
     }
-    fn release(_: *anyopaque) void {}
+    fn release(raw: *anyopaque) void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        self.held = false;
+    }
     fn guard(self: *@This()) J.Guard {
         return .{ .context = self, .acquire = acquire, .release = release };
     }
@@ -113,13 +124,21 @@ const Access = struct {
         const self: *@This() = @ptrCast(@alignCast(raw));
         if (!self.available) return error.ParticipantUnavailable;
     }
+    fn execution(raw: *anyopaque) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        if (!self.held) return error.MissingAuthorityFence;
+        if (self.generation != 1) return error.StaleGeneration;
+        if (self.retired) return error.Retired;
+    }
     fn verification(self: *@This()) J.Verification {
-        return .{ .context = self, .participant = checkParticipant, .prepared = checkPrepared };
+        return .{ .context = self, .participant = checkParticipant, .prepared = checkPrepared, .before_decision = execution };
     }
 };
 
 fn expectedError(err: anyerror) ![]const u8 {
     return switch (err) {
+        error.StaleGeneration,
+        error.Retired,
         error.TransactionNotFrozen,
         error.InvalidTransactionDecision,
         error.StaleWriterEpoch,
@@ -215,6 +234,8 @@ fn replay(allocator: std.mem.Allocator, events: []const Event, out: *std.Io.Writ
             .Conflict => {
                 access.conflict = !access.conflict;
             },
+            .Replace => access.generation = 2,
+            .Retire => access.retired = true,
         }
         if (owner.recovery_required) try owner.recover();
     }

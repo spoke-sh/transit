@@ -24,3 +24,23 @@ models and schedules live in [verification](../verification/README.md).
 External fault experiments have explicit [prerequisites and limits](../harness/fault-profiles.md).
 A reproducible seed specifies workload/fault intent, not OS scheduling. Runtime
 history remains execution authority; provider state and names cannot grant rights.
+
+## Private transactional Station
+
+`just test station-transaction` builds the private Station composition and runs
+[transactional.zig](station/transactional.zig) against an installed local node.
+The [driver](station/transactional.py) independently checks interruption markers,
+SIGKILL exit statuses, immutable saved declarations, replacement with a fresh principal/key for each actor, and retained restart
+readback. The normal suite runs all registered cases;
+`TRANSIT_STATION_TRANSACTION_CASES` selects a diagnostic subset and reports
+`complete = false` unless the full inventory ran. Subsets do not qualify the suite.
+
+The 128-byte and separate 1 KiB/six-key cases use a real detached body, Table
+read-your-writes, direct KV, an input Queue ACK, a replay Stream and an output
+Queue. Fault points cover pending publication, BEGIN, claim, input retention,
+cut acquisition, handler dispatch, draft retention, statement staging/execution,
+decision and progress cleanup. Failed/caught reads, exceptions, capacity and stop
+have separate cases. A takeover after handler completion proves that the old
+worker cannot publish despite its still-live input lease. Each recovery uses the original pending transaction and
+asserts zero handler invocations. These are process-failure schedules, not
+power-loss or distributed authority qualification.

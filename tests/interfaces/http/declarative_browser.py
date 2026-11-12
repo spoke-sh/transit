@@ -355,7 +355,7 @@ class Fixture:
         key = ExistingKey(self.root, self.seed)
         realm, principal = self.connection['scope']['realm'], self.connection['principal']
         identity = post(self.ports['node'], '/v1/query', native(key, realm, principal, dict(authorization=dict(role=self.connection['role'], kind=dict(identity={})))) )
-        body = dict(definition=identity['definition'], connection=self.connection, nonce=list(secrets.token_bytes(16)), action=action, delegation=None, closure=None, borrow=None, lease=None, transaction=None)
+        body = dict(definition=identity['definition'], connection=self.connection, nonce=list(secrets.token_bytes(16)), action=action, delegation=None, closure=None, borrow=None, lease=None, transaction=None, execution=None)
         claim = dict(definition=identity['definition'], realm=realm, principal=principal, credential_epoch=identity['body']['authorization']['body']['identity']['credential_epoch'], role=self.connection['role'], audience=self.connection['audience'], context=list(hashlib.sha256(b'transit.table.direct.request.v1\0'+compact(body)).digest()))
         proof = dict(claim=claim, signature=key.sign(hashlib.sha256(b'transit.authorization.subject.v1\0'+compact(claim)).digest()))
         return post(self.ports['node'], '/table/v1', dict(body, proof=proof))['result']

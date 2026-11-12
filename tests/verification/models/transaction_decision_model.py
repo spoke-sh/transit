@@ -1,4 +1,4 @@
-"""Exhaust one original transaction decision and detect six missing obligations."""
+"""Exhaust one original transaction decision and detect eight missing obligations."""
 import argparse
 import hashlib
 import json
@@ -20,9 +20,11 @@ MUTANTS = {
     "CheckPolicy": "CurrentPublication",
     "CheckStable": "OriginalDecision",
     "CheckDisclosure": "CurrentDisclosure",
+    "CheckExecution": "CurrentExecution",
+    "CheckRetirement": "ExecutableLifetime",
 }
 ACTIONS = {"Init", "Freeze", "Prepare", "Commit", "Abort", "Observe",
-           "LoseReply", "Recover", "Fence", "Policy", "Availability", "Conflict"}
+           "LoseReply", "Recover", "Fence", "Policy", "Availability", "Conflict", "Replace", "Retire"}
 
 
 def counterexample(code, output, expected, allowed_actions=ACTIONS):
@@ -130,18 +132,29 @@ def main():
             "CheckPolicy": {"decision": "preparing", "last_error": "AccessDenied", "tail": 1},
             "CheckStable": {"decision": "committed", "last_error": "none", "tail": 2},
             "CheckDisclosure": {"knowledge": "denied", "last_error": "AccessDenied"},
+            "CheckExecution": {"decision": "preparing", "last_error": "StaleGeneration", "tail": 1},
+            "CheckRetirement": {"decision": "preparing", "last_error": "Retired", "tail": 1},
         }
         replayed = run_traces(args.binary, list(traces.values()), destination, args.seconds)
         for (guard, events), actual in zip(traces.items(), replayed, strict=True):
             for field, value in expected[guard].items():
                 if actual[field] != value:
                     raise AssertionError(f"{guard} replay {events}: {actual} != {expected[guard]}")
+        stable_traces = [["Init", "Freeze", "Prepare", "Prepare", "Commit", event,
+                          "LoseReply", "Recover", "Commit", "Observe"]
+                         for event in ("Replace", "Retire")]
+        (destination / "decision-before-lifecycle").mkdir()
+        stable = run_traces(args.binary, stable_traces, destination / "decision-before-lifecycle", args.seconds)
+        for actual in stable:
+            assert actual == {"decision": "committed", "knowledge": "committed",
+                              "last_error": "none", "tail": 2}, actual
+        evidence["decision_before_lifecycle"] = stable
         (destination / "replay-results.json").write_text(json.dumps(replayed, indent=2) + "\n")
         evidence["implementation_replay"] = {"counterexamples": len(traces)}
         evidence["binary_sha256"] = hashlib.sha256(Path(args.binary).read_bytes()).hexdigest()
         evidence["status"] = "passed"
         print(f"Transaction decision TLC: {evidence['distinct_states']} states exhausted; "
-              f"six negative controls detected and replayed against Zig.")
+              f"eight negative controls detected and replayed against Zig.")
         print(f"Evidence: {destination.relative_to(ROOT)}")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
