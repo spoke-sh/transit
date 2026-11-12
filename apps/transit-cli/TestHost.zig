@@ -136,7 +136,10 @@ fn execute(init: std.process.Init, directory: std.Io.Dir, path: []const u8, dead
     const credential_path = try std.fs.path.join(a, &.{ path, "credential.json" });
     var diagnostics: telemetry.Runtime = .init(init.io, "transit-test", .{ .level = .off });
     const local = try node.LocalRuntime.open(init, .{
-        .genesis = .{ .realm = bootstrap.realm, .root_key = root.public_key.toBytes() },
+        // Queue leases use the same synchronized kernel clock and uncertainty
+        // envelope as the installed server. Missing trusted time must still
+        // refuse progress; the test host never substitutes its budget clock.
+        .genesis = .{ .realm = bootstrap.realm, .root_key = root.public_key.toBytes(), .max_clock_error_ms = 10000 },
         .local_directory = storage_path,
         .resident_pages = 32,
         .storage = .{ .limits = .{ .bytes = storage.bytes, .control_bytes = storage.control_bytes } },
