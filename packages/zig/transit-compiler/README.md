@@ -15,6 +15,14 @@ source text or operand values. Resolution provenance enters the build digest
 through `Options.resolution_digest`; supplying source never establishes trust or
 runtime permissions.
 
+`SourceDiagnostic` owns bounded failure families and correction messages shared
+by pure compilation and CLI source capture. Type binders retain names and expected
+and actual types. Expansion records token origins so generated SQL operand
+locations map back to source without reopening files or guessing token widths.
+Filesystem adapters add escaped paths and operations without fabricated line
+coordinates. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#cli-and-diagnostics)
+defines codes and path-fact encoding.
+
 Source parsing checks complete Table and log templates and assertion rows in every body,
 including unused modules and both IF branches. `Syntax.Template` retains token
 spans and typed-hole roles without inventing values or catalog bindings. Name,

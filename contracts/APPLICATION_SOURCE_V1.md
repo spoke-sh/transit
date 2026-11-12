@@ -302,8 +302,14 @@ This source grammar slice adds no temporal-model result or Lean theorem.
 Relative imports resolve beneath their package root; absolute paths, `..`, empty
 components, symlinks and undeclared file kinds reject. A package consists of
 UTF-8 `.transit` files selected from a bounded tree, sorted by relative path.
-Directories named `.git` or `.transit` are excluded. Other regular files are
-ignored; symlinks and special file kinds reject. Repository dependencies are
+Validate the selected entry before scanning the rest of the package. Directory
+components named `.git`, `.transit`, `.direnv` or `node_modules` are excluded
+before traversal and descendant accounting. Ignore other non-source leaf entries,
+including links, without opening them. Candidate `.transit` links and special
+files reject; directory links are never followed. Explicit imports through
+excluded or linked components reject. Neither `.gitignore` nor a general hidden-file
+rule changes this selection. Root packages, overrides, fetched Git trees and
+verified cache trees share these rules. Repository dependencies are
 explicit source declarations:
 
 ```text
@@ -323,9 +329,14 @@ rules and cannot choose conflicting resolutions for one package name.
 
 The lock includes its source-format identity, the current native contract
 definition and a sorted dependency list of name, repository, revision,
-subdirectory and source-tree SHA-256. Hash the domain `transit.source.tree.v1\0`
-then each sorted UTF-8 relative path and file content with unsigned 64-bit
+subdirectory and source-tree SHA-256. Hash the domain `transit.source.tree.v1\0`,
+the selection descriptor `regular .transit files; no links; prune .git,.transit,.direnv,node_modules`,
+then each sorted UTF-8 relative path and file content, each with unsigned 64-bit
 little-endian byte lengths. A cache entry must match the complete tree digest.
+The selection descriptor changes dependency content keys: caches captured before
+these selection rules fail frozen verification, even if their remaining source
+bytes match. Review the dependency and explicitly run `transit build --fetch`
+to capture its selected tree. Normal builds never repair or rewrite old locks.
 No hostname or revision string substitutes for content verification. Cache entries
 are `.transit/packages/DIGEST/` directories containing a source tree and a
 format/definition/digest manifest. Package names are global within the graph.
@@ -390,6 +401,20 @@ on stdout. Failures use [DIAGNOSTICS_V1](DIAGNOSTICS_V1.md), with bounded source
 locations, definition/call-site facts, rule and correction guidance. Diagnostic
 source locations use one-based lines/byte-columns and zero-based byte offsets.
 Values, credentials and fetched source bodies are excluded from diagnostics.
+Source failure codes use the `application.source.*` families: `entry`, `file_kind`,
+`path`, `encoding`, `syntax`, `import`, `target`, `domain`, `type`, `dependency`,
+`unsupported`, `limit`, `io`, `output` and the unknown/internal fallback `failure`.
+Each supplies its correction and the context available at the failing owner.
+Filesystem facts use `actual_source` for a bounded path, `source_kind` for the
+observed kind and `operation` for the attempted operation, without invented source
+coordinates. In these families, path facts encode POSIX bytes as printable ASCII
+with other bytes, quotes and backslashes escaped as `\xhh`; truncation preserves
+complete escapes and is explicit. Source locations retain the shared location
+encoding. Human output includes primary and related filenames and escapes terminal
+controls. Type checks retain parameter/column names and expected/actual types;
+known budget failures retain their limit. `native_cause` is secondary detail,
+not a recovery API. Artifact failures use stage `output`. The human statement
+"No SQL was submitted" applies only to failures before test execution begins.
 Invalid CLI usage exits 2; compilation/resolution/I/O failures exit 1; success
 exits 0. A successful check/build is not execution or installation evidence.
 

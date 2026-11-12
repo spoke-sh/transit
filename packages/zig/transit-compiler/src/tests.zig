@@ -374,9 +374,17 @@ test "unselected recursive checking validates bodies and preserves call diagnost
     var diagnostic: ?p.Diagnostic = null;
     try std.testing.expectError(error.SourceDomainMismatch, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = source }}, .{ .compiler_revision = "test" }, &diagnostic));
     try std.testing.expect(diagnostic != null);
-    try std.testing.expectEqual(std.mem.indexOf(u8, source, "INSERT INTO machines VALUES ($id)").?, try diagnostic.?.location.?.offset.value());
+    try std.testing.expectEqual(std.mem.indexOf(u8, source, "INSERT INTO machines VALUES ($id)").? + "INSERT INTO machines VALUES (".len, try diagnostic.?.location.?.offset.value());
     try std.testing.expectEqual(.first_occurrence, diagnostic.?.facts[1].?.field);
     try std.testing.expectEqual(std.mem.indexOf(u8, source, "USE Loop(1, id)").?, try diagnostic.?.facts[1].?.value.?.location.offset.value());
+    try std.testing.expectEqualStrings("application.source.domain", diagnostic.?.code.slice());
+    var expected = false;
+    var actual = false;
+    for (diagnostic.?.facts) |slot| if (slot) |fact| {
+        if (fact.field == .expected_type) expected = std.mem.eql(u8, fact.value.?.text.slice(), "example.machine-id");
+        if (fact.field == .actual_type) actual = std.mem.eql(u8, fact.value.?.text.slice(), "example.site-id");
+    };
+    try std.testing.expect(expected and actual);
 }
 
 test "recursive symbolic calls recheck changed explicit Table bindings" {

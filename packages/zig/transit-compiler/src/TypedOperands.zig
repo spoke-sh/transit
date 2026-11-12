@@ -4,6 +4,7 @@ const f = @import("transit_fuze");
 const Graph = @import("Graph.zig");
 const types = @import("SourceTypes.zig");
 const Catalog = @import("WorkingCatalog.zig");
+const Context = @import("SourceDiagnostic.zig").Context;
 pub const Site = struct { start: usize, end: usize, value: types.Value };
 pub const Column = struct { name: []const u8, domain: ?[]const u8 };
 pub const Operand = struct { role: enum { assignment, predicate }, column: []const u8, domain: ?[]const u8, value: ?types.Primitive };
@@ -15,6 +16,7 @@ a: std.mem.Allocator,
 sites: []const Site,
 used: []bool,
 graph: Graph,
+context: *Context,
 operands: std.ArrayList(Operand) = .empty,
 
 fn at(self: *Self, span: Span) ?types.Value {
@@ -31,6 +33,7 @@ fn scalar(self: *Self, span: Span, table: *const types.Table, column: usize, rol
     const expected = table.domains[column];
     const value = self.at(span);
     const actual = if (value) |v| if (v.scalar()) |ty| ty.domain else null else null;
+    self.context.* = .{ .offset = span.start, .name = table.name, .column = table.schema.columns[column].name, .expected = if (expected) |ref| self.graph.getDefinition(ref).domain.?.identity else @tagName(table.schema.columns[column].type), .actual = if (value) |v| if (v.scalar()) |ty| ty.label(self.graph) else @tagName(v) else "ordinary SQL scalar" };
     if (!std.meta.eql(actual, expected)) return error.SourceDomainMismatch;
     if (value) |v| {
         if (v == .symbolic and !try v.symbolic.physical().eql(table.schema.columns[column].type)) return error.SourceTypeMismatch;
@@ -93,10 +96,10 @@ fn parameters(self: *Self, expected: []const f.Types.Type) !void {
     if (index != expected.len) return error.InvalidSourceOperand;
 }
 
-pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, sql: []const u8, sites: []const Site, symbolic: bool) !Checked {
+pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, sql: []const u8, sites: []const Site, symbolic: bool, context: *Context) !Checked {
     const used = try a.alloc(bool, sites.len);
     @memset(used, false);
-    var self: Self = .{ .a = a, .sites = sites, .used = used, .graph = graph };
+    var self: Self = .{ .a = a, .sites = sites, .used = used, .graph = graph, .context = context };
     var checked_table: *const types.Table = undefined;
     var parser = try f.SqlTyped.initDialect(a, sql, null, true, .transit);
     if (parser.word("CREATE")) {

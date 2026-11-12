@@ -13,7 +13,7 @@ pub fn run(init: std.process.Init, options: Options, diagnostic: *Diagnostic) !v
     defer arena.deinit();
     execute(init, arena.allocator(), budget.allocator(), options, diagnostic) catch |err| {
         const cause = if (err == error.OutOfMemory and budget.exhausted) error.BuildToolingMemoryLimit else err;
-        if (diagnostic.envelope == null) diagnostic.envelope = c.Compiler.project(cause, null, null, null);
+        if (diagnostic.envelope == null) diagnostic.envelope = c.SourceDiagnostic.input(cause, options.entry, "load build input", null);
         return cause;
     };
 }
@@ -21,7 +21,11 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     const cwd = try std.process.currentPathAlloc(init.io, a);
     const entry_path = try std.fs.path.resolve(a, &.{ cwd, options.entry });
     const root_path = std.fs.path.dirname(entry_path) orelse return error.InvalidSourcePath;
-    const root = try std.Io.Dir.cwd().openDir(init.io, root_path, .{ .iterate = true, .follow_symlinks = false });
+    const root = Sources.openRoot(init.io, root_path) catch |err| {
+        const cause = if (err == error.FileNotFound) error.MissingBuildEntry else err;
+        diagnostic.envelope = c.SourceDiagnostic.input(cause, entry_path, "open build entry directory", null);
+        return cause;
+    };
     defer root.close(init.io);
     var sources: Sources = .{ .a = a, .scratch_parent = scratch_parent, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry_path), .environment = init.environ_map, .fetch = options.fetch, .diagnostic = &diagnostic.envelope, .overrides = options.overrides[0..options.overrides_len] };
     const resolved = try sources.load();
@@ -51,7 +55,10 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     const provenance = try p.Json.valueAlloc(a, .{ .format = c.Compiler.format, .definition = Sources.definition, .complete = true, .compiler_revision = version.revision, .compiler_digest = @as([]const u8, &std.fmt.bytesToHex(&executable, .lower)), .entry = std.fs.path.basename(entry_path), .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .limits = c.Compiler.Limits{}, .sources = source_ids.items, .dependencies = sources.resolutions.items, .steps = product.steps });
     if (provenance.len > 64 * 1024 * 1024) return error.BuildProvenanceLimit;
     const out = if (options.out) |selected| try std.fs.path.resolve(a, &.{ cwd, selected }) else try std.fmt.allocPrint(a, "{s}/.transit/build/{s}/{s}", .{ root_path, target, input_hex });
-    const reused = try publish(init.io, a, out, product.sql, provenance, options.out == null);
+    const reused = publish(init.io, a, out, product.sql, provenance, options.out == null) catch |err| {
+        diagnostic.envelope = c.SourceDiagnostic.output(err, out, "publish application SQL");
+        return err;
+    };
     const status = try std.fmt.allocPrint(a, "Application SQL {s}: {s}/application.sql\n", .{ if (reused) "verified" else "published", out });
     try report(init.io, a, options.json, .{ .ok = true, .action = "build", .target = target, .directory = out, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = product.steps.len, .reused = reused }, status);
 }

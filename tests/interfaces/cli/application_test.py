@@ -14,7 +14,7 @@ import sys
 import tempfile
 
 from runner.paths import ROOT
-from interfaces.cli.application_build import offline, cli_build, repository, source
+from interfaces.cli.application_build import offline, cli_build, repository, source, source_diagnostics
 from interfaces.cli.table_console import records
 from interfaces.installation.server import Fixture
 
@@ -120,6 +120,7 @@ def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
         root = Path(temporary)
+        source_diagnostics(cli, root, 'test')
         programs = root / 'queue-programs'
         shutil.copytree(ROOT / 'tests/fixtures/application-queue-programs', programs)
         program_report = invoke(cli, programs)
@@ -129,6 +130,12 @@ def main():
         source(programs, 'build.transit', program_source.replace("EQUAL ((7, 'accepted:ready'))", "EQUAL ((8, 'accepted:ready'))", 1))
         wrong = invoke(cli, programs, expected=1)
         assert wrong['cases'][0]['status'] == 'failed' and wrong['cases'][0]['observation']['failure'] == 'rows', wrong
+        human = subprocess.run([str(cli), 'test'], cwd=programs, capture_output=True, text=True,
+                               timeout=60, env={'PATH': '/unavailable'}, preexec_fn=offline)
+        at = wrong['cases'][0]['action_location']
+        assert human.returncode == 1 and not human.stdout, human
+        assert f"{at['source']}:{at['line']}:{at['byte_column']}: failed:" in human.stderr, human.stderr
+        assert 'No SQL was submitted' not in human.stderr, human.stderr
         source(programs, 'build.transit', program_source.replace('COMPLETED 1 REFUSED 2 WITHIN 1000', 'COMPLETED 2 REFUSED 2 WITHIN 1'))
         incomplete = invoke(cli, programs, expected=1)
         assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete

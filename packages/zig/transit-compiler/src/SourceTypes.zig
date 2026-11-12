@@ -9,6 +9,14 @@ pub const Scalar = struct {
     pub fn eql(left: Scalar, right: Scalar) bool {
         return left.base == right.base and std.meta.eql(left.domain, right.domain);
     }
+    pub fn label(self: Scalar, graph: Graph) []const u8 {
+        if (self.domain) |ref| return graph.getDefinition(ref).domain.?.identity;
+        return switch (self.base) {
+            .bigint => "BIGINT",
+            .text => "TEXT",
+            .boolean => "BOOLEAN",
+        };
+    }
     pub fn physical(self: Scalar) f.Types.Type {
         return switch (self.base) {
             .bigint => .int64,
@@ -127,11 +135,14 @@ pub fn validate(graph: Graph, a: std.mem.Allocator, file_at: *usize, offset: *us
         };
     };
 }
-pub fn signature(graph: Graph, file: usize, columns: []const s.Column, table: *const Table) !void {
+pub fn signature(graph: Graph, file: usize, columns: []const s.Column, table: *const Table, context: *@import("SourceDiagnostic.zig").Context) !void {
     if (columns.len != table.schema.columns.len or table.schema.integrity.checks.len != 0 or table.schema.integrity.foreign_keys.len != 0) return error.TableInterfaceMismatch;
     var key: usize = 0;
     for (columns, table.schema.columns, table.domains) |expected, actual, actual_domain| {
         const ty = try resolve(graph, file, expected.type);
+        context.column = expected.name;
+        context.expected = ty.label(graph);
+        context.actual = if (actual_domain) |ref| graph.getDefinition(ref).domain.?.identity else @tagName(actual.type);
         if (!std.mem.eql(u8, expected.name, actual.name) or !try ty.physical().eql(actual.type) or !std.meta.eql(ty.domain, actual_domain) or
             expected.nullable != actual.nullable or !std.mem.eql(u8, expected.collation, @tagName(actual.collation)) or actual.default != null or actual.max_characters != null or
             actual.semantics.rounding != null or actual.semantics.metric != null or actual.semantics.timezone != null) return error.TableInterfaceMismatch;

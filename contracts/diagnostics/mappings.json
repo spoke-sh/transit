@@ -5697,6 +5697,714 @@
           "name": "direct caller diagnostics preserve read evidence and actual mutation uncertainty"
         }
       ]
+    },
+    {
+      "id": "application-source",
+      "profile": "Pure application source compilation and offline CLI capture, resolution and artifact publication; imported owner failures retain context at their boundary",
+      "owners": [
+        "packages/zig/transit-compiler/src/*.zig",
+        "apps/transit-cli/BuildSources.zig",
+        "apps/transit-cli/Build.zig"
+      ],
+      "exclude": [
+        "packages/zig/transit-compiler/src/SourceDiagnostic.zig"
+      ],
+      "registry": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+      "registry_kind": "source_family",
+      "projection": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+      "shared_codes": true,
+      "stage": "input, parse, bind, compile or output, retained from the failing owner",
+      "outcome": "not_submitted",
+      "durable_evidence": "No SQL is dispatched during compilation, fetching or build artifact publication; test execution has a separate report.",
+      "context": "Captured path and kind, operation, target/dependency/column names, source origins and related calls, expected/actual source types and known budgets",
+      "disclosure": "Bounded names, types and escaped path bytes; no source excerpts, operand values, repository credentials or fetched bodies",
+      "recovery": "Family-specific correction, explicit dependency fetch/review or fresh output directory; never replay accepted SQL",
+      "propagation": "Unknown imported I/O/allocation failures retain their original native cause and best known context. Input/cache/output owners specialize the family and stage before unwinding. Runtime test failures do not use this boundary.",
+      "tests": [
+        {
+          "source": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+          "name": "source failures retain actionable families and escaped paths without invented locations"
+        },
+        {
+          "source": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+          "name": "source diagnostic families validate within the shared envelope bounds"
+        },
+        {
+          "source": "packages/zig/transit-compiler/src/tests.zig",
+          "name": "unselected recursive checking validates bodies and preserves call diagnostics"
+        },
+        {
+          "source": "apps/transit-cli/EnvelopeDiagnostic.zig",
+          "name": "source diagnostics show primary and related filenames with safe terminal text"
+        }
+      ],
+      "exceptions": [],
+      "codes": {
+        "MissingBuildEntry": {
+          "code": "application.source.entry",
+          "category": "binding"
+        },
+        "UnsupportedSourceFileKind": {
+          "code": "application.source.file_kind",
+          "category": "unsupported"
+        },
+        "SymLinkLoop": {
+          "code": "application.source.file_kind",
+          "category": "unsupported"
+        },
+        "InvalidSourcePath": {
+          "code": "application.source.path",
+          "category": "binding"
+        },
+        "ExcludedSourcePath": {
+          "code": "application.source.path",
+          "category": "binding"
+        },
+        "InvalidSourceEncoding": {
+          "code": "application.source.encoding",
+          "category": "syntax"
+        },
+        "InvalidUtf8": {
+          "code": "application.source.encoding",
+          "category": "syntax"
+        },
+        "InvalidSourceSyntax": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidSourceTemplate": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidSqlSyntax": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "UnterminatedSqlToken": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidSourceName": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "MissingSource": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownImport": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownSourceSymbol": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "PrivateSourceSymbol": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UndeclaredDependency": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "SourceImportCycle": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "SourceDependencyCycle": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "MissingSourceTarget": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "WrongSourceTargetKind": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "EmptyBuildTarget": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "EmptyTestTarget": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "TestInBuildTarget": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "SourceDomainMismatch": {
+          "code": "application.source.domain",
+          "category": "binding"
+        },
+        "DuplicateDomainIdentity": {
+          "code": "application.source.domain",
+          "category": "binding"
+        },
+        "SourceTypeMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "TableInterfaceMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidSourceOperand": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidSourceTypeOperand": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "SourceTableBindingMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ProgramTypeMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ProgramNullabilityMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ProgramResourceKindMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ModuleIsNotSqlOperand": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidModuleInterface": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "MissingSourceLock": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "StaleSourceLock": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidSourceLock": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidSourceDigest": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "IncompatibleSourceDefinition": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "SourceDigestMismatch": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "ConflictingDependency": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "RepositoryFetchFailed": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "RepositoryRevisionMismatch": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "EmptySourcePackage": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "UndeclaredOverride": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "FetchWithOverride": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "RuntimePrivateOrUnsupportedDeclaration": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "ApplicationHostUnavailable": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "MutationOutsideAtomic": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "NestedAtomicProgram": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "ProtectedProgramValue": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "FileNotFound": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "AccessDenied": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "PermissionDenied": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "InputOutput": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "SourceReadFailed": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "IsDir": {
+          "code": "application.source.file_kind",
+          "category": "unsupported"
+        },
+        "NotDir": {
+          "code": "application.source.file_kind",
+          "category": "unsupported"
+        },
+        "InvalidBuildOutput": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        },
+        "BuildOutputExists": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        },
+        "BuildArtifactMismatch": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        },
+        "BuildSyncFailed": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        },
+        "BuildProvenanceLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "BuildStatementLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "BuildMemoryLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "BuildOutputLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "BuildToolingMemoryLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "BuildWorkLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "CompilerArtifactLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "DependencyLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "RepositoryOutputLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceBytesLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceConstructorLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceDependencyLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceDepthLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceExportLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceFileBytesLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceFileLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceLockLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceParameterLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceReadLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "SourceTreeEntryLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestActionLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestCaseLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestObservationLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestResultBytesLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestResultLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestRowLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "TestRowsLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "OutOfMemory": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "ProgramTooComplex": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "ProgramTooDeep": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "ConflictingModuleInstance": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "DuplicateSourceMatchArm": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignTableExport": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidParameterType": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidRowWidth": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidTestSchema": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidVariantConstructor": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ModuleInterfaceMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "NonExhaustiveSourceMatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "NotModuleConstructor": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "NotSourceDomain": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "NullablePrimaryKey": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "SourceArgumentCount": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "UnboundBuildParameter": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "DuplicateSourceName": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "DuplicateTestCase": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "ExportOutsideModule": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidCatalogName": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidInstanceName": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidTestCount": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidTestName": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "InvalidTestStatement": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "NestedTestCase": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "TestAssertionOutsideCase": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "TestCommandRequired": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "TestMutationRequired": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "TestRowsRequired": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "TestStatementOutsideCase": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "EmptyTestCase": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "InvalidDomainIdentity": {
+          "code": "application.source.domain",
+          "category": "binding"
+        },
+        "UnknownBuildProgram": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownBuildTable": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownSourceExport": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownSourceOperand": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnknownVariantConstructor": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "DuplicateDependency": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidPackageName": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidRepository": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidRepositoryRevision": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidRepositoryTree": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "RepositoryCredentialsForbidden": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "ReservedPackageName": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "UnsupportedRepositoryTransport": {
+          "code": "application.source.dependency",
+          "category": "integrity"
+        },
+        "InvalidDataflowTransition": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedBuildLogConfiguration": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedBuildProgramControl": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedBuildProgramDependency": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedBuildStatement": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedLogOperand": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedNominalColumn": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedNominalLog": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedNominalOperation": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedNominalProgram": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedProgramInstruction": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedProgramPartitioning": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedRecursiveExports": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedSourceDeclaration": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedSourceType": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedSymbolicProgram": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedSymbolicSchema": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedTestAssertion": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedTestRefusal": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "UnsupportedVariantField": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "BuildEmissionMismatch": {
+          "code": "application.source.failure",
+          "category": "internal"
+        },
+        "CompilerArtifactChanged": {
+          "code": "application.source.failure",
+          "category": "internal"
+        },
+        "DuplicateSourceFile": {
+          "code": "application.source.failure",
+          "category": "internal"
+        },
+        "InvalidBuildBudget": {
+          "code": "application.source.failure",
+          "category": "internal"
+        },
+        "InvalidCompilerIdentity": {
+          "code": "application.source.failure",
+          "category": "internal"
+        },
+        "Overflow": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ReadFailed": {
+          "code": "application.source.io",
+          "category": "unavailable"
+        },
+        "WriteFailed": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        },
+        "PathAlreadyExists": {
+          "code": "application.source.output",
+          "category": "unavailable"
+        }
+      }
     }
   ]
 }

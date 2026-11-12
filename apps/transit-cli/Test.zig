@@ -26,7 +26,7 @@ pub fn run(init: std.process.Init, options: Options, diagnostic: *Diagnostic) !v
     execute(init, arena.allocator(), adapter.allocator(), options, diagnostic) catch |err| {
         if (err == error.TestSuiteFailed) return err;
         const cause = if (err == error.OutOfMemory and quota.refusals.load(.acquire) != 0) error.TestToolingMemoryLimit else err;
-        if (diagnostic.envelope == null) diagnostic.envelope = c.Compiler.project(cause, null, null, null);
+        if (diagnostic.envelope == null) diagnostic.envelope = c.SourceDiagnostic.input(cause, options.entry, "load test input", null);
         return cause;
     };
 }
@@ -34,7 +34,11 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
     const cwd = try std.process.currentPathAlloc(init.io, a);
     const entry = try std.fs.path.resolve(a, &.{ cwd, options.entry });
     const root_path = std.fs.path.dirname(entry) orelse return error.InvalidSourcePath;
-    const root = try std.Io.Dir.cwd().openDir(init.io, root_path, .{ .iterate = true, .follow_symlinks = false });
+    const root = Sources.openRoot(init.io, root_path) catch |err| {
+        const cause = if (err == error.FileNotFound) error.MissingBuildEntry else err;
+        diagnostic.envelope = c.SourceDiagnostic.input(cause, entry, "open test entry directory", null);
+        return cause;
+    };
     defer root.close(init.io);
     var sources: Sources = .{ .a = a, .scratch_parent = scratch, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry), .environment = init.environ_map, .fetch = false, .diagnostic = &diagnostic.envelope, .overrides = options.overrides[0..options.overrides_len] };
     const resolution = try sources.load();
@@ -108,7 +112,13 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
         const buffer = try a.alloc(u8, 1024 * 1024);
         var writer: std.Io.Writer = .fixed(buffer);
         for (reports) |report| {
-            try writer.print("{s}: {s}", .{ @tagName(report.status), report.name });
+            const renderer = @import("EnvelopeDiagnostic.zig");
+            if (report.status == .failed) {
+                try renderer.location(&writer, report.action_location orelse report.location);
+                try writer.writeAll(": ");
+            }
+            try writer.print("{s}: ", .{@tagName(report.status)});
+            try renderer.escaped(&writer, report.name);
             if (report.error_code) |code| {
                 try writer.print(" ({s})", .{code});
             } else if (report.observation.failure) |failure| try writer.print(" ({s})", .{@tagName(failure)});
