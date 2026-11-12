@@ -38,9 +38,13 @@ Stream and Queue handles also retain their exact resource kind and schema.
 collects a Queue program's referenced resources, then uses the installed
 `ApplicationProgram` type binder, schema mapping and public-data facility set.
 It fingerprints the ordered instruction tree, atomic boundaries and resource
-schemas before comparing the independently reparsed emitted SQL. Nominal
-program columns and unavailable facilities reject before their source meaning
-could be erased. The proposed catalog checks explicit lifecycle ordering through
+schemas before comparing the independently reparsed emitted SQL. The compiler-owned
+`ProgramAnnotations` pass overlays exact domains on the physical types, including
+nullable read records and ordered branch/atomic/failure boundaries. It checks
+all runtime paths before erasure. Concrete holes use recorded expansion spans,
+not scalar equality or equal token widths. Queue predicates also use the native
+acquisition validator; unavailable facilities and unsupported nominal operations
+reject. Internal checked evidence is never installed as a runtime sidecar. The proposed catalog checks explicit lifecycle ordering through
 the shared control transitions; this establishes no current authorization.
 
 The typed-target implementation at source `16cf8399e` asks whether equal physical

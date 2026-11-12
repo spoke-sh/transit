@@ -137,6 +137,7 @@ Queue emptiness or program idleness.
 It does not treat activation as completion or replay input. Follow it with Table
 and `CONSUME` row assertions to check state and Stream output. Exhausted polling
 or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md)
+and [nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
 illustrates success, refusal, atomic rollback and isolation; the
 [test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 defines observation limits and scope.

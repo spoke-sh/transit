@@ -11,9 +11,10 @@ import tempfile
 from runner import capture
 from runner.paths import ROOT
 from query.application_source.verify import execute, same
+from query.application_source import program_types
 
 SPEC = ROOT / 'contracts/application-source/TypedTarget.lean'
-THEOREMS = {'nominal_substitution', 'exhaustive_selection', 'specialization_preservation'}
+THEOREMS = {'nominal_substitution', 'exhaustive_selection', 'specialization_preservation', 'projection_substitution', 'program_substitution', 'ordered_erasure'}
 DOMAINS = {'machine': 'example.machine-id', 'site': 'example.site-id'}
 
 
@@ -115,7 +116,8 @@ def examples(cases):
             name = f'{label}_{suffix}'
             lines += [f'theorem {name} : {expression} = [{want}] := by decide', f'#print axioms {name}']
             names.add(name)
-    return '\n'.join(lines) + '\n', names
+    programs, program_names = program_types.lean_examples(list(program_types.cases()))
+    return '\n'.join(lines) + '\n' + programs, names | program_names
 
 
 def must_fail(label, operation):
@@ -151,9 +153,9 @@ def main():
             'lean': subprocess.check_output(['lean', '--version'], text=True).strip(),
             'lean_executable': capture.identity(Path(shutil.which('lean')).resolve()),
             'inputs': {path: capture.identity(ROOT / path) for path in (
-                'tests/query/application_source/types.py', 'tests/query/application_source/driver.zig',
+                'tests/query/application_source/types.py', 'tests/query/application_source/program_types.py', 'tests/query/application_source/driver.zig',
                 'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
-                'packages/zig/transit-compiler/src/SourceTypes.zig', 'packages/zig/transit-compiler/src/TypedOperands.zig')}}
+                'packages/zig/transit-compiler/src/SourceTypes.zig', 'packages/zig/transit-compiler/src/ProgramAnnotations.zig', 'packages/zig/transit-compiler/src/TypedOperands.zig')}}
     capture.write_json(destination / 'evidence.json', meta)
     print(f'typed source evidence: {destination}', flush=True)
     inventory()
@@ -206,10 +208,12 @@ def main():
     for output in execute(driver, refused, destination, 'typed-refusals'):
         same('SourceTypeMismatch', output.get('compile_error'))
         assert 'product' not in output
-    meta.update(completed=True, named_laws=len(THEOREMS), finite_equalities=len(names) - len(THEOREMS),
+    programs, program_controls = program_types.run(driver, destination, must_fail)
+    controls += program_controls
+    meta.update(programs_compared=programs, completed=True, named_laws=len(THEOREMS), finite_equalities=len(names) - len(THEOREMS),
                 compared=len(outputs), refused=len(refused), negative_controls=controls)
     capture.write_json(destination / 'evidence.json', meta)
-    print(f'PASS {len(THEOREMS)} Lean laws, {len(names) - len(THEOREMS)} finite equalities, {len(outputs)} typed/SQL comparisons, {len(refused)} refusals, {len(controls)} negative controls')
+    print(f'PASS {len(THEOREMS)} Lean laws, {len(names) - len(THEOREMS)} finite equalities, {len(outputs)} typed/SQL and {programs} program comparisons, {len(refused)} refusals, {len(controls)} negative controls')
 
 
 if __name__ == '__main__':

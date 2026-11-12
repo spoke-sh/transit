@@ -299,8 +299,12 @@ The [typed-target specification](application-source/TypedTarget.lean) proves
 nominal substitution, selection from a checked total arm table, and ordered
 action preservation for a fragment with one scalar payload per constructor and
 Table inserts. Exact source types, well-typed environments and signatures are
-premises; de Bruijn variables express capture-free payload substitution. The
-laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
+premises; de Bruijn variables express capture-free payload substitution. Three
+additional scoped laws cover record projection under substitution, ordered
+program substitution and domain erasure preserving event order and bindings.
+The program trace fragment assumes ordinary physical typing and well-formed
+execution; it does not model nullable lookup execution or prove runtime atomicity.
+These laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
 SQL encoding, runtime, authorization or effects. Independent finite comparisons
 connect synthetic source, Lean source/action interpretations, checked Zig
 operands and ordinary SQL. Real CLI execution is separate evidence. This slice

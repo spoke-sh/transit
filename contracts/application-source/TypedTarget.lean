@@ -131,3 +131,82 @@ theorem specialization_preservation (env : Env context) (value : Variant signatu
 #print axioms nominal_substitution
 #print axioms exhaustive_selection
 #print axioms specialization_preservation
+
+/- A second, deliberately small fragment models nominal record projection and
+   ordered acquisition/read/guard/atomic/write events. Physical typing and
+   nullability are premises supplied by the ordinary binder. This proves neither
+   runtime atomicity nor correspondence for all program expressions. -/
+abbrev RecordExpr (context fields : List SourceType) :=
+  {type : SourceType} → Var fields type → Expr context type
+
+def RecordExpr.substitute (record : RecordExpr (parameter :: context) fields)
+    (value : Value parameter) : RecordExpr context fields :=
+  fun index => (record index).substitute value
+
+/-- Projection keeps the field's exact source type, including its domain, when
+    a concrete parameter is substituted. It cannot reinterpret another field. -/
+theorem projection_substitution (env : Env context) (value : Value parameter)
+    (record : RecordExpr (parameter :: context) fields) (index : Var fields type) :
+    ((record.substitute value) index).eval env = (record index).eval (extend value env) := by
+  exact nominal_substitution env value (record index)
+
+inductive EventKind where
+  | acquire | read | require | atomicBegin | atomicEnd | insert | append
+  deriving DecidableEq, Repr
+
+structure BoundEvent where
+  kind : EventKind
+  binding : String
+  type : Option SourceType
+  value : Option Scalar
+  deriving DecidableEq, Repr
+
+inductive SourceEvent (context : List SourceType) where
+  | boundary (kind : EventKind) (binding : String)
+  | guard (condition : Expr context ⟨.boolean, none⟩)
+  | write {type : SourceType} (kind : EventKind) (target : Table type) (expr : Expr context type)
+
+def SourceEvent.eval (env : Env context) : SourceEvent context → BoundEvent
+  | .boundary kind binding => ⟨kind, binding, none, none⟩
+  | .guard condition => ⟨.require, "", some ⟨.boolean, none⟩, some (condition.eval env).scalar⟩
+  | .write (type := type) kind target expr => ⟨kind, target.binding, some type, some (expr.eval env).scalar⟩
+
+def SourceEvent.substitute (value : Value parameter) : SourceEvent (parameter :: context) → SourceEvent context
+  | .boundary kind binding => .boundary kind binding
+  | .guard condition => .guard (condition.substitute value)
+  | .write kind target expr => .write kind target (expr.substitute value)
+
+/-- Substitution preserves the complete ordered trace, including guards and
+    atomic markers, not just the multiset of writes. -/
+theorem program_substitution (env : Env context) (value : Value parameter)
+    (events : List (SourceEvent (parameter :: context))) :
+    (events.map (SourceEvent.substitute value)).map (SourceEvent.eval env) =
+      events.map (SourceEvent.eval (extend value env)) := by
+  induction events with
+  | nil => rfl
+  | cons event rest ih =>
+    cases event <;> simp only [List.map_cons, SourceEvent.substitute, SourceEvent.eval,
+      nominal_substitution, ih]
+
+structure ErasedEvent where
+  kind : EventKind
+  binding : String
+  base : Option Base
+  value : Option Scalar
+  deriving DecidableEq, Repr
+
+def BoundEvent.erase (event : BoundEvent) : ErasedEvent :=
+  ⟨event.kind, event.binding, event.type.map SourceType.base, event.value⟩
+
+/-- Domain erasure keeps the exact event order and bindings. This is a law of
+    this trace model; independent finite comparisons connect it to emitted SQL. -/
+theorem ordered_erasure (events : List BoundEvent) :
+    (events.map BoundEvent.erase).map (fun e => (e.kind, e.binding, e.value)) =
+      events.map (fun e => (e.kind, e.binding, e.value)) := by
+  induction events with
+  | nil => rfl
+  | cons event rest ih => simp only [List.map_cons, BoundEvent.erase, ih]
+
+#print axioms projection_substitution
+#print axioms program_substitution
+#print axioms ordered_erasure
