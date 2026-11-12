@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
+import { publishStage } from "./stage-marker.mjs";
 const expect = baseExpect.configure({ timeout: 30000 });
 const config = JSON.parse(readFileSync(process.argv[2], "utf8"));
 // Reference storage/worker progress has a separate aggregate correctness budget.
@@ -95,7 +96,7 @@ for (const page of [counter, board]) {
   });
 }
 async function stage(name) {
-  writeFileSync(config.marker, name);
+  publishStage(config.marker, name);
   const until = Date.now() + 120000;
   while (
     !existsSync(config.marker + "-ack") ||
@@ -287,7 +288,7 @@ try {
   await stage("ready");
   const queryStart = performance.now();
   // Another committed mutation while following admits a distinct finite query.
-  writeFileSync(config.marker, "mutate");
+  publishStage(config.marker, "mutate");
   await expect(board.getByLabel("Verified query result")).not.toHaveText(original, {
     timeout: queryTimeout,
   });

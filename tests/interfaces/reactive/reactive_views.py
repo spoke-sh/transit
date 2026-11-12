@@ -193,7 +193,10 @@ def run(env, tls):
                     env['send']({'retire_resource': resource})
                 elif stage != 'ready': raise AssertionError(('unknown browser stage', stage))
                 progress()
-                (root / 'view-stage-ack').write_text(stage)
+                # Publish a complete acknowledgement to concurrent readers.
+                pending_ack = root / 'view-stage-ack.next'
+                pending_ack.write_text(stage)
+                pending_ack.replace(root / 'view-stage-ack')
             time.sleep(.05)
         log.seek(0)
         text = log.read()
