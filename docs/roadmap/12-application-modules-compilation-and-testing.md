@@ -10,8 +10,9 @@ definition replacement and deterministic replay qualification. It preserves the
 P0–P6 scope and outstanding qualification below. Its public-data Queue build/test
 increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450).
 The [next-slice implementation plan](application-typed-queue-implementation.md)
-proposes nominal types through public Queue programs as the first part of richer
-typed composition. Later increments remain proposals; merge status does not
+proposes actionable build/test diagnostics and source discovery first, then nominal
+types through public Queue programs as the first part of richer typed composition.
+Later increments remain proposals; merge status does not
 replace their qualification gates.
 
 Let an application compose data definitions, queries, dataflows, effect bindings

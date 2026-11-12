@@ -11,8 +11,9 @@ Build on the merged compiler, Table tests, source grammar and typed-target
 implementation. The first functional increment emits the installed
 public-data Queue program profile and merged in
 [PR #450](https://github.com/spoke-sh/transit/pull/450). The
-[next-slice plan](application-typed-queue-implementation.md) proposes carrying
-nominal types through that profile as the first part of richer typed composition.
+[next-slice plan](application-typed-queue-implementation.md) proposes actionable
+build/test diagnostics and source discovery first, then carrying nominal types
+through that profile as the first part of richer typed composition.
 Follow it with the remaining typed composition,
 runtime-enforced module boundaries, protected command/workflow composition,
 migration synthesis and safe replacement. Add tests and selected formal

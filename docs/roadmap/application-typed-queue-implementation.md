@@ -1,8 +1,11 @@
-# Typed public Queue programs: next implementation slice
+# Actionable build diagnostics and typed public Queue programs
 
 [Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Proposed for review** · 2026-11-12
 
-Let an application carry a source domain such as `MachineId` from a Queue input,
+Make `transit build` and `transit test` failures identify what failed, where it
+failed and what the user can change. Deliver this first, including source
+discovery that works in ordinary repositories with dependency and environment
+directories. Then let an application carry a source domain such as `MachineId` from a Queue input,
 through a Table lookup and ordered program, into atomic Table and Stream outputs.
 Reject substituting a `SiteId`, a raw integer or the wrong resource even when
 the physical SQL types agree. Keep the output independently executable through
@@ -10,8 +13,8 @@ the existing public-data SQL owners.
 
 This is the proposed first part of increment 2 in the
 [remaining implementation sequence](application-remaining-implementation.md#delivery-sequence).
-It extends the merged public Queue build/test slice with typed program operands
-and exact resource composition. It does **not** complete increment 2: general
+It extends the merged public Queue build/test slice with actionable diagnostics,
+typed program operands and exact resource composition. It does **not** complete increment 2: general
 FUNCTION/GUARD/PROCEDURE declarations, runtime variants, refinements and richer
 cardinality interfaces remain subsequent work. Establishing operand identity
 before those abstractions gives their later expansion a checked foundation.
@@ -45,6 +48,149 @@ already specifies nullable zero-row reads, failure on multiple rows, TRUE-only
 guards, lexical lookup precedence and atomic rollback. This slice consumes those
 semantics. It does not add a new cardinality operator, transaction coordinator,
 program scheduler or persistent typed IR.
+
+## First delivery: actionable build and test failures
+
+The reported `UnsupportedSourceFileKind` failure demonstrates a prerequisite
+usability gap. Both commands currently produce the generic message "Application
+source build failed" and advise correcting an unspecified problem. The user
+cannot identify the offending entry or determine whether to fix source syntax,
+a dependency, a filesystem layout or the selected target.
+
+The source audit identifies three separate causes:
+
+- [BuildSources.readTree](../../apps/transit-cli/BuildSources.zig) walks every
+  directory except `.git` and `.transit`. It rejects symlinks and special entries
+  before applying the `.transit` filename filter. Thus unrelated environment or
+  package-manager links can block both commands. The Git fetch path also rejects
+  unsupported modes before filtering source filenames.
+- [Build.run](../../apps/transit-cli/Build.zig) and
+  [Test.run](../../apps/transit-cli/Test.zig) fall back to
+  `Compiler.project(error, null, null, null)` when an owner supplies no diagnostic.
+  Filesystem failures therefore lose the path and receive the compile stage.
+- [EnvelopeDiagnostic](../../apps/transit-cli/EnvelopeDiagnostic.zig) does not
+  render the envelope's primary location, even when one is present. Related
+  location facts print coordinates without their source filename. The generic
+  `correct_input` sentence cannot replace an actionable explanation.
+
+This audit explains a failure path; it does not identify the exact entry that
+the user's installed executable encountered. Use synthetic fixtures for proof,
+not private application source or machine-specific environment paths.
+
+### User-visible diagnostic contract
+
+For each supported failure family, provide a plain-language cause, the relevant
+file/resource/target, the violated rule or expected-versus-actual information,
+and a specific corrective action. Human output leads with that explanation.
+Implementation enum names and stable diagnostic codes remain secondary detail;
+users must not need the Zig source to interpret them.
+
+The following is a proposed rendering for an actual source symlink, **not** a
+claim that an unrelated dependency symlink should still fail:
+
+```text
+error: Cannot load source file "modules/jobs.transit": it is a symbolic link.
+help: Use a regular .transit file inside this package and update its import if needed.
+No SQL was submitted.
+```
+
+A missing entry should name the resolved entry path and explain the supported
+choice: create `build.transit`, run from its directory, or select an existing
+entry with `transit build -f path/build.transit` / `transit test -f path/build.transit`.
+A type failure should identify the source operand, expected and actual types
+and its definition/call site. For example, proposed output could say:
+
+```text
+modules/workflow.transit:18:34: error: Cannot assign SiteId to a MachineId column.
+  column: accepted.machine_id
+  expected: MachineId
+  actual: SiteId
+help: Pass a MachineId value; equal BIGINT representations do not make these domains interchangeable.
+```
+
+These coordinates and names are illustrative. Render real one-based line and
+byte-column coordinates only when an owner knows them. Filesystem failures have
+a path and kind, not an invented line 1. Show complete filenames for related
+definition/import/call locations, with bounded context for nested modules.
+
+Use the shared [Diagnostic contract](../../contracts/DIAGNOSTICS_V1.md) for text
+and `--format json`: source paths, typed facts, stages, outcomes and actions must
+agree. Add reviewed stable failure codes/mappings for actionable families rather
+than switching on English messages or making `native_cause` a recovery API.
+Use existing fields where their meanings fit; identify any schema extension
+explicitly and apply the current-v1 policy if required. Context is captured by
+the resolver, binder or artifact owner before unwinding, not reconstructed by
+reopening a possibly changed source file in the renderer.
+
+Cover missing/invalid entry, unsupported source kind, permission/read failure,
+invalid UTF-8, parse/template error, missing import, wrong/missing target kind,
+lock/cache mismatch, source-domain/interface mismatch, unavailable runtime
+capability, exceeded budget, and artifact publication failure. Unknown failures
+still retain the best known operation/path and original cause with honest limits.
+An output failure must not masquerade as a compile failure. Test execution and
+cleanup failures retain case/action locations and actual outcome evidence;
+"No SQL was submitted" is valid only before execution starts.
+
+Keep source values, credentials and fetched bodies out of diagnostics, following
+the source contract. Show safe names, types, rules and locations rather than raw
+source excerpts. Escape terminal controls and malformed path bytes, mark
+truncation, and preserve the primary failure if detail allocation/rendering fails.
+Preserve current exit codes and output streams: human failures on stderr; one
+complete machine result/envelope on stdout in the existing build/test JSON mode.
+
+### Source discovery contract
+
+Fix the unnecessary discovery failure as well as its wording. Proposed rules:
+
+1. Validate the selected entry explicitly, with its path and expected file kind,
+   before scanning the rest of the tree. An explicitly selected/imported path
+   cannot silently become an ignored entry.
+2. Extend the fixed excluded directory-component set to `.git`, `.transit`,
+   `.direnv` and `node_modules`, consistently for root packages, overrides,
+   fetched Git trees and cached trees. Prune them before traversal and descendant
+   accounting. Do not depend on `.gitignore` or ignore all hidden directories;
+   either would silently change which application sources participate.
+3. Ignore non-source leaf entries without opening them or following links.
+   A candidate `.transit` file that is a symlink, FIFO, socket or other unsupported
+   kind still refuses with its path, actual kind and correction. Never follow
+   directory symlinks. Explicit imports through excluded or linked components
+   must explain the exclusion/link rather than read outside the package.
+4. Keep bounded enumeration of admitted directories, deterministic source order,
+   package-root confinement and no-follow opens. Treat changed file kinds between
+   discovery and reading as failures with retained context. No hang on a FIFO,
+   link traversal, automatic deletion, or automatic dependency fetching is allowed.
+
+These are proposed changes to
+[source selection](../../contracts/APPLICATION_SOURCE_V1.md#resolution-and-locks),
+not existing behavior. Update that contract and the local/fetched parity tests
+together. Review source-format/cache identity: a package whose selected source
+set changes must not reuse an old product or silently rewrite its lock. Frozen
+builds report a mismatch with explicit fetch/review guidance; fetch remains a
+separate requested operation. Preserve missing/foreign definition rejection and
+do not silently reinterpret cached contents under a changed selection policy.
+
+### Diagnostic acceptance evidence
+
+Test the actual installed commands in both text and JSON modes. The existing
+[build](../../tests/interfaces/cli/application_build.py) and
+[test](../../tests/interfaces/cli/application_test.py) journeys predominantly
+check JSON; add human-output assertions and shared-renderer coverage.
+
+| Scenario | Required result |
+| --- | --- |
+| Valid project with `.direnv` and `node_modules` links | Both commands pass source discovery; unrelated links are untouched and never followed |
+| Actual source symlink, dangling link or special file | Bounded failure naming the path and kind with a useful correction; no file opening that can block |
+| Missing entry, import or target | Name the missing object and relevant source/selection; suggest only existing CLI options and declared alternatives |
+| Syntax/type failure in an imported module | Exact primary location plus related filename/call context; expected/actual types where available |
+| Lock/cache or override failure | Identify the dependency and mismatch; offline build never fetches or mutates a lock to hide it |
+| Limit or output failure | Name the measured limit or destination/operation; preserve previous complete artifacts and do not report success |
+| Non-UTF-8/control-character/long path | Safe escaped output and explicit truncation; JSON validates and the cause is retained |
+| Failure after a test case began | Attribute the case/action and preserve completed/failed/not-run or unknown evidence; never claim nothing executed |
+
+Reject regressions that emit only a generic sentence plus a native enum name
+for these known families. Verify error specificity and real evidence rather than
+snapshotting incidental color/spacing. No new diagnostics flag is needed for
+the information required to correct a build.
 
 ## Proposed scope and decisions
 
@@ -197,40 +343,51 @@ where exact refusal attribution is needed rather than inventing source syntax.
 
 ## Logical implementation commits
 
-1. **Specify the closed profile and independent expectations.** Update
+1. **Make build/test failures actionable.** Capture owner-specific context in
+   source resolution, compilation and artifact publication; define reviewed
+   messages/codes/corrections; render primary and related locations. Add real
+   text/JSON command fixtures, including the reported file-kind failure, and
+   update diagnostic inventories/mappings and public documentation together.
+2. **Make source discovery usable in ordinary repositories.** Implement the
+   explicit entry, pruning and non-source rules above across local, override,
+   fetched and cached inputs. Qualify selection identity and frozen-lock behavior,
+   no-follow/race handling and ignored dependency directories. These first two
+   commits form a complete improvement that can be reviewed before typed programs.
+3. **Specify the closed typed profile and independent expectations.** Update
    `APPLICATION_SOURCE_V1.md`, source grammar documentation/corpus and diagnostics
    inventory with accepted/rejected domain paths and exact stage rules. Define
    checked projections and the synthetic oracle. Existing grammar may already
    express the forms; change productions only when a real syntax gap is identified.
    Contract-first work must label unimplemented support until its code lands.
-2. **Check nominal log schemas and operands.** Extend shared annotation/catalog
+4. **Check nominal log schemas and operands.** Extend shared annotation/catalog
    handling and ResourceOperands for declarations, exports, append column mapping
    and finite reads. Cover literal/IDENTIFIER access and allocation failures.
    No path can depend only on hole-kind checking.
-3. **Propagate domains through ordered programs.** Add the compiler-owned typed
+5. **Propagate domains through ordered programs.** Add the compiler-owned typed
    annotation pass over the existing AST; preserve lexical scopes, nullable
    records, branch joins and field assignments. Keep Fuze physical checking and
    installed host capability checks. Replace `UnsupportedNominalProgram` only
    after all admitted expression/instruction paths are checked.
-4. **Bind evidence to emission and prove the selected fragment.** Extend Step
+6. **Bind evidence to emission and prove the selected fragment.** Extend Step
    evidence and independent verification without changing installed artifacts.
    Add scoped Lean laws for domain-preserving substitution/projection and
    order-preserving erasure of the admitted expression/action fragment. Extend
    independent finite comparisons across source annotations, production checked
    nodes and ordinary SQL; include controls that erase or swap a domain and
    reorder guarded actions. Audit premises and axioms explicitly.
-5. **Execute the complete application journey.** Extend compiler/source-type
+7. **Execute the complete application journey.** Extend compiler/source-type
    fixtures and real application build/test journeys with the matrix above,
    independent SQL, offline/relocation cases, current-rights denial and original
    recovery. Reuse production owners and existing fault hooks; no test interpreter.
-6. **Promote supported behavior and qualify the committed result.** Update the
+8. **Promote supported behavior and qualify the committed result.** Update the
    application/CLI/package references and internals where behavior changes.
    Reconcile stale source-emission exclusions in the managed-program references
    with the existing public source profile. Record actual evidence and limitations
    in qualification history, then link it from this plan and the milestone.
 
-These are logical commits within one complete executable slice, not permission
-to publish a half-checked nominal path. The formal claims are limited to their
+The diagnostics/discovery improvement may ship independently after its own gates.
+The typed-program commits must deliver a complete checked profile, not a
+half-checked nominal path. The formal claims are limited to their
 stated fragment and premises; they do not prove arbitrary source programs, the
 runtime or external ID validity. Existing native recovery checks remain required.
 No new temporal state machine is introduced, so this slice adds no new TLA+ claim.
@@ -253,6 +410,7 @@ For implementation, use the existing
 
 | Area | Required checks |
 | --- | --- |
+| Diagnostics and source discovery | `just test cli-diagnostics`, `just test diagnostic-inventory`, `just test diagnostic-mappings`, affected contract checks and real build/test text/JSON journeys; update the owning mapping coverage, not only error-reference counts |
 | Compiler, grammar and annotation evidence | `just test application-compiler`, `just test application-source-grammar`, `just test application-source-types`; full corpus, formatter, negative controls and selected Lean proofs |
 | Real build and test execution | `just test application-runner`, `just test application-build`, `just test application-test`, `just test application-test-host`; exact counts/rows, recovery, denial and joined cleanup |
 | Shared contracts or Fuze interfaces | `just check contracts` and affected package/caller checks; retain ordinary untyped program behavior and frozen-definition checks |
@@ -272,7 +430,8 @@ results. Planned cases, installation, skipped suites and partial reports are not
 passes. The previous PR's immediate-submission instruction does not carry over
 to a future implementation PR.
 
-Completion means the full declared operand profile passes the acceptance matrix,
+Completion means both the diagnostic/discovery and declared operand profiles
+pass their acceptance matrices,
 ordinary generated SQL needs no source sidecar, public owners explain its limits,
 and final qualification is attributable. Remaining increment-2 work is then
 explicit: helper declarations and signatures, broader cardinality/refinements,
