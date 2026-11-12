@@ -69,12 +69,7 @@ pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph
     return .{ .nodes = try self.nodes.toOwnedSlice(output), .events = try self.events.toOwnedSlice(output) };
 }
 fn tick(self: *Self) !void {
-    if (self.work.* == self.work_limit) {
-        self.context.budget = "build work";
-        self.context.limit = self.work_limit;
-        self.context.required = self.work.* + 1;
-        return error.BuildWorkLimit;
-    }
+    if (self.work.* == self.work_limit) return error.BuildWorkLimit;
     self.work.* += 1;
 }
 fn origin(self: Self, offset: usize) usize {

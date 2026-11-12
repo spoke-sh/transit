@@ -140,6 +140,16 @@ def main():
         incomplete = invoke(cli, programs, expected=1)
         assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete
         source(programs, 'build.transit', program_source)
+        typed_queue = root / 'typed-queue'
+        shutil.copytree(ROOT / 'tests/fixtures/application-typed-queue', typed_queue)
+        report = invoke(cli, typed_queue)
+        assert report['complete'] and [case['status'] for case in report['cases']] == ['passed'], report
+        assert report['cases'][0]['observation']['rows'] == 4, report
+        workflow = (typed_queue / 'workflow.transit').read_text()
+        source(typed_queue, 'workflow.transit', workflow.replace('found.id = request.machine_id', 'found.id = request.id'))
+        refused = invoke(cli, typed_queue, expected=1)
+        assert refused['code'] == 'application.source.domain' and refused['outcome'] == 'not_submitted' and 'cases' not in refused, refused
+        assert not (typed_queue / '.transit').exists()
         typed = root / 'typed-targets'
         shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
         typed_report = invoke(cli, typed)

@@ -16,7 +16,7 @@ CREATE MODULE Pipeline(input_name IDENTIFIER, machines_name IDENTIFIER, state_na
   USE workflow.Workflow(program_name, data.input, data.machines, data.state, data.output);
   EXPORT QUEUE data.input AS input;
 END;
-CREATE MODULE Scenario() AS BEGIN
+CREATE PUBLIC MODULE Scenario() AS BEGIN
   USE Pipeline(NAME 'typed_requests_a', NAME 'typed_machines_a', NAME 'typed_accepted_a', NAME 'typed_events_a', NAME 'typed_process_a') AS a;
   USE Pipeline(NAME 'typed_requests_b', NAME 'typed_machines_b', NAME 'typed_accepted_b', NAME 'typed_events_b', NAME 'typed_process_b') AS b;
   USE Send(a.input, ids.RequestId(7), ids.MachineId(7), 'ready', 'ready');

@@ -139,3 +139,22 @@ fn allocations(allocator: std.mem.Allocator) !void {
 test "nominal program evidence cleans up each failed allocation" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, allocations, .{});
 }
+
+test "program annotations obey compiler budgets and whole-statement bounds" {
+    const text = try source(std.testing.allocator, valid);
+    defer std.testing.allocator.free(text);
+    const limits = .{
+        .{ c.Compiler.Limits{ .work = 60 }, error.BuildWorkLimit },
+        .{ c.Compiler.Limits{ .memory_bytes = 65536 }, error.BuildMemoryLimit },
+        .{ c.Compiler.Limits{ .output_bytes = 1000 }, error.BuildOutputLimit },
+    };
+    inline for (limits) |case| {
+        var diagnostic: ?p.Diagnostic = null;
+        try std.testing.expectError(case[1], c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = text }}, .{ .compiler_revision = "program-bounds", .limits = case[0] }, &diagnostic));
+        try diagnostic.?.validate();
+    }
+    var body: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer body.deinit();
+    for (0..200) |_| try body.writer.writeAll("REQUIRE request.id = $expected ELSE 'WrongId'; ");
+    try std.testing.expectError(error.BuildStatementLimit, build(std.testing.allocator, body.written()));
+}
