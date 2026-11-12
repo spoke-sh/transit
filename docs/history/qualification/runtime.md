@@ -70,6 +70,7 @@ Clean-source validation preserves the source of each result:
 | `installation-ui` | `5d7e0fd19264` | 26/26 tasks passed, including Board/docs checks, installed SQL types, managed execution, Board computation recovery and declarative browser proofs |
 | `interfaces-sql` | `5d7e0fd19264` | 8/8 tasks passed, including TLS, allocation controls, gateway/session behavior, integrity/history, Stream/Queue declarations and mixed transactions |
 | `browser` (`--browser-system-deps preinstalled`) | `5d7e0fd19264` | 9/9 tasks passed, including Board, HTTP/gRPC, reactive views/lifecycles, workbench and computation proofs |
+| `browser` after atomic fixture publication (`--browser-system-deps preinstalled`) | `7b978a36babc` | 9/9 tasks passed with the corrected marker and acknowledgement handshake |
 | `formal` | `53de18f167b1` | 16/16 tasks passed |
 | `storage-query` | `5d7e0fd19264` | 37/37 tasks passed, including all 18 private Station schedules, mixed decisions, Queue transfers, collection and 139-resource restart readback |
 | All four SDK lanes (`sdks`) | `46abd436d646` | 16/16 tasks passed |
@@ -141,6 +142,24 @@ safe refusal, not evidence of an unsynchronized host clock. It does not identify
 which source or environmental cost caused the elapsed work. Their later
 results are recorded with the validation above; test, lease and clock bounds
 remain unchanged. Superseded clean runs stopped before completion are not passes.
+
+The [hosted lifecycle browser proof](https://github.com/spoke-sh/transit/actions/runs/43199741795/job/131119969556)
+at `5d7e0fd19264` fails after observing a valid `rotate-viewer` marker followed
+by `rotate-viewerr`. Its fixture overwrites the marker while Python can still
+hold an open reader. A [deterministic negative control](../../../apps/transit-board-web/browser/stage-marker.test.mjs)
+reads the old 13-byte stage, overwrites that inode with `replace-viewer`, and reads the final byte
+from the new stage, reproducing the exact malformed value. At
+`7b978a36babc0bd611aeeef57923809e9d2fd417`, stage requests and acknowledgements
+publish complete adjacent files by atomic rename. The existing reader then
+retains one complete stage, while a new reader sees its successor. Both unit
+controls and the full Board check pass. The committed-source clean browser lane passes all nine tasks, including
+live views, the complete lifecycle sequence, workbench and computations.
+No browser assertions, deadlines, authority rules or runtime behavior change.
+The original hosted failure remains failed evidence.
+The other selected jobs in that [hosted run](https://github.com/spoke-sh/transit/actions/runs/43199741795) pass, including core, storage/query,
+installation/UI, interfaces, formal checks, native builds, all four SDK lanes
+and launchers. The original aggregate remains failed because of its browser
+result; the corrected clean proof qualifies the later fixture source separately.
 
 The complete five-installation console gate at `4c19523dd` exceeds the
 Document/KV/Stream write budgets and the absolute proportional-set-size limit.
