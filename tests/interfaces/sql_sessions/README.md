@@ -51,6 +51,13 @@ operations; [contribution instructions](AGENTS.md) describe their test boundary.
 | Console peer and measurements | [editor_peer.py](editor_peer.py), [measurements.py](measurements.py) |
 | Shared client allocation bounds over Unix, HTTP and TLS | [allocations.py](allocations.py), [client probe](../sql/sql_result_allocations.zig) |
 
+The transaction driver's sequential native commands wait for both the original
+commit/abort decision and `cleanup_complete` before starting another read or
+transaction. A terminal decision can still leave participant preparation barriers
+in place. Cleanup resumes use the same operation identity and the command's
+existing deadline, and verify that its token, transaction handle and decision do
+not change. Each command records the number of cleanup resumes separately.
+
 `just test::sql-result-allocations` runs 300 statements per transport against a
 finite-relation peer. It varies schemas, widths and batch counts, repeats one
 lost fetch ordinal, crosses the 256-request connection boundary and replaces idle
