@@ -45,7 +45,7 @@ pub fn init(parent: std.mem.Allocator, client: c.DirectTableClient, actor: Actor
     memory.* = .{ .parent = parent, .limit = resident_bytes };
     var guarded = client;
     guarded.allocator = memory.allocator();
-    guarded.execution = activation;
+    guarded.execution = try c.DirectTableClient.Execution.init(activation);
     return .{ .parent = parent, .memory = memory, .output = .init(memory.allocator()), .scratch = .init(memory.allocator()), .client = guarded, .actor = actor, .activation = activation, .digest = try actor.digest(parent) };
 }
 pub fn deinit(self: *Self) void {
