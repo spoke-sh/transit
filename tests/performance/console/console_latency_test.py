@@ -1,9 +1,11 @@
 """Independent byte expectations and a broken-codec control for payload reports."""
+import copy
 import hashlib
 import io
 import json
 from contextlib import redirect_stdout
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -232,6 +234,12 @@ class ConsoleLatencyGate(unittest.TestCase):
             for case in gate.STATEMENT_CASES
         }
 
+    def series(self, records, budgets):
+        runs = [copy.deepcopy(records) for _ in range(budgets['workload']['statement_runs'])]
+        for index, run in enumerate(runs):
+            run[0]['statement_run_index'] = index
+        return runs
+
     def sample_transcripts(self, budgets):
         workload = budgets['workload']
         startup_records = [
@@ -254,7 +262,9 @@ class ConsoleLatencyGate(unittest.TestCase):
                  losses=dict(dropped=0, suppressed=0, sink_errors=0)),
         ]
         statement_records = [
-            dict(source_revision='rev-1', repeat=workload['repeat'], cycles=workload['cycles'],
+            dict(source_revision='rev-1', binary_revision='rev-1', source_diff_sha256='diff',
+                 driver_sha256='driver', driver_helpers={'helper': 'digest'}, executables={'cli': 'binary'},
+                 repeat=workload['repeat'], cycles=workload['cycles'],
                  warm_reads=workload['warm_reads'], resource_snapshots=True,
                  instrumented=False, local_trace=False, historical_result_profile=False,
                  overrides=dict(worker_interval_ms=workload['worker_interval_ms'])),
@@ -299,7 +309,9 @@ class ConsoleLatencyGate(unittest.TestCase):
         self.assertEqual(budgets['fast_read_noise_floor_ms'], 15.0)
         self.assertEqual(budgets['workload'], gate.DEFAULT_WORKLOAD)
         self.assertEqual(budgets['workload']['cycles'], 15)
+        self.assertEqual(budgets['workload']['statement_runs'], 5)
         self.assertEqual(budgets['calibration_workload']['cycles'], 5)
+        self.assertNotIn('statement_runs', budgets['calibration_workload'])
         self.assertEqual(set(budgets['statement_classes']), set(gate.STATEMENT_CLASSES))
         self.assertEqual(set(budgets['statements']), set(gate.STATEMENT_CASES))
         self.assertEqual(gate.limit_ms(30.0, budgets), 51.0)
@@ -308,13 +320,13 @@ class ConsoleLatencyGate(unittest.TestCase):
     def test_baseline_passes_and_freezes_cleanly(self):
         budgets = json.loads(gate.BUDGETS.read_text())
         startup_records, statement_records = self.sample_transcripts(budgets)
-        evaluation = gate.assess(startup_records, statement_records, budgets)
+        evaluation = gate.assess(startup_records, self.series(statement_records, budgets), budgets)
         self.assertEqual(evaluation['status'], 'passed')
         self.assertEqual(evaluation['violations'], [])
-        frozen = gate.freeze_budgets([(startup_records, statement_records)], workload=budgets['workload'])
+        frozen = gate.freeze_budgets([(startup_records, self.series(statement_records, budgets))], workload=budgets['workload'])
         self.assertEqual(frozen['calibrated_revision'], 'rev-1')
         self.assertEqual(frozen['calibration_workload'], budgets['workload'])
-        self.assertEqual(gate.assess(startup_records, statement_records, frozen)['status'], 'passed')
+        self.assertEqual(gate.assess(startup_records, self.series(statement_records, frozen), frozen)['status'], 'passed')
 
     def test_fixed_window_retains_spikes_and_detects_sustained_regression(self):
         budgets = json.loads(gate.BUDGETS.read_text())
@@ -327,7 +339,7 @@ class ConsoleLatencyGate(unittest.TestCase):
         for row, value in zip(samples, values, strict=True):
             row['timer_ms'] = value
         self.summarize(statements)
-        result = gate.assess(startup, statements, budgets)
+        result = gate.assess(startup, self.series(statements, budgets), budgets)
         self.assertEqual(result['status'], 'passed')
         self.assertEqual(result['metrics']['statements']['document_select_after_delete'], 43)
         self.assertEqual(statements[-2]['distributions']['document_select_after_delete']['max_ms'], 166)
@@ -336,7 +348,7 @@ class ConsoleLatencyGate(unittest.TestCase):
         for row in samples[:8]:
             row['timer_ms'] = 130
         self.summarize(statements)
-        result = gate.assess(startup, statements, budgets)
+        result = gate.assess(startup, self.series(statements, budgets), budgets)
         self.assertIn(('statements', 'document_select_after_delete'),
                       {(row['category'], row['metric']) for row in result['violations']})
 
@@ -358,7 +370,105 @@ class ConsoleLatencyGate(unittest.TestCase):
             else:
                 statements[-2]['distributions']['document_select_after_delete']['p50_ms'] = 1
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
-                gate.assess(startup, statements, budgets)
+                gate.assess(startup, self.series(statements, budgets), budgets)
+
+    def test_cold_reads_use_every_fresh_run_and_reject_sustained_regressions(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup, statements = self.sample_transcripts(budgets)
+        runs = self.series(statements, budgets)
+        # The nightly's 151-ms Document first read plus four synthetic ordinary
+        # first reads. These are independent oracle inputs, not recovered CI data.
+        for case in gate.COLD_READS:
+            for run, value in zip(runs, (151, 44, 43, 45, 42), strict=True):
+                sample = next(row for row in run if row.get('case') == case
+                              and row.get('phase') == 'statement')
+                sample['timer_ms'] = value
+                self.summarize(run)
+        result = gate.assess(startup, runs, budgets)
+        self.assertEqual(result['status'], 'passed')
+        for case in gate.COLD_READS:
+            self.assertEqual(result['metrics']['statements'][case], 44)
+            self.assertEqual(result['metrics']['cold_reads'][case],
+                             distribution([value * 1_000_000 for value in (151, 44, 43, 45, 42)]))
+            for run in runs[1:3]:
+                sample = next(row for row in run if row.get('case') == case
+                              and row.get('phase') == 'statement')
+                sample['timer_ms'] = 151
+                self.summarize(run)
+        result = gate.assess(startup, runs, budgets)
+        self.assertEqual({row['metric'] for row in result['violations']}, set(gate.COLD_READS))
+
+    def test_every_run_requires_complete_matching_evidence(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup, statements = self.sample_transcripts(budgets)
+        for invalid in ('missing', 'extra', 'duplicate', 'order', 'empty', 'window', 'failure',
+                        'source_revision', 'binary_revision', 'source_diff_sha256',
+                        'driver_sha256', 'driver_helpers', 'executables'):
+            runs = self.series(statements, budgets)
+            if invalid == 'missing':
+                runs.pop()
+            elif invalid == 'extra':
+                runs.append(copy.deepcopy(runs[0]))
+            elif invalid == 'duplicate':
+                runs[-1] = copy.deepcopy(runs[0])
+            elif invalid == 'order':
+                runs.reverse()
+            elif invalid == 'empty':
+                runs[-1] = []
+            elif invalid == 'window':
+                runs[-1].pop(2)
+            elif invalid == 'failure':
+                runs[-1].insert(1, dict(phase='statement_failure'))
+            else:
+                runs[-1][0][invalid] = 'foreign'
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                gate.assess(startup, runs, budgets)
+
+    def test_one_run_cannot_hide_steady_state_or_resource_regression(self):
+        budgets = json.loads(gate.BUDGETS.read_text())
+        startup, statements = self.sample_transcripts(budgets)
+        runs = self.series(statements, budgets)
+        for row in runs[-1]:
+            if row.get('phase') == 'statement' and row.get('case') == 'insert':
+                row['timer_ms'] = 1000
+            if row.get('phase') == 'client_resources' and row.get('cycle') == 14:
+                row['pss_bytes'] *= 2
+        self.summarize(runs[-1])
+        result = gate.assess(startup, runs, budgets)
+        self.assertIn('insert', {row['metric'] for row in result['violations']})
+        self.assertIn('pss_bytes_max', {row['metric'] for row in result['violations']})
+        self.assertIn('cycle_pss_growth_ratio', {row['metric'] for row in result['violations']})
+
+    def test_fixed_invocations_and_failure_cannot_reuse_old_samples(self):
+        workload = dict(gate.DEFAULT_WORKLOAD)
+        for fail in (False, True):
+            with self.subTest(fail=fail), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                paths = gate.statement_paths(directory, workload)
+                for path in paths:
+                    path.write_text('old samples')
+                invocations = []
+
+                def invoke(command, *, stdout, **kwargs):
+                    invocations.append(command)
+                    stdout.write('{}\n')
+                    if fail and len(invocations) == 2:
+                        raise subprocess.CalledProcessError(1, command)
+
+                with patch.object(gate.subprocess, 'run', side_effect=invoke), \
+                     patch.object(gate.subprocess, 'check_output', return_value='rev-1'), \
+                     patch.object(gate.os, 'sched_getaffinity', return_value=set()):
+                    if fail:
+                        with self.assertRaises(subprocess.CalledProcessError):
+                            gate.run_workload('cli', 'node', 'host', directory, workload)
+                        self.assertEqual(len(invocations), 2)
+                        self.assertTrue(all(path.read_text() == '' for path in paths[1:]))
+                    else:
+                        gate.run_workload('cli', 'node', 'host', directory, workload)
+                        self.assertEqual(len(invocations), 6)
+                        for index, command in enumerate(invocations[1:]):
+                            self.assertEqual(command[command.index('--statement-run-index') + 1], str(index))
+                            self.assertEqual(command[command.index('--cycles') + 1], '15')
 
     def test_regressions_and_incomplete_runs_fail(self):
         budgets = json.loads(gate.BUDGETS.read_text())
@@ -373,7 +483,7 @@ class ConsoleLatencyGate(unittest.TestCase):
                 row['threads'] = budgets['resources']['threads_max'] * 2
                 row['pss_bytes'] = int(budgets['resources']['pss_bytes_max'] * 1.3)
         self.summarize(statement_records)
-        evaluation = gate.assess(startup_records, statement_records, budgets)
+        evaluation = gate.assess(startup_records, self.series(statement_records, budgets), budgets)
         self.assertEqual(evaluation['status'], 'failed')
         violated = {(row['category'], row['metric']) for row in evaluation['violations']}
         self.assertIn(('startup', 'fresh_ready_ms'), violated)
@@ -395,7 +505,7 @@ class ConsoleLatencyGate(unittest.TestCase):
             else:
                 st_records[3]['process_count'] = 6
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
-                gate.assess(s_records, st_records, budgets)
+                gate.assess(s_records, self.series(st_records, budgets), budgets)
 
 
 if __name__ == '__main__':
