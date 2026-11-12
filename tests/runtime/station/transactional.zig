@@ -175,11 +175,18 @@ fn verify(init: std.process.Init, client: c.DirectTableClient, saved: Saved, ind
     var rows = try c.DirectTableReader.open(init.gpa, client, .{ .object = saved.actor.table.object, .handle = pinned.value.result.pin });
     defer rows.deinit();
     var seen: usize = 0;
+    // A physical Table scan does not promise primary-key order. Check the
+    // complete independent value set, including duplicates and foreign rows.
+    var values: [23]bool = @splat(false);
     while (try rows.next(client, .{})) |page| {
         var batch = page;
         defer batch.deinit();
         for (batch.rows[0..batch.count]) |row| {
-            try t.expectEqual(@as(i128, @intCast(42 + seen)), row.?.row().cells[0].value.atom.signed);
+            const id = row.?.row().cells[0].value.atom.signed;
+            try t.expect(id >= 42 and id < 42 + @as(i128, @intCast(count)));
+            const ordinal: usize = @intCast(id - 42);
+            try t.expect(!values[ordinal]);
+            values[ordinal] = true;
             seen += 1;
         }
     }
