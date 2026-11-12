@@ -7,8 +7,12 @@ proposes the delivery sequence from the merged compiler and typed-target baselin
 at `bc849156a`: public-data Queue program emission, richer typed composition,
 runtime module boundaries, protected workflows, explicit-basis migrations,
 definition replacement and deterministic replay qualification. It preserves the
-P0–P6 scope and outstanding qualification below. Its selected first increment is
-the public-data Queue build/test profile; later increments remain proposals.
+P0–P6 scope and outstanding qualification below. Its public-data Queue build/test
+increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450).
+The [next-slice implementation plan](application-typed-queue-implementation.md)
+proposes nominal types through public Queue programs as the first part of richer
+typed composition. Later increments remain proposals; merge status does not
+replace their qualification gates.
 
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a typed declarative application language stored as `.transit`,
