@@ -25,7 +25,27 @@ def command(client, sql, expected='applied', token=None):
         time.sleep(.03)
         operation = client.call(dict(resume=operation['identity']))['operation']
     assert operation['outcome'] == expected, (sql, operation)
-    print(json.dumps(dict(profile="transaction_command", kind=operation["command"], outcome=expected, milliseconds=round((time.monotonic()-started)*1000, 3))), flush=True)
+    # A durable decision can precede publication and pin/barrier cleanup. This
+    # sequential fixture needs all participants released before its next read
+    # or BEGIN, even when the command is already terminal. Resume only the same
+    # accepted operation and keep the original decision and deadline.
+    decided = (operation.get('transaction') or {}).get('evidence', {}).get('decided')
+    cleanup_resumes = 0
+    if decided is not None:
+        identity = operation['identity']
+        handle = operation['transaction']['handle']
+        decision = decided['decision']
+        while not decided['cleanup_complete']:
+            assert time.monotonic() < deadline, operation
+            time.sleep(.03)
+            operation = client.call(dict(resume=identity))['operation']
+            cleanup_resumes += 1
+            assert operation['identity'] == identity and operation['token'] == token, operation
+            assert operation['phase'] == 'terminal' and operation['outcome'] == expected, operation
+            assert operation['transaction']['handle'] == handle, operation
+            decided = operation['transaction']['evidence']['decided']
+            assert decided['decision'] == decision, operation
+    print(json.dumps(dict(profile="transaction_command", kind=operation["command"], outcome=expected, cleanup_resumes=cleanup_resumes, milliseconds=round((time.monotonic()-started)*1000, 3))), flush=True)
     return operation, token
 
 
