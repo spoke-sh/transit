@@ -1,6 +1,6 @@
 # Actionable build diagnostics and typed public Queue programs
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Proposed for review** · 2026-11-12
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Implemented; qualification in progress** · 2026-11-12
 
 Make `transit build` and `transit test` failures identify what failed, where it
 failed and what the user can change. Deliver this first, including source
@@ -11,7 +11,7 @@ Reject substituting a `SiteId`, a raw integer or the wrong resource even when
 the physical SQL types agree. Keep the output independently executable through
 the existing public-data SQL owners.
 
-This is the proposed first part of increment 2 in the
+This implements the first part of increment 2 in the
 [remaining implementation sequence](application-remaining-implementation.md#delivery-sequence).
 It extends the merged public Queue build/test slice with actionable diagnostics,
 typed program operands and exact resource composition. It does **not** complete increment 2: general
@@ -19,9 +19,32 @@ FUNCTION/GUARD/PROCEDURE declarations, runtime variants, refinements and richer
 cardinality interfaces remain subsequent work. Establishing operand identity
 before those abstractions gives their later expansion a checked foundation.
 
-This document is a plan. Its examples and acceptance criteria describe proposed
-support; the [source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains
+The design and acceptance criteria below preserve the approved plan. Implementation
+now follows it; the [source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains
 the owner of current behavior. Milestone 12 stays **In Progress**.
+
+
+## Implementation result
+
+Source discovery now prunes environment/dependency directories before traversal
+and ignores unrelated leaves, while selected source links/special files refuse
+with bounded path/kind evidence. Build and test report actionable diagnostic
+families, source/call locations, expected/actual types, and available limit or I/O
+context. Selection policy participates in dependency digests; old cache keys need
+explicit reviewed fetching, never silent lock mutation.
+
+Non-null nominal Queue/Stream fields and operands now compose with ordered
+public-data programs. The compiler overlays source domains on Fuze's physical
+binder, keeps nullable records and lexical scopes, checks every runtime branch
+and failure handler, and records complete source annotations and ordered events.
+Native acquisition validation and independent emitted-SQL binding remain gates.
+No persisted native format, runtime domain authority or recovery identity changed.
+
+The synthetic two-pipeline fixture and hand-authored SQL cover lookup success,
+absence, multi-row refusal and rollback after staged insertion. Six scoped Lean
+laws and independent finite comparisons cover the selected fragment; these are
+not proofs of arbitrary programs or runtime execution. Final installed and clean
+qualification is still being executed; no required incomplete gate is a pass.
 
 ## Source basis and existing owners
 
