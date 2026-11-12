@@ -19,6 +19,13 @@ Table commit/latency work and final qualification at one revision. Its estimate
 is 15–21 review units and 19–32 engineer-weeks before integration contingency;
 M7's Document participant is a separate dependency. M6 remains **In Progress**.
 
+The plan's [initial shared API extraction](streams-queues-runtime-completion.md#b-extract-the-shared-transaction-api-and-migrate-station-to-it)
+now provides a database-owned caller lifecycle, owned data transaction contexts
+and a local recovery adapter. The private Station runner consumes it; ordinary
+data callers exercise the same API without Station, and SQL/program owners reuse
+its neutral helpers. This delivers the first extraction slice, with public
+runtime migration, result/batch ownership and matched cost qualification still open.
+
 The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)
 records **Batch 5: one private transactional Station behavior**. The native
 actor execution guard, retained turn recovery, real Table/KV handler and
