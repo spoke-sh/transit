@@ -18,7 +18,7 @@ pub fn check(template: s.Syntax, bindings: []const types.Binding) !Operands.Chec
             .queue => if (value != .queue and value != .identifier) return error.SourceTypeMismatch,
             .table => if (value != .table and value != .identifier) return error.SourceTypeMismatch,
             .value, .operand => if (value != .integer and value != .text and value != .boolean and
-                !(value == .nominal and template.kind != .program and template.kind != .control)) return error.UnsupportedLogOperand,
+                !(value == .nominal and template.kind != .control)) return error.UnsupportedLogOperand,
         }
     }
     return .{ .table = "", .schema = @splat(0), .columns = &.{}, .operands = &.{} };

@@ -1,0 +1,21 @@
+IMPORT ids FROM 'types.transit';
+CREATE PUBLIC MODULE Workflow(name IDENTIFIER,
+  input QUEUE(id ids.RequestId NOT NULL, machine_id ids.MachineId NOT NULL, lookup TEXT NOT NULL, body TEXT NOT NULL),
+  machines TABLE(id ids.MachineId PRIMARY KEY, label TEXT NOT NULL),
+  state TABLE(id ids.RequestId PRIMARY KEY, machine_id ids.MachineId NOT NULL, body TEXT NOT NULL),
+  output STREAM(id ids.RequestId NOT NULL, machine_id ids.MachineId NOT NULL, body TEXT NOT NULL)) AS BEGIN
+  CREATE PUBLIC DATAFLOW $name FROM QUEUE $input AS request AS BEGIN
+    BEGIN ATOMIC
+      LET found = SELECT id FROM $machines WHERE label = request.lookup;
+      REQUIRE found IS NOT NULL ELSE 'MissingMachine';
+      REQUIRE found.id = request.machine_id ELSE 'WrongMachine';
+      LET machine = CASE WHEN request.body = 'ready' THEN request.machine_id ELSE found.id END;
+      LET id = request.id;
+      INSERT INTO $state VALUES (id, machine, request.body) ON CONFLICT (id) DO ASSERT SAME ROW;
+      REQUIRE request.body <> 'reject' ELSE 'RejectedBody';
+      PRODUCE INTO $output VALUES (id, machine, request.body);
+    END;
+  END;
+  AUTHORIZE DATAFLOW $name AS ROLE CURRENT_ROLE;
+  ACTIVATE DATAFLOW $name;
+END;

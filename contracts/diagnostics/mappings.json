@@ -6332,10 +6332,6 @@
           "code": "application.source.unsupported",
           "category": "unsupported"
         },
-        "UnsupportedNominalProgram": {
-          "code": "application.source.unsupported",
-          "category": "unsupported"
-        },
         "UnsupportedProgramInstruction": {
           "code": "application.source.unsupported",
           "category": "unsupported"

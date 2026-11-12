@@ -37,7 +37,11 @@ Ordered public Queue programs and explicit lifecycle controls use the same graph
 `ProgramCheck` collects proposed dependencies and uses Fuze's program schema,
 type and capability owners before comparing the emitted instruction tree and
 schema bindings. Runtime publication, authorization, progress and completion
-remain separate. Nominal program columns, symbolic program declarations/controls
+remain separate. `ProgramAnnotations` overlays source domains on the shared physical
+binder, preserving nullable records, lexical scopes and ordered boundaries. Both
+runtime branches and failure handlers are checked. Exact expansion spans attach
+nominal holes to expression nodes; equality, null tests and matching CASE arms
+preserve domains. Other nominal operations reject. Symbolic program declarations/controls
 and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
 expectations extend the local test product without adding a source interpreter.
 

@@ -83,6 +83,12 @@ appends use the installed ordered-program binder; mutations require an atomic
 block. Building emits SQL and never activates it. The
 [program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
 defines exact supported instructions, schemas and limits.
+Nominal Queue, Stream and Table fields retain their source types through LET,
+record projections, nullable one-record lookups and matching CASE arms. Writes and
+equality comparisons require the same domain, even for identical scalar values.
+Every runtime branch is checked. A domain annotation does not prove that a sender
+is authorized or a referenced row exists; use a lookup and REQUIRE for existence.
+Ordinary SQL still receives scalar columns and values.
 
 This profile rejects runtime-private storage, privileged procedures, protected
 effects, COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing

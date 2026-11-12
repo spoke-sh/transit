@@ -1,0 +1,40 @@
+IMPORT ids FROM 'types.transit';
+IMPORT resources FROM 'resources.transit';
+IMPORT workflow FROM 'workflow.transit';
+
+CREATE MODULE Seed(machines TABLE(id ids.MachineId PRIMARY KEY, label TEXT NOT NULL), id ids.MachineId, label TEXT) AS BEGIN
+  INSERT INTO $machines VALUES ($id, $label);
+END;
+CREATE MODULE Send(input QUEUE(id ids.RequestId NOT NULL, machine_id ids.MachineId NOT NULL, lookup TEXT NOT NULL, body TEXT NOT NULL), id ids.RequestId, machine ids.MachineId, lookup TEXT, body TEXT) AS BEGIN
+  ENQUEUE INTO $input VALUES ($id, $machine, $lookup, $body);
+END;
+CREATE MODULE Pipeline(input_name IDENTIFIER, machines_name IDENTIFIER, state_name IDENTIFIER, output_name IDENTIFIER, program_name IDENTIFIER) AS BEGIN
+  USE resources.Resources(TYPE ids.RequestId, TYPE ids.MachineId, input_name, machines_name, state_name, output_name) AS data;
+  USE Seed(data.machines, ids.MachineId(7), 'ready');
+  USE Seed(data.machines, ids.MachineId(8), 'duplicate');
+  USE Seed(data.machines, ids.MachineId(9), 'duplicate');
+  USE workflow.Workflow(program_name, data.input, data.machines, data.state, data.output);
+  EXPORT QUEUE data.input AS input;
+END;
+CREATE MODULE Scenario() AS BEGIN
+  USE Pipeline(NAME 'typed_requests_a', NAME 'typed_machines_a', NAME 'typed_accepted_a', NAME 'typed_events_a', NAME 'typed_process_a') AS a;
+  USE Pipeline(NAME 'typed_requests_b', NAME 'typed_machines_b', NAME 'typed_accepted_b', NAME 'typed_events_b', NAME 'typed_process_b') AS b;
+  USE Send(a.input, ids.RequestId(7), ids.MachineId(7), 'ready', 'ready');
+  USE Send(a.input, ids.RequestId(8), ids.MachineId(7), 'missing', 'ready');
+  USE Send(a.input, ids.RequestId(9), ids.MachineId(8), 'duplicate', 'ready');
+  USE Send(a.input, ids.RequestId(10), ids.MachineId(7), 'ready', 'reject');
+  USE Send(b.input, ids.RequestId(7), ids.MachineId(7), 'ready', 'ready');
+END;
+CREATE TARGET default AS BEGIN
+  USE Scenario();
+END;
+CREATE TEST TARGET tests AS BEGIN
+  TEST 'typed lookup and atomic refusal' USING MODULES (Scenario()) AS BEGIN
+    ASSERT WORKFLOW NAME 'typed_process_a' COMPLETED 1 REFUSED 3 WITHIN 1000 OBSERVATIONS;
+    ASSERT WORKFLOW NAME 'typed_process_b' COMPLETED 1 REFUSED 0 WITHIN 1000 OBSERVATIONS;
+    ASSERT ROWS (SELECT id, machine_id, body FROM typed_accepted_a) EQUAL ((7, 7, 'ready'));
+    ASSERT ROWS (CONSUME id, machine_id, body FROM typed_events_a) EQUAL ((7, 7, 'ready'));
+    ASSERT ROWS (SELECT id, machine_id, body FROM typed_accepted_b) EQUAL ((7, 7, 'ready'));
+    ASSERT ROWS (CONSUME id, machine_id, body FROM typed_events_b) EQUAL ((7, 7, 'ready'));
+  END;
+END;

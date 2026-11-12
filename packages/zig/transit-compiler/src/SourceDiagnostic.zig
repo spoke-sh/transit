@@ -187,7 +187,6 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "UnsupportedLogOperand", .capability },
     .{ "UnsupportedNominalColumn", .capability },
     .{ "UnsupportedNominalOperation", .capability },
-    .{ "UnsupportedNominalProgram", .capability },
     .{ "UnsupportedProgramInstruction", .capability },
     .{ "UnsupportedProgramPartitioning", .capability },
     .{ "UnsupportedRecursiveExports", .capability },

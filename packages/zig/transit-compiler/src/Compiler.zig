@@ -10,7 +10,7 @@ const Test = @import("Test.zig");
 const types = @import("SourceTypes.zig");
 const Operands = @import("TypedOperands.zig");
 const Context = @import("SourceDiagnostic.zig").Context;
-const Origin = struct { start: usize, end: usize, source: usize };
+const Origin = Operands.Origin;
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
 pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
@@ -620,20 +620,26 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     var canonical_buf: [f.Sql.max_statement_bytes]u8 = undefined;
     var type_sites: [f.Sql.max_statement_bytes]bool = @splat(false);
     var sites: std.ArrayList(Operands.Site) = .empty;
-    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, false, &type_sites, self.a, &sites, origins);
+    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, template.kind == .program, &type_sites, self.a, &sites, origins);
     _ = self.scratch.reset(.retain_capacity);
     self.catalog.owner = self.owner;
     const is_create = tokenIs(self.graph.sources[file].text, tokens[0], "CREATE");
     // DDL creates the proposed shape; other statements check source annotations
     // before the ordinary binder can erase nominal identity into scalar values.
     var digest: [32]u8 = undefined;
-    if (is_create) digest = try self.catalog.check(raw, at);
+    if (is_create and template.kind != .program) digest = try self.catalog.check(raw, at);
     const log_statement = switch (template.kind) {
         .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
         else => false,
     };
     const resource_checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else null;
-    const checked = if (template.kind == .program or template.kind == .control) resource_checked.? else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
+    const checked = if (template.kind == .program) blk: {
+        var analysis = try @import("ProgramCheck.zig").analyze(&self.catalog, raw, at);
+        defer analysis.deinit();
+        var result = resource_checked.?;
+        result.program = try @import("ProgramAnnotations.zig").check(self.scratch.allocator(), self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, &self.context, &self.work, self.limits.work);
+        break :blk result;
+    } else if (template.kind == .control) resource_checked.? else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
     self.context = .{};
     if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, at);
     if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], at);
@@ -641,7 +647,7 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     if (self.symbolic) return;
     origins.clearRetainingCapacity();
     const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null, origins);
-    if (!is_create) digest = try self.catalog.check(canonical, at);
+    if (!is_create or template.kind == .program) digest = try self.catalog.check(canonical, at);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     self.output_bytes += canonical.len + 2;
     var binding_hash = std.crypto.hash.sha2.Sha256.init(.{});

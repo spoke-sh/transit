@@ -13,5 +13,6 @@ test {
     _ = @import("tests.zig");
     _ = @import("source_test.zig");
     _ = @import("resource_test.zig");
+    _ = @import("program_test.zig");
     _ = SourceDiagnostic;
 }

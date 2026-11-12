@@ -162,12 +162,42 @@ instructions. Expressions and branch/result types use the ordinary program binde
 
 Programs bind at most thirteen proposed Table/log dependencies. The input is one
 Queue partition. Exact resource kinds, schemas, keys, instruction order and atomic
-boundaries survive a separate parse/bind of emitted SQL. Nominal resource columns,
-symbolic program declarations/controls, KV/Document dependencies, protected
+boundaries survive a separate parse/bind of emitted SQL. Symbolic program declarations/controls, KV/Document dependencies, protected
 values, effects, responses, handoff, pages, deadlines and native helper dependencies
 reject. The installed host's shared capability declaration determines available
 functions. Runtime publication still freezes native definitions and checks
 current rights; proposed schemas and static capability checks grant neither.
+
+Non-null nominal fields retain their source domains through Queue input, LET,
+record projection and zero-or-one Table reads. An absent read produces a nullable
+record, its projected fields remain nullable, and multiple rows refuse at runtime.
+The compiler preserves the physical binder's lexical-before-column lookup and
+scope rules. Same-domain equality/inequality, null tests and CASE with matching
+domains are admitted; a NULL CASE arm preserves the other arm's domain and makes
+the result nullable. Conditions require ordinary BOOLEAN. Calls, casts, arithmetic,
+ordering and concatenation cannot unwrap nominal values. Every runtime branch and
+failure handler is checked. Failure handlers retain the original input, not body
+locals; failure metadata remains ordinary scalar data.
+
+Concrete nominal arguments in program holes retain their exact expansion spans
+until checked. Table inserts and log appends check each destination column even
+when accessed through literal names or IDENTIFIER holes. Nullable values still
+face runtime required-field validation: annotations do not establish that a guard
+executed. Acquisition predicates must also lower through the native Queue predicate
+owner; ordinary expression acceptance alone is insufficient.
+
+A nominal Queue field is a source annotation, not sender authentication, proof of
+referenced-row existence or runtime domain validation. Ordinary SQL sees the base
+scalar. Applications use an explicit lookup and guard when existence is required;
+current native authorization continues to govern publication and execution.
+
+The internal checked projection records physical kind/nullability, recursive
+record fields and domains for expression/binding nodes, plus ordered acquisition,
+read, guard, branch, atomic, write and failure-handler events. Resource events carry
+complete bound column annotations; write events also associate expression IDs.
+Source offsets refer to the originating template. This evidence is not persisted
+in build artifacts and does not add runtime authority. Erased SQL is independently
+parsed and bound against a fresh ordinary catalog before publication of a product.
 
 Source lifecycle controls are `AUTHORIZE DATAFLOW name AS ROLE CURRENT_ROLE`,
 ACTIVATE, SUSPEND, RESUME and RETIRE. A prior program declaration and the shared

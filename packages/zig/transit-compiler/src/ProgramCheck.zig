@@ -12,9 +12,19 @@ resources: std.ArrayList(a.Types.Resource) = .empty,
 entries: std.ArrayList(*const types.Table) = .empty,
 
 pub const Checked = struct { name: []const u8, digest: [32]u8 };
-pub fn check(catalog: *Catalog, sql: []const u8, location: *f.Sql.Location) !Checked {
+/// All borrowed resource descriptions live in the caller's statement scratch.
+pub const Analysis = struct {
+    parsed: a.Owned,
+    bound: a.Types.Bound,
+    entries: []const *const types.Table,
+    pub fn deinit(self: *Analysis) void {
+        self.bound.deinit();
+        self.parsed.deinit();
+    }
+};
+pub fn analyze(catalog: *Catalog, sql: []const u8, location: *f.Sql.Location) !Analysis {
     var parsed = try a.parse(catalog.scratch, sql, location);
-    defer parsed.deinit();
+    errdefer parsed.deinit();
     if (parsed.program.name.len == 0 or parsed.program.name.len > p.Authorization.max_name_bytes or std.mem.indexOfScalar(u8, parsed.program.name, 0) != null) return error.InvalidCatalogName;
     var self: Self = .{ .catalog = catalog };
     try self.resource(parsed.program.queue, .queue);
@@ -24,16 +34,24 @@ pub fn check(catalog: *Catalog, sql: []const u8, location: *f.Sql.Location) !Che
     }
     if (parsed.program.failure) |failure| try self.block(failure.instructions);
     var bound = try a.Types.bind(catalog.scratch, parsed.program, self.resources.items, location);
-    defer bound.deinit();
+    errdefer bound.deinit();
     try bound.requirements.requireAvailable(a.Types.Requirements.publicData());
     if (bound.native.count() != 0) return error.UnsupportedBuildProgramDependency;
-    // Expanded raw/canonical SQL has identical token widths. Both parses must
-    // preserve instruction identities, atomic structure, values and bindings.
+    return .{ .parsed = parsed, .bound = bound, .entries = self.entries.items };
+}
+pub fn check(catalog: *Catalog, sql: []const u8, location: *f.Sql.Location) !Checked {
+    var analysis = try analyze(catalog, sql, location);
+    defer analysis.deinit();
+    const parsed = analysis.parsed;
+    if (parsed.program.predicate) |predicate| location.offset = predicate.span.start;
+    try a.Predicate.validate(parsed.program, analysis.entries[0].schema);
+    // Programs use canonical expansion in both passes. Preserve instruction
+    // identities, atomic structure, scalar values and exact physical bindings.
     const encoded = try p.Json.valueAllocBounded(catalog.scratch, parsed.program, a.Codec.max_bytes);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.source.program.v1\x00");
     hash.update(encoded);
-    for (self.entries.items) |entry| {
+    for (analysis.entries) |entry| {
         @import("Graph.zig").hashPart(&hash, entry.name);
         @import("Graph.zig").hashPart(&hash, @tagName(entry.kind));
         hash.update(&try entry.schema.fingerprint());
@@ -46,7 +64,6 @@ fn resource(self: *Self, name: []const u8, kind: types.ResourceKind) !void {
     for (self.entries.items) |prior| if (prior == entry) return;
     // The installed ApplicationDeclaration can freeze thirteen dependencies.
     if (self.entries.items.len == 13) return error.ProgramTooComplex;
-    for (entry.domains) |domain| if (domain != null) return error.UnsupportedNominalProgram;
     if (entry.log) |log| if (log.configuration.partitioning.count != 1) return error.UnsupportedProgramPartitioning;
     const allocator = self.catalog.scratch;
     const fields = try allocator.alloc(a.Types.Field, entry.schema.columns.len);

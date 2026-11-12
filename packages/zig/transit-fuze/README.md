@@ -792,3 +792,8 @@ fallibility, five-state filtering, collation counts and work bounds from validat
 logical/relational plans; direct Table EXPLAIN returns these traits without data
 acquisition. Maintained relational execution reports finite recomputation with
 paired deltas, not incremental Z-set execution.
+
+`ApplicationProgram.Predicate.validate` checks the native acquisition predicate
+profile against a proposed schema without inventing a catalog identity. It shares
+lowering, schema layout and collation validation with native predicate encoding;
+source expression typing alone does not establish acquisition support.

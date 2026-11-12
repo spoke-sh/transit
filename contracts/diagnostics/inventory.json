@@ -12779,11 +12779,13 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 128,
+        "try": 130,
         "catch": 15
       },
       "imports": [
         "Graph.zig",
+        "ProgramAnnotations.zig",
+        "ProgramCheck.zig",
         "ResourceOperands.zig",
         "SourceDiagnostic.zig",
         "SourceTypes.zig",
@@ -12877,6 +12879,65 @@
         "std"
       ]
     },
+    "packages/zig/transit-compiler/src/ProgramAnnotations.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 2,
+        "BuildWorkLimit": 1,
+        "InvalidSourceOperand": 3,
+        "ProgramTooDeep": 1,
+        "SourceDomainMismatch": 2,
+        "SourceTypeMismatch": 1,
+        "UnsupportedNominalOperation": 1
+      },
+      "outcomes": {
+        "Event.kind": [
+          "acquire",
+          "let",
+          "read",
+          "require",
+          "atomic_begin",
+          "atomic_end",
+          "branch_begin",
+          "branch_else",
+          "branch_end",
+          "insert",
+          "append",
+          "failure_begin",
+          "failure_end"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "agree()": "<inferred>",
+        "block()": "anyerror",
+        "check()": "<inferred>",
+        "condition()": "<inferred>",
+        "event()": "<inferred>",
+        "expression()": "anyerror",
+        "node()": "<inferred>",
+        "ordinary()": "<inferred>",
+        "physical()": "<inferred>",
+        "project()": "anyerror",
+        "record()": "<inferred>",
+        "select()": "<inferred>",
+        "tick()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 76,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_fuze"
+      ]
+    },
     "packages/zig/transit-compiler/src/ProgramCheck.zig": {
       "errors": {
         "ApplicationHostUnavailable": 3,
@@ -12884,19 +12945,19 @@
         "ProgramTooComplex": 1,
         "SourceTypeMismatch": 1,
         "UnsupportedBuildProgramDependency": 1,
-        "UnsupportedNominalProgram": 1,
         "UnsupportedProgramPartitioning": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "analyze()": "<inferred>",
         "block()": "anyerror",
         "check()": "<inferred>",
         "resource()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -13315,6 +13376,7 @@
       },
       "imports": [
         "Graph.zig",
+        "ProgramAnnotations.zig",
         "SourceDiagnostic.zig",
         "SourceTypes.zig",
         "WorkingCatalog.zig",
@@ -16293,11 +16355,13 @@
         "emit()": "<inferred>",
         "integer()": "<inferred>",
         "literal()": "<inferred>",
-        "lower()": "anyerror"
+        "lower()": "anyerror",
+        "lowered()": "<inferred>",
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 23,
+        "try": 29,
         "catch": 0
       },
       "imports": [

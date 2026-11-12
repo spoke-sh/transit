@@ -1,0 +1,11 @@
+CREATE PUBLIC MODULE Resources(request_type TYPE, machine_type TYPE,
+  input_name IDENTIFIER, machines_name IDENTIFIER, state_name IDENTIFIER, output_name IDENTIFIER) AS BEGIN
+  CREATE PUBLIC QUEUE $input_name (id $request_type NOT NULL, machine_id $machine_type NOT NULL, lookup TEXT NOT NULL, body TEXT NOT NULL);
+  CREATE PUBLIC TABLE $machines_name (id $machine_type PRIMARY KEY, label TEXT NOT NULL);
+  CREATE PUBLIC TABLE $state_name (id $request_type PRIMARY KEY, machine_id $machine_type NOT NULL, body TEXT NOT NULL);
+  CREATE PUBLIC STREAM $output_name (id $request_type NOT NULL, machine_id $machine_type NOT NULL, body TEXT NOT NULL);
+  EXPORT QUEUE $input_name AS input;
+  EXPORT TABLE $machines_name AS machines;
+  EXPORT TABLE $state_name AS state;
+  EXPORT STREAM $output_name AS output;
+END;
