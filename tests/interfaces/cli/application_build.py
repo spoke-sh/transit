@@ -500,7 +500,7 @@ def install_typed_queue(fixture, sql):
         name = f'typed_process_{suffix}'
         head = await_head(fixture, name, lambda h: h['completed'] + h['refused'] >= refused + 1)['observation']['head']
         assert (head['completed'], head['refused']) == (1, refused), head
-        rows = fixture.console(f'SELECT id, machine_id, body FROM typed_accepted_{suffix}; CONSUME id, machine_id, body FROM typed_events_{suffix};')
+        rows = fixture.console(f'SELECT id, machine_id, body FROM typed_accepted_{suffix} ORDER BY id; CONSUME id, machine_id, body FROM typed_events_{suffix};')
         assert [records(value) for value in rows if 'schema' in value] == [[{'id': '7', 'machine_id': '7', 'body': 'ready'}]] * 2, rows
         outcomes += rows
         await_head(fixture, name, lambda h: h['pending'] is not None and h['attempt'] == refused + 2)
@@ -533,7 +533,7 @@ def resume_typed_queue(fixture, token, identity):
     head = await_head(fixture, 'typed_process_a', lambda h: h['completed'] >= 2)['observation']['head']
     assert head['refused'] == 4, head
     expected = [{'id': '7', 'machine_id': '7', 'body': 'ready'}, {'id': '11', 'machine_id': '7', 'body': 'retained'}]
-    outcomes = fixture.console('SELECT id, machine_id, body FROM typed_accepted_a; CONSUME id, machine_id, body FROM typed_events_a;')
+    outcomes = fixture.console('SELECT id, machine_id, body FROM typed_accepted_a ORDER BY id; CONSUME id, machine_id, body FROM typed_events_a;')
     for value in outcomes:
         if 'schema' in value:
             assert sorted(records(value), key=lambda row: int(row['id'])) == expected, value
@@ -672,17 +672,22 @@ def main():
         typed_sql = typed_journey(cli, Path(temporary))
         queue_sql = queue_journey(cli, Path(temporary))
         typed_queue_sql = typed_queue_journey(cli, Path(temporary))
+        print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
+        print('Application build: generated typed Queue fixture', flush=True)
         generated += execute_typed_queue(cli, typed_queue_sql)
+        print('Application build: independent ordinary SQL oracle', flush=True)
         oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
+        print('Application build: independent typed Queue SQL oracle', flush=True)
         oracle += execute_typed_queue(cli, (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):
             return [dict(schema=value['schema']['type'], rows=value['rows'], count=value['complete']['rows']) for value in outcomes if 'schema' in value]
-        assert logical(generated) == logical(oracle)
+        actual, expected = logical(generated), logical(oracle)
+        assert actual == expected, [(index, left, right) for index, (left, right) in enumerate(zip(actual, expected, strict=True)) if left != right]
     print('Application build: locked offline composition, source-free SQL, restart and revocation passed')
 
 
