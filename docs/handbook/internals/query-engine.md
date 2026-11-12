@@ -32,6 +32,17 @@ comparison inputs, not allocated runtime identities. Statement scratch resets
 between preparations; retained schemas/output and scratch backing allocations
 share one compiler memory budget.
 
+Stream and Queue handles also retain their exact resource kind and schema.
+`LogDdl`, `LogAppendSql` and `LogConsumeSql` own their statement checking.
+[ProgramCheck](../../../packages/zig/transit-compiler/src/ProgramCheck.zig)
+collects a Queue program's referenced resources, then uses the installed
+`ApplicationProgram` type binder, schema mapping and public-data facility set.
+It fingerprints the ordered instruction tree, atomic boundaries and resource
+schemas before comparing the independently reparsed emitted SQL. Nominal
+program columns and unavailable facilities reject before their source meaning
+could be erased. The proposed catalog checks explicit lifecycle ordering through
+the shared control transitions; this establishes no current authorization.
+
 The typed-target implementation at source `16cf8399e` asks whether equal physical
 values can remain distinct during composition without introducing a second
 runtime type authority. [SourceTypes](../../../packages/zig/transit-compiler/src/SourceTypes.zig)
@@ -85,9 +96,10 @@ proves neither resource existence nor authorization. Dynamic variants, query
 cardinality, effects and temporal behavior require their own contracts and
 verification beyond this compile-time specialization.
 
-Source syntax checks complete Table templates and expected rows before graph
-evaluation, including unused modules and both conditional branches. Template
-holes retain identifier, type, value or unresolved-operand roles and byte spans;
+Source syntax checks Table/log templates, ordered program structure and expected
+rows before graph evaluation, including unused modules and both conditional
+branches. Template holes retain identifier, type, value, resource-kind or
+unresolved-operand roles and byte spans;
 syntax checking supplies neither dummy values nor a catalog. Name/type/target
 checks and native execution retain their own stages. The independent
 [source grammar check](../../../contracts/application-source/README.md) compares
@@ -102,7 +114,19 @@ publication. It includes the executable digest as well as the build revision in
 artifact identity. Reusing a default output still recompiles and compares the
 complete artifact bytes; a cache entry cannot establish correctness or authority.
 See the [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) for the
-implemented Table subset. The analysis below describes the larger planned model.
+implemented public-data profile. The analysis below describes the larger planned model.
+
+The [isolated test runner](../../../packages/zig/transit-test/README.md) executes
+these emitted statements against real local database owners. Managed program
+statements retain one admitted operation identity and settle it through the
+ordinary statement owner; an uncertain admission fails the case without SQL
+resubmission. Workflow assertions inspect the frozen declaration, repeat current
+resource and control-read checks, and compare recorded counters within explicit
+observation and case budgets. They do not prove idleness or input exhaustion.
+The [Queue fixture](../../../tests/fixtures/application-queue-programs/README.md)
+owns independent expected rows and counters, source-free installed execution,
+rollback, lost-reply and retained-restart checks. The existing Lean laws above
+do not extend to ordered program execution.
 
 ## Planned source-to-SQL compilation
 
@@ -111,7 +135,7 @@ of data definitions, queries and durable operations when its output is executed
 without the source compiler. This section analyzes the
 [proposed `.transit` language](../reference/applications.md#planned-source-language-and-build-model);
 its broader capability, migration and test requirements extend beyond the
-implemented Table compiler above. The existing
+implemented public-data compiler above. The existing
 [SQL compiler boundary](../../../contracts/sql/README.md),
 [migration contract](../../../contracts/MIGRATION_V1.md) and
 [definition identities](../reference/data-model.md#describe-definitions-data-and-dependencies-separately)
