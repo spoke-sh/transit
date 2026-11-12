@@ -512,6 +512,12 @@ credential. It can abort undecided work or finish an existing decision, and cann
 request a new commit. Read the [signed transaction contract](../../../contracts/DIRECT_TABLE_V1.md#signed-transaction-action)
 for current rights, missing-token observations and the mandatory stored fields.
 
+`DirectTableClient.Execution.init` creates an owned request prerequisite from the
+native identity fields. It rejects conditions carrying an input claim; that claim
+belongs to the original transaction condition. Invalid prerequisites use the
+binding diagnostic `catalog.invalid_execution_condition`. A recorded mutation
+attempt still takes precedence and preserves an unknown outcome.
+
 `DirectTableBridge.Session` owns one immutable local intent. SQL `compile` and
 typed `prepare` return saved work; `load` and `forget` are local operations.
 Persist saved work before staging, and the complete returned reference before
