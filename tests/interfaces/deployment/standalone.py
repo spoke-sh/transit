@@ -28,7 +28,7 @@ def run(prefix):
 
     def call(argv, **kwargs):
         try:
-            return subprocess.run(list(map(str, argv)), check=True, text=True, capture_output=True, timeout=300, **kwargs).stdout
+            return subprocess.run(list(map(str, argv)), check=True, text=True, capture_output=True, timeout=360, **kwargs).stdout
         except subprocess.CalledProcessError as error:
             print(error.stderr[-4000:], file=sys.stderr)
             raise

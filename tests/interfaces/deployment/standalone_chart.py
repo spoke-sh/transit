@@ -29,6 +29,7 @@ def run():
         assert deployment['replicas'] == 1 and deployment['strategy'] == {'type': 'Recreate'}
         pod = deployment['template']['spec']
         assert pod['automountServiceAccountToken'] is False
+        assert pod['enableServiceLinks'] is False
         assert len(pod['containers']) == 1 and not pod.get('initContainers')
         container = pod['containers'][0]
         assert container['command'] == ['/bin/transit']

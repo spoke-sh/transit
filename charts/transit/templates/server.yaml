@@ -30,6 +30,7 @@ spec:
         checksum/config: {{ include "transit.config" . | sha256sum }}
     spec:
       automountServiceAccountToken: false
+      enableServiceLinks: false
       terminationGracePeriodSeconds: 60
       nodeSelector:
         kubernetes.io/os: linux
