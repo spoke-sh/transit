@@ -46,6 +46,14 @@ readiness and teardown separately; process start alone is not readiness.
 The interoperability ring records each language installation and each pair's
 scenario separately, including failures before its final aggregate report exists.
 
+Portable native export inspects each executable and shared library's ELF program
+headers before checking runtime linkage. Files with an interpreter or dynamic
+segment must pass the pinned Nix loader's dependency resolution. Static
+executables remain in the publication without invoking the dynamic loader;
+static archives retain their separate packaging path. Invalid ELF inputs and
+failed linkage checks prevent archive publication. Header and loader diagnostics
+remain in the phase records.
+
 Timings are inclusive, and nested records name their parent. Do not add a parent
 duration to its children or describe the residual as pure CPU time. Uninstrumented
 work remains part of its enclosing schedule. Records begin incomplete; failures

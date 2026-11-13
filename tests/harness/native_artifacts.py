@@ -141,7 +141,17 @@ def export(family, optimize, output, root=ROOT):
         # Resolve every dynamic dependency before publishing. An ELF file can
         # link successfully yet fail immediately on the consuming runner.
         for name in sorted(EXPECTED[family]):
-            if not name.endswith(".a"):
+            if name.endswith(".a"):
+                continue
+            headers = run(["readelf", "--program-headers", "--wide", str(prefix / name)], cwd=root,
+                          log=attempt.directory / (Path(name).name + ".headers.log"), result=row,
+                          capture_stdout=True, env=os.environ | {"LC_ALL": "C"})
+            headers.check_returncode()
+            segments = set(re.findall(rb"^\s*(LOAD|INTERP|DYNAMIC)\s", headers.stdout, re.MULTILINE))
+            assert b"LOAD" in segments, f"Native artifact has no loadable ELF segments: {name}"
+            # The pinned glibc loader can segfault on a static executable.
+            # Shared libraries have DYNAMIC without INTERP, so inspect both.
+            if segments & {b"INTERP", b"DYNAMIC"}:
                 run([nix_linker()[0], "--list", str(prefix / name)], cwd=root,
                     log=attempt.directory / (Path(name).name + ".linkage.log"), result=row).check_returncode()
     name = f"{family}-{optimize}"
