@@ -9914,6 +9914,35 @@
         "std"
       ]
     },
+    "packages/zig/transit-catalog/src/DirectTransactionReader.zig": {
+      "errors": {
+        "CatalogIdentityConflict": 3,
+        "InvalidTableKey": 1,
+        "InvalidTransactionRead": 3,
+        "TableNotFound": 1,
+        "TransactionReadChanged": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "bound()": "<inferred>",
+        "describe()": "<inferred>",
+        "encodeKey()": "<inferred>",
+        "get()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "readKey()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 14,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-catalog/src/DirectTransactionRecord.zig": {
       "errors": {
         "DataIdentityConflict": 1,
@@ -10055,6 +10084,7 @@
     },
     "packages/zig/transit-catalog/src/DirectTransactionSession.zig": {
       "errors": {
+        "CatalogIdentityConflict": 1,
         "InvalidTransactionSession": 3,
         "InvalidTransactionSteps": 1,
         "ReadOnlyTransaction": 1,
@@ -11766,6 +11796,7 @@
         "DirectTransactionLog.zig",
         "DirectTransactionLogWork.zig",
         "DirectTransactionRead.zig",
+        "DirectTransactionReader.zig",
         "DirectTransactionRecord.zig",
         "DirectTransactionRequest.zig",
         "DirectTransactionSavepoint.zig",
@@ -13539,7 +13570,7 @@
     },
     "packages/zig/transit-data-client/src/Catalog.zig": {
       "errors": {
-        "Busy": 8,
+        "Busy": 9,
         "InvalidArgument": 1
       },
       "outcomes": {
@@ -13574,6 +13605,10 @@
         "TransactionOutcome.value": [
           "result",
           "failure"
+        ],
+        "TransactionReadOutcome.value": [
+          "result",
+          "failure"
         ]
       },
       "error_sets": {
@@ -13600,6 +13635,12 @@
         ],
         "callTransaction().<error>": [
           "Busy"
+        ],
+        "readTransaction().<error>": [
+          "Busy"
+        ],
+        "readTransactionOwned().<error>": [
+          "Busy"
         ]
       },
       "error_returns": {
@@ -13611,12 +13652,14 @@
         "callSource()": "error { Busy }",
         "callStream()": "error { Busy }",
         "callTransaction()": "error { Busy }",
-        "init()": "<inferred>"
+        "init()": "<inferred>",
+        "readTransaction()": "error { Busy }",
+        "readTransactionOwned()": "error { Busy }"
       },
       "open_error_set_uses": 1,
       "propagation": {
         "try": 4,
-        "catch": 17
+        "catch": 19
       },
       "imports": [
         "Transaction.zig",
@@ -13678,6 +13721,8 @@
         "initFailure()": "<inferred>",
         "openCatalog()": "<inferred>",
         "openSql()": "<inferred>",
+        "readTransaction()": "<inferred>",
+        "readTransactionWithAdmission()": "<inferred>",
         "releaseSql()": "<inferred>",
         "requireLane()": "<inferred>",
         "sqlSession()": "<inferred>",
@@ -13687,7 +13732,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 49,
+        "try": 50,
         "catch": 9
       },
       "imports": [
@@ -13841,7 +13886,7 @@
     },
     "packages/zig/transit-data-client/src/Transaction.zig": {
       "errors": {
-        "Busy": 2,
+        "Busy": 3,
         "TransactionSessionPending": 1,
         "TransactionSessionSettling": 1
       },
@@ -13851,11 +13896,55 @@
         "apply()": "<inferred>",
         "borrowed()": "<inferred>",
         "init()": "<inferred>",
-        "privateClient()": "<inferred>"
+        "privateClient()": "<inferred>",
+        "read()": "<inferred>",
+        "readOwned()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
         "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "TransactionRead.zig",
+        "std",
+        "transit_catalog"
+      ]
+    },
+    "packages/zig/transit-data-client/src/TransactionRead.zig": {
+      "errors": {
+        "Busy": 1,
+        "CatalogIdentityConflict": 1,
+        "InvalidClientHandle": 1,
+        "TransactionSessionPending": 1,
+        "TransactionSessionSettling": 1
+      },
+      "outcomes": {
+        "Action": [
+          "kv",
+          "open_table",
+          "table"
+        ],
+        "Command": [
+          "describe",
+          "next",
+          "key"
+        ],
+        "Result": [
+          "kv",
+          "opened",
+          "description",
+          "batch",
+          "row"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "apply()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 6,
         "catch": 0
       },
       "imports": [
@@ -13914,6 +14003,7 @@
         "LocalRecoveryStore.zig",
         "SqlRecovery.zig",
         "Transaction.zig",
+        "TransactionRead.zig",
         "TransactionRecovery.zig",
         "transit_catalog",
         "transit_sql_client"
@@ -43674,7 +43764,7 @@
     "packages/zig/transit-station/src/transactional/Runner.zig": {
       "errors": {
         "ActorDependencyUnresolved": 1,
-        "ActorIdentityConflict": 13,
+        "ActorIdentityConflict": 10,
         "ActorInputUnavailable": 1,
         "ActorNotInitialized": 1,
         "ActorProgressConflict": 2,
@@ -43682,7 +43772,6 @@
         "ActorSavepointUnsupported": 1,
         "ActorStatementRefused": 1,
         "HandlerStopped": 2,
-        "InvalidTableKey": 1,
         "TurnCapacity": 2
       },
       "outcomes": {
@@ -43738,7 +43827,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 102,
+        "try": 97,
         "catch": 2
       },
       "imports": [

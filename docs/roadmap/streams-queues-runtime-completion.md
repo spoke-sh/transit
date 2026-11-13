@@ -8,8 +8,8 @@ services and effects, migration of existing consumers, Table commit and latency
 work, and qualification of the complete system at one revision.
 [PR #451](https://github.com/spoke-sh/transit/pull/451) delivers the initial shared
 higher-level database transaction API and migrates the private runner to it.
-The [next slice](transaction-read-ownership.md) adds owned Table/KV transaction
-reads through that API. Most remaining effort sits in service migration and
+The [read ownership slice](transaction-read-ownership.md) implements owned Table/KV
+transaction reads through that API; its installed and clean qualification is in progress. Most remaining effort sits in service migration and
 proof of the complete replacement.
 
 Plan for **15–21 review units and 19–32 engineer-weeks of direct work**. Allowing
@@ -231,12 +231,13 @@ stored actor Head representation are unchanged.
 The independent installed Table/KV and mixed Stream/Queue fixture now uses that
 shared context and journal, including lost replies, checkpoint failure, restart,
 savepoints and explicit cleanup. These are executable checks, not a claim that
-the full exit below has passed. Context-bound read/result ownership, bounded
-multi-statement batching, shared-path cost optimization and matched performance
+the full exit below has passed. Context-bound Table/KV read ownership is now
+implemented with separate qualification in progress. Bounded multi-statement
+batching, shared-path cost optimization and matched performance
 qualification remain follow-up work. The overall milestone estimate is retained
 until those measurements and the consumer inventory justify revising it.
-The [next implementation plan](transaction-read-ownership.md) scopes the read
-ownership work to one PR; batching and matched cost qualification follow it.
+The [read implementation plan](transaction-read-ownership.md) scopes that ownership
+work to one PR; batching and matched cost qualification follow it.
 
 Deliver the [ownership boundaries](#required-api-and-ownership-boundaries) by
 defining the contract before extracting the shared implementation. Keep the

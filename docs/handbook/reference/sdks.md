@@ -25,6 +25,10 @@ connects that callback to explicit Linux filesystem storage with bounded records
 original-token observation and separate receipt-persistence failures. Its KV
 adapter persists exact mutations before dispatch and observes original receipts
 through the context without replay.
+The Zig context also exposes shared transaction writes, savepoints, settlement
+and [owned private Table/KV reads](../../../packages/zig/transit-data-client/docs/transaction-reads.md).
+This caller has no Station dependency. Other language bindings do not gain these
+transaction reader APIs merely by sharing the native contract.
 
 Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../../examples/station-sdk/README.md).

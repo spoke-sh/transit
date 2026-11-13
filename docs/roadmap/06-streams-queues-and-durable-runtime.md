@@ -24,14 +24,14 @@ now provides a database-owned caller lifecycle, owned data transaction contexts
 and a local recovery adapter. The private Station runner consumes it; ordinary
 data callers exercise the same API without Station, and SQL/program owners reuse
 its neutral helpers. This delivers the first extraction slice, with public
-runtime migration, result/batch ownership and matched cost qualification still open.
+runtime migration, batching and matched cost qualification still open.
 
 After [PR #451](https://github.com/spoke-sh/transit/pull/451), the
-[next slice plan](transaction-read-ownership.md) proposes owned Table/KV
+[read ownership slice](transaction-read-ownership.md) implements owned Table/KV
 transaction reads through the shared data API, including Station adapter
 migration, workspace invalidation, current authorization and local reader
-lifetimes. It targets one implementation PR before batching and shared-path
-cost optimization; public service replacement remains later work.
+lifetimes. Installed and clean qualification is in progress before batching and
+shared-path cost optimization; public service replacement remains later work.
 
 The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)
 records **Batch 5: one private transactional Station behavior**. The native
