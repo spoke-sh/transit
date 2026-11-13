@@ -819,7 +819,7 @@ def run(node, caller, mode="tables", *artifacts):
                         if observed["committed"] and observed["cleanup_complete"] and not observed["pending"]:
                             break
                     time.sleep(.1)
-                subprocess.run([transaction_caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
+                subprocess.run([caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
                 destination_claim = Path(str(saved_path) + ".destination-claim").read_bytes()
                 authority.kill()
                 authority.wait(timeout=15)
