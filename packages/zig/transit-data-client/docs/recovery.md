@@ -168,6 +168,31 @@ revision-checked persistence. Conflicting receipts refuse replacement. `save`
 and `saveReceipt` expose the same persistence steps for explicit callers.
 
 This adapter covers standalone mutations. Declaration settlement, retained pin
-recovery, transactions and other data kinds continue to use their explicit owner
+recovery and other data kinds continue to use their explicit owner
 APIs and saved-operation contracts. It does not create a recovery loop or a
 principal-sequence allocator.
+
+## Transaction adapter
+
+`TransactionRecovery` supplies a journal to the shared
+[`Transaction` API](../README.md#shared-transactions). Initialize it with an
+allocator and `LocalRecoveryStore`; it reserves one record-sized buffer. Its
+allocator also owns parsed originals and returned transaction contexts, so use a
+bounded allocator for untrusted records. The store outlives the adapter, which
+outlives its transaction. Keep one active borrower per adapter.
+
+`create(initial_state)` durably retains the current definition, exact Begin and
+settlement operation, then returns an owned transaction. Repeating creation loads
+existing progress; it never resets an original. `load(key)` restores the original
+and pending statement/savepoint or settlement command. Keys bind the transaction
+token and full connection. Changed selection, operations or content under the
+same key conflict. No endpoint or credential is stored.
+
+Each journal update checks the context's previous progress and the loaded store
+revision. A stale context or adapter cannot overwrite later progress, including
+after another context reloads that adapter. Publication failure can leave the old or new complete
+record; reload before proceeding. Leave capacity for both the immutable original
+and the largest pending request. Saving a record does not establish service
+acceptance, and loading one grants no permission. Use the context to advance the
+saved request or explicitly settle its original operation; neither construction
+nor loading starts a recovery loop. Completion never automatically forgets work.

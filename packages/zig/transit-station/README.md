@@ -84,8 +84,12 @@ Run `just test::station` for the real-service recovery proof and
 The package's `station_transaction_internal` module is a qualification target.
 It is absent from the public Station root and bindings, and installed Station
 applications continue to use `GenServer` above. Its [runner](src/transactional/Runner.zig)
-composes ordinary Catalog, Table, KV, Stream and Queue callers. The database and
-native authority do not import or invoke this runner.
+uses the [shared data transaction API](../transit-data-client/README.md#shared-transactions)
+for sequencing, staging, saved requests and settlement. Station supplies an adapter
+for its existing actor control row and owns handler dispatch, inbox selection,
+replay/output construction and failure policy. The database and native authority
+do not import or invoke this runner. Ordinary database callers use the same
+transaction API without an actor or Station activation.
 
 An immutable declaration binds one native PID/code/workload, a control KV, one
 state KV, one Table, an inbox Queue, replay Stream and output Queue. Bootstrap

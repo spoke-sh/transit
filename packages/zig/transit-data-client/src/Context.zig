@@ -7,6 +7,7 @@ const sql = @import("transit_sql_client");
 const SqlSession = @import("SqlSession.zig");
 const AdmissionQueue = @import("AdmissionQueue.zig");
 pub const Admission = @import("Admission.zig");
+const Transaction = @import("Transaction.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
@@ -381,6 +382,17 @@ pub fn beginClose(self: *Self) void {
     defer self.mutex.unlock(self.io);
     self.admission.beginClose();
     self.condition.broadcast(self.io);
+}
+
+/// Each bounded lifecycle step borrows a catalog slot. Settlement, inspection
+/// and native recovery retain reserved control admission while closing.
+pub fn callTransaction(self: *Self, handle: Handle, transaction: *Transaction, action: Transaction.Action) !Catalog.TransactionOutcome {
+    return self.callTransactionWithAdmission(handle, transaction, action, .refuse);
+}
+pub fn callTransactionWithAdmission(self: *Self, handle: Handle, transaction: *Transaction, action: Transaction.Action, options: AdmissionOptions) !Catalog.TransactionOutcome {
+    const borrow = try self.acquireWithAdmission(handle, if (action.control()) .control else .data, options);
+    defer self.release(borrow);
+    return borrow.slot.caller.?.callTransaction(transaction, action);
 }
 
 /// Refuses new data work and waits for existing calls to return. Timeout or

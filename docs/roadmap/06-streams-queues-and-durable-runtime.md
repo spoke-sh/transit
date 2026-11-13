@@ -9,15 +9,32 @@ declarative database primitives with dedicated SQL and typed-caller grammar over
 `TransitLog` (`TWAL1`) and `.tseg` segments, and re-architect `Station` on top
 of those database primitives and [supported transactions](05-transactions-and-atomic-composition.md).
 
-The [next-slice implementation plan, 2026-11-11](station-transaction-implementation.md)
-records **Batch 5: one private transactional Station behavior**, based on
-`main` at `bc849156ad91e9f022ad9a9204c47f654a209a57`. The private implementation
-adds a native actor execution guard at the common decision, retained turn
-recovery, a real Table/KV handler and installed worker-replacement fault proofs.
-Its acceptance matrix distinguishes these checks from broader resource and
-collection qualification.
-Public activation and service/consumer migration remain Batches 6–7; M6 remains
-**In Progress**.
+The [completion implementation plan, 2026-11-12](streams-queues-runtime-completion.md)
+assesses remaining work at `main` revision `6552747cf58a81cab0c60ad5c39e8e1568e9a007`.
+It first extracts a shared higher-level database transaction API and makes
+Station a consumer, with the private runner retained as a thin qualification
+fixture. Shared lifecycle/resource/cost qualification precedes durable services,
+effects and the public consumer cutover, alongside
+Table commit/latency work and final qualification at one revision. Its estimate
+is 15–21 review units and 19–32 engineer-weeks before integration contingency;
+M7's Document participant is a separate dependency. M6 remains **In Progress**.
+
+The plan's [initial shared API extraction](streams-queues-runtime-completion.md#b-extract-the-shared-transaction-api-and-migrate-station-to-it)
+now provides a database-owned caller lifecycle, owned data transaction contexts
+and a local recovery adapter. The private Station runner consumes it; ordinary
+data callers exercise the same API without Station, and SQL/program owners reuse
+its neutral helpers. This delivers the first extraction slice, with public
+runtime migration, result/batch ownership and matched cost qualification still open.
+
+The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)
+records **Batch 5: one private transactional Station behavior**. The native
+actor execution guard, retained turn recovery, real Table/KV handler and
+installed worker-replacement proofs are implemented. The
+[executed qualification](../history/qualification/runtime.md#private-transactional-station-behavior--2026-11-12)
+and [retained performance comparison](../history/qualification/performance.md#private-transactional-station-comparison--2026-11-12)
+keep the tested sources and limits explicit. Broader actor-population/collection
+qualification and turn cost remain open; public service/consumer migration
+remains Batches 6–7.
 
 The [November 10 implementation slice](#next-slice-implementation-plan--2026-11-10),
 based on `origin/main` at `91be427a850f4c7b1e42f63ec8a60013f1a18b0f`, delivers

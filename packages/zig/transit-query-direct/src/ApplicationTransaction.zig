@@ -9,7 +9,6 @@ const p = q.protocol;
 const d = p.DataLifecycle;
 const x = p.Transaction;
 const T = c.DirectClientToken;
-const Tx = c.DirectTransactionClient;
 /// All resources used by the block are selected before acquisition. Source
 /// Queue consumption uses its original partition; partitioned append targets
 /// include every possible destination because their keys may depend on reads.
@@ -83,12 +82,7 @@ pub fn prepareBegin(output: std.mem.Allocator, value: q.ApplicationDeclaration, 
 }
 
 pub fn privateClient(client: c.DirectTableClient, key: T.Key) !c.DirectTableClient {
-    var result = client;
-    const tx: Tx = .{ .catalog = client };
-    const status = try tx.inspect(key);
-    if (!status.acquired or status.attempt != null) return error.TransactionCutNotAcquired;
-    result.transaction = .{ .key = key, .revision = status.revision };
-    return result;
+    return c.DirectTransactionSession.privateClient(client, key);
 }
 
 /// Exact metadata comes from the existing transaction view. Name resolution
@@ -117,14 +111,7 @@ pub fn snapshot(metadata: c.DirectTableProtocol.Definition) !c.DirectTableProtoc
 /// remains provisional until the common transaction decides; all native
 /// rejection reasons survive without a parallel application outcome protocol.
 pub fn execute(client: c.DirectTableClient, key: T.Key, statement: c.DirectTransactionWorkspace.StatementWork) !c.DirectTransactionWorkspace.StatementCompletion {
-    try statement.validate();
-    const tx: Tx = .{ .catalog = client };
-    const result: c.DirectTransactionWorkspace.StatementCompletion = switch (statement) {
-        .state => |request| .{ .state = .{ .request = request, .outcome = try tx.execute(key, request) } },
-        .log => |request| .{ .log = .{ .request = request, .outcome = try tx.executeLog(key, request) } },
-    };
-    try result.validate();
-    return result;
+    return c.DirectTransactionSession.execute(client, key, statement);
 }
 
 test "application transactions select exact mixed owners and bound partition expansion" {

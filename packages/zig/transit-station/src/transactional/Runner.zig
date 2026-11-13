@@ -7,7 +7,7 @@ const d = p.DataLifecycle;
 const Actor = @import("Actor.zig");
 const Turn = @import("Turn.zig");
 const KV = c.DirectKVClient;
-const Tx = c.DirectTransactionClient;
+const Transaction = @import("transit_data_client").Transaction;
 const Binary = c.DirectTableProtocol.Binary;
 const Self = @This();
 
@@ -157,10 +157,10 @@ pub fn advance(self: *Self, handler: Handler) !Result {
         .statement = null,
         .failed = false,
     };
-    try self.save(&loaded);
-    try self.point(.head);
-    const tx: Tx = .{ .catalog = self.client };
-    _ = try tx.begin(loaded.head.pending.?.begin);
+    var journal: Journal = .{ .runner = self, .loaded = &loaded };
+    var tx = try journal.transaction();
+    defer tx.deinit();
+    _ = try tx.apply(self.client, .begin);
     try self.point(.begin);
     const claim = (try c.DirectQueueClient.apply(&self.output, self.client, .{ .mutate = .{ .work = .{ .claim = execution.input.? } } })).operation orelse return error.ActorProgressUnresolved;
     if (claim != .claim) return error.ActorIdentityConflict;
@@ -179,13 +179,12 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     loaded.head.pending.?.phase = .acquiring;
     try self.save(&loaded);
     try self.point(.input);
-    const key = loaded.head.pending.?.begin.key;
-    _ = try tx.acquire(key);
+    _ = try tx.apply(self.client, .acquire);
     try self.point(.acquire);
     loaded.head.pending.?.phase = .dispatched;
     try self.save(&loaded);
     try self.point(.dispatch);
-    var reader: Reader = .{ .runner = self, .key = key, .loaded = &loaded };
+    var reader: Reader = .{ .runner = self, .transaction = &tx, .loaded = &loaded };
     var body = try Turn.init(self.output.allocator(), self.actor.limits, .{ .context = &reader, .get = Reader.get, .row = Reader.row, .table = Reader.table }, loaded.head.pending.?.source.?, try loaded.head.pending.?.input.?.decode(self.output.allocator(), self.actor.limits.bytes));
     handler.run(handler.context, &body) catch {
         loaded.head.pending.?.failed = true;
@@ -203,8 +202,8 @@ pub fn advance(self: *Self, handler: Handler) !Result {
     loaded.head.pending.?.phase = .staging;
     try self.save(&loaded);
     try self.point(.draft);
-    try self.publish(&loaded);
-    const status = try tx.settle(key, loaded.head.pending.?.commit, .commit, 8);
+    try self.publish(&loaded, &tx);
+    const status = (try tx.apply(self.client, .{ .settle = .{ .command = .commit } })).status;
     try self.point(.decision);
     if (!status.cleanup_complete) return .recovering;
     return self.finish(&loaded, status);
@@ -212,13 +211,12 @@ pub fn advance(self: *Self, handler: Handler) !Result {
 
 const Reader = struct {
     runner: *Self,
-    key: c.DirectClientToken.Key,
+    transaction: *Transaction,
     loaded: *Loaded,
     fn get(raw: *anyopaque, allocator: std.mem.Allocator, key: []const u8) !?[]const u8 {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const runner = self.runner;
-        var client = runner.client;
-        client.transaction = .{ .key = self.key, .revision = (try (Tx{ .catalog = client }).inspect(self.key)).revision };
+        const client = try self.transaction.privateClient(runner.client);
         const read = (try KV.apply(&runner.output, client, .{ .get = .{ .object = runner.actor.state.object, .key = key } })).value;
         if (read.workspace == null or !std.meta.eql(read.interpretation.interpretation, runner.actor.state)) return error.ActorIdentityConflict;
         return if (read.value) |value| try allocator.dupe(u8, try cellBytes(value)) else null;
@@ -226,21 +224,18 @@ const Reader = struct {
     fn table(raw: *anyopaque, statement: Turn.Table) !void {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const runner = self.runner;
-        const tx: Tx = .{ .catalog = runner.client };
-        var client = runner.client;
-        client.transaction = .{ .key = self.key, .revision = (try tx.inspect(self.key)).revision };
+        const client = try self.transaction.privateClient(runner.client);
         var prepared = try c.DirectTablePreparedDml.prepare(runner.memory.allocator(), client, runner.actor.namespace, statement.sql, .transit, null);
         defer prepared.deinit();
         var work = try prepared.bind(runner.memory.allocator(), client, runner.op(self.loaded.head.next_turn - 1, "statement", self.loaded.head.pending.?.next_statement).operation, statement.parameters, .bulk, null);
         defer work.deinit();
         if (!std.meta.eql(work.parsed.value.work.binding().target, runner.actor.table.object) or !std.meta.eql(work.parsed.value.work.binding().expected_definition, @as(?d.Definition, runner.actor.table))) return error.ActorIdentityConflict;
-        try runner.execute(self.loaded, .{ .state = try tx.stage(self.key, (try tx.inspect(self.key)).revision, self.loaded.head.pending.?.next_statement + 1, work.parsed.value.work) });
+        try requireStatement(try self.transaction.apply(runner.client, .{ .write = .{ .table = work.parsed.value.work } }));
     }
     fn row(raw: *anyopaque, keys: []const c.fuze.Types.Values.Cell) !?Turn.Row {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const runner = self.runner;
-        var client = runner.client;
-        client.transaction = .{ .key = self.key, .revision = (try (Tx{ .catalog = client }).inspect(self.key)).revision };
+        const client = try self.transaction.privateClient(runner.client);
         const lookup = try client.call(.{ .lookup = .{ .namespace = runner.actor.namespace, .name = runner.actor.table_name.slice() } });
         defer lookup.deinit();
         const metadata = lookup.value.result.lookup orelse return error.ActorIdentityConflict;
@@ -264,57 +259,70 @@ const Reader = struct {
         return .{ .cells = owned.row().cells, .encoded_bytes = bytes.len };
     }
 };
-fn execute(self: *Self, loaded: *Loaded, work: c.DirectTransactionWorkspace.StatementWork) !void {
-    loaded.head.pending.?.statement = work;
-    loaded.head.pending.?.phase = .executing;
-    try self.save(loaded);
-    try self.point(.staged);
-    const tx: Tx = .{ .catalog = self.client };
-    const key = loaded.head.pending.?.begin.key;
-    switch (work) {
-        .state => |request| if ((try tx.execute(key, request)) != .provisional) return error.ActorStatementRefused,
-        .log => |request| if ((try tx.executeLog(key, request)) != .provisional) return error.ActorStatementRefused,
+// Station owns only the actor checkpoint representation and fault hooks. The
+// shared database API owns sequencing, saved requests and transaction control.
+const Journal = struct {
+    runner: *Self,
+    loaded: *Loaded,
+    fn transaction(self: *@This()) !Transaction {
+        const pending = self.loaded.head.pending.?;
+        return Transaction.borrowed(.{ .begin = pending.begin, .settlement = pending.commit, .last_statement = pending.next_statement, .statement = pending.statement, .command = if (pending.phase == .committing) .commit else null }, .{ .context = self, .save = Journal.save });
     }
-    try self.point(.executed);
-    loaded.head.pending.?.next_statement += 1;
-    loaded.head.pending.?.statement = null;
-    loaded.head.pending.?.phase = .staging;
-    try self.save(loaded);
+    fn save(raw: *anyopaque, previous: Transaction.State, state: Transaction.State, event: Transaction.Event) !void {
+        const self: *@This() = @ptrCast(@alignCast(raw));
+        const pending = self.loaded.head.pending.?;
+        if (pending.next_statement != previous.last_statement or !std.meta.eql(pending.statement, previous.statement)) return error.ActorProgressConflict;
+        switch (event) {
+            .original => {},
+            .statement => self.loaded.head.pending.?.phase = .executing,
+            .statement_complete => {
+                try self.runner.point(.executed);
+                self.loaded.head.pending.?.phase = .staging;
+            },
+            .settlement => self.loaded.head.pending.?.phase = .committing,
+            .control, .control_complete => return error.ActorSavepointUnsupported,
+        }
+        self.loaded.head.pending.?.next_statement = std.math.cast(u16, state.last_statement) orelse return error.TurnCapacity;
+        self.loaded.head.pending.?.statement = state.statement;
+        try self.runner.save(self.loaded);
+        if (event == .original) try self.runner.point(.head);
+        if (event == .statement) try self.runner.point(.staged);
+    }
+};
+fn requireStatement(result: Transaction.Result) !void {
+    if (result == .checkpoint_failed) return result.checkpoint_failed.cause;
+    switch (result.statement) {
+        inline else => |value| if (value.outcome != .provisional) return error.ActorStatementRefused,
+    }
 }
-fn publish(self: *Self, loaded: *Loaded) !void {
+fn publish(self: *Self, loaded: *Loaded, tx: *Transaction) !void {
     const pending = loaded.head.pending.?;
     const draft = pending.draft.?;
-    const key = pending.begin.key;
     const turn = loaded.head.next_turn - 1;
-    const tx: Tx = .{ .catalog = self.client };
     for (draft.puts) |put| {
         const identity = self.op(turn, "statement", loaded.head.pending.?.next_statement);
         const changes = [_]c.storage.KVPartition.Change{.{ .put = .{ .key = try put.key.decode(self.output.allocator(), c.storage.KVPartition.max_key_bytes), .value = .{ .value = .{ .atom = .{ .bytes = try put.value.decode(self.output.allocator(), self.actor.limits.bytes) } } }, .expect = .any } }};
         const mutation = try KV.prepareMutation(&self.output, .{ .definition = p.Growth.current_definition, .identity = identity, .target = self.actor.state.object, .action = .insert, .expected_definition = self.actor.state, .expected_data = null, .intent = undefined }, Actor.spec, &changes);
-        const work = try tx.stageKV(key, (try tx.inspect(key)).revision, loaded.head.pending.?.next_statement + 1, mutation);
-        try self.execute(loaded, .{ .state = work });
+        try requireStatement(try tx.apply(self.client, .{ .write = .{ .kv = mutation } }));
     }
     const journal = try p.Json.valueAllocBounded(self.output.allocator(), .{ .definition = self.digest, .transaction = pending.begin.operation, .input = pending.source.?, .body = draft.journal }, 96 * 1024);
-    try self.append(loaded, self.actor.journal, .stream, journal);
-    for (draft.outputs) |output| try self.append(loaded, self.actor.outbox, .queue, try output.decode(self.output.allocator(), self.actor.limits.bytes));
-    const work = try tx.stageLog(key, (try tx.inspect(key)).revision, loaded.head.pending.?.next_statement + 1, .{ .queue_ack = .{ .operation = self.op(turn, "statement", loaded.head.pending.?.next_statement), .lease = pending.lease.?, .action = .ack } }, null);
-    try self.execute(loaded, .{ .log = work });
-    loaded.head.pending.?.phase = .committing;
-    try self.save(loaded);
+    try self.append(loaded, tx, self.actor.journal, .stream, journal);
+    for (draft.outputs) |output| try self.append(loaded, tx, self.actor.outbox, .queue, try output.decode(self.output.allocator(), self.actor.limits.bytes));
+    try requireStatement(try tx.apply(self.client, .{ .write = .{ .log = .{ .work = .{ .queue_ack = .{ .operation = self.op(turn, "statement", loaded.head.pending.?.next_statement), .lease = pending.lease.?, .action = .ack } } } } }));
 }
-fn append(self: *Self, loaded: *Loaded, target: p.StreamQueue.Partition, kind: p.StreamQueueDeclaration.Kind, bytes: []const u8) !void {
-    const key = loaded.head.pending.?.begin.key;
+fn append(self: *Self, loaded: *Loaded, tx: *Transaction, target: p.StreamQueue.Partition, kind: p.StreamQueueDeclaration.Kind, bytes: []const u8) !void {
     const identity = self.op(loaded.head.next_turn - 1, "statement", loaded.head.pending.?.next_statement);
     const cells = [_]c.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .signed = @intCast(self.actor.pid) } } }, .{ .value = .{ .atom = .{ .bytes = bytes } } } };
     const buffer = try self.output.allocator().alloc(u8, 256 * 1024);
     const payload = try c.storage.LogBatch.encode(logSchema(target.interpretation.object.object), identity, kind, &.{.{ .cells = &cells }}, buffer);
-    const tx: Tx = .{ .catalog = self.client };
-    const work = try tx.stageLog(key, (try tx.inspect(key)).revision, loaded.head.pending.?.next_statement + 1, .{ .append = .{ .target = target, .operation = identity, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, try Binary.encode(self.output.allocator(), payload));
-    try self.execute(loaded, .{ .log = work });
+    try requireStatement(try tx.apply(self.client, .{ .write = .{ .log = .{ .work = .{ .append = .{ .target = target, .operation = identity, .kind = if (kind == .stream) .stream else .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = try Binary.encode(self.output.allocator(), payload) } } }));
 }
 fn recover(self: *Self, loaded: *Loaded) !Result {
     const pending = loaded.head.pending.?;
-    const observed = try (Tx{ .catalog = self.client }).recover(.{ .key = pending.begin.key, .execution = pending.begin.execution.?, .work = .{ .settle = .{ .operation = pending.commit, .steps = 8 } }, .close_input = true });
+    var journal: Journal = .{ .runner = self, .loaded = loaded };
+    var tx = try journal.transaction();
+    defer tx.deinit();
+    const observed = (try tx.apply(self.client, .{ .recover = .{ .close_input = true } })).recovered;
     if (observed) |recovery| {
         if (!recovery.status.cleanup_complete) return .recovering;
         return self.finish(loaded, recovery.status);
