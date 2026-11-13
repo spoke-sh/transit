@@ -89,7 +89,8 @@ containerdConfigPatches:
         image = host + '/transit:proof'
         call(['docker', 'build', '--network=none', '-t', image, context])
         call(['docker', 'push', image])
-        digest = json.loads(call(['docker', 'inspect', image]))[0]['RepoDigests'][0]
+        digests = json.loads(call(['docker', 'inspect', image]))[0]['RepoDigests']
+        digest, = [value for value in digests if value.startswith(host + '/transit@sha256:')]
         call(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', root / 'tls.key', '-out', root / 'tls.crt',
             '-days', '1', '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'])
         (root / 'password').write_text(secrets.token_hex(24))
