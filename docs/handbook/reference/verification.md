@@ -139,6 +139,14 @@ Histories distinguish requested faults from observed execution and retain exact
 signed attempts and receipts for the synthetic workload. A seed selects workload
 intent; operating-system scheduling remains nondeterministic.
 
+The installed application fault suite also exercises the courier owned by
+`transit server`, using one copied runtime executable without sibling binaries
+or an ambient executable search path. It verifies exact retry after a lost
+delivery receipt, per-route order and original provenance, pending-output recovery
+after courier loss, and no duplicate admission after manager restart. This uses
+the local disk backend; it does not replace the Ursula or reference-placement
+proofs above.
+
 Separate external profiles install the Python and Node SDKs outside the checkout
 and exercise lost replies, seedless recovery, host cancellation/disposal and
 revoked retry. Application, query and reactive profiles use their owning local

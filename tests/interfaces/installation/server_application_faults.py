@@ -16,7 +16,6 @@ import threading
 import time
 
 from harness.processes import children, joined
-from harness.local_installation import freeze_executables
 from harness.services import free_port
 from interfaces.http.serving import compact
 
@@ -139,6 +138,16 @@ def node(real, directory, args):
         def do_POST(self): self.forward()
         def forward(self):
             body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            if self.path == '/v1/command' and body and (directory / 'block-delivery').exists():
+                request = json.loads(body)['request']
+                if 'deliver' in request['command']:
+                    publish_evidence(directory / 'blocked-delivery.json', request)
+                    self.send_response(503)
+                    data = b'{"err":"AuthorityUnavailable"}'
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
             if self.path == '/v1/query' and body:
                 query = json.loads(body)['query']
                 if query['principal'] == 0 and 'capabilities' in query['kind']:
@@ -282,13 +291,100 @@ def recovered_operation(fixture, label, name):
     assert saved['receipt'] == json.loads(bytes.fromhex(frozen['receipt']))['position']
 
 
+def server_delivery(fixture):
+    """Only the server's courier advances outputs, including after replacement."""
+    root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
+    realm, port = fixture.config['realm'], fixture.config['ports']['node']
+
+    def query(kind):
+        return post(port, '/v1/query', native(root, realm, 0, kind))
+
+    def command(value):
+        sequence = query({'capabilities': {}})['principal_sequence'] + 1
+        signed = native(root, realm, 0, value, sequence)
+        return post(port, '/v1/command', signed, retry_unavailable=True)['position']
+
+    def process(pid):
+        return query({'process': pid})['body']['process']
+
+    def turn(pid, outputs=()):
+        state = process(pid)
+        return command({'turn': dict(pid=pid, generation=state['process']['generation'],
+            input=state['input']['position'], expected_revision=state['process']['revision'],
+            permit=None, views=[None]*4, current_views=[None]*4, write_view=None,
+            mutations=[None]*4, blocks=[None]*16,
+            outputs=[*outputs, *([None]*(4-len(outputs)))], effect=None, failed=False, authorization=None)})
+
+    def delivered(count):
+        deadline = time.monotonic() + 30
+        while True:
+            state = process(destination)
+            if state['process']['admitted'] == count:
+                return state
+            assert state['process']['admitted'] < count, 'Duplicate destination admission'
+            assert fixture.process.poll() is None and time.monotonic() < deadline, state
+            time.sleep(.05)
+
+    source, destination = [command({'spawn': dict(allow_collection=False, code=1,
+        work_before_ms=None, settle_before_ms=None)}) for _ in range(2)]
+    for pid in (source, destination):
+        command({'own': dict(pid=pid, expected_generation=0, worker=0)})
+    command({'send': dict(pid=source, value=b'publish'.hex())})
+    # The first delivery commits before its acknowledgement disappears. The
+    # live server-owned courier must retry exactly, then advance the next output.
+    arm(fixture, 'deliver', 'server-delivery', 22)
+    committed = turn(source, [dict(pid=destination, value=value.hex()) for value in (b'first', b'second')])
+    wait_file(fixture.root / 'dropped-server-delivery.json')
+    (fixture.root / 'release-server-delivery').touch()
+    wait_file(fixture.root / 'retried-server-delivery')
+    state = delivered(2)
+    frozen = json.loads((fixture.root / 'dropped-server-delivery.json').read_text())
+    output = json.loads(bytes.fromhex(frozen['body']))['request']['command']['deliver']
+    assert state['input']['value'] == b'first'.hex(), state
+    assert state['input']['origin']['process'] == dict(pid=source, turn=committed, output=output), state
+    turn(destination)
+    state = process(destination)
+    assert state['input']['value'] == b'second'.hex(), state
+    assert state['input']['origin']['process'] == dict(pid=source, turn=committed, output=output+1), state
+    turn(destination)
+
+    # Refuse dispatch before acceptance, kill the actual owned courier, and let
+    # the server recover the same installation. The fixture never calls deliver.
+    (fixture.root / 'block-delivery').touch()
+    command({'send': dict(pid=source, value=b'restart'.hex())})
+    original = turn(source, [dict(pid=destination, value=b'retained'.hex())])
+    wait_file(fixture.root / 'blocked-delivery.json')
+    blocked = json.loads((fixture.root / 'blocked-delivery.json').read_text())
+    assert blocked['principal'] == 22
+    assert process(destination)['process']['admitted'] == 2
+    fixture.kill_role('/courier.json')
+    (fixture.root / 'block-delivery').unlink()
+    fixture.ready()
+    state = delivered(3)
+    assert state['input']['value'] == b'retained'.hex(), state
+    assert state['input']['origin']['process'] == dict(pid=source, turn=original, output=blocked['command']['deliver']), state
+    assert process(source)['process']['consumed'] == 2
+    turn(destination)
+    # Manager loss after settlement cannot create another admission or reset
+    # the source's progress. Retained actor identities remain unchanged.
+    fixture.stop(kill=True)
+    fixture.start()
+    fixture.ready()
+    state = process(destination)
+    assert state['process']['admitted'] == state['process']['consumed'] == 3 and state['input'] is None, state
+    assert process(source)['process']['consumed'] == 2
+    print('Server delivery: exact lost-reply retry, route order, original provenance, pending-role recovery and retained manager restart passed', flush=True)
+
+
 def run(cli, node_binary, host, worker, operator):
     from interfaces.installation.server_applications import Applications, provision_authority
     import concurrent.futures
     import shutil
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node_binary, host)
-    freeze_executables(fixture)
+    fixture.config['executables'] = {}
+    for name in ('transit-node', 'transit-query-host', 'transit-sql-gateway', 'transit-board'):
+        (fixture.root / name).unlink(missing_ok=True)
     install_peer(fixture)
     started = time.monotonic()
     success = False
@@ -421,6 +517,7 @@ def run(cli, node_binary, host, worker, operator):
         domain('operator', 'step', 'activate')
         recovered_operation(fixture, 'activation-send', 'activate')
         assert domain('inspector', 'inspect')['head']['epoch'] == '2'
+        server_delivery(fixture)
         # Root credentials are used only by this adversarial fixture to revoke
         # current native rights. The application workflow above never reads them.
         root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
