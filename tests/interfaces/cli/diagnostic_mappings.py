@@ -50,6 +50,13 @@ def registry_entries(text, kind='error'):
         causes = [body[i + 2] for i in range(len(body) - 2) if body[i:i + 2] == ['error', '.']]
         assert len(causes) == len(set(causes)) and causes
         return [(cause, json.dumps('query.transport_unavailable'), 'unavailable') for cause in causes]
+    if kind == 'source_family':
+        rules = re.findall(r'\. (\w+) = > \. \{ \. code = ("(?:\\.|[^"\\])*") , \. category = \. (\w+)', registry)
+        families = {name: (code, category) for name, code, category in rules}
+        assert len(families) == len(rules) and families, 'duplicate/missing source family'
+        causes = re.findall(r'\. \{ ("(?:\\.|[^"\\])*") , \. (\w+) \}', registry)
+        assert causes and all(family in families for _, family in causes)
+        return [(json.loads(cause), *families[family]) for cause, family in causes]
     assert kind == 'named_class', kind
     return [(json.loads(cause), code, category) for cause, code, category in NAMED_ENTRY.findall(registry)]
 

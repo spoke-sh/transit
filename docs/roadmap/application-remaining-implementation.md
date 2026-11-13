@@ -1,6 +1,6 @@
 # Milestone 12 remaining implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: First increment in progress** · 2026-11-11
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Increment 1 merged; increment 2 partially delivered** · Updated 2026-11-13
 
 Complete the application authoring journey: compose data, computations and
 policies in typed `.transit` modules; inspect independently executable SQL;
@@ -8,19 +8,27 @@ evolve an installation through explicit, immutable migrations; and test the
 same program with controlled identities, time, effects and recovery schedules.
 
 Build on the merged compiler, Table tests, source grammar and typed-target
-implementation. The next functional increment should emit the installed
-public-data Queue program profile. Follow it with richer typed composition,
+implementation. The first functional increment emits the installed
+public-data Queue program profile and merged in
+[PR #450](https://github.com/spoke-sh/transit/pull/450). The
+[next slice](application-typed-queue-implementation.md) implements actionable
+build/test diagnostics, source discovery and nominal types through that profile
+as the first part of richer typed composition. Its
+[executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+records passing gates, retained failures and proof limits.
+Follow it with the remaining typed composition,
 runtime-enforced module boundaries, protected command/workflow composition,
 migration synthesis and safe replacement. Add tests and selected formal
 correspondence with each capability, rather than postponing them to integration.
 
 This plan sequences the remaining P0–P6 work at source `bc849156a`, the merge of
 PR #445. It preserves the milestone's **In Progress** status, acceptance criteria
-and earlier slice records. The public-data Queue build/test increment is the
-selected implementation scope. Later syntax and runtime extensions remain proposals;
+and earlier slice records. The original selected implementation scope was the
+public-data Queue build/test increment. Later syntax and runtime extensions remain proposals;
 the [source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains the owner
 of implemented behavior. The source-basis audit below is historical; implementation
-and qualification must be assessed separately from the plan.
+and qualification must be assessed separately from the plan. The next-slice
+audit uses merge `6552747cf`; it does not retroactively qualify this historical basis.
 
 The first increment adds exact public Stream/Queue handles, checked ordered
 program emission and explicit lifecycle statements, plus bounded completion/refusal

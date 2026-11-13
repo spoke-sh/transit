@@ -246,8 +246,10 @@
         "BuildToolingMemoryLimit": 1,
         "CompilerArtifactChanged": 2,
         "CompilerArtifactLimit": 1,
+        "FileNotFound": 1,
         "InvalidBuildOutput": 1,
         "InvalidSourcePath": 1,
+        "MissingBuildEntry": 1,
         "OutOfMemory": 1,
         "PathAlreadyExists": 2
       },
@@ -263,8 +265,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 39,
-        "catch": 4
+        "try": 37,
+        "catch": 6
       },
       "imports": [
         "BuildOptions.zig",
@@ -298,18 +300,21 @@
     },
     "apps/transit-cli/BuildSources.zig": {
       "errors": {
+        "AccessDenied": 1,
         "BuildSyncFailed": 1,
         "ConflictingDependency": 1,
         "DependencyLimit": 2,
         "EmptySourcePackage": 1,
         "FetchWithOverride": 1,
-        "FileNotFound": 1,
+        "FileNotFound": 3,
         "IncompatibleSourceDefinition": 1,
-        "InvalidRepositoryTree": 1,
+        "InvalidRepositoryTree": 3,
         "InvalidSourceDigest": 2,
         "InvalidSourceEncoding": 1,
         "InvalidSourceLock": 1,
+        "InvalidSourcePath": 2,
         "MissingBuildEntry": 1,
+        "MissingSource": 1,
         "MissingSourceLock": 1,
         "PathAlreadyExists": 3,
         "ReadFailed": 1,
@@ -317,18 +322,19 @@
         "RepositoryOutputLimit": 1,
         "RepositoryRevisionMismatch": 1,
         "ReservedPackageName": 1,
-        "SourceBytesLimit": 1,
-        "SourceDepthLimit": 1,
+        "SourceBytesLimit": 2,
+        "SourceDepthLimit": 3,
         "SourceDigestMismatch": 4,
-        "SourceFileBytesLimit": 1,
-        "SourceFileLimit": 1,
+        "SourceFileBytesLimit": 2,
+        "SourceFileLimit": 2,
         "SourceLockLimit": 1,
-        "SourceReadLimit": 1,
-        "SourceTreeEntryLimit": 2,
+        "SourceReadFailed": 1,
+        "SourceReadLimit": 2,
+        "SourceTreeEntryLimit": 3,
         "StaleSourceLock": 2,
         "UndeclaredOverride": 1,
         "UnsupportedRepositoryTransport": 1,
-        "UnsupportedSourceFileKind": 3
+        "UnsupportedSourceFileKind": 8
       },
       "outcomes": {},
       "error_sets": {},
@@ -336,14 +342,25 @@
         "add()": "<inferred>",
         "atomicFile()": "<inferred>",
         "cacheBase()": "<inferred>",
+        "checkImport()": "<inferred>",
         "digestBytes()": "<inferred>",
+        "fetchDirectory()": "anyerror",
+        "fetchEntry()": "anyerror",
         "fetchTree()": "<inferred>",
+        "finish()": "<inferred>",
         "git()": "<inferred>",
         "identities()": "<inferred>",
         "load()": "<inferred>",
+        "loadCached()": "<inferred>",
+        "loadEntry()": "<inferred>",
+        "loadLock()": "<inferred>",
         "openCache()": "<inferred>",
+        "openRoot()": "<inferred>",
         "read()": "<inferred>",
+        "readDirectory()": "anyerror",
+        "readEntry()": "anyerror",
         "readTree()": "anyerror",
+        "readWithKind()": "<inferred>",
         "resolve()": "<inferred>",
         "storeCache()": "<inferred>",
         "syncDirectory()": "<inferred>",
@@ -351,10 +368,10 @@
         "treeHex()": "<inferred>",
         "writeFile()": "<inferred>"
       },
-      "open_error_set_uses": 1,
+      "open_error_set_uses": 6,
       "propagation": {
-        "try": 90,
-        "catch": 9
+        "try": 98,
+        "catch": 26
       },
       "imports": [
         "BuildOptions.zig",
@@ -671,13 +688,14 @@
       "error_sets": {},
       "error_returns": {
         "escaped()": "<inferred>",
+        "location()": "<inferred>",
         "render()": "<inferred>",
         "renderConsole()": "<inferred>",
         "renderFor()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 48,
         "catch": 0
       },
       "imports": [
@@ -12747,10 +12765,10 @@
     "packages/zig/transit-compiler/src/Compiler.zig": {
       "errors": {
         "BuildEmissionMismatch": 1,
-        "BuildMemoryLimit": 2,
-        "BuildOutputLimit": 1,
-        "BuildStatementLimit": 6,
-        "BuildWorkLimit": 1,
+        "BuildMemoryLimit": 3,
+        "BuildOutputLimit": 2,
+        "BuildStatementLimit": 7,
+        "BuildWorkLimit": 2,
         "DuplicateSourceMatchArm": 1,
         "DuplicateSourceName": 5,
         "DuplicateTestCase": 1,
@@ -12768,6 +12786,7 @@
         "InvalidSourceOperand": 2,
         "InvalidSourceSyntax": 1,
         "MissingBuildEntry": 1,
+        "MissingSourceTarget": 1,
         "ModuleInterfaceMismatch": 5,
         "ModuleIsNotSqlOperand": 1,
         "NestedTestCase": 1,
@@ -12777,7 +12796,7 @@
         "RuntimePrivateOrUnsupportedDeclaration": 1,
         "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
-        "SourceDepthLimit": 4,
+        "SourceDepthLimit": 5,
         "SourceExportLimit": 2,
         "SourceFileLimit": 1,
         "SourceTypeMismatch": 31,
@@ -12795,6 +12814,7 @@
         "UnknownBuildProgram": 1,
         "UnknownSourceExport": 1,
         "UnknownSourceOperand": 1,
+        "UnknownSourceSymbol": 1,
         "UnsupportedRecursiveExports": 1,
         "UnsupportedSymbolicProgram": 2,
         "UnsupportedSymbolicSchema": 2,
@@ -12818,6 +12838,7 @@
         "compileInner()": "<inferred>",
         "construct()": "<inferred>",
         "emit()": "<inferred>",
+        "emitStatement()": "<inferred>",
         "expand()": "<inferred>",
         "expression()": "anyerror",
         "fork()": "<inferred>",
@@ -12838,12 +12859,15 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 128,
-        "catch": 18
+        "try": 130,
+        "catch": 15
       },
       "imports": [
         "Graph.zig",
+        "ProgramAnnotations.zig",
+        "ProgramCheck.zig",
         "ResourceOperands.zig",
+        "SourceDiagnostic.zig",
         "SourceTypes.zig",
         "Syntax.zig",
         "Test.zig",
@@ -12889,6 +12913,7 @@
         "DuplicateDependency": 1,
         "DuplicateSourceFile": 2,
         "DuplicateSourceName": 3,
+        "ExcludedSourcePath": 1,
         "InvalidPackageName": 2,
         "InvalidRepository": 2,
         "InvalidRepositoryRevision": 2,
@@ -12916,6 +12941,7 @@
         "imported()": "<inferred>",
         "init()": "<inferred>",
         "resolve()": "<inferred>",
+        "selectedPath()": "<inferred>",
         "treeDigest()": "<inferred>",
         "validPackage()": "<inferred>",
         "validPath()": "<inferred>",
@@ -12925,12 +12951,71 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 2
       },
       "imports": [
         "Syntax.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-compiler/src/ProgramAnnotations.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 2,
+        "BuildWorkLimit": 1,
+        "InvalidSourceOperand": 3,
+        "ProgramTooDeep": 1,
+        "SourceDomainMismatch": 2,
+        "SourceTypeMismatch": 1,
+        "UnsupportedNominalOperation": 1
+      },
+      "outcomes": {
+        "Event.kind": [
+          "acquire",
+          "let",
+          "read",
+          "require",
+          "atomic_begin",
+          "atomic_end",
+          "branch_begin",
+          "branch_else",
+          "branch_end",
+          "insert",
+          "append",
+          "failure_begin",
+          "failure_end"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "agree()": "<inferred>",
+        "block()": "anyerror",
+        "check()": "<inferred>",
+        "condition()": "<inferred>",
+        "event()": "<inferred>",
+        "expression()": "anyerror",
+        "node()": "<inferred>",
+        "ordinary()": "<inferred>",
+        "physical()": "<inferred>",
+        "project()": "anyerror",
+        "record()": "<inferred>",
+        "select()": "<inferred>",
+        "tick()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 3,
+      "propagation": {
+        "try": 76,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_fuze"
       ]
     },
     "packages/zig/transit-compiler/src/ProgramCheck.zig": {
@@ -12940,19 +13025,19 @@
         "ProgramTooComplex": 1,
         "SourceTypeMismatch": 1,
         "UnsupportedBuildProgramDependency": 1,
-        "UnsupportedNominalProgram": 1,
         "UnsupportedProgramPartitioning": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "analyze()": "<inferred>",
         "block()": "anyerror",
         "check()": "<inferred>",
         "resource()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -12968,8 +13053,7 @@
       "errors": {
         "SourceTypeMismatch": 5,
         "UnknownSourceOperand": 1,
-        "UnsupportedLogOperand": 1,
-        "UnsupportedNominalLog": 1
+        "UnsupportedLogOperand": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -12986,6 +13070,55 @@
         "Template.zig",
         "TypedOperands.zig",
         "std"
+      ]
+    },
+    "packages/zig/transit-compiler/src/SourceDiagnostic.zig": {
+      "errors": {
+        "DuplicateProgramField": 1,
+        "DuplicateProgramResource": 1,
+        "DuplicateProgramVariable": 1,
+        "InvalidQueuePredicate": 1,
+        "MissingRequiredField": 1,
+        "NullNotAllowed": 1,
+        "OutOfMemory": 1,
+        "ProgramTooComplex": 1,
+        "ProgramTooDeep": 1,
+        "UnknownColumn": 1,
+        "UnknownProgramField": 1,
+        "UnknownProgramResource": 1,
+        "UnknownProgramVariable": 1,
+        "UnsupportedNominalColumn": 1,
+        "UnsupportedNominalOperation": 1
+      },
+      "outcomes": {
+        "Family": [
+          "entry",
+          "file_kind",
+          "path",
+          "encoding",
+          "syntax",
+          "import",
+          "target",
+          "domain",
+          "type",
+          "dependency",
+          "capability",
+          "limit",
+          "io",
+          "output",
+          "internal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 0,
+        "catch": 18
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
       ]
     },
     "packages/zig/transit-compiler/src/SourceTypes.zig": {
@@ -13046,6 +13179,7 @@
       },
       "imports": [
         "Graph.zig",
+        "SourceDiagnostic.zig",
         "Syntax.zig",
         "std",
         "transit_fuze"
@@ -13299,8 +13433,9 @@
         "InvalidSourceTypeOperand": 1,
         "SourceDomainMismatch": 2,
         "SourceTableBindingMismatch": 1,
-        "SourceTypeMismatch": 2,
-        "UnsupportedBuildStatement": 1,
+        "SourceTypeMismatch": 4,
+        "UnsupportedBuildStatement": 2,
+        "UnsupportedLogOperand": 1,
         "UnsupportedNominalColumn": 2,
         "UnsupportedNominalOperation": 4
       },
@@ -13313,6 +13448,9 @@
       "error_sets": {},
       "error_returns": {
         "check()": "<inferred>",
+        "consume()": "<inferred>",
+        "declaration()": "<inferred>",
+        "insert()": "<inferred>",
         "parameters()": "<inferred>",
         "predicate()": "<inferred>",
         "scalar()": "<inferred>",
@@ -13321,11 +13459,13 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 62,
         "catch": 0
       },
       "imports": [
         "Graph.zig",
+        "ProgramAnnotations.zig",
+        "SourceDiagnostic.zig",
         "SourceTypes.zig",
         "WorkingCatalog.zig",
         "std",
@@ -13383,6 +13523,7 @@
         "Compiler.zig",
         "Format.zig",
         "Graph.zig",
+        "SourceDiagnostic.zig",
         "Syntax.zig",
         "Test.zig"
       ]
@@ -16371,11 +16512,12 @@
         "emit()": "<inferred>",
         "integer()": "<inferred>",
         "literal()": "<inferred>",
-        "lower()": "anyerror"
+        "lower()": "anyerror",
+        "validate()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 23,
+        "try": 28,
         "catch": 0
       },
       "imports": [

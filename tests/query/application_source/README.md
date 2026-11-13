@@ -43,8 +43,11 @@ and source-expression parentheses. It does not bind a catalog or execute tests.
 `types.py` drives `just test::application-source-types` with the repository-pinned
 Lean 4 tool. [TypedTarget.lean](../../../contracts/application-source/TypedTarget.lean)
 models exact scalar/domain types, typed de Bruijn variables, checked total variant
-arm tables and ordered inserts into explicitly typed Table bindings. It proves
-nominal substitution, exhaustive selection and specialization preservation.
+arm tables and ordered inserts into explicitly typed Table bindings. Its six laws cover nominal substitution, exhaustive selection, specialization
+preservation, domain-preserving record projection and program substitution, and
+ordered event erasure. The program fragment models typed scalar guards/writes and
+explicit acquisition/read/atomic markers; physical typing, nullability and
+well-formed execution remain premises, not proved runtime behavior.
 The premise that constructor labels are complete and unique is supplied by the checker; the law
 does not prove that checker. Other premises and omissions are explicit beside
 the definitions. No source parser, SQL encoder, bounded Zig evaluator, storage,
@@ -52,15 +55,23 @@ authority, liveness or effect claim follows from these laws.
 
 Sixteen independent descriptors vary constructor, signed/equal raw values, arm
 order and explicit Table names. They generate source and Lean examples against
-independent expected actions. Forty-eight finite Lean checks cover constructor selection, source
-and specialized interpretations; the production driver separately exposes
+independent expected actions. Fifty-six finite Lean checks cover constructor selection, source
+and specialized interpretations, and eight explicit program traces; the production driver separately exposes
 checked column/domain/operand records and ordinary SQL. A scalar SQL fingerprint
 cannot detect a swapped domain, so both projections are required. The compiler
 also reparses its emitted SQL through ordinary Fuze owners. Native rows/counts,
 restart and revocation belong to the real CLI fixture schedules.
 
+`program_types.py` supplies eight independent cases varying domain identity,
+signed hole values and guard placement. Every checked expression/binding node's
+source offset, physical type, nullability, record fields and domain is compared,
+along with the complete ordered event sequence, write-expression associations and
+hand-authored ordinary SQL. This selected finite fragment complements the larger
+installed [typed Queue fixture](../../fixtures/application-typed-queue/README.md).
+Negative controls erase/swap domains, move guards, omit boundaries and alter SQL.
+
 The task audits exact theorem/output inventories. Nominal substitution and
-specialization permit only `propext`; exhaustive selection and its finite uses
+specialization and the three program/projection laws permit only `propext`; exhaustive selection and its finite uses
 also permit `Quot.sound`, inherited from Lean's list filter/count lemmas. These
 are standard logical axioms, not assumed application/compiler properties.
 An actually incomplete Lean proof, omitted output and unreviewed axioms fail the

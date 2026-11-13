@@ -9,6 +9,8 @@ const Catalog = @import("WorkingCatalog.zig");
 const Test = @import("Test.zig");
 const types = @import("SourceTypes.zig");
 const Operands = @import("TypedOperands.zig");
+const Context = @import("SourceDiagnostic.zig").Context;
+const Origin = Operands.Origin;
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
 pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
@@ -70,6 +72,7 @@ symbolic: bool = false,
 checked_statements: usize = 0,
 checking: [64]struct { definition: Graph.Ref, arguments: []const Binding } = undefined,
 checking_count: usize = 0,
+context: Context = .{},
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
     diagnostic.* = null;
@@ -108,6 +111,16 @@ fn compileInner(result: *Product, sources: []const Graph.Source, options: Option
     var self: Self = .{ .a = a, .graph = graph, .catalog = .{ .output = a, .scratch = scratch.allocator() }, .scratch = &scratch, .limits = options.limits };
     return self.run(result, options) catch |err| {
         diagnostic.* = project(if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err, location(sources[self.file], self.offset), self.call_site, self.instance);
+        self.context.apply(&diagnostic.*.?);
+        const limit_context: Context = switch (err) {
+            error.BuildWorkLimit => .{ .budget = "compiler work", .limit = self.limits.work, .required = self.work + 1 },
+            error.SourceDepthLimit => .{ .budget = "source expansion depth", .limit = self.limits.depth },
+            error.BuildOutputLimit => .{ .budget = "SQL output bytes", .limit = self.limits.output_bytes },
+            error.BuildMemoryLimit, error.OutOfMemory => if (result.budget.exhausted) .{ .budget = "compiler memory bytes", .limit = self.limits.memory_bytes } else .{},
+            error.BuildStatementLimit => .{ .budget = "SQL statement bytes", .limit = f.Sql.max_statement_bytes },
+            else => .{},
+        };
+        limit_context.apply(&diagnostic.*.?);
         return err;
     };
 }
@@ -120,11 +133,14 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     } else return error.MissingBuildEntry;
     self.file = entry;
     const target_name = try std.ascii.allocLowerString(a, options.target);
-    const target = try graph.resolve(entry, .{ .member = target_name });
+    self.context = .{ .name = target_name };
+    const target = graph.resolve(entry, .{ .member = target_name }) catch |err| return if (err == error.UnknownSourceSymbol) error.MissingSourceTarget else err;
     const definition = graph.getDefinition(target);
+    self.offset = definition.span.start;
     self.test_mode = options.mode == .test_suite;
     const target_kind: @FieldType(s.Definition, "kind") = if (self.test_mode) .test_target else .target;
     if (definition.kind != target_kind) return error.WrongSourceTargetKind;
+    self.context = .{};
     std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
     try types.validate(graph, self.a, &self.file, &self.offset, &self.work, self.limits.work);
     try self.validateInterfaces();
@@ -233,10 +249,13 @@ fn signature(self: *Self, expected: Graph.Ref, actual: Graph.Ref, depth: usize) 
     }
 }
 fn argument(self: *Self, file: usize, kind: s.Kind, value: Value) !void {
+    self.context.expected = @tagName(kind);
+    self.context.actual = if (value.scalar()) |ty| ty.label(self.graph) else @tagName(value);
     switch (kind) {
         .named => |name| {
             const ref = try self.graph.resolve(file, name);
             const definition = self.graph.getDefinition(ref);
+            self.context.expected = if (definition.domain) |domain_| domain_.identity else definition.name;
             if (definition.kind == .domain) {
                 if (!types.Scalar.eql(try types.domain(self.graph, ref), value.scalar() orelse return error.SourceTypeMismatch)) return error.SourceTypeMismatch;
             } else if (definition.kind == .variant) {
@@ -245,7 +264,7 @@ fn argument(self: *Self, file: usize, kind: s.Kind, value: Value) !void {
         },
         inline .table, .stream, .queue => |columns, tag| {
             if (std.meta.activeTag(value) != @field(std.meta.Tag(Value), @tagName(tag))) return error.SourceTypeMismatch;
-            try types.signature(self.graph, file, columns, @field(value, @tagName(tag)));
+            try types.signature(self.graph, file, columns, @field(value, @tagName(tag)), &self.context);
         },
         .integer, .text, .boolean => {
             if (!types.Scalar.eql(try types.field(self.graph, file, kind), value.scalar() orelse return error.SourceTypeMismatch)) return error.SourceTypeMismatch;
@@ -269,7 +288,11 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     var values: [64]Binding = undefined;
     for (call.arguments, definition.parameters, 0..) |arg, parameter, i| {
         const value = try self.expression(file, arg, bindings, 0);
+        self.file = file;
+        self.offset = arg.span.start;
+        self.context = .{ .name = parameter.name };
         try self.argument(ref.file, parameter.kind, value);
+        self.context = .{};
         // Reached symbolic callees are checked for their declared scalar types.
         // This also checks both paths of recursive IF bodies before a recursive
         // edge is discharged by its signature, without guessing payload values.
@@ -346,6 +369,7 @@ fn checkBody(self: *Self, file: usize, statements: []const s.Statement, bindings
         self.offset = checker.offset;
         self.call_site = checker.call_site;
         self.instance = checker.instance;
+        self.context = checker.context;
         return err;
     };
     if (stable_catalog and (checker.catalog.entries.items.len != self.catalog.entries.items.len or
@@ -389,6 +413,7 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
     for (statements) |statement| {
         self.file = file;
         self.offset = statement.span.start;
+        self.context = .{};
         try self.tick();
         const bindings = scope.items;
         switch (statement.value) {
@@ -573,6 +598,19 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
     };
 }
 fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding) !void {
+    var origins: std.ArrayList(Origin) = .empty;
+    defer origins.deinit(self.a);
+    var at: f.Sql.Location = .{};
+    self.emitStatement(file, span, template, bindings, &origins, &at) catch |err| {
+        const offset = self.context.offset orelse at.offset;
+        for (origins.items) |origin| if (offset >= origin.start and offset < origin.end) {
+            self.offset = origin.source;
+            break;
+        };
+        return err;
+    };
+}
+fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding, origins: *std.ArrayList(Origin), at: *f.Sql.Location) !void {
     const tokens = template.tokens;
     if (self.symbolic and (template.kind == .program or template.kind == .control)) return error.UnsupportedSymbolicProgram;
     if (self.in_case and self.actions.items.len == Test.max_actions) return error.TestActionLimit;
@@ -582,26 +620,34 @@ fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bin
     var canonical_buf: [f.Sql.max_statement_bytes]u8 = undefined;
     var type_sites: [f.Sql.max_statement_bytes]bool = @splat(false);
     var sites: std.ArrayList(Operands.Site) = .empty;
-    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, false, &type_sites, self.a, &sites);
+    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, template.kind == .program, &type_sites, self.a, &sites, origins);
     _ = self.scratch.reset(.retain_capacity);
-    var at: f.Sql.Location = .{};
     self.catalog.owner = self.owner;
     const is_create = tokenIs(self.graph.sources[file].text, tokens[0], "CREATE");
     // DDL creates the proposed shape; other statements check source annotations
     // before the ordinary binder can erase nominal identity into scalar values.
     var digest: [32]u8 = undefined;
-    if (is_create) digest = try self.catalog.check(raw, &at);
+    if (is_create and template.kind != .program) digest = try self.catalog.check(raw, at);
     const log_statement = switch (template.kind) {
         .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
         else => false,
     };
-    const checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic);
-    if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, &at);
-    if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], &at);
+    const resource_checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else null;
+    const checked = if (template.kind == .program) blk: {
+        var analysis = try @import("ProgramCheck.zig").analyze(&self.catalog, raw, at);
+        defer analysis.deinit();
+        var result = resource_checked.?;
+        result.program = try @import("ProgramAnnotations.zig").check(self.scratch.allocator(), self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, &self.context, &self.work, self.limits.work);
+        break :blk result;
+    } else if (template.kind == .control) resource_checked.? else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
+    self.context = .{};
+    if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, at);
+    if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], at);
     self.checked_statements += 1;
     if (self.symbolic) return;
-    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null);
-    if (!is_create) digest = try self.catalog.check(canonical, &at);
+    origins.clearRetainingCapacity();
+    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null, origins);
+    if (!is_create or template.kind == .program) digest = try self.catalog.check(canonical, at);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     self.output_bytes += canonical.len + 2;
     var binding_hash = std.crypto.hash.sha2.Sha256.init(.{});
@@ -645,7 +691,7 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
     if (!self.in_case) return error.TestAssertionOutsideCase;
     try self.emit(file, span, value.sql, bindings);
     var query_buffer: [f.Sql.max_statement_bytes]u8 = undefined;
-    const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null) else self.steps.items[self.steps.items.len - 1].sql;
+    const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null, null) else self.steps.items[self.steps.items.len - 1].sql;
     const is_select = value.sql.kind == .select or value.sql.kind == .consume;
     const expected: Test.Expectation = switch (value.expected) {
         .rows => |template| blk: {
@@ -653,7 +699,7 @@ fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, binding
             if (!is_select) return error.TestRowsRequired;
             const schema = try self.catalog.querySchema(sql);
             var buffer: [f.Sql.max_statement_bytes]u8 = undefined;
-            const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, &buffer, false, null, self.a, null);
+            const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, &buffer, false, null, self.a, null, null);
             const rows = try Test.bindRows(self.a, self.scratch.allocator(), text, schema);
             if (rows.values.len > Test.max_rows - self.expected_rows) return error.TestRowsLimit;
             self.expected_rows += rows.values.len;
@@ -687,7 +733,7 @@ fn workflow(self: *Self, file: usize, span: s.Span, value: s.Workflow, bindings:
     if (program.control.state != .active and program.control.state != .suspended and program.control.state != .retired) return error.InvalidDataflowTransition;
     try self.actions.append(self.a, .{ .expectation = .{ .workflow = .{ .name = name.identifier, .completed = value.completed, .refused = value.refused, .observations = value.observations } }, .location = location(self.graph.sources[file], span.start) });
 }
-fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool, allocator: std.mem.Allocator, sites: ?*std.ArrayList(Operands.Site)) ![]const u8 {
+fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool, allocator: std.mem.Allocator, sites: ?*std.ArrayList(Operands.Site), origins: ?*std.ArrayList(Origin)) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;
     var writer: std.Io.Writer = .fixed(output);
     var i: usize = 0;
@@ -701,6 +747,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
         const raw = text[token.start..token.end];
         const joined = s.Template.joinsLexeme(text, tokens, i);
         if (writer.end != 0 and !joined) writer.writeByte(' ') catch return error.BuildStatementLimit;
+        const origin_start = writer.end;
         if (token.kind == .symbol and std.mem.eql(u8, raw, "$")) {
             i += 1;
             if (i == tokens.len or tokens[i].kind != .word) return error.InvalidSourceOperand;
@@ -721,6 +768,7 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
         } else if (canonical and token.kind == .word and !s.Template.numericWord(text, token)) {
             for (raw) |byte| writer.writeByte(std.ascii.toUpper(byte)) catch return error.BuildStatementLimit;
         } else writer.writeAll(raw) catch return error.BuildStatementLimit;
+        if (origins) |map| try map.append(allocator, .{ .start = origin_start, .end = writer.end, .source = token.start });
     }
     return writer.buffered();
 }
@@ -771,13 +819,5 @@ pub fn location(source: Graph.Source, offset: usize) p.Diagnostic.Location {
     return result;
 }
 pub fn project(err: anyerror, at: ?p.Diagnostic.Location, call: ?p.Diagnostic.Location, instance: ?[]const u8) p.Diagnostic {
-    const name = @errorName(err);
-    const category: p.Diagnostic.Category = if (std.mem.indexOf(u8, name, "Limit") != null or err == error.OutOfMemory) .limit else if (std.mem.indexOf(u8, name, "Unsupported") != null) .unsupported else .binding;
-    var result = p.Diagnostic.init("application.source_build", category, .compile, .not_submitted, .local_before_dispatch, "Application source build failed; no SQL was submitted.") catch unreachable;
-    result.location = at;
-    result.text(.native_cause, .owner, name) catch unreachable;
-    if (call) |value| result.fact(.first_occurrence, .caller, .{ .location = value }) catch unreachable;
-    if (instance) |value| result.text(.scope, .caller, value) catch unreachable;
-    result.action(.correct_input) catch unreachable;
-    return result;
+    return @import("SourceDiagnostic.zig").project(err, at, call, instance);
 }

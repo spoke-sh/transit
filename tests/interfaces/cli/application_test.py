@@ -14,16 +14,16 @@ import sys
 import tempfile
 
 from runner.paths import ROOT
-from interfaces.cli.application_build import offline, cli_build, repository, source
+from interfaces.cli.application_build import offline, cli_build, repository, source, source_diagnostics
 from interfaces.cli.table_console import records
 from interfaces.installation.server import Fixture
 
 
-def invoke(cli, root, *args, expected=0):
+def invoke(cli, root, *args, expected=0, timeout=60):
     temporary = root / '.test-tmp'
     temporary.mkdir(exist_ok=True)
     result = subprocess.run([str(cli), 'test', '--format', 'json', *map(str, args)],
-                            cwd=root, capture_output=True, text=True, timeout=60,
+                            cwd=root, capture_output=True, text=True, timeout=timeout,
                             env={'PATH': '/unavailable', 'TRANSIT_CONSOLE_CONFIG': '/private/unreadable', 'TMPDIR': str(temporary)},
                             preexec_fn=offline)
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
@@ -120,6 +120,7 @@ def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
         root = Path(temporary)
+        source_diagnostics(cli, root, 'test')
         programs = root / 'queue-programs'
         shutil.copytree(ROOT / 'tests/fixtures/application-queue-programs', programs)
         program_report = invoke(cli, programs)
@@ -129,10 +130,28 @@ def main():
         source(programs, 'build.transit', program_source.replace("EQUAL ((7, 'accepted:ready'))", "EQUAL ((8, 'accepted:ready'))", 1))
         wrong = invoke(cli, programs, expected=1)
         assert wrong['cases'][0]['status'] == 'failed' and wrong['cases'][0]['observation']['failure'] == 'rows', wrong
+        human = subprocess.run([str(cli), 'test'], cwd=programs, capture_output=True, text=True,
+                               timeout=60, env={'PATH': '/unavailable'}, preexec_fn=offline)
+        at = wrong['cases'][0]['action_location']
+        assert human.returncode == 1 and not human.stdout, human
+        assert f"{at['source']}:{at['line']}:{at['byte_column']}: failed:" in human.stderr, human.stderr
+        assert 'No SQL was submitted' not in human.stderr, human.stderr
         source(programs, 'build.transit', program_source.replace('COMPLETED 1 REFUSED 2 WITHIN 1000', 'COMPLETED 2 REFUSED 2 WITHIN 1'))
         incomplete = invoke(cli, programs, expected=1)
         assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete
         source(programs, 'build.transit', program_source)
+        typed_queue = root / 'typed-queue'
+        shutil.copytree(ROOT / 'tests/fixtures/application-typed-queue', typed_queue)
+        # Five isolated cases retain the CLI's 30-second per-case budget. The
+        # process watchdog covers their aggregate execution and joined cleanup.
+        report = invoke(cli, typed_queue, timeout=180)
+        assert report['complete'] and [case['status'] for case in report['cases']] == ['passed'] * 5, report
+        assert [case['observation']['rows'] for case in report['cases']] == [2, 0, 0, 0, 2], report
+        workflow = (typed_queue / 'workflow.transit').read_text()
+        source(typed_queue, 'workflow.transit', workflow.replace('found.id = request.machine_id', 'found.id = request.id'))
+        refused = invoke(cli, typed_queue, expected=1)
+        assert refused['code'] == 'application.source.domain' and refused['outcome'] == 'not_submitted' and 'cases' not in refused, refused
+        assert not (typed_queue / '.transit').exists()
         typed = root / 'typed-targets'
         shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
         typed_report = invoke(cli, typed)

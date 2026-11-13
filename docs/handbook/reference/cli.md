@@ -55,6 +55,12 @@ mutations and finite single-Table reads without opening a Transit connection.
 The entry file's directory is the package root. Relative imports stay below that
 root; source files use the same module language as the build entry.
 
+Build and test validate the selected entry first. They skip `.git`, `.transit`,
+`.direnv` and `node_modules` below each package root, and ignore unrelated leaf
+files and links. Source `.transit` files must be regular files; source links,
+special files and imports through excluded directories or directory links reject.
+The same rules apply to local overrides and fetched dependencies.
+
 | Option | Behavior |
 | --- | --- |
 | `--check` | Run compilation and emitted-SQL equivalence checks without publishing |
@@ -68,6 +74,9 @@ combine with `--out`. Builds never fetch implicitly or read `.transitrc`.
 Normal builds verify locked source content. Supported repository transports are
 HTTPS and explicitly selected local Git repositories; hooks, package scripts and
 submodules are not executed. Repository URLs must contain no credentials.
+Caches made with earlier source-selection rules fail frozen verification. Review
+the dependency and run an explicit `transit build --fetch` to prepare its current
+selected tree; an ordinary build does not rewrite the lock.
 
 Successful output contains `application.sql` and `provenance.json`, published by
 one directory rename after validation. Existing explicit output directories
@@ -75,6 +84,15 @@ reject. A matching default artifact is verified against a fresh compilation;
 changed bytes reject. Failed or interrupted publication cannot create a partial
 complete directory. SQL execution needs no source or provenance files and still
 checks current caller rights. Build output is not an installation receipt.
+
+Failures name the source path, target, dependency or output operation when known,
+with a correction for that failure family. Source errors show one-based line and
+byte-column coordinates, including related module call sites. Filesystem errors
+show the path and observed kind without invented coordinates. Type mismatches
+show expected and actual types where the binder knows them. Paths are escaped
+and bounded; truncation is marked. These facts also appear in `--format json`.
+"No SQL was submitted" describes a compilation failure; test execution failures
+retain their case outcomes and do not make that claim.
 
 The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 files,
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations

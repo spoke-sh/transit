@@ -50,9 +50,14 @@ optimizer rewrite is enabled by those proofs.
 The [typed-target source specification](../../../contracts/application-source/TypedTarget.lean)
 proves nominal substitution, selection from a checked total arm table and ordered
 Table-action preservation for one scalar payload per constructor and insert
-bodies. It assumes exact types, well-typed environments/signatures and explicit
-Table bindings. Separate finite comparisons check synthetic Lean/source actions,
-production checked domain operands and ordinary SQL. Real build/test CLI checks
+bodies. Three additional laws cover exact-domain record projection under
+substitution, ordered program substitution, and event erasure preserving order
+and bindings. This small trace model assumes physical typing, nullability and
+well-formed execution; it does not prove nullable lookup execution or atomicity.
+All six laws assume exact types, well-typed environments/signatures and explicit
+resource bindings. Separate finite comparisons check synthetic Lean/source actions,
+production checked domain operands, complete selected program annotation/event
+projections and ordinary SQL. Real build/test CLI checks
 own native rows, counts, restart and authorization. These laws do not prove the
 source checker, full compiler, arbitrary recursion, SQL runtime or live workflows.
 No new temporal-state/TLA+ result is claimed by compile-time specialization.

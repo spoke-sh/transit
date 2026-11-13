@@ -15,6 +15,14 @@ source text or operand values. Resolution provenance enters the build digest
 through `Options.resolution_digest`; supplying source never establishes trust or
 runtime permissions.
 
+`SourceDiagnostic` owns bounded failure families and correction messages shared
+by pure compilation and CLI source capture. Type binders retain names and expected
+and actual types. Expansion records token origins so generated SQL operand
+locations map back to source without reopening files or guessing token widths.
+Filesystem adapters add escaped paths and operations without fabricated line
+coordinates. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#cli-and-diagnostics)
+defines codes and path-fact encoding.
+
 Source parsing checks complete Table and log templates and assertion rows in every body,
 including unused modules and both IF branches. `Syntax.Template` retains token
 spans and typed-hole roles without inventing values or catalog bindings. Name,
@@ -29,20 +37,24 @@ Ordered public Queue programs and explicit lifecycle controls use the same graph
 `ProgramCheck` collects proposed dependencies and uses Fuze's program schema,
 type and capability owners before comparing the emitted instruction tree and
 schema bindings. Runtime publication, authorization, progress and completion
-remain separate. Nominal program columns, symbolic program declarations/controls
+remain separate. `ProgramAnnotations` overlays source domains on the shared physical
+binder, preserving nullable records, lexical scopes and ordered boundaries. Both
+runtime branches and failure handlers are checked. Exact expansion spans attach
+nominal holes to expression nodes; equality, null tests and matching CASE arms
+preserve domains. Other nominal operations reject. Symbolic program declarations/controls
 and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
 expectations extend the local test product without adding a source interpreter.
 
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
 Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log
 target kinds until ordinary log preparation. Log declarations use the shared
-single-partition defaults; nominal log fields and symbolic log operands reject.
-`TypedOperands` binds source annotations to Fuze-owned target,
+single-partition defaults; symbolic log operands reject.
+`TypedOperands` binds nominal Table and log columns, appends and finite reads to Fuze-owned target,
 column and parameter spans. Nominal values stay typed alongside temporary SQL
 parameters until the check succeeds; final scalar SQL emission then records the
 checked assignments/predicates. The `Step.checked` projection is in-memory evidence;
 installed artifacts still contain ordinary SQL and existing provenance fields.
-All Table spellings use the annotation catalog. A raw ID cannot enter a nominal
+All resource spellings use the annotation catalog. A raw ID cannot enter a nominal
 column just because the underlying SQL type agrees.
 
 MATCH checking forks proposed catalogs and uses typed symbolic payloads for every

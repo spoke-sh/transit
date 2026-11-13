@@ -70,8 +70,12 @@ shows both resource kinds with raw ID `7` and isolated Table tests.
 `STREAM(...)` and `QUEUE(...)` parameters and matching exports preserve distinct
 resource kinds and exact column signatures. Log declarations use single-partition
 defaults with unlimited retention. Literal `PRODUCE INTO` and `ENQUEUE INTO`
-statements use ordinary log preparation and permissions. Explicit log configuration,
-nominal log fields, append metadata and RETURNING remain outside this source profile.
+statements use ordinary log preparation and permissions. Non-null log fields can
+carry source domains: matching values remain typed through appends and finite
+CONSUME projections and equality predicates. Raw or foreign-domain values reject,
+including through literal resource names. These annotations do not validate
+externally supplied IDs or grant permission. Explicit log configuration,
+append metadata and RETURNING remain outside this source profile.
 
 Public Queue programs compose those resources through `CREATE PUBLIC DATAFLOW`
 and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, IF, Table inserts and log
@@ -79,6 +83,12 @@ appends use the installed ordered-program binder; mutations require an atomic
 block. Building emits SQL and never activates it. The
 [program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
 defines exact supported instructions, schemas and limits.
+Nominal Queue, Stream and Table fields retain their source types through LET,
+record projections, nullable one-record lookups and matching CASE arms. Writes and
+equality comparisons require the same domain, even for identical scalar values.
+Every runtime branch is checked. A domain annotation does not prove that a sender
+is authorized or a referenced row exists; use a lookup and REQUIRE for existence.
+Ordinary SQL still receives scalar columns and values.
 
 This profile rejects runtime-private storage, privileged procedures, protected
 effects, COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
@@ -127,7 +137,8 @@ Queue emptiness or program idleness.
 It does not treat activation as completion or replay input. Follow it with Table
 and `CONSUME` row assertions to check state and Stream output. Exhausted polling
 or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md)
-illustrates success, refusal, atomic rollback and isolation; the
+and [nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
+illustrate success, refusal, atomic rollback and isolation; the
 [test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 defines observation limits and scope.
 

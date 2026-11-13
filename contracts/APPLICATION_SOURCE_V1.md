@@ -116,7 +116,7 @@ multi-source queries, procedures, effects, COMMAND programs, deadlines,
 publication and migration synthesis reject. No unsupported declaration is omitted.
 
 Log declarations use the ordinary single-partition defaults, including unlimited
-retention. Explicit configuration, dead-letter destinations, nominal log columns,
+retention. Explicit configuration, dead-letter destinations,
 append metadata and RETURNING are outside this source profile. Log parameters
 check the complete column signature; Stream and Queue handles are distinct from
 each other and from Table handles. `EXPORT STREAM $name AS events;` and
@@ -124,9 +124,16 @@ each other and from Table handles. `EXPORT STREAM $name AS events;` and
 An existing typed handle can be forwarded without `$`. Exports grant no runtime
 rights. A log handle is valid only in its matching log target position, never as
 a scalar, column or generic identifier. Source scalar operands in log statements
-must be concrete, non-nominal values; symbolic log operations reject.
+must be concrete; symbolic log operations reject. Nominal TYPE holes annotate
+non-null log fields under the same rules as Table columns. PRODUCE and ENQUEUE
+require matching source domains in each destination field, including explicit
+column lists; omitted required fields reject. Literal resource names and
+IDENTIFIER parameters consult the same annotations. Raw and foreign-domain
+values cannot enter a nominal field, and nominal values cannot enter raw fields.
 Finite `CONSUME` reads admit column/wildcard projections, explicit aliases,
-predicates and LIMIT through the ordinary Stream owner. Group handles, waits and
+predicates and LIMIT through the ordinary Stream owner. Direct nominal columns
+and same-domain equality/inequality predicates retain their annotations until
+erasure; metadata fields remain ordinary scalars. Group handles, waits and
 claim/settlement controls remain outside the source profile.
 
 Declarations and statements execute in lexical composition order. Each resource must
@@ -155,12 +162,42 @@ instructions. Expressions and branch/result types use the ordinary program binde
 
 Programs bind at most thirteen proposed Table/log dependencies. The input is one
 Queue partition. Exact resource kinds, schemas, keys, instruction order and atomic
-boundaries survive a separate parse/bind of emitted SQL. Nominal resource columns,
-symbolic program declarations/controls, KV/Document dependencies, protected
+boundaries survive a separate parse/bind of emitted SQL. Symbolic program declarations/controls, KV/Document dependencies, protected
 values, effects, responses, handoff, pages, deadlines and native helper dependencies
 reject. The installed host's shared capability declaration determines available
 functions. Runtime publication still freezes native definitions and checks
 current rights; proposed schemas and static capability checks grant neither.
+
+Non-null nominal fields retain their source domains through Queue input, LET,
+record projection and zero-or-one Table reads. An absent read produces a nullable
+record, its projected fields remain nullable, and multiple rows refuse at runtime.
+The compiler preserves the physical binder's lexical-before-column lookup and
+scope rules. Same-domain equality/inequality, null tests and CASE with matching
+domains are admitted; a NULL CASE arm preserves the other arm's domain and makes
+the result nullable. Conditions require ordinary BOOLEAN. Calls, casts, arithmetic,
+ordering and concatenation cannot unwrap nominal values. Every runtime branch and
+failure handler is checked. Failure handlers retain the original input, not body
+locals; failure metadata remains ordinary scalar data.
+
+Concrete nominal arguments in program holes retain their exact expansion spans
+until checked. Table inserts and log appends check each destination column even
+when accessed through literal names or IDENTIFIER holes. Nullable values still
+face runtime required-field validation: annotations do not establish that a guard
+executed. Acquisition predicates must also lower through the native Queue predicate
+owner; ordinary expression acceptance alone is insufficient.
+
+A nominal Queue field is a source annotation, not sender authentication, proof of
+referenced-row existence or runtime domain validation. Ordinary SQL sees the base
+scalar. Applications use an explicit lookup and guard when existence is required;
+current native authorization continues to govern publication and execution.
+
+The internal checked projection records physical kind/nullability, recursive
+record fields and domains for expression/binding nodes, plus ordered acquisition,
+read, guard, branch, atomic, write and failure-handler events. Resource events carry
+complete bound column annotations; write events also associate expression IDs.
+Source offsets refer to the originating template. This evidence is not persisted
+in build artifacts and does not add runtime authority. Erased SQL is independently
+parsed and bound against a fresh ordinary catalog before publication of a product.
 
 Source lifecycle controls are `AUTHORIZE DATAFLOW name AS ROLE CURRENT_ROLE`,
 ACTIVATE, SUSPEND, RESUME and RETIRE. A prior program declaration and the shared
@@ -232,7 +269,7 @@ and other semantic column options cannot be hidden by a smaller signature.
 A Table value becomes a quoted name only in a Table position; it is not an
 IDENTIFIER, scalar, type, permission or durable catalog ID.
 
-A nominal TYPE hole annotates a non-null Table column before erasure to its
+A nominal TYPE hole annotates a non-null Table, Stream or Queue column before erasure to its
 ordinary physical type. Defaults and CHECK expressions involving nominal columns
 reject. Source accesses through literal names and identifier parameters consult
 the same annotated schema. Direct projection, same-domain equality/inequality,
@@ -262,8 +299,12 @@ The [typed-target specification](application-source/TypedTarget.lean) proves
 nominal substitution, selection from a checked total arm table, and ordered
 action preservation for a fragment with one scalar payload per constructor and
 Table inserts. Exact source types, well-typed environments and signatures are
-premises; de Bruijn variables express capture-free payload substitution. The
-laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
+premises; de Bruijn variables express capture-free payload substitution. Three
+additional scoped laws cover record projection under substitution, ordered
+program substitution and domain erasure preserving event order and bindings.
+The program trace fragment assumes ordinary physical typing and well-formed
+execution; it does not model nullable lookup execution or prove runtime atomicity.
+These laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
 SQL encoding, runtime, authorization or effects. Independent finite comparisons
 connect synthetic source, Lean source/action interpretations, checked Zig
 operands and ordinary SQL. Real CLI execution is separate evidence. This slice
@@ -302,8 +343,14 @@ This source grammar slice adds no temporal-model result or Lean theorem.
 Relative imports resolve beneath their package root; absolute paths, `..`, empty
 components, symlinks and undeclared file kinds reject. A package consists of
 UTF-8 `.transit` files selected from a bounded tree, sorted by relative path.
-Directories named `.git` or `.transit` are excluded. Other regular files are
-ignored; symlinks and special file kinds reject. Repository dependencies are
+Validate the selected entry before scanning the rest of the package. Directory
+components named `.git`, `.transit`, `.direnv` or `node_modules` are excluded
+before traversal and descendant accounting. Ignore other non-source leaf entries,
+including links, without opening them. Candidate `.transit` links and special
+files reject; directory links are never followed. Explicit imports through
+excluded or linked components reject. Neither `.gitignore` nor a general hidden-file
+rule changes this selection. Root packages, overrides, fetched Git trees and
+verified cache trees share these rules. Repository dependencies are
 explicit source declarations:
 
 ```text
@@ -323,9 +370,14 @@ rules and cannot choose conflicting resolutions for one package name.
 
 The lock includes its source-format identity, the current native contract
 definition and a sorted dependency list of name, repository, revision,
-subdirectory and source-tree SHA-256. Hash the domain `transit.source.tree.v1\0`
-then each sorted UTF-8 relative path and file content with unsigned 64-bit
+subdirectory and source-tree SHA-256. Hash the domain `transit.source.tree.v1\0`,
+the selection descriptor `regular .transit files; no links; prune .git,.transit,.direnv,node_modules`,
+then each sorted UTF-8 relative path and file content, each with unsigned 64-bit
 little-endian byte lengths. A cache entry must match the complete tree digest.
+The selection descriptor changes dependency content keys: caches captured before
+these selection rules fail frozen verification, even if their remaining source
+bytes match. Review the dependency and explicitly run `transit build --fetch`
+to capture its selected tree. Normal builds never repair or rewrite old locks.
 No hostname or revision string substitutes for content verification. Cache entries
 are `.transit/packages/DIGEST/` directories containing a source tree and a
 format/definition/digest manifest. Package names are global within the graph.
@@ -390,6 +442,20 @@ on stdout. Failures use [DIAGNOSTICS_V1](DIAGNOSTICS_V1.md), with bounded source
 locations, definition/call-site facts, rule and correction guidance. Diagnostic
 source locations use one-based lines/byte-columns and zero-based byte offsets.
 Values, credentials and fetched source bodies are excluded from diagnostics.
+Source failure codes use the `application.source.*` families: `entry`, `file_kind`,
+`path`, `encoding`, `syntax`, `import`, `target`, `domain`, `type`, `dependency`,
+`unsupported`, `limit`, `io`, `output` and the unknown/internal fallback `failure`.
+Each supplies its correction and the context available at the failing owner.
+Filesystem facts use `actual_source` for a bounded path, `source_kind` for the
+observed kind and `operation` for the attempted operation, without invented source
+coordinates. In these families, path facts encode POSIX bytes as printable ASCII
+with other bytes, quotes and backslashes escaped as `\xhh`; truncation preserves
+complete escapes and is explicit. Source locations retain the shared location
+encoding. Human output includes primary and related filenames and escapes terminal
+controls. Type checks retain parameter/column names and expected/actual types;
+known budget failures retain their limit. `native_cause` is secondary detail,
+not a recovery API. Artifact failures use stage `output`. The human statement
+"No SQL was submitted" applies only to failures before test execution begins.
 Invalid CLI usage exits 2; compilation/resolution/I/O failures exit 1; success
 exits 0. A successful check/build is not execution or installation evidence.
 

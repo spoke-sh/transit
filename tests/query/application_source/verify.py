@@ -47,6 +47,9 @@ def semantic_product(value):
         for step in items:
             del step['definition']
             del step['call']
+            if step['checked'].get('program') is not None:
+                for node in step['checked']['program']['nodes'] + step['checked']['program']['events']:
+                    del node['source_offset']
     steps(result['steps'])
     for case in result['cases']:
         del case['identity']
@@ -65,6 +68,11 @@ def at_path(value, path):
 
 def cases():
     result = json.loads((ROOT / 'contracts/application-source/corpus.json').read_text())
+    fixture = ROOT / 'tests/fixtures/application-typed-queue'
+    for mode in ('build', 'test_suite'):
+        result.append({'name': f'typed-queue-{mode}', 'source': (fixture / 'build.transit').read_text(),
+                       'parse': True, 'compile': mode,
+                       'files': [{'path': path.name, 'text': path.read_text()} for path in sorted(fixture.glob('*.transit')) if path.name != 'build.transit']})
     rng = random.Random(SEED)
     # Independent bounded construction exercises expressions, conditionals, lexical
     # variants and actual emitted schemas/plans, with a reproducible case identity.

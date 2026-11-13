@@ -99,6 +99,19 @@ fn lower(self: *Self, expression: *const a.Expression, depth: usize) anyerror!vo
     }
 }
 
+/// Check the acquisition profile without fabricating a catalog identity. This
+/// uses the same lowering and schema/collation validation as native encoding.
+pub fn validate(program: a.Program, schema: f.TableSchema.Schema) !void {
+    try a.Codec.validate(program);
+    try schema.validate();
+    const predicate = program.predicate orelse return;
+    var builder: Self = .{ .schema = schema, .alias = program.input };
+    try builder.lower(predicate, 0);
+    var fields: [f.TableSchema.max_columns]f.WorkloadProjection.Field = undefined;
+    for (schema.columns, fields[0..schema.columns.len]) |field, *slot| slot.* = .{ .column = field.id };
+    const layout = try f.WorkloadProjection.schemaLayout(schema, fields[0..schema.columns.len], .claim);
+    try (Program{ .instructions = builder.instructions[0..builder.count] }).validateCollations(layout.typeOf(), layout.collations);
+}
 pub fn compile(allocator: std.mem.Allocator, program: a.Program, target: p.StreamQueue.Partition, schema: f.TableSchema.Schema) !?p.QueuePredicate {
     try a.Codec.validate(program);
     try target.validate();
@@ -140,6 +153,7 @@ test "application acquisition predicates retain native schema target and SQL nul
         defer t.allocator.free(source);
         var parsed = try a.parse(t.allocator, source, null);
         defer parsed.deinit();
+        try validate(parsed.program, schema);
         const predicate = (try compile(t.allocator, parsed.program, target, schema)).?;
         var arena: std.heap.ArenaAllocator = .init(t.allocator);
         defer arena.deinit();
@@ -155,4 +169,5 @@ test "application acquisition predicates retain native schema target and SQL nul
     var invalid = try a.parse(t.allocator, "CREATE DATAFLOW x FROM QUEUE jobs AS event WHERE NOW() > 0 AS BEGIN REQUIRE TRUE ELSE 'Refused'; END;", null);
     defer invalid.deinit();
     try t.expectError(error.InvalidQueuePredicate, compile(t.allocator, invalid.program, target, schema));
+    try t.expectError(error.InvalidQueuePredicate, validate(invalid.program, schema));
 }

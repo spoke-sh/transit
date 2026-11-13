@@ -60,10 +60,16 @@ source round-trips and the contract for subsequent language features. The
 [typed-target slice](application-typed-target-implementation.md) implements nominal
 source values, closed variants, exhaustive compile-time matching and typed
 public Table exports, with selected Lean laws and independent SQL execution.
-Its required qualification remains incomplete. The
+The earlier typed-target record retains its incomplete qualification at that
+source. The public Queue build/test foundation subsequently merged in
+[PR #450](https://github.com/spoke-sh/transit/pull/450); its final CI results are
+reconciled in the [next-slice plan](application-typed-queue-implementation.md#source-basis-and-existing-owners).
+That slice implements actionable diagnostics and nominal types through public
+Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+and retained failure evidence. The
 [remaining M12 implementation plan](application-remaining-implementation.md)
-proposes public-data Queue program emission next, followed by richer types,
-runtime encapsulation, protected workflows, migrations and replay qualification.
+retains richer typed composition, runtime encapsulation, protected workflows,
+migrations and replay qualification.
 Dynamic typed commands and reference-only exports remain subsequent work.
 
 ## Performance ambition
@@ -142,7 +148,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Table builds/tests, source grammar and nominal/variant/typed Table exports are implemented; required qualification remains incomplete. The [remaining implementation plan](application-remaining-implementation.md) proposes public-data Queue emission, richer typed composition, runtime boundaries, protected workflows, explicit-basis migrations, replacement and replay proofs |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Public Table/Stream/Queue builds, Queue program tests, source grammar and nominal/variant/typed resource exports are implemented; qualification remains source-specific. The [next slice](application-typed-queue-implementation.md) delivers actionable build/test diagnostics, source discovery and nominal types through public Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13) and retained failures. The [remaining implementation plan](application-remaining-implementation.md) retains helpers, runtime boundaries, protected workflows, explicit-basis migrations, replacement and replay proofs |
 
 ### Phase II: Data composition, performance and interface coverage
 

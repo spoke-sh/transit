@@ -7,8 +7,15 @@ proposes the delivery sequence from the merged compiler and typed-target baselin
 at `bc849156a`: public-data Queue program emission, richer typed composition,
 runtime module boundaries, protected workflows, explicit-basis migrations,
 definition replacement and deterministic replay qualification. It preserves the
-P0–P6 scope and outstanding qualification below. Its selected first increment is
-the public-data Queue build/test profile; later increments remain proposals.
+P0–P6 scope and outstanding qualification below. Its public-data Queue build/test
+increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450).
+The [next-slice implementation](application-typed-queue-implementation.md) adds
+actionable build/test diagnostics, source discovery and nominal types through
+public Queue programs. [Executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+records the passing gates, retained failures and proof limits. This completes
+only the first part of richer typed composition.
+Later increments remain proposals; merge status does not
+replace their qualification gates.
 
 Let an application compose data definitions, queries, dataflows, effect bindings
 and publications in a typed declarative application language stored as `.transit`,
@@ -485,9 +492,11 @@ case specializes a build for one of two resource kinds; dynamic command inputs,
 query cardinality, runtime domain enforcement and reference-only foreign-key
 exports remain subsequent work. The source contract owns the exact symbolic-checking restrictions and Lean premises.
 [Executed qualification](../history/qualification/query.md#typed-target-rebase-and-shared-sql-framing--2026-11-11)
-records the passing component and clean-lane checks and unresolved installation/UI
-and console-latency gates; the slice has not completed its required qualification.
-Keep existing compiler/test behavior and incomplete qualification records intact. Develop three synthetic design cases
+records passing component and clean-lane checks and unresolved installation/UI
+and console-latency gates at that source. The later public Queue foundation's
+final CI results are reconciled in the
+[next-slice plan](application-typed-queue-implementation.md#source-basis-and-existing-owners).
+Keep these source-specific results and failures distinct. Develop three synthetic design cases
 incrementally:
 
 | Case | Language and proof obligation |

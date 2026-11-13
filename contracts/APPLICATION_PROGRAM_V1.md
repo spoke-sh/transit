@@ -67,8 +67,11 @@ SQL freezes per-invocation limits of 10,000 requests, 10,000 scanned rows,
 saved-record limits apply together. The installed host rejects effects,
 protected values/responses, response pages, handoffs and deadlines. Explicit
 transactions, database-wire/remote gateway admission, Queue program migrations
-and definition replacement are unsupported. The source compiler's existing
-Table profile is unchanged; this interface consumes executable lowered SQL.
+and definition replacement are unsupported. The
+[source compiler](APPLICATION_SOURCE_V1.md#public-queue-programs) emits this public
+Queue profile, including checked source-domain annotations that erase to scalar
+SQL. This runtime interface consumes executable lowered SQL and requires no
+source repository or type sidecar.
 
 ## Definition and compilation
 

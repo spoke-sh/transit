@@ -63,12 +63,14 @@ def git(root, *args):
     return result.stdout.strip()
 
 
-def repository(root, content):
+def repository(root, content, links=()):
     root.mkdir()
     for name, text in content.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+    for name, target in links:
+        (root / name).symlink_to(target)
     git(root, 'init', '--quiet')
     git(root, 'add', '.')
     git(root, '-c', 'user.name=Transit proof', '-c', 'user.email=proof@example.invalid', 'commit', '--quiet', '-m', 'Frozen source fixture')
@@ -81,7 +83,119 @@ def source(root, name, text):
     path.write_text(text)
 
 
+def source_diagnostics(cli, parent, command):
+    """Exercise the installed human/JSON boundary with synthetic source only."""
+    root = parent / f'{command}-diagnostics'
+    root.mkdir()
+    original = ("CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE rows (id BIGINT); END;\n"
+                "CREATE TEST TARGET tests AS BEGIN TEST 'source checks' USING MODULES () AS BEGIN "
+                "CREATE PUBLIC TABLE rows (id BIGINT); END; END;\n")
+
+    def run(*args, json_mode=True, expected=1):
+        result = subprocess.run([str(cli), command, *(['--format', 'json'] if json_mode else []), *args],
+                                cwd=root, capture_output=True, text=True, timeout=30,
+                                env={'PATH': '/unavailable'}, preexec_fn=offline)
+        assert result.returncode == expected, (args, result.stdout, result.stderr)
+        if json_mode:
+            assert not result.stderr, result.stderr
+            return json.loads(result.stdout)
+        assert not result.stdout, result.stdout
+        assert '\x1b' not in result.stderr and 'Correct the reported input' not in result.stderr
+        return result.stderr
+
+    def failure(code, *args, path=None, kind=None, stage='input'):
+        value = run(*args)
+        assert value['code'] == f'application.source.{code}' and value['stage'] == stage, value
+        assert value['outcome'] == 'not_submitted', value
+        facts = {item['field']: item for item in value['facts'] if item}
+        human = run(*args, json_mode=False)
+        assert value['message'] in human and 'No SQL was submitted.' in human, human
+        for field, expected in (('actual_source', path), ('source_kind', kind)):
+            if expected is not None:
+                assert facts[field]['value']['text'] == expected, value
+                assert expected in human, human
+        if value['location']:
+            at = value['location']
+            assert f"{at['source']}:{at['line']}:{at['byte_column']}: error:" in human, human
+        return value
+
+    # Entry validation wins over a bad unrelated candidate discovered later.
+    (root / 'bad.transit').symlink_to('/unavailable/source')
+    failure('entry', path=str(root / 'build.transit'))
+    (root / 'bad.transit').unlink()
+    source(root, 'build.transit', original)
+    for directory in ('.direnv', 'node_modules', '.git', '.transit'):
+        (root / directory).mkdir()
+        source(root, f'{directory}/invalid.transit', 'not application source')
+        (root / directory / 'link').symlink_to('/unavailable/environment')
+    (root / 'unrelated-link').symlink_to('/unavailable/leaf')
+    os.mkfifo(root / 'unrelated-fifo')
+    assert run(expected=0)['ok']
+    for name, make, kind in (
+            ('linked.transit', lambda p: p.symlink_to('build.transit'), 'sym_link'),
+            ('dangling.transit', lambda p: p.symlink_to('/unavailable/source'), 'sym_link'),
+            ('pipe.transit', os.mkfifo, 'named_pipe')):
+        path = root / name
+        make(path)
+        refused = failure('file_kind', path=name, kind=kind)
+        assert refused['location'] is None, refused
+        path.unlink()
+    # Malformed bytes and terminal controls remain distinguishable but inert.
+    for name, shown in ((b'bad-\xff.transit', 'bad-\\xff.transit'), (b'bad-\x1b.transit', 'bad-\\x1b.transit')):
+        path = os.fsencode(root) + b'/' + name
+        os.symlink(b'/unavailable/source', path)
+        failure('path' if b'\xff' in name else 'file_kind', path=shown)
+        os.unlink(path)
+    (root / 'invalid.transit').write_bytes(b'\xff')
+    failure('encoding', path='invalid.transit')
+    (root / 'invalid.transit').unlink()
+    (root / 'oversize.transit').write_bytes(b' ' * (1024 * 1024 + 1))
+    limited = failure('limit', path='oversize.transit', kind='file')
+    assert any(fact and fact['field'] == 'limit' and fact['value'] == {'unsigned': str(1024 * 1024)} for fact in limited['facts']), limited
+    (root / 'oversize.transit').unlink()
+    long_part = 'long-' + 'a' * 95
+    long_dir = root.joinpath(*([long_part] * 6))
+    long_dir.mkdir(parents=True)
+    source(long_dir, 'source.transit', '')
+    truncated = failure('path')
+    assert any(fact and fact['field'] == 'actual_source' and fact['availability'] == 'truncated' for fact in truncated['facts']), truncated
+    assert '[truncated]' in run(json_mode=False)
+    shutil.rmtree(root / long_part)
+    if os.geteuid() != 0:
+        unreadable = root / 'unreadable.transit'
+        unreadable.write_text('')
+        unreadable.chmod(0)
+        try:
+            failure('io', path='unreadable.transit', kind='file')
+        finally:
+            unreadable.chmod(0o600)
+            unreadable.unlink()
+    for imported, family in (('missing.transit', 'import'), ('node_modules/ignored.transit', 'path')):
+        source(root, 'build.transit', f"IMPORT missing FROM '{imported}';\n" + original)
+        failure(family, path=imported)
+    (root / 'linked-dir').symlink_to('/unavailable/directory')
+    source(root, 'build.transit', "IMPORT outside FROM 'linked-dir/file.transit';\n" + original)
+    failure('file_kind', path='linked-dir', kind='sym_link')
+    source(root, 'build.transit', original)
+    target = failure('target', '--target', 'missing', stage='bind')
+    assert any(fact and fact['field'] == 'name' and fact['value'] == {'text': 'missing'} for fact in target['facts']), target
+    failure('target', '--target', 'tests' if command == 'build' else 'default', stage='bind')
+    source(root, 'bad.transit', '\nIMPORT;')
+    syntax = failure('syntax', stage='parse')
+    assert syntax['location']['source'] == 'root/bad.transit' and syntax['location']['line'] == '2', syntax
+    source(root, 'bad.transit', '\nCREATE nonsense;')
+    failure('unsupported', stage='compile')
+    (root / 'bad.transit').unlink()
+    if command == 'build':
+        destination = root / 'already-exists'
+        destination.mkdir()
+        failure('output', '--out', str(destination), path=str(destination), stage='output')
+    assert (root / 'unrelated-link').is_symlink()
+    shutil.rmtree(root)
+
+
 def compiler_journey(cli, root):
+    source_diagnostics(cli, root, 'build')
     for args, position in ((['private-value'], 2), (['--check', 'private-value'], 3)):
         invalid = subprocess.run([str(cli), 'build', *args], cwd=root, text=True,
                                  capture_output=True, timeout=30, env={'PATH': '/unavailable'},
@@ -114,6 +228,14 @@ def compiler_journey(cli, root):
     original = (built / 'application.sql').read_bytes()
     (built / 'application.sql').write_bytes(original + b'-- corruption')
     cli_build(cli, project, expected=1)
+    (built / 'application.sql').write_bytes(original)
+    # Exercise the read adapter itself against a FIFO after publication. Its
+    # nonblocking open must reject even without the source walk's kind check.
+    (built / 'application.sql').unlink()
+    os.mkfifo(built / 'application.sql')
+    fifo = cli_build(cli, project, expected=1)
+    assert fifo['code'] == 'application.source.output', fifo
+    (built / 'application.sql').unlink()
     (built / 'application.sql').write_bytes(original)
     interrupted = root / 'interrupted-output'
     killed = subprocess.run([str(cli), 'build', '--out', str(interrupted)], cwd=project,
@@ -162,7 +284,11 @@ def compiler_journey(cli, root):
         rejected = cli_build(cli, unsupported, '--check', expected=1)
         assert rejected['location'] is not None, rejected
     leaf = root / 'leaf-repository'
-    leaf_rev = repository(leaf, {'pkg/build.transit': 'CREATE PUBLIC MODULE Rows(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); INSERT INTO $name VALUES (42); END;'})
+    leaf_rev = repository(leaf, {
+        'pkg/build.transit': 'CREATE PUBLIC MODULE Rows(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); INSERT INTO $name VALUES (42); END;',
+        'pkg/node_modules/invalid.transit': 'excluded dependency source',
+        'pkg/.direnv/invalid.transit': 'excluded environment source',
+    }, links=(('pkg/unrelated-link', '/unavailable/non-source'),))
     dependency = f"DEPENDENCY leaf FROM '{leaf}' REVISION '{leaf_rev}' SUBDIRECTORY 'pkg';\n"
     bridge = root / 'bridge-repository'
     bridge_text = dependency + "IMPORT leaf FROM PACKAGE leaf FILE 'build.transit'; CREATE PUBLIC MODULE Wrap(name IDENTIFIER) AS BEGIN USE leaf.Rows(name); END;"
@@ -210,6 +336,30 @@ def compiler_journey(cli, root):
         cli_build(cli, remote, '--check', expected=1)
     lock_path.write_bytes(lock_bytes)
     leaf_pin = locked['dependencies'][1]
+    # Independently construct the old tree key. Frozen builds cannot reinterpret
+    # its cache under a changed selection policy, even with identical source bytes.
+    package = remote / '.transit/packages' / leaf_pin['digest']
+    old_hash = hashlib.sha256(b'transit.source.tree.v1\0')
+    for item in sorted((package / 'tree').rglob('*.transit')):
+        for data in (item.relative_to(package / 'tree').as_posix().encode(), item.read_bytes()):
+            old_hash.update(len(data).to_bytes(8, 'little'))
+            old_hash.update(data)
+    old_digest = old_hash.hexdigest()
+    old_package = package.with_name(old_digest)
+    manifest_path = package / 'manifest.json'
+    manifest_bytes = manifest_path.read_bytes()
+    old_manifest = {**json.loads(manifest_bytes), 'digest': old_digest}
+    manifest_path.write_text(json.dumps(old_manifest))
+    package.rename(old_package)
+    old_lock = json.loads(lock_bytes)
+    old_lock['dependencies'][1]['digest'] = old_digest
+    lock_path.write_text(json.dumps(old_lock))
+    stale = cli_build(cli, remote, '--check', expected=1)
+    assert stale['code'] == 'application.source.dependency', stale
+    assert json.loads(lock_path.read_text()) == old_lock, 'Offline build rewrote an old lock'
+    old_package.rename(package)
+    manifest_path.write_bytes(manifest_bytes)
+    lock_path.write_bytes(lock_bytes)
     cached = remote / '.transit/packages' / leaf_pin['digest'] / 'tree/build.transit'
     previous = cached.read_bytes()
     cached.write_bytes(previous + b'\n-- altered')
@@ -281,6 +431,113 @@ def queue_journey(cli, root):
     shutil.rmtree(project)
     return sql
 
+
+
+def typed_queue_journey(cli, root):
+    fixture = REPO / 'tests/fixtures/application-typed-queue'
+    project = root / 'typed-queue-project'
+    shutil.copytree(fixture, project)
+    checked = cli_build(cli, project, '--check')
+    assert checked['statements'] == 25 and not (project / '.transit').exists()
+    product = cli_build(cli, project)
+    sql = (Path(product['directory']) / 'application.sql').read_text()
+    assert sql == (fixture / 'expected.sql').read_text()
+    assert cli_build(cli, project)['reused']
+    original = (project / 'workflow.transit').read_text()
+    for changed in (original.replace('found.id = request.machine_id', 'found.id = request.id'),
+                    original.replace('THEN request.machine_id ELSE found.id', 'THEN request.machine_id ELSE request.id'),
+                    original.replace('VALUES (id, machine, request.body)', 'VALUES (id, 7, request.body)'),
+                    original.replace('PRODUCE INTO $output', 'PRODUCE INTO typed_events_a')):
+        # The literal-name case still checks the destination: force a wrong domain.
+        if 'PRODUCE INTO typed_events_a' in changed:
+            changed = changed.replace('VALUES (id, machine, request.body)', 'VALUES (machine, machine, request.body)')
+        source(project, 'workflow.transit', changed)
+        refused = cli_build(cli, project, expected=1)
+        assert refused['code'] == 'application.source.domain' and refused['location'] is not None, refused
+        assert (Path(product['directory']) / 'application.sql').read_text() == sql
+    source(project, 'workflow.transit', original)
+    moved = root / 'typed-queue-relocated'
+    shutil.copytree(project, moved, ignore=shutil.ignore_patterns('.transit'))
+    entry = (moved / 'build.transit').read_text().replace("IMPORT resources FROM 'resources.transit'", "IMPORT library FROM 'renamed.transit'").replace('resources.Resources', 'library.Resources')
+    source(moved, 'build.transit', entry)
+    (moved / 'resources.transit').rename(moved / 'renamed.transit')
+    relocated = cli_build(cli, moved)
+    assert relocated['sql_digest'] == product['sql_digest'] and relocated['input_digest'] != product['input_digest']
+    source(moved, 'child.transit', "IMPORT library FROM 'build.transit'; CREATE TARGET default AS BEGIN USE library.Scenario(); END;")
+    assert cli_build(cli, moved, '-f', 'child.transit')['sql_digest'] == product['sql_digest']
+    repository_path = root / 'typed-queue-repository'
+    revision = repository(repository_path, {f'pkg/{path.name}': path.read_text() for path in fixture.glob('*.transit')})
+    remote = root / 'typed-queue-remote'
+    remote.mkdir()
+    source(remote, 'build.transit', f"DEPENDENCY typed FROM '{repository_path}' REVISION '{revision}' SUBDIRECTORY 'pkg'; IMPORT library FROM PACKAGE typed FILE 'build.transit'; CREATE TARGET default AS BEGIN USE library.Scenario(); END;")
+    fetched = cli_build(cli, remote, '--fetch', fetch=True)
+    assert fetched['dependencies'] == 1
+    lock = (remote / 'transit.lock').read_bytes()
+    shutil.rmtree(repository_path)
+    assert cli_build(cli, remote)['sql_digest'] == product['sql_digest']
+    assert (remote / 'transit.lock').read_bytes() == lock
+    for directory in (project, moved, remote):
+        shutil.rmtree(directory)
+    return sql
+
+
+def install_typed_queue(fixture, sql):
+    lines = sql.splitlines()
+    fixture.console('\n'.join(lines[:20]))
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        token = list(os.urandom(16))
+        client.call(dict(execute=dict(sql=lines[20], token=token)), discard_response=True)
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['matched'] == original['changed'] == 1, original
+        client.call(dict(execute=dict(sql=lines[20].replace("'ready'", "'changed'"), token=token)), error='SqlTokenConflict')
+        assert client.call(dict(status=dict(token=token)))['operation']['identity'] == original['identity']
+    finally:
+        client.close()
+    fixture.console('\n'.join(lines[21:]))
+    outcomes = []
+    for suffix, refused in (('a', 3), ('b', 0)):
+        name = f'typed_process_{suffix}'
+        head = await_head(fixture, name, lambda h: h['completed'] + h['refused'] >= refused + 1)['observation']['head']
+        assert (head['completed'], head['refused']) == (1, refused), head
+        rows = fixture.console(f'SELECT id, machine_id, body FROM typed_accepted_{suffix} ORDER BY id; CONSUME id, machine_id, body FROM typed_events_{suffix};')
+        assert [records(value) for value in rows if 'schema' in value] == [[{'id': '7', 'machine_id': '7', 'body': 'ready'}]] * 2, rows
+        outcomes += rows
+        await_head(fixture, name, lambda h: h['pending'] is not None and h['attempt'] == refused + 2)
+        fixture.console(f'SUSPEND DATAFLOW {name};')
+        settled = await_head(fixture, name, lambda h: h['pending'] is None)['observation']['head']
+        assert (settled['completed'], settled['refused']) == (1, refused + 1), settled
+    # Accepted scalar SQL is immutable; recovery uses this original append token
+    # across the same retained installation, without source files or rebuilding.
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        token = list(os.urandom(16))
+        client.call(dict(execute=dict(sql="ENQUEUE INTO typed_requests_a VALUES (11, 7, 'ready', 'retained');", token=token)), discard_response=True)
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['matched'] == original['changed'] == 1
+        return outcomes, token, original['identity']
+    finally:
+        client.close()
+
+
+def resume_typed_queue(fixture, token, identity):
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['identity'] == identity and original['matched'] == original['changed'] == 1, original
+    finally:
+        client.close()
+    head = observation(fixture, 'typed_process_a')['observation']['head']
+    assert head['control']['state'] == 'suspended' and (head['completed'], head['refused']) == (1, 4), head
+    fixture.console('RESUME DATAFLOW typed_process_a;')
+    head = await_head(fixture, 'typed_process_a', lambda h: h['completed'] >= 2)['observation']['head']
+    assert head['refused'] == 4, head
+    expected = [{'id': '7', 'machine_id': '7', 'body': 'ready'}, {'id': '11', 'machine_id': '7', 'body': 'retained'}]
+    outcomes = fixture.console('SELECT id, machine_id, body FROM typed_accepted_a ORDER BY id; CONSUME id, machine_id, body FROM typed_events_a;')
+    for value in outcomes:
+        if 'schema' in value:
+            assert sorted(records(value), key=lambda row: int(row['id'])) == expected, value
+    return outcomes
 
 def execute_program(cli, sql, typed_sql, queue_sql):
     fixture = Fixture(cli)
@@ -380,21 +637,57 @@ def execute_program(cli, sql, typed_sql, queue_sql):
             print(f'Private failed application build execution: {fixture.root}', file=sys.stderr)
 
 
+
+def execute_typed_queue(cli, sql):
+    # Keep the existing untyped schedule's authority/resource inventory intact.
+    # This installation still exercises both explicitly named typed pipelines.
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        outcomes, token, identity = install_typed_queue(fixture, sql)
+        fixture.stop(kill=True)
+        fixture.start()
+        fixture.ready()
+        outcomes += resume_typed_queue(fixture, token, identity)
+        disable_sql_credential(fixture.root, fixture.config['ports'], installation=fixture.installation)
+        fixture.console('CONSUME * FROM typed_events_a;', expected=1)
+        fixture.console('SHOW DATAFLOW typed_process_a;', expected=1)
+        fixture.console('SELECT * FROM typed_accepted_a;', expected=1)
+        passed = True
+        return outcomes
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed typed Queue execution: {fixture.root}', file=sys.stderr)
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
         sql = compiler_journey(cli, Path(temporary)).read_text()
         typed_sql = typed_journey(cli, Path(temporary))
         queue_sql = queue_journey(cli, Path(temporary))
+        typed_queue_sql = typed_queue_journey(cli, Path(temporary))
+        print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
+        print('Application build: generated typed Queue fixture', flush=True)
+        generated += execute_typed_queue(cli, typed_queue_sql)
+        print('Application build: independent ordinary SQL oracle', flush=True)
         oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
+        print('Application build: independent typed Queue SQL oracle', flush=True)
+        oracle += execute_typed_queue(cli, (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):
             return [dict(schema=value['schema']['type'], rows=value['rows'], count=value['complete']['rows']) for value in outcomes if 'schema' in value]
-        assert logical(generated) == logical(oracle)
+        actual, expected = logical(generated), logical(oracle)
+        assert actual == expected, [(index, left, right) for index, (left, right) in enumerate(zip(actual, expected, strict=True)) if left != right]
     print('Application build: locked offline composition, source-free SQL, restart and revocation passed')
 
 

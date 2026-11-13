@@ -68,6 +68,17 @@ pub fn validPath(path: []const u8) !void {
     var components = std.mem.splitScalar(u8, path, '/');
     while (components.next()) |part| if (part.len == 0 or std.mem.eql(u8, part, ".") or std.mem.eql(u8, part, "..")) return error.InvalidSourcePath;
 }
+/// Selection is shared by local, fetched and cached source packages. Hash its
+/// exact rules into dependency trees so a frozen old cache cannot be reinterpreted.
+pub const selection = "regular .transit files; no links; prune .git,.transit,.direnv,node_modules";
+pub fn excludedComponent(part: []const u8) bool {
+    return std.StaticStringMap(void).initComptime(.{ .{".git"}, .{".transit"}, .{".direnv"}, .{"node_modules"} }).has(part);
+}
+pub fn selectedPath(path: []const u8) !void {
+    try validPath(path);
+    var components = std.mem.splitScalar(u8, path, '/');
+    while (components.next()) |part| if (excludedComponent(part)) return error.ExcludedSourcePath;
+}
 pub fn validateDependency(value: s.Dependency) !void {
     if (value.repository.len == 0 or value.repository.len > 2048 or value.repository[0] == '-' or std.mem.indexOfAny(u8, value.repository, "\x00\r\n") != null) return error.InvalidRepository;
     if (std.mem.startsWith(u8, value.repository, "https://") or std.mem.startsWith(u8, value.repository, "file://")) {
@@ -79,7 +90,7 @@ pub fn validateDependency(value: s.Dependency) !void {
     if (value.subdirectory.len > 0) try validPath(value.subdirectory);
 }
 pub fn importPath(a: std.mem.Allocator, source_path: []const u8, import: s.Import) ![]const u8 {
-    try validPath(import.path);
+    try selectedPath(import.path);
     if (!std.mem.endsWith(u8, import.path, ".transit")) return error.InvalidSourcePath;
     if (import.package != null) return a.dupe(u8, import.path);
     if (std.mem.lastIndexOfScalar(u8, source_path, '/')) |slash| return std.fmt.allocPrint(a, "{s}/{s}", .{ source_path[0..slash], import.path });
@@ -177,6 +188,7 @@ pub fn treeDigest(sources: []const Source, package: []const u8, a: std.mem.Alloc
     }.less);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update("transit.source.tree.v1\x00");
+    hashPart(&hash, selection);
     for (entries.items, 0..) |source, i| {
         try validPath(source.path);
         if (i > 0 and std.mem.eql(u8, source.path, entries.items[i - 1].path)) return error.DuplicateSourceFile;
