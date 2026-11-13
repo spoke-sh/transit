@@ -2330,7 +2330,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const callers = b.addSystemCommand(&.{ "python3", "-B" });
     callers.addFileArg(b.path("tests/runner/launch.py"));
     callers.addFileArg(b.path("tests/runtime/application/callers.py"));
-    // Both callers use the exact same authority and public CLI artifacts.
+    // Both callers use the exact same authority and private native driver.
     callers.addArtifactArg(node_artifact);
     callers.addArtifactArg(native_client_fixture);
     for (example_artifacts) |example| callers.addArtifactArg(example);
