@@ -60,7 +60,7 @@ def source_identity(root, family=None):
     owners = ["build.zig", "build.zig.zon", "build", "packages/zig", "apps", "third_party",
               "nix", "flake.nix", "flake.lock", "VERSION", "contracts", "tasks/embed_web.py",
               "packages/ts", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml",
-              "vp.config.ts", "tests/harness/native_artifacts.py"]
+              "vp.config.ts", "tests/harness/native_artifacts.py", "tests/interfaces/native/client_fixture.zig"]
     if family == "c-sdk":
         owners += ["bindings", "sdks/c", "sdks/cpp", "examples/station-sdk/c", "examples/station-sdk/cpp"]
     listed = subprocess.check_output([
