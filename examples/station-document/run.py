@@ -11,6 +11,8 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "launchers"))
+from native_client import Client, public_key
 sys.path.insert(0, str(ROOT / "tests"))
 from sdk.client_abi_growing import GrowingSystem
 from storage.providers.cold_storage import ColdStore
@@ -19,12 +21,20 @@ from harness.ursula import Fixture
 from harness.services import wait_ready
 
 
+class DocumentSystem(GrowingSystem):
+    def key(self, name):
+        path = self.root / f"{name}.key"
+        path.write_text(os.urandom(32).hex())
+        path.chmod(0o600)
+        return path, public_key(path)
+
+
 def run(*, board=False, browser=False):
     binaries = {name: ROOT / "zig-out/bin" / name for name in (
-        "transit-board", "transit-node", "transit-admin", "transit-station-document-worker", "example-station-document")}
+        "transit-board", "transit-node", "transit-client-host", "transit-station-document-worker", "example-station-document")}
     started = time.monotonic()
     with ColdStore() as cold:
-        fixture = GrowingSystem(binaries["transit-node"], binaries["transit-admin"])
+        fixture = DocumentSystem(binaries["transit-node"], None)
         fixture.store = Fixture(cold.config())
         fixture.resident_pages = 64
         with fixture as system:
@@ -45,15 +55,15 @@ def run(*, board=False, browser=False):
                 return json.loads(result.stdout)
 
             def query(kind):
-                return invoke([binaries["transit-admin"], "query", system.seed,
-                    write("query.json", {"realm": 72, "principal": 0, "kind": kind}), system.url])
+                return Client(binaries["transit-client-host"], system.url).query(system.seed,
+                    {"realm": 72, "principal": 0, "kind": kind})
 
             def command(body):
                 sequence = query({"capabilities": {}})["principal_sequence"] + 1
                 path = write(f"command-{sequence}.json", {"realm": 72, "principal": 0, "sequence": sequence, "command": body})
                 for attempt in range(3):
                     try:
-                        return invoke([binaries["transit-admin"], "submit", system.seed, path, system.url])["position"]
+                        return Client(binaries["transit-client-host"], system.url).submit(system.seed, json.loads(path.read_text()))["position"]
                     except RuntimeError:
                         if attempt == 2:
                             raise

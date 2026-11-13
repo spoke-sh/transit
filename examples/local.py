@@ -6,12 +6,15 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "launchers"))
+from native_client import Client, public_key
 
 
 def free_port():
@@ -21,7 +24,7 @@ def free_port():
 
 
 def run(name, board=False):
-    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "transit-admin", f"example-{name}")}
+    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "transit-client-host", f"example-{name}")}
     if board:
         binaries["board"] = ROOT / "zig-out/bin/transit-board"
     for binary in binaries.values():
@@ -60,7 +63,7 @@ def run(name, board=False):
             path = work / f"{label}.key"
             path.write_text(os.urandom(32).hex())
             path.chmod(0o600)
-            return path, invoke(binaries["transit-admin"], "public-key", path)
+            return path, public_key(path)
 
         def write(label, value):
             path = work / f"{label}.json"
@@ -103,7 +106,7 @@ backend = "inline"
                 nonlocal sequence
                 sequence += 1
                 request = write(f"request-{sequence}", {"realm": 71, "principal": 0, "sequence": sequence, "command": value})
-                return invoke(binaries["transit-admin"], "submit", root_key, request, url)["position"]
+                return Client(binaries["transit-client-host"], url).submit(root_key, json.loads(request.read_text()))["position"]
 
             pid = command({"spawn": {}})
             command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
@@ -122,7 +125,7 @@ backend = "inline"
                 invoke(binaries[f"example-{name}"], "--once", caller)
             def query(kind):
                 request = write("read", {"realm": 71, "principal": 0, "kind": kind})
-                return invoke(binaries["transit-admin"], "query", root_key, request, url)["body"]
+                return Client(binaries["transit-client-host"], url).query(root_key, json.loads(request.read_text()))["body"]
             view = query({"process": pid})["process"]
             entries = query({"read_entries": {"resource": resource, "keys": [b"value".hex()] + [None]*7}})["read_entries"]["entries"]
             expected = b"12" if name == "counter" else b"hello world"

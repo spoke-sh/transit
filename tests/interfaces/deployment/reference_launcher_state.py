@@ -12,7 +12,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(ROOT / "launchers"))
 from kubernetes import Reference, infrastructure
 from station_reference import StationReference
-from common import Installation, transient_read_failure
+from common import Installation
+from native_client import ClientError
 
 
 class ReferenceStateTest(unittest.TestCase):
@@ -166,54 +167,38 @@ class ReferenceStateTest(unittest.TestCase):
 
 
 class ReadObservationTest(unittest.TestCase):
-    @staticmethod
-    def failure(cause="AuthorityUnavailable"):
-        return {"schema_version": 1, "service_name": "transit-admin", "event": {
-            "name": "service.failed", "level": "err", "outcome": "failed", "error_type": cause}}
-
-    def test_read_retry_uses_json_and_preserves_the_same_request(self):
+    def test_read_retry_preserves_the_same_frozen_request(self):
         with tempfile.TemporaryDirectory() as directory:
-            installation = SimpleNamespace(path=Path(directory), cli="transit-admin", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
+            installation = SimpleNamespace(path=Path(directory), client_host="client-host", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
             kind = {"open_snapshot": {"resource": 9, "nonce": [7] * 16}}
-            requests = []
-            def invoke(argv, **options):
-                self.assertEqual(options["env"]["LOG_FORMAT"], "json")
-                self.assertEqual(options["env"]["LOG_LEVEL"], "error")
-                requests.append((argv, (installation.path / "operator/read.json").read_bytes()))
-                if len(requests) == 1:
-                    return subprocess.CompletedProcess(argv, 1, "", json.dumps(self.failure("ConnectionRefused")))
-                if len(requests) == 2:
-                    return subprocess.CompletedProcess(argv, 1, "", json.dumps(self.failure()))
-                return subprocess.CompletedProcess(argv, 0, '{"body":{"accepted":true}}', "")
-            with patch("common.subprocess.run", side_effect=invoke), patch("common.time.sleep"):
+            with patch("common.Client") as factory, patch("common.time.sleep"):
+                client = factory.return_value
+                client.prepare.return_value = "exact-frozen-read"
+                client.call.side_effect = [ClientError(7, {"err": "ConnectionRefused"}),
+                    ClientError(7, {"err": "AuthorityUnavailable"}), {"body": {"accepted": True}}]
                 self.assertEqual(Installation.native_query(installation, kind), {"body": {"accepted": True}})
-            self.assertEqual(len(requests), 3)
-            self.assertEqual(requests[0], requests[1])
-            self.assertEqual(requests[0], requests[2])
-            self.assertEqual(json.loads(requests[0][1])["kind"], kind)
+                client.prepare.assert_called_once_with(installation.path / "operator/root.key",
+                    {"realm": 73, "principal": 0, "kind": kind}, query=True)
+                self.assertEqual(client.call.call_count, 3)
+                for call in client.call.call_args_list:
+                    self.assertEqual(call.args, ("exact-frozen-read",))
 
-    def test_unknown_denied_malformed_and_nonterminal_events_do_not_authorize_retry(self):
-        denied = self.failure("AccessDenied")
-        unknown = self.failure("UnexpectedFailure")
-        attempt = self.failure()
-        attempt["event"]["name"] = "transit.client.request"
-        foreign = self.failure()
-        foreign["service_name"] = "transit-node"
-        for record in (denied, unknown, attempt, foreign, [], None):
-            self.assertFalse(transient_read_failure(json.dumps(record)))
-        self.assertFalse(transient_read_failure("error: AuthorityUnavailable"))
-        self.assertFalse(transient_read_failure(json.dumps(self.failure()) + "\nnot-json"))
+    def test_only_classified_unavailable_reads_authorize_retry(self):
+        for status, detail in ((4, {"err": "AccessDenied"}), (7, {"err": "UnexpectedFailure"}),
+                (6, {"err": "AuthorityTimeout"}), (8, {"err": "InvalidAuthorityResponse"}),
+                (7, []), (7, None), (7, "AuthorityUnavailable")):
+            self.assertFalse(ClientError(status, detail).retryable_read)
         for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused"):
-            self.assertTrue(transient_read_failure(json.dumps(self.failure(cause))))
+            self.assertTrue(ClientError(7, {"err": cause}).retryable_read)
 
     def test_connection_refusal_exhausts_the_original_read_deadline(self):
         with tempfile.TemporaryDirectory() as directory:
-            installation = SimpleNamespace(path=Path(directory), cli="transit-admin", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
-            result = subprocess.CompletedProcess([], 1, "", json.dumps(self.failure("ConnectionRefused")))
-            with patch("common.subprocess.run", return_value=result) as invoke, patch("common.time.monotonic", side_effect=[100, 120]), patch("common.time.sleep") as sleep, patch("common.print"):
-                with self.assertRaises(subprocess.CalledProcessError):
+            installation = SimpleNamespace(path=Path(directory), client_host="client-host", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
+            with patch("common.Client") as factory, patch("common.time.monotonic", side_effect=[100, 120]), patch("common.time.sleep") as sleep:
+                factory.return_value.call.side_effect = ClientError(7, {"err": "ConnectionRefused"})
+                with self.assertRaises(ClientError):
                     Installation.native_query(installation, {"capabilities": {}})
-            self.assertEqual(invoke.call_count, 1)
+                factory.return_value.call.assert_called_once()
             sleep.assert_not_called()
 
 

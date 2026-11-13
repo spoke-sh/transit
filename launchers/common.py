@@ -1,4 +1,4 @@
-"""Development provisioning through the public CLI; never an execution authority."""
+"""Development provisioning through the shared client; never an execution authority."""
 from contextlib import contextmanager
 import fcntl
 import json
@@ -8,13 +8,13 @@ import re
 import secrets
 import socket
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
 from urllib.parse import urlsplit
 
 import settings
+from native_client import Client, ClientError, public_key
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFINITION = json.loads((ROOT / "contracts/transit-v1.schema.json").read_text())["x-transit"]["definition"]
@@ -25,22 +25,6 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
 SERVICES = ("ursula", "node", "maintenance", "delivery", "counter", "board")
-
-
-def transient_read_failure(stderr):
-    """Only the CLI's structured terminal event classifies a retryable read."""
-    try:
-        records = [json.loads(line) for line in stderr.splitlines()]
-    except json.JSONDecodeError:
-        return False
-    if not records or not isinstance(records[-1], dict):
-        return False
-    record = records[-1]
-    event = record.get("event")
-    return (record.get("schema_version") == 1 and record.get("service_name") == "transit-admin"
-            and isinstance(event, dict) and event.get("name") == "service.failed"
-            and event.get("level") == "err" and event.get("outcome") == "failed"
-            and event.get("error_type") in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused"))
 
 
 def read_json(response, limit=256 * 1024):
@@ -121,8 +105,8 @@ class Installation:
         return Artifacts(self)
 
     @property
-    def cli(self):
-        return self.artifacts.binary("transit-admin")
+    def client_host(self):
+        return self.artifacts.binary("transit-client-host")
 
     def load(self):
         value = json.loads(self.manifest.read_text())
@@ -181,7 +165,7 @@ class Installation:
         path = self.path / relative
         if not path.exists():
             write(path, secrets.token_hex(32))
-        return json.loads(run([self.cli, "public-key", path], capture=True))
+        return public_key(path)
 
     def prepare(self):
         if self.manifest.exists():
@@ -279,24 +263,18 @@ backend = "inline"
             return
         request_file = self.path / "operator/pending.json"
         write(request_file, pending["request"])
-        signed = run([self.cli, "sign", self.path / "operator/root.key", request_file], capture=True).encode()
+        client = Client(self.client_host, self.url)
+        frozen = client.prepare(self.path / "operator/root.key", pending["request"])
         deadline = time.monotonic() + 20
         while True:
             try:
-                request = urllib.request.Request(self.url + "/v1/command", signed, {"Content-Type": "application/json"})
-                with HTTP.open(request, timeout=6) as response:
-                    receipt = read_json(response, 1024)
-                if (not isinstance(receipt, dict) or set(receipt) != {"position"}
-                        or type(receipt["position"]) is not int or not 1 <= receipt["position"] < 2**53):
-                    raise RuntimeError("Invalid receipt; pending request preserved for an exact retry")
+                receipt = client.call(frozen)
                 break
-            except urllib.error.HTTPError as error:
-                if error.code not in (409, 503):
-                    raise RuntimeError(f"Pending operation {pending['id']} rejected: {error.read(8192).decode(errors='replace')}") from error
-            except (urllib.error.URLError, TimeoutError, ConnectionError):
-                pass
-            if time.monotonic() >= deadline:
-                raise RuntimeError(f"Outcome uncertain for {pending['id']}; saved request will be retried unchanged")
+            except ClientError as error:
+                if error.status not in (5, 6) or error.detail == {"err": "InvalidAuthorityResponse"}:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"Outcome uncertain for {pending['id']}; saved request will be retried unchanged") from error
             time.sleep(.2)
         write(self.path / "operator/receipts" / (pending["id"] + ".json"), {**pending, "receipt": receipt})
         state.update(sequence=pending["request"]["sequence"], pending=None)
@@ -369,20 +347,15 @@ backend = "inline"
     def native_query(self, kind):
         read = self.path / "operator/read.json"
         write(read, {"realm": self.load()["realm"], "principal": 0, "kind": kind})
-        command = list(map(str, [self.cli, "query", self.path / "operator/root.key", read, self.url]))
+        client = Client(self.client_host, self.url)
+        frozen = client.prepare(self.path / "operator/root.key", json.loads(read.read_text()), query=True)
         deadline = time.monotonic() + 20
         while True:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10,
-                                    env=os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "error"})
-            if result.returncode == 0:
-                return json.loads(result.stdout)
-            # Concurrent workers can occupy finite read slots; a physical WAL
-            # reopen can briefly close the listener. Retry this exact read only
-            # for a classified transport failure, within the original deadline.
-            transient = transient_read_failure(result.stderr)
-            if not transient or time.monotonic() >= deadline:
-                print(result.stderr, file=sys.stderr, end="")
-                result.check_returncode()
+            try:
+                return client.call(frozen)
+            except ClientError as error:
+                if not error.retryable_read or time.monotonic() >= deadline:
+                    raise
             time.sleep(.1)
 
     def counter_value(self):
