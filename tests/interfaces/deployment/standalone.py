@@ -152,6 +152,7 @@ containerdConfigPatches:
         call(['docker', 'exec', node, 'mv', data + '/.transit', data + '/saved-installation'])
         helm('upgrade', 'transit', ROOT / 'charts/transit', '-f', values)
         deadline = time.monotonic() + 60
+        failure = ''
         while True:
             pods = json.loads(kube('get', 'pods', '-l', 'app.kubernetes.io/instance=transit', '-o', 'json'))['items']
             if not pods:
@@ -162,11 +163,16 @@ containerdConfigPatches:
             statuses = pod.get('status', {}).get('containerStatuses', [])
             if statuses and statuses[0].get('restartCount', 0) > 0:
                 assert not statuses[0].get('ready')
-                break
-            assert time.monotonic() < deadline, 'Missing installation did not fail'
+                # Status can publish a restart before containerd makes the
+                # terminated container's logs available. Require the actual
+                # refusal within the original deadline, not just a crash loop.
+                output = subprocess.run(['kubectl', '--kubeconfig', str(kubeconfig), '--context', 'kind-' + name,
+                    'logs', pod['metadata']['name'], '--previous'], capture_output=True, text=True, timeout=10)
+                failure = output.stdout + output.stderr
+                if output.returncode == 0 and 'startup requires an existing installation' in failure:
+                    break
+            assert time.monotonic() < deadline, 'Missing installation refusal not observed: ' + failure
             time.sleep(1)
-        failure = kube('logs', pod['metadata']['name'], '--previous')
-        assert 'startup requires an existing installation' in failure, failure
         assert 'saved-installation' in call(['docker', 'exec', node, 'ls', '-a', data])
         assert '.transit' not in call(['docker', 'exec', node, 'ls', '-a', data]).splitlines()
         passed = True
