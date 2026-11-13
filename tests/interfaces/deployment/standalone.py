@@ -17,7 +17,7 @@ def run(prefix):
     assert binary.is_file()
     assert 'INTERP' not in subprocess.check_output(['readelf', '-l', binary], text=True), 'Use the static release build'
     pins = json.loads((ROOT / 'deploy/reference/versions.json').read_text())
-    root = Path(tempfile.mkdtemp(prefix='transit-standalone-'))
+    root = Path(tempfile.mkdtemp(prefix='transit-standalone-', dir='/var/tmp'))
     name = 'transit-standalone-' + secrets.token_hex(4)
     registry = name + '-registry'
     kubeconfig = root / 'kubeconfig'
