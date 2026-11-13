@@ -347,6 +347,31 @@ fn dispatchWithMemory(service: *@import("LocalTableService.zig"), memory: *@impo
     return dispatch(&adapter, action);
 }
 
+fn dispatchWithAllocationFailures(service: *@import("LocalTableService.zig"), action: c.DirectTableProtocol.Action) !Response {
+    const Adapter = struct {
+        service: *@import("LocalTableService.zig"),
+        engine: *Engine,
+        configuration: D.Configuration,
+
+        fn check(allocator: std.mem.Allocator, selected: *@import("LocalTableService.zig"), request: c.DirectTableProtocol.Request) !void {
+            var arena: std.heap.ArenaAllocator = .init(allocator);
+            defer arena.deinit();
+            const encoded = try selected.execute(&arena, allocator, request);
+            defer allocator.free(encoded);
+        }
+
+        fn execute(self: *@This(), arena: *std.heap.ArenaAllocator, output: std.mem.Allocator, request: c.DirectTableProtocol.Request) ![]const u8 {
+            // A read-only signed lookup can fail at every allocation without
+            // changing accepted work. Recovery and response failures must free
+            // the temporary catalog as well as its owned pages and buffers.
+            try t.checkAllAllocationFailures(t.allocator, check, .{ self.service, request });
+            return self.service.execute(arena, output, request);
+        }
+    };
+    var adapter: Adapter = .{ .service = service, .engine = service.engine, .configuration = service.configuration };
+    return dispatch(&adapter, action);
+}
+
 fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.DirectClientToken.Receipt {
     const w = c.DirectTableProtocol;
     var service: @import("LocalTableService.zig") = .{ .engine = engine, .configuration = config, .registrar = .{ .principal = 0, .key = try key(17) }, .options = .{ .resident_pages = 1, .table = .{ .resident_pages = 1 } } };
@@ -390,7 +415,7 @@ fn directDispatch(engine: *Engine, config: D.Configuration, owner_role: u64) !c.
     const repeated = try dispatch(&service, .{ .admit_ddl = ddl });
     defer repeated.deinit();
     try t.expectEqualDeep(committed.value.result, repeated.value.result);
-    const definition = try dispatch(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
+    const definition = try dispatchWithAllocationFailures(&service, .{ .lookup = .{ .namespace = 1, .name = ddl.name } });
     defer definition.deinit();
     try t.expectEqual(engine.head.authorization.revision, definition.value.policy_revision);
     const selected = definition.value.result.lookup.?;
