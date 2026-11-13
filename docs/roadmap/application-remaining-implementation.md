@@ -1,6 +1,6 @@
 # Milestone 12 remaining implementation plan
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Increment 1 merged; increment 2 partially implemented** · Updated 2026-11-12
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Increment 1 merged; increment 2 partially delivered** · Updated 2026-11-13
 
 Complete the application authoring journey: compose data, computations and
 policies in typed `.transit` modules; inspect independently executable SQL;
@@ -13,7 +13,9 @@ public-data Queue program profile and merged in
 [PR #450](https://github.com/spoke-sh/transit/pull/450). The
 [next slice](application-typed-queue-implementation.md) implements actionable
 build/test diagnostics, source discovery and nominal types through that profile
-as the first part of richer typed composition; final qualification is in progress.
+as the first part of richer typed composition. Its
+[executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+records passing gates, retained failures and proof limits.
 Follow it with the remaining typed composition,
 runtime-enforced module boundaries, protected command/workflow composition,
 migration synthesis and safe replacement. Add tests and selected formal

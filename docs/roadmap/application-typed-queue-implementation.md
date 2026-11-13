@@ -1,6 +1,6 @@
 # Actionable build diagnostics and typed public Queue programs
 
-[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Implemented; qualification in progress** · 2026-11-12
+[Milestone 12](12-application-modules-compilation-and-testing.md) · **Status: Delivered with scoped qualification** · Updated 2026-11-13
 
 Make `transit build` and `transit test` failures identify what failed, where it
 failed and what the user can change. Deliver this first, including source
@@ -23,7 +23,6 @@ The design and acceptance criteria below preserve the approved plan. Implementat
 now follows it; the [source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains
 the owner of current behavior. Milestone 12 stays **In Progress**.
 
-
 ## Implementation result
 
 Source discovery now prunes environment/dependency directories before traversal
@@ -43,8 +42,14 @@ No persisted native format, runtime domain authority or recovery identity change
 The synthetic two-pipeline fixture and hand-authored SQL cover lookup success,
 absence, multi-row refusal and rollback after staged insertion. Six scoped Lean
 laws and independent finite comparisons cover the selected fragment; these are
-not proofs of arbitrary programs or runtime execution. Final installed and clean
-qualification is still being executed; no required incomplete gate is a pass.
+not proofs of arbitrary programs or runtime execution. Source tests isolate each
+outcome and the second named pipeline under the existing per-case budget. The
+installed build journey retains the combined two-pipeline workload and recovery
+checks. [Executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+records passing core, storage/query, formal, installation/UI and latency/SQL
+gates at the corrected fixture source, together with retained failures and proof
+limits. Final documentation baselines passed separately. This is scoped slice
+qualification, not completion of Milestone 12 or release/provider qualification.
 
 ## Source basis and existing owners
 
@@ -55,6 +60,13 @@ establish full qualification. The PR records completed local gates and pending
 qualification at submission; preserve those source-specific results and failures.
 Before implementing this slice, reconcile the final CI artifacts and remaining
 gates instead of inheriting a blanket pass or the previous submission exception.
+
+That reconciliation is complete: PR #450's final
+[CI run](https://github.com/spoke-sh/transit/actions/runs/43301384976) passed core,
+storage/query, installation/UI, formal and console-latency/SQL checks at
+`c6d3da7daa6c302745b96f7af57b7811767113f5`, and its handbook artifact built.
+Conditional publication and the redundant CI documentation job were skipped.
+Those results qualify that source; this extension requires its own checks.
 
 | Owner at this basis | Implemented behavior | Extension needed here |
 | --- | --- | --- |

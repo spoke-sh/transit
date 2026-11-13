@@ -9,6 +9,207 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Actionable source diagnostics and nominal Queue programs — 2026-11-13
+
+This slice implements the [reviewed M12 plan](../../roadmap/application-typed-queue-implementation.md):
+actionable build/test diagnostics, source discovery in ordinary repositories and
+nominal domains through public Queue programs. Current semantics belong to the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md),
+[CLI reference](../../handbook/reference/cli.md) and
+[verification limits](../../handbook/reference/verification.md).
+
+The implementation source is `f88c80ec8b1d4350ce50f149b804b60a8ac42c41`.
+Commit `6a3e2fc7f15cf4700b9ec34e1caae82a1fe86a36` subsequently separates typed
+source-test outcomes into five cases; runtime code and emitted installation SQL
+are unchanged. Final qualification/roadmap edits are documentation only.
+M12 remains In Progress: general helpers, runtime variants, protected workflows,
+migrations, replacement and replay qualification are subsequent work.
+
+The base is `6552747cf58a81cab0c60ad5c39e8e1568e9a007`, the merge of
+[PR #450](https://github.com/spoke-sh/transit/pull/450). Its final
+[CI run](https://github.com/spoke-sh/transit/actions/runs/43301384976) passed core,
+storage/query, installation/UI, formal and console-latency/SQL checks at
+`c6d3da7daa6c302745b96f7af57b7811767113f5`; its handbook artifact also built.
+Conditional publication and the redundant CI docs job were skipped. These
+results qualify that earlier source, not this extension.
+
+### Executed gates
+
+Commands use pinned Nix shells. Installation/UI and latency use `ci-experience`.
+Local clean lanes use `just ci clean --lane NAME`; hosted lanes execute the
+same inventory through `tests/runner/ci.py` from clean checkouts. A completed
+lane requires its entire expected task inventory, successful outcomes and
+verified artifact hashes. Partial lanes below are not passes.
+
+| Check | Source and result |
+| --- | --- |
+| Clean core; hosted core | All 28 tasks passed locally at `f88c80ec8b1d` and on hosted CI at both `f88c80ec8b1d` and `6a3e2fc7f`, including 70 fast and 20 contract checks, 207 CLI diagnostic cases, 96 artifact/file cases, all 48 packages, SDK/runtime boundaries, authorization and recovery. |
+| Clean formal; hosted formal | All 16 tasks passed locally at `2c48a123ab27`, then on hosted CI at `f88c80ec8b1d` and `6a3e2fc7f`. Later implementation edits did not change the compiler, Fuze or formal models. |
+| Hosted storage/query | All 37 tasks passed at `f88c80ec8b1d` and `6a3e2fc7f`: compiler/grammar, storage/catalog, Queue/transaction recovery, maintenance, query and publication checks. |
+| Installation/UI | All 26 tasks passed on the unchanged `6a3e2fc7f` retry, including managed Tables, application builds/tests, retained recovery, server, Board and launcher checks. Earlier failures remain below. |
+| Console latency | All 70 comparisons passed at `f88c80ec8b1d` and on the unchanged `6a3e2fc7f` retry. The first `6a3e2fc7f` failure is retained below. |
+| Installed SQL types | All 28 cases passed with both successful hosted latency executables, and in local/hosted installation lanes at `6a3e2fc7f` before those lanes failed later tasks. |
+| Final fast and handbook | All 70 fast checks, locked dependency installation and the full handbook check passed on the final documentation contents. These baseline checks do not replace runtime qualification. |
+
+The final documentation baseline ran from the repository root:
+
+```sh
+nix develop --command just check fast
+nix develop .#docs --command just transit-docs::install
+nix develop .#docs --command just transit-docs::check
+```
+
+Logs are `/tmp/transit-m12-next-fast-closeout.log`,
+`/tmp/transit-m12-next-docs-install-closeout.log` and
+`/tmp/transit-m12-next-docs-closeout.log`.
+
+The [first hosted run](https://github.com/spoke-sh/transit/actions/runs/43373225418)
+uses `f88c80ec8b1d`; the
+[corrected-fixture run](https://github.com/spoke-sh/transit/actions/runs/43385820238)
+uses `6a3e2fc7f`. Each uses distinct GitHub-hosted Ubuntu runners. These are
+source/profile-specific results, not complete release or provider qualification.
+
+| Verified passing evidence | Record SHA-256 | Artifact ID |
+| --- | --- | --- |
+| Local clean core, `.cache/ci/clean/f88c80ec8b1d-transit-ci-lh2y4_q2/core.json` | `93bd2a6d0fb841ff7944b797332672bd5381e180fb26332a0fdff2af1539112a` | Local |
+| Local clean formal, `.cache/ci/clean/2c48a123ab27-transit-ci-n2q4u7uv/formal.json` | `6255154de8c0508d4e38559c62311e838c0b8e3440e4a1696e8ddcadcc298054` | Local |
+| Hosted core, run `43373225418`, `core.json` | `61cb984147b6608c7cb667528a717aa530472c7fceae8140162396cc733fe865` | `14018630661` |
+| Hosted formal, run `43373225418`, `formal.json` | `5ea7a7c685aa0ec639b6a17a72502556522cc43516fa09a725d56a7d3e1a9b7a` | `14013218890` |
+| Hosted storage/query, run `43373225418`, `storage-query.json` | `296897eb43e33fb79ef073f006dbae0fb7e8b2440a6f7b72c53bf85bb1e367ba` | `14017763902` |
+| Hosted formal, run `43385820238`, `formal.json` | `801cbb4c97f1a69c9ca20d09b58c5f46caa125c07db099b4fe2d27fd4e4441e1` | `14018034954` |
+| Hosted core, run `43385820238`, `core.json` | `d392273c89a1d4d229a2fd824c793b2590a06f3299518756ec41e6e6929d109e` | `14024007492` |
+| Hosted storage/query, run `43385820238`, `storage-query.json` | `09d45986fb7b8be455d5149b72293e80ccfa1e899a9fe089ce805fd44367e4b2` | `14024815314` |
+| Hosted installation/UI, run `43385820238`, attempt 2, `installation-ui.json` | `b75a838c7168c28a0f7e8c8155755b73dd9ce15d9cf4a89ff94c820ac7db7234` | `14027644932` |
+
+Local preparation records have SHA-256
+`4deee13883436f0b064a02767bda4f54516eae84109d4ef651ae7119a9d9c52e`
+(core) and `bb3adbe0bc00fdc3f01d4a6eb010985a7d499eb7c6da60baa357367a60b28f2f`
+(formal). Downloaded hosted evidence is under `.cache/ci/hosted/RUN/LANE`;
+verified run directories are `core-z0lt77fn`, `formal-1k5o1ujp`,
+`storage-query-ef6pcvb9` and corrected `formal-p5bsuj6h`, `core-ywoquo79`
+and `storage-query-q80evsay`, plus retry `installation-ui-fm5kktar`, respectively.
+
+The first hosted latency gate built ReleaseSafe with
+`zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release`,
+then ran `tests/performance/console/gate.py` through the shared launcher using
+that executable as CLI, node and host. Three startup samples and five complete
+statement runs passed all 70 comparisons against unchanged budget SHA-256
+`d3fcbdc583e6e445d9c840aa7e51b91712597242aa28bc13e0b51d7fe8f3db67`.
+Fresh readiness was 2,836.202 ms and first verified result 2,968.077 ms;
+restart medians were 762.390 ms and 895.617 ms. These qualify the declared
+workload and runner, not arbitrary deployments or source build latency.
+Reassessment of the raw transcripts into separate output reproduced the report
+exactly. All headers identify clean `f88c80ec8b1d` source and binary revision.
+The report SHA-256 is
+`4499f926fbcde59951b0c6632b2d5f8f44d567c49b1e71eca69cb106f5a823eb`
+(artifact `14014835655`). The same executable, SHA-256
+`6308c4dade2eba10d75c9b9646cb5301852eb3819a8e0411b09182987d80db75`,
+passed all 28 SQL-type cases; report SHA-256 is
+`59576650fbdcd71ae441f2479e1d7246c5ad4bce98e32bbb03a33d043a83dc89`.
+
+The unchanged corrected-source retry (run `43385820238`, attempt 2, artifact
+`14026755378`) passed all 70 comparisons and all 28 SQL-type cases. Every raw
+header identifies clean `6a3e2fc7f` source and binary revision. Reassessment
+again reproduced the report exactly: SHA-256
+`bb7329c7eedac2c8b6700b9a8a4d0cfe13caeae90db0492c4023c56f4718113c`.
+Fresh readiness/first result were 2,350.705/2,487.370 ms; restart medians were
+760.545/899.407 ms. Cycle PSS growth was 1.145 against the unchanged 1.15 limit,
+with peak PSS 1,474,534,400 bytes. The executable SHA-256 is
+`b23fea1255e8194a2c2c3dd70799312212c68cd5d949e4554a92c51f7bd7703a`;
+the SQL-type report SHA-256 is
+`80cab06811d81e5761ec96614464fe56aedf562f3b3f4ff841a82fdbf0e9b2d5`.
+This later pass does not identify the cause of the earlier memory-growth failure.
+
+The unchanged installation/UI retry passed its full 26-task inventory. Managed
+Tables passed in 627.15 seconds, application-build in 238.94 seconds and
+application-test in 133.88 seconds. The latter includes all five isolated nominal
+cases with exact output rows and refusal counts. Generated and independent SQL
+still exercise the combined installed workload and retained recovery. This pass
+does not establish the cause of earlier clock, lease or stalled-progress failures.
+
+### What the checks establish
+
+The source model checks six scoped Lean laws, 56 finite equalities, 16 typed
+Table/SQL and eight complete program comparisons, four compiler refusals and
+14 negative controls. Program comparisons include physical types/nullability,
+source domains, fields, binding/expression identity, offsets, ordered events,
+output associations and independent SQL. The laws assume the selected well-typed
+physical fragment; they do not prove the Zig compiler, arbitrary programs,
+atomic runtime execution, authorization, effects or liveness. Native predicate
+compilation is unchanged; the new pure validator checks its admitted profile.
+
+The installed typed fixture composes two independently named public pipelines.
+It requires exact Table/Stream rows and completed/refused counts for successful,
+missing and ambiguous lookups, plus rollback after a staged insertion. Builds
+run offline after fetching, with relocated aliases and child targets; source
+files are removed before installation. Emitted and independently authored SQL
+execute in separate fresh installations, including original-token settlement
+after a lost response, retained restart and current-right denial.
+
+The original combined source-test case exceeded its 30-second budget on hosted
+CI. The corrected target gives success, each of three refusals, and the second
+named pipeline separate cases. Each retains the 30-second case limit and exact
+counter/complete Table/Stream assertions; every refusal independently requires
+both outputs to be empty. Its Python process watchdog allows 180 seconds for
+five cases and joined cleanup, without extending any case or the five-minute
+CLI suite budget. The default combined installation SQL remains byte-identical
+to the independent oracle, SHA-256
+`a31ae98fb84198ab14b4af470f7a890a981f6a66e640ce894d57c41c76eb3b4c`.
+The full shared-installation and recovery schedule remains required.
+
+Source annotations neither authenticate input nor prove an ID exists or grant
+rights. There is no native definition, persisted source evidence or recovery
+identity cutover. The optional runtime failure-handler extension is not claimed;
+source units cover its annotation and lexical-scope obligations.
+
+### Retained failures and limits
+
+Development failures were corrected without changing runtime budgets or owner
+guards: a relocation alias collided with a local binding; a fetch-only assertion
+incorrectly expected emitted SQL; the final cross-installation Table comparison
+needed explicit `ORDER BY id`; and clean core found a stale diagnostic inventory
+entry. Stream ordering and exact values/counts remain checked. A development
+application-build pass used a `4d0112468...-dirty` executable and is not substituted
+for committed qualification.
+
+Other failures remain distinct from those fixes:
+
+| Attempt | Observed result and retained evidence |
+| --- | --- |
+| Combined ordinary/typed development installation | Metadata `Conflict` after restart; `/var/tmp/transit-server-proof-msx2ri4c` retained. The journeys now use separate ordinary and typed installations, retaining both typed pipelines together. Cause not established. |
+| Accidental Debug diagnostic executable | Ordinary scenario exhausted restart attempts; `/var/tmp/transit-server-proof-529_35l6` retained. Not a ReleaseSafe pass or Debug Queue qualification. |
+| Development and final local ordinary source tests | Existing `commits and refusals` case hit `TestDeadline` before the typed cases; logs `/tmp/transit-m12-next-typed-test.log` and `/tmp/transit-m12-next-application-test-final.log`. A later run completed all ten actions/two rows but returned `TestReadCleanupFailed`, in `/tmp/transit-m12-next-application-test-cases.log`. |
+| Local clean storage/query, `f88c80ec8b1d` | Passed 26 tasks, then automatic flush hit the unchanged two-second `MaintenanceTimeout`, WAL recovery was required and inspection returned `HttpConnectionClosing`. Another storage lane was active; cause not established. Fixture `/var/tmp/transit-table-maintenance-df9a0o1_` and checkout `/var/tmp/transit-ci-7we8jav7` retained. |
+| Local clean installation/UI, `f88c80ec8b1d` | Passed 12 tasks. Generated ordinary/typed and independent ordinary installations completed; the independent typed oracle reported zero completions/four refusals instead of one/three. Fixture `/var/tmp/transit-server-proof-sitoe3ya` retained. Read-only envelopes show both first invocations claimed one row and recorded `lease_expired`; why their leases expired is not established. |
+| First hosted installation/UI, `f88c80ec8b1d` | Passed 13 tasks, including the full application-build journey, then the combined typed test reached `TestDeadline` at action 26. Corrected by the isolated case composition above. |
+| Local clean installation/UI, `6a3e2fc7f` | Passed 12 tasks, then the generated typed build fixture stopped at zero completions, one refusal and a pending second attempt. Fixture `/var/tmp/transit-server-proof-tdx0t6mm` and checkout `/var/tmp/transit-ci-k329q47b` retained. Read-only envelopes include a Queue ACK `lease_expired` rejection, an aborted transaction and later missing-lookup refusal records; they do not establish the authoritative checkpoint or explain later stalled progress. |
+| Focused five-case test, `6a3e2fc7f` | Success and all three refusals passed; the second named pipeline reached `TestDeadline`. Log `/tmp/transit-m12-next-five-cases-2.log`; not a full-lane pass. |
+| First corrected hosted installation/UI, `6a3e2fc7f` | Passed ten tasks, then `managed-verify` input 9 failed in final-transaction settlement: native `ClockUnavailable`, surfaced as `AuthorityUnavailable`, HTTP 503 and uncertain outcome. The application fixtures were not reached. Shared classification covers unavailable trusted time and uncertain Queue time bounds; the log does not distinguish them. These owners/fixture are unchanged, and the same committed-source managed proof passed locally. |
+| First corrected hosted latency gate, `6a3e2fc7f` | Completed all measurements; 69/70 comparisons passed. Cycle PSS growth was `1.1549`, above `1.15`. Two statement runs exceeded the limit (`1.1513`, `1.1549`) with lower cycle-one PSS than the earlier run. Peak PSS was 1,478,797,312 bytes, slightly below the earlier 1,479,687,168 bytes. Cause not established. Reassessment reproduced the failure exactly; the subsequent SQL-type step was skipped. |
+
+The focused maintenance retry in the original clean checkout passed the full
+proof, including concurrent writes, pressure, retained reads and Stream
+compaction/restart. The later hosted storage/query lane passed all 37 tasks,
+including maintenance in 71.41 seconds. Neither later pass establishes the cause
+of the earlier failure. Local runs overlapped other heavy work; they do not
+establish isolated performance. Failed installations were not restarted or
+modified during forensic inspection. Stored envelopes are diagnostic evidence,
+not a new public-runtime qualification.
+
+| Retained failure/check record | SHA-256 | Artifact ID |
+| --- | --- | --- |
+| Local clean storage/query log | `3b4b7af1f341149b9c938c19355f22a24c02674260176a7f96758e753856e4c8` | Local |
+| Focused maintenance retry log | `2ed2d68d03a10e22d8e6e1f292695f19ae2b07dc65533f1cd322c0566f2d1a78` | Local |
+| Original local installation/UI log | `0d9650cf2f799b4689529888b081b81981b79225b77b30ee3f13d5cc4b464088` | Local |
+| First hosted installation task log | `2b4cd95596f46d69b1405274ebae7ac57d9c4c97f677e84b0605ad392543284a` | `14016065625` |
+| Corrected local application-build task log | `d60693dcf34d77a93c1c8f364c1a6f4b9feaa94c885096e08a5b662e583579cd` | Local |
+| Corrected hosted managed Table task log | `b9a6881d544b157ca2cc0b6fa7465501fbf1a6a90fb1ecaf3d843619c8dd3470` | `14019389100` |
+| Corrected hosted failed latency report | `703f660c06f0091bb2ae78219f9cae217920c5b1756354df4dd0a045dd4e42f8` | `14018929668` |
+
+Both unchanged retries passed as attempt 2 after the remaining jobs completed;
+their first-attempt failures are preserved. No clock/lease policy, authority
+check, durability requirement, measurement workload or runtime budget was weakened.
+
 ## Typed-target rebase and shared SQL framing — 2026-11-11
 
 This check asks whether the typed-target slice still composes with the shared SQL
