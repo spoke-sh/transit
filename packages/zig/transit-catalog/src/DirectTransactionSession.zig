@@ -221,6 +221,7 @@ pub fn prepareSavepoint(status: c.DirectTransactionControl.Status, operation: d.
     return request;
 }
 pub fn privateClient(client: c.DirectTableClient, key: c.DirectClientToken.Key) !c.DirectTableClient {
+    if (!std.meta.eql(client.connection, key.connection)) return error.CatalogIdentityConflict;
     const status = try (Tx{ .catalog = client }).inspect(key);
     try writable(status);
     var result = client;
