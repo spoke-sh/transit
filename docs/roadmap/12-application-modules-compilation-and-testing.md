@@ -2,16 +2,21 @@
 
 [Roadmap](README.md) · **Status:** In Progress
 
-The [remaining implementation plan](application-remaining-implementation.md)
-proposes the delivery sequence from the merged compiler and typed-target baseline
-at `bc849156a`: public-data Queue program emission, richer typed composition,
-runtime module boundaries, protected workflows, explicit-basis migrations,
-definition replacement and deterministic replay qualification. It preserves the
-P0–P6 scope and outstanding qualification below. Its public-data Queue build/test
-increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450).
-The [next-slice implementation](application-typed-queue-implementation.md) adds
-actionable build/test diagnostics, source discovery and nominal types through
-public Queue programs. [Executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
+The [completion implementation plan](application-modules-completion.md) updates
+the remaining delivery sequence, effort model and immediate execution slices at
+`505d8ac31`: local Queue test/bound reconciliation, pure `FUNCTION`, ordered
+`GUARD`, inline atomic `PROCEDURE` and runtime `VARIANT` composition, explicit-basis
+`CatalogDiff` migrations, `EXPORT REFERENCE` and runtime module grant boundaries,
+protected capability/secret/transition checking, conditional `CREATE OR REPLACE`
+generation draining, deterministic workflow simulation/`--verify-replay`, and
+common-revision qualification on the 6-domain baseline. The earlier
+[remaining implementation plan](application-remaining-implementation.md) retains
+its historical sequence from `bc849156a`; its public-data Queue build/test
+increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450), and
+the [nominal Queue program slice](application-typed-queue-implementation.md)
+([PR #453](https://github.com/spoke-sh/transit/pull/453)) adds actionable
+build/test diagnostics, source discovery and nominal types through public Queue
+programs. [Executed qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
 records the passing gates, retained failures and proof limits. This completes
 only the first part of richer typed composition.
 Later increments remain proposals; merge status does not

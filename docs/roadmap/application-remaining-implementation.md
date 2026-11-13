@@ -22,10 +22,14 @@ migration synthesis and safe replacement. Add tests and selected formal
 correspondence with each capability, rather than postponing them to integration.
 
 This plan sequences the remaining P0–P6 work at source `bc849156a`, the merge of
-PR #445. It preserves the milestone's **In Progress** status, acceptance criteria
-and earlier slice records. The original selected implementation scope was the
-public-data Queue build/test increment. Later syntax and runtime extensions remain proposals;
-the [source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains the owner
+PR #445. The [Milestone 12 completion implementation plan](application-modules-completion.md)
+supersedes this sequencing at `505d8ac31` (after PR #450 and PR #453) with an
+updated review-unit effort model, external dependency gates and immediate next
+slices while preserving this historical record, the milestone's **In Progress**
+status, acceptance criteria and earlier slice records. The original selected
+implementation scope here was the public-data Queue build/test increment. Later
+syntax and runtime extensions remain proposals; the
+[source contract](../../contracts/APPLICATION_SOURCE_V1.md) remains the owner
 of implemented behavior. The source-basis audit below is historical; implementation
 and qualification must be assessed separately from the plan. The next-slice
 audit uses merge `6552747cf`; it does not retroactively qualify this historical basis.

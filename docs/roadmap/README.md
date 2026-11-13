@@ -70,10 +70,12 @@ source. The public Queue build/test foundation subsequently merged in
 reconciled in the [next-slice plan](application-typed-queue-implementation.md#source-basis-and-existing-owners).
 That slice implements actionable diagnostics and nominal types through public
 Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13)
-and retained failure evidence. The
+and retained failure evidence. The [completion implementation plan](application-modules-completion.md) sequences
+the remaining M12 review units, external runtime gates and immediate unblocked
+slices at `505d8ac31`, while the earlier
 [remaining M12 implementation plan](application-remaining-implementation.md)
-retains richer typed composition, runtime encapsulation, protected workflows,
-migrations and replay qualification.
+retains the historical `bc849156a` basis across richer typed composition,
+runtime encapsulation, protected workflows, migrations and replay qualification.
 Dynamic typed commands and reference-only exports remain subsequent work.
 
 ## Performance ambition
@@ -152,7 +154,7 @@ combines that evidence at one revision.
 | 9 | [Shared client foundation and language-native APIs](09-client-foundation-and-language-apis.md) | In Progress ([remaining implementation plan](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01)) | Build on delivered Catalog/SQL context and local recovery storage; complete coordination, ordinary settlement, managed handles, independent bindings and installed language APIs; compose available direct KV/Stream/Queue and native mixed transactions, with Documents gated by M7 |
 | 10 | [Standards, collations and historical catalogs](10-standards-and-catalogs.md) | In Progress ([remaining implementation plan, 2026-11-02](10-standards-and-catalogs.md#remaining-implementation-plan--2026-11-02)) | Delivered collations/companion semantics, CHECK/staged-FK definitions, retained catalogs/common cuts, historical SQL/views and shared inspection; close semantic/consumer regressions, recovery/collection and independent-reader evidence, bounded-work checks and common-revision qualification |
 | 11 | [Indexing model, access paths and online maintenance](11-indexing-and-access-paths.md) | Planned | Shared index definitions, bounded ordered/covering/partial access, fine-grained key-range SSI conflict tracking, index-backed `FOREIGN KEY` enforcement and recoverable online index/table builds |
-| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress | Public Table/Stream/Queue builds, Queue program tests, source grammar and nominal/variant/typed resource exports are implemented; qualification remains source-specific. The [next slice](application-typed-queue-implementation.md) delivers actionable build/test diagnostics, source discovery and nominal types through public Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13) and retained failures. The [remaining implementation plan](application-remaining-implementation.md) retains helpers, runtime boundaries, protected workflows, explicit-basis migrations, replacement and replay proofs |
+| 12 | [Recursive `.transit` modules, SQL compilation, builds and testing](12-application-modules-compilation-and-testing.md) | In Progress ([completion plan, 2026-11-13](application-modules-completion.md)) | Public Table/Stream/Queue builds, Queue program tests, source grammar and nominal/variant/typed resource exports are implemented; qualification remains source-specific. The [nominal Queue slice](application-typed-queue-implementation.md) delivers actionable build/test diagnostics, source discovery and nominal types through public Queue programs, with [scoped qualification](../history/qualification/query.md#actionable-source-diagnostics-and-nominal-queue-programs--2026-11-13) and retained failures. Next reconcile Queue test/statement bounds, deliver `FUNCTION`/`GUARD`/`PROCEDURE`, runtime variants and Table `CatalogDiff` migrations, then complete `EXPORT REFERENCE` runtime grants, protected workflows, conditional `CREATE OR REPLACE` draining, `--verify-replay` and the 6-domain baseline (preserving the earlier [remaining implementation plan](application-remaining-implementation.md)) |
 
 ### Phase II: Data composition, performance and interface coverage
 
