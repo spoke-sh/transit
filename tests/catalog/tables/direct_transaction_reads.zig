@@ -86,14 +86,14 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
         try t.expectError(error.AccessDenied, caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = command } }));
     _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(empty_description.basis.authority.table), .owner = role } });
 
-    const blob: [8192]u8 = @splat(0xa7);
+    const blob: [4096]u8 = @splat(0xa7);
     const insert_sql = comptime blk: {
         var sql: []const u8 = "INSERT INTO read_rows (region, id, payload) VALUES ";
-        for (0..17) |i| sql = sql ++ (if (i == 0) "" else ", ") ++ std.fmt.comptimePrint("(${d}, ${d}, ${d})", .{ 3 * i + 1, 3 * i + 2, 3 * i + 3 });
+        for (0..33) |i| sql = sql ++ (if (i == 0) "" else ", ") ++ std.fmt.comptimePrint("(${d}, ${d}, ${d})", .{ 3 * i + 1, 3 * i + 2, 3 * i + 3 });
         break :blk sql;
     };
-    var values: [51]?c.fuze.Types.Values.Atom = undefined;
-    for (0..17) |i| {
+    var values: [99]?c.fuze.Types.Values.Atom = undefined;
+    for (0..33) |i| {
         values[3 * i] = .{ .bytes = "West" };
         values[3 * i + 1] = .{ .signed = @intCast(i) };
         values[3 * i + 2] = .{ .bytes = &blob };
@@ -102,7 +102,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     defer insert.deinit();
     var work = try insert.bind(init.gpa, client, 642520, &values, .bulk, null);
     defer work.deinit();
-    try t.expectEqual(@as(u64, 17), (try caller.call(&transaction, .{ .write = .{ .table = work.parsed.value.work } })).statement.state.outcome.provisional.affected);
+    try t.expectEqual(@as(u64, 33), (try caller.call(&transaction, .{ .write = .{ .table = work.parsed.value.work } })).statement.state.outcome.provisional.affected);
     try stale(&caller, &transaction, &output, .{ .table = .{ .reader = &empty, .command = .describe } });
     var binding = declaration.binding;
     binding.identity = operation(client, 642521);
@@ -125,7 +125,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     defer description.deinit();
     try t.expectEqualDeep(null_value.workspace.?.cut, description.basis.workspace.?.cut);
     try t.expectEqualDeep(null_value.workspace.?.revision, description.basis.workspace.?.revision);
-    try t.expectEqual(@as(u64, 17), description.basis.row_count);
+    try t.expectEqual(@as(u64, 33), description.basis.row_count);
     const point = [_]c.fuze.Types.Values.Cell{ .{ .value = .{ .atom = .{ .bytes = "wEsT" } } }, .{ .value = .{ .atom = .{ .signed = 7 } } } };
     var retained = (try caller.read(&transaction, &output, .{ .table = .{ .reader = &reader, .command = .{ .key = &point } } })).row.?;
     defer retained.deinit();
@@ -158,9 +158,9 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             count += 1;
         }
         pages += 1;
-        if (page.complete) try t.expectEqual(@as(usize, 17), count);
+        if (page.complete) try t.expectEqual(@as(usize, 33), count);
     }
-    try t.expectEqual(@as(usize, 17), count);
+    try t.expectEqual(@as(usize, 33), count);
     try t.expect(pages > 1 and count * blob.len > budget.limit and budget.peak <= budget.limit);
     try t.expectEqualSlices(u8, &blob, retained.row().cells[2].value.atom.bytes);
     // Revocation applies to cached metadata, missing keys and repeated EOF.
