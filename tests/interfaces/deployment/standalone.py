@@ -182,7 +182,7 @@ containerdConfigPatches:
             forward.terminate()
             forward.wait(timeout=10)
         if passed:
-            call(['kind', 'delete', 'cluster', '--name', name])
+            call(['kind', 'delete', 'cluster', '--name', name, '--kubeconfig', kubeconfig])
             call(['docker', 'rm', '-f', registry])
             call(['docker', 'image', 'rm', image])
             shutil.rmtree(root)
