@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
 import tempfile
@@ -10,11 +11,100 @@ import io
 import unittest
 from unittest.mock import patch
 
-from harness.native_artifacts import CONTRACTS, EXPECTED, describe, prepare, validate, source_identity, publication, unpack
+from harness.native_artifacts import CONTRACTS, EXPECTED, describe, export, prepare, validate, source_identity, publication, unpack
 from runner.paths import ROOT
 
 
 class Artifacts(unittest.TestCase):
+    def elf(self, path, *, dynamic=False, interpreter=False, machine=62):
+        # Independent ELF64 fixtures: PT_LOAD, optional PT_DYNAMIC/DT_NULL and
+        # PT_INTERP. readelf inspects these bytes; no compiler or service runs.
+        segments = [(1, b'')]
+        if dynamic:
+            segments.append((2, bytes(16)))
+        if interpreter:
+            segments.append((3, b'/fixture/loader\0'))
+        offset = 64 + 56 * len(segments)
+        size = offset + sum(len(data) for _, data in segments)
+        header = struct.pack('<16sHHIQQQIHHHHHH', b'\x7fELF\x02\x01\x01' + bytes(9),
+                             3 if dynamic else 2, machine, 1, 0, 64, 0, 0, 64, 56, len(segments), 0, 0, 0)
+        headers, payload = [], []
+        for kind, data in segments:
+            start, length = (0, size) if kind == 1 else (offset, len(data))
+            headers.append(struct.pack('<IIQQQQQQ', kind, 4, start, start, start, length, length, 8))
+            payload.append(data)
+            offset += len(data)
+        path.write_bytes(header + b''.join(headers + payload))
+
+    def export_fixture(self, root, family, *, static=None, machine=62, loader_body=''):
+        prefix = self.fixture(root, family)
+        for name in EXPECTED[family]:
+            if name.endswith('.a'):
+                (prefix / name).write_bytes(b'!<arch>\n')
+            else:
+                dynamic = name != static
+                self.elf(prefix / name, dynamic=dynamic,
+                         interpreter=dynamic and not name.endswith('.so'), machine=machine)
+        record = root / 'record.json'
+        record.write_text(json.dumps(describe(prefix)))
+        loader = root / 'loader'
+        loader.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\n'
+                          'assert sys.argv[1] == "--list"\n'
+                          f'with Path({str(root / "calls")!r}).open("a") as calls:\n'
+                          '    calls.write(sys.argv[2] + "\\n")\n' + loader_body)
+        loader.chmod(0o700)
+        return prefix, record, loader
+
+    def test_export_inspects_linkage_and_keeps_static_files(self):
+        for family, static, machine in [('clients', 'tests/native-client-fixture', 62),
+                                        ('clients', 'bin/transit-client-host', 183),
+                                        ('authority', 'bin/transit-node', 62),
+                                        ('c-sdk', 'bin/transit-c-counter', 183)]:
+            with self.subTest(family=family, static=static), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                prefix, record, loader = self.export_fixture(root, family, static=static, machine=machine)
+                output = root / 'bundle.tar.gz'
+                with patch('harness.native_artifacts.prepare', return_value=(prefix, record)), \
+                        patch('harness.native_artifacts.nix_linker', return_value=(str(loader), '2.42')):
+                    export(family, 'Debug', output, root)
+                calls = (root / 'calls').read_text().splitlines() if (root / 'calls').exists() else []
+                self.assertEqual(calls, [str(prefix / name) for name in sorted(EXPECTED[family])
+                                         if name != static and not name.endswith('.a')])
+                with tarfile.open(output) as archive:
+                    expected = EXPECTED[family] | CONTRACTS | {'build.json', 'record.json'}
+                    self.assertEqual(set(archive.getnames()), {f'{family}-Debug/{name}' for name in expected})
+                    self.assertEqual(archive.extractfile(f'{family}-Debug/{static}').read(),
+                                     (prefix / static).read_bytes())
+
+    def test_export_refuses_invalid_elf_and_loader_failures(self):
+        for failure in ('non-elf', 'no-load', 'exit', 'signal'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                body = 'sys.exit(23)\n' if failure == 'exit' else 'import os, signal\nos.kill(os.getpid(), signal.SIGTERM)\n'
+                prefix, record, loader = self.export_fixture(root, 'authority', loader_body=body)
+                binary = prefix / 'bin/transit-node'
+                if failure == 'non-elf':
+                    binary.write_text('invalid ELF')
+                elif failure == 'no-load':
+                    self.elf(binary)
+                    data = bytearray(binary.read_bytes())
+                    struct.pack_into('<I', data, 64, 0)  # PT_NULL instead of PT_LOAD
+                    binary.write_bytes(data)
+                output = root / 'bundle.tar.gz'
+                with patch('harness.native_artifacts.prepare', return_value=(prefix, record)), \
+                        patch('harness.native_artifacts.nix_linker', return_value=(str(loader), '2.42')):
+                    error = AssertionError if failure == 'no-load' else subprocess.CalledProcessError
+                    with self.assertRaises(error):
+                        export('authority', 'Debug', output, root)
+                self.assertFalse(output.exists())
+                self.assertFalse(output.with_suffix('.partial').exists())
+                self.assertEqual((root / 'calls').exists(), failure in ('exit', 'signal'))
+                phases = list((root / '.cache/checks/phases').glob('*/runtime-linkage-*.json'))
+                self.assertEqual(len(phases), 1)
+                phase = json.loads(phases[0].read_text())
+                self.assertFalse(phase['completed'])
+                self.assertEqual(phase['outcome'], 'failed')
+
     def fixture(self, root, family='authority'):
         prefix = root / 'outputs'
         prefix.mkdir()
