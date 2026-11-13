@@ -168,34 +168,44 @@ class ReferenceStateTest(unittest.TestCase):
 
 class ReadObservationTest(unittest.TestCase):
     def test_read_retry_preserves_the_same_frozen_request(self):
-        with tempfile.TemporaryDirectory() as directory:
+        for kind in ({"open_snapshot": {"resource": 9, "nonce": [7] * 16}},
+                {"close_snapshot": {"epoch": [7] * 16, "serial": 1}}):
+            self.check_frozen_read(kind)
+
+    def check_frozen_read(self, kind):
+        with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
             installation = SimpleNamespace(path=Path(directory), client_host="client-host", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
-            kind = {"open_snapshot": {"resource": 9, "nonce": [7] * 16}}
             with patch("common.Client") as factory, patch("common.time.sleep"):
                 client = factory.return_value
                 client.prepare.return_value = "exact-frozen-read"
                 client.call.side_effect = [ClientError(7, {"err": "ConnectionRefused"}),
+                    ClientError(7, {"err": "HttpCapacity"}),
                     ClientError(7, {"err": "AuthorityUnavailable"}), {"body": {"accepted": True}}]
                 self.assertEqual(Installation.native_query(installation, kind), {"body": {"accepted": True}})
                 client.prepare.assert_called_once_with(installation.path / "operator/root.key",
                     {"realm": 73, "principal": 0, "kind": kind}, query=True)
-                self.assertEqual(client.call.call_count, 3)
+                self.assertEqual(client.call.call_count, 4)
                 for call in client.call.call_args_list:
                     self.assertEqual(call.args, ("exact-frozen-read",))
 
     def test_only_classified_unavailable_reads_authorize_retry(self):
         for status, detail in ((4, {"err": "AccessDenied"}), (7, {"err": "UnexpectedFailure"}),
+                (7, {"err": "AccessDenied"}), (6, {"err": "HttpCapacity"}), (8, {"err": "HttpCapacity"}),
                 (6, {"err": "AuthorityTimeout"}), (8, {"err": "InvalidAuthorityResponse"}),
                 (7, []), (7, None), (7, "AuthorityUnavailable")):
             self.assertFalse(ClientError(status, detail).retryable_read)
-        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused"):
+        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused", "HttpCapacity"):
             self.assertTrue(ClientError(7, {"err": cause}).retryable_read)
 
-    def test_connection_refusal_exhausts_the_original_read_deadline(self):
-        with tempfile.TemporaryDirectory() as directory:
+    def test_transient_read_failure_exhausts_the_original_read_deadline(self):
+        for cause in ("ConnectionRefused", "HttpCapacity"):
+            self.check_read_deadline(cause)
+
+    def check_read_deadline(self, cause):
+        with self.subTest(cause=cause), tempfile.TemporaryDirectory() as directory:
             installation = SimpleNamespace(path=Path(directory), client_host="client-host", url="http://127.0.0.1:1", load=lambda: {"realm": 73})
             with patch("common.Client") as factory, patch("common.time.monotonic", side_effect=[100, 120]), patch("common.time.sleep") as sleep:
-                factory.return_value.call.side_effect = ClientError(7, {"err": "ConnectionRefused"})
+                factory.return_value.call.side_effect = ClientError(7, {"err": cause})
                 with self.assertRaises(ClientError):
                     Installation.native_query(installation, {"capabilities": {}})
                 factory.return_value.call.assert_called_once()

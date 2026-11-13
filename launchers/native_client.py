@@ -14,8 +14,9 @@ class ClientError(RuntimeError):
 
     @property
     def retryable_read(self):
+        # The host preserves the native capacity cause under query status 7.
         return self.status == 7 and isinstance(self.detail, dict) and self.detail.get("err") in (
-            "AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused")
+            "AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused", "HttpCapacity")
 
 
 def private_seed(path):
