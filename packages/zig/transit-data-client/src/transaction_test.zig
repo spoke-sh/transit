@@ -113,3 +113,42 @@ test "transaction journal reopens exact controls and rejects stale or foreign ch
         try t.expectError(error.RecoveryRevisionConflict, second.journal.save(second.journal.context, second.state, next, .settlement));
     }
 }
+
+test "private reads preserve local exclusivity scope and control admission" {
+    var context = try data.Context.init(t.allocator, t.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
+    defer {
+        context.close(.none) catch unreachable;
+        context.deinit() catch unreachable;
+    }
+    const handle = try context.openCatalog(.{ .url = "http://127.0.0.1:1", .connection = connection, .timeout_ms = 100 }, @splat(1));
+    var sentinel: u8 = 0;
+    var transaction = try Transaction.init(t.allocator, initial(), .{ .context = &sentinel, .save = refuse });
+    defer transaction.deinit();
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const read: Transaction.Read.Action = .{ .kv = .{ .object = .{ .scope = connection.scope, .branch = 1, .object = 11 }, .key = "key" } };
+    transaction.busy.store(true, .release);
+    const busy = try context.readTransaction(handle, &transaction, &output, read);
+    try t.expectEqual(error.Busy, busy.value.failure.cause);
+    try t.expect(!busy.mutationAttempted());
+    transaction.busy.store(false, .release);
+    transaction.state.command = .abort;
+    const settling = try context.readTransaction(handle, &transaction, &output, read);
+    try t.expectEqual(error.TransactionSessionSettling, settling.value.failure.cause);
+    try t.expect(!settling.mutationAttempted());
+    transaction.state.command = null;
+    // The native reader is deliberately absent: the generation check must
+    // refuse before touching it or contacting the service.
+    var reader: Transaction.Read.TableReader = .{ .native = undefined, .owner = .{ .context = &context, .slot = handle.slot, .serial = handle.serial } };
+    try context.closeCatalog(handle);
+    const replacement = try context.openCatalog(.{ .url = "http://127.0.0.1:1", .connection = connection, .timeout_ms = 100 }, @splat(1));
+    const stale = try context.readTransaction(replacement, &transaction, &output, .{ .table = .{ .reader = &reader, .command = .describe } });
+    try t.expectEqual(error.InvalidClientHandle, stale.value.failure.cause);
+    try t.expect(!stale.mutationAttempted());
+    try t.expectError(error.StaleClientHandle, context.readTransaction(handle, &transaction, &output, read));
+    try t.expectError(error.Timeout, context.readTransactionWithAdmission(replacement, &transaction, &output, read, .{ .wait = .{ .duration = .{ .clock = .awake, .raw = .zero } } }));
+    context.beginClose();
+    try t.expectError(error.ClientContextClosed, context.readTransaction(replacement, &transaction, &output, read));
+    const control = try context.callTransaction(replacement, &transaction, .{ .settle = .{ .command = .abort } });
+    try t.expectEqual(error.InjectedJournalFailure, control.value.failure.cause);
+}

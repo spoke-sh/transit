@@ -496,6 +496,14 @@ See the [capture contract](../../../contracts/SOURCE_V1.md#owned-capture-represe
 
 ### Transaction and query callers
 
+`DirectTransactionReader` composes typed KV reads and owned Table readers over
+`DirectTransactionSession`. It fixes one private revision at open, encodes typed
+primary keys through the retained schema and returns independently owned rows.
+Subsequent reads reuse that exact revision and recheck current authorization,
+including metadata and terminal reads. Local disposal releases no transaction
+pins; the original transaction decision and cleanup remain authoritative.
+
+
 `DirectTransactionSession` owns reusable caller sequencing, exact-request
 checkpointing, savepoint preparation and bounded settlement above the signed
 `DirectTransactionClient`. Its journal callback must retain original work before

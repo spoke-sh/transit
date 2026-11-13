@@ -296,6 +296,18 @@ fn release(self: *Self, borrow: Borrow) void {
     self.condition.broadcast(self.io);
 }
 
+/// Every read, including metadata and repeated completion, uses data capacity.
+/// Idle readers hold neither a facet borrow nor a permit. Their local disposal
+/// stays possible after context close; returned values own no context memory.
+pub fn readTransaction(self: *Self, handle: Handle, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action) !Catalog.TransactionReadOutcome {
+    return self.readTransactionWithAdmission(handle, transaction, output, action, .refuse);
+}
+pub fn readTransactionWithAdmission(self: *Self, handle: Handle, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action, options: AdmissionOptions) !Catalog.TransactionReadOutcome {
+    const borrow = try self.acquireWithAdmission(handle, .data, options);
+    defer self.release(borrow);
+    return borrow.slot.caller.?.readTransactionOwned(transaction, output, action, .{ .context = self, .slot = handle.slot, .serial = handle.serial });
+}
+
 pub fn call(self: *Self, handle: Handle, output: *std.heap.ArenaAllocator, action: c.DirectTableBridge.Action) !Catalog.Outcome {
     return self.callWithAdmission(handle, output, action, .refuse);
 }

@@ -180,11 +180,11 @@ direct-kv:
 
 # Table/KV private writes and one decision across lost replies and replacement.
 direct-state-transaction:
-    zig build test-direct-table-service -Doptimize=ReleaseSafe -- state-transaction
+    zig build test-direct-state-transaction -Doptimize=ReleaseSafe
 
 # State, append, Queue ACK and Stream offset share one recoverable decision.
 direct-mixed-transaction:
-    zig build test-direct-table-service -Doptimize=ReleaseSafe -- mixed-transaction
+    zig build test-direct-mixed-transaction -Doptimize=ReleaseSafe
 
 # Stream/Queue declaration tokens retain exact bodies through lost replies.
 direct-log-token:

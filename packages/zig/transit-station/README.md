@@ -85,7 +85,9 @@ The package's `station_transaction_internal` module is a qualification target.
 It is absent from the public Station root and bindings, and installed Station
 applications continue to use `GenServer` above. Its [runner](src/transactional/Runner.zig)
 uses the [shared data transaction API](../transit-data-client/README.md#shared-transactions)
-for sequencing, staging, saved requests and settlement. Station supplies an adapter
+for sequencing, staging, saved requests, private Table/KV reads and settlement.
+The shared reader owns schema/key encoding and exact workspace checks; Station
+adds actor definition checks and handler value conversion. Station supplies an adapter
 for its existing actor control row and owns handler dispatch, inbox selection,
 replay/output construction and failure policy. The database and native authority
 do not import or invoke this runner. Ordinary database callers use the same

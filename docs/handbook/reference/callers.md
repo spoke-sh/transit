@@ -49,6 +49,11 @@ owns typed statement sequencing, savepoints, durable request checkpoints and
 bounded settlement over the database transaction owner. Ordinary callers use
 `Context.callTransaction` and an explicit journal; `TransactionRecovery` provides
 a local-file adapter. Station supplies an actor journal above the same API.
+`Context.readTransaction` exposes typed private KV values and owned Table readers.
+Readers retain an exact workspace revision, use current rights for every call
+and return independently owned data. Writes/savepoint controls invalidate older
+readers. Disposal is local; transaction cleanup owns source-pin release. See
+[transaction read ownership](../../../packages/zig/transit-data-client/docs/transaction-reads.md).
 SQL commands and managed programs reuse its neutral preparation/execution helpers
 with their existing service-owned records. A saved request can be resumed only
 under its original identity and current authorization; a local checkpoint failure

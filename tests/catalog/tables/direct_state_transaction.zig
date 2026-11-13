@@ -36,17 +36,24 @@ const Saved = struct {
     commit: d.Operation,
     logs: ?Logs,
 };
-const Caller = struct {
+pub const Caller = struct {
     context: *data.Context,
     handle: data.Context.Handle,
-    fn deinit(self: *Caller) void {
+    pub fn deinit(self: *Caller) void {
         const allocator = self.context.allocator;
         self.context.close(.none) catch unreachable;
         self.context.deinit() catch unreachable;
         allocator.destroy(self.context);
     }
-    fn call(self: *Caller, transaction: *Transaction, action: Transaction.Action) !Transaction.Result {
+    pub fn call(self: *Caller, transaction: *Transaction, action: Transaction.Action) !Transaction.Result {
         const outcome = try self.context.callTransaction(self.handle, transaction, action);
+        return switch (outcome.value) {
+            .result => |value| value,
+            .failure => |failure| failure.cause,
+        };
+    }
+    pub fn read(self: *Caller, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action) !Transaction.Read.Result {
+        const outcome = try self.context.readTransaction(self.handle, transaction, output, action);
         return switch (outcome.value) {
             .result => |value| value,
             .failure => |failure| failure.cause,
@@ -61,7 +68,7 @@ const Caller = struct {
         try t.expectEqual(.unknown, outcome.value.failure.diagnostic.?.outcome);
     }
 };
-fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
+pub fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
     const context = try init.gpa.create(data.Context);
     errdefer init.gpa.destroy(context);
     context.* = try data.Context.init(init.gpa, init.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
@@ -72,7 +79,7 @@ fn callerFor(init: std.process.Init, client: c.DirectTableClient) !Caller {
     const handle = try context.openCatalog(.{ .url = client.authority.url, .service_url = client.service.url, .connection = client.connection, .timeout_ms = 30000 }, client.key.secret_key.seed());
     return .{ .context = context, .handle = handle };
 }
-fn recoveryStore(init: std.process.Init, path: []const u8) !data.LocalRecoveryStore {
+pub fn recoveryStore(init: std.process.Init, path: []const u8) !data.LocalRecoveryStore {
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(path) orelse ".", .{});
     defer parent.close(init.io);
     const name = try std.fmt.allocPrint(init.arena.allocator(), "{s}.recovery", .{std.fs.path.basename(path)});
@@ -101,7 +108,7 @@ fn load(init: std.process.Init, path: []const u8) !Saved {
     if (parsed.value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     return parsed.value;
 }
-fn operation(client: c.DirectTableClient, id: u64) d.Operation {
+pub fn operation(client: c.DirectTableClient, id: u64) d.Operation {
     return .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = id };
 }
 fn logSchema(object: u64) c.fuze.TableSchema.Schema {
@@ -342,8 +349,7 @@ pub fn recover(init: std.process.Init, client: c.DirectTableClient, path: []cons
         }
         _ = try visibleLogs(client, &output, logs, false);
     }
-    const private = try transaction.privateClient(client);
-    const value = (try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "six" } })).value;
+    const value = (try caller.read(&transaction, &output, .{ .kv = .{ .object = saved.object, .key = "six" } })).kv;
     try t.expect(value.workspace != null);
     try t.expectEqualSlices(u8, &payload, value.value.?.value.atom.bytes);
     try caller.unknown(&transaction, .{ .settle = .{ .command = .commit } });
@@ -466,9 +472,8 @@ fn verifySavepoints(init: std.process.Init, client: c.DirectTableClient, saved: 
     }
     try t.expect(rollback.completed != null);
     try t.expectEqual(@as(u64, 2), transaction.state.last_statement);
-    const private = try transaction.privateClient(client);
-    try t.expect((try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "seven" } })).value.value != null);
-    try t.expect((try KV.apply(&output, private, .{ .get = .{ .object = saved.object, .key = "eight" } })).value.value == null);
+    try t.expect((try caller.read(&transaction, &output, .{ .kv = .{ .object = saved.object, .key = "seven" } })).kv.value != null);
+    try t.expect((try caller.read(&transaction, &output, .{ .kv = .{ .object = saved.object, .key = "eight" } })).kv.value == null);
     try t.expect((try caller.call(&transaction, .{ .savepoint = .{ .operation = operation(client, 642305), .action = .{ .release = name }, .steps = 1 } })).savepoint.completed != null);
     var closed = (try caller.call(&transaction, .{ .settle = .{ .command = .abort, .steps = 1 } })).status;
     for (0..16) |_| {

@@ -220,7 +220,10 @@ class ApplicationFaults:
 def run(node, caller, mode="tables", *artifacts):
     if mode not in ("station-transaction", "log-baseline", "tables", "managed", "managed-board", "managed-board-browser", "queues", "kv", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result", "maintenance", "stream-maintenance", "growth", "resource-growth", "dependency-growth", "prepared", "count-ranges", "collations", "projection", "authorization", "dependencies", "resources", "callers", "abi", "sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node"):
         raise ValueError("Unknown direct service proof mode")
-    assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
+    if mode in ("state-transaction", "mixed-transaction"):
+        assert len(artifacts) in (0, 1)
+    else:
+        assert len(artifacts) == (2 if mode in ("abi", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("sdk-python", "sdk-node", "sdk-ruby", "sdk-java", "sdk-dotnet", "sdk-rust", "sdk-beam", "sdk-c", "board", "board-browser", "relational", "relational-python", "relational-node") else 1 if mode in ("log-baseline", "managed-board", "managed-board-browser") else 0)
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with direct_table_maintenance.directory(mode) as directory:
         root = Path(directory)
@@ -360,9 +363,9 @@ def run(node, caller, mode="tables", *artifacts):
                         growth_sequence += 1
                         attempt = growth_attempts / f"{growth_sequence:04d}"
                         attempt.with_suffix(".request.json").write_bytes(body)
-                elif transaction_attempts is not None and self.path == "/table/v1" and transaction_action:
+                elif transaction_attempts is not None and self.path == "/table/v1" and (transaction_action or envelope.get("transaction")):
                     # Preserve every original request before forwarding, including
-                    # preparation that fails before the caller saves its final plan.
+                    # preparation and private reads that fail before a final plan/result.
                     with growth_lock:
                         growth_sequence += 1
                         attempt = transaction_attempts / f"{growth_sequence:04d}"
@@ -910,24 +913,33 @@ def run(node, caller, mode="tables", *artifacts):
                 transfer = mode == "queue-transfer"
                 lost_statement = 643006 if transfer else 642016 if mixed else 642012
                 decision = 643101 if transfer else 642101
-                subprocess.run([caller, endpoint, mode + "-prepare", str(profile)], check=True, timeout=180)
+                transaction_caller = str(Path(artifacts[0]).resolve()) if artifacts else caller
+                subprocess.run([transaction_caller, endpoint, mode + "-prepare", str(profile)], check=True, timeout=180)
                 saved_path = Path(str(profile) + "." + mode)
                 saved = saved_path.read_bytes()
                 assert state_transaction_faults == {lost_statement}
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
-                subprocess.run([caller, endpoint, mode + "-recover", str(profile)], check=True, timeout=180)
+                subprocess.run([transaction_caller, endpoint, mode + "-recover", str(profile)], check=True, timeout=180)
                 assert state_transaction_faults == {lost_statement, decision}
                 assert saved_path.read_bytes() == saved
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
-                subprocess.run([caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
+                subprocess.run([transaction_caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
                 assert saved_path.read_bytes() == saved
+                read_requests = None
+                if artifacts:
+                    before_reads = fault["requests"]
+                    subprocess.run([transaction_caller, endpoint, mode + "-reads", str(profile)], check=True, timeout=180)
+                    read_requests = fault["requests"] - before_reads
+                    assert fault["pin_changed"]
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="direct_queue_terminal_transaction" if transfer else "direct_table_kv_log_transaction" if mixed else "direct_table_kv_transaction", source=provenance(ROOT),
-                                      binaries=[identity(Path(path)) for path in (node, caller)], requests=fault["requests"],
+                                      independent_transaction_client=bool(artifacts),
+                                      read_proof_table_requests=read_requests,
+                                      binaries=[identity(Path(path)) for path in dict.fromkeys((node, caller, transaction_caller))], requests=fault["requests"],
                                       lost_replies=sorted(state_transaction_faults), passed=True)))
                 if transfer:
                     print("Queue transfer HTTP: paired source archive and destination append recovered after two lost replies and SIGKILL/restarts; original identities, payload and FIFO successor passed.")

@@ -5,11 +5,12 @@
 Milestone 6 has its database foundations and a private transactional Station
 behavior. Completing it still requires the public runtime replacement, durable
 services and effects, migration of existing consumers, Table commit and latency
-work, and qualification of the complete system at one revision. The next
-architectural step is the shared higher-level database transaction API described
-below. This branch implements its initial extraction and migrates the private
-runner to it. Most remaining effort sits in service migration and proof of the
-complete replacement.
+work, and qualification of the complete system at one revision.
+[PR #451](https://github.com/spoke-sh/transit/pull/451) delivers the initial shared
+higher-level database transaction API and migrates the private runner to it.
+The [read ownership slice](transaction-read-ownership.md) implements owned Table/KV
+transaction reads through that API with scoped installed evidence. Most remaining effort sits in service migration and
+proof of the complete replacement.
 
 Plan for **15–21 review units and 19–32 engineer-weeks of direct work**. Allowing
 roughly 25% for integration and investigation gives **about 24–40 engineer-weeks**.
@@ -133,11 +134,12 @@ Queue transaction barriers can also materialize metadata that standalone Queue
 operations retain in memory. Attribute these costs before changing durability
 or recovery boundaries.
 
-**Recommended next slice:** define and implement the shared transaction lifecycle,
-then migrate the private Station composition to it before adding the full service
-stack. Keep its existing workload as a regression oracle and add an ordinary
-data-client workload through the same API. Profile and optimize common batching,
-submission and recovery costs in their shared owners. The 12-second observation
+**Sequence after the initial extraction:** deliver the
+[shared transaction read slice](transaction-read-ownership.md), then attribute
+and optimize common batching, submission and recovery costs in their shared
+owners before adding the full service stack. Keep the existing Station workload
+as a regression oracle alongside an ordinary data-client workload through the
+same API. The 12-second observation
 measures the current composition; it does not establish an inherent transaction
 cost or justify a Station-specific execution path. Calls/replies contracts can
 be designed alongside this work; public activation waits for the API,
@@ -216,7 +218,7 @@ solely because its 18 installed schedules pass.
 
 ## B Extract the shared transaction API and migrate Station to it
 
-**Initial extraction in this branch:** Catalog's
+**Initial extraction merged in PR #451:** Catalog's
 [`DirectTransactionSession`](../../packages/zig/transit-catalog/src/DirectTransactionSession.zig)
 owns sequencing, request checkpoints, savepoints and bounded settlement. The
 [data client](../../packages/zig/transit-data-client/README.md#shared-transactions)
@@ -229,10 +231,13 @@ stored actor Head representation are unchanged.
 The independent installed Table/KV and mixed Stream/Queue fixture now uses that
 shared context and journal, including lost replies, checkpoint failure, restart,
 savepoints and explicit cleanup. These are executable checks, not a claim that
-the full exit below has passed. Context-bound read/result ownership, bounded
-multi-statement batching, shared-path cost optimization and matched performance
+the full exit below has passed. Context-bound Table/KV read ownership is now
+implemented with scoped installed qualification. Bounded multi-statement
+batching, shared-path cost optimization and matched performance
 qualification remain follow-up work. The overall milestone estimate is retained
 until those measurements and the consumer inventory justify revising it.
+The [read implementation plan](transaction-read-ownership.md) scopes that ownership
+work to one PR; batching and matched cost qualification follow it.
 
 Deliver the [ownership boundaries](#required-api-and-ownership-boundaries) by
 defining the contract before extracting the shared implementation. Keep the

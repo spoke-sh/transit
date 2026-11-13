@@ -1633,6 +1633,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") }, .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "fixture_direct_captured_query", .module = test_modules.get(.direct_captured_query) }, .{ .name = "fixture_direct_dependencies", .module = test_modules.get(.direct_dependencies) }, .{ .name = "fixture_direct_exchange_workers", .module = test_modules.get(.direct_exchange_workers) }, .{ .name = "fixture_direct_follow_query", .module = test_modules.get(.direct_follow_query) }, .{ .name = "fixture_direct_maintained_query", .module = test_modules.get(.direct_maintained_query) }, .{ .name = "fixture_direct_named_resources", .module = test_modules.get(.direct_named_resources) }, .{ .name = "fixture_direct_relational_capacity", .module = test_modules.get(.direct_relational_capacity) }, .{ .name = "fixture_direct_relational_exchanges", .module = test_modules.get(.direct_relational_exchanges) }, .{ .name = "fixture_direct_relational_failures", .module = test_modules.get(.direct_relational_failures) }, .{ .name = "fixture_direct_sql_conditions", .module = test_modules.get(.direct_sql_conditions) }, .{ .name = "fixture_direct_sql_read_recovery", .module = test_modules.get(.direct_sql_read_recovery) }, .{ .name = "fixture_direct_table_authorization", .module = test_modules.get(.direct_table_authorization) }, .{ .name = "fixture_direct_table_collations", .module = test_modules.get(.direct_table_collations) }, .{ .name = "fixture_direct_table_count_ranges", .module = test_modules.get(.direct_table_count_ranges) }, .{ .name = "fixture_direct_table_delegation", .module = test_modules.get(.direct_table_delegation) }, .{ .name = "fixture_direct_table_growth", .module = test_modules.get(.direct_table_growth) }, .{ .name = "fixture_direct_table_history", .module = test_modules.get(.direct_table_history) }, .{ .name = "fixture_direct_table_lifecycle", .module = test_modules.get(.direct_table_lifecycle) }, .{ .name = "fixture_direct_table_maintenance", .module = test_modules.get(.direct_table_maintenance) }, .{ .name = "fixture_direct_table_predicates", .module = test_modules.get(.direct_table_predicates) }, .{ .name = "fixture_direct_table_prepared", .module = test_modules.get(.direct_table_prepared) }, .{ .name = "fixture_direct_table_projection", .module = test_modules.get(.direct_table_projection) }, .{ .name = "fixture_direct_unified_boundaries", .module = test_modules.get(.direct_unified_boundaries) } },
     }) });
+    direct_table_client.root_module.addImport("fixture_direct_client_admin", test_modules.get(.direct_client_admin));
     direct_table_client.root_module.addImport("fixture_transactional_station", test_modules.get(.transactional_station));
     const transactional_station = b.addSystemCommand(&.{ "python3", "-B" });
     transactional_station.addFileArg(b.path("tests/runner/launch.py"));
@@ -1669,6 +1670,27 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     direct_table_service.stdio = .inherit;
     direct_table_client.root_module.addImport("fixture_managed_table", test_modules.get(.managed_table));
     b.step("test-direct-table-service", "Prove direct Table HTTP writes, snapshots and reply recovery over local disk").dependOn(&direct_table_service.step);
+    const transaction_client = b.addExecutable(.{ .name = "transit-transaction-client-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/native/transaction_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") }, .{ .name = "fixture_direct_state_transaction", .module = test_modules.get(.direct_state_transaction) } },
+    }) });
+    transaction_client.root_module.addImport("fixture_direct_client_admin", test_modules.get(.direct_client_admin));
+    transaction_client.root_module.addImport("fixture_direct_transaction_reads", test_modules.get(.direct_transaction_reads));
+    requireIndependentTransactionClient(b, transaction_client.root_module);
+    for ([_][]const u8{ "state-transaction", "mixed-transaction" }) |mode| {
+        const proof = b.addSystemCommand(&.{ "python3", "-B" });
+        proof.addFileArg(b.path("tests/runner/launch.py"));
+        proof.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
+        proof.addArtifactArg(node_artifact);
+        proof.addArtifactArg(direct_table_client);
+        proof.addArg(mode);
+        proof.addArtifactArg(transaction_client);
+        proof.has_side_effects = true;
+        proof.stdio = .inherit;
+        b.step(b.fmt("test-direct-{s}", .{mode}), "Prove independent shared transaction reads and original recovery").dependOn(&proof.step);
+    }
     const direct_kv = b.addSystemCommand(&.{ "python3", "-B" });
     direct_kv.addFileArg(b.path("tests/runner/launch.py"));
     direct_kv.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
@@ -2398,4 +2420,17 @@ fn exampleModule(b: *std.Build, sdk: ?*std.Build.Dependency, name: []const u8, t
     // A runtime-only build must not silently compile consumers against an
     // alternate package surface. This module fails only if an example is built.
     return b.createModule(.{ .root_source_file = b.path("tests/sdk/sdk_disabled.zig"), .target = target, .optimize = optimize });
+}
+
+fn requireIndependentTransactionClient(b: *std.Build, root: *std.Build.Module) void {
+    var modules: std.AutoArrayHashMapUnmanaged(*std.Build.Module, void) = .empty;
+    modules.put(b.allocator, root, {}) catch @panic("OOM");
+    var index: usize = 0;
+    while (index < modules.count()) : (index += 1) {
+        for (modules.keys()[index].import_table.keys(), modules.keys()[index].import_table.values()) |name, dependency| {
+            if (std.mem.startsWith(u8, name, "transit_station") or std.mem.eql(u8, name, "station_abi"))
+                @panic("the ordinary transaction proof must not import Station");
+            modules.put(b.allocator, dependency, {}) catch @panic("OOM");
+        }
+    }
 }

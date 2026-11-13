@@ -129,6 +129,7 @@ test {
     _ = DirectTableProtocol;
     _ = DirectTableIntent;
     _ = DirectTableReader;
+    _ = DirectTransactionReader;
     _ = DirectReadDelegation;
     _ = OperationBinding;
     _ = NameAssertion;
@@ -214,6 +215,7 @@ pub const DirectTransactionGraph = @import("DirectTransactionGraph.zig");
 
 pub const DirectTransactionClient = @import("DirectTransactionClient.zig");
 pub const DirectTransactionSession = @import("DirectTransactionSession.zig");
+pub const DirectTransactionReader = @import("DirectTransactionReader.zig");
 
 pub const DirectTransactionRead = @import("DirectTransactionRead.zig");
 

@@ -61,12 +61,15 @@ current authorization and cancellation across all supported languages.
 
 ## Table transactions
 
-Use `transit_catalog.DirectTransactionClient` for signed typed begin, acquire,
-private statement, savepoint, inspect and settle operations. Its original token
-and operation identities survive connection loss. Private reads set
-`DirectTableClient.transaction` to the inspected key and workspace revision.
-Control calls clear that read context internally; current grants still govern
-both controls and disclosure.
+Use `transit_data_client.Transaction` through `Context.callTransaction` for typed
+begin, acquire, statements, savepoints, inspection and settlement with an explicit
+journal. Its original token and operation identities survive connection loss.
+`Context.readTransaction` supplies owned private Table point/scan readers and KV
+values. Readers bind one exact revision and recheck current rights on every call;
+outputs survive reader/context disposal. See [transaction reads](../../packages/zig/transit-data-client/docs/transaction-reads.md)
+for lifetimes, page budgets and invalidation. Native embedding hosts use
+`Transaction.read` with their existing signed client. Lower-level protocol
+operations remain available through `transit_catalog.DirectTransactionClient`.
 
 For SQL, `transit_sql_client.Client` and its `Executor` preserve caller tokens and
 provisional completion evidence. Save the transaction handle returned by BEGIN
