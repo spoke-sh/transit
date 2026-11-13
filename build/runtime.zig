@@ -36,7 +36,6 @@ pub const Context = struct {
     board: *std.Build.Step.Compile,
     runtime: *std.Build.Dependency,
     node_artifact: *std.Build.Step.Compile,
-    cli_artifact: *std.Build.Step.Compile,
     delivery_artifact: *std.Build.Step.Compile,
     controller_artifact: *std.Build.Step.Compile,
     kubectl_transit: *std.Build.Step.Compile,
@@ -128,7 +127,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("transit-board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
     var node_artifact: *std.Build.Step.Compile = undefined;
-    var cli_artifact: *std.Build.Step.Compile = undefined;
     var delivery_artifact: *std.Build.Step.Compile = undefined;
     var controller_artifact: *std.Build.Step.Compile = undefined;
     const apps_step = b.step("apps", "Install platform executables");
@@ -145,7 +143,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
     var serving_client: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "transit-admin", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
+    for ([_][]const u8{ "transit-node", "transit-runtime-controller", "transit-delivery", "transit-station-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -166,8 +164,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_serving_http", serving_http.module("transit_serving_http"));
         if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
         if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
-        if (std.mem.eql(u8, name, "transit-admin")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
-        if (std.mem.eql(u8, name, "transit-admin")) cli_artifact = app;
         if (std.mem.eql(u8, name, "transit-delivery")) delivery_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
@@ -301,7 +297,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .board = board,
         .runtime = runtime,
         .node_artifact = node_artifact,
-        .cli_artifact = cli_artifact,
         .delivery_artifact = delivery_artifact,
         .controller_artifact = controller_artifact,
         .kubectl_transit = kubectl_transit,

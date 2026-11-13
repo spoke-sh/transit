@@ -258,7 +258,8 @@
       "test::work-items-placement",
       "test::server-capacity",
       "test::server-application-capacity",
-      "test::relational-capacity"
+      "test::relational-capacity",
+      "test::standalone-chart"
     ],
     "discovery": [
       "test::vortex-profile",

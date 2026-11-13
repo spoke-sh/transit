@@ -1,274 +1,11 @@
 {
-  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "node": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "existingClaim": {
-              "type": "string",
-              "maxLength": 63,
-              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-            },
-            "size": {
-              "type": "string"
-            },
-            "storageClass": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 253,
-          "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "ursula": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "existingClaim": {
-              "type": "string",
-              "maxLength": 63,
-              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-            },
-            "size": {
-              "type": "string"
-            },
-            "storageClass": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        },
-        "existingConfigSecret": {
-          "type": "string",
-          "maxLength": 253,
-          "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "initialize": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "maintenance": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "board": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "extraContainers": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        },
-        "extraInitContainers": {
-          "type": "array",
-          "items": {
-            "type": "object"
-          }
-        }
-      }
-    },
-    "workerPool": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "labels": {
-          "type": "object"
-        },
-        "spec": {
-          "type": "object"
-        }
-      }
+    "image": {
+      "type": "string",
+      "pattern": "^.+@sha256:[a-f0-9]{64}$"
     },
     "imagePullSecrets": {
       "type": "array",
@@ -277,298 +14,76 @@
         "required": [
           "name"
         ],
+        "additionalProperties": false,
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+            "minLength": 1
           }
-        }
-      }
-    },
-    "networkPolicy": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "dnsNamespace": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       }
     },
     "running": {
       "type": "boolean"
     },
-    "controller": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "providerEndpoint": {
-          "type": "string",
-          "minLength": 1
-        },
-        "providerAudience": {
-          "type": "string",
-          "minLength": 1
-        }
-      }
+    "requireExisting": {
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
-    "workerPools": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "labels",
-          "spec"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "labels": {
-            "type": "object"
-          },
-          "spec": {
-            "type": "object"
-          }
-        }
-      }
+    "existingSecret": {
+      "type": "string",
+      "minLength": 1
     },
-    "delivery": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "runtimeControllers": {
-      "type": "array",
-      "maxItems": 15,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "enabled": {
-            "type": "boolean"
-          },
-          "nameOverride": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "image": {
-            "type": "string"
-          },
-          "resources": {
-            "type": "object"
-          },
-          "config": {
-            "type": "object"
-          },
-          "logging": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "level",
-              "format"
-            ],
-            "properties": {
-              "level": {
-                "enum": [
-                  "debug",
-                  "info",
-                  "warn",
-                  "error",
-                  "off"
-                ]
-              },
-              "format": {
-                "enum": [
-                  "text",
-                  "json"
-                ]
-              }
-            }
-          },
-          "existingSecret": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "providerEndpoint": {
-            "type": "string",
-            "minLength": 1
-          },
-          "providerAudience": {
-            "type": "string",
-            "minLength": 1
-          }
-        },
-        "required": [
-          "nameOverride",
-          "config",
-          "existingSecret"
+    "account": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,63}$",
+      "not": {
+        "enum": [
+          "local"
         ]
       }
     },
-    "stationControllers": {
-      "type": "array",
-      "maxItems": 15,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "nameOverride",
-          "image",
-          "config",
-          "existingSecret"
-        ],
-        "properties": {
-          "nameOverride": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "image": {
-            "type": "string"
-          },
-          "config": {
-            "type": "object"
-          },
-          "existingSecret": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "resources": {
-            "type": "object"
-          },
-          "logging": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "level",
-              "format"
-            ],
-            "properties": {
-              "level": {
-                "enum": [
-                  "debug",
-                  "info",
-                  "warn",
-                  "error",
-                  "off"
-                ]
-              },
-              "format": {
-                "enum": [
-                  "text",
-                  "json"
-                ]
-              }
-            }
-          }
+    "persistence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "existingClaim": {
+          "type": "string"
+        },
+        "size": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storageClass": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requests": {
+          "type": "object"
+        },
+        "limits": {
+          "type": "object"
         }
       }
     }

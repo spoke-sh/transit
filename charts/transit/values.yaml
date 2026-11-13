@@ -1,131 +1,21 @@
-# Supply matching published or consuming-project images using immutable tags or
-# digests. This chart does not install Substrate or grant Transit permissions.
+# Select the matching published Transit image by immutable digest.
+image: ""
 imagePullSecrets: []
-# Stop application services without removing their PVCs/configuration.
 running: true
-node:
-  enabled: true
-  nameOverride: ""
-  image: ""
-  # transit-node JSON configuration; genesis is required. For local storage,
-  # set local_directory to /data/native and disable Ursula and external maintenance.
-  config: {}
-  # Optional direct registrar/in-process maintenance credentials, mounted only
-  # in the node at /secrets. Configuration names the exact Secret keys as paths.
-  existingSecret: ""
-  persistence:
-    existingClaim: ""
-    size: 1Gi
-    storageClass: null
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "2", memory: 1Gi}
-
-# Explicit bootstrap only, never an install/upgrade hook. Enable with node off,
-# wait for success, then disable and enable node. Restarts never initialize.
-initialize:
-  enabled: false
-  nameOverride: ""
-
-ursula:
-  enabled: true
-  nameOverride: ""
-  # Optional Secret key ursula.toml; keeps cold-store credentials out of values.
-  existingConfigSecret: ""
-  image: ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba
-  persistence:
-    existingClaim: ""
-    size: 1Gi
-    # null selects the cluster default; "" explicitly selects no storage class.
-    storageClass: null
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "2", memory: 1Gi}
-
-maintenance:
-  enabled: false
-  nameOverride: ""
-  # Separate principal with the required recorded admin/effect grant.
-  existingSecret: ""
-  config:
-    principal: 3
-    interval_ms: 200
-    operation_timeout_ms: 5000
-    # Opt in only with node.config.genesis.allow_history_trim enabled.
-    checkpoint_every_records: null
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "2", memory: 1Gi}
-
-board:
-  enabled: false
-  nameOverride: ""
-  image: ""
-  # Key: seed (Transit inspection principal). Board has no viewer credential.
-  existingSecret: ""
-  # Board JSON fields, including realm, principal, and public_origin.
-  # The chart fixes the listener, credential paths and internal node upstream.
-  config: {}
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 100m, memory: 64Mi}
-    limits: {cpu: "1", memory: 256Mi}
-  # Reference-only network isolation/probes on Kind's non-enforcing CNI.
-  # Empty in normal deployments; these can expand the pod's trust boundary.
-  extraInitContainers: []
-  extraContainers: []
-
-# These policies require an enforcing CNI. They do not provide TLS or identity.
-networkPolicy:
-  enabled: true
-  dnsNamespace: kube-system
-
-# Optional capacity in an already-installed Agent Substrate cluster. Actor
-# templates, recorded bindings and the runtime controller are separate concerns.
-workerPool:
-  enabled: false
-  nameOverride: ""
-  labels: {}
-  spec: {}
-
-# Version-specific pools permit fresh physical worker incarnations on upgrades.
-workerPools: []
-
-# Additional PID-scoped reconcilers. Each item overrides the controller defaults
-# below and requires a unique nameOverride, config and existingSecret.
-runtimeControllers: []
-
-# Framework observation/lifecycle identities are separate from runtime/provider
-# control. Each item supplies nameOverride, image, existingSecret and config.
-stationControllers: []
-
-controller:
-  enabled: false
-  nameOverride: ""
-  image: ""
-  existingSecret: ""
-  config: {}
-  # Direct authenticated Substrate API; bearer audience matches its serving name.
-  providerEndpoint: api.ate-system.svc:443
-  providerAudience: api.ate-system.svc
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "1", memory: 512Mi}
-
-# Public-client outbox courier; no storage or Kubernetes credentials.
-delivery:
-  enabled: false
-  nameOverride: ""
-  image: ""
-  existingSecret: ""
-  config:
-    principal: 5
-    interval_ms: 100
-    request_timeout_ms: 5000
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 50m, memory: 32Mi}
-    limits: {cpu: "1", memory: 128Mi}
+persistence:
+  existingClaim: ""
+  size: 10Gi
+  storageClass: null
+# null requires retained state on upgrades and when mounting an existing claim.
+# After the first successful install, set true to also reject a missing
+# installation on subsequent pod restarts. Never reset it to repair lost data.
+requireExisting: null
+# This Secret contains tls.crt, tls.key and password (no trailing newline).
+# Certificates must cover the hostname used by remote consoles.
+existingSecret: ""
+account: owner
+service:
+  port: 19109
+resources:
+  requests: {cpu: "1", memory: 1Gi}
+  limits: {cpu: "4", memory: 4Gi}

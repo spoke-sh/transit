@@ -121,7 +121,7 @@ class Reference:
         self.ownership()
         write(self.path / "chart-values.json", values)
         run(["helm", "--kubeconfig", infrastructure.CACHE / "kubeconfig", "--kube-context", "kind-" + self.state["cluster"],
-             "upgrade", "--install", "transit", ROOT / "charts/transit", "--namespace", self.namespace,
+             "upgrade", "--install", "transit", ROOT / "deploy/reference/chart", "--namespace", self.namespace,
              "--values", self.path / "chart-values.json", "--wait", "--wait-for-jobs", "--timeout", "240s", "--history-max", "5"], timeout=300)
 
     def images(self, selection):

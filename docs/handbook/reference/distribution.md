@@ -11,7 +11,7 @@ existing installation.
 The [release workflow](../../../.github/workflows/release.yml) builds static
 Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
-`transit` with embedded Board assets, `transit-admin`, `transit-node`,
+`transit` with embedded Board assets, `transit-node`,
 `transit-query-host`, `transit-board`, `transit-delivery` and
 `transit-station-controller`, plus dependency notices and build metadata.
 
@@ -183,11 +183,11 @@ container checks must pass before the combined version can publish.
 The local server container runs as UID/GID 65532. Its services retain their
 loopback/private admission boundaries; publishing container ports does not expose
 them on every interface. Use the in-container console or an explicit tunnel.
-The local supervisor requires `--init` so its managed children have a parent
-other than PID 1. Provide persistent data and writable temporary storage:
+The supervisor also runs directly as PID 1. Provide persistent data and writable
+temporary storage:
 
 ```sh
-docker run -d --init --name transit --read-only \
+docker run -d --name transit --read-only \
   --mount type=volume,source=transit-data,target=/data \
   --tmpfs /tmp:rw,mode=1777 ghcr.io/spoke-sh/transit:0.0.1
 docker exec -it transit transit console
@@ -196,17 +196,17 @@ docker exec -it transit transit console
 The host must supply the synchronized clock required by the runtime. Configuration
 uses the existing [server settings](../../../apps/transit-cli/docs/server.md).
 Mount configuration and secret references explicitly; never put credentials in
-images. For non-local deployments, select the standalone component images and
-the existing [chart configuration and bootstrap procedure](../../../charts/transit/README.md).
+images. The [standalone chart](../../../charts/transit/README.md) runs this same
+server with a complete installation PVC and authenticated native SQL over TLS.
 Fetch the versioned chart with:
 
 ```sh
 helm pull --version 0.0.1 oci://ghcr.io/spoke-sh/transit/charts/transit
 ```
 
-The chart still requires explicit public genesis, component configuration,
-separately provisioned credentials and recorded grants. Publishing the chart does
-not supply these, install Substrate, or authorize bootstrap or replacement.
+The chart requires an existing SQL password/TLS Secret and an immutable image
+digest. The server provisions its own installation. Source-only Substrate
+qualification uses the separate [reference chart](../../../deploy/reference/chart/README.md).
 
 ## Publication and retries
 

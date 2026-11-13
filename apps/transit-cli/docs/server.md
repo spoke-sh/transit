@@ -434,7 +434,9 @@ DROP. Later readiness uses current authorized reads, without reapplying schema
 creation or restoring revoked rights. SIGINT/SIGTERM stop in reverse order and join
 children. Each
 child starts in a distinct process group through a Linux parent-death trampoline;
-the trampoline arms SIGKILL and checks the expected parent before exec. Killing
+the trampoline arms SIGKILL and checks the expected parent before exec. A
+container supervisor may be PID 1; if that namespace init exits, Linux also
+kills every remaining process in its PID namespace. Killing
 the manager therefore kills its owned service processes. The next manager
 preflights every listener and never adopts a process by PID number or port.
 

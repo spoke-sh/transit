@@ -261,7 +261,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-docs](../handbook/README.md) | Static Docusaurus handbook over owned Markdown and generated interface descriptions; no runtime authority or credentials |
 | [transit-board](../../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
-| [transit-admin](../../apps/transit-admin/README.md) | Signs/submits commands and reads scoped views |
+| [transit-admin](https://github.com/spoke-sh/transit/blob/6552747cf58a81cab0c60ad5c39e8e1568e9a007/apps/transit-admin/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../../examples/byte-log/README.md) | Independent caller against the same generic authority |
 | [example-station-ledger](../../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |

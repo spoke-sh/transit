@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import yaml
 
-CHART = ROOT / "charts/transit"
+CHART = ROOT / "deploy/reference/chart"
 VALUES = {
     "node": {"image": "example.invalid/transit-node:proof", "config": {
         "genesis": {"realm": 49, "root_key": [1] * 32, "max_clock_error_ms": 2000},
@@ -200,3 +200,5 @@ def run():
 
 if __name__ == "__main__":
     run()
+    from interfaces.deployment.standalone_chart import run as standalone
+    standalone()

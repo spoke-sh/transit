@@ -98,7 +98,7 @@ other commands, machine records go to stdout and diagnostics to stderr; JSON mod
 no banner or prompt. Broken stdout ends presentation without deleting accepted
 work.
 
-`transit-admin`, `kubectl-transit` and launcher tools retain their own configuration
+`kubectl-transit` and launcher tools retain their own configuration
 and protocols. They are separate executables, not `transit` commands.
 
 ## Explicit SQL bindings

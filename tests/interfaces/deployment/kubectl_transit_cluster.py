@@ -48,7 +48,7 @@ def run(binary):
                 "board": {"enabled": True, "image": image, "nameOverride": "inspection-custom",
                           "existingSecret": "unused-fixture", "config": {"public_origin": origin}},
             }))
-            rendered = subprocess.check_output(["helm", "template", release, ref.ROOT / "charts/transit",
+            rendered = subprocess.check_output(["helm", "template", release, ref.ROOT / "deploy/reference/chart",
                                                 "-n", namespace, "-f", values], text=True)
         resources = list(yaml.safe_load_all(rendered))
         for resource in resources:

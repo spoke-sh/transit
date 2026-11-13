@@ -899,6 +899,11 @@ release prefix:
     zig build test-operation-fixture -Dtarget="$(uname -m)-linux-musl" -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
     python3 -B tests/runner/launch.py tests/interfaces/installation/release.py "$1"
 
+# Linux/Docker: deploy the real standalone chart with a matching static prefix.
+[positional-arguments]
+standalone-chart prefix:
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/standalone.py "$1"
+
 # Verify the real installer against downloaded release artifacts, without building.
 [positional-arguments]
 release-install artifacts version revision:

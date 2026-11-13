@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='transit-images-') as temporary:
         if name == 'transit':
             subprocess.run(['docker', 'run', '--rm', '--network=none', '--read-only', image, '--version'], check=True)
             container = subprocess.check_output([
-                'docker', 'run', '--detach', '--init', '--network=none', '--read-only',
+                'docker', 'run', '--detach', '--network=none', '--read-only',
                 '--tmpfs', '/tmp:rw,mode=1777', '--tmpfs', '/data:rw,uid=65532,gid=65532',
                 image, 'server', '--no-ui'], text=True).strip()
             try:

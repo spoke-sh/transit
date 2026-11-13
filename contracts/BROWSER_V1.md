@@ -18,12 +18,12 @@ retained records independently require the current shared Transit definition.
 
 ## Declaration lifecycle
 
-Use `transit-admin browser SEED_FILE REQUEST_JSON NATIVE_URL`. This existing
-administrative executable is built alongside `transit` from source. Its input
-is a generated, typed public API, not an application-maintained catalog file.
+Use `transit_catalog.BrowserAdministration.execute` with a `BrowserRecordStore`.
+The [example publisher](../examples/declarative-browser/publish.zig) consumes
+this typed public API and records requests and responses through its orchestration.
 SQL provider/binding/publication declarations are not executable in this profile.
-The command signs public native catalog operations; current native rights remain
-authoritative for administration, metadata and reads.
+The shared client signs public native catalog operations; current native rights
+remain authoritative for administration, metadata and reads.
 
 Each request carries `connection`, `namespace`, `development` and one `action`:
 

@@ -30,7 +30,7 @@ separate behavior progress, a requester, scoped registry/supervision, separate f
 controllers, and Board. The choice is persisted; later commands use that same
 example. Use a different name to run both, with non-overlapping base ports.
 Its checked-in Process Compose and Docker Compose topologies live beside the
-example; the reference uses the shared [Transit chart](../charts/transit/README.md).
+example; the reference uses the shared [Transit chart](../deploy/reference/chart/README.md).
 
 The counter uses disk-backed Ursula and a separate maintenance process. Station
 keeps native history and direct Table storage in one retained local directory,
@@ -355,7 +355,7 @@ clock, capacity, and disaster-recovery guarantees still need their own proofs.
 | --- | --- | --- |
 | Local | [process-compose.yaml](../process-compose.yaml) | Private `process-compose.vars.json` overlay: paths, ports and log settings |
 | Compose | [docker-compose.yaml](../docker-compose.yaml) | Private `compose.env.json`: paths, image names, ports, UID/GID and log settings |
-| Reference | [charts/transit](../charts/transit/README.md) | Saved Helm values, separately provisioned Secrets and protocol grants; host access uses [Process Compose](../deploy/reference/process-compose.yaml) |
+| Reference | [deploy/reference/chart](../deploy/reference/chart/README.md) | Saved Helm values, separately provisioned Secrets and protocol grants; host access uses [Process Compose](../deploy/reference/process-compose.yaml) |
 
 Edit the checked-in files to change service topology, dependencies, probes,
 mounts or resource/log limits. Local and Compose `down` followed by `up` load

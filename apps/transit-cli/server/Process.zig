@@ -111,7 +111,10 @@ pub fn stopWithTimeout(self: *Self, io: std.Io, timeout_ms: u32) void {
 pub fn trampoline(init: std.process.Init, args: []const []const u8) !void {
     if (@import("builtin").os.tag != .linux or args.len != 4) return error.UnsupportedLocalPlatform;
     const parent = try std.fmt.parseInt(std.c.pid_t, args[2], 10);
-    if (parent <= 1 or std.os.linux.prctl(1, @intCast(@backingInt(std.c.SIG.KILL)), 0, 0, 0) != 0 or std.c.getppid() != parent) return error.ManagerGone;
+    // A supervisor that is PID 1 owns this PID namespace: Linux kills every
+    // remaining namespace process if it exits. For ordinary parents the exact
+    // PID comparison still rejects reparenting, including the spawn/prctl race.
+    if (parent < 1 or std.os.linux.prctl(1, @intCast(@backingInt(std.c.SIG.KILL)), 0, 0, 0) != 0 or std.c.getppid() != parent) return error.ManagerGone;
     const launch = try Files.read(Launch, init.io, init.arena.allocator(), args[3]);
     if (launch.argv.len == 0 or launch.argv.len > 12 or !std.fs.path.isAbsolute(launch.argv[0]) or launch.environment.len > 16) return error.InvalidLaunch;
     var environment: std.process.Environ.Map = .init(init.gpa);

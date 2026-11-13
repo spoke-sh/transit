@@ -1,0 +1,126 @@
+{{- $_ := required "image must select the matching Transit image by digest" .Values.image -}}
+{{- $_ := required "existingSecret must contain tls.crt, tls.key and password" .Values.existingSecret -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "transit.name" . }}
+  labels:
+    {{- include "transit.labels" . | nindent 4 }}
+data:
+  transit.yaml: |
+    {{- include "transit.config" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "transit.name" . }}
+  labels:
+    {{- include "transit.labels" . | nindent 4 }}
+spec:
+  replicas: {{ ternary 1 0 .Values.running }}
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "transit.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "transit.labels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "transit.config" . | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/arch: amd64
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: transit
+          image: {{ .Values.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: [/bin/transit]
+          args: [server, --config, /config/transit.yaml, --no-ui]
+          workingDir: /data
+          env:
+            - {name: TRANSIT_CONFIG, value: /config/transit.yaml}
+            - {name: HOME, value: /tmp}
+          ports:
+            - {name: sql, containerPort: 19109}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command: [/bin/transit, console, --no-rc, -c, SHOW TABLES]
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: [/bin/transit, console, --no-rc, -c, SHOW TABLES]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - {name: installation, mountPath: /data}
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: credentials, mountPath: /secrets, readOnly: true}
+            - {name: temporary, mountPath: /tmp}
+      volumes:
+        - name: installation
+          persistentVolumeClaim:
+            claimName: {{ default (include "transit.name" .) .Values.persistence.existingClaim | quote }}
+        - name: config
+          configMap:
+            name: {{ include "transit.name" . }}
+        - name: credentials
+          secret:
+            secretName: {{ .Values.existingSecret | quote }}
+            defaultMode: 0440
+        - name: temporary
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "transit.name" . }}
+  labels:
+    {{- include "transit.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "transit.labels" . | nindent 4 }}
+  ports:
+    - {name: sql, port: {{ .Values.service.port }}, targetPort: sql}
+{{- if not .Values.persistence.existingClaim }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "transit.name" . }}
+  labels:
+    {{- include "transit.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- if ne .Values.persistence.storageClass nil }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}
