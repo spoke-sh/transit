@@ -164,6 +164,8 @@ containerdConfigPatches:
                 break
             assert time.monotonic() < deadline, 'Missing installation did not fail'
             time.sleep(1)
+        failure = kube('logs', pod['metadata']['name'], '--previous')
+        assert 'startup requires an existing installation' in failure, failure
         assert 'saved-installation' in call(['docker', 'exec', node, 'ls', '-a', data])
         assert '.transit' not in call(['docker', 'exec', node, 'ls', '-a', data]).splitlines()
         passed = True
