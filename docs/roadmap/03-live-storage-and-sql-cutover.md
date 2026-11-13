@@ -1530,6 +1530,12 @@ and Board inspection still keep P6.1–P6.3 open.
 Owners: [runtime build](../../build/runtime.zig), app entry modules, CLI
 process supervision/configuration and source-bundle fixtures.
 
+The [server delivery ownership and executable removal plan](transit-server-delivery-implementation.md)
+defines a planned follow-up: migrate remaining standalone courier consumers to
+the coherent server lifecycle and remove `transit-delivery` from builds and
+publications. Its reference-topology and fault-coverage gates are separate from
+the delivered local-profile evidence below.
+
 - [x] P7.1 Factor reusable role entry points into explicit build modules with
   direct dependencies. Compose them in `transit`; do not copy implementations,
   embed/extract child executable blobs or introduce another storage owner.
