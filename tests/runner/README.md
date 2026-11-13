@@ -20,7 +20,7 @@ checks. Semantic oracles and runtime fixtures stay with their test domains.
 | [test_checks.py](test_checks.py) | Real subprocess controls for generator/validator failures and incomplete evidence |
 | [ci.py](ci.py) | Execute the shared lane inventory with checkpointed task outcomes |
 | [ci_clean.py](ci_clean.py) | Qualify committed HEAD in a separate clone with scoped dependency preparation |
-| [zig_dependencies.py](zig_dependencies.py), [test_zig_dependencies.py](test_zig_dependencies.py) | Fetch pinned packages before builds, with bounded transport retries and retained failure diagnostics |
+| [zig_dependencies.py](zig_dependencies.py), [test_zig_dependencies.py](test_zig_dependencies.py) | Fetch pinned packages before builds, with bounded transport retries and retained failure diagnostics; reject corrupt compiler mirrors before accepting the pinned archive |
 | [ci_select.py](ci_select.py), [test_selection.py](test_selection.py) | Reviewed dependency selection, source-bound plans and conservative fallback controls |
 | [feedback_cost.py](feedback_cost.py), [test_feedback_cost.py](test_feedback_cost.py) | Exclusive phase costs, incomplete evidence and comparable-run regression controls |
 | [build_feedback.py](build_feedback.py) | Isolated Rust clean, warm no-op, SDK-edit and shared-native-edit measurements (`just ci::benchmark`) |
