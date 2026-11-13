@@ -3,7 +3,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Runtime = @import("runtime.zig").Context;
 
-pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, runtime: Runtime) void {
+pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, runtime: Runtime, native_client_fixture: *std.Build.Step.Compile) void {
     const runtime_library_path = b.option([]const u8, "fixture-rpath", "Pinned runtime library directory for portable CI fixtures");
     const Artifact = struct { path: []const u8, compile: *std.Build.Step.Compile };
     const clients = [_]Artifact{
@@ -11,7 +11,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .path = "lib/libtransit_station.so", .compile = runtime.station_bindings.artifact("transit_station") },
         .{ .path = "bin/transit-client-host", .compile = runtime.client_host },
         .{ .path = "bin/transit-station-host", .compile = runtime.station_host },
-        .{ .path = "bin/transit-admin", .compile = runtime.cli_artifact },
+        .{ .path = "tests/native-client-fixture", .compile = native_client_fixture },
         .{ .path = "bin/transit-station-http-worker", .compile = runtime.http_worker },
         .{ .path = "bin/transit-station-grpc-worker", .compile = runtime.grpc_worker },
     };

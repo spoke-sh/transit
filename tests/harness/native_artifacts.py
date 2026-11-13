@@ -24,7 +24,7 @@ from runner.paths import ROOT
 
 EXPECTED = {
     "clients": {"lib/libtransit_client.so", "lib/libtransit_station.so",
-                "bin/transit-client-host", "bin/transit-station-host", "bin/transit-admin",
+                "bin/transit-client-host", "bin/transit-station-host", "tests/native-client-fixture",
                 "bin/transit-station-http-worker", "bin/transit-station-grpc-worker"},
     "authority": {"bin/transit-node"},
     "c-sdk": {"lib/libtransit_sdk_client.so", "lib/libtransit_sdk_station.so",

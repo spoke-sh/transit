@@ -139,8 +139,8 @@ class Peers:
 
 
 class Fixture:
-    def __init__(self, binary, admin):
-        self.binary, self.admin = Path(binary).resolve(), Path(admin).resolve()
+    def __init__(self, binary, publisher):
+        self.binary, self.publisher = Path(binary).resolve(), Path(publisher).resolve()
         self.root = Path(tempfile.mkdtemp(prefix='transit-browser-', dir='/var/tmp'))
         self.ports = {}
         for name in ('node', 'gateway', 'application', 'board', 'sql', 'browser'):
@@ -253,7 +253,7 @@ class Fixture:
         self.counter += 1
         path = self.root / f'admin-{self.counter}.json'
         path.write_text(json.dumps(dict(definition=DEFINITION, connection=self.connection, namespace=self.namespace, development=True, action=action)))
-        result = subprocess.run([str(self.admin), 'browser', str(self.seed), str(path), f'http://127.0.0.1:{self.ports["node"]}'], capture_output=True, text=True, timeout=15)
+        result = subprocess.run([str(self.publisher), str(self.seed), str(path), f'http://127.0.0.1:{self.ports["node"]}'], capture_output=True, text=True, timeout=15)
         assert result.returncode == 0, (result.stdout, result.stderr)
         return json.loads(result.stdout)
 
@@ -382,8 +382,8 @@ class Fixture:
         self.peers.close()
 
 
-def run(binary, admin, fault_node=None):
-    f = Fixture(binary, admin)
+def run(binary, publisher, fault_node=None):
+    f = Fixture(binary, publisher)
     if fault_node:
         boundary = f.root / 'browser-boundary'
         boundary.mkdir()
@@ -733,9 +733,9 @@ def run(binary, admin, fault_node=None):
             print('Private failure state retained:', f.root, flush=True)
 
 
-def example(binary, admin):
+def example(binary, publisher):
     """Run the documented helper against the unmodified embedded node."""
-    f = Fixture(binary, admin)
+    f = Fixture(binary, publisher)
     success = False
     try:
         f.start()
@@ -743,7 +743,7 @@ def example(binary, admin):
         f.command('migrate', 'apply', '--plan', str(f.root / 'plan.json'), '--format', 'json')
         result = subprocess.run([
             sys.executable, str(ROOT / 'examples/declarative-browser/configure.py'),
-            '--installation', str(f.root), '--admin', str(f.admin),
+            '--installation', str(f.root), '--publisher', str(f.publisher),
             '--node', f'http://127.0.0.1:{f.ports["node"]}',
             '--origin', f.origin, '--port', str(f.ports['browser']),
         ], cwd=f.root, env=f.env, capture_output=True, text=True, timeout=60)

@@ -40,7 +40,7 @@ def run(node, worker, cli):
             child.wait(timeout=10)
 
         def invoke(*args):
-            return json.loads(subprocess.check_output([str(cli), *map(str, args)], timeout=10))
+            return json.loads(subprocess.check_output([str(cli), "native", *map(str, args)], timeout=10))
 
         def key(name):
             path = root / name
@@ -185,7 +185,7 @@ def run(node, worker, cli):
                 stalled.bind(("127.0.0.1", 0))
                 stalled.listen()
                 stalled.settimeout(5)
-                caller = start(cli, "query", root_key, read_path,
+                caller = start(cli, "native", "query", root_key, read_path,
                                f"http://127.0.0.1:{stalled.getsockname()[1]}")
                 connection, _ = stalled.accept()
                 with connection:

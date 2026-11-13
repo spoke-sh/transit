@@ -22,7 +22,7 @@ def run(node, cli):
             path = store.root / (name + ".key")
             path.write_text(os.urandom(32).hex())
             path.chmod(0o600)
-            public = json.loads(subprocess.check_output([str(cli), "public-key", str(path)], timeout=10))
+            public = json.loads(subprocess.check_output([str(cli), "native", "public-key", str(path)], timeout=10))
             return path, public
 
         root, public = key("root")
@@ -61,7 +61,7 @@ def run(node, cli):
             path = store.root / "request.json"
             envelope = {"realm": 51, "principal": 0, "kind": {"inspection": {"resource": "process", "pid": command["process"]}}} if read else {"realm": 51, "principal": 0, "sequence": sequence, "command": command}
             path.write_text(json.dumps(envelope))
-            body = subprocess.check_output([str(cli), "sign-query" if read else "sign", str(root), str(path)], timeout=10)
+            body = subprocess.check_output([str(cli), "native", "sign-query" if read else "sign", str(root), str(path)], timeout=10)
             for _ in range(40):
                 try:
                     response = store.http.open(urllib.request.Request(url + ("/v1/query" if read else "/v1/command"), body,

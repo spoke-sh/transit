@@ -23,6 +23,6 @@ def run(cli):
             assert hashlib.sha256(b"transit.request.v1\0" + canonical.encode()).hexdigest() == vector["sha256"]
             path = root / "request.json"
             path.write_text(canonical)
-            signed = json.loads(subprocess.check_output([str(cli), "sign", str(seed), str(path)], timeout=10))
+            signed = json.loads(subprocess.check_output([str(cli), "native", "sign", str(seed), str(path)], timeout=10))
             assert signed == {"request": request, "signature": vector["signature"]}
     print("Shared JSON vectors: Python canonical bytes/hash and Zig signatures agree.")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply reviewed example declarations to a running local Transit installation.
 
-Uses the public typed transit-admin browser interface. Saved requests and replies
+Uses the public typed catalog client. Saved requests and replies
 stay private so an uncertain command can be inspected by its original mutation.
 Run once after the example migration; restart `transit server` afterwards.
 """
@@ -15,7 +15,7 @@ import subprocess
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--installation', type=Path, default=Path.cwd())
-parser.add_argument('--admin', default='transit-admin')
+parser.add_argument('--publisher', default='example-browser-publish')
 parser.add_argument('--node', default='http://127.0.0.1:19104')
 parser.add_argument('--origin', default='http://127.0.0.1:8090')
 parser.add_argument('--port', type=int, default=8090)
@@ -51,7 +51,7 @@ def call(action):
     response = requests / f'{count:03}.response.json'
     request.write_text(json.dumps(dict(definition=definition, connection=connection, namespace=namespace, development=True, action=action), indent=2)+'\n')
     with response.open('w') as output:
-        subprocess.run([args.admin, 'browser', str(seed), str(request), args.node], stdout=output, check=True)
+        subprocess.run([args.publisher, str(seed), str(request), args.node], stdout=output, check=True)
     return json.loads(response.read_text())
 
 def change(kind, value):

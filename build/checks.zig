@@ -3,7 +3,6 @@ const std = @import("std");
 const Runtime = @import("runtime.zig").Context;
 
 pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, context: Runtime) void {
-    @import("native_fixtures.zig").register(b, target, optimize, context);
     const sdk_authority = b.option([]const u8, "sdk-authority", "Explicit verified node executable for installed SDK catalog checks");
     const sdk_packages = b.option([]const u8, "sdk-packages", "Installed SDK package directory") orelse ".cache/bindings/ReleaseSafe";
     const http_server = context.http_server;
@@ -41,8 +40,15 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const sql_protocol = context.sql_protocol;
     const board = context.board;
     const runtime = context.runtime;
+    const native_client_fixture = b.addExecutable(.{ .name = "native-client-fixture", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/native/client_fixture.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
+    }) });
+    b.step("test-native-client-fixture", "Build the private signed ingress driver").dependOn(&b.addInstallArtifact(native_client_fixture, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
+    @import("native_fixtures.zig").register(b, target, optimize, context, native_client_fixture);
     const node_artifact = context.node_artifact;
-    const cli_artifact = context.cli_artifact;
     const delivery_artifact = context.delivery_artifact;
     const controller_artifact = context.controller_artifact;
     const kubectl_transit = context.kubectl_transit;
@@ -569,7 +575,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exchange_failure_test.stdio = .inherit;
     fixtures_step.dependOn(&exchange_failure_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
-    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, station_host, client_host, transit_cli }) |app| {
+    for ([_]*std.Build.Step.Compile{ node_artifact, native_client_fixture, station_host, client_host, transit_cli }) |app| {
         build_test_step.dependOn(&app.step);
     }
     build_test_step.dependOn(&work_items.step);
@@ -1324,13 +1330,22 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     while (browser_imports.next()) |entry| browser_fault_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_serving_http")) browser_fault_host else entry.value_ptr.*);
     const browser_fault_node = b.addExecutable(.{ .name = "transit-node-browser-fixture", .root_module = browser_fault_module });
     b.step("browser-fault-fixture", "Build browser buffered-read fault boundary").dependOn(&b.addInstallArtifact(browser_fault_node, .{}).step);
-    const browser_test = b.addSystemCommand(&.{ "python3", "-B" });
-    browser_test.addFileArg(b.path("tests/runner/launch.py"));
-    browser_test.addFileArg(b.path("tests/interfaces/http/declarative_browser.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, cli_artifact, browser_fault_node }) |artifact| browser_test.addArtifactArg(artifact);
-    browser_test.has_side_effects = true;
-    browser_test.stdio = .inherit;
-    b.step("test-declarative-browser", "Qualify durable browser sessions, provider exchanges and native publications").dependOn(&browser_test.step);
+    if (sdk) |public_sdk| {
+        const browser_publisher = b.addExecutable(.{ .name = "example-browser-publish", .root_module = b.createModule(.{
+            .root_source_file = b.path("examples/declarative-browser/publish.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{.{ .name = "transit_catalog", .module = public_sdk.module("transit_catalog") }},
+        }) });
+        b.step("example-browser-publish", "Build the example's typed declaration publisher").dependOn(&b.addInstallArtifact(browser_publisher, .{}).step);
+        const browser_test = b.addSystemCommand(&.{ "python3", "-B" });
+        browser_test.addFileArg(b.path("tests/runner/launch.py"));
+        browser_test.addFileArg(b.path("tests/interfaces/http/declarative_browser.py"));
+        for ([_]*std.Build.Step.Compile{ transit_cli, browser_publisher, browser_fault_node }) |artifact| browser_test.addArtifactArg(artifact);
+        browser_test.has_side_effects = true;
+        browser_test.stdio = .inherit;
+        b.step("test-declarative-browser", "Qualify durable browser sessions, provider exchanges and native publications").dependOn(&browser_test.step);
+    }
     // Same production node, with only the SQL host import decorated by a
     // test-owned typed-boundary fault injector. No fault switch ships at runtime.
     const fault_host = b.createModule(.{
@@ -2133,7 +2148,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     abi_tests.addFileArg(b.path("tests/sdk/client_abi.py"));
     abi_tests.addArtifactArg(client.artifact("transit_client"));
     abi_tests.addArtifactArg(node_artifact);
-    abi_tests.addArtifactArg(cli_artifact);
+    abi_tests.addArtifactArg(native_client_fixture);
     abi_tests.addArtifactArg(c_proof);
     abi_tests.has_side_effects = true;
     abi_tests.stdio = .inherit;
@@ -2144,7 +2159,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     client_host_tests.addFileArg(b.path("tests/sdk/client_host.py"));
     client_host_tests.addArtifactArg(client_host);
     client_host_tests.addArtifactArg(node_artifact);
-    client_host_tests.addArtifactArg(cli_artifact);
+    client_host_tests.addArtifactArg(native_client_fixture);
     client_host_tests.has_side_effects = true;
     client_host_tests.stdio = .inherit;
     abi_test_step.dependOn(&client_host_tests.step);
@@ -2152,7 +2167,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     binding_tests.addFileArg(b.path("tests/runner/launch.py"));
     binding_tests.addFileArg(b.path("tests/sdk/bindings.py"));
     binding_tests.addArtifactArg(node_artifact);
-    binding_tests.addArtifactArg(cli_artifact);
+    binding_tests.addArtifactArg(native_client_fixture);
     binding_tests.addArtifactArg(station_bindings.artifact("transit_station"));
     binding_tests.addArtifactArg(client.artifact("transit_client"));
     binding_tests.addArtifactArg(station_host);
@@ -2187,7 +2202,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     station_test.addFileArg(b.path("tests/runner/launch.py"));
     station_test.addFileArg(b.path("tests/runtime/station/station.py"));
     station_test.addArtifactArg(node_artifact);
-    station_test.addArtifactArg(cli_artifact);
+    station_test.addArtifactArg(native_client_fixture);
     station_test.addArtifactArg(station_ledger);
     station_test.addArtifactArg(delivery_artifact);
     station_test.addArtifactArg(station_controller);
@@ -2198,7 +2213,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     upgrade_tests.addFileArg(b.path("tests/runner/launch.py"));
     upgrade_tests.addFileArg(b.path("tests/runtime/deployment/runtime_upgrade.py"));
     upgrade_tests.addArtifactArg(node_artifact);
-    upgrade_tests.addArtifactArg(cli_artifact);
+    upgrade_tests.addArtifactArg(native_client_fixture);
     upgrade_tests.addArtifactArg(controller_artifact);
     upgrade_tests.has_side_effects = true;
     upgrade_tests.stdio = .inherit;
@@ -2219,7 +2234,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }
     services.addArtifactArg(node_artifact);
     services.addArtifactArg(example_artifacts[0]);
-    services.addArtifactArg(cli_artifact);
+    services.addArtifactArg(native_client_fixture);
     services.has_side_effects = true;
     services.stdio = .inherit;
     const executor = b.addExecutable(.{ .name = "effect-executor", .root_module = b.createModule(.{
@@ -2280,7 +2295,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     board_tests.addFileArg(b.path("tests/runner/launch.py"));
     board_tests.addFileArg(b.path("tests/interfaces/board/board.py"));
     board_tests.addArtifactArg(node_artifact);
-    board_tests.addArtifactArg(cli_artifact);
+    board_tests.addArtifactArg(native_client_fixture);
     board_tests.addArtifactArg(board);
     if (b.option(bool, "transit-board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
     board_tests.has_side_effects = true;
@@ -2290,7 +2305,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     observation_tests.addFileArg(b.path("tests/runner/launch.py"));
     observation_tests.addFileArg(b.path("tests/interfaces/inspection/observability.py"));
     observation_tests.addArtifactArg(node_artifact);
-    observation_tests.addArtifactArg(cli_artifact);
+    observation_tests.addArtifactArg(native_client_fixture);
     observation_tests.addArtifactArg(board);
     observation_tests.has_side_effects = true;
     observation_tests.stdio = .inherit;
@@ -2299,7 +2314,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     inspection.addFileArg(b.path("tests/runner/launch.py"));
     inspection.addFileArg(b.path("tests/interfaces/inspection/inspection.py"));
     inspection.addArtifactArg(node_artifact);
-    inspection.addArtifactArg(cli_artifact);
+    inspection.addArtifactArg(native_client_fixture);
     inspection.has_side_effects = true;
     inspection.stdio = .inherit;
     b.step("test-inspection", "Prove scoped public inspection against disk Ursula").dependOn(&inspection.step);
@@ -2307,7 +2322,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     state_api.addFileArg(b.path("tests/runner/launch.py"));
     state_api.addFileArg(b.path("tests/interfaces/native/state_api.py"));
     state_api.addArtifactArg(node_artifact);
-    state_api.addArtifactArg(cli_artifact);
+    state_api.addArtifactArg(native_client_fixture);
     state_api.addArtifactArg(example_artifacts[0]);
     state_api.has_side_effects = true;
     state_api.stdio = .inherit;
@@ -2317,7 +2332,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     callers.addFileArg(b.path("tests/runtime/application/callers.py"));
     // Both callers use the exact same authority and public CLI artifacts.
     callers.addArtifactArg(node_artifact);
-    callers.addArtifactArg(cli_artifact);
+    callers.addArtifactArg(native_client_fixture);
     for (example_artifacts) |example| callers.addArtifactArg(example);
     const client_probe = b.addExecutable(.{ .name = "client-probe", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/sdk/client_probe.zig"),
@@ -2334,7 +2349,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const vortex = b.addSystemCommand(&.{ "python3", "-B" });
     vortex.addFileArg(b.path("tests/runner/launch.py"));
     vortex.addFileArg(b.path("tests/runtime/delivery/vortex.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ node_artifact, native_client_fixture, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
     vortex.addPassthruArgs();
     vortex.has_side_effects = true;
     vortex.stdio = .inherit;

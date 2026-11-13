@@ -24,7 +24,7 @@ def main():
         for family in args.family or FAMILIES:
             package = 'wheels' if family == 'python' else family
             RUNNERS[family](
-                str(args.node.resolve()), str(native / 'bin/transit-admin'),
+                str(args.node.resolve()), str(native / 'tests/native-client-fixture'),
                 str(native / 'lib/libtransit_client.so'), str(artifacts / package),
                 execute=sdk_station_runner.run)
     finally:

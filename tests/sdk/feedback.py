@@ -26,7 +26,7 @@ def execute(language, scope):
             clients, _ = prepare('clients', 'ReleaseSafe')
             authority, _ = prepare('authority', 'ReleaseSafe')
             artifacts = ROOT / '.cache/bindings/ReleaseSafe' / ('wheels' if language == 'python' else language)
-            inputs = (str(authority / 'bin/transit-node'), str(clients / 'bin/transit-admin'),
+            inputs = (str(authority / 'bin/transit-node'), str(clients / 'tests/native-client-fixture'),
                       str(clients / 'lib/libtransit_client.so'), artifacts)
             if scope == 'raw':
                 RAW_RUNNERS[language](*inputs)

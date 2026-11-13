@@ -26,7 +26,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
             path = store.root / name
             path.write_text(os.urandom(32).hex())
             path.chmod(0o600)
-            public = json.loads(subprocess.check_output([str(cli), "public-key", str(path)], timeout=10))
+            public = json.loads(subprocess.check_output([str(cli), "native", "public-key", str(path)], timeout=10))
             return path, public
         root, public = key("root.key")
         port = free_port()
@@ -40,7 +40,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
             sequence += 1
             request = store.root / "request.json"
             request.write_text(json.dumps({"realm": 61, "principal": 0, "sequence": sequence, "command": value}))
-            return json.loads(subprocess.check_output([str(cli), "submit", str(root), str(request), url], timeout=10))["position"]
+            return json.loads(subprocess.check_output([str(cli), "native", "submit", str(root), str(request), url], timeout=10))["position"]
         dropped = {}
         verified_retries = set()
         malformed_views = set()
@@ -173,7 +173,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
             read.write_text(json.dumps({"realm": 61, "principal": 0, "kind": {"process": sink}}))
             deadline = time.monotonic() + 20
             while True:
-                sink_view = json.loads(subprocess.check_output([str(cli), "query", str(root), str(read), url], timeout=10))["body"]["process"]
+                sink_view = json.loads(subprocess.check_output([str(cli), "native", "query", str(root), str(read), url], timeout=10))["body"]["process"]
                 if sink_view["process"]["admitted"] == 1 and 3 in verified_retries:
                     break
                 assert courier.poll() is None and time.monotonic() < deadline, "courier failed to make progress"
@@ -185,7 +185,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
             subprocess.run([str(delivery), str(courier_config), "--once"], check=True, timeout=10)
             status_query = store.root / "delivery-status.json"
             status_query.write_text(json.dumps({"realm": 61, "principal": 3, "kind": {"delivery": {}}}))
-            status = json.loads(subprocess.check_output([str(cli), "query", str(seed), str(status_query), url], timeout=10))
+            status = json.loads(subprocess.check_output([str(cli), "native", "query", str(seed), str(status_query), url], timeout=10))
             assert status["body"]["delivery"]["next"] is None and status["principal_sequence"] == 2, status
             source = sink_view["input"]["origin"]["process"]
             assert source["pid"] == pids[1] and source["output"] == 2
