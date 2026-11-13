@@ -559,6 +559,12 @@ nix develop --command just doctor
 nix develop --command just check all
 ```
 
+Linux compiler downloads verify the overlay's pinned SHA-256 before accepting a
+mirror response. An empty or corrupt successful HTTP response falls through to
+the remaining pinned URLs with fresh downloads and bounded transport retries.
+Exhausting the mirrors fails preparation; it never changes the compiler pin or
+retries compilation or qualification. Nix also verifies the final archive hash.
+
 The overlay's `master` attribute moves; the committed `flake.lock` freezes its
 revision. The flake asserts a `0.17.*` compiler so a later master release cannot
 silently change the language target. A version assertion failure requires a

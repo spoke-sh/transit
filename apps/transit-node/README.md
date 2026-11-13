@@ -166,6 +166,13 @@ diagnostics report `owner_memory` separately from `request_memory`, including
 allocation attempts and retained/peak bytes; moving allocations into an owner
 does not make them disappear from measurement.
 
+Catalog initialization stays outside the resident request stack. Dispatch without
+a retained workspace allocates its temporary catalog from the request budget
+and releases it on success or failure; resident requests reuse their existing
+catalog without reserving another full catalog on each I/O worker's stack.
+The composition test injects each allocation failure during a signed lookup to
+check cleanup across catalog recovery, request scratch and response ownership.
+
 Signed native authorization and final disclosure checks remain current. A failed
 request destroys its borrowed workspace and clears its Table recovery hint.
 Automatic maintenance and cold workspaces can reuse at most 64 validated Table

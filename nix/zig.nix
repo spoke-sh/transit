@@ -17,6 +17,14 @@ else
         upstream.version == "0.17.0-dev.2267+48abf1a34"
       ) "Review the Zig build-runner loader patches when changing the compiler pin.";
       upstream.overrideAttrs (old: {
+        src = old.src.overrideAttrs (source: {
+          # A distinct name exercises this fetch even when the old archive is
+          # already in the store. Keep the overlay's exact version and digest.
+          name = "zig-${upstream.version}-${stdenv.hostPlatform.system}-verified.tar.xz";
+          postFetch = ''
+            bash ${./verify-zig-download.sh} ${lib.escapeShellArg source.outputHash} "$downloadedFile" "''${urls[@]}"
+          '';
+        });
         patches = (old.patches or [ ]) ++ [ ./zig-dynamic-linker.patch ];
       });
     wrapper = writeShellScript "transit-zig" ''

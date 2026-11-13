@@ -36,7 +36,9 @@ pub const Resident = struct {
     stream: ?c.DirectStream.Cached = null,
     queue: ?c.DirectQueue.Cached = null,
 
-    pub fn create(parent: std.mem.Allocator, admission: ?*@import("transit_memory").Quota.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
+    // Cold initialization must not reserve a full catalog on every I/O worker's
+    // hot request stack, including requests that already have a resident owner.
+    pub noinline fn create(parent: std.mem.Allocator, admission: ?*@import("transit_memory").Quota.Allocator, memory: @import("transit_memory").Budget, owner: *backend.Backend, configuration: D.Configuration, options: D.Options, prior: D.RecoveryState) !*Resident {
         const allocator = if (admission) |adapter| adapter.allocator() else parent;
         const self = if (admission) |adapter| adapter.create(Resident) catch |err| return if (err == error.MemoryBudgetExceeded) error.TableResidentCapacity else err else try parent.create(Resident);
         errdefer allocator.destroy(self);
@@ -126,18 +128,19 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
     };
     // Recovery, page owners and encoding scratch must actually release their
     // allocations when their scopes end. Only returned values borrow the arena.
-    var request_catalog: ?D = null;
-    defer if (request_catalog) |*catalog| catalog.deinit();
+    var request_catalog: ?*D = null;
+    defer if (request_catalog) |catalog| {
+        catalog.deinit();
+        arena.child_allocator.destroy(catalog);
+    };
     const catalog = if (self.resident) |resident| blk: {
         resident.catalog.options.table_recovery = self.options.table_recovery;
         resident.catalog.options.table_recoveries = self.options.table_recoveries;
         try resident.catalog.store.refreshSince(if (self.recovery_state) |prior| prior.* else null);
         break :blk &resident.catalog;
     } else blk: {
-        request_catalog = try D.init(arena.child_allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
-        const catalog = &request_catalog.?;
-        if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
-        break :blk catalog;
+        request_catalog = try self.openRequestCatalog(arena.child_allocator, control, data);
+        break :blk request_catalog.?;
     };
     var log_environment: c.DirectTransactionLog.Environment = .{};
     std.debug.assert(catalog.log_environment == null);
@@ -191,6 +194,17 @@ pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.Aren
             confirmed = reconfirmed;
         }
     }
+}
+
+// Keep cold recovery and its large value temporaries off resident request
+// stacks. The fallback owns its catalog through the request's bounded allocator.
+noinline fn openRequestCatalog(self: *Self, allocator: std.mem.Allocator, control: *backend.DataStore, data: *backend.DataStore) !*D {
+    const catalog = try allocator.create(D);
+    errdefer allocator.destroy(catalog);
+    catalog.* = try D.init(allocator, self.configuration, control.log(), control.objects(), data.log(), data.objects(), self.options);
+    errdefer catalog.deinit();
+    if (self.recovery_state) |prior| try catalog.recoverSince(prior.*) else try catalog.recover();
+    return catalog;
 }
 
 fn streamTime(raw: *anyopaque) !?c.storage.LogTime.Sample {
