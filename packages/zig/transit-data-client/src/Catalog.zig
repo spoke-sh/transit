@@ -90,6 +90,14 @@ pub const TransactionOutcome = struct {
     }
 };
 
+pub const TransactionReadOutcome = struct {
+    value: union(enum) { result: Transaction.Read.Result, failure: Failure },
+    attempt: c.DirectTableClient.Attempt,
+    pub fn mutationAttempted(self: TransactionReadOutcome) bool {
+        return self.attempt.mutation != null;
+    }
+};
+
 pub fn validEndpoint(url: []const u8) bool {
     if (url.len == 0 or url.len > 2048) return false;
     const uri = std.Uri.parse(url) catch return false;
@@ -240,6 +248,25 @@ pub fn callTransaction(self: *Self, transaction: *Transaction, action: Transacti
     var attempt: c.DirectTableClient.Attempt = .{};
     const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
     const result = transaction.apply(caller, action) catch |err| {
+        const native = self.service.last_rejection orelse self.authority.last_rejection;
+        return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
+    };
+    return .{ .attempt = attempt, .value = .{ .result = result } };
+}
+
+/// Private reads retain their exact revision and per-call failure evidence.
+pub fn readTransaction(self: *Self, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action) error{Busy}!TransactionReadOutcome {
+    return self.readTransactionOwned(transaction, output, action, null);
+}
+
+pub fn readTransactionOwned(self: *Self, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action, owner: ?Transaction.Read.Owner) error{Busy}!TransactionReadOutcome {
+    if (self.busy.swap(true, .acquire)) return error.Busy;
+    defer self.busy.store(false, .release);
+    self.authority.last_rejection = null;
+    self.service.last_rejection = null;
+    var attempt: c.DirectTableClient.Attempt = .{};
+    const caller: c.DirectTableClient = .{ .allocator = self.allocator, .authority = &self.authority, .service = &self.service, .connection = self.connection, .key = self.key, .attempt = &attempt };
+    const result = transaction.readOwned(caller, output, action, owner) catch |err| {
         const native = self.service.last_rejection orelse self.authority.last_rejection;
         return .{ .attempt = attempt, .value = .{ .failure = .{ .cause = err, .protocol_error = native, .diagnostic = attempt.failure(err, native) catch null } } };
     };

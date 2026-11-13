@@ -10,6 +10,7 @@ pub const sql = @import("transit_sql_client");
 pub const SqlRecovery = @import("SqlRecovery.zig");
 pub const KVRecovery = @import("KVRecovery.zig");
 pub const Transaction = @import("Transaction.zig");
+pub const TransactionRead = @import("TransactionRead.zig");
 pub const TransactionRecovery = @import("TransactionRecovery.zig");
 pub const DirectMigration = catalog.DirectMigration;
 

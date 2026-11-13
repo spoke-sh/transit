@@ -41,10 +41,11 @@ optional payload. The API selects the next statement from the current workspace,
 stages it, checkpoints the exact request, executes it and checkpoints completion.
 It refuses new work while a saved statement/control is unresolved or settlement
 has begun. Savepoints use the same sequence, persistence and bounded-resume rules.
-Reads in native embedding hosts use `Transaction.privateClient` with existing
-typed readers; this checks the current private workspace before returning its
-client view. The context facade currently exposes transaction writes and controls;
-it does not add a transaction-bound Table result reader.
+Use `Context.readTransaction` for typed KV reads and owned Table point/scan readers.
+Native embedding hosts use `Transaction.read` over the same implementation.
+Readers bind one exact workspace revision; returned values own their memory
+independently. See [transaction reads](docs/transaction-reads.md) for admission,
+current authorization, invalidation, output budgets and local cleanup.
 
 Supply a durable `Transaction.Journal` callback, or use
 [`TransactionRecovery`](docs/recovery.md#transaction-adapter) over the local store.

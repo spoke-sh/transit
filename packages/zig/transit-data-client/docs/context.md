@@ -32,6 +32,14 @@ Use a separate output arena for each concurrent call. Shared backing allocators
 must support concurrent access; otherwise serialize the calls. The context does
 not serialize output allocation across facets.
 
+`readTransaction` and `readTransactionWithAdmission` use this same data lane for
+KV reads and every owned Table reader operation, including metadata and terminal
+checks. The transaction's exclusive guard spans the entire read. Idle readers
+hold no facet borrow or permit; generation checks prevent slot reuse from
+retargeting them. Original transaction inspection and settlement retain control
+capacity during close. See [transaction reads](transaction-reads.md) for revision,
+output ownership and cleanup rules.
+
 Only one call may borrow each facet. The default calls refuse immediately:
 overlap returns `Busy`; exhausted lanes or handle capacity return
 `ClientCapacityExceeded` before dispatch. Different facets
