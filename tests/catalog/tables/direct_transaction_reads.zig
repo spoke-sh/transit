@@ -10,6 +10,13 @@ const callerFor = support.callerFor;
 const recoveryStore = support.recoveryStore;
 const operation = support.operation;
 
+fn stale(caller: *support.Caller, transaction: *Transaction, output: *std.heap.ArenaAllocator, action: Transaction.Read.Action) !void {
+    const outcome = try caller.context.readTransaction(caller.handle, transaction, output, action);
+    try t.expectEqual(error.Conflict, outcome.value.failure.cause);
+    try t.expectEqual(p.ErrorCode.QueryExpired, outcome.value.failure.protocol_error.?);
+    try t.expect(!outcome.mutationAttempted());
+}
+
 /// A data-only host exercises owned reads independently of Station's handlers.
 pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, role: u64, path: []const u8) !void {
     var output: std.heap.ArenaAllocator = .init(init.gpa);
@@ -53,12 +60,31 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     _ = try caller.call(&transaction, .begin);
     _ = try caller.call(&transaction, .acquire);
     const open: Transaction.Read.Action = .{ .open_table = .{ .allocator = init.gpa, .table = .{ .namespace = 1, .name = try .init("read_rows"), .expected = created.value.result.ddl.committed.resulting.interpretation } } };
+    // The existing proxy corrupts the first pin reply. A private descriptor
+    // accepts no durable mutation; the caller explicitly opens a fresh reader.
+    const lost = try caller.context.readTransaction(caller.handle, &transaction, &output, open);
+    try t.expectEqual(error.InvalidTableResponse, lost.value.failure.cause);
+    try t.expect(!lost.mutationAttempted());
+    // Fail every retained-schema allocation depth, preserving local cleanup and
+    // the original transaction-owned pins. Transport scratch is independent.
+    try t.checkAllAllocationFailures(init.gpa, struct {
+        fn run(allocator: std.mem.Allocator, owner: *support.Caller, tx: *Transaction, arena: *std.heap.ArenaAllocator, selected: c.DirectTransactionReader.Table) !void {
+            var value = (try owner.read(tx, arena, .{ .open_table = .{ .allocator = allocator, .table = selected } })).opened;
+            defer value.deinit();
+        }
+    }.run, .{ &caller, &transaction, &output, open.open_table.table });
     var empty = (try caller.read(&transaction, &output, open)).opened;
     defer empty.deinit();
     var empty_page = (try caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = .{ .next = .{} } } })).batch.?;
     defer empty_page.deinit();
     try t.expect(empty_page.complete and empty_page.count == 0);
     try t.expect((try caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = .{ .next = .{} } } })).batch == null);
+    var empty_description = (try caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = .describe } })).description;
+    defer empty_description.deinit();
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(empty_description.basis.authority.table), .owner = 0 } });
+    for ([_]Transaction.Read.Command{ .describe, .{ .next = .{} } }) |command|
+        try t.expectError(error.AccessDenied, caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = command } }));
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(empty_description.basis.authority.table), .owner = role } });
 
     const blob: [8192]u8 = @splat(0xa7);
     const insert_sql = comptime blk: {
@@ -77,7 +103,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     var work = try insert.bind(init.gpa, client, 642520, &values, .bulk, null);
     defer work.deinit();
     try t.expectEqual(@as(u64, 17), (try caller.call(&transaction, .{ .write = .{ .table = work.parsed.value.work } })).statement.state.outcome.provisional.affected);
-    try t.expectError(error.TransactionReadChanged, caller.read(&transaction, &output, .{ .table = .{ .reader = &empty, .command = .describe } }));
+    try stale(&caller, &transaction, &output, .{ .table = .{ .reader = &empty, .command = .describe } });
     var binding = declaration.binding;
     binding.identity = operation(client, 642521);
     binding.action = .insert;
@@ -87,6 +113,10 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     try t.expect(null_value.value.? == .null);
     try t.expect((try caller.read(&transaction, &output, .{ .kv = .{ .object = binding.target, .key = "missing" } })).kv.value == null);
     try t.expect((try KV.apply(&output, client, .{ .get = .{ .object = binding.target, .key = "null" } })).value.value == null);
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(metadata.authorization), .owner = 0 } });
+    for ([_][]const u8{ "null", "missing" }) |word|
+        try t.expectError(error.AccessDenied, caller.read(&transaction, &output, .{ .kv = .{ .object = binding.target, .key = word } }));
+    _ = try admin.change(.{ .transfer_object = .{ .object = c.TableAuthority.reference(metadata.authorization), .owner = role } });
 
     var reader = (try caller.read(&transaction, &output, open)).opened;
     var reader_live = true;
@@ -143,9 +173,10 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
     var peer = try Transaction.borrowed(transaction.state, transaction.journal);
     const name = try c.TableAuthority.Name.init("read_savepoint");
     _ = try peer.apply(client, .{ .savepoint = .{ .operation = operation(client, 642530), .action = .{ .create = name }, .steps = 8 } });
-    try t.expectError(error.TransactionReadChanged, caller.read(&transaction, &output, next));
+    try stale(&caller, &transaction, &output, next);
+    const reloaded = try recovery.load(recovery.identity.?);
     transaction.deinit();
-    transaction = try recovery.load(recovery.identity.?);
+    transaction = reloaded;
     for ([_]@FieldType(c.DirectTransactionSavepoint.Request, "action"){ .{ .rollback = name }, .{ .release = name } }, 0..) |action, index| {
         var old = (try caller.read(&transaction, &output, open)).opened;
         defer old.deinit();
@@ -156,7 +187,7 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
             control = (try caller.call(&transaction, .{ .advance = 1 })).savepoint;
         }
         try t.expect(control.completed != null);
-        try t.expectError(error.TransactionReadChanged, caller.read(&transaction, &output, .{ .table = .{ .reader = &old, .command = .describe } }));
+        try stale(&caller, &transaction, &output, .{ .table = .{ .reader = &old, .command = .describe } });
     }
     // Idle readers hold neither admission nor a transport borrow. Closing data
     // admission still permits original abort and its transaction-owned cleanup.

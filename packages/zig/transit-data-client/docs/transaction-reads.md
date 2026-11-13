@@ -52,6 +52,9 @@ never inspect and silently rebind to a newer revision. Pending local statements
 or controls refuse reads with `TransactionSessionPending`; settlement refuses
 them with `TransactionSessionSettling`. Resolve saved work and explicitly open a
 new reader if needed. Do not splice its rows onto an earlier result.
+Signed HTTP workspace expiry preserves `Conflict` with native `QueryExpired`
+in the outcome, while a mismatched local binding can return
+`TransactionReadChanged`. Keep the native rejection when reporting the failure.
 
 Failed exchanges, invalid pages and failed output allocation do not advance the
 cursor or claim completion. A read failure neither decides the transaction nor

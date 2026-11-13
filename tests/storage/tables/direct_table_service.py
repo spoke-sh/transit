@@ -363,9 +363,9 @@ def run(node, caller, mode="tables", *artifacts):
                         growth_sequence += 1
                         attempt = growth_attempts / f"{growth_sequence:04d}"
                         attempt.with_suffix(".request.json").write_bytes(body)
-                elif transaction_attempts is not None and self.path == "/table/v1" and transaction_action:
+                elif transaction_attempts is not None and self.path == "/table/v1" and (transaction_action or envelope.get("transaction")):
                     # Preserve every original request before forwarding, including
-                    # preparation that fails before the caller saves its final plan.
+                    # preparation and private reads that fail before a final plan/result.
                     with growth_lock:
                         growth_sequence += 1
                         attempt = transaction_attempts / f"{growth_sequence:04d}"
@@ -929,11 +929,16 @@ def run(node, caller, mode="tables", *artifacts):
                 authority = start()
                 subprocess.run([transaction_caller, endpoint, mode + "-verify", str(profile)], check=True, timeout=180)
                 assert saved_path.read_bytes() == saved
+                read_requests = None
                 if artifacts:
+                    before_reads = fault["requests"]
                     subprocess.run([transaction_caller, endpoint, mode + "-reads", str(profile)], check=True, timeout=180)
+                    read_requests = fault["requests"] - before_reads
+                    assert fault["pin_changed"]
                 assert set(fault["commands"]) <= {"authorization"}, fault["commands"]
                 print(json.dumps(dict(profile="direct_queue_terminal_transaction" if transfer else "direct_table_kv_log_transaction" if mixed else "direct_table_kv_transaction", source=provenance(ROOT),
                                       independent_transaction_client=bool(artifacts),
+                                      read_proof_table_requests=read_requests,
                                       binaries=[identity(Path(path)) for path in dict.fromkeys((node, caller, transaction_caller))], requests=fault["requests"],
                                       lost_replies=sorted(state_transaction_faults), passed=True)))
                 if transfer:
