@@ -33,7 +33,7 @@ def run():
     directory.mkdir(mode=0o700)
     namespace = "transit-" + directory.name
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    cli = ref.CACHE / "bin/bin/transit-admin"
+    cli = ref.CACHE / "bin/tests/native-client-fixture"
     controller_bin = ref.CACHE / "bin/bin/transit-runtime-controller"
     children = []
     logs = []
@@ -49,7 +49,7 @@ def run():
         path = directory / (name + ".key")
         path.write_text(os.urandom(32).hex())
         path.chmod(0o600)
-        return path, json.loads(ref.run([cli, "public-key", path], capture=True))
+        return path, json.loads(ref.run([cli, "native", "public-key", path], capture=True))
 
     root_key, root_public = key("root")
     controller_key, controller_public = key("controller")
@@ -64,7 +64,7 @@ def run():
     def post(path, body, signing):
         request_file = directory / "request.json"
         request_file.write_text(json.dumps(body))
-        signed = ref.run([cli, signing, root_key, request_file], capture=True).encode()
+        signed = ref.run([cli, "native", signing, root_key, request_file], capture=True).encode()
         for attempt in range(20):
             try:
                 with http.open(urllib.request.Request(url + path, signed, {"Content-Type": "application/json"}), timeout=8) as response:
@@ -264,7 +264,7 @@ def run():
         diagnostic_evidence["container_log_budget"] = {"size": "5Mi", "files": 3}
         evidence = {"observability": diagnostic_evidence, "board": board.evidence, "namespace": namespace, "pid": pid, "actor_uid": first_actor_uid,
                     "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
-                    "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS, "chart": "charts/transit"}
+                    "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS, "chart": "deploy/reference/chart"}
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))
         print("Substrate controller crash, same-PID/Actor worker recovery, persistent Ursula/authority restart and background expiry passed.")
         print("Evidence:", directory / "evidence.json")

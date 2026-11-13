@@ -5,6 +5,7 @@ import struct
 import subprocess
 
 from common import Installation, ROOT, lock, run, write, wait_for
+from native_client import Client
 from authorization import Changes, station
 
 
@@ -167,7 +168,7 @@ class StationInstallation(Installation):
                         read = self.path / role / 'identity-query.json'
                         write(read, dict(realm=self.load()['realm'], principal=record['principal'],
                             kind={'authorization': {'role': None, 'kind': {'identity': {}}}}))
-                        identity = json.loads(run([self.cli, 'query', seed, read, self.url], capture=True))['body']['authorization']['body']['identity']
+                        identity = Client(self.client_host, self.url).query(seed, json.loads(read.read_text()))['body']['authorization']['body']['identity']
                         token = secrets.token_hex(12)
                         write(self.path / role / 'next.key', secrets.token_hex(32))
                         pending = dict(token=token, generation=process['generation'], action={'rotate_credential': dict(

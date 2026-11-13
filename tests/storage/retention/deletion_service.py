@@ -19,7 +19,7 @@ def run(node, cli, proof):
         seed = store.root / "seed"
         seed.write_text("15" * 32)
         seed.chmod(0o600)
-        public = json.loads(subprocess.check_output([str(cli), "public-key", str(seed)], timeout=10))
+        public = json.loads(subprocess.check_output([str(cli), "native", "public-key", str(seed)], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
@@ -28,7 +28,7 @@ def run(node, cli, proof):
             "maintenance": {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "checkpoint_every_records": 4}}))
         request = store.root / "request.json"
         request.write_text(json.dumps({"realm": 54, "principal": 0, "kind": {"inspection": {"resource": "payloads", "pid": 1}}}))
-        signed = subprocess.check_output([str(cli), "sign-query", str(seed), str(request)], timeout=10)
+        signed = subprocess.check_output([str(cli), "native", "sign-query", str(seed), str(request)], timeout=10)
         children, logs = [], []
         try:
             for args in ([], ["--maintain"]):

@@ -67,6 +67,18 @@ class Artifacts(unittest.TestCase):
                 self.assertEqual(source_identity(root, 'clients'), native)
                 path.unlink()
 
+    def test_client_fixture_edits_invalidate_cached_native_clients(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '--quiet', root], check=True)
+            (root / 'build.zig').write_text('// native graph')
+            driver = root / 'tests/interfaces/native/client_fixture.zig'
+            driver.parent.mkdir(parents=True)
+            driver.write_text('// original private driver')
+            original = source_identity(root, 'clients')
+            driver.write_text('// changed private driver')
+            self.assertNotEqual(source_identity(root, 'clients'), original)
+
     def test_source_profile_definition_and_changed_output_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

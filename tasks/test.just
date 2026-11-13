@@ -437,9 +437,9 @@ client-abi:
 # Keep Debug Station callers and a ReleaseSafe disk-backed authority, matching
 # the SDK query profile without changing the finite progress deadlines.
 station:
-    zig build transit-admin example-station-ledger transit-delivery transit-station-controller
+    zig build test-native-client-fixture example-station-ledger transit-delivery transit-station-controller
     zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
 
 # Check each library using its own declared dependencies.
 packages:
@@ -511,13 +511,13 @@ service:
 
 # Signed policy staging, current checks and restart against disk-backed Ursula.
 authorization:
-    zig build transit-node transit-admin
-    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/bin/transit-node zig-out/bin/transit-admin --report .cache/verification/authorization-native.json
+    zig build transit-node test-native-client-fixture
+    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/bin/transit-node zig-out/tests/native-client-fixture --report .cache/verification/authorization-native.json
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
-    zig build test-operation-fixture transit-node transit-admin transit client-abi transit-client-host
-    python3 -B tests/runner/launch.py tests/interfaces/cli/authorization_cli.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
+    zig build test-operation-fixture transit-node test-native-client-fixture transit client-abi transit-client-host
+    python3 -B tests/runner/launch.py tests/interfaces/cli/authorization_cli.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Current Table roles, SQL defaults, filtered metadata and retained-cut denial.
 authorization-tables:
@@ -525,8 +525,8 @@ authorization-tables:
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build transit-node transit-admin transit-station-host serving-example -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/http/authorization_serving.py zig-out/bin/transit-node zig-out/bin/transit-admin zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    zig build transit-node test-native-client-fixture transit-station-host serving-example -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/interfaces/http/authorization_serving.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:
@@ -898,6 +898,11 @@ release prefix:
     # Keep it outside the release prefix and independent of the builder's loader.
     zig build test-operation-fixture -Dtarget="$(uname -m)-linux-musl" -Dcpu=baseline -Doptimize=ReleaseSafe -Dsdk-examples=false -j2
     python3 -B tests/runner/launch.py tests/interfaces/installation/release.py "$1"
+
+# Linux/Docker: deploy the real standalone chart with a matching static prefix.
+[positional-arguments]
+standalone-chart prefix:
+    python3 -B tests/runner/launch.py tests/interfaces/deployment/standalone.py "$1"
 
 # Verify the real installer against downloaded release artifacts, without building.
 [positional-arguments]

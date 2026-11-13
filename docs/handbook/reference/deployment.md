@@ -10,7 +10,8 @@ worker isolation. Distributed recovery across authorities is unsupported.
 | `transit server` | Trusted local service neighborhood, application manager and supervised Board | [Server](../../../apps/transit-cli/docs/server.md), [applications](../../../apps/transit-cli/docs/applications.md) |
 | Local launcher | Persistent native development stack with Board and example workload | [Launchers](../../../launchers/README.md) |
 | Compose launcher | Containerized development and integration testing | [Launchers](../../../launchers/README.md) |
-| Reference launcher/chart | Kubernetes/Substrate infrastructure and persistent application | [Reference runbook](../../../deploy/reference/README.md), [Helm chart](../../../charts/transit/README.md) |
+| Standalone Helm chart | One server, complete retained installation and authenticated SQL over TLS | [Standalone chart](../../../charts/transit/README.md) |
+| Reference launcher/chart | Kubernetes/Substrate infrastructure and persistent application | [Reference runbook](../../../deploy/reference/README.md), [reference chart](../../../deploy/reference/chart/README.md) |
 
 ## Initialize and restart deliberately
 
@@ -97,5 +98,6 @@ diagnostic interpretation. A SIGKILL/restart proof is not a host power-loss proo
 The [runtime contract](../../../contracts/RUNTIME_SUBSTRATE_V1.md),
 [adapter](../../../packages/zig/transit-runtime-substrate/README.md) and
 [controller](../../../apps/transit-runtime-controller/README.md) own exact provider
-operations. Use the chart from this checkout; public release channels and
-deployment on other cluster runtimes are unsupported.
+operations. The reference chart is source-only proof tooling. The separately
+published standalone chart runs the server supervisor and does not establish
+Substrate isolation or distributed recovery.

@@ -45,7 +45,7 @@ the requested release and namespace scope, with guidance for finding the pair.
 
 ## Views and diagnostics
 
-Discovery selects node Deployments with the [chart's](../../charts/transit/README.md)
+Discovery selects node Deployments with the [chart's](../../deploy/reference/chart/README.md)
 `app.kubernetes.io/name=transit` and component labels. Release selection adds
 `app.kubernetes.io/instance`. Resource names can be overridden in the chart.
 These labels are operational associations, never authenticated Transit identities.

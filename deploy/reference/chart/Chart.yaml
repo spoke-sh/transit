@@ -1,0 +1,6 @@
+apiVersion: v2
+name: transit
+description: Source-only Kubernetes/Substrate reference qualification topology
+version: 0.0.1
+appVersion: "0.0.1"
+type: application

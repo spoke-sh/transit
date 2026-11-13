@@ -43,7 +43,7 @@ persistence. **Agent Substrate** names the external execution project. Keep the
 distinction explicit when both appear in the same discussion.
 
 The `transit` executable owns local server and application workflows;
-`transit-admin` exposes low-level signed native operations. TypeScript workspaces
+The shared client exposes signed native operations. TypeScript workspaces
 use the `@transit/` scope. Protocol and stored identity changes follow the
 [hard-cutover policy](versioning.md), including a new shared definition identifier.
 

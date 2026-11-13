@@ -7,7 +7,7 @@ has no application schema. Schema and seed data use `transit migrate plan/apply`
 Build from the checkout with the pinned tools:
 
 ```sh
-nix develop --command zig build transit transit-admin -Doptimize=ReleaseSafe
+nix develop --command zig build transit example-browser-publish -Doptimize=ReleaseSafe
 export PATH="$PWD/zig-out/bin:$PATH"
 mkdir -m 700 /var/tmp/transit-browser-example
 cd /var/tmp/transit-browser-example
@@ -48,7 +48,7 @@ browser listener does not host an HTML application.
 For sign-in, prepare provider declarations following [the browser contract](../../contracts/BROWSER_V1.md#provider-registration),
 then pass `--provider google.json --secret google-client=/private/google-client-secret`
 (and equivalent arguments for GitHub/Facebook) to `configure.py` on the first run.
-The helper applies only public typed `transit-admin browser` operations and saves
+The helper applies only the public typed catalog operations through the example-owned `example-browser-publish` program and saves
 each original request and response under `browser-private/requests`. It does not
 retry failed or uncertain changes. An already configured deployment uses explicit
 inspection and conditional updates from the contract instead of rerunning setup.

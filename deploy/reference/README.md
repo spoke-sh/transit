@@ -53,7 +53,7 @@ kubectl transit logs node -n demo --release transit --follow
 kubectl transit board -n demo --release transit
 ```
 
-The recovery test installs [charts/transit](../../charts/transit/README.md) in an
+The recovery test installs [deploy/reference/chart](chart/README.md) in an
 isolated namespace, with explicit bootstrap and disk-backed Ursula storage. It
 interrupts the controller after Actor creation, replaces a real worker pod, and
 restarts Ursula. It checks PID/Actor continuity, fresh worker identity and
@@ -87,7 +87,7 @@ to each executable:
 - [example-counter](../../examples/counter/README.md): caller and fresh-key bootstrap.
 - [Substrate adapter](../../packages/zig/transit-runtime-substrate/README.md): pinned CLI, template validation, and egress policy.
 
-[charts/transit](../../charts/transit/README.md) owns the deployed service and
+[deploy/reference/chart](chart/README.md) owns the deployed service and
 WorkerPool definitions. [reference_chart.py](../../tests/interfaces/deployment/reference_chart.py)
 supplies public values and stages storage, explicit initialization, then normal
 recovery-only service startup. The workload fixture adds grants and Secrets

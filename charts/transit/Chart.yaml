@@ -1,6 +1,6 @@
 apiVersion: v2
 name: transit
-description: Transit streaming runtime with persistent Ursula and optional Board inspection
+description: A standalone Transit server with a retained installation and authenticated SQL over TLS
 version: 0.0.1
 appVersion: "0.0.1"
 type: application

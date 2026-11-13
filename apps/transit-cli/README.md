@@ -27,7 +27,7 @@ processes from the same executable. Board runs by default, with `--no-ui` for
 headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
-The `transit-admin` administration utility remains separate.
+Native administration remains available through the shared client API.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
 configuration and recovery. Shared parser and

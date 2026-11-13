@@ -79,7 +79,7 @@ go-sdk-test: go-build go-check
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/consumers/go/go_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/go
+    python3 -B tests/runner/launch.py tests/sdk/consumers/go/go_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/go
 
 # Requires the installed language artifacts from the corresponding *-build tasks.
 # C exercises C/C++; BEAM exercises Erlang/Elixir. Select with --family.
@@ -124,9 +124,9 @@ python-test: python-build
     PYTHONPATH=sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_diagnostic_errors.py "${native_prefix}/lib/libtransit_client.so"
     mypy --strict sdks/python/transit-native-client/transit_native_client sdks/python/transit-native-station/transit_native_station sdks/python/transit-client/transit_client
     mypy --config-file sdks/python/transit-station/pyproject.toml sdks/python/transit-client/transit_client sdks/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
-    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/wheels
-    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/wheels "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python
+    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/wheels
+    python3 -B tests/runner/launch.py tests/sdk/consumers/python/python_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/wheels "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-python
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=python
@@ -162,9 +162,9 @@ node-sdk-test: node-build
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/catalog.test.ts src/unified.test.ts src/relational.test.ts src/table.test.ts
     (cd examples/station-sdk/typescript && vp check)
     vp exec --filter @transit/sdk-examples tsc --noEmit
-    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/node
-    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/node "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language node
+    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/node
+    python3 -B tests/runner/launch.py tests/sdk/consumers/node/node_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/node "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language node
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-node
     zig build test-relational-callers -Doptimize=ReleaseSafe -Drelational-sdk=node
@@ -189,7 +189,7 @@ rust-lifetime cases="128": rust-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_lifetime.py --cases {{quote(cases)}} --node "$authority_prefix/bin/transit-node" --cli "$native_prefix/bin/transit-admin" --library "$native_prefix/lib/libtransit_client.so" --artifacts .cache/bindings/ReleaseSafe/rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_lifetime.py --cases {{quote(cases)}} --node "$authority_prefix/bin/transit-node" --cli "$native_prefix/tests/native-client-fixture" --library "$native_prefix/lib/libtransit_client.so" --artifacts .cache/bindings/ReleaseSafe/rust
 
 # Build clean Rust consumers; run from the bindings shell.
 rust-sdk-test: rust-build
@@ -202,8 +202,8 @@ rust-sdk-test: rust-build
     cargo fmt --manifest-path sdks/rust/transit-native-station/Cargo.toml --check
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
     cargo fmt --manifest-path examples/station-sdk/rust/Cargo.toml --check
-    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/rust
-    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/rust "${native_prefix}/bin/transit-station-http-worker" "${native_prefix}/bin/transit-station-grpc-worker"
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/rust
+    python3 -B tests/runner/launch.py tests/sdk/consumers/rust/rust_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/rust "${native_prefix}/bin/transit-station-http-worker" "${native_prefix}/bin/transit-station-grpc-worker"
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-rust
 
@@ -239,9 +239,9 @@ ruby-sdk-test: ruby-build
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
     ruby -c examples/station-sdk/ruby/bin/transit-ruby-counter
-    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/ruby
-    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/ruby "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language ruby
+    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/ruby
+    python3 -B tests/runner/launch.py tests/sdk/consumers/ruby/ruby_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/ruby "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language ruby
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-ruby
 
@@ -262,9 +262,9 @@ c-sdk-test: c-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     zig fmt --check sdks/c sdks/cpp/transit-client sdks/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
-    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/c
-    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/c "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/c
+    python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/c "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language c
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-c
     python3 -B tests/runner/launch.py tests/sdk/consumers/c/c_logical_values.py .cache/bindings/ReleaseSafe/c
@@ -286,9 +286,9 @@ java-sdk-test: java-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/java
-    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/java "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language java
+    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/java
+    python3 -B tests/runner/launch.py tests/sdk/consumers/java/java_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/java "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language java
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-java
 
@@ -310,9 +310,9 @@ dotnet-sdk-test: dotnet-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_logical_values.py .cache/bindings/ReleaseSafe/dotnet
-    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/dotnet
-    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/dotnet "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/dotnet
+    python3 -B tests/runner/launch.py tests/sdk/consumers/dotnet/dotnet_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/dotnet "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language dotnet
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-dotnet
 
@@ -335,9 +335,9 @@ beam-sdk-test: beam-build
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_logical_values.py .cache/bindings/ReleaseSafe/beam
     ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted sdks/beam/transit-client-elixir/lib/client.ex sdks/beam/transit-client-elixir/mix.exs sdks/beam/transit-station-elixir/lib/*.ex sdks/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/sdk/consumers/elixir/elixir_client_sdk.exs tests/sdk/consumers/elixir/elixir_station_adapter.ex tests/sdk/consumers/elixir/elixir_http_adapter.ex tests/sdk/consumers/elixir/elixir_grpc_adapter.ex tests/sdk/consumers/elixir/elixir_logical_values.exs
-    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/beam
-    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/beam "${native_prefix}/bin/transit-station-http-worker"
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language beam
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_client_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/beam
+    python3 -B tests/runner/launch.py tests/sdk/consumers/beam/beam_station_sdk.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe/beam "${native_prefix}/bin/transit-station-http-worker"
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language beam
     export TRANSIT_SDK_BUILT=1
     just bindings::direct-catalog-beam
 
@@ -347,7 +347,7 @@ sdk-interop: python-build node-build rust-build ruby-build c-build java-build do
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_public_interop.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe .cache/verification/m11-public-interop.json
+    python3 -B tests/runner/launch.py tests/sdk/sdk_public_interop.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe .cache/verification/m11-public-interop.json
 
 # Every installed catalog caller explicitly selects a non-inherited data role.
 authorization: direct-catalog-python direct-catalog-node direct-catalog-rust direct-catalog-ruby direct-catalog-c direct-catalog-java direct-catalog-dotnet direct-catalog-beam
@@ -358,8 +358,8 @@ connector-outcomes: python-build node-build rust-build ruby-build c-build java-b
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-http-worker" .cache/bindings/ReleaseSafe --protocol http
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-http-worker" .cache/bindings/ReleaseSafe --protocol http
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe
 
 # Retain original accepted-call preparation failures across lost receipts and restart.
 connector-preparation: python-build
@@ -367,8 +367,8 @@ connector-preparation: python-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-http-worker" .cache/bindings/ReleaseSafe --protocol http --language python --preparation-failure
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --preparation-failure
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-http-worker" .cache/bindings/ReleaseSafe --protocol http --language python --preparation-failure
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --preparation-failure
 
 # Crash after public RPC output commit and preserve a retired caller destination.
 grpc-faults: python-build
@@ -376,8 +376,8 @@ grpc-faults: python-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --fault published
-    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --fault retirement
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --fault published
+    python3 -B tests/runner/launch.py tests/sdk/sdk_grpc_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-grpc-worker" .cache/bindings/ReleaseSafe --language python --fault retirement
 
 # Qualify Document scoped jobs and read-only native/port consumers.
 document-native:
@@ -385,7 +385,7 @@ document-native:
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/station_document_abi.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_station.so" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-host"
+    PYTHONPATH=sdks/python/transit-station:sdks/python/transit-client python3 -B tests/runner/launch.py tests/sdk/station_document_abi.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_station.so" "${native_prefix}/lib/libtransit_client.so" "${native_prefix}/bin/transit-station-host"
 
 # Installed Python Document types, scoped changes, retained reads and host loss.
 document-python: python-build
@@ -393,7 +393,7 @@ document-python: python-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language python
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language python
 
 # Installed Node Document values, scoped ownership, retained reads and host loss.
 document-node: node-build
@@ -403,7 +403,7 @@ document-node: node-build
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/document.test.ts
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language node
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language node
 
 # Installed Ruby Document values, scoped changes and joined reader destruction.
 document-ruby: ruby-build
@@ -412,7 +412,7 @@ document-ruby: ruby-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     ruby -c sdks/ruby/transit-station/lib/transit/station/document.rb
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language ruby
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language ruby
 
 # Installed Rust Document values and compiler-enforced owner/reader lifetimes.
 document-rust: rust-build
@@ -421,7 +421,7 @@ document-rust: rust-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     cargo fmt --manifest-path sdks/rust/transit-station-sdk/Cargo.toml --check
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language rust
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language rust
 
 # Installed C11/C++17 Document handlers, owned values and reader lifetimes.
 document-c: c-build
@@ -429,7 +429,7 @@ document-c: c-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language c
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language c
 
 # Installed Java Document values, scoped jobs and asynchronous joined reads.
 document-java: java-build
@@ -437,7 +437,7 @@ document-java: java-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language java
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language java
 
 # Installed .NET Document values, scoped jobs, cancellation and joined disposal.
 document-dotnet: dotnet-build
@@ -445,7 +445,7 @@ document-dotnet: dotnet-build
     set -euo pipefail
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language dotnet
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language dotnet
 
 # Installed Erlang and Elixir Document APIs share the native merge implementation.
 document-beam: beam-build
@@ -454,7 +454,7 @@ document-beam: beam-build
     native_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare clients --optimize ReleaseSafe)
     authority_prefix=$(python3 -B tests/runner/launch.py tests/harness/native_artifacts.py prepare authority --optimize ReleaseSafe)
     mix format --check-formatted sdks/beam/transit-station-elixir/lib/document.ex tests/sdk/consumers/elixir/elixir_document_adapter.ex
-    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/bin/transit-admin" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language beam
+    python3 -B tests/runner/launch.py tests/sdk/sdk_document_runner.py "${authority_prefix}/bin/transit-node" "${native_prefix}/tests/native-client-fixture" "${native_prefix}/lib/libtransit_client.so" .cache/bindings/ReleaseSafe --language beam
 
 # Python sync/async direct capture, independent native progress and rotated-credential results.
 direct-captured-python:

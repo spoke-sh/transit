@@ -49,7 +49,7 @@ def run(node, executor, cli):
         thread.start()
 
         def invoke(*args):
-            return json.loads(subprocess.check_output([str(cli), *map(str, args)], timeout=10))
+            return json.loads(subprocess.check_output([str(cli), "native", *map(str, args)], timeout=10))
 
         def key(name):
             path = store.root / (name + ".key")

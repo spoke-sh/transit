@@ -13,7 +13,7 @@ def run(packages, runtime, languages):
     assert manifest['target'] in ('x86_64-linux-gnu.2.28', 'aarch64-linux-gnu.2.28')
     os.environ['TRANSIT_SDK_TEST_MANIFEST'] = str(packages / 'sdk-manifest.json')
     native = packages / 'native'
-    node, admin = runtime / 'bin/transit-node', native / 'bin/transit-admin'
+    node, admin = runtime / 'bin/transit-node', native / 'tests/native-client-fixture'
     for language in languages:
         artifacts = packages / ('wheels' if language == 'python' else language)
         RAW_RUNNERS[language](str(node), str(admin), str(native / 'lib/libtransit_client.so'), str(artifacts))

@@ -9,6 +9,7 @@ import selectors
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -16,6 +17,8 @@ import urllib.request
 from peer import start as start_peer
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "launchers"))
+from native_client import Client, ClientError, public_key
 
 
 def port():
@@ -31,7 +34,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
     connector_binary = f"transit-station-{protocol}-worker"
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
-                ("transit-admin", "transit-node", caller_binary, connector_binary)}
+                ("transit-client-host", "transit-node", caller_binary, connector_binary)}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", LOG_LEVEL="warn")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -82,7 +85,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
             keys[role] = work / role / "seed.key"
             keys[role].write_text(secrets.token_hex(32))
             keys[role].chmod(0o600)
-            public[role] = invoke([binaries["transit-admin"], "public-key", keys[role]])
+            public[role] = public_key(keys[role])
         realm = secrets.randbelow(2**30) + 1
         store_port, node_port = port(), port()
         url = f"http://127.0.0.1:{node_port}"
@@ -124,7 +127,7 @@ backend = "inline"
 
         def query(kind, role="operator"):
             request = write(role + "/query.json", {"realm": realm, "principal": principals[role], "kind": kind})
-            return invoke([binaries["transit-admin"], "query", keys[role], request, url])
+            return Client(binaries["transit-client-host"], url).query(keys[role], json.loads(request.read_text()))
 
         def command(value, role="operator"):
             # Persist this exact request before I/O. A failed receipt never
@@ -134,7 +137,7 @@ backend = "inline"
                 "realm": realm, "principal": principals[role], "sequence": sequences[role], "command": value})
             for attempt in range(3):
                 try:
-                    return invoke([binaries["transit-admin"], "submit", keys[role], request, url])["position"]
+                    return Client(binaries["transit-client-host"], url).submit(keys[role], json.loads(request.read_text()))["position"]
                 except RuntimeError:
                     if attempt == 2:
                         raise
@@ -169,18 +172,18 @@ backend = "inline"
                 command({"grant_resource": {"resource": records[other]["resource"], "subject": principals[role], "permissions": 3}})
             command({"grant": {"subject": 3, "public_key": public["delivery"], "permissions": 148}})
 
-            # Signing has no I/O; granting caller execution does not grant admin
-            # authority. Exercise both boundaries through the actual CLI.
+            # Offline preparation is deterministic and grants no authority.
             before = query({"capabilities": {}})["position"]
-            denied = write("caller/denied.json", {"realm": realm, "principal": 1, "sequence": 1, "command": {"spawn": {}}})
-            first = invoke([binaries["transit-admin"], "sign", keys["caller"], denied])
-            assert first == invoke([binaries["transit-admin"], "sign", keys["caller"], denied])
-            result = subprocess.run([binaries["transit-admin"], "submit", keys["caller"], denied, url], env=env,
-                                    capture_output=True, timeout=15)
-            assert result.returncode and b"AccessDenied" in result.stderr
-            extra_url = subprocess.run([binaries["transit-admin"], "sign", keys["caller"], denied, url], env=env,
-                                       capture_output=True, timeout=15)
-            assert extra_url.returncode and b"ExpectedKeyAndRequestFile" in extra_url.stderr
+            denied = {"realm": realm, "principal": 1, "sequence": 1, "command": {"spawn": {}}}
+            offline = Client(binaries["transit-client-host"], "http://127.0.0.1:1")
+            frozen = offline.prepare(keys["caller"], denied)
+            assert frozen == offline.prepare(keys["caller"], denied)
+            try:
+                Client(binaries["transit-client-host"], url).call(frozen)
+            except ClientError as error:
+                assert error.status == 4 and error.detail == {"err": "AccessDenied"}
+            else:
+                raise AssertionError("Caller was allowed to administer the authority")
             assert query({"capabilities": {}})["position"] == before
 
             cert, private = work / "connector/ca.pem", work / "peer/tls.key"

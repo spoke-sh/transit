@@ -440,7 +440,7 @@ The [build module](build.just) exposes Zig's four optimization modes:
 | `just build::release-small` | `-Doptimize=small` | Optimize for executable size | Disabled by default |
 
 Bare `just build` lists these choices. With no further arguments, each profile
-installs `transit-node`, `transit-runtime-controller`, `transit-admin`, `kubectl-transit`, and `transit-board` with
+installs `transit-node`, `transit-runtime-controller`, `transit-client-host`, `kubectl-transit`, and `transit-board` with
 its embedded UI into `zig-out/bin`. Install frontend dependencies first with
 `just transit-board::install`. Zig caches each optimization mode separately, but the
 default installation directory is shared: the most recent build replaces those

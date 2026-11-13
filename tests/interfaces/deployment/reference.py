@@ -146,7 +146,7 @@ def images(s):
     source()
     CACHE.mkdir(parents=True, exist_ok=True)
     ate_binary()  # The shell and runtime controller share the Nix-packaged CLI.
-    run(["zig", "build", "apps", "examples", "probe", "transit-board", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
+    run(["zig", "build", "apps", "examples", "test-native-client-fixture", "probe", "transit-board", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
     host = f"localhost:{s['port']}"
     result = {}
     for name in ("transit-node", "example-counter", "isolation-probe", "transit-board"):

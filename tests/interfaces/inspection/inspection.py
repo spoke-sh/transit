@@ -90,7 +90,7 @@ class System:
         return child
 
     def invoke(self, *args):
-        return json.loads(subprocess.check_output([str(self.cli), *map(str, args)], timeout=10))
+        return json.loads(subprocess.check_output([str(self.cli), "native", *map(str, args)], timeout=10))
 
     def key(self, name):
         path = self.root / f"{name}.key"

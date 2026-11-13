@@ -350,7 +350,8 @@ or reenter `nix develop`. `just doctor` and Nix smoke checks stay offline.
 
 The [reference runbook](../deploy/reference/README.md) owns cluster setup.
 Helm 3.20.2 and PyYAML come from the existing nixpkgs pin; the chart proof uses
-them to render, lint and inspect [charts/transit](../charts/transit/README.md).
+them to render, lint and inspect the [standalone chart](../charts/transit/README.md)
+and [reference chart](../deploy/reference/chart/README.md).
 [Backend notes](../packages/zig/transit-backend-ursula/README.md) own Ursula's disk
 configuration and the separately pinned Zig client dependency.
 

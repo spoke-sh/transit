@@ -95,7 +95,6 @@ the implementations listed below remain shared runtime libraries.
 | [transit-cli](../../../apps/transit-cli/README.md) (`transit`) | Local server lifecycle and shared local/remote SQL sessions |
 | [transit-board](../../../apps/transit-board/README.md) | Inspection API plus optional query capability with embedded [TanStack Router frontend](../../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
-| [transit-admin](../../../apps/transit-admin/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../../../examples/counter/README.md) | Complete caller, also the reference deployment workload |
 | [example-byte-log](../../../examples/byte-log/README.md) | Independent caller against the same generic authority |
 | [example-station-ledger](../../../examples/station-ledger/README.md) | Three Station processes with Tables, calls, registry, supervision and Arrow replies |

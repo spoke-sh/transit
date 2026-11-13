@@ -146,7 +146,7 @@ provider placement will eventually succeed. See the
 
 Checked-in [Process Compose](../process-compose.yaml) and
 [Docker Compose](../docker-compose.yaml) describe this example's topology.
-The [Transit chart](../../../charts/transit/README.md) owns the reference topology;
+The [Transit chart](../../../deploy/reference/chart/README.md) owns the reference topology;
 launchers supply instance values, credentials and durable provisioning.
 `test-station` in each launcher task group provisions an isolated installation,
 exercises registry/call/Arrow exchanges, upgrades all three workers with their

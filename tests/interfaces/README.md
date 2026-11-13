@@ -20,7 +20,7 @@ semantics; these drivers add protocol, presentation and installation boundaries.
 | Installed scalar parity | [Console/psql/mysql smoke](installation/server_sql_types.py), [shared corpus and deeper driver loop](sql_wire/README.md) |
 | Installed SOURCE declarations | [Native publication, scoped inspection, original recovery, retirement and zero-dispatch proof](installation/server_sources.py) |
 | Installed webhook/Dataflow/HTTP journey | [Application adapter](installation/webhook.py), [scenario runner and limits](../performance/load/scenarios.md) |
-| Launchers and reference deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just) |
+| Launchers and Kubernetes deployment | [deployment/](deployment/), [launcher tasks](../../tasks/launchers.just), [standalone Helm lifecycle](deployment/standalone.py) |
 
 The [test task module](../../tasks/test.just) supplies required binaries and
 environments. Use `python3 -B tests/runner/launch.py tests/interfaces/AREA/DRIVER.py`
@@ -32,3 +32,9 @@ Read the [contribution rules](AGENTS.md) and the owning public contract before
 changing expectations. Browser checks use Board's task module; independent SQL
 clients use the pinned `sql-wire` shell. Failed, canceled or unavailable profiles
 remain incomplete in automatic runner output.
+
+The standalone Helm lifecycle takes a matching static release prefix with
+`just test::standalone-chart PREFIX`. It owns a fresh Kind cluster and registry,
+checks authenticated SQL, retained replacement and missing-installation refusal,
+and retains private failure state for diagnosis. The chart render checks run in
+`just test::deployments`; they do not substitute for this live proof.

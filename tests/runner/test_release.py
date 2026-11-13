@@ -63,6 +63,36 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         self.assertIn('Transit 0.0.1', subprocess.check_output([str(self.prefix / 'bin/transit')], text=True))
         self.assertNotEqual(self.install().returncode, 0)
 
+    def test_retired_admin_link_is_removed_but_old_bundle_is_retained(self):
+        old = self.prefix / 'lib/transit/0.0.0/bin/transit-admin'
+        old.parent.mkdir(parents=True)
+        old.write_text('original executable')
+        link = self.prefix / 'bin/transit-admin'
+        link.parent.mkdir()
+        link.symlink_to(old)
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(link.is_symlink())
+        self.assertEqual(old.read_text(), 'original executable')
+
+    def test_unrelated_admin_entries_are_preserved(self):
+        directory = self.prefix / 'bin'
+        directory.mkdir(parents=True)
+        admin = directory / 'transit-admin'
+        admin.symlink_to('/unrelated/transit-admin')
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(os.readlink(admin), '/unrelated/transit-admin')
+
+    def test_failed_install_preserves_retired_admin_link(self):
+        link = self.prefix / 'bin/transit-admin'
+        link.parent.mkdir(parents=True)
+        original = self.prefix / 'lib/transit/0.0.0/bin/transit-admin'
+        link.symlink_to(original)
+        self.asset.write_bytes(b'corrupt')
+        self.assertNotEqual(self.install().returncode, 0)
+        self.assertEqual(os.readlink(link), str(original))
+
     def test_offline_install_uses_the_same_checksum_gate(self):
         args = ['sh', str(ROOT / 'install.sh'), '--version', '0.0.1',
                 '--prefix', str(self.prefix), '--from', str(self.downloads)]

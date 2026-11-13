@@ -2,8 +2,7 @@
 
 `transit server` runs a local installation. `transit console` opens server-managed
 SQL sessions for queries, Table DDL/DML and catalog operations.
-`transit-admin` and `kubectl-transit` are separate administration and runtime
-tools. Commands assume `transit` is on `PATH`.
+`kubectl-transit` is separate source tooling for the reference runtime. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
 ## Commands

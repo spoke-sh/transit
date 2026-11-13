@@ -24,5 +24,5 @@ class Chart:
         values_file = self.directory / "transit-values.json"
         values_file.write_text(json.dumps(self.values, indent=2))
         ref.run(["helm", "--kubeconfig", ref.CACHE / "kubeconfig", "--kube-context", "kind-" + self.state["cluster"],
-                 "upgrade", "--install", "transit", ref.ROOT / "charts/transit", "--namespace", self.namespace,
+                 "upgrade", "--install", "transit", ref.ROOT / "deploy/reference/chart", "--namespace", self.namespace,
                  "--values", values_file, "--wait", "--wait-for-jobs", "--timeout", "180s", "--history-max", "5"])

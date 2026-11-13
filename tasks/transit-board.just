@@ -149,12 +149,12 @@ grpc-browser:
 
 # Accepted Document metadata with source cuts, current grants and retained gaps.
 document-test:
-    zig build transit-node transit-admin transit-station-document-worker example-station-document transit-board
+    zig build transit-node transit-client-host test-native-client-fixture transit-station-document-worker example-station-document transit-board
     python3 -B examples/station-document/run.py --board
 
 # Real embedded metadata view and clearing after current read revocation.
 document-browser:
-    zig build transit-node transit-admin transit-station-document-worker example-station-document transit-board
+    zig build transit-node transit-client-host test-native-client-fixture transit-station-document-worker example-station-document transit-board
     python3 -B examples/station-document/run.py --browser
 
 # Independent-reader computation metadata over the real managed Table fixture.

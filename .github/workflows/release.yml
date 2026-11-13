@@ -478,7 +478,7 @@ jobs:
           path: .cache/sdk-release
       - name: Restore executable modes and unpack runtime
         run: |
-          chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/c-sdk/bin/*
+          chmod +x .cache/sdk-release/native/bin/* .cache/sdk-release/native/tests/* .cache/sdk-release/c-sdk/bin/*
           mkdir -p .cache/runtime
           tar -xf "dist/release/transit-${{ needs.prepare.outputs.version }}-linux-${{ matrix.architecture }}.tar.gz" --strip-components=1 -C .cache/runtime
       - name: Fetch locked Rust registry dependencies

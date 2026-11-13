@@ -124,7 +124,7 @@ class Reference(Compose):
         values = self.work / "reference-values.json"
         values.write_text(json.dumps(self.values))
         result = subprocess.run(["helm", "--kubeconfig", self.context[1], "--kube-context", self.context[3],
-            "upgrade", "--install", "exchange-example", str(ROOT / "charts/transit"), "--namespace", self.namespace,
+            "upgrade", "--install", "exchange-example", str(ROOT / "deploy/reference/chart"), "--namespace", self.namespace,
             "--values", str(values), "--wait", "--wait-for-jobs", "--timeout", "180s", "--history-max", "3"],
             capture_output=True, text=True, timeout=200)
         if result.returncode: raise RuntimeError(result.stderr[-4000:])

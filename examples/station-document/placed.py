@@ -11,6 +11,8 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "launchers"))
+from native_client import Client, public_key
 sys.path.insert(0, str(ROOT / "tests"))
 from storage.providers.cold_storage import ColdStore
 from runtime.document.document_contract import encode
@@ -20,7 +22,7 @@ from placement import Compose, Reference
 def run(profile):
     assert profile in ("compose", "reference")
     started = time.monotonic()
-    cli = ROOT / "zig-out/bin/transit-admin"
+    host = ROOT / "zig-out/bin/transit-client-host"
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(LOG_LEVEL="warn", RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -60,18 +62,18 @@ def run(profile):
             keys[role] = work / role / "seed.key"
             keys[role].write_text(secrets.token_hex(32))
             keys[role].chmod(0o600)
-            public[role] = invoke([cli, "public-key", keys[role]])
+            public[role] = public_key(keys[role])
         realm = secrets.randbelow(2**30)+1
         url = ""
 
         def query(kind):
-            return invoke([cli, "query", keys["operator"], write("operator/query.json", dict(realm=realm, principal=0, kind=kind)), url])
+            return Client(host, url).query(keys["operator"], dict(realm=realm, principal=0, kind=kind))
 
         def command(body):
             sequence = query({"capabilities": {}})["principal_sequence"]+1
             request = write(f"operator/command-{sequence}.json", dict(realm=realm, principal=0, sequence=sequence, command=body))
             for attempt in range(3):
-                try: return invoke([cli, "submit", keys["operator"], request, url])["position"]
+                try: return Client(host, url).submit(keys["operator"], json.loads(request.read_text()))["position"]
                 except RuntimeError:
                     if attempt == 2: raise
 
