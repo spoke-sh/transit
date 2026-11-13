@@ -19,11 +19,11 @@ from interfaces.cli.table_console import records
 from interfaces.installation.server import Fixture
 
 
-def invoke(cli, root, *args, expected=0):
+def invoke(cli, root, *args, expected=0, timeout=60):
     temporary = root / '.test-tmp'
     temporary.mkdir(exist_ok=True)
     result = subprocess.run([str(cli), 'test', '--format', 'json', *map(str, args)],
-                            cwd=root, capture_output=True, text=True, timeout=60,
+                            cwd=root, capture_output=True, text=True, timeout=timeout,
                             env={'PATH': '/unavailable', 'TRANSIT_CONSOLE_CONFIG': '/private/unreadable', 'TMPDIR': str(temporary)},
                             preexec_fn=offline)
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
@@ -142,9 +142,11 @@ def main():
         source(programs, 'build.transit', program_source)
         typed_queue = root / 'typed-queue'
         shutil.copytree(ROOT / 'tests/fixtures/application-typed-queue', typed_queue)
-        report = invoke(cli, typed_queue)
-        assert report['complete'] and [case['status'] for case in report['cases']] == ['passed'], report
-        assert report['cases'][0]['observation']['rows'] == 4, report
+        # Five isolated cases retain the CLI's 30-second per-case budget. The
+        # process watchdog covers their aggregate execution and joined cleanup.
+        report = invoke(cli, typed_queue, timeout=180)
+        assert report['complete'] and [case['status'] for case in report['cases']] == ['passed'] * 5, report
+        assert [case['observation']['rows'] for case in report['cases']] == [2, 0, 0, 0, 2], report
         workflow = (typed_queue / 'workflow.transit').read_text()
         source(typed_queue, 'workflow.transit', workflow.replace('found.id = request.machine_id', 'found.id = request.id'))
         refused = invoke(cli, typed_queue, expected=1)
