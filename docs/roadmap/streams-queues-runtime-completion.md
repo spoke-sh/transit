@@ -9,7 +9,7 @@ work, and qualification of the complete system at one revision.
 [PR #451](https://github.com/spoke-sh/transit/pull/451) delivers the initial shared
 higher-level database transaction API and migrates the private runner to it.
 The [read ownership slice](transaction-read-ownership.md) implements owned Table/KV
-transaction reads through that API; its installed and clean qualification is in progress. Most remaining effort sits in service migration and
+transaction reads through that API with scoped installed evidence. Most remaining effort sits in service migration and
 proof of the complete replacement.
 
 Plan for **15–21 review units and 19–32 engineer-weeks of direct work**. Allowing
@@ -232,7 +232,7 @@ The independent installed Table/KV and mixed Stream/Queue fixture now uses that
 shared context and journal, including lost replies, checkpoint failure, restart,
 savepoints and explicit cleanup. These are executable checks, not a claim that
 the full exit below has passed. Context-bound Table/KV read ownership is now
-implemented with separate qualification in progress. Bounded multi-statement
+implemented with scoped installed qualification. Bounded multi-statement
 batching, shared-path cost optimization and matched performance
 qualification remain follow-up work. The overall milestone estimate is retained
 until those measurements and the consumer inventory justify revising it.

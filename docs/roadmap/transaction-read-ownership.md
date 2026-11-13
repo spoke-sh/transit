@@ -1,6 +1,6 @@
 # Milestone 6 shared transaction reads implementation plan
 
-[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: Implemented; qualification in progress** · 2026-11-12
+[Milestone 6](06-streams-queues-and-durable-runtime.md) · **Status: Implemented with scoped installed evidence** · 2026-11-12
 
 The next slice lets an application read its private Table and KV changes through
 the same shared transaction API it uses to write and recover them. Station uses
@@ -31,11 +31,12 @@ The [current caller guide](../../packages/zig/transit-data-client/docs/transacti
 owns supported semantics; the design and acceptance matrix below retain the
 reviewed scope. No wire or persisted definition changed.
 
-Catalog and data-client package tests, runner ownership controls, the fast checks
-and handbook check have executed successfully during implementation. Installed
-transaction/Station schedules and committed clean lanes remain in progress; the
-implementation alone does not establish their results. Final executed evidence
-belongs in the transaction qualification account and PR.
+Catalog and data-client package tests, runner ownership controls, the fast checks,
+handbook check, independent Table/KV and mixed Stream/Queue journeys, and all 18
+Station schedules pass. The [scoped qualification account](../history/qualification/transactions.md#shared-owned-transaction-reads--2026-11-12)
+records source identities, faults, memory observations and limits. Clean lane
+results are separate PR evidence; these installed checks do not complete unit B
+or the wider runtime replacement.
 
 ## Delivered foundation and the remaining read boundary
 

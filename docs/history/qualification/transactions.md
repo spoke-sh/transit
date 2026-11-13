@@ -7,6 +7,70 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Shared owned transaction reads — 2026-11-12
+
+The question is whether an ordinary data caller can read private Table/KV state
+through the shared context without depending on Station or taking ownership of
+transaction pins. The [caller guide](../../../packages/zig/transit-data-client/docs/transaction-reads.md)
+defines the supported lifecycle. The
+[raw profile records](transaction-read-profiles-2026-11-12.jsonl) preserve the
+executables, source/toolchain identities, faults and completion observations.
+
+At committed source `37120d3c6baccb3d570ba66141cd5273acee3e34`, both commands pass:
+
+```sh
+nix develop --command just test direct-state-transaction
+nix develop --command just test direct-mixed-transaction
+```
+
+The separately built caller rejects transitive Station imports. Existing original
+write/decision reply loss, two node SIGKILL/restarts, checkpoint failure,
+savepoints, private/public visibility and mixed Stream/Queue oracles pass. Its
+[read fixture](../../../tests/catalog/tables/direct_transaction_reads.zig) adds
+composite ASCII_CI keys, exact binary values, NULL versus missing KV values,
+empty/multipage completion, denied metadata/missing/terminal reads, constructor
+allocation failures at every retained allocation depth, and failed page allocation
+without cursor advancement. Writes and all three savepoint controls invalidate
+old readers, including a separate authenticated host advancing the same original
+transaction. Original abort and cleanup complete during context close; retained
+row bytes survive reader and context destruction.
+
+Each read fixture transfers 135,168 payload bytes (33 rows) in 17 pages under a
+98,304-byte output allocator budget. Output peaks at 35,202 bytes with three backing
+allocations. Each fixture makes 103 `/table/v1` requests including setup, negative
+controls and settlement; whole journeys make 160 and 237 respectively. These are
+finite ownership observations, not whole-process memory, steady-state allocation,
+latency budgets or a matched before/after benchmark. Transport, reader-schema and
+retained point-result allocation are outside the batch-output counter.
+
+At `396d41d0dd9f330098be9e8c2570e7de1e2a557d`, before test-only corrections,
+`nix develop --command just test station-transaction` passes all 18 installed
+schedules, preserving original actor bindings, state/input/output oracles and
+replacement recovery. Station uses the same production reader implementation as
+the ordinary caller. Catalog and data-client package tests also pass; their local
+admission/ownership checks do not establish installed language or provider coverage.
+
+Earlier read-fixture attempts failed explicitly: the existing proxy corrupted
+the first private pin reply, and an 8 KiB SQL parameter exceeded the existing
+4 KiB scalar-cell bound. The final fixture asserts rejection of that corrupted
+reply without mutation uncertainty, then explicitly reopens. It uses more 4 KiB
+rows rather than changing the runtime bound. No wire, persisted definition,
+source-pin ownership or automatic retry behavior changed.
+
+Original local logs remain `/tmp/transit-read-state-final3.log`,
+`/tmp/transit-read-mixed-final3.log` and `/tmp/transit-read-station.log`.
+Their SHA-256 values are, in that order:
+
+```text
+63167b19eab4060ad9236a10a53d367f36c9554eae164b92ec715eeb6edeeeb0
+037e8358faa8b028f25e71ec110ab70f1734f6da546dc2003c36bc14bcb01e00
+69127a7b290ec8e40dd115b768c87d32ab292e0eaa10d76a244d0ce0ce756400
+```
+
+Clean CI lane results and baseline publication gates are recorded separately in
+the implementation PR. This evidence does not complete the wider runtime
+replacement, statement batching, Queue payload-read release or performance work.
+
 ## Installed automatic DLQ recovery — 2026-11-01
 
 Clean committed source `e58935ced5321d84bbface428fda206cdb2d4eb9`, definition
