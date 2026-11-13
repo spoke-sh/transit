@@ -11,7 +11,9 @@ version: 1
 installation: /data/.transit
 startup:
   require_existing: {{ if eq .Values.requireExisting nil }}{{ or .Release.IsUpgrade (ne .Values.persistence.existingClaim "") }}{{ else }}{{ .Values.requireExisting }}{{ end }}
-logging: {format: json, level: info}
+logging:
+  format: json
+  level: info
 board: null
 sql:
   native:
