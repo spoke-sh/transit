@@ -192,7 +192,7 @@ def scenario(args, destination, record, report):
                     path = store.root / f'{name}.key'
                     path.write_text(os.urandom(32).hex())
                     path.chmod(0o600)
-                    return path, invoke([binaries['cli'], 'public-key', path])
+                    return path, invoke([binaries['cli'], 'native', 'public-key', path])
 
                 root_key, public = key('root')
                 worker_key, worker_public = key('worker')
@@ -215,14 +215,14 @@ def scenario(args, destination, record, report):
                     sequence += 1
                     path = store.root / 'command.json'
                     path.write_text(json.dumps(dict(realm=61, principal=0, sequence=sequence, command=value)))
-                    receipt = invoke([binaries['cli'], 'submit', root_key, path, url])
+                    receipt = invoke([binaries['cli'], 'native', 'submit', root_key, path, url])
                     record('control', sequence=sequence, command=value, receipt=receipt)
                     return receipt['position']
 
                 def query(kind, principal=0, credential=None, full=False):
                     path = store.root / 'query.json'
                     path.write_text(json.dumps(dict(realm=61, principal=principal, kind=kind)))
-                    response = invoke([binaries['cli'], 'query', credential or root_key, path, url])
+                    response = invoke([binaries['cli'], 'native', 'query', credential or root_key, path, url])
                     return response if full else response['body']
 
                 pid = command(dict(spawn={}))
