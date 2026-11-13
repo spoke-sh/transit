@@ -169,7 +169,7 @@ GitHub makes this visibility change permanent. See its
 [package visibility guide](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility#configuring-visibility-of-packages-for-an-organization).
 
 The current release set contains `transit`, `transit-node`,
-`transit-query-host`, `transit-board`, `transit-delivery`,
+`transit-query-host`, `transit-board`,
 `transit-station-controller`, and the separate `transit/charts/transit` Helm
 package in [spoke-sh's package list](https://github.com/orgs/spoke-sh/packages).
 The image inventory is owned by [package_release.py](../tasks/package_release.py).

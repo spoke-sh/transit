@@ -24,6 +24,13 @@ publish = publisher['publish']
 
 
 class Publication(unittest.TestCase):
+    def test_release_inventory_excludes_retired_entry_points(self):
+        # This independently declared policy governs archives and OCI images,
+        # including nightly publication through the same release pipeline.
+        self.assertEqual(set(publisher['BINARIES']), {
+            'transit', 'transit-node', 'transit-query-host', 'transit-board',
+            'transit-station-controller'})
+
     def test_image_export_preserves_settings_across_docker_default_fields(self):
         # Docker's inspection API includes defaults that OCI serialization omits.
         settings = {'User': '65532:65532', 'Env': ['PATH=/bin', 'HOME=/tmp'],

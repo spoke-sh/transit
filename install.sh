@@ -106,11 +106,13 @@ for binary in "$destination"/bin/*; do
   ln -s "$binary" "$prefix/bin/.$name.new.$$"
   mv -f "$prefix/bin/.$name.new.$$" "$prefix/bin/$name"
 done
-# Retire only this installer's old admin entry point. Preserve versioned bundles
+# Retire only this installer's obsolete entry points. Preserve versioned bundles
 # for existing installations and leave unrelated files/symlinks untouched.
-if [ ! -e "$destination/bin/transit-admin" ] && [ -L "$prefix/bin/transit-admin" ]; then
-  case "$(readlink "$prefix/bin/transit-admin")" in
-    "$prefix/lib/transit/"*/bin/transit-admin) rm "$prefix/bin/transit-admin" ;;
-  esac
-fi
+for name in transit-admin transit-delivery; do
+  if [ ! -e "$destination/bin/$name" ] && [ -L "$prefix/bin/$name" ]; then
+    case "$(readlink "$prefix/bin/$name")" in
+      "$prefix/lib/transit/"*/bin/"$name") rm "$prefix/bin/$name" ;;
+    esac
+  fi
+done
 printf '%s\n' "Installed $identity" "Add $prefix/bin to PATH."
