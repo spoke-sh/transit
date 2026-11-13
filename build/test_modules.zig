@@ -5,12 +5,14 @@ pub const Id = enum {
     catalog_query_support,
     direct_captured_query,
     direct_dependencies,
+    direct_client_admin,
     direct_exchange_workers,
     direct_follow_query,
     direct_maintained_query,
     direct_named_resources,
     direct_kv,
     direct_state_transaction,
+    direct_transaction_reads,
     managed_table,
     direct_queue_transfer,
     direct_log_token,
@@ -74,6 +76,8 @@ const Spec = struct {
 };
 
 const specs = [_]Spec{
+    .{ .id = .direct_transaction_reads, .path = "tests/catalog/tables/direct_transaction_reads.zig", .fixtures = &.{.direct_state_transaction}, .packages = &.{ "transit_catalog", "transit_data_client" } },
+    .{ .id = .direct_client_admin, .path = "tests/catalog/authorization/direct_client_admin.zig", .packages = &.{"transit_catalog"} },
     .{ .id = .catalog_query_support, .path = "tests/query/tables/catalog_query_support.zig", .fixtures = &.{ .growing_support, .table_authorization_support }, .packages = &.{ "transit_query", "transit_station" } },
     .{ .id = .direct_captured_query, .path = "tests/query/execution/direct_captured_query.zig", .fixtures = &.{.direct_maintained_query}, .packages = &.{ "transit_query", "transit_station_app" } },
     .{ .id = .direct_dependencies, .path = "tests/catalog/tables/direct_dependencies.zig", .packages = &.{"transit_catalog"} },

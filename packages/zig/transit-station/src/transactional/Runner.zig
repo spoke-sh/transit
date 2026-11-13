@@ -216,8 +216,7 @@ const Reader = struct {
     fn get(raw: *anyopaque, allocator: std.mem.Allocator, key: []const u8) !?[]const u8 {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const runner = self.runner;
-        const client = try self.transaction.privateClient(runner.client);
-        const read = (try KV.apply(&runner.output, client, .{ .get = .{ .object = runner.actor.state.object, .key = key } })).value;
+        const read = (try self.transaction.read(runner.client, &runner.output, .{ .kv = .{ .object = runner.actor.state.object, .key = key, .expected = runner.actor.state } })).kv;
         if (read.workspace == null or !std.meta.eql(read.interpretation.interpretation, runner.actor.state)) return error.ActorIdentityConflict;
         return if (read.value) |value| try allocator.dupe(u8, try cellBytes(value)) else null;
     }
@@ -235,23 +234,15 @@ const Reader = struct {
     fn row(raw: *anyopaque, keys: []const c.fuze.Types.Values.Cell) !?Turn.Row {
         const self: *@This() = @ptrCast(@alignCast(raw));
         const runner = self.runner;
-        const client = try self.transaction.privateClient(runner.client);
-        const lookup = try client.call(.{ .lookup = .{ .namespace = runner.actor.namespace, .name = runner.actor.table_name.slice() } });
-        defer lookup.deinit();
-        const metadata = lookup.value.result.lookup orelse return error.ActorIdentityConflict;
-        if (!std.meta.eql(metadata.interpretation.interpretation, runner.actor.table)) return error.ActorIdentityConflict;
-        const pinned = try client.call(.{ .pin = .{ .object = runner.actor.table.object, .owner = self.loaded.head.pending.?.begin.operation, .expected = metadata.position, .interpretation = runner.actor.table } });
-        defer pinned.deinit();
-        var reader = try c.DirectTableReader.open(runner.memory.allocator(), client, .{ .object = runner.actor.table.object, .handle = pinned.value.result.pin });
+        var reader = (try self.transaction.read(runner.client, &runner.output, .{ .open_table = .{
+            .allocator = runner.memory.allocator(),
+            .table = .{ .namespace = runner.actor.namespace, .name = runner.actor.table_name, .expected = runner.actor.table },
+        } })).opened;
         defer reader.deinit();
-        if (reader.basis.workspace == null) return error.ActorIdentityConflict;
-        const schema = reader.schema.schema;
-        if (keys.len != schema.primary_key.len or keys.len == 0) return error.InvalidTableKey;
-        var cells: [c.fuze.TableSchema.max_columns]c.fuze.Types.Values.Cell = @splat(.null);
-        for (schema.primary_key, keys) |column, cell| cells[try schema.index(column)] = cell;
-        var key_buffer: [c.fuze.Collation.max_sort_key_bytes]u8 = undefined;
-        const key = try c.fuze.Collation.encodePrimaryKeySortKey(schema, cells[0..schema.columns.len], true, &key_buffer);
-        var result = try reader.readKey(client, key) orelse return null;
+        var description = (try self.transaction.read(runner.client, &runner.output, .{ .table = .{ .reader = &reader, .command = .describe } })).description;
+        defer description.deinit();
+        const schema = description.schema.schema;
+        var result = (try self.transaction.read(runner.client, &runner.output, .{ .table = .{ .reader = &reader, .command = .{ .key = keys } } })).row orelse return null;
         defer result.deinit();
         const buffer = try runner.output.allocator().alloc(u8, runner.actor.limits.bytes);
         const bytes = try result.row().encode(schema, buffer);
