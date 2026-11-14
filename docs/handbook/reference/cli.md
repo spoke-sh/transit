@@ -248,8 +248,12 @@ and `logging.level` in server configuration.
 
 ### Help hierarchy
 
-Bare `transit` and `transit --help` list `server` and `console`.
-`transit server --help` and `transit console --help` show usage and options. Configuration and operating guidance live in the
+Bare `transit` and `transit --help` list `server`, `console`, `migrate`, `build`
+and `test`. Each command's `--help` shows a short description, a single-line
+usage synopsis and an aligned `Options:` list. Defaults and concise option
+descriptions appear beside each flag. Build and test workflows live in the
+[build](#application-source-builds) and [test](#application-table-tests) references;
+configuration and operating guidance live in the
 [server](../../../apps/transit-cli/docs/server.md) and
 [console](../../../apps/transit-cli/docs/console.md) guides.
 Help requires no configuration, credentials, network or running server. It

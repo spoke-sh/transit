@@ -43,6 +43,30 @@ text. Future result-set work must update its shared owners and consumers togethe
 
 ## Output and documentation
 
+Format command `--help` consistently with `transit server` and `transit console`:
+
+- Start with one short sentence describing the command, then a blank line.
+- Keep `Usage: transit COMMAND ...` on one line, with options inline. Use
+  `[OPTIONS]` for a compact synopsis when needed; do not manually wrap it across
+  continuation lines.
+- Follow with a blank line and `Options:`. List every supported option, including
+  `--help`, on its own line with two-space indentation, literal flags and value
+  placeholders, and aligned descriptions separated by at least two spaces.
+- Keep descriptions concise. Put defaults, allowed values and repeatability
+  beside the relevant option. Use `Show this help` for `--help`.
+- End after the options list with a newline. Keep workflow explanations,
+  guarantees, prerequisites and detailed option-combination rules in the owning
+  guides; do not append prose sections below the list. Root command listings and
+  action-based commands may include `Commands:` or `Actions:` before `Options:`.
+- Verify the real executable's help output, including successful exit status and
+  stdout/stderr separation, after editing help text.
+
+Keep normal output and diagnostics concise and actionable, following the
+[public output conventions](../../docs/handbook/reference/cli.md#output-philosophy-explain-locate-guide).
+Errors name the problem once, adding a location or next step only when useful;
+do not dump the full help text for routine invocation errors. Successful help
+and version output go to stdout without requiring configuration or a server.
+
 `transit console --format table|json` controls SQL results on stdout. Errors
 are human-readable on stderr. Server logging uses its configuration settings.
 
