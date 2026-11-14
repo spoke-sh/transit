@@ -108,10 +108,11 @@ pub const Client = struct {
             _ = scratch.reset(.retain_capacity);
             self.response_memory = scratch.state;
         }
-        const response = try scratch.allocator().create(?T);
-        response.* = null;
-        try self.exchange(T, path, signed, false, .{ .request_bytes = max_body, .response_bytes = max_body }, response);
-        return response.*.?;
+        const response = try scratch.allocator().create(ResponseSlot(T, false));
+        response.present = false;
+        try self.exchange(T, path, &signed, false, .{ .request_bytes = max_body, .response_bytes = max_body }, response);
+        std.debug.assert(response.present);
+        return response.payload;
     }
     pub const OwnedLimits = struct {
         request_bytes: u32 = 1024 * 1024,
@@ -124,6 +125,11 @@ pub const Client = struct {
     /// arena owns all of them independently from transport buffers and Client.
     /// The caller must deinit it. A timeout drains and frees any raced response.
     pub fn callOwned(self: *Client, comptime T: type, path: []const u8, signed: anytype, limits: OwnedLimits) !std.json.Parsed(T) {
+        var result: std.json.Parsed(T) = undefined;
+        try self.callOwnedInto(T, path, &signed, limits, &result);
+        return result;
+    }
+    pub fn callOwnedInto(self: *Client, comptime T: type, path: []const u8, signed: anytype, limits: OwnedLimits, out: *std.json.Parsed(T)) !void {
         self.last_status = null;
         self.last_rejection = null;
         try limits.validate();
@@ -132,23 +138,31 @@ pub const Client = struct {
             _ = scratch.reset(.retain_capacity);
             self.response_memory = scratch.state;
         }
-        const response = try scratch.allocator().create(?std.json.Parsed(T));
-        response.* = null;
+        const response = try scratch.allocator().create(ResponseSlot(T, true));
+        response.present = false;
         try self.exchange(T, path, signed, true, limits, response);
-        return response.*.?;
+        std.debug.assert(response.present);
+        out.* = response.payload;
     }
     fn ResponseType(comptime T: type, comptime owned: bool) type {
         return if (owned) std.json.Parsed(T) else T;
     }
-    fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
-        const command = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().operation else if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
+    fn ResponseSlot(comptime T: type, comptime owned: bool) type {
+        return struct {
+            present: bool = false,
+            payload: ResponseType(T, owned) = undefined,
+        };
+    }
+    fn exchange(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *ResponseSlot(T, owned)) !void {
+        const Signed = @typeInfo(@TypeOf(signed)).pointer.child;
+        const command = if (@hasDecl(Signed, "transport")) signed.transport().operation else if (@hasField(Signed, "request")) @tagName(signed.request.command) else if (Signed == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
             inline for (.{ "/v1/command", "/v1/query", "/v1/blocks", "/table/v1" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
-        const mutation = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().mutation else std.mem.eql(u8, path, "/v1/command");
+        const mutation = if (@hasDecl(Signed, "transport")) signed.transport().mutation else std.mem.eql(u8, path, "/v1/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
         defer observation.finish();
         self.call_context = observation.span.context;
@@ -160,25 +174,25 @@ pub const Client = struct {
             if (self.last_rejection) |rejection| observation.event.error_type = @tagName(rejection);
             // Domain services can deny final disclosure after accepting work.
             // Their typed owner, not this HTTP exchange, determines the outcome.
-            if (!@hasDecl(@TypeOf(signed), "transport") or !mutation) {
+            if (!@hasDecl(Signed, "transport") or !mutation) {
                 if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) observation.event.protocol_outcome = .rejected;
             }
             return err;
         };
         if (self.last_status) |status| observation.event.status = @backingInt(status);
-        observation.event.protocol_outcome = if (!mutation) .read else if (@hasDecl(@TypeOf(signed), "transport")) .none else .receipt;
-        if (@hasField(@TypeOf(signed), "request")) {
+        observation.event.protocol_outcome = if (!mutation) .read else if (@hasDecl(Signed, "transport")) .none else .receipt;
+        if (@hasField(Signed, "request")) {
             observation.event.realm = signed.request.realm;
             observation.event.sequence = signed.request.sequence;
             observation.event.pid = protocol.Growth.commandPid(signed.request.command);
-        } else if (@hasField(@TypeOf(signed), "query")) {
+        } else if (@hasField(Signed, "query")) {
             observation.event.realm = signed.query.realm;
             if (@hasField(@TypeOf(signed.query), "pid")) observation.event.pid = signed.query.pid;
         }
-        if (T == Receipt) observation.event.position = (if (owned) response.*.?.value else response.*.?).position;
+        if (T == Receipt) observation.event.position = (if (owned) response.payload.value else response.payload).position;
     }
 
-    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *?ResponseType(T, owned)) !void {
+    fn boundedCall(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, response: *ResponseSlot(T, owned)) !void {
         self.last_rejection = null;
         const io = self.http.io;
         const budget = Deadline.init(io, self.timeout_ms, self.deadline);
@@ -190,8 +204,8 @@ pub const Client = struct {
         // builds must leave room for handlers on the foreign worker's 8 MiB stack.
         // Cancellation joins the producer before this slot is read or released.
         errdefer {
-            if (owned) if (response.*) |parsed| parsed.deinit();
-            response.* = null;
+            if (owned and response.present) response.payload.deinit();
+            response.present = false;
         }
         const Result = union(enum) { response: anyerror!void, timeout: anyerror!void };
         var results: [2]Result = undefined;
@@ -199,9 +213,9 @@ pub const Client = struct {
         defer select.cancelDiscard();
         try concurrentBefore(&select, .timeout, timeout, .{ io, deadline }, deadline);
         const Task = struct {
-            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits, destination: *?ResponseType(T, owned)) anyerror!void {
+            fn run(client: *Client, route: []const u8, command: @TypeOf(signed), until: std.Io.Clock.Timestamp, bounds: OwnedLimits, destination: *ResponseSlot(T, owned)) anyerror!void {
                 if (until.durationFromNow(client.http.io).raw.nanoseconds <= 0) return error.AuthorityTimeout;
-                destination.* = try client.perform(T, route, command, owned, bounds, .{ .until = until });
+                try client.performInto(T, route, command, owned, bounds, .{ .until = until }, destination);
                 try (Deadline{ .until = until }).check(client.http.io);
             }
         };
@@ -238,32 +252,44 @@ pub const Client = struct {
         try deadline.wait(io);
     }
 
-    fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, budget: Deadline) anyerror!ResponseType(T, owned) {
+    fn performInto(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, budget: Deadline, destination: *ResponseSlot(T, owned)) anyerror!void {
         if (self.local) |endpoint| if (endpoint.handles(path)) {
-            if (owned) {
-                const control = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().control != null else false;
-                const backing = if (endpoint.response_allocator) |select| select(endpoint.context, path, control, self.http.allocator) else self.http.allocator;
-                const arena = try backing.create(std.heap.ArenaAllocator);
-                errdefer backing.destroy(arena);
-                arena.* = .init(backing);
-                errdefer arena.deinit();
-                // Bound materialized variable data without serializing it. The
-                // budget lives only during dispatch; the retained arena frees
-                // through its stable parent allocator after the call returns.
-                var output: @import("transit_memory").Budget = .{ .parent = arena.allocator(), .limit = limits.response_bytes };
-                const value = endpoint.call(self, output.allocator(), T, path, signed, budget) catch |err| {
-                    if (err == error.OutOfMemory and output.exhausted) return error.WriteFailed;
-                    return err;
-                };
-                try validateValue(T, value, signed);
-                self.last_status = .ok;
-                return .{ .arena = arena, .value = value };
-            }
-            const value = try endpoint.call(self, self.http.allocator, T, path, signed, budget);
-            try validateValue(T, value, signed);
-            self.last_status = .ok;
-            return value;
+            return self.performLocal(endpoint, T, path, signed, owned, limits, budget, destination);
         };
+        return self.performHttp(T, path, signed, owned, limits, destination);
+    }
+
+    noinline fn performLocal(self: *Client, endpoint: LocalEndpoint, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, budget: Deadline, destination: *ResponseSlot(T, owned)) anyerror!void {
+        const Signed = @typeInfo(@TypeOf(signed)).pointer.child;
+        if (owned) {
+            const control = if (@hasDecl(Signed, "transport")) signed.transport().control != null else false;
+            const backing = if (endpoint.response_allocator) |select| select(endpoint.context, path, control, self.http.allocator) else self.http.allocator;
+            const arena = try backing.create(std.heap.ArenaAllocator);
+            errdefer backing.destroy(arena);
+            arena.* = .init(backing);
+            errdefer arena.deinit();
+            // Bound materialized variable data without serializing it. The
+            // budget lives only during dispatch; the retained arena frees
+            // through its stable parent allocator after the call returns.
+            var output: @import("transit_memory").Budget = .{ .parent = arena.allocator(), .limit = limits.response_bytes };
+            endpoint.callInto(self, output.allocator(), T, path, signed, &destination.payload.value, budget) catch |err| {
+                if (err == error.OutOfMemory and output.exhausted) return error.WriteFailed;
+                return err;
+            };
+            try validateValue(T, &destination.payload.value, signed);
+            destination.payload.arena = arena;
+            destination.present = true;
+            self.last_status = .ok;
+            return;
+        }
+        try endpoint.callInto(self, self.http.allocator, T, path, signed, &destination.payload, budget);
+        try validateValue(T, &destination.payload, signed);
+        destination.present = true;
+        self.last_status = .ok;
+    }
+
+    noinline fn performHttp(self: *Client, comptime T: type, path: []const u8, signed: anytype, comptime owned: bool, limits: OwnedLimits, destination: *ResponseSlot(T, owned)) anyerror!void {
+        const Signed = @typeInfo(@TypeOf(signed)).pointer.child;
         self.beginExchange();
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
@@ -272,16 +298,16 @@ pub const Client = struct {
             var scratch: [256]u8 = undefined;
             var count: std.Io.Writer.Discarding = .init(&scratch);
             var counter: std.json.Stringify = .{ .writer = &count.writer };
-            try protocol.Json.write(signed, &counter);
+            try protocol.Json.write(signed.*, &counter);
             if (count.fullCount() > limits.request_bytes) return error.HttpRequestBudget;
             const storage = try allocator.alloc(u8, @intCast(count.fullCount()));
             errdefer allocator.free(storage);
             var request_writer: std.Io.Writer = .fixed(storage);
             var encoder: std.json.Stringify = .{ .writer = &request_writer };
-            protocol.Json.write(signed, &encoder) catch |err| return if (err == error.WriteFailed) error.HttpRequestBudget else err;
+            protocol.Json.write(signed.*, &encoder) catch |err| return if (err == error.WriteFailed) error.HttpRequestBudget else err;
             break :bounded .{ .storage = storage, .length = request_writer.buffered().len };
         } else native: {
-            const storage = try std.json.Stringify.valueAlloc(allocator, signed, .{});
+            const storage = try std.json.Stringify.valueAlloc(allocator, signed.*, .{});
             break :native .{ .storage = storage, .length = storage.len };
         };
         defer allocator.free(encoded.storage);
@@ -298,7 +324,7 @@ pub const Client = struct {
             headers[header_count] = .{ .name = "traceparent", .value = &parent_header };
             header_count += 1;
         }
-        const control: ?[]const u8 = if (@hasDecl(@TypeOf(signed), "transport")) signed.transport().control else if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
+        const control: ?[]const u8 = if (@hasDecl(Signed, "transport")) signed.transport().control else if (Signed == protocol.Growth.SignedQuery) switch (signed.query.kind) {
             .close_snapshot => "snapshot",
             .snapshot_read => |read| if (read.finish) "snapshot" else null,
             else => null,
@@ -308,7 +334,7 @@ pub const Client = struct {
             header_count += 1;
         }
         var wait_buffer: [32]u8 = undefined;
-        const request_wait: ?WaitHint = if (@hasDecl(@TypeOf(signed), "transport") and @hasField(@TypeOf(signed.transport()), "wait")) signed.transport().wait else null;
+        const request_wait: ?WaitHint = if (@hasDecl(Signed, "transport") and @hasField(@TypeOf(signed.transport()), "wait")) signed.transport().wait else null;
         if (request_wait orelse self.wait_hint) |hint| {
             headers[header_count] = .{ .name = "x-transit-wait", .value = try hint.format(&wait_buffer) };
             header_count += 1;
@@ -328,10 +354,12 @@ pub const Client = struct {
             else => return err,
         };
         self.last_status = response.status;
-        const raw_status = if (@hasDecl(@TypeOf(signed), "transport") and @hasField(@TypeOf(signed.transport()), "raw_status")) signed.transport().raw_status else false;
+        const raw_status = if (@hasDecl(Signed, "transport") and @hasField(@TypeOf(signed.transport()), "raw_status")) signed.transport().raw_status else false;
         if (raw_status) {
             if (!owned or T != std.json.Value) @compileError("Raw domain responses require owned JSON");
-            return protocol.Json.parseFromSliceOwned(T, allocator, writer.buffered());
+            destination.payload = try protocol.Json.parseFromSliceOwned(T, allocator, writer.buffered());
+            destination.present = true;
+            return;
         }
         if (response.status != .ok) {
             var failure = std.json.parseFromSlice(protocol.ErrorResponse, allocator, writer.buffered(), .{}) catch |err| {
@@ -360,15 +388,20 @@ pub const Client = struct {
             else => return error.InvalidAuthorityResponse,
         };
         errdefer parsed.deinit();
-        try validateValue(T, parsed.value, signed);
-        if (owned) return parsed;
+        try validateValue(T, &parsed.value, signed);
+        if (owned) {
+            destination.payload = parsed;
+            destination.present = true;
+            return;
+        }
         defer parsed.deinit();
-        return parsed.value;
+        destination.payload = parsed.value;
+        destination.present = true;
     }
-    fn validateValue(comptime T: type, value: T, signed: anytype) !void {
+    noinline fn validateValue(comptime T: type, value: *const T, signed: anytype) !void {
         if (T == Receipt) if (value.position == 0 or value.position > protocol.max_counter) return error.InvalidAuthorityResponse;
-        if (T == protocol.Growth.Response) protocol.Growth.validateResponse(value, signed.query) catch return error.InvalidAuthorityResponse;
-        if (T == protocol.Growth.BlockRead.Response) protocol.Growth.BlockRead.verify(&value, signed.query) catch return error.InvalidAuthorityResponse;
+        if (T == protocol.Growth.Response) protocol.Growth.validateResponse(value.*, signed.query) catch return error.InvalidAuthorityResponse;
+        if (T == protocol.Growth.BlockRead.Response) protocol.Growth.BlockRead.verify(value, signed.query) catch return error.InvalidAuthorityResponse;
     }
 
     /// Conservatively age a pooled connection from exchange start. Response

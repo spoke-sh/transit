@@ -408,6 +408,7 @@
       "errors": {
         "AccessDenied": 1,
         "AuthenticationFailed": 1,
+        "Canceled": 1,
         "ConnectionSwitchRequiresTerminal": 1,
         "ConsoleCommandFailed": 1,
         "ConsoleInputTooLarge": 1,
@@ -415,12 +416,16 @@
         "EditRequiresTerminal": 1,
         "EndOfStream": 1,
         "FileNotFound": 1,
+        "IncompatibleSqlDefinition": 1,
+        "InvalidCommandCompletion": 1,
         "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
-        "InvalidSqlResponse": 7,
+        "InvalidSqlResponse": 12,
         "InvalidSqlSyntax": 1,
         "InvalidTimingCommand": 2,
-        "ResultCancelled": 2,
+        "OutOfMemory": 1,
+        "ResultCancelled": 3,
+        "SqlInstanceChanged": 1,
         "SqlOperationPartial": 1,
         "SqlOperationRejected": 1,
         "SqlOutcomeUnknown": 1,
@@ -449,6 +454,7 @@
         "Console.dispatch()": "<inferred>",
         "Console.execute()": "<inferred>",
         "Console.executeWithParameters()": "<inferred>",
+        "Console.finishTransactionCleanup()": "<inferred>",
         "Console.json()": "<inferred>",
         "Console.keepalive()": "<inferred>",
         "Console.perform()": "<inferred>",
@@ -465,8 +471,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 89,
-        "catch": 18
+        "try": 95,
+        "catch": 19
       },
       "imports": [
         "ConsoleHelp.zig",
@@ -6975,6 +6981,7 @@
       "error_sets": {},
       "error_returns": {
         "Reference.admit()": "<inferred>",
+        "Reference.admitWithIntent()": "<inferred>",
         "Reference.operation()": "<inferred>",
         "Reference.requireSame()": "<inferred>",
         "Reference.validate()": "<inferred>",
@@ -6988,7 +6995,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 40,
         "catch": 0
       },
       "imports": [
@@ -9490,6 +9497,7 @@
         "storage()": "<inferred>",
         "validate()": "<inferred>",
         "validatePage()": "<inferred>",
+        "validateRef()": "<inferred>",
         "validateRowEnvelope()": "<inferred>",
         "workspace()": "<inferred>"
       },
@@ -12392,14 +12400,16 @@
         "Invocation.request()": "<inferred>",
         "Invocation.requestPtr()": "<inferred>",
         "Invocation.respond()": "<inferred>",
+        "Invocation.respondPtr()": "<inferred>",
         "call()": "<inferred>",
+        "callInto()": "<inferred>",
         "clone()": "<inferred>",
         "invoke()": "anyerror",
         "ownSlices()": "anyerror"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 15,
+        "try": 16,
         "catch": 0
       },
       "imports": [
@@ -12750,10 +12760,13 @@
         "Client.boundedCall().Task.run()": "anyerror",
         "Client.call()": "<inferred>",
         "Client.callOwned()": "<inferred>",
+        "Client.callOwnedInto()": "<inferred>",
         "Client.concurrentBefore()": "<inferred>",
         "Client.exchange()": "<inferred>",
         "Client.payload()": "<inferred>",
-        "Client.perform()": "anyerror",
+        "Client.performHttp()": "anyerror",
+        "Client.performInto()": "anyerror",
+        "Client.performLocal()": "anyerror",
         "Client.query()": "<inferred>",
         "Client.queryBlocks()": "<inferred>",
         "Client.reject()": "anyerror",
@@ -12764,9 +12777,9 @@
         "Client.waitForChange()": "<inferred>",
         "readKey()": "<inferred>"
       },
-      "open_error_set_uses": 8,
+      "open_error_set_uses": 10,
       "propagation": {
-        "try": 34,
+        "try": 36,
         "catch": 12
       },
       "imports": [
@@ -17317,7 +17330,8 @@
         "JsonByteBudgetExceeded": 1,
         "JsonDepthExceeded": 1,
         "JsonFieldBudgetExceeded": 1,
-        "JsonTokenBudgetExceeded": 1
+        "JsonTokenBudgetExceeded": 1,
+        "OutOfMemory": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -17329,7 +17343,8 @@
         "preflight()": "<inferred>",
         "preflightContext()": "<inferred>",
         "preflightDiagnostic()": "<inferred>",
-        "validate()": "<inferred>"
+        "validate()": "<inferred>",
+        "validateLarge()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
@@ -29475,16 +29490,19 @@
       "error_sets": {},
       "error_returns": {
         "instantiate()": "<inferred>",
+        "lookupPreparedMetadata()": "<inferred>",
         "preparationBasis()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareAccess()": "<inferred>",
         "prepareAt()": "<inferred>",
         "prepareProjectedAt()": "<inferred>",
-        "prepareView()": "<inferred>"
+        "prepareView()": "<inferred>",
+        "resolveHistoricalMetadata()": "<inferred>",
+        "resolveProjectedSchema()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 43,
+        "try": 48,
         "catch": 2
       },
       "imports": [
@@ -38144,7 +38162,10 @@
         "Read.pull()": "<inferred>",
         "Read.transactionBasis()": "<inferred>",
         "Read.validateDisclosure()": "<inferred>",
+        "acquireHistoricalPin()": "<inferred>",
         "acquireRead()": "<inferred>",
+        "acquireStreamSlicePin()": "<inferred>",
+        "acquireTransactionPin()": "<inferred>",
         "begin()": "<inferred>",
         "bind()": "<inferred>",
         "current()": "<inferred>",
@@ -38155,7 +38176,15 @@
         "init()": "<inferred>",
         "initOptions()": "<inferred>",
         "loadCredential()": "<inferred>",
+        "openCapturedRead()": "<inferred>",
+        "openKvGetRead()": "<inferred>",
+        "openNativeRead()": "<inferred>",
         "openRead()": "<inferred>",
+        "openRelationalRead()": "<inferred>",
+        "openSettingsRead()": "<inferred>",
+        "openSingleSelectRead()": "<inferred>",
+        "openSourceRead()": "<inferred>",
+        "openWorkloadRead()": "<inferred>",
         "openWorkloadResult()": "<inferred>",
         "prepare()": "<inferred>",
         "prepareInner()": "<inferred>",
@@ -38169,7 +38198,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 158,
+        "try": 166,
         "catch": 9
       },
       "imports": [
@@ -38328,7 +38357,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -38538,7 +38567,7 @@
         "AccessDenied": 2,
         "Canceled": 5,
         "Cancelled": 5,
-        "CatalogIdentityConflict": 1,
+        "CatalogIdentityConflict": 2,
         "ClientOperationConflict": 1,
         "ClientOperationPending": 1,
         "Conflict": 3,
@@ -38585,6 +38614,8 @@
         "applicationStep()": "<inferred>",
         "attachReadCache()": "<inferred>",
         "available()": "<inferred>",
+        "bindTransactionClaimed()": "<inferred>",
+        "bindTransactionFenced()": "<inferred>",
         "cancel()": "<inferred>",
         "checkFence()": "<inferred>",
         "cleanupClient()": "<inferred>",
@@ -38604,7 +38635,6 @@
         "recoverOne()": "<inferred>",
         "requireRoute()": "<inferred>",
         "resumeOperation()": "<inferred>",
-        "resumeTransactionClaimed()": "<inferred>",
         "resumeTransactionSubmission()": "<inferred>",
         "resumeWorkload()": "<inferred>",
         "settlePendingTableClaim()": "<inferred>",
@@ -38620,7 +38650,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 161,
+        "try": 169,
         "catch": 24
       },
       "imports": [
@@ -38798,6 +38828,7 @@
         "Record.validate()": "<inferred>",
         "StreamPin.validate()": "<inferred>",
         "acquireCurrent()": "<inferred>",
+        "acquireCurrentMiss()": "<inferred>",
         "acquireCurrentWithMetadata()": "<inferred>",
         "acquireStreamSlice()": "<inferred>",
         "bindInitial()": "<inferred>",
@@ -38806,16 +38837,19 @@
         "init()": "<inferred>",
         "inspect()": "<inferred>",
         "key()": "<inferred>",
+        "lookupCurrentMetadata()": "<inferred>",
         "open()": "<inferred>",
+        "pinCurrentSnapshot()": "<inferred>",
         "read()": "<inferred>",
         "release()": "<inferred>",
+        "releaseCachedSnapshot()": "<inferred>",
         "releaseStream()": "<inferred>",
         "tick()": "<inferred>",
         "write()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 68,
+        "try": 71,
         "catch": 2
       },
       "imports": [

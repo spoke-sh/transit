@@ -66,10 +66,13 @@ pub const Invocation = struct {
         return self.input_type == token(T);
     }
     pub fn respond(self: *Invocation, value: anytype) !void {
+        return self.respondPtr(&value);
+    }
+    pub fn respondPtr(self: *Invocation, value: anytype) !void {
         try self.deadline.check(self.client.http.io);
-        const T = @TypeOf(value);
+        const T = @typeInfo(@TypeOf(value)).pointer.child;
         if (self.output_type != token(T) or self.completed) return error.InvalidLocalResponseType;
-        @as(*T, @ptrCast(@alignCast(self.output))).* = value;
+        @as(*T, @ptrCast(@alignCast(self.output))).* = value.*;
         self.completed = true;
     }
 };
@@ -216,12 +219,17 @@ test "inherited expiry never dispatches or retains refusal evidence and the clie
 /// temporary host workspace may escape through the response. No retry/fallback.
 pub fn call(self: Self, client: *@import("root.zig").Client, allocator: std.mem.Allocator, comptime T: type, path: []const u8, input: anytype, deadline: @import("Deadline.zig")) !T {
     var result: T = undefined;
-    var invocation: Invocation = .{ .client = client, .deadline = deadline, .allocator = allocator, .path = path, .input = @ptrCast(&input), .input_type = token(@TypeOf(input)), .output = @ptrCast(&result), .output_type = token(T) };
+    try self.callInto(client, allocator, T, path, &input, &result, deadline);
+    return result;
+}
+
+pub fn callInto(self: Self, client: *@import("root.zig").Client, allocator: std.mem.Allocator, comptime T: type, path: []const u8, input: anytype, output: *T, deadline: @import("Deadline.zig")) !void {
+    const Input = @typeInfo(@TypeOf(input)).pointer.child;
+    var invocation: Invocation = .{ .client = client, .deadline = deadline, .allocator = allocator, .path = path, .input = @ptrCast(input), .input_type = token(Input), .output = @ptrCast(output), .output_type = token(T) };
     try deadline.check(client.http.io);
     try self.invoke(self.context, &invocation);
     try deadline.check(client.http.io);
     if (!invocation.completed) return error.InvalidLocalResponseType;
-    return result;
 }
 
 /// Copy a protocol value into caller-owned storage without encoding it. This

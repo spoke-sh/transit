@@ -102,7 +102,7 @@ pub fn step(raw: *anyopaque, engine: *backend.DataAuthority.Engine, settings: c.
     return false;
 }
 
-fn transferStep(self: *Self, engine: *backend.DataAuthority.Engine, signed: g.SignedRequest) !bool {
+noinline fn transferStep(self: *Self, engine: *backend.DataAuthority.Engine, signed: g.SignedRequest) !bool {
     defer {
         self.last_object = self.transfers.last_object;
         self.last_rows = self.transfers.last_rows;
@@ -111,7 +111,7 @@ fn transferStep(self: *Self, engine: *backend.DataAuthority.Engine, signed: g.Si
     return self.transfers.step(self.memory.allocator(), self.host, engine, signed);
 }
 
-fn logStep(self: *Self, comptime kind: c.protocol.StreamQueueDeclaration.Kind, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
+noinline fn logStep(self: *Self, comptime kind: c.protocol.StreamQueueDeclaration.Kind, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
     const logs = if (kind == .stream) &self.streams else &self.queues;
     defer {
         self.last_object = logs.last_object;
@@ -121,7 +121,7 @@ fn logStep(self: *Self, comptime kind: c.protocol.StreamQueueDeclaration.Kind, e
     return logs.step(self.memory.allocator(), self.host, engine, settings, signed);
 }
 
-fn tableStep(self: *Self, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
+noinline fn tableStep(self: *Self, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, signed: g.SignedRequest) !bool {
     // Independently advance each class before I/O. Idle classes can be skipped
     // in one finite rotation; hot or failed work cannot own the next turn too.
     for (0..4) |_| {
@@ -135,7 +135,7 @@ fn tableStep(self: *Self, engine: *backend.DataAuthority.Engine, settings: c.pro
     return false;
 }
 
-fn unit(self: *Self, allocator: std.mem.Allocator, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, selected: Class, signed: g.SignedRequest) !bool {
+noinline fn unit(self: *Self, allocator: std.mem.Allocator, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, selected: Class, signed: g.SignedRequest) !bool {
     const owner = engine.journal.backend;
     const io = owner.io;
     try self.host.directory.lockShared(io);
@@ -156,6 +156,10 @@ fn unit(self: *Self, allocator: std.mem.Allocator, engine: *backend.DataAuthorit
     };
     const selection = try catalog.maintenanceNext(cursor, authority.guard());
     const object = selection.object orelse return false;
+    return self.executeSelectedTable(allocator, io, &catalog, &data, &authority, settings, selected, object);
+}
+
+noinline fn executeSelectedTable(self: *Self, allocator: std.mem.Allocator, io: std.Io, catalog: *c.DirectCatalog, data: *backend.DataStore, authority: *Authority, settings: c.protocol.Storage.Maintenance, selected: Class, object: u64) !bool {
     self.last_object = object;
     const lock = &self.host.tables[@intCast(object % self.host.tables.len)];
     try lock.lock(io);

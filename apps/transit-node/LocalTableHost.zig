@@ -178,12 +178,15 @@ pub fn executeCapacity(self: *Self, io: std.Io, engine: *backend.DataAuthority.E
     return self.executeMeasured(io, engine, arena, output_allocator, request, control, null);
 }
 pub fn executeMeasured(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report) ![]const u8 {
-    return self.executeResult(.json, io, engine, arena, output_allocator, request, control, memory_report, null);
+    return self.executeResult(.json, io, engine, arena, output_allocator, &request, control, memory_report, null);
 }
 pub fn executeTyped(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, deadline: ?Deadline) !w.Response {
+    return self.executeTypedRef(io, engine, arena, output_allocator, &request, control, deadline);
+}
+pub fn executeTypedRef(self: *Self, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: *const w.Request, control: bool, deadline: ?Deadline) !w.Response {
     return self.executeResult(.typed, io, engine, arena, output_allocator, request, control, null, deadline);
 }
-fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, parent: ?Deadline) !Service.Result(format) {
+fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: *const w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, parent: ?Deadline) !Service.Result(format) {
     if (parent) |cap| try cap.check(io);
     const milliseconds: ?u32 = switch (request.action) {
         .stream => |value| if (value == .wait) value.wait.milliseconds else null,
@@ -245,14 +248,14 @@ fn executeResult(self: *Self, comptime format: Service.Output, io: std.Io, engin
         return result;
     }
 }
-fn residentMatches(resident: *const Service.Resident, action: w.Action) bool {
-    if (target(action)) |object| return resident.hasObject(object);
-    return switch (action) {
+fn residentMatches(resident: *const Service.Resident, action: *const w.Action) bool {
+    if (target(action.*)) |object| return resident.hasObject(object);
+    return switch (action.*) {
         inline .lookup, .kv_lookup, .document_lookup => |value| resident.hasTableName(value.namespace, value.name),
         else => false,
     };
 }
-fn acquireResident(io: std.Io, slots: []ResidentSlot, action: w.Action) !*ResidentSlot {
+fn acquireResident(io: std.Io, slots: []ResidentSlot, action: *const w.Action) !*ResidentSlot {
     for (slots) |*slot| {
         if (slot.mutex.tryLock()) {
             if (slot.value) |resident| if (residentMatches(resident, action)) return slot;
@@ -271,7 +274,24 @@ fn acquireResident(io: std.Io, slots: []ResidentSlot, action: w.Action) !*Reside
     try slots[0].mutex.lock(io);
     return &slots[0];
 }
-fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting"), parent: ?Deadline) !Service.Result(format) {
+noinline fn executeWriteAttempt(
+    self: *Self,
+    comptime format: Service.Output,
+    service: *Service,
+    arena: *std.heap.ArenaAllocator,
+    output_allocator: std.mem.Allocator,
+    request: *const w.Request,
+    can_retry: bool,
+) !Service.Result(format) {
+    const saved_table_recoveries = self.table_recovery;
+    return service.executeResultRef(format, arena, output_allocator, request) catch |err| {
+        if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and can_retry) {
+            self.table_recovery = saved_table_recoveries;
+        }
+        return err;
+    };
+}
+fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engine: *backend.DataAuthority.Engine, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: *const w.Request, control: bool, memory_report: ?*?@import("DirectRequestMemory.zig").Report, waiting: @FieldType(c.DirectStream.Environment, "waiting"), parent: ?Deadline) !Service.Result(format) {
     if (parent) |cap| try cap.check(io);
     if (control and request.transport().control == null) return error.InvalidRequest;
     const write = exclusive(request.action);
@@ -300,7 +320,7 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     // Storage owners contain no request pointers and can serve any free lane.
     // Their count is bounded independently of the durable Table population.
     const slots: []ResidentSlot = if (control) &self.control_residents else &self.residents;
-    const resident = try acquireResident(io, slots, request.action);
+    const resident = try acquireResident(io, slots, &request.action);
     defer resident.mutex.unlock(io);
     if (parent) |cap| try cap.check(io);
     if (resident.value) |value| value.probe.begin(false) else resident.value = Service.Resident.create(engine.journal.backend.allocator, self.ownerAdapter(control), self.resident_memory.request(engine.journal.backend.allocator, control), engine.journal.backend, self.configuration, options, recovered) catch |err| return if (err == error.TableResidentCapacity) (if (control) error.ControlCapacity else error.StorageQuota) else err;
@@ -329,12 +349,16 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         }
         var service: Service = .{ .engine = engine, .configuration = self.configuration, .registrar = self.registrar, .options = options, .recovery_state = &recovered, .resident = resident.value, .waiting = waiting };
         if (parent) |cap| try cap.check(io);
+        const attempt_arena = if (attempt == 0) arena else &scratch;
+        const can_retry = attempt + 1 < 16;
         const saved_table_recovery = if (options.table_recovery) |slot| slot.* else null;
-        const saved_table_recoveries = if (options.table_recoveries != null) self.table_recovery else null;
-        return service.executeResult(format, if (attempt == 0) arena else &scratch, output_allocator, request) catch |err| {
-            if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and attempt + 1 < 16) {
+        const outcome = if (options.table_recoveries != null)
+            self.executeWriteAttempt(format, &service, attempt_arena, output_allocator, request, can_retry)
+        else
+            service.executeResultRef(format, attempt_arena, output_allocator, request);
+        return outcome catch |err| {
+            if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and can_retry) {
                 if (options.table_recovery) |slot| slot.* = saved_table_recovery;
-                if (saved_table_recoveries) |saved| self.table_recovery = saved;
                 continue;
             }
             if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;
@@ -373,7 +397,7 @@ test "deadline expiry after directory admission releases the lock before owner d
     const deadline: Deadline = .{ .until = .{ .clock = .awake, .raw = .{ .nanoseconds = 100 } } };
     // All later owner state is deliberately absent: no dispatch or storage
     // access may occur after acquiring the lock consumes the remaining budget.
-    try std.testing.expectError(error.AuthorityTimeout, host.executeSingle(.typed, io, undefined, undefined, std.testing.allocator, request, false, null, null, deadline));
+    try std.testing.expectError(error.AuthorityTimeout, host.executeSingle(.typed, io, undefined, undefined, std.testing.allocator, &request, false, null, null, deadline));
     try std.testing.expectEqual(2, fixture.checks);
     try std.testing.expect(host.directory.tryLock(io));
     host.directory.unlock(io);

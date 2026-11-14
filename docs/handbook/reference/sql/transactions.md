@@ -81,8 +81,11 @@ Read-only transactions can finish on their retained cut despite later writes.
 
 A decision and completed publication/pin cleanup are separate observations.
 Preparation barriers prevent ordinary reads from treating an unfinished
-participant publication as an independent current Table. Bounded background
-recovery continues the original command through cleanup.
+participant publication as an independent current Table. Native session
+settlement reports `cleanup_complete` directly on the terminal decision; the
+console, PostgreSQL and MySQL advance that same accepted operation through
+participant cleanup before returning command completion, and bounded background
+recovery continues interrupted cleanup.
 
 ## Savepoints and cursors
 

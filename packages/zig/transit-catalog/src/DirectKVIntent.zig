@@ -95,8 +95,19 @@ pub const Reference = struct {
     }
 
     pub fn admit(self: Reference, client: c.DirectTableClient) !c.DirectTableClient.OwnedResponse {
+        return self.admitWithIntent(client, null);
+    }
+
+    pub fn admitWithIntent(self: Reference, client: c.DirectTableClient, retained: ?*const Self) !c.DirectTableClient.OwnedResponse {
         try self.validate();
         if (!std.meta.eql(self.connection, client.connection)) return error.CatalogIdentityConflict;
+        if (retained) |known| {
+            try self.requireSame(try known.reference(self.record.scope.account));
+            return switch (known.parsed.value.work) {
+                .ddl => |decl| client.call(.{ .kv_declaration = .{ .declaration = decl, .command = .admit, .steps = 1 } }),
+                .put, .delete => |mut| client.call(.{ .kv = .{ .mutate = mut } }),
+            };
+        }
         const bytes = try c.DirectRecord.read(client.allocator, client, self.record);
         defer client.allocator.free(bytes);
         var intent = try restore(client.allocator, bytes);

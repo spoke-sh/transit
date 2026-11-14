@@ -125,7 +125,7 @@ fn settlePendingTableClaim(self: *Self, claim_slot: ?*TableClaim, observer: *g.C
         return;
     }
     table.lease = self.lease();
-    if (try self.foreground(observer, table, pending_state, deadline)) |terminal| {
+    if (try self.foreground(observer, table, pending_state, deadline, null)) |terminal| {
         table_claim.pending = null;
         table_claim.object = intent.table.binding.target;
         table_claim.next_lsn = if (terminal.state == .applied) terminal.next_lsn else std.math.maxInt(u64);
@@ -816,12 +816,13 @@ pub fn admit(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, tab
     try selected.lock(self.io);
     defer selected.unlock(self.io);
     defer self.notify();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, false, null, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, null, true, false, false, false, false, null, null, null);
     return self.execution.operationFromState(state);
 }
-fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_table: bool, fresh_fenced: bool, newly_bound: ?*bool, retained_workload: ?*?c.DirectWorkloadIntent) !c.DirectClientToken.Progress {
+fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client, table: *c.DirectTableClient, statement: *const g.Statement, values: []const ?g.fuze.Types.Values.Atom, nonce: [16]u8, fingerprint: [32]u8, deadline: Deadline, operation: *?u64, acceptance_possible: ?*bool, wake: bool, fresh_nonce: bool, fresh_prepared: bool, fresh_table: bool, fresh_fenced: bool, newly_bound: ?*bool, retained_workload: ?*?c.DirectWorkloadIntent, retained_kv: ?*?c.DirectKVIntent) !c.DirectClientToken.Progress {
     if (newly_bound) |flag| flag.* = false;
     if (retained_workload) |slot| slot.* = null;
+    if (retained_kv) |slot| slot.* = null;
     if (acceptance_possible) |flag| flag.* = false;
     try deadline.check(self.io);
     if (!fresh_fenced) try self.available(observer, deadline, Self.fence, .{ self, observer });
@@ -888,6 +889,11 @@ fn admitWithWake(self: *Self, allocator: std.mem.Allocator, observer: *g.Client,
             slot.* = intent.workload;
             intent_owned = false;
         }
+    } else if (is_newly_bound and intent == .kv and reference.kv.kind != .ddl) {
+        if (retained_kv) |slot| {
+            slot.* = intent.kv;
+            intent_owned = false;
+        }
     }
     return state;
 }
@@ -924,8 +930,10 @@ pub fn submitPreparedRetained(self: *Self, allocator: std.mem.Allocator, observe
     var newly_bound = false;
     var retained_workload: ?c.DirectWorkloadIntent = null;
     defer if (retained_workload) |*workload| workload.deinit();
+    var retained_kv: ?c.DirectKVIntent = null;
+    defer if (retained_kv) |*kv| kv.deinit();
     const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound, &retained_workload);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, fingerprint, deadline, operation, acceptance_possible, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound, &retained_workload, &retained_kv);
     recordPendingTableClaim(table_claim, state);
     errdefer finishTableClaim(table_claim, statement, null);
     try requireRoute(state, table, statement.namespace);
@@ -952,7 +960,7 @@ pub fn submitPreparedRetained(self: *Self, allocator: std.mem.Allocator, observe
         }
         return result;
     }
-    const terminal = self.foreground(observer, table, state, deadline) catch |err| switch (err) {
+    const terminal = self.foreground(observer, table, state, deadline, if (newly_bound and retained_kv != null) &retained_kv.? else null) catch |err| switch (err) {
         error.GatewayDeadline, error.Conflict => null,
         else => if (wire.Client.unavailable(err)) null else return err,
     };
@@ -969,13 +977,13 @@ fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient
     const intent = state.receipt.binding.intent;
     if (!std.meta.eql(intent.connection(), table.connection) or intent.namespace() != namespace) return error.GatewayCatalogDenied;
 }
-fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, state: c.DirectClientToken.Progress, deadline: Deadline) !?g.Terminal {
+fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, state: c.DirectClientToken.Progress, deadline: Deadline, retained_kv: ?*const c.DirectKVIntent) !?g.Terminal {
     const intent = state.receipt.binding.intent;
     if (!state.pending or state.cancel) return null;
     if (intent == .kv and intent.kv.kind != .ddl) {
         try deadline.check(self.io);
         var terminal: g.Terminal = undefined;
-        if (intent.kv.admit(table.*)) |response| {
+        if (intent.kv.admitWithIntent(table.*, retained_kv)) |response| {
             defer response.deinit();
             terminal = (try g.Terminal.fromReference(intent, response.value.result)) orelse return null;
         } else |err| switch (err) {
@@ -1051,7 +1059,7 @@ pub fn executeWorkloadRetained(self: *Self, allocator: std.mem.Allocator, observ
     var newly_bound = false;
     var retained_workload: ?c.DirectWorkloadIntent = null;
     defer if (retained_workload) |*workload| workload.deinit();
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_prepared, fresh_fenced, &newly_bound, &retained_workload);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_prepared, fresh_fenced, &newly_bound, &retained_workload, null);
     try requireRoute(state, table, statement.namespace);
     const attempt = try g.WorkloadOperations.attemptWithIntent(table.*, state, if (retained_workload) |*workload| workload else null, newly_bound);
     claimed = false;
@@ -1108,8 +1116,11 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     defer if (table_claimed) table_claim.?.mutex.unlock(self.io);
     errdefer self.notify();
     try self.settlePendingTableClaim(table_claim, observer, table, deadline);
+    var newly_bound = false;
+    var retained_kv: ?c.DirectKVIntent = null;
+    defer if (retained_kv) |*kv| kv.deinit();
     const fresh_table = tableFresh(table_claim, statement, fresh_prepared);
-    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_table, fresh_fenced, null, null);
+    const state = try self.admitWithWake(allocator, observer, table, statement, values, nonce, @splat(0), deadline, operation, null, false, true, fresh_prepared, fresh_table, fresh_fenced, &newly_bound, null, &retained_kv);
     recordPendingTableClaim(table_claim, state);
     errdefer finishTableClaim(table_claim, statement, null);
     const intent = state.receipt.binding.intent;
@@ -1117,7 +1128,7 @@ pub fn executePrepared(self: *Self, allocator: std.mem.Allocator, observer: *g.C
     // Catalog already owns this token and frozen intent. A private candidate
     // fenced by collection must yield to original-work recovery, just as a
     // conflict received after commit must resolve the original receipt.
-    const completed = self.foreground(observer, table, state, deadline) catch |err|
+    const completed = self.foreground(observer, table, state, deadline, if (newly_bound and retained_kv != null) &retained_kv.? else null) catch |err|
         if (table.service.contended(err)) null else return err;
     finishTableClaim(table_claim, statement, completed);
     if (completed) |terminal| return .{ .terminal = terminal, .completion = try terminal.completion(try g.IntentReference.commandKind(intent), .{ .account = self.execution.configuration.account, .id = state.id() }) };
@@ -1184,34 +1195,65 @@ pub fn submitTransaction(self: *Self, allocator: std.mem.Allocator, observer: *g
     const call = try g.TransactionWork.build(allocator, self.io, self.execution.configuration, caller, namespace, nonce, fingerprint, request);
     // Preserve complete original recovery material before a bind can be sent.
     submission.* = .{ .token = nonce, .fingerprint = fingerprint, .call = call };
-    return self.resumeTransactionClaimed(observer, caller, submission.*.?, deadline, operation);
+    return self.bindTransactionClaimed(observer, caller, submission.*.?, deadline, operation);
 }
 pub fn resumeTransactionSubmission(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
     const selected = self.claim(submission.token);
     try selected.lock(self.io);
     defer selected.unlock(self.io);
-    return self.resumeTransactionClaimed(observer, caller, submission, deadline, operation);
-}
-fn resumeTransactionClaimed(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
     errdefer self.notify();
     try self.available(observer, deadline, Self.fence, .{ self, observer });
     if (!std.meta.eql(caller.connection, submission.call.connection)) return error.CatalogIdentityConflict;
     var control = caller;
     control.transaction = null;
-    const binding: c.DirectClientToken.Binding = .{
-        .key = .{ .definition = p.Growth.current_definition, .connection = control.connection, .account = self.execution.configuration.account, .token = submission.token },
+    const binding = self.transactionBinding(control.connection, submission);
+    var source = try observer.source();
+    if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, submission.token, @as(?[32]u8, submission.fingerprint) })) |original| {
+        try original.receipt.binding.retry(binding);
+        operation.* = original.id();
+        try requireRoute(original, &control, submission.call.namespace);
+        const result = try self.available(observer, deadline, g.TransactionWork.advance, .{ control, original, false });
+        if (transactionPending(result)) self.notify();
+        return g.TransactionWork.project(control, original, result);
+    }
+    return self.bindTransactionFenced(observer, control, submission, binding, deadline, operation);
+}
+fn transactionBinding(self: *const Self, connection: c.DirectTableProtocol.Connection, submission: TransactionSubmission) c.DirectClientToken.Binding {
+    return .{
+        .key = .{ .definition = p.Growth.current_definition, .connection = connection, .account = self.execution.configuration.account, .token = submission.token },
         .fingerprint = submission.fingerprint,
         .intent = .{ .transaction_call = submission.call },
         .budget = self.execution.configuration.budget(c.DirectTransactionCall.reservation_bytes),
     };
+}
+fn bindTransactionClaimed(self: *Self, observer: *g.Client, caller: c.DirectTableClient, submission: TransactionSubmission, deadline: Deadline, operation: *?u64) !g.session_protocol.Operation {
+    errdefer self.notify();
+    try self.available(observer, deadline, Self.fence, .{ self, observer });
+    if (!std.meta.eql(caller.connection, submission.call.connection)) return error.CatalogIdentityConflict;
+    var control = caller;
+    control.transaction = null;
+    return self.bindTransactionFenced(observer, control, submission, self.transactionBinding(control.connection, submission), deadline, operation);
+}
+fn bindTransactionFenced(
+    self: *Self,
+    observer: *g.Client,
+    control: c.DirectTableClient,
+    submission: TransactionSubmission,
+    binding: c.DirectClientToken.Binding,
+    deadline: Deadline,
+    operation: *?u64,
+) !g.session_protocol.Operation {
     const receipt = self.available(observer, deadline, c.DirectClientToken.bind, .{ control, binding }) catch |err| {
         if (observer.transport.contended(err)) {
             var source = try observer.source();
             if (try self.available(observer, deadline, g.Client.Source.lookup, .{ &source, submission.token, @as(?[32]u8, submission.fingerprint) })) |original| {
+                try original.receipt.binding.retry(binding);
                 operation.* = original.id();
-                try requireRoute(original, &control, submission.call.namespace);
-                if (original.pending) self.notify();
-                return g.TransactionWork.status(control, original);
+                var verified = control;
+                try requireRoute(original, &verified, submission.call.namespace);
+                const result = try self.available(observer, deadline, g.TransactionWork.advance, .{ verified, original, false });
+                if (transactionPending(result)) self.notify();
+                return g.TransactionWork.project(verified, original, result);
             }
         }
         return err;

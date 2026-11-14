@@ -316,7 +316,8 @@ pub const Console = struct {
         const outcome = executor.execute(text, parameters, .{}) catch |err| return if (err == error.ResultCancelled) error.ConsoleInterrupted else err;
         defer outcome.deinit();
         switch (outcome.value) {
-            .command => |completion| {
+            .command => |initial| {
+                const completion = try self.finishTransactionCleanup(&executor, &timing, outcome.memory.allocator(), initial);
                 timing.enter(.render);
                 try self.command(completion);
                 if (executor.interrupted and self.batch) return self.diagnostic.fail(error.ConsoleInterrupted, "Statement completed before interruption; remaining input was not executed", null);
@@ -334,6 +335,57 @@ pub const Console = struct {
                 return error.SqlServiceError;
             },
         }
+    }
+    fn finishTransactionCleanup(
+        self: *Console,
+        executor: *sdk.Executor,
+        timing: *@import("Timing.zig"),
+        allocator: std.mem.Allocator,
+        initial: sdk.results.CommandCompletion,
+    ) !sdk.results.CommandCompletion {
+        const attribution = initial.transaction orelse return initial;
+        if (attribution.evidence != .decided or attribution.evidence.decided.cleanup_complete or executor.interrupted) return initial;
+        const identity = initial.operation orelse return error.InvalidCommandCompletion;
+        const expected_handle = attribution.handle;
+        const expected_decision = attribution.evidence.decided.decision;
+        var current = initial;
+        const started = std.Io.Clock.awake.now(self.init.io);
+        timing.enter(.wait);
+        while (!current.transaction.?.evidence.decided.cleanup_complete and !executor.interrupted) {
+            if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 270000) break;
+            const reply = executor.call(.{ .@"resume" = identity }, allocator) catch |err| switch (err) {
+                error.ResultCancelled => break,
+                error.SqlInstanceChanged, error.IncompatibleSqlDefinition, error.InvalidSqlResponse, error.Canceled, error.OutOfMemory => return err,
+                else => {
+                    try self.init.io.sleep(.fromMilliseconds(25), .awake);
+                    continue;
+                },
+            };
+            defer reply.deinit();
+            switch (reply.value.result) {
+                .operation => |operation| {
+                    try operation.validate();
+                    if (!std.meta.eql(operation.identity, identity) or operation.phase != .terminal or operation.outcome != initial.outcome)
+                        return error.InvalidSqlResponse;
+                    const next = try operation.completion();
+                    const next_attribution = next.transaction orelse return error.InvalidSqlResponse;
+                    if (!std.meta.eql(next_attribution.handle, expected_handle) or
+                        next_attribution.evidence != .decided or
+                        !std.meta.eql(next_attribution.evidence.decided.decision, expected_decision))
+                        return error.InvalidSqlResponse;
+                    current.transaction = next_attribution;
+                    if (!next_attribution.evidence.decided.cleanup_complete) {
+                        try self.init.io.sleep(.fromMilliseconds(10), .awake);
+                    }
+                },
+                .err => |failure| {
+                    if (std.mem.eql(u8, &failure.sqlstate, "42501") or std.mem.eql(u8, &failure.sqlstate, "28000")) break;
+                    try self.init.io.sleep(.fromMilliseconds(25), .awake);
+                },
+                else => return error.InvalidSqlResponse,
+            }
+        }
+        return current;
     }
     fn command(self: *Console, completion: sdk.results.CommandCompletion) !void {
         self.diagnostic.envelope = completion.diagnostic;

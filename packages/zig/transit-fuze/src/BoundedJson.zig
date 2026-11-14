@@ -22,6 +22,18 @@ pub fn parseContext(allocator: std.mem.Allocator, bytes: []const u8, limits: Lim
 }
 
 pub fn validate(bytes: []const u8) !void {
+    var small: [16 * 1024]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&small);
+    if (parse(fixed.allocator(), bytes, .{})) |parsed| {
+        var owned = parsed;
+        owned.deinit();
+        return;
+    } else |err| switch (err) {
+        error.OutOfMemory => return validateLarge(bytes),
+        else => return err,
+    }
+}
+noinline fn validateLarge(bytes: []const u8) !void {
     var scratch: [1024 * 1024]u8 = undefined;
     var fixed = std.heap.FixedBufferAllocator.init(&scratch);
     var parsed = try parse(fixed.allocator(), bytes, .{});
@@ -166,4 +178,23 @@ test "JSON observing token source agrees with the original parser and leaves OOM
             parsed.deinit();
         }
     }.run, .{});
+}
+
+test "JSON validation handles both compact stack fast-path and multi-page payloads" {
+    const t = std.testing;
+    try validate("{\"small\":[1,true,\"ok\"]}");
+    try t.expectError(error.InvalidJson, validate("[1"));
+    try t.expectError(error.SyntaxError, validate("{\"small\":[1,]}"));
+
+    var large: std.ArrayList(u8) = .empty;
+    defer large.deinit(t.allocator);
+    try large.append(t.allocator, '[');
+    var buf: [48]u8 = undefined;
+    for (0..900) |i| {
+        if (i != 0) try large.append(t.allocator, ',');
+        try large.appendSlice(t.allocator, try std.fmt.bufPrint(&buf, "\"item-{d:0>24}\"", .{i}));
+    }
+    try large.append(t.allocator, ']');
+    try t.expect(large.items.len > 16 * 1024 and large.items.len < 65536);
+    try validate(large.items);
 }
