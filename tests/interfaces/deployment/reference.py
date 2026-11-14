@@ -146,10 +146,13 @@ def images(s):
     source()
     CACHE.mkdir(parents=True, exist_ok=True)
     ate_binary()  # The shell and runtime controller share the Nix-packaged CLI.
-    run(["zig", "build", "transit", "apps", "examples", "test-native-client-fixture", "probe", "transit-board", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
+    run(["nix", "develop", ".#release-checks", "--command", "zig", "build", "transit", "apps", "examples", "test-native-client-fixture", "probe", "transit-board", "-Dtarget=x86_64-linux-musl", "-Doptimize=ReleaseSafe", "--prefix", CACHE / "bin"])
     host = f"localhost:{s['port']}"
     result = {}
     for name in ("transit", "example-counter", "isolation-probe", "transit-board"):
+        binary = CACHE / "bin/bin" / name
+        if 'INTERP' in run(['readelf', '-l', binary], capture=True) or '(NEEDED)' in run(['readelf', '-d', binary], capture=True):
+            raise RuntimeError(f"Reference artifact {name} requires a loader or shared library")
         context = CACHE / (name + "-image")
         context.mkdir(exist_ok=True)
         shutil.copy2(CACHE / "bin/bin" / name, context / name)

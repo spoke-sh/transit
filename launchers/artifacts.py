@@ -48,10 +48,16 @@ class Artifacts:
         argv = ["zig", "build", *sorted(set(names)), "-Doptimize=ReleaseSafe", "--prefix", prefix]
         if target:
             argv.append("-Dtarget=" + target)
+            # The composed runtime embeds SQL TLS. An explicit musl target
+            # alone does not replace the development shell's shared OpenSSL.
+            argv = ["nix", "develop", str(ROOT) + "#release-checks", "--command", *argv]
         run(argv, cwd=ROOT, timeout=900)
         result = {}
         for name in set(names):
             source = prefix / "bin" / name
+            if target:
+                if 'INTERP' in run(['readelf', '-l', source], capture=True) or '(NEEDED)' in run(['readelf', '-d', source], capture=True):
+                    raise RuntimeError(f"Container artifact {name} requires a loader or shared library")
             sha = digest(source)
             destination = self.path / "objects" / sha / name
             if not destination.exists():

@@ -191,6 +191,8 @@ Board defaults to `http://127.0.0.1:18202`. Provisioning uses the shared client 
 and explicit initialization; runtime containers contain Zig binaries and the
 upstream Ursula image, with no Node.js or Python application runtime. The
 launcher builds static Linux binaries for the Docker engine architecture.
+Container builds select the pinned static OpenSSL environment and reject binaries
+that require an ELF loader or shared library before constructing an image.
 The official Ursula digest comes from the same
 [version pins](../deploy/reference/versions.json) as the reference deployment.
 
