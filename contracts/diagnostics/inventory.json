@@ -13064,13 +13064,14 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 139,
+        "try": 141,
         "catch": 11
       },
       "imports": [
         "Graph.zig",
         "ProgramAnnotations.zig",
         "ProgramCheck.zig",
+        "ProgramLowering.zig",
         "ResourceOperands.zig",
         "SourceDiagnostic.zig",
         "SourceTypes.zig",
@@ -13167,10 +13168,12 @@
     "packages/zig/transit-compiler/src/ProgramAnnotations.zig": {
       "errors": {
         "ApplicationHostUnavailable": 2,
+        "BuildEmissionMismatch": 1,
         "BuildWorkLimit": 1,
         "InvalidSourceOperand": 3,
         "ProgramTooDeep": 1,
-        "SourceDomainMismatch": 2,
+        "ProgramTypeMismatch": 1,
+        "SourceDomainMismatch": 3,
         "SourceTypeMismatch": 1,
         "UnsupportedNominalOperation": 1
       },
@@ -13189,6 +13192,10 @@
           "append",
           "failure_begin",
           "failure_end"
+        ],
+        "Obligation.target": [
+          "binding",
+          "span"
         ]
       },
       "error_sets": {},
@@ -13196,6 +13203,7 @@
         "agree()": "<inferred>",
         "block()": "anyerror",
         "check()": "<inferred>",
+        "checkObligation()": "<inferred>",
         "condition()": "<inferred>",
         "event()": "<inferred>",
         "expression()": "anyerror",
@@ -13210,7 +13218,7 @@
       },
       "open_error_set_uses": 3,
       "propagation": {
-        "try": 76,
+        "try": 81,
         "catch": 0
       },
       "imports": [
@@ -13254,6 +13262,112 @@
         "transit_protocol"
       ]
     },
+    "packages/zig/transit-compiler/src/ProgramLowering.zig": {
+      "errors": {
+        "BuildStatementLimit": 1,
+        "DuplicateProgramVariable": 2,
+        "ImpureSourceFunction": 4,
+        "InvalidParameterType": 10,
+        "InvalidSourceName": 1,
+        "InvalidSourceOperand": 3,
+        "InvalidSourceSyntax": 7,
+        "MutationOutsideAtomic": 1,
+        "OutOfMemory": 1,
+        "RecursiveSourceCall": 5,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceArgumentCount": 2,
+        "SourceDepthLimit": 6,
+        "SourceParameterLimit": 1,
+        "SourceTypeMismatch": 15,
+        "UnknownProgramResource": 2,
+        "UnknownProgramVariable": 1,
+        "UnknownSourceOperand": 3,
+        "UnsupportedLogOperand": 1,
+        "UnsupportedNominalColumn": 1,
+        "UnsupportedProgramInstruction": 1
+      },
+      "outcomes": {
+        "Env.mode": [
+          "dataflow",
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "ResourceOperandRole": [
+          "identifier",
+          "table",
+          "stream",
+          "queue"
+        ],
+        "builtinPurity().<enum>": [
+          "pure",
+          "impure",
+          "unknown"
+        ],
+        "builtinPurity().<enum>#2": [
+          "pure",
+          "impure"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "applyHoist()": "<inferred>",
+        "buildSyntheticTable()": "<inferred>",
+        "consumeSemicolon()": "<inferred>",
+        "decodeProgramName()": "<inferred>",
+        "emitFixed()": "<inferred>",
+        "emitHoistedLet()": "<inferred>",
+        "emitOriginalToken()": "<inferred>",
+        "emitParamClosure()": "<inferred>",
+        "emitQuotedIdentifier()": "<inferred>",
+        "emitQuotedRaw()": "<inferred>",
+        "emitResourceOperand()": "<inferred>",
+        "emitValueHole()": "<inferred>",
+        "emitWordToken()": "<inferred>",
+        "expandFunctionCall()": "anyerror",
+        "freshHygienic()": "<inferred>",
+        "inlineHelperCall()": "anyerror",
+        "lowerArguments()": "anyerror",
+        "lowerBlock()": "anyerror",
+        "lowerExpression()": "anyerror",
+        "lowerPrimary()": "anyerror",
+        "lowerProgram()": "<inferred>",
+        "parameterScalar()": "<inferred>",
+        "parseCalleeRef()": "<inferred>",
+        "requireEmitSymbol()": "<inferred>",
+        "requireEmitWord()": "<inferred>",
+        "resolveLocalFunction()": "<inferred>",
+        "resolveQualifiedFunction()": "<inferred>",
+        "resolveResourceArgument()": "<inferred>",
+        "sliceCallArguments()": "<inferred>",
+        "unwrapCore()": "<inferred>",
+        "validateAll()": "<inferred>",
+        "validateHelperBody()": "<inferred>",
+        "validateHelperBody().check_fn.run()": "<inferred>",
+        "validateSignatureColumns()": "<inferred>",
+        "validateUnusedQueueArg()": "<inferred>",
+        "validateUnusedQueueArg().run_check.run()": "<inferred>",
+        "visitCallGraph()": "anyerror"
+      },
+      "open_error_set_uses": 7,
+      "propagation": {
+        "try": 321,
+        "catch": 15
+      },
+      "imports": [
+        "Compiler.zig",
+        "Graph.zig",
+        "ProgramAnnotations.zig",
+        "ProgramCheck.zig",
+        "SourceTypes.zig",
+        "Syntax.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_fuze",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-compiler/src/ResourceOperands.zig": {
       "errors": {
         "SourceTypeMismatch": 5,
@@ -13291,6 +13405,7 @@
         "ProcedureOutsideAtomic": 1,
         "ProgramTooComplex": 1,
         "ProgramTooDeep": 1,
+        "RecursiveSourceCall": 1,
         "UnknownColumn": 1,
         "UnknownProgramField": 1,
         "UnknownProgramResource": 1,

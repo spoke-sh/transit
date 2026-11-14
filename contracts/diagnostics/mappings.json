@@ -6012,6 +6012,10 @@
           "code": "application.source.unsupported",
           "category": "unsupported"
         },
+        "RecursiveSourceCall": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
         "NestedAtomicProgram": {
           "code": "application.source.unsupported",
           "category": "unsupported"

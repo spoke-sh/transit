@@ -892,5 +892,63 @@
     "parse": false,
     "parse_error": "MutationOutsideAtomic",
     "at": "CALL"
+  },
+  {
+    "name": "source-helpers-build",
+    "source": "IMPORT ids FROM 'types.transit'; IMPORT lib FROM 'lib.transit'; CREATE MODULE Setup(q_name IDENTIFIER, acc_name IDENTIFIER, ord_name IDENTIFIER, ev_name IDENTIFIER, order_type TYPE, account_type TYPE) AS BEGIN CREATE PUBLIC QUEUE $q_name (id $order_type NOT NULL, account_id $account_type NOT NULL, note TEXT NOT NULL); CREATE PUBLIC TABLE $acc_name (id $account_type PRIMARY KEY, active BOOLEAN NOT NULL); CREATE PUBLIC TABLE $ord_name (id $order_type PRIMARY KEY, account_id $account_type NOT NULL, note TEXT NOT NULL); CREATE PUBLIC STREAM $ev_name (id $order_type NOT NULL, note TEXT NOT NULL); EXPORT QUEUE $q_name AS incoming; EXPORT TABLE $acc_name AS accounts; EXPORT TABLE $ord_name AS orders; EXPORT STREAM $ev_name AS events; END; CREATE MODULE Pipeline(name IDENTIFIER, incoming QUEUE(id ids.OrderId NOT NULL, account_id ids.AccountId NOT NULL, note TEXT NOT NULL), accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL), orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, note TEXT NOT NULL), events STREAM(id ids.OrderId NOT NULL, note TEXT NOT NULL)) AS BEGIN CREATE PUBLIC DATAFLOW $name FROM QUEUE $incoming AS request AS BEGIN CHECK GUARD lib.valid_account($accounts, request.account_id); LET clean = lib.normalize_note(request.note); BEGIN ATOMIC CALL lib.record_order($orders, $events, request.id, request.account_id, clean); END; END; AUTHORIZE DATAFLOW $name AS ROLE CURRENT_ROLE; ACTIVATE DATAFLOW $name; END; CREATE TARGET default AS BEGIN USE Setup(NAME 'incoming', NAME 'accounts', NAME 'orders', NAME 'events', TYPE ids.OrderId, TYPE ids.AccountId) AS s; USE Pipeline(NAME 'process_orders', s.incoming, s.accounts, s.orders, s.events); END;",
+    "files": [
+      {
+        "path": "types.transit",
+        "text": "CREATE PUBLIC DOMAIN OrderId AS BIGINT IDENTITY 'example.order-id'; CREATE PUBLIC DOMAIN AccountId AS BIGINT IDENTITY 'example.account-id';"
+      },
+      {
+        "path": "lib.transit",
+        "text": "IMPORT ids FROM 'types.transit'; CREATE PUBLIC FUNCTION normalize_note(note TEXT) RETURNS TEXT AS BEGIN RETURN CASE WHEN note = '' THEN 'empty' ELSE note END; END; CREATE GUARD require_active(active BOOLEAN) AS BEGIN IF NOT active THEN REQUIRE FALSE ELSE 'InactiveAccount'; END IF; END; CREATE PUBLIC GUARD valid_account(accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL), target ids.AccountId) AS BEGIN LET found = SELECT active FROM accounts WHERE id = target; REQUIRE found IS NOT NULL ELSE 'MissingAccount'; CHECK GUARD require_active(found.active); END; CREATE PUBLIC PROCEDURE record_order(orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, note TEXT NOT NULL), events STREAM(id ids.OrderId NOT NULL, note TEXT NOT NULL), id ids.OrderId, account_id ids.AccountId, note TEXT) AS BEGIN ATOMIC INSERT INTO orders VALUES (id, account_id, note) ON CONFLICT (id) DO ASSERT SAME ROW; PRODUCE INTO events VALUES (id, note); END;"
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "steps": 7
+  },
+  {
+    "name": "source-helper-recursion",
+    "source": "CREATE FUNCTION ping(x BIGINT) RETURNS BIGINT AS BEGIN RETURN pong(x); END; CREATE FUNCTION pong(x BIGINT) RETURNS BIGINT AS BEGIN RETURN ping(x); END; CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "RecursiveSourceCall"
+  },
+  {
+    "name": "source-function-impure",
+    "source": "CREATE FUNCTION bad() RETURNS TEXT AS BEGIN RETURN RANDOM_TOKEN(16); END; CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); END;",
+    "parse": true,
+    "compile": "build",
+    "error": "ImpureSourceFunction"
+  },
+  {
+    "name": "source-helper-private",
+    "source": "IMPORT lib FROM 'lib.transit'; CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS r AS BEGIN LET x = lib.secret_fn(r.id); END; END;",
+    "files": [
+      {
+        "path": "lib.transit",
+        "text": "CREATE FUNCTION secret_fn(x BIGINT) RETURNS BIGINT AS BEGIN RETURN x + 1; END;"
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "error": "PrivateSourceSymbol"
+  },
+  {
+    "name": "source-helper-domain-mismatch",
+    "source": "CREATE DOMAIN OrderId AS BIGINT IDENTITY 'example.order-id'; CREATE DOMAIN AccountId AS BIGINT IDENTITY 'example.account-id'; CREATE FUNCTION same_order(id OrderId) RETURNS OrderId AS BEGIN RETURN id; END; CREATE MODULE Setup(o TYPE, a TYPE) AS BEGIN CREATE PUBLIC QUEUE q (id $o NOT NULL, account_id $a NOT NULL); END; CREATE TARGET default AS BEGIN USE Setup(TYPE OrderId, TYPE AccountId); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS r AS BEGIN LET bad = same_order(r.account_id); END; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "SourceDomainMismatch"
+  },
+  {
+    "name": "source-helper-interface-mismatch",
+    "source": "CREATE GUARD check_row(rows TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL), target BIGINT) AS BEGIN LET found = SELECT active FROM rows WHERE id = target; REQUIRE found IS NOT NULL ELSE 'Missing'; END; CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE q (id BIGINT NOT NULL); CREATE PUBLIC TABLE wrong_rows (id BIGINT PRIMARY KEY, note TEXT NOT NULL); CREATE PUBLIC DATAFLOW p FROM QUEUE q AS r AS BEGIN CHECK GUARD check_row(wrong_rows, r.id); END; END;",
+    "parse": true,
+    "compile": "build",
+    "error": "TableInterfaceMismatch"
   }
 ]

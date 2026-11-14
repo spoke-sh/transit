@@ -6,7 +6,14 @@ const types = @import("SourceTypes.zig");
 const Catalog = @import("WorkingCatalog.zig");
 const Context = @import("SourceDiagnostic.zig").Context;
 pub const Site = struct { start: usize, end: usize, value: types.Value };
-pub const Origin = struct { start: usize, end: usize, source: usize };
+pub const CallOrigin = struct { file: usize, offset: usize };
+pub const Origin = struct {
+    start: usize,
+    end: usize,
+    source: usize,
+    file: ?usize = null,
+    call: ?CallOrigin = null,
+};
 pub const Column = struct { name: []const u8, domain: ?[]const u8 };
 pub const Operand = struct { role: enum { assignment, predicate }, column: []const u8, domain: ?[]const u8, value: ?types.Primitive };
 /// In-memory checked evidence. Not a persisted artifact or a runtime grant.
