@@ -29,22 +29,14 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableCli
     defer arena.deinit();
     var location: f.Sql.Location = .{};
     const name = try f.TableSelect.targetDialect(arena.allocator(), text, &location, dialect);
-    const response = if (snapshot) |cut| c.DirectHistory.resolve(client, cut, namespace, name, access == .read) catch |err| {
-        if (err == error.HistoricalObjectNotSelected) return prepareView(allocator, client, namespace, name, text, dialect, detail, access, snapshot, projection);
-        return err;
-    } else try client.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
-    defer response.deinit();
-    const metadata: c.DirectTableProtocol.Definition = if (snapshot != null) blk: {
-        const source = response.value.result.historical_catalog.source;
-        break :blk .{ .interpretation = source.binding.declaration, .namespace = source.binding.namespace.id, .authorization = source.binding.properties.authorization, .name = source.binding.properties.name, .position = source.binding.source.accepted, .changed_lsn = source.changed_lsn, .row_count = source.rows, .schema = source.schema };
-    } else response.value.result.lookup orelse return prepareView(allocator, client, namespace, name, text, dialect, detail, access, snapshot, projection);
+    const metadata = (try lookupPreparedMetadata(arena.allocator(), client, namespace, name, access, snapshot)) orelse
+        return prepareView(allocator, client, namespace, name, text, dialect, detail, access, snapshot, projection);
     var binding = try c.DirectTableBinding.init(client.connection, metadata);
     binding.catalog = snapshot;
     if (snapshot != null or access != .inspect) _ = try binding.require(client, access);
-    const projected = if (projection) |target| try c.DirectSchemaProjection.resolve(client, binding.interpretation, target) else null;
-    defer if (projected) |value| value.deinit();
-    const target = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
-    const schema_bytes = if (projected) |value| value.value.result.schema_projection.prepared.schema else metadata.schema;
+    const resolved_projection = if (projection) |target| try resolveProjectedSchema(arena.allocator(), client, binding.interpretation, target) else null;
+    const target = if (resolved_projection) |value| value.target else null;
+    const schema_bytes = if (resolved_projection) |value| value.schema else metadata.schema;
     var schema = try f.TableSchema.decode(allocator, try schema_bytes.decode(arena.allocator(), f.TableSchema.max_bytes));
     defer schema.deinit();
     try q.DirectTableQuery.qualify(schema.schema);
@@ -66,6 +58,39 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableCli
     var stored_metadata = metadata;
     stored_metadata.schema = .{ .base64 = "" };
     return .{ .binding = binding, .metadata = stored_metadata, .template = template, .output = output, .collations = .fromTable(schema.schema), .projection = target };
+}
+noinline fn lookupPreparedMetadata(arena: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, name: []const u8, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot) !?c.DirectTableProtocol.Definition {
+    if (snapshot) |cut| return resolveHistoricalMetadata(arena, client, cut, namespace, name, access == .read);
+    const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
+    defer response.deinit();
+    var metadata = response.value.result.lookup orelse return null;
+    metadata.schema = .{ .base64 = try arena.dupe(u8, metadata.schema.base64) };
+    return metadata;
+}
+noinline fn resolveHistoricalMetadata(arena: std.mem.Allocator, client: c.DirectTableClient, cut: q.protocol.DataLifecycle.Snapshot, namespace: u64, name: []const u8, rows: bool) !?c.DirectTableProtocol.Definition {
+    const response = c.DirectHistory.resolve(client, cut, namespace, name, rows) catch |err| {
+        if (err == error.HistoricalObjectNotSelected) return null;
+        return err;
+    };
+    defer response.deinit();
+    const source = response.value.result.historical_catalog.source;
+    return .{
+        .interpretation = source.binding.declaration,
+        .namespace = source.binding.namespace.id,
+        .authorization = source.binding.properties.authorization,
+        .name = source.binding.properties.name,
+        .position = source.binding.source.accepted,
+        .changed_lsn = source.changed_lsn,
+        .row_count = source.rows,
+        .schema = .{ .base64 = try arena.dupe(u8, source.schema.base64) },
+    };
+}
+const ResolvedProjection = struct { target: c.DirectSchemaProjection.Accepted, schema: c.DirectTableProtocol.Binary };
+noinline fn resolveProjectedSchema(arena: std.mem.Allocator, client: c.DirectTableClient, interpretation: c.storage.TableDeclaration.Stored, target: c.DirectSchemaProjection.Target) !ResolvedProjection {
+    const projected = try c.DirectSchemaProjection.resolve(client, interpretation, target);
+    defer projected.deinit();
+    const prepared = projected.value.result.schema_projection.prepared;
+    return .{ .target = prepared.target, .schema = .{ .base64 = try arena.dupe(u8, prepared.schema.base64) } };
 }
 fn preparationBasis(allocator: std.mem.Allocator, binding: c.DirectTableBinding, target: ?c.DirectSchemaProjection.Accepted) ![32]u8 {
     const source = try binding.fingerprint(allocator);
@@ -137,7 +162,7 @@ test "direct SELECT preparation separates complete caller identity from captured
     try t.expectError(error.TableDefinitionChanged, prepared.instantiate(t.allocator, connection, other.interpretation, schema, @splat(9), &.{.{ .signed = 42 }}, null));
 }
 
-fn prepareView(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, name: []const u8, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !Self {
+noinline fn prepareView(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, name: []const u8, text: []const u8, dialect: f.Sql.Dialect, detail: ?*f.Sql.Binding, access: c.TableAuthority.Access, snapshot: ?q.protocol.DataLifecycle.Snapshot, projection: ?c.DirectSchemaProjection.Target) !Self {
     if (projection != null or client.transaction != null) return error.UnsupportedCatalogView;
     const response = try c.DirectDefinition.call(client, if (snapshot) |cut| .{ .historical = .{ .snapshot = cut, .namespace = namespace, .name = try .init(name), .rows = access == .read } } else .{ .lookup = .{ .namespace = namespace, .name = try .init(name) } });
     defer response.deinit();

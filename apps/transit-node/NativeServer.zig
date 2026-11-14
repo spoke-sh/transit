@@ -213,7 +213,7 @@ pub fn Host(comptime Provider: type) type {
                 self.observation.written = true;
             }
 
-            fn payload(self: *Server, request: *std.http.Server.Request) !void {
+            noinline fn payload(self: *Server, request: *std.http.Server.Request) !void {
                 if (comptime @hasDecl(Provider, "payload")) {
                     const w = wire.protocol.NativePayload;
                     if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
@@ -244,7 +244,7 @@ pub fn Host(comptime Provider: type) type {
                 } else return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
             }
 
-            fn table(self: *Server, request: *std.http.Server.Request) !void {
+            noinline fn table(self: *Server, request: *std.http.Server.Request) !void {
                 if (comptime @hasDecl(Provider, "TableHost")) {
                     const owner = self.lane.table orelse return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
                     if (request.head.method != .POST) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
@@ -415,32 +415,36 @@ pub fn Host(comptime Provider: type) type {
                 const bytes = http.readBody(self.allocator, request, wire.max_body) catch |err|
                     return if (err == error.InvalidBody) self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody }) else self.failure(request, err);
                 defer self.allocator.free(bytes);
-                if (mutation) {
-                    const parsed = std.json.parseFromSlice(g.CommandEnvelope, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    defer parsed.deinit();
-                    g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-                    defer if (databasePolicyChanged(parsed.value.request.command)) self.context.database_changes.notify(self.io);
-                    self.beginWork();
-                    self.observation.protocol_outcome = .uncertain;
-                    const position = self.submitCommand(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
-                    // Coalesced local hints only. Reconciliation can also discover a
-                    // commit by another node; every waiter still revalidates its query.
-                    {
-                        self.mutex.lockUncancelable(self.io);
-                        defer self.mutex.unlock(self.io);
-                        self.position.* = @max(self.position.*, self.engine.head.position);
-                        self.context.syncFromLane(self.lane);
-                        self.changed.publish(self.io, parsed.value.request.command);
-                        if (comptime @hasDecl(Provider, "TableHost")) if (self.lane.table) |owner| owner.notifyLogs();
-                    }
-                    self.observation.protocol_outcome = .receipt;
-                    self.observation.realm = parsed.value.request.realm;
-                    self.observation.sequence = parsed.value.request.sequence;
-                    self.observation.pid = g.commandPid(parsed.value.request.command);
-                    self.observation.operation = @tagName(parsed.value.request.command);
-                    self.observation.position = position;
-                    return self.json(request, .ok, wire.Receipt{ .position = position });
+                if (mutation) return self.handleCommand(request, bytes);
+                return self.handleQueryOrBlocks(request, bytes, bulk, control, hint);
+            }
+            noinline fn handleCommand(self: *Server, request: *std.http.Server.Request, bytes: []const u8) !void {
+                const parsed = std.json.parseFromSlice(g.CommandEnvelope, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                defer parsed.deinit();
+                g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+                defer if (databasePolicyChanged(parsed.value.request.command)) self.context.database_changes.notify(self.io);
+                self.beginWork();
+                self.observation.protocol_outcome = .uncertain;
+                const position = self.submitCommand(parsed.value.signed(), if (parsed.value.blocks) |*body| body else null) catch |err| return self.failure(request, err);
+                // Coalesced local hints only. Reconciliation can also discover a
+                // commit by another node; every waiter still revalidates its query.
+                {
+                    self.mutex.lockUncancelable(self.io);
+                    defer self.mutex.unlock(self.io);
+                    self.position.* = @max(self.position.*, self.engine.head.position);
+                    self.context.syncFromLane(self.lane);
+                    self.changed.publish(self.io, parsed.value.request.command);
+                    if (comptime @hasDecl(Provider, "TableHost")) if (self.lane.table) |owner| owner.notifyLogs();
                 }
+                self.observation.protocol_outcome = .receipt;
+                self.observation.realm = parsed.value.request.realm;
+                self.observation.sequence = parsed.value.request.sequence;
+                self.observation.pid = g.commandPid(parsed.value.request.command);
+                self.observation.operation = @tagName(parsed.value.request.command);
+                self.observation.position = position;
+                return self.json(request, .ok, wire.Receipt{ .position = position });
+            }
+            noinline fn handleQueryOrBlocks(self: *Server, request: *std.http.Server.Request, bytes: []const u8, bulk: bool, control: bool, hint: ?wire.WaitHint) !void {
                 const parsed = std.json.parseFromSlice(g.SignedQuery, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
                 defer parsed.deinit();
                 if (control and parsed.value.query.kind != .close_snapshot and !(parsed.value.query.kind == .snapshot_read and parsed.value.query.kind.snapshot_read.finish)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
@@ -598,40 +602,41 @@ pub fn Host(comptime Provider: type) type {
                 defer server.finishWork();
                 // Each call borrows one authority lane and owner locks only for
                 // that operation, never across a SQL scan or socket drain.
-                if (std.mem.eql(u8, invocation.path, "/table/v1")) {
-                    if (comptime @hasDecl(Provider, "TableHost")) {
-                        const owner = lane.table orelse return error.LocalRouteMissing;
-                        const request = try invocation.requestPtr(Provider.TableHost.Protocol.Request);
-                        defer if (request.publicationHint()) self.database_changes.notify(io);
-                        var budget = self.table_memory.request(self.server.allocator, control);
-                        defer std.debug.assert(budget.used == 0);
-                        var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
-                        defer scratch.deinit();
-                        request.validate(scratch.allocator()) catch |err| {
-                            if (err == error.OutOfMemory) return if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
-                            return error.InvalidLocalRequest;
-                        };
-                        const before = lane.engine.head.position;
-                        defer if (lane.engine.head.position != before) {
-                            self.mutex.lockUncancelable(io);
-                            defer self.mutex.unlock(io);
-                            self.position = @max(self.position, lane.engine.head.position);
-                            self.syncFromLane(lane);
-                            self.changed.publishAll(io);
-                            owner.notifyLogs();
-                        };
-                        const result = owner.executeTyped(io, &lane.engine, &scratch, invocation.allocator, request.*, control, invocation.deadline) catch |err| {
-                            if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
-                            return err;
-                        };
-                        return invocation.respond(result);
-                    }
-                    return error.LocalRouteMissing;
-                }
+                if (std.mem.eql(u8, invocation.path, "/table/v1")) return self.localTable(io, lane, control, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/query")) return localQuery(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/command")) return self.localCommand(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/blocks")) return localBlocks(&server, invocation);
                 if (std.mem.eql(u8, invocation.path, "/v1/payload")) return localPayload(&server, invocation);
+                return error.LocalRouteMissing;
+            }
+            noinline fn localTable(self: *Context, io: std.Io, lane: *Lane, control: bool, invocation: *wire.LocalEndpoint.Invocation) !void {
+                if (comptime @hasDecl(Provider, "TableHost")) {
+                    const owner = lane.table orelse return error.LocalRouteMissing;
+                    const request = try invocation.requestPtr(Provider.TableHost.Protocol.Request);
+                    defer if (request.publicationHint()) self.database_changes.notify(io);
+                    var budget = self.table_memory.request(self.server.allocator, control);
+                    defer std.debug.assert(budget.used == 0);
+                    var scratch: std.heap.ArenaAllocator = .init(budget.allocator());
+                    defer scratch.deinit();
+                    request.validate(scratch.allocator()) catch |err| {
+                        if (err == error.OutOfMemory) return if (budget.exhausted) (if (control) error.ControlCapacity else error.StorageQuota) else err;
+                        return error.InvalidLocalRequest;
+                    };
+                    const before = lane.engine.head.position;
+                    defer if (lane.engine.head.position != before) {
+                        self.mutex.lockUncancelable(io);
+                        defer self.mutex.unlock(io);
+                        self.position = @max(self.position, lane.engine.head.position);
+                        self.syncFromLane(lane);
+                        self.changed.publishAll(io);
+                        owner.notifyLogs();
+                    };
+                    const result = owner.executeTypedRef(io, &lane.engine, &scratch, invocation.allocator, request, control, invocation.deadline) catch |err| {
+                        if (err == error.OutOfMemory and budget.exhausted) return if (control) error.ControlCapacity else error.StorageQuota;
+                        return err;
+                    };
+                    return invocation.respondPtr(&result);
+                }
                 return error.LocalRouteMissing;
             }
             // Native envelopes/results need large bounded frames. Keep their

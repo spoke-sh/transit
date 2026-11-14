@@ -95,10 +95,10 @@ fn key(self: *Self, client: c.DirectTableClient, index: usize) !c.DirectClientTo
     const route = try c.DirectClientToken.accountPrefix(scope);
     return .{ .definition = p.Growth.current_definition, .connection = client.connection, .account = g.AccountIdentity.internal(self.gateway.account, "read-cache", &route), .token = token };
 }
-fn open(self: *Self, client: c.DirectTableClient, index: usize) !?c.DirectClientToken.Progress {
+noinline fn open(self: *Self, client: c.DirectTableClient, index: usize) !?c.DirectClientToken.Progress {
     return c.DirectClientToken.inspect(client, try self.key(client, index));
 }
-fn bindInitial(self: *Self, client: c.DirectTableClient, index: usize, value: Record) !c.DirectClientToken.Progress {
+noinline fn bindInitial(self: *Self, client: c.DirectTableClient, index: usize, value: Record) !c.DirectClientToken.Progress {
     const selected = try self.key(client, index);
     const bytes = try p.Json.valueAlloc(self.allocator, Slot{ .generation = self.generation, .record = value });
     defer self.allocator.free(bytes);
@@ -116,7 +116,7 @@ fn bindInitial(self: *Self, client: c.DirectTableClient, index: usize, value: Re
     };
     return c.DirectClientToken.Progress.initial(receipt);
 }
-fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress) !Slot {
+noinline fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress) !Slot {
     const reference = state.record orelse if (state.receipt.binding.intent == .external) state.receipt.binding.intent.external.record else return error.InvalidSqlReadRecovery;
     if (reference.format != format) return error.InvalidSqlReadRecovery;
     const bytes = try c.DirectRecord.read(self.allocator, client, reference);
@@ -131,7 +131,7 @@ fn read(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Pro
     }
     return slot;
 }
-fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress, value: ?Record) !c.DirectClientToken.Progress {
+noinline fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Progress, value: ?Record) !c.DirectClientToken.Progress {
     const bytes = try p.Json.valueAlloc(self.allocator, Slot{ .generation = self.generation, .record = value });
     defer self.allocator.free(bytes);
     const reference = try c.DirectRecord.stage(client, state.receipt.binding.key.account, format, bytes);
@@ -147,7 +147,7 @@ fn write(self: *Self, client: c.DirectTableClient, state: c.DirectClientToken.Pr
         return err;
     };
 }
-fn releaseStream(client: c.DirectTableClient, stream: StreamPin) !void {
+noinline fn releaseStream(client: c.DirectTableClient, stream: StreamPin) !void {
     const receipt: p.StreamRead.Receipt = if (stream.receipt) |known| known else blk: {
         const cancelled = try client.call(.{ .stream = .{ .cancel = .{ .consume = stream.request } } });
         defer cancelled.deinit();
@@ -173,7 +173,7 @@ fn releaseStream(client: c.DirectTableClient, stream: StreamPin) !void {
         else => return error.InvalidStreamResponse,
     }
 }
-fn release(client: c.DirectTableClient, record: Record) !void {
+noinline fn release(client: c.DirectTableClient, record: Record) !void {
     if (record.stream) |stream| return releaseStream(client, stream);
     try client.closeOriginalCapture(record.table.interpretation.interpretation, record.owner(), record.expected, record.handle);
 }
@@ -196,19 +196,39 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
     const metadata = if (known_metadata) |known| blk: {
         try table.check(client.connection, known);
         break :blk known;
-    } else blk: {
-        const response = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
-        defer response.deinit();
-        const found = response.value.result.lookup orelse return error.TableDefinitionChanged;
-        try table.check(client.connection, found);
-        break :blk found;
-    };
+    } else try lookupCurrentMetadata(client, table);
     for (&self.entries) |*slot| if (slot.*) |*entry| {
         if (entry.record.stream == null and std.meta.eql(entry.record.table, table) and entry.record.changed_lsn == metadata.changed_lsn) {
             entry.users = try std.math.add(u32, entry.users, 1);
             return entry.record;
         }
     };
+    return self.acquireCurrentMiss(client, table, metadata);
+}
+noinline fn lookupCurrentMetadata(client: c.DirectTableClient, table: c.DirectTableBinding) !w.Definition {
+    const response = try client.call(.{ .lookup = .{ .namespace = table.namespace, .name = table.name.slice() } });
+    defer response.deinit();
+    var found = response.value.result.lookup orelse return error.TableDefinitionChanged;
+    try table.check(client.connection, found);
+    found.schema = .{ .base64 = "" };
+    return found;
+}
+noinline fn releaseCachedSnapshot(client: c.DirectTableClient, snapshot: w.Snapshot) !void {
+    const released = try client.call(.{ .release = snapshot });
+    released.deinit();
+}
+noinline fn pinCurrentSnapshot(client: c.DirectTableClient, table: c.DirectTableBinding, record: Record) !c.storage.TablePartition.SnapshotHandle {
+    const pinned = try client.call(.{ .pin = .{
+        .object = table.interpretation.interpretation.object,
+        .owner = record.owner(),
+        .expected = record.expected,
+        .selection = .current,
+        .interpretation = table.interpretation.interpretation,
+    } });
+    defer pinned.deinit();
+    return pinned.value.result.pin;
+}
+noinline fn acquireCurrentMiss(self: *Self, client: c.DirectTableClient, table: c.DirectTableBinding, selected: w.Definition) !Record {
     const index = for (self.entries, 0..) |slot, i| {
         if (slot) |entry| {
             if (entry.users == 0 and entry.record.stream == null and std.meta.eql(entry.record.table.connection, client.connection) and
@@ -234,12 +254,10 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
         state = existing;
         previous_record = (try self.read(client, existing)).record;
     }
-    const selected = metadata;
     if (previous_record) |prior| {
         var to_release = prior;
         if (cached != null and to_release.stream == null) {
-            const released = try client.call(.{ .release = try to_release.snapshot() });
-            released.deinit();
+            try releaseCachedSnapshot(client, try to_release.snapshot());
         } else {
             if (to_release.state != .closing) {
                 to_release.state = .closing;
@@ -256,15 +274,7 @@ pub fn acquireCurrentWithMetadata(self: *Self, client: c.DirectTableClient, tabl
         try self.write(client, existing, record)
     else
         try self.bindInitial(client, index, record);
-    const pinned = try client.call(.{ .pin = .{
-        .object = table.interpretation.interpretation.object,
-        .owner = record.owner(),
-        .expected = record.expected,
-        .selection = .current,
-        .interpretation = table.interpretation.interpretation,
-    } });
-    defer pinned.deinit();
-    record.handle = pinned.value.result.pin;
+    record.handle = try pinCurrentSnapshot(client, table, record);
     self.entries[index] = .{ .record = record, .state = next_state, .users = 1 };
     return record;
 }

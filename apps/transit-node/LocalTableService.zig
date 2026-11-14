@@ -86,13 +86,16 @@ pub const Resident = struct {
 /// allocated response and may destroy the arena before sending it. The final
 /// fence can still discard that response after a revocation race.
 pub fn execute(self: *Self, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) ![]const u8 {
-    return self.executeResult(.json, arena, output_allocator, request);
+    return self.executeResultRef(.json, arena, output_allocator, &request);
 }
 pub const Output = enum { json, typed };
 pub fn Result(comptime output: Output) type {
     return if (output == .json) []const u8 else w.Response;
 }
 pub fn executeResult(self: *Self, comptime format: Output, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: w.Request) !Result(format) {
+    return self.executeResultRef(format, arena, output_allocator, &request);
+}
+pub fn executeResultRef(self: *Self, comptime format: Output, arena: *std.heap.ArenaAllocator, output_allocator: std.mem.Allocator, request: *const w.Request) !Result(format) {
     // An uncertain append, failed recovery or failed disclosure cannot leave a
     // warm Table hint behind. Full replay remains the next request's fallback.
     errdefer {
@@ -221,15 +224,27 @@ fn streamAuthority(self: *Self, output: *c.storage.LogRead.Authority) void {
 
 fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
     const self: *Self = @ptrCast(@alignCast(raw));
+    const resident = self.resident orelse return self.executeStreamCold(output, catalog, policy, request);
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var authority: c.storage.LogRead.Authority = undefined;
+    self.streamAuthority(&authority);
+    defer std.crypto.secureZero(u8, &authority.secret);
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, &resident.stream, catalog.options.logs.stream, .{
+        .authority = authority,
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+        .waiting = self.waiting,
+    }, request, policy);
+}
+noinline fn executeStreamCold(self: *Self, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectStream.Request) !c.DirectStream.Result {
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();
     var temporary: ?c.DirectStream.Cached = null;
     defer if (temporary) |*cached| cached.deinit();
-    const slot = if (self.resident) |resident| &resident.stream else &temporary;
     var authority: c.storage.LogRead.Authority = undefined;
     self.streamAuthority(&authority);
     defer std.crypto.secureZero(u8, &authority.secret);
-    return c.DirectStream.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.stream, .{
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, &temporary, catalog.options.logs.stream, .{
         .authority = authority,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
@@ -238,15 +253,27 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
 
 fn executeCaptureRead(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, connection: w.Connection, request: c.DirectSourceRead.Request) !c.DirectSourceRead.Result {
     const self: *Self = @ptrCast(@alignCast(raw));
+    const resident = self.resident orelse return self.executeCaptureReadCold(output, catalog, policy, connection, request);
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    var authority: c.storage.LogRead.Authority = undefined;
+    self.streamAuthority(&authority);
+    defer std.crypto.secureZero(u8, &authority.secret);
+    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, &resident.stream, catalog.options.logs.stream, .{
+        .authority = authority,
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+        .waiting = self.waiting,
+    }, connection, request, policy);
+}
+noinline fn executeCaptureReadCold(self: *Self, output: std.mem.Allocator, catalog: *D, policy: D.Policy, connection: w.Connection, request: c.DirectSourceRead.Request) !c.DirectSourceRead.Result {
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();
     var temporary: ?c.DirectStream.Cached = null;
     defer if (temporary) |*cached| cached.deinit();
-    const slot = if (self.resident) |resident| &resident.stream else &temporary;
     var authority: c.storage.LogRead.Authority = undefined;
     self.streamAuthority(&authority);
     defer std.crypto.secureZero(u8, &authority.secret);
-    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.stream, .{
+    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, &temporary, catalog.options.logs.stream, .{
         .authority = authority,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
@@ -260,12 +287,20 @@ fn executeDdl(raw: *anyopaque, catalog: *D, binding: d.Binding, policy: D.Policy
 }
 fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
     const self: *Self = @ptrCast(@alignCast(raw));
+    const resident = self.resident orelse return self.executeQueueCold(output, catalog, policy, request);
+    var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
+    defer scratch.deinit();
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, &resident.queue, catalog.options.logs.queue, .{
+        .waiting = self.waiting,
+        .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
+    }, request, policy);
+}
+noinline fn executeQueueCold(self: *Self, output: std.mem.Allocator, catalog: *D, policy: D.Policy, request: c.DirectQueue.Request) !c.DirectQueue.Result {
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();
     var temporary: ?c.DirectQueue.Cached = null;
     defer if (temporary) |*cached| cached.deinit();
-    const slot = if (self.resident) |resident| &resident.queue else &temporary;
-    return c.DirectQueue.apply(scratch.allocator(), output, catalog, slot, catalog.options.logs.queue, .{
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, &temporary, catalog.options.logs.queue, .{
         .waiting = self.waiting,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
     }, request, policy);

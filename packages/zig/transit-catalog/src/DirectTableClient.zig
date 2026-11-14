@@ -149,7 +149,7 @@ test "owned direct responses unwind retained arenas on a bounded stack" {
 pub const Attempt = struct {
     mutation: ?Mutation = null,
     pub const Mutation = struct { action: std.meta.Tag(w.Action), identity: ?p.DataLifecycle.Operation };
-    fn begin(self: *Attempt, request: w.Request) void {
+    fn begin(self: *Attempt, request: *const w.Request) void {
         if (!request.transport().mutation) return;
         self.mutation = .{
             .action = std.meta.activeTag(request.action),
@@ -197,7 +197,7 @@ test "Stream wait cancellation retains its original consume identity as unknown 
     const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-stream-wait-v1.json"));
     defer fixture.deinit();
     var attempt: Attempt = .{};
-    attempt.begin(fixture.value.request);
+    attempt.begin(&fixture.value.request);
     const identity = fixture.value.request.action.stream.wait.consume.operation;
     try t.expectEqualDeep(identity, attempt.mutation.?.identity.?);
     const diagnostic = (try attempt.failure(error.Canceled, null)).?;
@@ -212,10 +212,10 @@ test "direct caller attempt evidence survives reads and service rejection" {
     defer fixture.deinit();
     var attempt: Attempt = .{};
     try t.expect(try attempt.failure(error.ConnectionRefused, null) == null);
-    attempt.begin(fixture.value.request);
+    attempt.begin(&fixture.value.request);
     var read = fixture.value.request;
     read.action.dependency_operation.command = .inspect;
-    attempt.begin(read);
+    attempt.begin(&read);
     for ([_]anyerror{ error.AccessDenied, error.Conflict, error.InvalidTableResponse, error.AuthorityTimeout, error.OutOfMemory }) |cause| {
         const diagnostic = (try attempt.failure(cause, null)).?;
         try t.expectEqual(.unknown, diagnostic.outcome);
@@ -225,7 +225,7 @@ test "direct caller attempt evidence survives reads and service rejection" {
         for (diagnostic.actions) |slot| if (slot) |action| try t.expect(action.kind == .inspect_status or action.kind == .inspect_scope);
     }
     attempt = .{};
-    attempt.begin(read);
+    attempt.begin(&read);
     try t.expect(try attempt.failure(error.AccessDenied, null) == null);
     var wire_client = wire.Client.init(t.allocator, t.io, "http://127.0.0.1:1");
     defer wire_client.deinit();
@@ -244,7 +244,7 @@ test "Queue wait cancellation retains its original claim identity as unknown wor
     const fixture = try p.Json.parseFromSlice(struct { request: w.Request, public_key: [32]u8, intent_digest: [32]u8 }, t.allocator, @embedFile("fixtures/direct-queue-wait-v1.json"));
     defer fixture.deinit();
     var attempt: Attempt = .{};
-    attempt.begin(fixture.value.request);
+    attempt.begin(&fixture.value.request);
     const identity = fixture.value.request.action.queue.wait.claim.operation;
     try t.expectEqualDeep(identity, attempt.mutation.?.identity.?);
     const diagnostic = (try attempt.failure(error.Canceled, null)).?;
@@ -254,6 +254,7 @@ test "Queue wait cancellation retains its original claim identity as unknown wor
 }
 
 pub const validateResponse = @import("DirectTableResponse.zig").validate;
+pub const validateResponseRef = @import("DirectTableResponse.zig").validateRef;
 
 test "request execution owns its condition and cannot discard a transaction claim" {
     const t = std.testing;
@@ -363,10 +364,12 @@ pub fn call(self: Self, action: w.Action) !OwnedResponse {
     // Local signing and request validation have succeeded. Entering the
     // mutating transport is conservative evidence of possible acceptance,
     // including failure before a response can prove what actually happened.
-    if (self.attempt) |attempt| attempt.begin(request);
-    const response = OwnedResponse.init(try self.service.callOwned(w.Response, "/table/v1", request, .{ .request_bytes = w.max_request_bytes, .response_bytes = w.max_response_bytes }));
+    if (self.attempt) |attempt| attempt.begin(&request);
+    var parsed: std.json.Parsed(w.Response) = undefined;
+    try self.service.callOwnedInto(w.Response, "/table/v1", &request, .{ .request_bytes = w.max_request_bytes, .response_bytes = w.max_response_bytes }, &parsed);
+    const response = OwnedResponse.init(parsed);
     errdefer response.deinit();
-    try validateResponse(arena.allocator(), request, response.value);
+    try validateResponseRef(arena.allocator(), &request, &response.value);
     return response;
 }
 

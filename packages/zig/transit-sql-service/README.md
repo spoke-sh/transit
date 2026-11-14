@@ -76,6 +76,9 @@ controls; `TransactionWork` freezes each caller command (Table DML, KV `PUT`/`DE
 non-`RETURNING` `PRODUCE INTO`/`ENQUEUE INTO`, `COMMIT OFFSET` and `ACK`) before native admission.
 Private Table and KV reads bypass the independent read-pin cache and retain one exact workspace
 revision. The shared result model reports provisional counts and actual decisions.
+Native sessions surface terminal decisions immediately with `cleanup_complete`, while PostgreSQL
+and MySQL wire sessions advance the same accepted settlement operation until participant
+cleanup completes before returning command completion.
 See [Table transactions](../../../docs/handbook/reference/sql/transactions.md) for
 scope, session loss, conflicts and resource limits.
 

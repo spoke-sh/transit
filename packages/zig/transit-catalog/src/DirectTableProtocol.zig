@@ -442,7 +442,7 @@ pub const Request = struct {
         _ = allocator;
         return p.Json.hashBounded("transit.table.direct.request.v1\x00", value, max_request_bytes) catch |err| return if (err == error.WriteFailed) error.TablePayloadTooLarge else err;
     }
-    pub fn input(self: Request) Input {
+    pub fn input(self: *const Request) Input {
         return .{ .definition = self.definition, .connection = self.connection, .nonce = self.nonce, .action = self.action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction, .execution = self.execution };
     }
     /// Private staging and reader retention change durable bookkeeping without
@@ -450,7 +450,7 @@ pub const Request = struct {
     /// pin/release lifecycle into another managed-computation discovery sweep.
     /// This conservative hint is separate from mutation/uncertainty semantics:
     /// even a refused publication attempt may wake an authorized recheck.
-    pub fn publicationHint(self: Request) bool {
+    pub fn publicationHint(self: *const Request) bool {
         return switch (self.action) {
             .record, .stage, .client_token, .pin, .retain_history, .release, .capture_read => false,
             // Acquisition changes private lease ownership, not the published
@@ -474,7 +474,7 @@ pub const Request = struct {
 
     /// Transport hints classify a request attempt; the server validates its
     /// parsed action and current rights before using reserved admission.
-    pub fn transport(self: Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8, wait: ?c.client.WaitHint } {
+    pub fn transport(self: *const Request) struct { operation: []const u8, mutation: bool, control: ?[]const u8, wait: ?c.client.WaitHint } {
         const mutation = switch (self.action) {
             .stream => |value| value.mutation(),
             .capture_read => |value| value.mutation(),
@@ -501,7 +501,7 @@ pub const Request = struct {
         const control = (self.action == .capture_read and self.action.capture_read.control()) or (self.action == .client_progress and self.action.client_progress == .close_original) or (self.action == .historical_catalog and (self.action.historical_catalog == .inspect or self.action.historical_catalog == .abandon or self.action.historical_catalog == .release)) or (self.action == .kv and self.action.kv.control()) or (self.action == .kv_declaration and self.action.kv_declaration.control()) or (self.action == .document_declaration and self.action.document_declaration.control()) or (self.action == .branch and (self.action.branch == .inspect or self.action.branch == .cancel)) or (self.action == .stream and self.action.stream.control()) or (self.action == .queue and self.action.queue.control()) or (self.action == .log_operation and self.action.log_operation.command != .execute) or (self.action == .transaction and self.action.transaction.control()) or self.action == .release or self.action == .pin_status or self.action == .namespace_operation or self.action == .dependency_operation or (self.action == .resource_operation and (self.action.resource_operation.command == .inspect or self.action.resource_operation.command == .cancel)) or (self.action == .operation and self.action.operation.command != .execute) or (self.action == .name_assertion and self.action.name_assertion.command != .accept);
         return .{ .operation = @tagName(self.action), .mutation = mutation and self.transaction == null, .control = if (control) "table" else null, .wait = if (self.action == .stream and self.action.stream == .wait) .{ .after = 0, .milliseconds = self.action.stream.wait.milliseconds } else if (self.action == .queue and self.action.queue == .wait) .{ .after = 0, .milliseconds = self.action.queue.wait.milliseconds } else null };
     }
-    pub fn validate(self: Request, allocator: std.mem.Allocator) !void {
+    pub fn validate(self: *const Request, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         try self.connection.validate();
         if (self.execution) |execution| {

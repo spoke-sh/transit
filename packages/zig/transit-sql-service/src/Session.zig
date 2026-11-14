@@ -884,80 +884,124 @@ fn acquireRead(self: *Self, prepared: *Prepared, values: []const ?f.Types.Values
     errdefer self.fresh_prepared = null;
     const read = try self.allocator.create(Read);
     errdefer self.allocator.destroy(read);
-    read.* = .{ .host = self, .value = undefined, .prepared = prepared, .builder = try .init(self.allocator, self.config.limits.cycle_bytes), .validated_open = true, .transaction = self.transaction.handle, .transaction_context = self.table.transaction };
+    read.host = self;
+    read.prepared = prepared;
+    read.owns_prepared = false;
+    read.builder = try .init(self.allocator, self.config.limits.cycle_bytes);
     errdefer read.builder.deinit();
+    read.input = .{};
+    read.input_index = 0;
+    read.started = false;
+    read.disclosure = .{};
+    read.pins = @splat(null);
     errdefer self.releasePins(read);
+    read.batch = null;
+    read.output = null;
+    read.probe_cells = undefined;
+    read.emitted = false;
+    read.emitted_rows = 0;
+    read.validated_open = true;
+    read.validated_disclosure = false;
+    read.transaction = self.transaction.handle;
+    read.transaction_context = self.table.transaction;
     switch (prepared.*) {
         .transaction, .managed, .connector => return error.ExpectedGatewayRead,
-        .captured => |*captured| read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) },
-        .workload => |*value| read.value = .{ .workload = try g.database.WorkloadRead.Read.init(value, self.table) },
-        .source => |*statement| read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) },
-        .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
-        .settings => |*settings| read.value = .{ .settings = try Settings.Read.init(self, settings) },
         .probe => |probe| read.value = .{ .probe = probe },
-        .native => |*statement| {
-            if (statement.plan == .kv_get) {
-                read.value = .{ .kv_get = try statement.plan.kv_get.open(self.allocator, self.table, values) };
-                return read;
-            }
-            if (statement.kind() != .select) return error.ExpectedGatewayRead;
-            const count = if (statement.plan == .relational) statement.plan.relational.plan.sources.len else 1;
-            var pins: [f.Relational.max_sources]g.direct.DirectRelationalTables.SourcePin = undefined;
-            for (0..count) |i| {
-                const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
-                if (statement.plan == .relational) if (statement.plan.relational.streams[i]) |stream_source| {
-                    if (self.table.transaction != null) return error.UnsupportedTransactionStatement;
-                    read.pins[i] = try self.runtime.read_pins.?.acquireStreamSlice(self.table, binding, stream_source);
-                    pins[i] = .{ .stream = .{ .namespace = binding.namespace, .receipt = try read.pins[i].?.streamReceipt() } };
-                    continue;
-                };
-                if (binding.catalog) |snapshot| {
-                    const response = try c.DirectHistory.call(self.table, .{ .source = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = true } });
-                    defer response.deinit();
-                    const selected = response.value.result.historical_catalog.source;
-                    if (!std.meta.eql(selected.binding.declaration, binding.interpretation)) return error.HistoricalIdentityConflict;
-                    pins[i] = .{ .table = selected.table().snapshot };
-                    continue;
-                }
-                if (self.table.transaction != null) {
-                    const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
-                    defer response.deinit();
-                    const metadata = response.value.result.lookup orelse return error.TableNotFound;
-                    try binding.check(self.table.connection, metadata);
-                    const view = metadata.workspace orelse return error.InvalidTransactionRead;
-                    pins[i] = .{ .table = .{ .object = metadata.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } } };
-                    continue;
-                }
-                var shared: ?usize = null;
-                for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (pin.stream == null and std.meta.eql(pin.table, binding)) {
-                    shared = j;
-                    break;
-                };
-                if (shared) |j| {
-                    pins[i] = pins[j];
-                    continue;
-                }
-                const known_metadata = if (is_fresh and statement.plan == .select) blk: {
-                    const value = statement.plan.select.metadata;
-                    statement.plan.select.metadata = null;
-                    break :blk value;
-                } else null;
-                // Acquisition records a durable owner before dispatch. A lost
-                // reply must return to original-pin cleanup, never the generic
-                // observation retry that can allocate a replacement identity.
-                read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
-                pins[i] = .{ .table = try read.pins[i].?.snapshot() };
-            }
-            if (statement.plan == .relational) {
-                var nonce: [16]u8 = undefined;
-                try self.io.randomSecure(&nonce);
-                var path: [64]u8 = undefined;
-                const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
-                read.value = .{ .relational = try statement.openRelationalPins(self.allocator, self.io, self.directory, name, &self.table, values, pins[0..count], self.readOptions(), self.cancellation) };
-            } else read.value = .{ .single = try self.fresh(g.Statement.openSelectValidated, .{ statement, self.allocator, &self.table, values, pins[0].table, .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true }) };
-        },
+        .inspection => |*inspection| read.value = .{ .inspection = .{ .host = self, .prepared = inspection } },
+        .captured => |*captured| try self.openCapturedRead(read, captured),
+        .workload => |*value| try self.openWorkloadRead(read, value),
+        .source => |*statement| try self.openSourceRead(read, statement, values),
+        .settings => |*settings| try self.openSettingsRead(read, settings),
+        .native => |*statement| try self.openNativeRead(read, statement, values, is_fresh),
     }
     return read;
+}
+noinline fn openCapturedRead(self: *Self, read: *Read, captured: *@FieldType(Prepared, "captured")) !void {
+    read.value = .{ .captured = try g.CapturedOperations.Read.init(self, captured) };
+}
+noinline fn openWorkloadRead(self: *Self, read: *Read, value: *@FieldType(Prepared, "workload")) !void {
+    read.value = .{ .workload = try g.database.WorkloadRead.Read.init(value, self.table) };
+}
+noinline fn openSourceRead(self: *Self, read: *Read, statement: *@FieldType(Prepared, "source"), values: []const ?f.Types.Values.Atom) !void {
+    read.value = .{ .source = try g.SourceSession.Read.init(self.source.?, statement, values) };
+}
+noinline fn openSettingsRead(self: *Self, read: *Read, settings: *@FieldType(Prepared, "settings")) !void {
+    read.value = .{ .settings = try Settings.Read.init(self, settings) };
+}
+noinline fn openKvGetRead(self: *Self, read: *Read, statement: *g.Statement, values: []const ?f.Types.Values.Atom) !void {
+    read.value = .{ .kv_get = try statement.plan.kv_get.open(self.allocator, self.table, values) };
+}
+noinline fn acquireStreamSlicePin(self: *Self, read: *Read, index: usize, binding: c.DirectTableBinding, stream_source: g.direct.DirectRelationalCompilation.StreamSource) !g.direct.DirectRelationalTables.SourcePin {
+    if (self.table.transaction != null) return error.UnsupportedTransactionStatement;
+    read.pins[index] = try self.runtime.read_pins.?.acquireStreamSlice(self.table, binding, stream_source);
+    return .{ .stream = .{ .namespace = binding.namespace, .receipt = try read.pins[index].?.streamReceipt() } };
+}
+noinline fn acquireHistoricalPin(self: *Self, binding: c.DirectTableBinding, snapshot: p.DataLifecycle.Snapshot) !g.direct.DirectRelationalTables.SourcePin {
+    const response = try c.DirectHistory.call(self.table, .{ .source = .{ .snapshot = snapshot, .object = binding.interpretation.interpretation.object.object, .rows = true } });
+    defer response.deinit();
+    const selected = response.value.result.historical_catalog.source;
+    if (!std.meta.eql(selected.binding.declaration, binding.interpretation)) return error.HistoricalIdentityConflict;
+    return .{ .table = selected.table().snapshot };
+}
+noinline fn acquireTransactionPin(self: *Self, binding: c.DirectTableBinding) !g.direct.DirectRelationalTables.SourcePin {
+    const response = try self.table.call(.{ .lookup = .{ .namespace = binding.namespace, .name = binding.name.slice() } });
+    defer response.deinit();
+    const metadata = response.value.result.lookup orelse return error.TableNotFound;
+    try binding.check(self.table.connection, metadata);
+    const view = metadata.workspace orelse return error.InvalidTransactionRead;
+    return .{ .table = .{ .object = metadata.interpretation.interpretation.object, .handle = .{ .owner = view.cut.begin.identity.begin, .content = view.private } } };
+}
+noinline fn openRelationalRead(self: *Self, read: *Read, statement: *g.Statement, values: []const ?f.Types.Values.Atom, pins: []const g.direct.DirectRelationalTables.SourcePin) !void {
+    var nonce: [16]u8 = undefined;
+    try self.io.randomSecure(&nonce);
+    var path: [64]u8 = undefined;
+    const name = try std.fmt.bufPrint(&path, "sql-{x}", .{nonce});
+    read.value = .{ .relational = try statement.openRelationalPins(self.allocator, self.io, self.directory, name, &self.table, values, pins, self.readOptions(), self.cancellation) };
+}
+noinline fn openSingleSelectRead(self: *Self, read: *Read, statement: *g.Statement, values: []const ?f.Types.Values.Atom, snapshot: c.DirectTableProtocol.Snapshot) !void {
+    read.value = .{ .single = try self.fresh(g.Statement.openSelectValidated, .{ statement, self.allocator, &self.table, values, snapshot, .{ .requests = 10000, .rows = 10000, .result_bytes = 16 * 1024 * 1024 }, self.cancellation, true }) };
+}
+fn openNativeRead(self: *Self, read: *Read, statement: *g.Statement, values: []const ?f.Types.Values.Atom, is_fresh: bool) !void {
+    if (statement.plan == .kv_get) return self.openKvGetRead(read, statement, values);
+    if (statement.kind() != .select) return error.ExpectedGatewayRead;
+    const count = if (statement.plan == .relational) statement.plan.relational.plan.sources.len else 1;
+    var pins: [f.Relational.max_sources]g.direct.DirectRelationalTables.SourcePin = undefined;
+    for (0..count) |i| {
+        const binding = if (statement.plan == .relational) statement.plan.relational.bindings[i] else statement.plan.select.binding;
+        if (statement.plan == .relational) if (statement.plan.relational.streams[i]) |stream_source| {
+            pins[i] = try self.acquireStreamSlicePin(read, i, binding, stream_source);
+            continue;
+        };
+        if (binding.catalog) |snapshot| {
+            pins[i] = try self.acquireHistoricalPin(binding, snapshot);
+            continue;
+        }
+        if (self.table.transaction != null) {
+            pins[i] = try self.acquireTransactionPin(binding);
+            continue;
+        }
+        var shared: ?usize = null;
+        for (read.pins[0..i], 0..) |slot, j| if (slot) |pin| if (pin.stream == null and std.meta.eql(pin.table, binding)) {
+            shared = j;
+            break;
+        };
+        if (shared) |j| {
+            pins[i] = pins[j];
+            continue;
+        }
+        const known_metadata = if (is_fresh and statement.plan == .select) blk: {
+            const value = statement.plan.select.metadata;
+            statement.plan.select.metadata = null;
+            break :blk value;
+        } else null;
+        // Acquisition records a durable owner before dispatch. A lost
+        // reply must return to original-pin cleanup, never the generic
+        // observation retry that can allocate a replacement identity.
+        read.pins[i] = try self.runtime.read_pins.?.acquireCurrentWithMetadata(self.table, binding, known_metadata);
+        pins[i] = .{ .table = try read.pins[i].?.snapshot() };
+    }
+    if (statement.plan == .relational) return self.openRelationalRead(read, statement, values, pins[0..count]);
+    return self.openSingleSelectRead(read, statement, values, pins[0].table);
 }
 pub fn closeRead(self: *Self, read: *Read) void {
     const cleanup = self.cleanupDeadline();

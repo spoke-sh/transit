@@ -105,7 +105,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             return false;
         }
 
-        fn unit(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, selected: Class, active: *Active, signed: c.protocol.Growth.SignedRequest) !bool {
+        noinline fn unit(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, settings: c.protocol.Storage.Maintenance, selected: Class, active: *Active, signed: c.protocol.Growth.SignedRequest) !bool {
             errdefer active.clear();
             const native = engine.journal.backend;
             const io = native.io;
@@ -122,6 +122,12 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
             try catalog.recoverSince(prior);
             if (active.pending == null) active.pending = (try catalog.logMaintenanceNext(kind, &active.cursor, authority.guard())).target;
             const target = active.pending orelse return false;
+            return self.executeSelectedLog(allocator, host, engine, &catalog, &data, &authority, settings, selected, active, target);
+        }
+
+        noinline fn executeSelectedLog(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, catalog: *c.DirectCatalog, data: *backend.DataStore, authority: *Authority, settings: c.protocol.Storage.Maintenance, selected: Class, active: *Active, target: c.DirectCatalog.LogMaintenanceTarget) !bool {
+            const native = engine.journal.backend;
+            const io = native.io;
             self.last_object = target.object;
             const lock = &host.tables[@intCast(target.object % host.tables.len)];
             try lock.lock(io);
@@ -143,6 +149,11 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 active.clear();
                 return false;
             }
+            return self.runReadyWorkspace(allocator, host, engine, authority, settings, selected, active, definition.stored, initial);
+        }
+
+        noinline fn runReadyWorkspace(self: *Self, allocator: std.mem.Allocator, host: *Host, engine: *backend.DataAuthority.Engine, authority: *Authority, settings: c.protocol.Storage.Maintenance, selected: Class, active: *Active, stored: c.storage.LogDeclaration.Stored, initial: c.storage.LogInitialization.Request) !bool {
+            const native = engine.journal.backend;
             if (self.hints == null) {
                 const values = try allocator.create(Hints);
                 values.* = @splat(null);
@@ -177,9 +188,9 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                     return stream.checkpointMaintenanceUnit(authority.guard());
                 },
                 .compact => return if (kind == .stream)
-                    stream.compactionMaintenanceUnit(definition.stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard())
+                    stream.compactionMaintenanceUnit(stored, @min(settings.compaction_rows, c.storage.StreamCompaction.max_rows), authority.guard())
                 else
-                    stream.scheduleMaintenanceUnit(definition.stored, @intCast(@min(definition.stored.declaration.limits.timer_steps, c.storage.QueueTimeRun.max_rows)), authority.guard()),
+                    stream.scheduleMaintenanceUnit(stored, @intCast(@min(stored.declaration.limits.timer_steps, c.storage.QueueTimeRun.max_rows)), authority.guard()),
                 .trim => {
                     if (runtime(stream).root.archive.through == 0 or runtime(stream).root.recovery == null) return false;
                     const guard = authority.guard();
@@ -188,7 +199,7 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                     return !(try workspace.data.trimUnit(initial.partition, @min(runtime(stream).root.archive.through, runtime(stream).root.recovery.?.next_lsn))).complete;
                 },
                 .flush => {
-                    if ((kind == .stream and definition.stored.retired) or runtime(stream).root.sealed_through == runtime(stream).root.next_offset) return false;
+                    if ((kind == .stream and stored.retired) or runtime(stream).root.sealed_through == runtime(stream).root.next_offset) return false;
                     // Log sealing preserves one whole accepted append and its digest.
                     // The schema-bound batch byte/row limits bound this unit, rather
                     // than Table's partial-row flush budget or volatile age hints.
@@ -198,17 +209,17 @@ pub fn Owner(comptime kind: c.protocol.StreamQueueDeclaration.Kind) type {
                 },
                 .retention => {
                     if (kind == .stream) return false;
-                    const progress = try stream.expireTerminalHistory(definition.stored, runtime(stream).root.position(), authority.guard());
+                    const progress = try stream.expireTerminalHistory(stored, runtime(stream).root.position(), authority.guard());
                     self.last_rows = progress.expired_rows;
                     return progress.expired_rows != 0;
                 },
                 .expire => {
                     if (kind == .queue) {
                         if (runtime(stream).root.queue.?.active == 0) return false;
-                        return stream.expireOne(definition.stored, authority.guard());
+                        return stream.expireOne(stored, authority.guard());
                     }
                     if (runtime(stream).root.compaction != null) return false;
-                    _ = try stream.expireHistory(definition.stored, runtime(stream).root.position(), authority.guard());
+                    _ = try stream.expireHistory(stored, runtime(stream).root.position(), authority.guard());
                     return runtime(stream).root.next_lsn != before;
                 },
             }

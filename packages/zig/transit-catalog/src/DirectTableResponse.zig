@@ -44,7 +44,7 @@ fn metadata(allocator: std.mem.Allocator, value: w.Definition) !void {
     if (!std.meta.eql(value.interpretation, try declaration.stored())) return error.InvalidTableResponse;
 }
 
-fn workspace(request: w.Request, value: ?p.Transaction.ReadView, interpretation: d.Definition, position: d.Position, changed_lsn: u64, handle: ?P.SnapshotHandle) !void {
+fn workspace(request: *const w.Request, value: ?p.Transaction.ReadView, interpretation: d.Definition, position: d.Position, changed_lsn: u64, handle: ?P.SnapshotHandle) !void {
     const context = request.transaction orelse {
         if (value != null) return error.InvalidTableResponse;
         return;
@@ -144,6 +144,10 @@ fn rows(binding: d.Binding, value: P.OperationState) !void {
 /// Validate each response against its exact request. Callers that consume pages
 /// also bind them to the retained Source and decode FTR1 rows under its schema.
 pub fn validate(allocator: std.mem.Allocator, request: w.Request, response: w.Response) !void {
+    return validateRef(allocator, &request, &response);
+}
+
+pub noinline fn validateRef(allocator: std.mem.Allocator, request: *const w.Request, response: *const w.Response) !void {
     try request.validate(allocator);
     if (response.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
     try p.Authorization.revision(response.policy_revision);
