@@ -90,10 +90,18 @@ def run(server, worker):
         assert json.loads((directory / 'stopped.json').read_text()) == request
         assert request['pid'] == child and request['generation'] < outcome['process']['generation']
         # Retained restart reuses identities and keeps the exhausted head blocked.
+        parent_generation = fixture.status('supervision')['roles'][0]['generation']
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
         until(lambda: all(service['ready'] for service in fixture.status('supervision')['services']))
+        # Service readiness precedes worker activation. Let the manager finish
+        # its root-signed rotation before this test uses that same root identity
+        # to revoke access; competing root sequencers correctly conflict.
+        def parent_active():
+            role = fixture.status('supervision')['roles'][0]
+            return role['state'] == 'ready' and role['generation'] > parent_generation
+        until(parent_active)
         assert state()[13:15] == bytes([1, 4])
         assert query({'process': child})['body']['process']['process']['failure'] == accepted['position']
         assert [(service['name'], service['principal']) for service in fixture.status('supervision')['services']] == identities
