@@ -59,8 +59,9 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
     const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
     // A completed directory remains bound to its original publication. An
     // explicit runtime replacement never rewrites that immutable assembly.
+    diagnostic.atFile(record_path);
     const retained = Files.read(Installation.Record, init.io, init.arena.allocator(), record_path) catch |err| blk: {
-        if (err != error.FileNotFound) return err;
+        if (err != error.FileNotFound) return diagnostic.fail(err, "cannot read the retained installation record", "This directory contains data and will not be initialized. Verify the installation path and restore missing data from its recovery source.");
         break :blk null;
     };
     const created = try Installation.prepare(init, config, if (retained) |r| r.identity else identity);
