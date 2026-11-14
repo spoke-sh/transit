@@ -78,6 +78,13 @@ def run(server, cli, worker):
         s.command({"resume": {"pid": pid, "expected_generation": 4}})
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 5}})
         applied(6, 12)
+        # Separate admission's deadline refusal from asynchronous reclamation.
+        # The former fixture started maintenance only after this assertion. The
+        # composed server always owns maintenance, so begin a fresh bounded
+        # interval before suspension, then restore the 25 ms cleanup cadence.
+        s.server.config['external']['maintenance'] = {'interval_ms': 60000}
+        s.server.path.write_text(json.dumps(s.server.config))
+        s.restart_authority()
         # Admission must also fit the full configured uncertainty bound, not
         # just the smaller error reported by a particular developer machine.
         bound = int(time.time() * 1000) + 15000

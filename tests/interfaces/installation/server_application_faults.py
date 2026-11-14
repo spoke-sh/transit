@@ -52,7 +52,16 @@ def post(port, path, value, expected=200, headers=None, retry_unavailable=False)
     observation = path == '/v1/query' and isinstance(kind, dict) and len(kind) == 1 and next(iter(kind)) in ('identity', 'authorization')
     refusals = 0
     while True:
-        result = exchange(port, path, value, headers)
+        try:
+            result = exchange(port, path, value, headers)
+        except (ConnectionError, TimeoutError):
+            if not retry_unavailable or time.monotonic() >= deadline:
+                raise
+            # Opt-in callers retain this exact read or signed request. An owned
+            # authority restart can close the connection before an HTTP reply.
+            refusals += 1
+            time.sleep(.05)
+            continue
         retryable = result in ((503, b'{"err":"AuthorityUnavailable"}'), (503, b'{"err":"HttpCapacity"}'))
         # Capacity can follow acceptance on mutation routes. Extend this retry
         # only to native identity/authorization observations, never mutations.
@@ -313,8 +322,8 @@ def server_delivery(fixture):
     root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
     realm, port = fixture.config['realm'], fixture.config['ports']['node']
 
-    def query(kind):
-        return post(port, '/v1/query', native(root, realm, 0, kind))
+    def query(kind, retry_unavailable=False):
+        return post(port, '/v1/query', native(root, realm, 0, kind), retry_unavailable=retry_unavailable)
 
     def command(value):
         sequence = query({'capabilities': {}})['principal_sequence'] + 1
@@ -335,7 +344,7 @@ def server_delivery(fixture):
     def delivered(count):
         deadline = time.monotonic() + 30
         while True:
-            state = process(destination)
+            state = query({'process': destination}, retry_unavailable=True)['body']['process']
             if state['process']['admitted'] == count:
                 return state
             assert state['process']['admitted'] < count, 'Duplicate destination admission'
