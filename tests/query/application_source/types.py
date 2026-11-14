@@ -14,7 +14,18 @@ from query.application_source.verify import execute, same
 from query.application_source import program_types
 
 SPEC = ROOT / 'contracts/application-source/TypedTarget.lean'
-THEOREMS = {'nominal_substitution', 'exhaustive_selection', 'specialization_preservation', 'projection_substitution', 'program_substitution', 'ordered_erasure'}
+THEOREMS = {
+    'nominal_substitution',
+    'exhaustive_selection',
+    'specialization_preservation',
+    'projection_substitution',
+    'program_substitution',
+    'ordered_erasure',
+    'function_substitution',
+    'guard_sequence_refusal',
+    'guard_reorder_non_equivalent',
+    'procedure_inline_atomic',
+}
 DOMAINS = {'machine': 'example.machine-id', 'site': 'example.site-id'}
 
 
@@ -154,7 +165,7 @@ def main():
             'lean_executable': capture.identity(Path(shutil.which('lean')).resolve()),
             'inputs': {path: capture.identity(ROOT / path) for path in (
                 'tests/query/application_source/types.py', 'tests/query/application_source/program_types.py', 'tests/query/application_source/driver.zig',
-                'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
+                'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/ProgramLowering.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
                 'packages/zig/transit-compiler/src/SourceTypes.zig', 'packages/zig/transit-compiler/src/ProgramAnnotations.zig', 'packages/zig/transit-compiler/src/TypedOperands.zig')}}
     capture.write_json(destination / 'evidence.json', meta)
     print(f'typed source evidence: {destination}', flush=True)
