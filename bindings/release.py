@@ -45,24 +45,33 @@ def relocate(source, destination):
     metadata = json.loads((destination / 'build.json').read_text())
     if metadata['optimize'] != 'safe' or not metadata['target'].endswith('-gnu.2.28'):
         raise ValueError('release SDKs require the matching ReleaseSafe glibc 2.28 build')
+    clean_env = os.environ | {'LC_ALL': 'C'}
     for name in metadata['artifacts']:
         path = destination / name
-        if path.read_bytes()[:4] != b'\x7fELF':
-            continue
-        dynamic = command(['readelf', '-d', str(path)])
-        needed = set(re.findall(r'\(NEEDED\).*\[([^\]]+)\]', dynamic))
-        if any(item not in SYSTEM_LIBRARIES and not item.startswith('libtransit_') for item in needed):
-            raise ValueError(f'undeclared native dependency: {path}: {needed}')
-        # Zig's C SDK graph also emits a relative build-cache search directory.
-        # An installed consumer must resolve sibling libraries without that tree.
-        subprocess.run(['patchelf', '--set-rpath', '$ORIGIN' if path.parent.name == 'lib' else '$ORIGIN/../lib',
-                        str(path)], check=True)
-        headers = command(['readelf', '-l', '-d', '-V', str(path)])
+        with path.open('rb') as stream:
+            if stream.read(4) != b'\x7fELF':
+                continue
+        program_headers = command(['readelf', '--program-headers', '--wide', str(path)], env=clean_env)
+        segments = set(re.findall(r'^\s*(LOAD|INTERP|DYNAMIC)\s', program_headers, re.MULTILINE))
+        if 'LOAD' not in segments:
+            raise ValueError(f'native artifact has no loadable ELF segments: {path}')
+        if 'INTERP' in segments and 'DYNAMIC' not in segments:
+            raise ValueError(f'dynamic native artifact has no dynamic section: {path}')
+        if 'DYNAMIC' in segments:
+            dynamic = command(['readelf', '-d', str(path)], env=clean_env)
+            needed = set(re.findall(r'\(NEEDED\).*\[([^\]]+)\]', dynamic))
+            if any(item not in SYSTEM_LIBRARIES and not item.startswith('libtransit_') for item in needed):
+                raise ValueError(f'undeclared native dependency: {path}: {needed}')
+            # Zig's C SDK graph also emits a relative build-cache search directory.
+            # An installed consumer must resolve sibling libraries without that tree.
+            subprocess.run(['patchelf', '--set-rpath', '$ORIGIN' if path.parent.name == 'lib' else '$ORIGIN/../lib',
+                            str(path)], check=True)
+        headers = command(['readelf', '-l', '-d', '-V', str(path)], env=clean_env)
         if '/nix/store/' in headers or '.zig-cache/' in headers:
             raise ValueError(f'nonportable loader or library search path: {path}')
         if any(int(minor) > 28 for minor in re.findall(r'GLIBC_2\.(\d+)', headers)):
             raise ValueError(f'native artifact requires glibc newer than 2.28: {path}')
-        if 'INTERP' in headers and INTERPRETERS[ARCHITECTURE] not in headers:
+        if 'INTERP' in segments and INTERPRETERS[ARCHITECTURE] not in headers:
             raise ValueError(f'unexpected native interpreter: {path}')
     return metadata
 
