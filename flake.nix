@@ -231,8 +231,8 @@
             };
         }
         // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          # Private release proof executables must run without the builder's
-          # loader or shared libraries, just like the downloaded runtime.
+          # Container runtimes and private release proof executables must run
+          # without the builder's loader or shared libraries.
           release-checks = (pkgs.mkShell.override { stdenv = pkgs.pkgsStatic.stdenv; }) {
             buildInputs = [ pkgs.pkgsStatic.openssl ];
             packages = [
@@ -242,6 +242,7 @@
               pkgs.pkg-config
               pkgs.binutils
               zig
+              vite-plus
             ];
           };
         }

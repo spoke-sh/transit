@@ -24,7 +24,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-SERVICES = ("ursula", "node", "maintenance", "delivery", "counter", "board")
+SERVICES = ("ursula", "node", "counter", "board")
 
 
 def read_json(response, limit=256 * 1024):
@@ -114,6 +114,8 @@ class Installation:
             raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
         if value.get("protocol") != "native_v1":
             raise RuntimeError("Incompatible launcher protocol; preserve this installation and use its matching build")
+        if value.get("runtime") != "server_external_v1":
+            raise RuntimeError("Incompatible component installation; preserve its original binaries and data and use its matching launcher")
         if value.get("definition") != DEFINITION:
             raise RuntimeError("Incompatible launcher definition; preserve this installation and use its matching build")
         if value.get("example", "counter") != self.example:
@@ -180,15 +182,14 @@ class Installation:
         if not 1024 <= base <= 65533:
             raise ValueError("Base port must be between 1024 and 65533")
         self.path.mkdir(parents=True, mode=0o700)
-        root_public = self.key("operator/root.key")
+        self.key('operator/root.key')
         self.key("board/seed.key")
-        self.key("maintenance/seed.key")
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
-              "protocol": "native_v1", "definition": DEFINITION,
+              "protocol": "native_v1", "definition": DEFINITION, "runtime": "server_external_v1",
               "project": "transit-" + self.profile + "-" + secrets.token_hex(6),
-              "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
+              "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base})
         self.configs()
 
     def configs(self):
@@ -197,17 +198,18 @@ class Installation:
         base = config["base_port"]
         storage = "http://ursula:8080" if container else f"http://127.0.0.1:{base}"
         self.upstream = "http://node:8080" if container else self.url
-        node = {"genesis": {"realm": config["realm"], "root_key": config["root_public"]},
-                "ursula_url": storage, "bucket": "development", "journal": "authority", "accept_trace_parent": True,
-                "listen": "0.0.0.0" if container else "127.0.0.1", "port": 8080 if container else base + 1}
-        node["genesis"]["max_clock_error_ms"] = 10000
-        write(self.path / "node.json", node)
-        write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})
-        write(self.path / "maintenance/config.json", {**node, "maintenance": {
-              "principal": 3, "seed_file": "/maintenance/seed.key" if container else str(self.path / "maintenance/seed.key")}})
-        self.key("delivery/seed.key")
-        write(self.path / "delivery/config.json", {"url": self.upstream, "realm": config["realm"],
-              "principal": 5, "seed_file": "/delivery/seed.key" if container else str(self.path / "delivery/seed.key")})
+        placed = self.profile in ('compose', 'reference')
+        (self.path / 'server-data').mkdir(exist_ok=True, mode=0o700)
+        node = dict(version=1, installation='/data/installation' if placed else str(self.path / 'server-data/installation'),
+            realm=config['realm'], ports=dict(node=8080 if placed else base+1, gateway=19105),
+            sql={'native': {'local': False}}, applications=None,
+            storage={'maintenance': {'compact': False, 'archive': {'enabled': False}, 'flush': {'enabled': False}}}, logging=config.get('observability', {}).get('node', {}),
+            external=dict(listen='0.0.0.0' if placed else '127.0.0.1',
+                root_seed_file='/secrets/root' if self.profile == 'reference' else '/operator/root.key' if placed else str(self.path / 'operator/root.key'),
+                ursula=dict(url=storage, bucket='development', journal='authority')))
+        if config.get('runtime_replacement'):
+            node['startup'] = dict(require_existing=True, replace_runtime=config['runtime_replacement'])
+        write(self.path / 'transit.json', node)
         pid_file = self.path / "pid.json"
         pid = json.loads(pid_file.read_text()) if pid_file.exists() else None
         write(self.path / "board/config.json", {"upstream": self.upstream, "realm": config["realm"],
@@ -235,11 +237,25 @@ backend = "inline"
 ''')
 
     def initialize(self):
-        # Only this explicit provisioning path can create history. Ordinary
-        # service restarts fail closed if storage has disappeared.
-        if not (self.path / "initialized.json").exists():
-            run([self.artifacts.binary("transit-node"), self.path / "host-node.json", "--initialize"])
-            write(self.path / "initialized.json", True)
+        # Bootstrap and retained-history refusal belong to transit server.
+        # Component-era manifests reject in load() before this path is reached.
+        self.load()
+
+    def attach_server(self):
+        """Service readiness and a signed observation precede operator writes."""
+        wait_for(self.url + '/health')
+        with lock(self.path / 'operator/lock'):
+            state = json.loads((self.path / 'operator/sequence.json').read_text())
+            # Settle the original request before adopting bootstrap's sequence.
+            # Once ready, the server's retained grants need no new root writes;
+            # launcher commands serialize through this receipt-backed journal.
+            self._flush(state)
+            sequence = self.native_query({'capabilities': {}})['principal_sequence']
+            if sequence < state['sequence']:
+                raise RuntimeError('Server authority is behind the retained operator sequence')
+            state['sequence'] = sequence
+            write(self.path / 'operator/sequence.json', state)
+        write(self.path / 'initialized.json', True)
 
     def check_ports(self, board=None):
         board = board or self.board
@@ -261,8 +277,8 @@ backend = "inline"
         pending = state["pending"]
         if pending is None:
             return
-        request_file = self.path / "operator/pending.json"
-        write(request_file, pending["request"])
+        # sequence.json already durably owns the pending request. The shared
+        # client consumes its document directly; no second handoff file is needed.
         client = Client(self.client_host, self.url)
         frozen = client.prepare(self.path / "operator/root.key", pending["request"])
         deadline = time.monotonic() + 20
@@ -299,9 +315,10 @@ backend = "inline"
             return json.loads(receipt.read_text())["receipt"]["position"]
 
     def provision(self):
+        self.attach_server()
         pid = self.command("spawn-counter", {"create": {"required": [b"counter".hex(), None, None, None]}})
         write(self.path / "pid.json", pid)
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 132)):
+        for principal, label, permissions in ((2, "board", 16),):
             self.command("grant-" + label, {"grant": {"subject": principal,
                 "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
         resource = self.command("create-counter-state", {"create_resource": {"writer": pid}})
@@ -345,10 +362,9 @@ backend = "inline"
         self.command("worker-state-" + identity, {"grant_resource": {"resource": resource, "subject": 1, "permissions": 7}})
 
     def native_query(self, kind):
-        read = self.path / "operator/read.json"
-        write(read, {"realm": self.load()["realm"], "principal": 0, "kind": kind})
         client = Client(self.client_host, self.url)
-        frozen = client.prepare(self.path / "operator/root.key", json.loads(read.read_text()), query=True)
+        frozen = client.prepare(self.path / "operator/root.key",
+                                {"realm": self.load()["realm"], "principal": 0, "kind": kind}, query=True)
         deadline = time.monotonic() + 20
         while True:
             try:

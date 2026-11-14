@@ -552,6 +552,7 @@
         "InvalidInstallationDirectory": 1,
         "InvalidInvocation": 6,
         "InvalidJson": 1,
+        "InvalidRuntimeReplacement": 1,
         "InvalidTimingCommand": 1,
         "IsDir": 1,
         "ManagementClientInUse": 1,
@@ -575,7 +576,8 @@
         "StreamTooLong": 1,
         "SyntaxError": 1,
         "UnexpectedEndOfInput": 1,
-        "UnknownField": 1
+        "UnknownField": 1,
+        "UnsafeCourierPrincipal": 1
       },
       "outcomes": {
         "presentation": [
@@ -1569,8 +1571,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
-        "catch": 19
+        "try": 50,
+        "catch": 20
       },
       "imports": [
         "../Diagnostic.zig",
@@ -1698,6 +1700,28 @@
         "transit_query"
       ]
     },
+    "apps/transit-cli/server/External.zig": {
+      "errors": {
+        "ConfigurationUnavailable": 1,
+        "InstallationIdentityMismatch": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "node()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 9,
+        "catch": 0
+      },
+      "imports": [
+        "Files.zig",
+        "Installation.zig",
+        "std",
+        "transit_node_role"
+      ]
+    },
     "apps/transit-cli/server/Files.zig": {
       "errors": {
         "FileNotFound": 1,
@@ -1789,8 +1813,9 @@
         "InvalidInstallationDirectory": 1,
         "InvalidRegistration": 1,
         "ServerStopped": 4,
-        "StorageIdentityMismatch": 1,
+        "StorageIdentityMismatch": 2,
         "UnresolvedProvisioning": 4,
+        "UnsafeCourierPrincipal": 1,
         "UnsupportedWorkerRotation": 1
       },
       "outcomes": {
@@ -1813,6 +1838,7 @@
       "error_sets": {},
       "error_returns": {
         "activate()": "<inferred>",
+        "checkCourier()": "<inferred>",
         "checkStorage()": "<inferred>",
         "create()": "<inferred>",
         "directoryState()": "<inferred>",
@@ -1824,6 +1850,7 @@
         "provision()": "<inferred>",
         "provisionAuthorization()": "<inferred>",
         "provisionBoard()": "<inferred>",
+        "provisionExternal()": "<inferred>",
         "provisionWorkers()": "<inferred>",
         "query()": "<inferred>",
         "releaseRoot()": "<inferred>",
@@ -1834,7 +1861,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 72,
+        "try": 81,
         "catch": 4
       },
       "imports": [
@@ -1919,14 +1946,37 @@
         "transit_http_server"
       ]
     },
+    "apps/transit-cli/server/RuntimeSelection.zig": {
+      "errors": {
+        "InstallationIdentityMismatch": 4,
+        "InvalidRuntimeReplacement": 6
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 2
+      },
+      "imports": [
+        "Config.zig",
+        "Installation.zig",
+        "std",
+        "transit_query"
+      ]
+    },
     "apps/transit-cli/server/Server.zig": {
       "errors": {
         "AccessDenied": 2,
         "AuthorityRollback": 1,
-        "AuthorityTransportDenied": 2,
-        "ChildExited": 4,
+        "AuthorityTransportDenied": 4,
+        "ChildExited": 8,
         "ConfigurationUnavailable": 1,
-        "InstallationIdentityMismatch": 2,
+        "FileNotFound": 3,
+        "InstallationIdentityMismatch": 3,
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
         "InvalidBoardResponse": 2,
@@ -1936,9 +1986,10 @@
         "ProcessUnavailable": 1,
         "RestartBudgetExhausted": 1,
         "RoleReadinessTimeout": 1,
-        "ServerStopped": 8,
+        "ServerStopped": 9,
         "StorageIdentityMismatch": 1,
-        "UnsafeBoardPrincipal": 2
+        "UnsafeBoardPrincipal": 2,
+        "UnsafeCourierPrincipal": 1
       },
       "outcomes": {
         "Role": [
@@ -1948,6 +1999,7 @@
           "courier",
           "gateway",
           "board",
+          "maintenance",
           "sql"
         ],
         "worker().Common.role": [
@@ -1958,6 +2010,8 @@
       "error_sets": {},
       "error_returns": {
         "cycle()": "<inferred>",
+        "externalCycle()": "<inferred>",
+        "externalHealth()": "<inferred>",
         "launch()": "<inferred>",
         "node()": "<inferred>",
         "provision()": "<inferred>",
@@ -1971,8 +2025,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 96,
-        "catch": 10
+        "try": 130,
+        "catch": 17
       },
       "imports": [
         "../Diagnostic.zig",
@@ -1984,12 +2038,14 @@
         "Config.zig",
         "Configuration.zig",
         "DirectoryPublication.zig",
+        "External.zig",
         "Files.zig",
         "Gateway.zig",
         "Hosts.zig",
         "Installation.zig",
         "Process.zig",
         "Provider.zig",
+        "RuntimeSelection.zig",
         "Sql.zig",
         "Startup.zig",
         "Tables.zig",

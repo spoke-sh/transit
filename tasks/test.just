@@ -437,9 +437,9 @@ client-abi:
 # Keep Debug Station callers and a ReleaseSafe disk-backed authority, matching
 # the SDK query profile without changing the finite progress deadlines.
 station:
-    zig build test-native-client-fixture example-station-ledger transit-delivery transit-station-controller
-    zig build transit-node -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/bin/transit-delivery zig-out/bin/transit-station-controller
+    zig build test-native-client-fixture example-station-ledger transit-station-controller
+    zig build transit -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/bin/transit-station-controller
 
 # Check each library using its own declared dependencies.
 packages:

@@ -130,7 +130,7 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit ${lib.optionalString releaseBuild "transit-delivery transit-station-controller -Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Drelease-version=${lib.escapeShellArg version} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit ${lib.optionalString releaseBuild "transit-station-controller -Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Drelease-version=${lib.escapeShellArg version} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
     for role in transit-node transit-query-host transit-board; do
       cp "$out/bin/transit" "$out/bin/$role"
     done

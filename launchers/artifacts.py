@@ -7,7 +7,7 @@ import shutil
 
 from common import ROOT, DEFINITION, run, write
 
-ROLES = {"node": "transit-node", "maintenance": "transit-node", "delivery": "transit-delivery", "counter": "example-counter",
+ROLES = {"node": "transit", "counter": "example-counter",
          "board": "transit-board", "controller": "transit-runtime-controller"}
 
 
@@ -48,10 +48,16 @@ class Artifacts:
         argv = ["zig", "build", *sorted(set(names)), "-Doptimize=ReleaseSafe", "--prefix", prefix]
         if target:
             argv.append("-Dtarget=" + target)
+            # The composed runtime embeds SQL TLS. An explicit musl target
+            # alone does not replace the development shell's shared OpenSSL.
+            argv = ["nix", "develop", str(ROOT) + "#release-checks", "--command", *argv]
         run(argv, cwd=ROOT, timeout=900)
         result = {}
         for name in set(names):
             source = prefix / "bin" / name
+            if target:
+                if 'INTERP' in run(['readelf', '-l', source], capture=True) or '(NEEDED)' in run(['readelf', '-d', source], capture=True):
+                    raise RuntimeError(f"Container artifact {name} requires a loader or shared library")
             sha = digest(source)
             destination = self.path / "objects" / sha / name
             if not destination.exists():
@@ -69,8 +75,6 @@ class Artifacts:
         helper_names = []
         if "tools/transit-client-host" not in candidates or any(r in roles for r in ("node", "counter", "controller")):
             helper_names.append("transit-client-host")
-        if self.installation.profile != "local" and ("tools/transit-node" not in candidates or "node" in roles):
-            helper_names.append("transit-node")
         target = None
         architecture = None
         if self.installation.profile != "local":
@@ -131,7 +135,7 @@ class Artifacts:
 
     def initialize(self):
         if self.read("selected"):
-            if "transit-delivery" not in self.read("selected"):
+            if "transit" not in self.read("selected"):
                 raise RuntimeError("Incomplete launcher artifacts; preserve the selection and restore its matching build")
             return
         if self.installation.manifest.exists():

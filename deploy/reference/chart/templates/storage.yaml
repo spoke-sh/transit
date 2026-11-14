@@ -18,7 +18,7 @@ spec:
       storage: {{ .Values.ursula.persistence.size | quote }}
 {{- end }}
 
-{{- if and (hasKey .Values.node.config "local_directory") (not .Values.node.persistence.existingClaim) }}
+{{- if and .Values.node.enabled (not .Values.node.persistence.existingClaim) }}
 {{- $ctx := dict "root" . "component" "node" }}
 ---
 apiVersion: v1

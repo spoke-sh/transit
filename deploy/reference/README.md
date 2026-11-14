@@ -77,21 +77,21 @@ keep cluster checks and their prerequisites explicit. AX is not a dependency.
 
 ## Component configuration
 
-The harness wires Board, an authority and separate maintenance process, disk Ursula,
+The harness wires Board, a server owning authority, delivery and maintenance, disk Ursula,
 Substrate, a runtime controller, and the counter example. Configuration belongs
 to each executable:
 
 - [Board](../../apps/transit-board/README.md): embedded UI/API, dedicated read grant, origin and session configuration.
-- [transit-node](../../apps/transit-node/README.md): bootstrap, storage, HTTP, and maintenance.
+- [transit server](../../apps/transit-cli/docs/server.md#external-worker-composition): bootstrap, native storage/HTTP, maintenance and delivery.
 - [transit-runtime-controller](../../apps/transit-runtime-controller/README.md): one PID, worker principal, and provider configuration.
 - [example-counter](../../examples/counter/README.md): caller and fresh-key bootstrap.
 - [Substrate adapter](../../packages/zig/transit-runtime-substrate/README.md): pinned CLI, template validation, and egress policy.
 
 [deploy/reference/chart](chart/README.md) owns the deployed service and
 WorkerPool definitions. [reference_chart.py](../../tests/interfaces/deployment/reference_chart.py)
-supplies public values and stages storage, explicit initialization, then normal
-recovery-only service startup. The workload fixture adds grants and Secrets
-before enabling Board and maintenance. It keeps controller fault injection on
+supplies public server values and a separately provisioned root Secret. The
+server retains its original bootstrap identity and recovers existing history.
+The workload fixture adds application grants and Secrets before enabling Board. It keeps controller fault injection on
 the host; the persistent launcher uses the chart's optional controller pod.
 Substrate infrastructure is installed separately.
 
@@ -103,8 +103,8 @@ not a separately compiled Nix image. Local Ursula binaries come from the overlay
 
 ## Service diagnostics
 
-The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
-maintenance, the host runtime controller and the counter's Actor template.
+The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, the server,
+the host runtime controller and the counter's Actor template.
 Change the chart's per-component `logging` values for deployed services, and the
 explicit environment entries for the host controller and Actor template. The
 launcher `TRANSIT_*` settings apply to persistent installations; the isolated proof
@@ -113,6 +113,14 @@ Read service stderr through `kubectl logs` with the owned kubeconfig/context,
 and controller/provider diagnostics in the private proof directory. Substrate
 worker logs remain accessible through its provider log interface; bootstrap
 consumers recognize their machine record among diagnostic records.
+
+The node container now reports `transit server` lifecycle diagnostics, including
+readiness, recovery and bounded role failure causes. Its internal authority,
+maintenance and courier logs use the server's bounded private in-memory prefixes;
+they are not separate container log streams. Inspect authoritative progress through
+the public APIs. The reference proof checks retained expiry and recovery outcomes
+independently of logs; component-level HTTP and maintenance diagnostics retain
+their [observability proof](../../tests/interfaces/inspection/observability.py).
 
 The owned Kind cluster sets kubelet `containerLogMaxSize=5Mi` and
 `containerLogMaxFiles=3`; the proof checks the effective kubelet configuration.

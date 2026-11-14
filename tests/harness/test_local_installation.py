@@ -4,19 +4,66 @@ import io
 import os
 from pathlib import Path
 import select
+import signal
 import sys
 import tempfile
 import unittest
 import urllib.error
 from unittest.mock import Mock, patch
 
-from harness.local_installation import LocalInstallation, freeze_executables
+from harness.local_installation import ExternalInstallation, LocalInstallation, freeze_executables
 from interfaces.installation.server import Fixture
 from interfaces.installation.server_board import Board
 from interfaces.cli.console_terminal import Terminal
 
 
 class Installations(unittest.TestCase):
+    def test_external_fault_waits_for_one_owned_role_and_signals_once(self):
+        fixture = ExternalInstallation.__new__(ExternalInstallation)
+        fixture.process = Mock(pid=123)
+        fixture.process.poll.return_value = None
+        fixture.root = Path('/private-installation')
+        with patch('harness.local_installation.children', side_effect=[set(), {11, 22}]), \
+                patch('harness.processes.command', side_effect=lambda pid: '/courier.json' if pid == 22 else '/node.json'), \
+                patch('time.sleep') as sleep, patch('harness.local_installation.os.kill') as kill:
+            fixture.signal_role('/courier.json', signal.SIGSTOP)
+            sleep.assert_called_once()
+            kill.assert_called_once_with(22, signal.SIGSTOP)
+
+    def test_external_fault_refuses_ambiguous_or_missing_roles(self):
+        fixture = ExternalInstallation.__new__(ExternalInstallation)
+        fixture.process = Mock(pid=123)
+        fixture.process.poll.return_value = None
+        fixture.root = Path('/private-installation')
+        with patch('harness.local_installation.children', return_value={11, 22}), \
+                patch('harness.processes.command', return_value='/courier.json'), \
+                patch('harness.local_installation.os.kill') as kill:
+            with self.assertRaises(AssertionError):
+                fixture.signal_role('/courier.json', signal.SIGKILL)
+            kill.assert_not_called()
+        with patch('harness.local_installation.children', return_value=set()), \
+                patch('time.monotonic', side_effect=[0, 30]), \
+                patch('harness.local_installation.os.kill') as kill:
+            with self.assertRaisesRegex(TimeoutError, 'Owned role /courier.json not observed'):
+                fixture.signal_role('/courier.json', signal.SIGKILL)
+            kill.assert_not_called()
+
+    def test_external_fault_refuses_manager_exit_before_discovery(self):
+        fixture = ExternalInstallation.__new__(ExternalInstallation)
+        fixture.process = Mock()
+        fixture.process.poll.return_value = 17
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / 'manager.stderr'
+            log.write_text('manager refused startup')
+            fixture.logs = [Mock(name=str(log))]
+            fixture.logs[0].name = str(log)
+            with patch('harness.local_installation.children') as discover, \
+                    patch('harness.local_installation.os.kill') as kill:
+                with self.assertRaisesRegex(AssertionError, 'manager refused startup'):
+                    fixture.signal_role('/courier.json', signal.SIGKILL)
+                discover.assert_not_called()
+                kill.assert_not_called()
+
     def test_board_readiness_counts_retryable_responses_without_extending_deadline(self):
         fixture = Fixture.__new__(Fixture)
         fixture.config = {'realm': 73}

@@ -1681,7 +1681,8 @@
       "implementation": [
         "process-compose.yaml",
         "examples/station-ledger/process-compose.yaml",
-        "apps/transit-delivery/main.zig"
+        "apps/transit-query-host/main.zig",
+        "apps/transit-cli/server/Server.zig"
       ],
       "profile": "Native Process Compose counter and Station topologies; injected readiness outage in the Station proof",
       "tasks": [

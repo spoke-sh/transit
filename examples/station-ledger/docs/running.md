@@ -17,12 +17,12 @@ Give concurrently running profiles different ports. Board's listener/origin and
 logging use the shared [launcher settings](../../../launchers/README.md#local-development-configuration).
 No workload receives operator, storage, provider or Board credentials.
 
-The node owns the persistent native directory and runs maintenance within that
-owner. Local and Compose use the installation's `native/` directory; the
-reference chart mounts a retained node PVC. The registrar and maintenance keys
-are mounted only in the node. First provisioning uses a temporary owned listener
-to establish native policy before the long-lived local/Compose node starts;
-ordinary restarts open the existing directory and never initialize missing history.
+The server owns native authority, maintenance and delivery. Local and Compose
+retain its complete installation under `server-data/installation`; the reference
+chart mounts a retained node PVC. Only the server receives the operator root and
+registrar keys. Provisioning records native policy through the public API before
+the server activates the original direct Table configuration and workers start.
+Ordinary restarts open the same history and never initialize missing data.
 
 ## Workloads and identities
 
@@ -36,7 +36,7 @@ ordinary restarts open the existing directory and never initialize missing histo
 | runtime-ledger/requester/coordinator | 4/8/9 | Reference only: each reconciles one PID's Substrate Actor and fresh activation |
 
 Root provisions through exact persisted requests. Board is principal 2,
-maintenance 3, and the automatic courier 5. Board receives explicit read/inspect
+server-owned maintenance 23, and the automatic courier 22. Board receives explicit read/inspect
 rights on these example resources so it can display versioned Station metadata.
 Worker grants are execute/inspect/publish, scoped to their own PID; resource
 grants are separate. The observer does not have lifecycle authority, and the

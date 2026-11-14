@@ -12,8 +12,13 @@ The [release workflow](../../../.github/workflows/release.yml) builds static
 Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
 `transit` with embedded Board assets, `transit-node`,
-`transit-query-host`, `transit-board`, `transit-delivery` and
+`transit-query-host`, `transit-board` and
 `transit-station-controller`, plus dependency notices and build metadata.
+
+`transit server` supervises its required delivery work internally. New releases
+do not include a separate `transit-delivery` executable or container. The
+installer removes its obsolete managed command link after a successful install;
+original versioned bundles remain available for retained installations.
 
 | Distribution | Location for a published version |
 | --- | --- |

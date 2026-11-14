@@ -12,7 +12,8 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
-| [local_installation.py](local_installation.py) | Private native-local installation configuration, frozen executable copies, manager startup and joined cleanup |
+| [local_installation.py](local_installation.py) | Private local and external-worker server configuration, frozen executable copies, manager startup and joined cleanup |
+| [launcher_roles.py](launcher_roles.py) | Signal an owned server role in the actual local, Docker or Kubernetes fixture process namespace using the pinned infrastructure image |
 | [test_local_installation.py](test_local_installation.py) | Real child startup/exit, private state, restart, immutable executable-copy and PTY environment-isolation controls |
 | [native_artifacts.py](native_artifacts.py) | Resolve complete native client/authority sets through Zig's build cache, with source, profile, target, definition and output identities |
 | [test_native_artifacts.py](test_native_artifacts.py) | Reject changed source, wrong profiles/definitions and failed or partial native publications |

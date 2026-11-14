@@ -64,6 +64,8 @@ def run(fixture):
         'requests.request_bytes': ('134217728', '67108864'),
         'requests.data_bytes': ('268435456', '134217728'),
         'requests.control_bytes': ('67108864', '33554432'),
+        'admission.data_bytes': ('536870912', '268435456'),
+        'admission.control_bytes': ('134217728', '67108864'),
         'maintenance.collection_every_records': ('1024', '2048'),
         'maintenance.compact': ('true', 'false'),
         'maintenance.compaction_rows': ('32', '16'),
@@ -161,6 +163,7 @@ def run(fixture):
         fixture.config['storage'] = dict(
             limits=dict(bytes='4GiB', control_bytes='32MiB', candidate_bytes='4MiB'),
             requests=dict(request_bytes='64MiB', data_bytes='128MiB', control_bytes='32MiB'),
+            admission=dict(data_bytes='256MiB', control_bytes='64MiB'),
             maintenance=dict(collection_every_records=2048, compact=False,
                              compaction_rows=16, resident_bytes='64MiB',
                              archive=dict(enabled=False, work_frames=2),

@@ -3350,7 +3350,7 @@ before the cutover. The table names migration obligations, not delivered replace
 | Private Table creation/write/statement/read helpers and `TableBridge` actions | Declared Table/KV plus exact retained sources and common-decision state/output/settlement | Query capture, foreign turn actions, SDK fixtures/examples and Board metadata; keep Catalog `DirectTableBridge` |
 | `transit-station-document` service and Document worker | M7 C4/C5/C7 public lifecycle, participant and consumer gates | Document APIs, Query adapters, installation/bootstrap and connector Document consumers |
 | Exchange and HTTP/gRPC/Flight connector workers | Declared intent/attempt/outcome records with authorized dispatch and explicit unknown-outcome policy | Connector bindings, capture/replay readers and installed fault suites |
-| `transit-delivery` and query-host courier roles | Transactional outboxes, native Queue waits and bounded original-work discovery | Node/server composition, launchers, service configurations, tests and examples |
+| Server-owned query-host courier roles | Transactional outboxes, native Queue waits and bounded original-work discovery | Node/server composition, launchers, service configurations, tests and examples |
 | Station-specific stored/wire/ABI declarations | One current-v1 definition and regenerated fixtures; old artifact refusal | Protocol/schema generators, signing fixtures, SDK resources, public reads and inspection renderers |
 
 1. Maintain a concrete removal matrix: old module/ABI/action/executable/config,

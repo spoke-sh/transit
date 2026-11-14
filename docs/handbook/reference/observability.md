@@ -108,6 +108,8 @@ Standalone services use `LOG_FORMAT` and `LOG_LEVEL`. The server translates its
 own effective policy into each isolated Transit child's environment; it does
 not inherit arbitrary environment variables. The supervisor retains bounded
 child-output prefixes rather than forwarding raw provider or application output.
+When an owned role exits with a captured terminal failure, `server.role.failed`
+reports its role and bounded error name without copying its raw output.
 See the [server logging guide](../../../apps/transit-cli/docs/server.md#logging-and-readiness)
 for lifecycle, terminal and machine output behavior. Expected service failures
 submit one terminal error event and exit unsuccessfully after a bounded flush.

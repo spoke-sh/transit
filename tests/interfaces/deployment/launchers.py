@@ -124,7 +124,8 @@ def proof(profile):
         first = observe(12)
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
-        assert len(json.loads(invoke("status"))["services"]) >= 5
+        status = json.loads(invoke("status"))["services"]
+        assert {"ursula", "node", "counter", "board"} <= {row["name" if profile == "local" else "Service"] for row in status}, status
         invoke("reset", success=False)
         invoke("up", success=False)
         # Credentials must stay out of machine-readable output and service logs.
@@ -135,7 +136,7 @@ def proof(profile):
         for path in installation.path.rglob("*.key"):
             assert path.stat().st_mode & 0o077 == 0, path
             credentials.append(path.read_text())
-        for service in ("ursula", "node", "maintenance", "delivery", "counter", "board"):
+        for service in ("ursula", "node", "counter", "board"):
             output = invoke("logs", service)
             assert all(key not in output for key in credentials)
         admitted = json.loads(invoke("send", "9", "--request-id", "same-input"))
@@ -187,7 +188,7 @@ def proof(profile):
         # Missing current artifacts and incompatible v1 definitions must not
         # select replacements, start services or alter the retained installation.
         selection = installation.artifacts.read("selected")
-        installation.artifacts.select({k: v for k, v in selection.items() if k != "transit-delivery"})
+        installation.artifacts.select({k: v for k, v in selection.items() if k != "transit"})
         incomplete = (installation.artifacts.path / "selected.json").read_bytes()
         invoke("update", "board", "--no-build", success=False)
         invoke("update", "--no-build", success=False)
@@ -238,9 +239,9 @@ def proof(profile):
         assert observe(25)["pid"] == first["pid"]
         assert installation.origin == remote_origin
         assert installation.board["port"] == board_port and installation.board["host"] == "0.0.0.0"
-        config = json.loads((installation.path / "node.json").read_text())
+        config = json.loads((installation.path / "transit.json").read_text())
         if profile == "local":
-            assert config["listen"] == "127.0.0.1"
+            assert config["external"]["listen"] == "127.0.0.1"
             # A direct health check used to succeed while the manager's probe
             # failed with 403 and terminated Board after ~30 seconds. Require
             # the manager's readiness and survive that original failure window.
@@ -255,9 +256,9 @@ def proof(profile):
             for service in ("node", "ursula"):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
         authority = f"devbox.local:{board_port}"
-        def remote_request(path, *, host=authority, origin=remote_origin, method="GET"):
+        def remote_request(path, *, host=authority, origin=remote_origin, method="GET", timeout=5):
             headers = {"Host": host, "Origin": origin}
-            connection = HTTPConnection("127.0.0.1", board_port, timeout=5)
+            connection = HTTPConnection("127.0.0.1", board_port, timeout=timeout)
             try:
                 connection.request(method, path, headers=headers)
                 response = connection.getresponse()
@@ -268,8 +269,18 @@ def proof(profile):
         assert remote_request("/health")[0] == 200
         assert remote_request("/health", host="evil.example")[0] == 403
         assert remote_request("/health", origin="http://evil.example")[0] == 403
-        status, headers = remote_request("/api/v1/processes")
-        assert status == 200 and "set-cookie" not in headers
+        # observe() just read Board. Its shared 100 ms admission spacing also
+        # applies to this viewer; retry only the read's explicit rate refusal.
+        deadline = time.monotonic() + 5
+        while True:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'Board inspection remained rate limited'
+            status, headers = remote_request("/api/v1/processes", timeout=remaining)
+            assert "set-cookie" not in headers
+            if status != 429:
+                break
+            time.sleep(min(.1, max(0, deadline - time.monotonic())))
+        assert status == 200, status
         assert remote_request("/api/v1/session", method="POST")[0] == 404
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         invoke("restart", "board")
@@ -396,7 +407,7 @@ def foreground_proof(profile):
                 assert all(row["State"] == "running" for row in launcher.services())
                 invoke("down")
 
-        # A startup failure must stream actual service stderr, exit nonzero,
+        # A startup failure must report the owned service's error, exit nonzero,
         # and clean up its own manager without deleting the saved installation.
         wal = installation.path / "wal"
         saved_wal = installation.path / "saved-wal"
@@ -408,7 +419,7 @@ def foreground_proof(profile):
             assert child.wait(timeout=600 if profile == "compose" else 60) != 0
         failure = "node failed" if profile == "local" else "node exited"
         transcript = output.read_text()
-        service_failures = [line for line in transcript.splitlines() if "service.failed" in line]
+        service_failures = [line for line in transcript.splitlines() if "server.role.failed" in line]
         assert any("error_type" in line and "NotFound" in line for line in service_failures), transcript[-5000:]
         assert failure in transcript, transcript[-5000:]
         assert not launcher.services()

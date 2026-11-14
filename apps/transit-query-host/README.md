@@ -124,3 +124,10 @@ second. Native publication wakes local waiters; timeout refresh covers other
 nodes and lost hints. Unavailable reads retain the configured polling fallback.
 Pending exact commands are reconciled before entering the idle path. A wake
 never runs a handler or bypasses activation, view or commit checks.
+
+`transit server` owns the courier's credentials, configuration and supervision.
+There is no separate delivery executable. A definitive `OutputAlreadyResolved`
+response from a competing authorized delivery clears only that prepared delivery;
+the host observes current sequence and pending work again. Transport uncertainty
+retains the frozen request. Other definitive conflicts and permission loss still
+fail; neither behavior retries the originating application operation.

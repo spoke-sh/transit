@@ -6,11 +6,16 @@ from pathlib import Path
 import runpy
 import shutil
 import subprocess
+import sys
+import tarfile
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-archive = runpy.run_path(str(ROOT / 'tasks/package_release.py'))['archive']
+packaging = runpy.run_path(str(ROOT / 'tasks/package_release.py'))
+archive = packaging['archive']
 
 
 class Distribution(unittest.TestCase):
@@ -63,35 +68,104 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         self.assertIn('Transit 0.0.1', subprocess.check_output([str(self.prefix / 'bin/transit')], text=True))
         self.assertNotEqual(self.install().returncode, 0)
 
-    def test_retired_admin_link_is_removed_but_old_bundle_is_retained(self):
-        old = self.prefix / 'lib/transit/0.0.0/bin/transit-admin'
-        old.parent.mkdir(parents=True)
-        old.write_text('original executable')
-        link = self.prefix / 'bin/transit-admin'
-        link.parent.mkdir()
-        link.symlink_to(old)
+    def test_retired_links_are_removed_but_old_bundle_is_retained(self):
+        previous = self.prefix / 'lib/transit/0.0.0/bin'
+        previous.mkdir(parents=True)
+        directory = self.prefix / 'bin'
+        directory.mkdir()
+        for name in ('transit-admin', 'transit-delivery'):
+            (previous / name).write_text('original executable')
+            (directory / name).symlink_to(previous / name)
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(link.is_symlink())
-        self.assertEqual(old.read_text(), 'original executable')
+        for name in ('transit-admin', 'transit-delivery'):
+            self.assertFalse((directory / name).is_symlink())
+            self.assertEqual((previous / name).read_text(), 'original executable')
 
-    def test_unrelated_admin_entries_are_preserved(self):
+    def test_unrelated_retired_entries_are_preserved(self):
         directory = self.prefix / 'bin'
         directory.mkdir(parents=True)
-        admin = directory / 'transit-admin'
-        admin.symlink_to('/unrelated/transit-admin')
+        for name in ('transit-admin', 'transit-delivery'):
+            (directory / name).symlink_to('/unrelated/' + name)
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(os.readlink(admin), '/unrelated/transit-admin')
+        for name in ('transit-admin', 'transit-delivery'):
+            self.assertEqual(os.readlink(directory / name), '/unrelated/' + name)
 
-    def test_failed_install_preserves_retired_admin_link(self):
-        link = self.prefix / 'bin/transit-admin'
-        link.parent.mkdir(parents=True)
-        original = self.prefix / 'lib/transit/0.0.0/bin/transit-admin'
-        link.symlink_to(original)
+    def test_failed_install_preserves_retired_links(self):
+        directory = self.prefix / 'bin'
+        directory.mkdir(parents=True)
+        previous = self.prefix / 'lib/transit/0.0.0/bin'
+        for name in ('transit-admin', 'transit-delivery'):
+            (directory / name).symlink_to(previous / name)
         self.asset.write_bytes(b'corrupt')
         self.assertNotEqual(self.install().returncode, 0)
-        self.assertEqual(os.readlink(link), str(original))
+        for name in ('transit-admin', 'transit-delivery'):
+            self.assertEqual(os.readlink(directory / name), str(previous / name))
+
+    def test_unrelated_retired_regular_files_are_preserved(self):
+        directory = self.prefix / 'bin'
+        directory.mkdir(parents=True)
+        for name in ('transit-admin', 'transit-delivery'):
+            (directory / name).write_text('user-owned executable')
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in ('transit-admin', 'transit-delivery'):
+            self.assertEqual((directory / name).read_text(), 'user-owned executable')
+
+    def test_installing_original_bundle_keeps_its_delivery_command(self):
+        delivery = self.source / 'bin/transit-delivery'
+        delivery.write_text('original delivery executable')
+        delivery.chmod(0o755)
+        archive(self.source, self.asset, 'transit-0.0.1-linux-x86_64', 123)
+        self.checksum()
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.prefix / 'bin/transit-delivery').is_symlink())
+        self.assertEqual((self.prefix / 'bin/transit-delivery').read_text(), 'original delivery executable')
+
+    def test_package_omits_retired_binaries_from_both_architecture_inventories(self):
+        expected = {'transit', 'transit-node', 'transit-query-host', 'transit-board',
+                    'transit-station-controller'}
+        for name in expected | {'transit-admin', 'transit-delivery'}:
+            (self.source / 'bin' / name).write_text('fixture executable')
+        notices = self.source / 'share/transit/notices'
+        notices.mkdir(parents=True)
+        (notices / 'LICENSE').write_text('fixture notice')
+
+        def output(args, **kwargs):
+            if args[0] == 'git':
+                return {'rev-parse': 'a' * 40 + '\n', 'status': b'', 'show': b'123\n'}[args[1]]
+            if args[0] == 'readelf':
+                return ''
+            self.assertEqual(args, [str(self.source / 'bin/transit'), '--version'])
+            return 'Transit 0.0.1 (git ' + 'a' * 40 + '; CLI contract 1)\n'
+
+        def helm(args, **kwargs):
+            self.assertEqual(args[:2], ['helm', 'package'])
+            directory = Path(args[-1])
+            chart = directory / 'chart-source'
+            chart.mkdir()
+            (chart / 'Chart.yaml').write_text('name: transit\nversion: 0.0.1\n')
+            archive(chart, directory / 'transit-0.0.1.tgz', 'transit', 123)
+
+        for architecture in ('x86_64', 'aarch64'):
+            with self.subTest(architecture=architecture), \
+                 patch.dict(sys.modules, release_identity=SimpleNamespace(current=lambda: {'release': '0.0.1'})), \
+                 patch('platform.system', return_value='Linux'), \
+                 patch('platform.machine', return_value=architecture), \
+                 patch('subprocess.check_output', side_effect=output), \
+                 patch('subprocess.run', side_effect=helm):
+                destination = self.root / architecture
+                packaging['package'](self.source, destination)
+                manifest = json.loads((destination / 'release-manifest.json').read_text())
+                self.assertEqual(set(manifest['binaries']), expected)
+                name = f'transit-0.0.1-linux-{architecture}'
+                with tarfile.open(destination / (name + '.tar.gz')) as bundle:
+                    binaries = {Path(member.name).name for member in bundle if '/bin/' in member.name}
+                    self.assertEqual(binaries, expected)
+                    embedded = json.load(bundle.extractfile(name + '/build-info.json'))
+                    self.assertEqual(embedded['binaries'], manifest['binaries'])
 
     def test_offline_install_uses_the_same_checksum_gate(self):
         args = ['sh', str(ROOT / 'install.sh'), '--version', '0.0.1',

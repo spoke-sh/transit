@@ -1,5 +1,5 @@
 {{- $names := dict }}
-{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
+{{- range $component := list "node" "ursula" "board" "controller" }}
 {{- $_ := set $names (include "transit.name" (dict "root" $ "component" $component)) true }}
 {{- end }}
 {{- range $settings := .Values.runtimeControllers }}
@@ -18,7 +18,7 @@
 {{- if hasKey $names $name }}{{ fail "duplicate additional controller name" }}{{ end }}
 {{- $_ := set $names $name true }}
 {{- $root := deepCopy $ }}
-{{- $config := mergeOverwrite (dict "resources" (deepCopy $.Values.delivery.resources) "logging" (deepCopy $.Values.delivery.logging)) $settings (dict "enabled" true) }}
+{{- $config := mergeOverwrite (dict "resources" (deepCopy $.Values.controller.resources) "logging" (deepCopy $.Values.controller.logging)) $settings (dict "enabled" true) }}
 {{- $_ := set $root.Values "station" $config }}
 {{ include "transit.configMap" (dict "root" $root "component" "station") }}
 {{ include "transit.workload" (dict "root" $root "component" "station") }}

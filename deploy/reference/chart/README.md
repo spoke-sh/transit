@@ -1,8 +1,8 @@
 # Reference component chart
 
 Transit is programmable, versioned data infrastructure. This chart packages one
-realm's native authority, persistent storage, optional maintenance,
-[delivery](../../../apps/transit-delivery/README.md), [Board](../../../apps/transit-board/README.md),
+realm's [server](../../../apps/transit-cli/docs/server.md#external-worker-composition),
+persistent storage, optional [Board](../../../apps/transit-board/README.md),
 runtime/framework controllers and Agent Substrate worker capacity.
 
 The [reference proof](../../../deploy/reference/README.md) installs this chart and
@@ -16,16 +16,13 @@ persistent catalogs. It does not configure authority replication or failover.
 
 Read [values.yaml](values.yaml) for defaults and [values.schema.json](values.schema.json)
 for deployment-level validation. Application configuration remains owned by the
-[node](../../../apps/transit-node/README.md) and [Board](../../../apps/transit-board/README.md)
+[server](../../../apps/transit-cli/docs/server.md) and [Board](../../../apps/transit-board/README.md)
 and validated by their binaries; the chart does not duplicate those schemas.
 
 | Component | Resources and configuration |
 | --- | --- |
-| `node` | One Recreate Deployment, private ClusterIP Service, JSON ConfigMap. Supply `node.image` and `node.config`, including the trusted public genesis. |
+| `node` | One Recreate Deployment running `transit server --no-ui`, private ClusterIP Service, public server ConfigMap and retained installation PVC. `existingSecret` supplies the operator `root` seed; optional direct catalog credentials remain in this Secret. The server owns native authority, maintenance and delivery. |
 | `ursula` | One Recreate Deployment, private Service, disk-WAL ConfigMap and retained PVC. Uses the official pinned image. Supply `persistence.existingClaim` to reuse storage; otherwise `size` and optional `storageClass` configure a new claim. |
-| `initialize` | Explicit one-time Job using the node image/config. Disabled by default and never an automatic Helm hook. |
-| `maintenance` | Optional separate single-replica Deployment and ConfigMap. Supply `existingSecret` containing `seed` and `config.principal` with its recorded admin/effect grant. Uses the node image with `--maintain`. |
-| `delivery` | Optional single-replica Recreate courier. Supply `image`, `existingSecret` with `seed`, `config.realm` and a dedicated `config.principal` granted delivery/send. Its signed exec probe reads status; it has no storage mount or Kubernetes token. |
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
 | `runtimeControllers` | Up to 15 additional PID-scoped controllers using the same deployment and credential boundary. Each requires a unique `nameOverride`, `config`, and `existingSecret`; supply its image. |
@@ -34,29 +31,32 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
 Names default to `<release>-<component>` and can be overridden per component.
-Maintenance leaves checkpoint trimming disabled by default. To enable it,
-explicitly set `node.config.genesis.allow_history_trim: true` when initializing
-the realm and `maintenance.config.checkpoint_every_records` to at least 2.
-This does not enable application data expiry.
+The server retains its generated service credentials and bootstrap receipts on the
+node PVC, including when native history is stored in Ursula. Both volumes are
+required for recovery. Native history trimming requires the explicit genesis
+opt-in `node.config.external.allow_history_trim`; this does not enable application
+expiry. Old `initialize`, `maintenance` and `delivery` values reject.
 
 Additional controller names must be unique across both arrays and base components.
 Their `config` is public configuration: signing credentials come from the
 mounted Secret's `seed` key. Use separate recorded grants for each responsibility;
 creating a Deployment does not grant access to a PID or state resource.
-HTTP services listen on port 8080; the courier has no listener. The chart fixes listener/credential paths and
-sets internal service URLs; disable Ursula and provide `node.config.ursula_url`
-for an external backend. Board and delivery require the chart's node. Log level/format and
-resource requests/limits are per component. Config changes trigger replacement
-through a checksum; externally rotated Secrets require an explicit rollout.
+HTTP services listen on port 8080. The chart fixes listener/credential paths and
+internal service URLs. Configure `node.config.external.ursula` with bucket,
+journal and URL; with chart-managed Ursula its URL is supplied by the chart.
+Disable `ursula.enabled` to use an external Ursula provider, or omit
+`external.ursula` to use local disk. Set `sql.native.local: false` and
+`applications: null` for this external-worker composition. Board requires the
+chart's node. Config changes trigger replacement through a checksum; externally
+rotated Secrets require an explicit rollout.
 
-For the native local owner, set `node.config.local_directory: /data/native`,
-`ursula.enabled: false` and `maintenance.enabled: false`. The node and explicit
-initializer mount the same retained PVC, configured by `node.persistence`.
-`node.existingSecret` mounts credentials at `/secrets` in the node only; the
-initializer receives no execution credential. Configure direct catalog registrar
-and in-process maintenance key paths in `node.config`. An external maintenance
-process cannot open the node's exclusive directory. Normal node replacement
-recovers that directory; initialization remains an explicit separate phase.
+For direct Table storage, select local disk and provide `node.table` plus
+`node.config.external.table_file: /config/table.json`. The server retains the
+first accepted Table configuration and refuses its disappearance or replacement.
+The registrar credential path is `/secrets/registrar`. The node PVC retains both
+the server installation and local native/Table history. Ursula does not implement
+this direct Table hosting profile. Application workers and their provider
+controllers retain their independent credentials and placement.
 
 For bounded hot storage with an external cold tier, set
 `ursula.existingConfigSecret` to a separately created Secret containing
@@ -79,45 +79,35 @@ against a different default pin.
 
 ## Bootstrap and lifecycle
 
-Choose an explicit Kubernetes context and namespace. Prepare a private values
-file with the public genesis, node image, bucket/journal and any desired options.
-Keep the root seed outside Helm. The [reference launcher](../../../launchers/README.md)
-uses the shared client host to provision public genesis and record grants.
-Create Board and
-maintenance/delivery Secrets separately, and record their grants through the
-signed Transit API before enabling those services. The chart creates no principals,
-grants, example processes, Actor templates or runtime bindings.
-
-With `TRANSIT_CONTEXT`, `TRANSIT_NAMESPACE` and `TRANSIT_VALUES` pointing to that
-context, namespace and values file, install a **new** realm in three phases:
+Choose an explicit Kubernetes context and namespace. Prepare public server
+configuration and immutable images in values. Create the node Secret separately
+with its `root` seed, then reference it with `node.existingSecret`; private seeds
+never belong in Helm values. The [reference launcher](../../../launchers/README.md)
+manages this sequence and provisions application grants through the public API.
+The server alone creates its internal maintenance and courier grants, retaining
+the original signed provisioning requests and receipts across interruption.
 
 ```sh
-# Wait for storage before bootstrap. Keep Board and maintenance disabled.
 helm upgrade --install transit deploy/reference/chart \
   --kube-context "$TRANSIT_CONTEXT" -n "$TRANSIT_NAMESPACE" --create-namespace \
-  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=false,board.enabled=false,maintenance.enabled=false,delivery.enabled=false --wait
-
-# Deliberately initialize once; the job fails rather than hiding a failure.
-helm upgrade transit deploy/reference/chart \
-  --kube-context "$TRANSIT_CONTEXT" -n "$TRANSIT_NAMESPACE" \
-  -f "$TRANSIT_VALUES" --set node.enabled=false,initialize.enabled=true,board.enabled=false,maintenance.enabled=false,delivery.enabled=false --wait --wait-for-jobs
-
-# Normal service startup and all subsequent upgrades use recovery only.
-helm upgrade transit deploy/reference/chart \
-  --kube-context "$TRANSIT_CONTEXT" -n "$TRANSIT_NAMESPACE" \
-  -f "$TRANSIT_VALUES" --set node.enabled=true,initialize.enabled=false --wait
+  -f "$TRANSIT_VALUES" --wait
 ```
 
-Set `initialize.enabled: false` in the maintained values file. Restarting a pod
-or applying normal values never initializes missing history. Do not rerun the
-bootstrap phase as a recovery tactic. The chart refuses simultaneous initializer
-and node/maintenance startup. A failed Job remains inspectable; investigate it
-before deliberately replacing it. There is no automatic destructive rollback.
+A new absent installation is bootstrapped once. A retained installation always
+opens its recorded history; missing history is an error, never permission to
+initialize a replacement realm. Native `/health` stays unavailable until the
+server verifies required signed courier access and starts its owned roles. An
+empty delivery backlog is not a readiness requirement. Current permission loss
+withdraws readiness; restart never restores a revoked grant.
+
+Component-era launcher installations and old chart values reject. Preserve their
+original binaries, credentials and volumes for recovery with the matching build;
+this cutover does not adopt their directories or rewrite their accepted work.
 
 Uninstall preserves a chart-created PVC through Helm's `keep` annotation.
 Deleting its namespace, underlying disk, or the claim itself is still destructive.
 To reinstall, explicitly reference the retained claim and use the original
-public genesis and recovery configuration. Do not bootstrap or substitute a new
+server configuration, credentials and recovery identity. Do not bootstrap or substitute a new
 root. This retention is an infrastructure safeguard, not a backup/disaster-recovery
 procedure or a Transit process-retention policy.
 
@@ -127,11 +117,10 @@ Services run as non-root with a read-only root filesystem and dropped
 capabilities. Ordinary services receive no service-account token; the optional
 controller receives the explicitly projected tokens described below. Credentials
 are read-only mounts from existing Secrets; never put private seeds in Helm values,
-ConfigMaps, extra-container arguments or release history. The initializer needs
-only public genesis. Maintenance and Board receive distinct credentials.
+ConfigMaps, extra-container arguments or release history. Server-owned maintenance
+and delivery identities and the external Board identity have distinct grants.
 
-Default NetworkPolicies restrict Ursula ingress to node, maintenance and
-initialization pods, and Board egress to Transit and cluster DNS. They require
+Default NetworkPolicies restrict Ursula ingress to the server pod, and Board egress to Transit and cluster DNS. They require
 an enforcing CNI; rendered policy alone does not establish isolation. Review DNS
 selectors for your cluster and enforce equivalent restrictions around external
 Ursula. Node/controller services are trusted control infrastructure. Services

@@ -12,21 +12,17 @@ app: {{ include "transit.name" . | quote }}
 
 {{- define "transit.nodeConfig" -}}
 {{- $config := deepCopy .Values.node.config -}}
-{{- $_ := required "node.config.genesis is required" $config.genesis -}}
-{{- if hasKey $config "local_directory" -}}
-{{- if or .Values.ursula.enabled .Values.maintenance.enabled -}}
-{{- fail "local_directory requires ursula.enabled=false and maintenance.enabled=false; configure node.config.maintenance for in-process work" -}}
+{{- $_ := required "node.config.external is required; component installations cannot be adopted" $config.external -}}
+{{- $_ := required "node.existingSecret must contain the operator root seed" .Values.node.existingSecret -}}
+{{- $_ := set $config "installation" "/data/installation" -}}
+{{- $_ := set $config "ports" (dict "node" 8080 "gateway" 19105) -}}
+{{- $_ := set $config "logging" .Values.node.logging -}}
+{{- $_ := set $config.external "listen" "0.0.0.0" -}}
+{{- $_ := set $config.external "root_seed_file" "/secrets/root" -}}
+{{- if .Values.ursula.enabled -}}
+{{- $_ := required "node.config.external.ursula is required when Ursula is enabled" $config.external.ursula -}}
+{{- $_ := set $config.external.ursula "url" (printf "http://%s:8080" (include "transit.name" (dict "root" . "component" "ursula"))) -}}
 {{- end -}}
-{{- if ne $config.local_directory "/data/native" -}}
-{{- fail "node.config.local_directory must be /data/native on the retained node PVC" -}}
-{{- end -}}
-{{- else if .Values.ursula.enabled -}}
-{{- $_ := set $config "ursula_url" (printf "http://%s:8080" (include "transit.name" (dict "root" . "component" "ursula"))) -}}
-{{- else -}}
-{{- $_ := required "node.config.ursula_url is required with external Ursula" $config.ursula_url -}}
-{{- end -}}
-{{- $_ := set $config "listen" "0.0.0.0" -}}
-{{- $_ := set $config "port" 8080 -}}
 {{- toJson $config -}}
 {{- end -}}
 
@@ -43,15 +39,9 @@ app: {{ include "transit.name" . | quote }}
 {{- define "transit.config" -}}
 {{- if eq .component "node" -}}
 {{- include "transit.nodeConfig" .root -}}
-{{- else if eq .component "maintenance" -}}
-{{- $config := include "transit.nodeConfig" .root | fromJson -}}
-{{- $maintenance := deepCopy .root.Values.maintenance.config -}}
-{{- $_ := set $maintenance "seed_file" "/secrets/seed" -}}
-{{- $_ := set $config "maintenance" $maintenance -}}
-{{- toJson $config -}}
 {{- else if eq .component "board" -}}
 {{- include "transit.boardConfig" .root -}}
-{{- else if has .component (list "delivery" "station") -}}
+{{- else if eq .component "station" -}}
 {{- $config := deepCopy (index .root.Values .component).config -}}
 {{- $_ := set $config "url" (printf "http://%s:8080" (include "transit.name" (dict "root" .root "component" "node"))) -}}
 {{- $_ := set $config "seed_file" "/secrets/seed" -}}

@@ -121,7 +121,7 @@ not session defaults and parameter values are not added to dot-command history.
 
 ## Local server and recovery
 
-The initial service neighborhood is a growing authority over disk-backed Ursula,
+The default service neighborhood is a growing authority over the local disk backend,
 bounded maintenance, a delivery courier, a separately activated combined Table
 query/writer owner and requester, and a public native-protocol gateway. The initial
 source is an empty declared int64 Table; a functioning installation need not
@@ -146,6 +146,41 @@ Unsupported configuration versions reject; pinned artifact identities forbid
 implicit upgrades. Effect connectors remain unsupported optional
 roles. Board readiness, configuration and compatibility belong to the
 [server guide](../apps/transit-cli/docs/server.md#default-board-and-compatibility).
+
+The server checks its dedicated courier's current signed identity and delivery
+access before readiness and during supervision, including while idle. Its grant
+must be unscoped inspect/delivery/send only. Denial terminates the installation;
+restart does not restore rights. Transient observations have a finite retry budget,
+while admission pressure alone does not establish owner failure.
+
+`external` selects the native composition for externally placed applications.
+The server still owns the authority, bounded maintenance, realm courier, retained
+service keys and optional Board. The provider owns application placement,
+registration, fencing and replacement through the existing native operations.
+There is no separately operated delivery service. This profile requires
+`sql.native.local: false`, no SQL listeners, no local application manager and no
+browser service; it does not claim the local SQL/application-hosting profile.
+
+`external.listen` is `127.0.0.1` by default or `0.0.0.0` inside a private deployment
+network. Every native request still requires its current signature and rights;
+the listener does not add TLS or create an ingress boundary. An explicit
+`external.ursula` supplies the private HTTP URL, bucket and journal for the native
+authority. Without it the server owns local disk storage. Provider and placement
+are bound to the installation; startup never converts or adopts component history.
+A fresh external installation may observe only the initial genesis position before
+recording recovery state. Nonempty accepted history rejects before service grants,
+including when its root key matches the supplied operator key.
+
+For the local provider, `external.table_file` names the existing node's typed
+direct Table configuration, including its catalog and registrar reference. It
+may be supplied after native provisioning and before application activation.
+The first configuration is retained by identity; removal or replacement rejects.
+It neither grants catalog rights nor creates a second catalog authority. Ursula
+does not implement this direct Table host and rejects that combination.
+External installations expose native inspection; the local SQL settings gateway
+is absent. Their application/provider controllers retain their own original
+operation journals and grants. Server restart recovers only its recorded service
+operations and never regrants completed service credentials.
 
 The configuration names its installation directory. Missing or null role
 executable settings select the node, query host, SQL gateway and Board compiled
@@ -585,3 +620,24 @@ profile's credential operation, independently from data privileges and account
 identity. The [local SQL guide](../apps/transit-cli/docs/sql.md) owns configuration,
 client commands, bounds and recovery usage; the [gateway contract](SQL_GATEWAY_V1.md)
 owns wire semantics and retained operation evidence.
+
+The external-worker profile may read an explicit `external.root_seed_file` on
+first creation and retains a private copy. Every later supplied key must match
+that retained root public identity. It never adopts a component-era data path.
+`external.allow_history_trim` is a genesis-only opt-in; omission keeps native
+history trimming disabled. The native health endpoint is gated by a private
+server-owned readiness marker, removed before startup and on failed required
+service observations. The marker changes health reporting only and grants no
+protocol authority. Ursula maintenance runs as a server-owned process using the
+same `transit` executable; local maintenance remains in the exclusive node owner.
+
+External-worker runtime replacement requires explicit
+`startup.replace_runtime.from` and `.to` executable SHA-256 pins, a complete
+existing installation, matching current protocol definition and unchanged
+configuration/provider identity. Both old and new runtime selections must use
+embedded roles. Each recovery cycle validates the approved artifact before
+starting roles. The original directory publication remains immutable; a separate
+accepted runtime identity records the prior hash and selected role hashes only
+after compatible history recovery and current-service checks. Repeating the same
+intent is idempotent; a foreign basis, target or unrequested artifact change
+rejects. Missing installation state is never recreated by replacement intent.

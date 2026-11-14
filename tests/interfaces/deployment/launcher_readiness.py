@@ -1,5 +1,7 @@
 """The same real Zig caller and generic Board proof on each deployment waypoint."""
 import json
+import signal
+from harness.launcher_roles import courier_signal
 import subprocess
 import time
 import urllib.error
@@ -45,13 +47,7 @@ def exercise(installation, launcher):
     write(path, config)
     binary = ROOT / "zig-out/bin/transit-readiness-caller"
     profile = installation.profile
-    if profile == "local":
-        launcher.pc("process", "stop", "delivery", capture=True)
-    elif profile == "compose":
-        launcher.docker("stop", "delivery", capture=True)
-    else:
-        launcher.kube("scale", "deployment/delivery", "--replicas=0")
-        launcher.kube("wait", "--for=delete", "pods", "-l", "app.kubernetes.io/component=delivery", "--timeout=60s")
+    courier_signal(installation, launcher, signal.SIGSTOP)
     pair = json.loads(run([binary, "prepare", path], capture=True, timeout=30))
     write(path, config | pair)
 
@@ -69,11 +65,7 @@ def exercise(installation, launcher):
 
     pending = [entry for entry in board(pair["source"], "outbox")["outbox"] if entry]
     assert len(pending) == 1 and pending[0]["phase"] == "pending", pending
-    if profile == "reference":
-        launcher.kube("scale", "deployment/delivery", "--replicas=1")
-        launcher.kube("rollout", "status", "deployment/delivery", "--timeout=90s")
-    else:
-        launcher.restart("delivery")
+    courier_signal(installation, launcher, signal.SIGCONT)
     deadline = time.monotonic() + 30
     while True:
         outputs = [entry for entry in board(pair["source"], "outbox")["outbox"] if entry]
@@ -88,4 +80,4 @@ def exercise(installation, launcher):
     assert len(events) == 2 and all(event["mailbox_status"] == "consumed" for event in events), events
     # Read-only Board exposes kernel evidence; application interpretation stays
     # in the calling program, including rejection of the forged reply.
-    print(f"{profile}: queued outbox, restarted courier/authority, authenticated Zig reply and Board evidence passed.")
+    print(f"{profile}: queued outbox, paused server courier and restarted authority, authenticated Zig reply and Board evidence passed.")

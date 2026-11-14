@@ -20,6 +20,7 @@ pub const Record = struct {
     version: u8 = 1,
     definition: g.Definition,
     identity: Config.Identity,
+    runtime: ?struct { previous: [32]u8, identity: Config.Identity } = null,
     installation: [16]u8,
     root_public: [32]u8,
     endpoint: []const u8,
@@ -39,6 +40,7 @@ pub const Record = struct {
     pending: ?Pending = null,
     installer_receipt: ?u64 = null,
     board_receipts: [3]?u64 = @splat(null),
+    external_table: ?[32]u8 = null,
 };
 pub const Worker = struct {
     public_key: [32]u8,
@@ -105,6 +107,11 @@ pub fn save(self: *Self) !void {
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
     const response = try Startup.measure(self.startup, Startup.query(kind), q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
+    // First startup may resume creation of the genesis record, but cannot
+    // adopt another installation's accepted work. In particular, a supplied
+    // root key must not let a fresh directory regrant services in retained
+    // Ursula history. Persist this observation before any provisioning write.
+    if (self.config.external != null and !self.record.genesis_observed and response.position != 1) return error.StorageIdentityMismatch;
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;
@@ -112,6 +119,18 @@ pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
         try self.save();
     }
     return response;
+}
+/// Delivery is required even while idle. Check the courier's current identity,
+/// independently of root authority, without advancing its command sequencer.
+pub fn checkCourier(self: *Self) !void {
+    const seed_path = try std.fs.path.join(self.init.gpa, &.{ self.config.installation, "courier.seed" });
+    defer self.init.gpa.free(seed_path);
+    var key = try q.wire.readKey(self.init.gpa, self.init.io, seed_path);
+    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+    const response = try self.wire.query(.{ .realm = self.config.realm, .principal = courier, .kind = .identity }, key);
+    const identity = response.body.identity;
+    if (identity.principal != courier or identity.pid != null or identity.permissions != (p.permission(.inspect) | p.permission(.delivery) | p.permission(.send))) return error.UnsafeCourierPrincipal;
+    _ = try self.wire.query(.{ .realm = self.config.realm, .principal = courier, .kind = .delivery }, key);
 }
 pub fn flush(self: *Self) !void {
     const pending = self.record.pending orelse return;
@@ -297,17 +316,28 @@ fn provisionAuthorization(self: *Self) !void {
 pub fn provisionBoard(self: *Self) !void {
     try self.flush();
     for (self.record.board_receipts, 0..) |receipt, i| {
+        if (self.config.external != null and i != 0) break;
         if (receipt != null) continue;
         if (@import("../Signals.zig").interrupted()) return error.ServerStopped;
         var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path("board.seed"));
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-        const c = self.connection();
         const command: g.Command = switch (i) {
             0 => .{ .create_principal = .{ .subject = board, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) } },
-            1, 2 => .{ .grant_resource = .{ .subject = board, .resource = if (i == 1) c.resource else c.requests, .permissions = read_permissions } },
+            1, 2 => .{ .grant_resource = .{ .subject = board, .resource = if (i == 1) self.connection().resource else self.connection().requests, .permissions = read_permissions } },
             else => unreachable,
         };
         try self.submit(0, command, .board, @intCast(i));
+    }
+}
+/// These receipts have the same meaning as local provision steps 10 and 11.
+/// External application placement grants neither of these service identities.
+pub fn provisionExternal(self: *Self) !void {
+    try self.flush();
+    for ([_]u8{ 10, 11 }) |index| {
+        if (self.record.provision[index] != null) continue;
+        var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path(if (index == 10) "courier.seed" else "maintenance.seed"));
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        try self.submit(0, .{ .grant = .{ .subject = if (index == 10) courier else maintenance, .public_key = key.public_key.toBytes(), .permissions = if (index == 10) p.permission(.inspect) | p.permission(.delivery) | p.permission(.send) else p.permission(.admin) | p.permission(.effect) | p.permission(.delivery) } }, .provision, index);
     }
 }
 pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration) !void {
@@ -353,7 +383,7 @@ pub fn prepare(init: std.process.Init, config: Config, identity: Config.Identity
     if (try Publication.recover(init.io, init.gpa, config.installation, try Publication.binding(init.gpa, identity))) return false;
     const state = try directoryState(init.io, config.installation);
     if (state == .populated) return false;
-    if (config.startup.require_existing) return error.ExistingInstallationRequired;
+    if (config.startup.require_existing or config.startup.replace_runtime != null) return error.ExistingInstallationRequired;
     if (state == .empty) return error.InstallationDirectoryExists;
     try create(init, config, identity);
     return true;
@@ -377,6 +407,11 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity) !vo
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
+        if (std.mem.eql(u8, name, "root")) if (config.external) |external| if (external.root_seed_file) |path_name| {
+            var provided = try q.wire.readKey(init.gpa, init.io, path_name);
+            defer std.crypto.secureZero(u8, std.mem.asBytes(&provided));
+            seed = provided.secret_key.seed();
+        };
         if (std.mem.eql(u8, name, "root")) root_public = (try p.Ed25519.KeyPair.generateDeterministic(seed)).public_key.toBytes();
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);

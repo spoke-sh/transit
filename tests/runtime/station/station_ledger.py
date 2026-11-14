@@ -31,15 +31,7 @@ def provision(system, configurations):
     declared = station(changes, 72, workers, dict(principal=1000, public_key=public))
     authority = declared['authorization']
     system.station_catalog = declared['catalog']
-    settings = json.loads(system.config.read_text())
-    assert 'local_directory' in settings
-    settings['table'] = dict(catalog=declared['catalog'], registrar=dict(principal=1000, seed_file=str(seed)))
-    system.authority.terminate()
-    system.authority.wait(timeout=15)
-    system.config.write_text(json.dumps(settings))
-    system.authority = system.start(system.node, system.config)
-    from harness.services import wait_ready
-    wait_ready(system.store.http, system.authority, system.url + '/health')
+    system.configure_table(dict(catalog=declared['catalog'], registrar=dict(principal=1000, seed_file=str(seed))))
     for _, config in configurations:
         config['authorization'] = authority
     if 'requester' in workers:

@@ -83,6 +83,9 @@ class Compose:
         self.docker("up", "-d", "node")
         self.ready("node", self.installation.url + "/health")
         self.installation.provision()
+        if self.installation.example == 'station':
+            self.docker('up', '-d', '--no-deps', '--force-recreate', '--no-build', 'node')
+            self.ready('node', self.installation.url + '/health')
         self.installation.activate()
         self.docker("up", "-d", *[name for name in self.installation.service_names if name not in ("ursula", "node")])
         if not detached:

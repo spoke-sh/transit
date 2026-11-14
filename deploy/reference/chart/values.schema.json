@@ -73,6 +73,12 @@
           "type": "string",
           "maxLength": 253,
           "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
+        },
+        "table": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       }
     },
@@ -118,70 +124,6 @@
           "type": "string",
           "maxLength": 253,
           "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "initialize": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
-    "maintenance": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       }
     },
@@ -386,59 +328,6 @@
           "spec": {
             "type": "object"
           }
-        }
-      }
-    },
-    "delivery": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "config": {
-          "type": "object"
-        },
-        "logging": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "level",
-            "format"
-          ],
-          "properties": {
-            "level": {
-              "enum": [
-                "debug",
-                "info",
-                "warn",
-                "error",
-                "off"
-              ]
-            },
-            "format": {
-              "enum": [
-                "text",
-                "json"
-              ]
-            }
-          }
-        },
-        "existingSecret": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
         }
       }
     },

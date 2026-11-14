@@ -611,3 +611,89 @@ providers, identity bindings or publication definitions; those use typed catalog
 administration. Browser key loading, catalog reconciliation and listener binding
 precede the server readiness record. See [browser v1](../../../contracts/BROWSER_V1.md)
 and the [runnable example](../../../examples/declarative-browser/README.md).
+
+## External-worker composition
+
+The `external` configuration selects a native server for applications placed by
+an operator or Kubernetes/Substrate. The server owns native authority, its
+maintenance work and realm-wide delivery through dedicated signed identities.
+Application workers and provider controllers remain external. No separate
+courier executable, deployment or credential configuration is required.
+
+```yaml
+version: 1
+installation: /var/lib/transit/installation
+realm: 49
+ports:
+  node: 8080
+  gateway: 19105
+sql:
+  native:
+    local: false
+applications: null
+external:
+  listen: 0.0.0.0
+  root_seed_file: /run/secrets/transit-root
+  ursula:
+    url: http://ursula:8080
+    bucket: transit
+    journal: authority
+```
+
+Run this configuration with `transit server --no-ui --config transit.yaml` inside
+its private deployment network. The gateway port is unused in this profile;
+SQL listeners, local application hosting and browser serving are unavailable.
+The signed native listener accepts loopback or wildcard binding. Network
+admission and remote transport protection belong to the deployment boundary.
+Optional Board uses its normal read-only upstream grant without local SQL.
+
+Omit `external.ursula` for local disk. Local storage supports an explicit
+`external.table_file` containing the node's typed Table configuration, after its
+catalog and registrar are provisioned through public operations. The first
+accepted configuration is retained by identity; changing or removing it rejects.
+Ursula retains native history separately and does not supply direct Table/SQL
+hosting. Native history trimming requires explicit
+`external.allow_history_trim: true` at initialization; unlimited retention remains
+the default. Provider selection and genesis policy cannot change on restart.
+
+`root_seed_file` optionally supplies the initial operator root seed. The server
+copies it privately and verifies the same public identity on each restart.
+Omission generates a private root. This input never adopts an existing component
+installation. Preserve the complete server installation alongside the Ursula
+volume: it holds recovery identities, frozen provisioning requests, service
+credentials and receipts. Never recreate it to recover missing history.
+A fresh installation accepts only genesis-only native history. Existing accepted
+work requires its original installation record, even when a supplied root key
+matches; first startup refuses before provisioning or restoring service grants.
+
+The server's native `/health` becomes ready after required service provisioning,
+current signed courier access and owned-process startup. It withdraws on failed
+observations or child loss. Readiness does not promise an empty backlog. The
+server retries transient observations within bounded budgets, joins and replaces
+failed roles, and stops on terminal permission loss; completed grants are never
+reissued on restart. Its courier keeps exact pending request bytes across
+transport uncertainty and discovers unresolved original outputs after process
+loss, preserving ordering, destinations and admission provenance.
+
+An external-worker installation can explicitly replace its server artifact using
+`startup.replace_runtime: {from: OLD_SHA256, to: NEW_SHA256}`. Both hashes refer
+to executable bytes, not an image tag. Replacement requires the same current
+protocol definition, provider/configuration identity and embedded role selection.
+The server rechecks these pins before starting roles in each recovery cycle.
+The server validates retained history and grants before recording the new runtime;
+its original directory publication and accepted work remain unchanged. Missing,
+foreign or reversed pins reject. A failed attempt retains the original selection
+and may resume the same pinned intent. This is deployment authorization, not a
+promise that arbitrary new code or stored formats are compatible. Local hosted
+application profiles and explicit standalone-role overrides do not support this
+replacement path. Launchers persist the two hashes with their update intent and
+replace the internal roles together; application upgrades keep their own recorded
+provider/activation protocol.
+
+`external.request_timeout_ms` bounds native requests (default 2000 ms).
+`external.maintenance.interval_ms` controls the delay between bounded native
+maintenance steps (default 1000 ms); `checkpoint_every_records` optionally enables
+checkpoint cadence when genesis permits trimming. These settings do not grant
+retention or expiry rights. The source launchers preserve the native examples'
+explicit policy with Table flush/archive/compaction disabled; changing that policy
+requires its own captured-view and maintenance qualification.

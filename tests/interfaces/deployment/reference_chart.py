@@ -8,10 +8,8 @@ class Chart:
         self.state, self.directory, self.namespace = state, directory, namespace
         self.values = {
             "node": {"nameOverride": "transit", "enabled": False,
-                     "image": images["transit-node"], "config": node_config},
-            "initialize": {"nameOverride": "initialize"},
+                     "image": images["transit"], "config": node_config, "existingSecret": "node-root"},
             "ursula": {"nameOverride": "ursula", "image": images["ursula"]},
-            "maintenance": {"nameOverride": "maintenance"},
             "board": {"nameOverride": "board", "image": images["transit-board"]},
             "workerPool": {"nameOverride": "counter"},
         }

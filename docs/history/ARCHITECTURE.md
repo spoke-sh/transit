@@ -118,7 +118,7 @@ broader clustered execution. Additional node replicas do not by themselves creat
 independent write capacity or a cross-partition transaction guarantee.
 
 Station runs in callers and connectors will submit observations through the
-same public boundary. The [delivery courier](../../apps/transit-delivery/README.md)
+same public boundary. The [delivery courier](https://github.com/spoke-sh/transit/blob/505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7/apps/transit-delivery/README.md)
 automatically advances committed outboxes with scoped rights; history holds its
 progress and retry identity. Station timer/child observers submit authenticated
 mailbox observations; separately scoped lifecycle controllers apply recorded
@@ -251,7 +251,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-station-grpc-worker](../../apps/transit-station-grpc-worker/README.md) | M16 qualified finite RPC preparation/dispatch/capture worker |
 | [transit-station-http-worker](../../apps/transit-station-http-worker/README.md) | M15 qualified finite HTTP preparation/dispatch/capture worker |
 | [transit-node](../../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
-| [transit-delivery](../../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
+| [transit-delivery](https://github.com/spoke-sh/transit/blob/505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7/apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-controller](../../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |

@@ -7,11 +7,13 @@ node:
   enabled: true
   nameOverride: ""
   image: ""
-  # transit-node JSON configuration; genesis is required. For local storage,
-  # set local_directory to /data/native and disable Ursula and external maintenance.
+  # transit server configuration with external placement and local SQL disabled.
+  # The server owns native bootstrap, maintenance and delivery on its retained PVC.
   config: {}
-  # Optional direct registrar/in-process maintenance credentials, mounted only
-  # in the node at /secrets. Configuration names the exact Secret keys as paths.
+  # Optional original direct Table configuration for the local provider.
+  table: null
+  # Required operator root seed (key: root), plus registrar when Table hosting
+  # is declared. Service credentials remain private in the server installation.
   existingSecret: ""
   persistence:
     existingClaim: ""
@@ -21,12 +23,6 @@ node:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "2", memory: 1Gi}
-
-# Explicit bootstrap only, never an install/upgrade hook. Enable with node off,
-# wait for success, then disable and enable node. Restarts never initialize.
-initialize:
-  enabled: false
-  nameOverride: ""
 
 ursula:
   enabled: true
@@ -39,22 +35,6 @@ ursula:
     size: 1Gi
     # null selects the cluster default; "" explicitly selects no storage class.
     storageClass: null
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "2", memory: 1Gi}
-
-maintenance:
-  enabled: false
-  nameOverride: ""
-  # Separate principal with the required recorded admin/effect grant.
-  existingSecret: ""
-  config:
-    principal: 3
-    interval_ms: 200
-    operation_timeout_ms: 5000
-    # Opt in only with node.config.genesis.allow_history_trim enabled.
-    checkpoint_every_records: null
-  logging: {level: info, format: json}
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "2", memory: 1Gi}
@@ -114,18 +94,3 @@ controller:
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "1", memory: 512Mi}
-
-# Public-client outbox courier; no storage or Kubernetes credentials.
-delivery:
-  enabled: false
-  nameOverride: ""
-  image: ""
-  existingSecret: ""
-  config:
-    principal: 5
-    interval_ms: 100
-    request_timeout_ms: 5000
-  logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 50m, memory: 32Mi}
-    limits: {cpu: "1", memory: 128Mi}

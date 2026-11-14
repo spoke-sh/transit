@@ -130,14 +130,24 @@ real component implementations with volatile log/object adapters and independent
 contract assertions. Seeded replay compares their event records; these stores
 establish logical publication boundaries, not disk or remote-effect durability.
 
-The external fault supervisor runs the compiled node, counter worker and courier
-against disk-backed Ursula. It injects request/reply delay and loss, interrupts
+The external fault supervisor runs `transit server` with its owned native and
+courier roles plus the counter worker against disk-backed Ursula. It injects request/reply delay and loss, interrupts
 connections, pauses the courier, and kills/restarts processes against current
 history. Public reads check resource/input/output agreement, original delivery
 provenance, current permission, stale activation and bounded eligible progress.
 Histories distinguish requested faults from observed execution and retain exact
 signed attempts and receipts for the synthetic workload. A seed selects workload
 intent; operating-system scheduling remains nondeterministic.
+
+The installed application fault suite also exercises the courier owned by
+`transit server`, using one copied runtime executable without sibling binaries
+or an ambient executable search path. It verifies exact retry after a lost
+delivery receipt, per-route order and original provenance, pending-output recovery
+after courier loss, and no duplicate admission after manager restart. External
+worker scenarios execute separately against local disk and disk-backed Ursula,
+including signed courier-read outages, readiness withdrawal and refusal to
+restore revoked rights on restart. These server scenarios do not establish
+Kubernetes/Substrate isolation or physical multi-host qualification.
 
 Separate external profiles install the Python and Node SDKs outside the checkout
 and exercise lost replies, seedless recovery, host cancellation/disposal and

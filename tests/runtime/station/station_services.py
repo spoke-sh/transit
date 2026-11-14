@@ -8,8 +8,8 @@ from runtime.station.station import frame
 from runtime.station.station_ledger import AUDIT, audit_state, audit_total, provision
 
 
-def run(node, cli, worker, courier, controller):
-    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True) as s:
+def run(server, cli, worker, controller):
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
         configs = {}
         resources = {}
         serial = 0
@@ -59,12 +59,6 @@ def run(node, cli, worker, courier, controller):
         s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 6}})
         configs[ledger]["generation"] = 7
         configs[requester]["registry"] = coordinator
-        courier_seed, public = s.key("courier")
-        s.command({"grant": {"subject": 3, "public_key": public, "permissions": 132}})
-        courier_config = s.root / "courier.json"
-        courier_config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 3,
-                                              "seed_file": str(courier_seed), "interval_ms": 10}))
-        courier_process = s.start(courier, courier_config)
         observer_seed, public = s.key("observer")
         s.command({"grant": {"subject": 5, "public_key": public, "permissions": 20}})
         admin_seed, public = s.key("scoped-admin")
@@ -208,6 +202,4 @@ def run(node, cli, worker, courier, controller):
             worker_once(coordinator)
         for child in children:
             assert value(coordinator, b"\x00c" + child.to_bytes(8, "little") + b"\x00")[14] == 5
-        courier_process.terminate()
-        courier_process.wait(timeout=10)
         print("Station services: durable registry/rebind routing, observed timeout/late-result closure, scoped bounded supervision and recovery passed.")

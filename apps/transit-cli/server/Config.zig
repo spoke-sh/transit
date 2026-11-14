@@ -16,15 +16,30 @@ storage: @import("transit_query").protocol.Storage.Settings = .{ .maintenance = 
 ports: Ports,
 executables: Executables = .{},
 applications: ?Applications = null,
+external: ?External = null,
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
 browser: ?@import("transit_serving_http").BrowserRuntime.Config = null,
 query: Query = .{},
 sql: @import("SqlSettings.zig") = .{},
 pub const Query = struct { statement_timeout: u64 = 0, statement_timeout_ceiling: u64 = 0 };
-pub const Startup = struct { require_existing: bool = false };
+pub const Startup = struct {
+    require_existing: bool = false,
+    replace_runtime: ?struct { from: []const u8, to: []const u8 } = null,
+};
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null, local_data: bool = true, workbench_file: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
+/// Native applications placed by an external operator/provider. The server
+/// still owns authority, maintenance, delivery and optional Board lifecycle.
+pub const External = struct {
+    listen: []const u8 = "127.0.0.1",
+    root_seed_file: ?[]const u8 = null,
+    allow_history_trim: bool = false,
+    request_timeout_ms: u32 = 2000,
+    maintenance: struct { interval_ms: u32 = 1000, checkpoint_every_records: ?u64 = null } = .{},
+    ursula: ?struct { url: []const u8, bucket: []const u8, journal: []const u8 } = null,
+    table_file: ?[]const u8 = null,
+};
 pub const Ports = struct { node: u16, gateway: u16 };
 /// Null selects the role compiled into `transit`. Explicit paths select the
 /// matching standalone role, never an ambient PATH or adjacent-file fallback.
@@ -174,6 +189,18 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         if (self.applications) |apps| if (browser.port == apps.port) return diagnostic.invalidField("browser.port", "must differ from applications.port", null);
     }
     try self.sql.resolve(allocator, base, diagnostic);
+    if (self.external) |*external| {
+        if (external.root_seed_file) |path| external.root_seed_file = try std.fs.path.resolve(allocator, &.{ base, path });
+        if (!std.mem.eql(u8, external.listen, "127.0.0.1") and !std.mem.eql(u8, external.listen, "0.0.0.0")) return diagnostic.invalidField("external.listen", "must be 127.0.0.1 or 0.0.0.0 inside the deployment's private network", null);
+        if (self.sql.native.local or self.sql.listening() or self.applications != null or self.browser != null) return diagnostic.invalidField("external", "requires sql.native.local=false and no SQL listeners, local applications or browser service", null);
+        if (external.ursula) |remote| {
+            const uri = std.Uri.parse(remote.url) catch return diagnostic.invalidField("external.ursula.url", "must be an absolute HTTP provider URL", null);
+            if (!std.mem.eql(u8, uri.scheme, "http") or uri.host == null or uri.user != null or uri.password != null or remote.bucket.len == 0 or remote.journal.len == 0) return diagnostic.invalidField("external.ursula", "requires a private HTTP URL without credentials and nonempty bucket/journal names", null);
+            if (external.table_file != null) return diagnostic.invalidField("external.table_file", "requires the local storage provider; Ursula does not implement direct Table hosting", null);
+        }
+        if (external.table_file) |path| external.table_file = try std.fs.path.resolve(allocator, &.{ base, path });
+        if (self.board) |*board| board.local_data = false;
+    }
     const sql_ports = [_]?u16{ if (self.sql.postgres) |listener| listener.port else null, if (self.sql.mysql) |listener| listener.port else null, if (self.sql.listening()) self.sql.health_port else null, if (self.sql.native.http) |http| http.port else null };
     const sql_fields = [_][]const u8{ "sql.postgres.port", "sql.mysql.port", "sql.health_port", "sql.native.http.port" };
     for (sql_ports, 0..) |maybe, i| if (maybe) |port| {
@@ -193,6 +220,14 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8, di
     const bytes = try std.json.Stringify.valueAlloc(init.gpa, .{ self.version, self.installation, self.realm, self.admission_ceiling, self.control_reserve }, .{});
     defer init.gpa.free(bytes);
     std.crypto.hash.sha2.Sha256.hash(bytes, &result.config, .{});
+    if (self.external) |external| {
+        // Keep local installation identity stable. External placement and its
+        // provider are an explicit incompatible composition, never adoption of
+        // a component installation or a switch between authority histories.
+        const placement = try std.json.Stringify.valueAlloc(init.gpa, .{ result.config, external.listen, external.ursula, external.allow_history_trim }, .{});
+        defer init.gpa.free(placement);
+        std.crypto.hash.sha2.Sha256.hash(placement, &result.config, .{});
+    }
     diagnostic.field = "transit executable";
     result.cli = try checkedDigest(init, executable, diagnostic);
     inline for (@typeInfo(Executables).@"struct".field_names) |name| {
@@ -254,6 +289,13 @@ pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
 pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !void {
     var listeners: [12]?std.Io.net.Server = @splat(null);
     defer for (&listeners) |*listener| if (listener.*) |*server| server.deinit(io);
+    if (self.external != null) {
+        listeners[0] = try listen(io, self.ports.node, "ports.node", diagnostic);
+        if (ui) if (self.board) |board| {
+            listeners[1] = try listen(io, board.port, "board.port", diagnostic);
+        };
+        return;
+    }
     inline for (@typeInfo(Ports).@"struct".field_names, 0..) |name, i| listeners[i] = try listen(io, @field(self.ports, name), "ports." ++ name, diagnostic);
     if (self.browser) |browser| listeners[11] = try (try std.Io.net.IpAddress.parseIp4(browser.listen, browser.port)).listen(io, .{ .reuse_address = true });
     if (ui) if (self.board) |board| {

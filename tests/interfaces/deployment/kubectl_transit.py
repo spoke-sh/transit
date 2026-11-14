@@ -123,6 +123,9 @@ def run(binary):
         assert "0.1.0" in invoke("--version").stdout
         assert not calls.exists()
         for args in [("status",), ("delete", "pod"), ("logs", "worker", "--release", "example"),
+                     ("logs", "delivery", "--release", "example"),
+                     ("logs", "maintenance", "--release", "example"),
+                     ("logs", "initialize", "--release", "example"),
                      ("get", "installations", "--release", "x,other=y"),
                      ("get", "installations", "-n", "bad/namespace"),
                      ("get", "installations", "-A", "-n", "demo"),
@@ -189,7 +192,7 @@ def run(binary):
         assert "service/custom-inspection" in args and "18102:8080" in args
         assert "--address=127.0.0.1" in args and "--selector" not in args
         assert args[args.index("--namespace") + 1] == "demo"
-        for component in ("node", "controller"):
+        for component in ("node", "board", "controller", "ursula"):
             invoke("logs", component, "--release", "example", "-n", "demo", "--tail", "42")
             args = json.loads(calls.read_text().splitlines()[-1])
             assert "--tail=42" in args and "--prefix=true" in args

@@ -143,9 +143,8 @@ def exercise(profile, name=None, base=None, existing=False):
                     started_reply = time.monotonic()
                     deadline = started_reply + 60
                     recovery = fault.recover(deadline)
-                    # Readiness replacement deliberately consumes about 30 seconds
-                    # in failed probes. Bound resumed query progress separately;
-                    # no phase can renew its own deadline after an unavailable read.
+                    # Server role replacement and subsequent reply completion
+                    # have independent fixed deadlines.
                     assert time.monotonic() < deadline, "Courier replacement exceeded its original deadline"
                     resumed = time.monotonic()
                     completion_deadline = resumed + 60
@@ -153,7 +152,6 @@ def exercise(profile, name=None, base=None, existing=False):
                                 "Arrow reply did not complete", seconds=max(0, completion_deadline-time.monotonic()))
                     reply_seconds = time.monotonic() - started_reply
                     assert time.monotonic() < completion_deadline, "Arrow reply exceeded its completion deadline"
-                    assert fault.commands > 0
                     recovery['query_completion_seconds'] = round(time.monotonic()-resumed, 3)
                     passed = True
             finally:
@@ -164,8 +162,7 @@ def exercise(profile, name=None, base=None, existing=False):
                              "replacement_deadline_seconds": 60, "completion_deadline_seconds": 60,
                              "query_submitted": started_reply is not None,
                              "reply_seconds": reply_seconds, "passed_before_cleanup": passed,
-                             "recovery": fault.recovery, "refused_reads": fault.refusals,
-                             "forwarded_commands": fault.commands,
+                             "recovery": fault.recovery, "fault": "server_owned_courier_killed",
                              "cleanup_restart_started": fault.cleanup_restart_started,
                              "cleanup_restart_completed": fault.cleanup_restart_completed}
                 write(ROOT / ".cache/m9/station-local-readiness.json", readiness)

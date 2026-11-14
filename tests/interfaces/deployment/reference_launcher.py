@@ -60,7 +60,7 @@ def run():
         assert json.loads(invoke("inspect"))["observation"]["processes"][0]["pid"] == first["pid"]
         after = pods()
         assert after["board"] != before["board"]
-        assert all(after[role] == before[role] for role in ("node", "ursula", "maintenance", "controller"))
+        assert all(after[role] == before[role] for role in ("node", "ursula", "controller"))
         assert observe(12)["generation"] == first["generation"]
         # Admit work with the old execution stopped; it must survive the switch.
         with lock(installation.lifecycle_lock):

@@ -46,11 +46,6 @@ class Local:
         installation.artifacts.initialize()
         installation.configure_board()
         installation.configs()
-        if installation.example == "station":
-            # Station provisions direct catalog policy through a temporary
-            # listener. Finish and join it before the manager's node health
-            # probe can admit any dependent service.
-            installation.initialize()
         # Startup readiness must refer to this worker launch, not the saved
         # configuration from the previous activation.
         for name in installation.workloads:
@@ -203,7 +198,7 @@ class Local:
     def apply_update(self, operation):
         from updates import publish, completed
         services = self.services()
-        if services and not any(p["name"] == "delivery" for p in services):
+        if services and any(p["name"] in ("delivery", "maintenance") for p in services):
             raise RuntimeError("Incompatible launcher topology; preserve this installation and use its matching build")
         publish(self, operation)
         if not services:
@@ -243,9 +238,15 @@ class Local:
             return
         elif name == "node":
             self.installation.initialize()
-            command = [self.installation.artifacts.binary("transit-node"), self.path / "node.json"]
+            command = [self.installation.artifacts.binary("transit"), 'server', '--no-ui', '--config', self.path / 'transit.json']
         elif name == "provision":
             self.installation.provision()
+            if self.installation.example == 'station':
+                # Native bootstrap publishes the original catalog declaration.
+                # Activate that declared host before starting application roles.
+                record = json.loads((self.path / 'server-data/installation/installation.json').read_text())
+                if record.get('external_table') is None:
+                    self.restart('node')
             return
         elif name in self.installation.workloads:
             self.installation.activate(name)
@@ -254,11 +255,6 @@ class Local:
             command = [self.installation.artifacts.binary("transit-station-controller"), self.path / name / "config.json"]
         elif name == "board":
             command = [self.installation.artifacts.binary("transit-board"), self.path / "board/config.json"]
-        elif name in ("delivery", "delivery-probe"):
-            command = [self.installation.artifacts.binary("transit-delivery"), self.path / "delivery/config.json"]
-            if name == "delivery-probe": command.append("--check")
-        elif name == "maintenance":
-            command = [self.installation.artifacts.binary("transit-node"), self.path / "maintenance/config.json", "--maintain"]
         else:
             raise ValueError("Unknown internal service")
         os.environ.update(self.installation.service_environment(name))
