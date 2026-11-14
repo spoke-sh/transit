@@ -21,7 +21,6 @@ import threading
 import time
 
 from harness.ursula import Fixture
-from harness.services import free_port
 from harness.local_installation import ExternalInstallation
 from harness.processes import children as owned_children, command as process_command
 
@@ -181,6 +180,7 @@ def scenario(args, destination, record, report):
     binaries = dict(zip(('server', 'cli', 'worker'), args.binaries))
     children, handles = [], []
     peer = thread = fixture = None
+    success = False
     # Keep disk tests off Nix's potentially memory-backed TMPDIR.
     disk = ROOT / '.cache/verification/storage'
     disk.mkdir(parents=True, exist_ok=True)
@@ -387,9 +387,14 @@ def scenario(args, destination, record, report):
                     else:
                         raise AssertionError(f'negative control survived: {field}')
                 report['negative_controls'] = ['resource', 'original_destination', 'duplicate_admission']
+                success = True
             finally:
                 if fixture:
-                    fixture.stop()
+                    fixture.cleanup()
+                    if success:
+                        shutil.rmtree(fixture.root)
+                    else:
+                        print(f'Failed server evidence retained: {fixture.root}', file=sys.stderr)
                 for child in children:
                     if child.poll() is None:
                         stop(child, 'cleanup')
