@@ -137,10 +137,9 @@ class StationInstallation(Installation):
                     else:
                         seed = self.path / role / 'seed.key'
                         if not seed.exists(): seed = self.path / role / 'initial.key'
-                        read = self.path / role / 'identity-query.json'
-                        write(read, dict(realm=self.load()['realm'], principal=record['principal'],
-                            kind={'authorization': {'role': None, 'kind': {'identity': {}}}}))
-                        identity = Client(self.client_host, self.url).query(seed, json.loads(read.read_text()))['body']['authorization']['body']['identity']
+                        identity = Client(self.client_host, self.url).query(seed, dict(
+                            realm=self.load()['realm'], principal=record['principal'],
+                            kind={'authorization': {'role': None, 'kind': {'identity': {}}}}))['body']['authorization']['body']['identity']
                         token = secrets.token_hex(12)
                         write(self.path / role / 'next.key', secrets.token_hex(32))
                         pending = dict(token=token, generation=process['generation'], action={'rotate_credential': dict(

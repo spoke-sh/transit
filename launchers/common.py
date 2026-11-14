@@ -277,8 +277,8 @@ backend = "inline"
         pending = state["pending"]
         if pending is None:
             return
-        request_file = self.path / "operator/pending.json"
-        write(request_file, pending["request"])
+        # sequence.json already durably owns the pending request. The shared
+        # client consumes its document directly; no second handoff file is needed.
         client = Client(self.client_host, self.url)
         frozen = client.prepare(self.path / "operator/root.key", pending["request"])
         deadline = time.monotonic() + 20
@@ -362,10 +362,9 @@ backend = "inline"
         self.command("worker-state-" + identity, {"grant_resource": {"resource": resource, "subject": 1, "permissions": 7}})
 
     def native_query(self, kind):
-        read = self.path / "operator/read.json"
-        write(read, {"realm": self.load()["realm"], "principal": 0, "kind": kind})
         client = Client(self.client_host, self.url)
-        frozen = client.prepare(self.path / "operator/root.key", json.loads(read.read_text()), query=True)
+        frozen = client.prepare(self.path / "operator/root.key",
+                                {"realm": self.load()["realm"], "principal": 0, "kind": kind}, query=True)
         deadline = time.monotonic() + 20
         while True:
             try:
