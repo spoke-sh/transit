@@ -1,7 +1,7 @@
 # Server ownership of Station services and controller removal
 
 [Milestone 3](03-live-storage-and-sql-cutover.md#p7--deliver-the-single-executable-local-profile)
-· **Status: Planned** · 2026-11-14
+· **Status: In progress** · 2026-11-14
 
 Make `transit server` advance declared Station timers and supervisor retry
 intents, then remove `transit-station-controller` from executable builds,
@@ -10,7 +10,9 @@ waits, child policies and accepted work; operators run the service through the
 server and inspect whether its registered obligations are progressing.
 
 **Planning source basis:** `caaf43a2b`, after the admin and delivery executable
-removals. This plan adds no implemented interface or qualification result.
+removals. Implementation proceeds on `plan/server-station-controller-ownership`;
+the public server and installation references own the resulting interfaces.
+Qualification remains pending until the required runtime and clean gates pass.
 It follows the [delivery ownership plan](transit-server-delivery-implementation.md)
 and leaves the broader [Station transaction cutover](station-transaction-implementation.md)
 with Milestone 6. Milestone statuses and earlier proof claims remain unchanged.
@@ -39,7 +41,7 @@ available; deleting published history is a separate administrative action.
 
 ## Current responsibilities and integration gap
 
-The standalone [entry point](../../apps/transit-station-controller/main.zig) is a
+The standalone [entry point](https://github.com/spoke-sh/transit/blob/caaf43a2b/apps/transit-station-controller/main.zig) is a
 configuration, clock and polling wrapper around
 [Controller](../../packages/zig/transit-station/src/Controller.zig).
 
@@ -93,13 +95,14 @@ Installing another application must register its declared services without a
 manual daemon launch. Worker replacement alone cannot change service scope.
 
 For external workers, use an explicit server configuration reference to a typed
-registration manifest, accepted into the retained installation journal. This is
-a proposed configuration extension, not existing syntax. Reuse the same validator
-and reconciliation owner as local application registration. The launcher may
+registration manifest, accepted into the retained installation journal. The implementation uses
+`station.file`, the same service validator and the same process owner as local
+application registration. The launcher may
 produce the manifest after native provisioning; it must not own the service loop.
-Define expected-revision updates and authenticated/private-file admission before
-supporting additions or changes; file replacement alone cannot silently rebind an
-accepted registration or remove a required service.
+The first authenticated manifest is frozen by its canonical digest in the
+installation. Additions, changes and removal reject on restart. Live updates are
+outside this implementation; they require a separately defined update contract.
+Private credential file references remain deployment-owned and must be retained.
 
 The reference deployment starts authority before watched PIDs/resources exist.
 Preserve that bootstrap order: establish native authority, provision application
@@ -206,8 +209,9 @@ Station registrations preserves ordinary database/SQL behavior.
 
 Migrate the local application declaration/bootstrap path and the Station example's
 Local and Compose launchers. Remove independently managed observer/lifecycle
-processes, service credentials/configurations and artifact selections after their
-replacement is exercised. The server retains the required credentials and records.
+processes and artifact selections after their replacement is exercised. The server
+retains local application credentials and records; external deployments retain the
+manifest and referenced private credentials.
 
 Migrate the reference launcher/chart's `stationControllers` composition into the
 server registration path. Preserve `runtimeControllers`, provider credentials,
@@ -230,7 +234,7 @@ Station-controller deployment, with evidence for each actual storage/placement.
 | [Nix runtime](../../nix/transit.nix), [release inventory](../../tasks/package_release.py) | Stop compiling and archiving the standalone executable on both supported Linux architectures |
 | [Image construction](../../tasks/release_images.py), [publisher](../../tasks/publish_release.py), [channel owner](../../tasks/release_channel.py), [publication tests](../../tests/runner/test_publication.py) | Verify the reduced image inventory and promotion prerequisites; no alias image or renamed replacement |
 | [Installer](../../install.sh), [release tests](../../tests/runner/test_release.py), [Homebrew generation](../../tasks/release_brew.py) | Remove only obsolete installer-owned links after successful installation; preserve old bundles, unrelated entries and failed-install rollback |
-| [Standalone app](../../apps/transit-station-controller/README.md), [components](../handbook/reference/components.md), [Station services](../../packages/zig/transit-station/docs/services.md), [build guide](../../build/README.md) | Delete the app and move live usage links to the server/service owners; preserve historical explanations with immutable source links where needed |
+| [Standalone app](https://github.com/spoke-sh/transit/blob/caaf43a2b/apps/transit-station-controller/README.md), [components](../handbook/reference/components.md), [Station services](../../packages/zig/transit-station/docs/services.md), [build guide](../../build/README.md) | Delete the app and move live usage links to the server/service owners; preserve historical explanations with immutable source links where needed |
 
 Audit executable creation, invocation and generated manifests, beyond string
 absence. Update the [suite inventory](../../tests/runner/suite.json) and

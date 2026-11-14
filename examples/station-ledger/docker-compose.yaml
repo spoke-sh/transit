@@ -24,6 +24,7 @@ services:
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/server-data', target: /data, bind: {create_host_path: false}}
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/operator', target: /operator, read_only: true, bind: {create_host_path: false}}
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/table', target: /table, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/station-services', target: /station, read_only: true, bind: {create_host_path: false}}
     networks: [client]
     ports:
       - {target: 8080, published: '${TRANSIT_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
@@ -53,24 +54,6 @@ services:
     environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_COORDINATOR_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_COORDINATOR_LOG_FORMAT:?}'}
     volumes:
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/coordinator', target: /coordinator, read_only: true, bind: {create_host_path: false}}
-    networks: [client]
-
-  station-observer:
-    <<: *service
-    image: '${TRANSIT_COMPOSE_STATION_OBSERVER_IMAGE:?}'
-    command: [/station-observer/config.json]
-    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_STATION_OBSERVER_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_STATION_OBSERVER_LOG_FORMAT:?}'}
-    volumes:
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/station-observer', target: /station-observer, read_only: true, bind: {create_host_path: false}}
-    networks: [client]
-
-  station-lifecycle:
-    <<: *service
-    image: '${TRANSIT_COMPOSE_STATION_LIFECYCLE_IMAGE:?}'
-    command: [/station-lifecycle/config.json]
-    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_STATION_LIFECYCLE_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_STATION_LIFECYCLE_LOG_FORMAT:?}'}
-    volumes:
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/station-lifecycle', target: /station-lifecycle, read_only: true, bind: {create_host_path: false}}
     networks: [client]
 
   board:

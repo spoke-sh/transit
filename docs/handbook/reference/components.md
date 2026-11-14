@@ -87,7 +87,6 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-http-worker](../../../apps/transit-station-http-worker/README.md) | finite HTTP preparation/dispatch/capture worker |
 | [transit-node](../../../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-runtime-controller](../../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
-| [transit-station-controller](../../../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../../apps/transit-query-host/README.md) | Runnable source/requester workers and scoped courier |

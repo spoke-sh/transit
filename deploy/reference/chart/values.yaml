@@ -12,6 +12,8 @@ node:
   config: {}
   # Optional original direct Table configuration for the local provider.
   table: null
+  # Optional frozen server Station manifest; seed references use existingSecret.
+  station: null
   # Required operator root seed (key: root), plus registrar when Table hosting
   # is declared. Service credentials remain private in the server installation.
   existingSecret: ""
@@ -76,10 +78,6 @@ workerPools: []
 # Additional PID-scoped reconcilers. Each item overrides the controller defaults
 # below and requires a unique nameOverride, config and existingSecret.
 runtimeControllers: []
-
-# Framework observation/lifecycle identities are separate from runtime/provider
-# control. Each item supplies nameOverride, image, existingSecret and config.
-stationControllers: []
 
 controller:
   enabled: false

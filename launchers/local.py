@@ -245,14 +245,12 @@ class Local:
                 # Native bootstrap publishes the original catalog declaration.
                 # Activate that declared host before starting application roles.
                 record = json.loads((self.path / 'server-data/installation/installation.json').read_text())
-                if record.get('external_table') is None:
+                if record.get('external_table') is None or record.get('station_manifest') is None:
                     self.restart('node')
             return
         elif name in self.installation.workloads:
             self.installation.activate(name)
             command = [self.installation.artifacts.binary(self.installation.artifacts.mapping[name]), self.path / name / "config.json"]
-        elif name in ("station-observer", "station-lifecycle") and self.installation.example == "station":
-            command = [self.installation.artifacts.binary("transit-station-controller"), self.path / name / "config.json"]
         elif name == "board":
             command = [self.installation.artifacts.binary("transit-board"), self.path / "board/config.json"]
         else:

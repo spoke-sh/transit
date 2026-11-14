@@ -73,61 +73,63 @@ cp "$FIXTURE_DOWNLOADS/${url##*/}" "$output"
         previous.mkdir(parents=True)
         directory = self.prefix / 'bin'
         directory.mkdir()
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             (previous / name).write_text('original executable')
             (directory / name).symlink_to(previous / name)
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             self.assertFalse((directory / name).is_symlink())
             self.assertEqual((previous / name).read_text(), 'original executable')
 
     def test_unrelated_retired_entries_are_preserved(self):
         directory = self.prefix / 'bin'
         directory.mkdir(parents=True)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             (directory / name).symlink_to('/unrelated/' + name)
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             self.assertEqual(os.readlink(directory / name), '/unrelated/' + name)
 
     def test_failed_install_preserves_retired_links(self):
         directory = self.prefix / 'bin'
         directory.mkdir(parents=True)
         previous = self.prefix / 'lib/transit/0.0.0/bin'
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             (directory / name).symlink_to(previous / name)
         self.asset.write_bytes(b'corrupt')
         self.assertNotEqual(self.install().returncode, 0)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             self.assertEqual(os.readlink(directory / name), str(previous / name))
 
     def test_unrelated_retired_regular_files_are_preserved(self):
         directory = self.prefix / 'bin'
         directory.mkdir(parents=True)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             (directory / name).write_text('user-owned executable')
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        for name in ('transit-admin', 'transit-delivery'):
+        for name in ('transit-admin', 'transit-delivery', 'transit-station-controller'):
             self.assertEqual((directory / name).read_text(), 'user-owned executable')
 
-    def test_installing_original_bundle_keeps_its_delivery_command(self):
-        delivery = self.source / 'bin/transit-delivery'
-        delivery.write_text('original delivery executable')
-        delivery.chmod(0o755)
+    def test_installing_original_bundle_keeps_its_commands(self):
+        retired = ('transit-admin', 'transit-delivery', 'transit-station-controller')
+        for name in retired:
+            binary = self.source / 'bin' / name
+            binary.write_text('original executable')
+            binary.chmod(0o755)
         archive(self.source, self.asset, 'transit-0.0.1-linux-x86_64', 123)
         self.checksum()
         result = self.install()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue((self.prefix / 'bin/transit-delivery').is_symlink())
-        self.assertEqual((self.prefix / 'bin/transit-delivery').read_text(), 'original delivery executable')
+        for name in retired:
+            self.assertTrue((self.prefix / 'bin' / name).is_symlink())
+            self.assertEqual((self.prefix / 'bin' / name).read_text(), 'original executable')
 
     def test_package_omits_retired_binaries_from_both_architecture_inventories(self):
-        expected = {'transit', 'transit-node', 'transit-query-host', 'transit-board',
-                    'transit-station-controller'}
-        for name in expected | {'transit-admin', 'transit-delivery'}:
+        expected = {'transit', 'transit-node', 'transit-query-host', 'transit-board'}
+        for name in expected | {'transit-admin', 'transit-delivery', 'transit-station-controller'}:
             (self.source / 'bin' / name).write_text('fixture executable')
         notices = self.source / 'share/transit/notices'
         notices.mkdir(parents=True)

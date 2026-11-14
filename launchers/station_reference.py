@@ -17,7 +17,7 @@ class StationReference(Reference):
     def services(self):
         rows = super().services()
         for row in rows:
-            if row["name"] in ("controller", "station"):
+            if row["name"] in ("controller",):
                 row["name"] = row["resource"]
         return rows
 
@@ -33,12 +33,6 @@ class StationReference(Reference):
         for settings in values.get("runtimeControllers", []):
             settings["image"] = images["transit-runtime-controller"]
             settings["config"]["provider"]["cli"] = selection["transit-runtime-controller"]["provider_cli"]
-        for settings in values.get("stationControllers", []):
-            settings["image"] = images["transit-station-controller"]
-            role = settings["nameOverride"]
-            env = self.installation.service_environment(role)
-            settings["logging"] = {"level": env["LOG_LEVEL"], "format": env["LOG_FORMAT"]}
-
     def up(self, detached=True):
         if sys.platform != "linux" or os.uname().machine != "x86_64":
             raise RuntimeError("The reference runtime requires Linux x86_64")
@@ -62,7 +56,7 @@ class StationReference(Reference):
             "running": True, "node": {"enabled": True, "nameOverride": "transit"},
             "ursula": {"enabled": False, "nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
             "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
-            "controller": {"enabled": False}, "runtimeControllers": [], "stationControllers": []}
+            "controller": {"enabled": False}, "runtimeControllers": []}
         self.service_values(values, selection, images)
         values["running"] = True
         for pool in values.get("workerPools", []): pool["spec"]["replicas"] = 1
@@ -97,11 +91,6 @@ class StationReference(Reference):
                     "config": {"realm": i.load()["realm"], "principal": self.controllers[role], "pid": record["pid"],
                                "worker": record["principal"], "provider": provider}})
             values["workerPools"] = pools
-        values["stationControllers"] = []
-        for role in ("station-observer", "station-lifecycle"):
-            self.secret(role + "-credentials", self.path / role / "seed.key")
-            config = json.loads((self.path / role / "config.json").read_text())
-            values["stationControllers"].append({"nameOverride": role, "existingSecret": role + "-credentials", "config": config})
         for role in ("board",): values[role]["enabled"] = True
         self.service_values(values, selection, images)
         self.deploy(values)
@@ -169,7 +158,7 @@ class StationReference(Reference):
             self.deploy(values)
             self.intent_for(name, False, "restart")
             self.await_role(name, lambda p: p["binding"]["activation"] is not None, "replacement activation")
-        elif name in ("station-observer", "station-lifecycle") or name in ["runtime-" + role for role in self.installation.workloads]:
+        elif name in ["runtime-" + role for role in self.installation.workloads]:
             self.kube("rollout", "restart", "deployment/" + name)
             self.kube("rollout", "status", "deployment/" + name, "--timeout=120s")
         else: super().restart(name)
@@ -178,7 +167,7 @@ class StationReference(Reference):
         if name in self.installation.workloads:
             provider = self.controller(self.values(), name)["config"]["provider"]
             infrastructure.ate(self.state, ["logs", "actor", provider["actor"], "-a", self.namespace, "-c", "station"])
-        elif name in ("station-observer", "station-lifecycle") or name in ["runtime-" + role for role in self.installation.workloads]:
+        elif name in ["runtime-" + role for role in self.installation.workloads]:
             self.kube("logs", "--tail=200", "deployment/" + name)
         else: super().logs(name)
 

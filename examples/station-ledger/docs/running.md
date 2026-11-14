@@ -33,6 +33,12 @@ Ordinary restarts open the same history and never initialize missing data.
 | coordinator | 7 | Registry scope 1, `ledger` binding, and one supervised child |
 | station-observer | 10 | Reads waiting/child records and sends trusted timer/lifecycle observations |
 | station-lifecycle | 11 | Reads supervisor intent and applies separately scoped ledger lifecycle operations |
+
+The observer and lifecycle identities run inside `transit server` as private
+services. The launcher supplies a frozen manifest and separate private seeds;
+there are no independent Station controller binaries or deployments. Their
+configuration and current grants gate server readiness. Use node/server logs for
+service failures; Substrate runtime controllers still manage physical workers.
 | runtime-ledger/requester/coordinator | 4/8/9 | Reference only: each reconciles one PID's Substrate Actor and fresh activation |
 
 Root provisions through exact persisted requests. Board is principal 2,
@@ -94,7 +100,7 @@ just launchers::local::send query query-1
 just launchers::local::send lookup lookup-1
 just launchers::local::inspect
 just launchers::local::logs ledger
-just launchers::local::logs station-observer
+just launchers::local::logs node
 ```
 
 `send` delivers a Station cast to the requester. Integers become durable calls to

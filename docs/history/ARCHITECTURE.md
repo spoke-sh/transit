@@ -253,7 +253,7 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-node](../../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-delivery](https://github.com/spoke-sh/transit/blob/505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7/apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
-| [transit-station-controller](../../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
+| [transit-station-controller](https://github.com/spoke-sh/transit/blob/caaf43a2b/apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../apps/transit-query-host/README.md) | Runnable growing v1/v2 source/requester workers and scoped courier |
