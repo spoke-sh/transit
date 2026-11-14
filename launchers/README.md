@@ -6,7 +6,7 @@ environment's tasks. Use double colons between task groups.
 
 | Environment | Purpose | Services and limits |
 | --- | --- | --- |
-| `local` | Fast iteration without Docker or Kubernetes | Transit node, delivery courier, selected example and embedded Board, managed by Process Compose; storage and maintenance follow the selected example |
+| `local` | Fast iteration without Docker or Kubernetes | Transit server, selected example and Board, managed by Process Compose; the server owns authority, delivery and maintenance |
 | `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose with static Zig images; the counter also uses the official pinned Ursula image |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
@@ -32,12 +32,14 @@ example. Use a different name to run both, with non-overlapping base ports.
 Its checked-in Process Compose and Docker Compose topologies live beside the
 example; the reference uses the shared [Transit chart](../deploy/reference/chart/README.md).
 
-The counter uses disk-backed Ursula and a separate maintenance process. Station
-keeps native history and direct Table storage in one retained local directory,
-with maintenance inside the node. Its reference placement mounts that directory
-from a retained volume claim shared by explicit initialization and the node.
-The initializer is deployed with the claim so storage classes that wait for a
-first consumer can bind it.
+The counter uses disk-backed Ursula. Station keeps native history and direct
+Table storage in a retained local directory. In both profiles `transit server`
+owns delivery and maintenance; Kubernetes/Substrate continues to place isolated
+application workers and their controllers. Server installation metadata has its
+own retained volume, including with Ursula. See the
+[external-worker server profile](../apps/transit-cli/docs/server.md#external-worker-composition).
+Component-era installations reject with their original data and artifact
+selection preserved; use their matching build for recovery.
 
 ## Incremental development
 
@@ -54,8 +56,7 @@ just launchers::local::restart board
 `build [SERVICE...]` produces candidates without changing running services or
 the selected version. `update` builds, applies affected services and verifies
 readiness; `--no-build` selects saved candidates. `restart` uses the selected
-artifact/configuration. Omit names to select all application services. Node and
-maintenance share an executable and update together. Ursula and provider
+artifact/configuration. Omit names to select all application services. All internal server roles use the selected `transit` artifact together. Ursula and provider
 infrastructure are separately pinned and excluded from application builds.
 For Station, `update ledger` updates all three workers because they share one
 executable. The two framework controllers also share an artifact. Each reference
@@ -332,13 +333,15 @@ startup failures can leave resources for inspection; run `down` before trying
 `up` again. No launcher kills arbitrary processes to free a port.
 
 The counter has PID-scoped execute/inspect permission. Board has a separate
-realm-wide inspection-only principal, and maintenance has its separate
-admin/effect principal. Delivery uses principal 5 with delivery/send only and
-receives no storage credentials. It runs in every profile, has a signed status
-probe, and resumes committed outboxes after restart. The host provisioner retains the root seed and serializes
-its signed operations. Do not concurrently issue unrelated commands with that
-root identity. Native programs run as your user and share that user's filesystem
-and network access: their credential files are not a sandbox boundary.
+realm-wide inspection-only principal. The server provisions its maintenance
+principal 23 and courier principal 22 once, using separate private credentials.
+The courier requires inspect/delivery/send and advances recorded outputs through
+the public API. The server checks its current signed access even when idle;
+restart never restores revoked rights. The host provisioner retains the root
+seed and serializes its signed operations after server initialization completes.
+Do not concurrently issue unrelated commands with that root identity. Native
+programs share your user's filesystem and network access; credential files are
+not a sandbox boundary.
 
 Local and Compose use direct, recorded `own` operations for the example caller;
 the process has **no provider binding**. They do not run
@@ -363,12 +366,11 @@ those definitions with saved installation settings. `restart` replaces a service
 using its current manager/container configuration. The local manager is started
 in the installation directory, including for probes.
 
-The local stateless courier restarts after an unsuccessful exit or failed
-readiness probes, with a one-second backoff. Its replacement reuses the dedicated
-delivery identity and reconstructs pending work from current authority. Current
-permission and readiness checks still apply. An explicit manager stop keeps the
-courier stopped until it is started again. Application workers retain their
-explicit activation and replacement lifecycle.
+The server supervises its required roles with a finite recovery budget and
+withdraws readiness on service failure. It reconstructs pending delivery from
+current authority after role loss. Stopping the server joins its owned roles;
+application workers retain their explicit activation and replacement lifecycle.
+The launcher does not independently restart or configure a courier.
 
 Launchers still provision identity, configuration and durable state through the
 public API; these are not safe to express as automatic service restarts. They
@@ -520,7 +522,7 @@ builds; [updates.py](updates.py) saves and resumes deployment plans.
 [logs.py](logs.py) owns native manager-log rotation.
 Python is development infrastructure glue; the actual services and caller stay
 in Zig. Service config semantics belong to the
-[node](../apps/transit-node/README.md), [delivery](../apps/transit-delivery/README.md),
+[server](../apps/transit-cli/docs/server.md), [node](../apps/transit-node/README.md),
 [Board](../apps/transit-board/README.md), and
 [counter](../examples/counter/README.md) guides.
 

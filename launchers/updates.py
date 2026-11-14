@@ -12,7 +12,7 @@ def update(launcher, names, no_build=False, replace_pending=False):
     artifacts = installation.artifacts
     pending = installation.path / "update.json"
     running = bool(launcher.services())
-    if "transit-delivery" not in artifacts.read("selected"):
+    if "transit" not in artifacts.read("selected"):
         raise RuntimeError("Incomplete launcher artifacts; preserve the selection and restore its matching build")
     if not running and not (pending.exists() and installation.profile == "local"):
         raise RuntimeError("Start the installation before updating it")
@@ -38,6 +38,9 @@ def update(launcher, names, no_build=False, replace_pending=False):
         roles = artifacts.roles(names)
         config = installation.load()
         proposed = dict(config)
+        selected_runtime = artifacts.read('selected')['transit']
+        if 'node' in roles and target['transit']['sha256'] != selected_runtime['sha256']:
+            proposed['runtime_replacement'] = {'from': selected_runtime['sha256'], 'to': target['transit']['sha256']}
         diagnostics = settings.observability(config.get("observability", {}), installation.profile, artifacts.roles([]))
         proposed["observability"] = {**config.get("observability", {})}
         for role in roles:

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 def observability(previous, profile, services=None):
     result = {}
-    for service in services or (("board", "node", "maintenance", "delivery", "counter") + (("controller",) if profile == "reference" else ())):
+    for service in services or (("board", "node", "counter") + (("controller",) if profile == "reference" else ())):
         values = {}
         for field, default, allowed in (("level", "info", ("debug", "info", "warn", "error", "err", "off")),
                                          ("format", "text" if profile == "local" else "json", ("text", "json"))):

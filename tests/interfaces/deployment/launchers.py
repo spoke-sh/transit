@@ -135,7 +135,7 @@ def proof(profile):
         for path in installation.path.rglob("*.key"):
             assert path.stat().st_mode & 0o077 == 0, path
             credentials.append(path.read_text())
-        for service in ("ursula", "node", "maintenance", "delivery", "counter", "board"):
+        for service in ("ursula", "node", "counter", "board"):
             output = invoke("logs", service)
             assert all(key not in output for key in credentials)
         admitted = json.loads(invoke("send", "9", "--request-id", "same-input"))
@@ -187,7 +187,7 @@ def proof(profile):
         # Missing current artifacts and incompatible v1 definitions must not
         # select replacements, start services or alter the retained installation.
         selection = installation.artifacts.read("selected")
-        installation.artifacts.select({k: v for k, v in selection.items() if k != "transit-delivery"})
+        installation.artifacts.select({k: v for k, v in selection.items() if k != "transit"})
         incomplete = (installation.artifacts.path / "selected.json").read_bytes()
         invoke("update", "board", "--no-build", success=False)
         invoke("update", "--no-build", success=False)
@@ -238,9 +238,9 @@ def proof(profile):
         assert observe(25)["pid"] == first["pid"]
         assert installation.origin == remote_origin
         assert installation.board["port"] == board_port and installation.board["host"] == "0.0.0.0"
-        config = json.loads((installation.path / "node.json").read_text())
+        config = json.loads((installation.path / "transit.json").read_text())
         if profile == "local":
-            assert config["listen"] == "127.0.0.1"
+            assert config["external"]["listen"] == "127.0.0.1"
             # A direct health check used to succeed while the manager's probe
             # failed with 403 and terminated Board after ~30 seconds. Require
             # the manager's readiness and survive that original failure window.

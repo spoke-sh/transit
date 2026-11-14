@@ -17,13 +17,13 @@ services:
   node:
     <<: *service
     image: '${TRANSIT_COMPOSE_NODE_IMAGE:?}'
-    command: [/node.json]
+    command: [server, --no-ui, --config, /transit.json]
     environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_NODE_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_NODE_LOG_FORMAT:?}'}
     volumes:
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/node.json', target: /node.json, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/native', target: /data/native, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/transit.json', target: /transit.json, read_only: true, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/server-data', target: /data, bind: {create_host_path: false}}
+      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/operator', target: /operator, read_only: true, bind: {create_host_path: false}}
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/table', target: /table, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/maintenance', target: /maintenance, read_only: true, bind: {create_host_path: false}}
     networks: [client]
     ports:
       - {target: 8080, published: '${TRANSIT_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
@@ -72,20 +72,6 @@ services:
     volumes:
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/station-lifecycle', target: /station-lifecycle, read_only: true, bind: {create_host_path: false}}
     networks: [client]
-
-  delivery:
-    <<: *service
-    image: '${TRANSIT_COMPOSE_DELIVERY_IMAGE:?}'
-    command: [/delivery/config.json]
-    environment: {LOG_LEVEL: '${TRANSIT_COMPOSE_DELIVERY_LOG_LEVEL:?}', LOG_FORMAT: '${TRANSIT_COMPOSE_DELIVERY_LOG_FORMAT:?}'}
-    volumes:
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/delivery', target: /delivery, read_only: true, bind: {create_host_path: false}}
-    networks: [client]
-    healthcheck:
-      test: [CMD, /bin/transit-delivery, /delivery/config.json, --check]
-      interval: 5s
-      timeout: 6s
-      retries: 5
 
   board:
     <<: *service

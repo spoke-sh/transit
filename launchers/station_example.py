@@ -17,62 +17,34 @@ class StationInstallation(Installation):
     example = "station"
     workloads = ("ledger", "requester", "coordinator")
     principals = {"ledger": 1, "requester": 6, "coordinator": 7}
-    artifact_roles = {"node": "transit-node", "delivery": "transit-delivery",
+    artifact_roles = {"node": "transit",
                       "board": "transit-board", **dict.fromkeys(workloads, "example-station-ledger"),
                       "station-observer": "transit-station-controller", "station-lifecycle": "transit-station-controller",
                       "controller": "transit-runtime-controller"}
-    service_names = ("node", "delivery", "board", *workloads,
+    service_names = ("node", "board", *workloads,
                      "station-observer", "station-lifecycle")
     local_topology = ROOT / "examples/station-ledger/process-compose.yaml"
     compose_topology = ROOT / "examples/station-ledger/docker-compose.yaml"
 
     def configs(self):
         super().configs()
-        node = json.loads((self.path / 'node.json').read_text())
-        for name in ('ursula_url', 'bucket', 'journal'): node.pop(name)
+        node = json.loads((self.path / 'transit.json').read_text())
+        node['external'].pop('ursula')
         placed = self.profile in ('compose', 'reference')
-        node['local_directory'] = '/data/native' if placed else str(self.path / 'native')
-        (self.path / 'native').mkdir(exist_ok=True, mode=0o700)
+        (self.path / 'table').mkdir(exist_ok=True, mode=0o700)
         catalog = self.path / 'station-direct.json'
         if catalog.exists():
             registrar_seed = '/secrets/registrar' if self.profile == 'reference' else '/table/seed.key' if placed else str(self.path / 'table/seed.key')
-            maintenance_seed = '/secrets/maintenance' if self.profile == 'reference' else '/maintenance/seed.key' if placed else str(self.path / 'maintenance/seed.key')
-            node['table'] = dict(catalog=json.loads(catalog.read_text()), registrar=dict(principal=1000, seed_file=registrar_seed))
-            node['maintenance'] = dict(principal=3, seed_file=maintenance_seed)
-        write(self.path / 'node.json', node)
-        host = dict(node, local_directory=str(self.path / 'native'),
-                    listen='127.0.0.1', port=self.load()['base_port'] + 1)
-        if catalog.exists():
-            host['table'] = dict(node['table'], registrar=dict(principal=1000, seed_file=str(self.path / 'table/seed.key')))
-            host['maintenance'] = dict(principal=3, seed_file=str(self.path / 'maintenance/seed.key'))
-        write(self.path / 'host-node.json', host)
-
-    def initialize(self):
-        super().initialize()
-        if (self.path / 'station-provisioned.json').exists(): return
-        # Explicit first provisioning runs against this installation's owned
-        # native directory before its long-lived node acquires the same lock.
-        # Exact native commands and authorization changes survive interruption.
-        bootstrap = json.loads((self.path / 'host-node.json').read_text())
-        bootstrap.pop('table', None)
-        bootstrap.pop('maintenance', None)
-        write(self.path / 'bootstrap-node.json', bootstrap)
-        with (self.path / 'bootstrap-node.log').open('a') as log:
-            child = subprocess.Popen([str(self.artifacts.binary('transit-node')), str(self.path / 'bootstrap-node.json')], stdout=log, stderr=subprocess.STDOUT)
-            try:
-                wait_for(self.url + '/health')
-                self.provision()
-            finally:
-                child.terminate()
-                try: child.wait(timeout=15)
-                except subprocess.TimeoutExpired:
-                    child.kill()
-                    child.wait(timeout=15)
+            table = dict(catalog=json.loads(catalog.read_text()), registrar=dict(principal=1000, seed_file=registrar_seed))
+            write(self.path / 'table/config.json', table)
+            node['external']['table_file'] = '/config/table.json' if self.profile == 'reference' else '/table/config.json' if placed else str(self.path / 'table/config.json')
+        write(self.path / 'transit.json', node)
 
     def records(self):
         return json.loads((self.path / "station.json").read_text())
 
     def provision(self):
+        self.attach_server()
         records = {}
         for role, principal in self.principals.items():
             pid = self.command("spawn-" + role, {'create': {"required": [b"data".hex(), None, None, None]}})
@@ -107,7 +79,7 @@ class StationInstallation(Installation):
             self.command('initial-query-read-' + role, {'grant_resource': {
                 'resource': records[peer]['resource'], 'subject': records[role]['principal'], 'permissions': 3}})
         write(self.path / 'station-authorization.json', authorization)
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 132),
+        for principal, label, permissions in ((2, "board", 16),
                                               (10, "station-observer", 20), (11, "station-lifecycle", 17)):
             grant = {"subject": principal, "public_key": self.key(label + "/seed.key"), "permissions": permissions}
             if label == "station-lifecycle": grant["pid"] = records["ledger"]["pid"]
