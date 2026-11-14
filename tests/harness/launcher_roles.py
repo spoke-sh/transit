@@ -25,7 +25,7 @@ def courier_signal(installation, launcher, signum):
         return pid
     # The published image remains the product image. Use the already pinned
     # infrastructure image as a transient signal injector in its PID namespace;
-    # it receives no installation files, network access or runtime credentials.
+    # it does not use installation files, network access or runtime credentials.
     pins = json.loads((ROOT / 'deploy/reference/versions.json').read_text())
     action = signal.Signals(signum).name.removeprefix('SIG')
     script = '''set -eu
