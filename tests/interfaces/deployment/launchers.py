@@ -397,7 +397,7 @@ def foreground_proof(profile):
                 assert all(row["State"] == "running" for row in launcher.services())
                 invoke("down")
 
-        # A startup failure must stream actual service stderr, exit nonzero,
+        # A startup failure must report the owned service's error, exit nonzero,
         # and clean up its own manager without deleting the saved installation.
         wal = installation.path / "wal"
         saved_wal = installation.path / "saved-wal"
@@ -409,7 +409,7 @@ def foreground_proof(profile):
             assert child.wait(timeout=600 if profile == "compose" else 60) != 0
         failure = "node failed" if profile == "local" else "node exited"
         transcript = output.read_text()
-        service_failures = [line for line in transcript.splitlines() if "service.failed" in line]
+        service_failures = [line for line in transcript.splitlines() if "server.role.failed" in line]
         assert any("error_type" in line and "NotFound" in line for line in service_failures), transcript[-5000:]
         assert failure in transcript, transcript[-5000:]
         assert not launcher.services()

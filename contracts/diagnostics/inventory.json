@@ -1973,7 +1973,7 @@
         "AccessDenied": 2,
         "AuthorityRollback": 1,
         "AuthorityTransportDenied": 4,
-        "ChildExited": 7,
+        "ChildExited": 8,
         "ConfigurationUnavailable": 1,
         "FileNotFound": 3,
         "InstallationIdentityMismatch": 3,

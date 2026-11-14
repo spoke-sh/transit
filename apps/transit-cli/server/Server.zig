@@ -127,6 +127,7 @@ fn supervise(init: std.process.Init, options: @import("../Options.zig").Options,
             self.stop();
             self.transportDiagnostic();
             if (Signals.interrupted() or err == error.ServerStopped) return;
+            if (err == error.ChildExited) self.roleDiagnostic();
             diagnostic.role = @tagName(self.active_role);
             if (diagnostic.cause == null) diagnostic.cause = err;
             // Storage identity/rollback, local durability failure and explicit
@@ -556,6 +557,28 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const observed = parsed.value.growing_bootstrap;
     if (observed.version != 1 or observed.realm != connection.realm or observed.pid != pid or observed.principal != principal or observed.generation != generation) return error.InvalidRegistration;
     try installation.activate(observed);
+}
+
+fn roleDiagnostic(self: *Self) void {
+    const index = @backingInt(self.active_role);
+    if (index >= self.processes.len) return;
+    const log = &self.processes[index].stderr;
+    const json = self.installation.config.logging.format == .json;
+    const event = if (json) "\"name\":\"service.failed\"" else " service.failed ";
+    const prefix = if (json) "\"error_type\":\"" else "error_type=\"";
+    var lines = std.mem.splitScalar(u8, log.bytes[0..log.length], '\n');
+    while (lines.next()) |line| {
+        if (std.mem.indexOf(u8, line, event) == null) continue;
+        const offset = std.mem.indexOf(u8, line, prefix) orelse continue;
+        const tail = line[offset + prefix.len ..];
+        const end = std.mem.indexOfScalar(u8, tail, '"') orelse continue;
+        if (end == 0 or end > 64) continue;
+        for (tail[0..end]) |byte| if (!std.ascii.isAlphanumeric(byte)) return;
+        // Only a bounded error name from the joined role's terminal event is
+        // reported. Child output is diagnostic evidence, never authority.
+        self.diagnostics.event(.{ .name = "server.role.failed", .level = .err, .role = @tagName(self.active_role), .outcome = .failed, .error_type = tail[0..end] });
+        return;
+    }
 }
 
 fn transportDiagnostic(self: *Self) void {
