@@ -170,7 +170,7 @@ class Reference:
 
     def credentials(self, roles=None):
         for role, data in (("board", {"seed": "board/seed.key"}),
-                           ("maintenance", {"seed": "maintenance/seed.key"}), ("delivery", {"seed": "delivery/seed.key"}), ("controller", {"seed": "controller/seed.key"})):
+                           ("node", {"root": "operator/root.key", **({"registrar": "table/seed.key"} if (self.path / "table/seed.key").exists() else {})}), ("controller", {"seed": "controller/seed.key"})):
             if roles is not None and role not in roles:
                 continue
             # Structured stdin prevents credentials entering argv or Helm history.
@@ -233,14 +233,12 @@ class Reference:
 
     def service_values(self, values, selection, images):
         i = self.installation
-        values["node"].update(image=images["transit-node"], config=json.loads((self.path / "node.json").read_text()))
+        values["node"].update(image=images["transit"], existingSecret="node-credentials", config=json.loads((self.path / "transit.json").read_text()), table=json.loads((self.path / "table/config.json").read_text()) if (self.path / "table/config.json").exists() else None)
         values["board"].update(image=images["transit-board"], config=json.loads((self.path / "board/config.json").read_text()))
-        values.setdefault("delivery", {"enabled": False, "nameOverride": "delivery", "existingSecret": "delivery-credentials"})
-        values["delivery"].update(image=images["transit-delivery"], config={"realm": i.load()["realm"], "principal": 5})
         values["controller"].update(image=images["transit-runtime-controller"])
         if "provider" in values["controller"].get("config", {}):
             values["controller"]["config"]["provider"]["cli"] = selection["transit-runtime-controller"]["provider_cli"]
-        for role in ("node", "board", "maintenance", "controller", "delivery"):
+        for role in ("node", "board", "controller"):
             env = i.service_environment(role)
             values[role]["logging"] = {"level": env["LOG_LEVEL"], "format": env["LOG_FORMAT"]}
 
@@ -269,24 +267,15 @@ class Reference:
             values = self.values()
         else:
             values = {"running": True,
-                "node": {"enabled": False, "nameOverride": "transit"}, "initialize": {"enabled": False, "nameOverride": "initialize"},
+                "node": {"enabled": True, "nameOverride": "transit"},
                 "ursula": {"nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
                 "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
-                "maintenance": {"enabled": False, "nameOverride": "maintenance", "existingSecret": "maintenance-credentials"},
                 "controller": {"enabled": False, "nameOverride": "controller", "existingSecret": "controller-credentials"}}
         self.service_values(values, selection, images)
         values["running"] = True
         for pool in values.get("workerPools", []):
             pool["spec"]["replicas"] = 1
-        if not (self.path / "initialized.json").exists():
-            # Storage must be ready before the one-shot bootstrap Job starts.
-            # Retrying an incomplete bootstrap reuses the exact realm/genesis.
-            values["initialize"]["enabled"] = False
-            self.deploy(values)
-            values["initialize"]["enabled"] = True
-            self.deploy(values)
-            write(self.path / "initialized.json", True)
-        values["initialize"]["enabled"] = False
+        self.credentials(("node",))
         values["node"]["enabled"] = True
         self.deploy(values)
         self.forwards()
@@ -303,7 +292,7 @@ class Reference:
             values["controller"]["config"] = {"realm": self.installation.load()["realm"], "principal": 4, "pid": pid, "worker": 1, "provider": provider}
             values["workerPools"] = [pool]
         self.service_values(values, selection, images)
-        for role in ("board", "maintenance", "controller", "delivery"):
+        for role in ("board", "controller"):
             values[role]["enabled"] = True
         self.deploy(values)
         process = self.installation.view()
@@ -382,7 +371,6 @@ class Reference:
         from updates import publish, completed
         images = self.images(operation["selection"])
         values = self.values()
-        add_delivery = not values.get("delivery", {}).get("enabled", False)
         if "counter" in operation["services"]:
             if "new_provider" not in operation:
                 target, pool = self.workload(images["example-counter"], operation["configuration"])
@@ -406,14 +394,6 @@ class Reference:
         publish(self, operation)
         self.service_values(values, operation["selection"], images)
         self.deploy(values)
-        if add_delivery:
-            # The old authority cannot accept the new permission bit. Upgrade
-            # it first, then record the courier grant before enabling the pod.
-            wait_for(self.installation.url + "/health")
-            self.installation.provision()
-            self.credentials(("delivery",))
-            values["delivery"]["enabled"] = True
-            self.deploy(values)
         if "counter" in operation["services"]:
             target_hash = self.workload_hash(operation["new_provider"])
             self.await_process(lambda p: p["binding"]["workload"] == target_hash and not p["binding"].get("upgrade_from"), "template switch readback")
@@ -447,7 +427,7 @@ class Reference:
             self.intent(False, "restart")
             self.await_process(lambda p: p["binding"]["activation"] is not None, "fresh activation")
         else:
-            component = {"node": "transit", "board": "board", "controller": "controller", "maintenance": "maintenance", "delivery": "delivery", "ursula": "ursula"}.get(name)
+            component = {"node": "transit", "board": "board", "controller": "controller", "ursula": "ursula"}.get(name)
             if component is None:
                 raise ValueError("Unknown reference service")
             self.kube("rollout", "restart", "deployment/" + component)
@@ -458,7 +438,7 @@ class Reference:
             infrastructure.ate(self.state, ["logs", "actor", self.values()["controller"]["config"]["provider"]["actor"], "-a", self.namespace, "-c", "counter"])
             return
         name = "transit" if name == "node" else name
-        if name not in ("transit", "board", "controller", "maintenance", "delivery", "ursula"):
+        if name not in ("transit", "board", "controller", "ursula"):
             raise ValueError("Unknown service")
         self.kube("logs", "--tail=200", "deployment/" + name)
 

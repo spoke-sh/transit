@@ -5,42 +5,37 @@
 {{- $settings := index $.Values $component }}
 {{- if $settings.enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
-{{- $configComponent := ternary "node" $component (eq $component "initialize") }}
+{{- $configComponent := $component }}
 {{- $configCtx := dict "root" $ "component" $configComponent }}
-{{- $runtime := ternary $.Values.node $settings (has $component (list "initialize" "maintenance")) }}
-{{- $resources := ternary $.Values.node.resources $settings.resources (eq $component "initialize") }}
+{{- $runtime := $settings }}
+{{- $resources := $settings.resources }}
 ---
-apiVersion: {{ if eq $component "initialize" }}batch/v1{{ else }}apps/v1{{ end }}
-kind: {{ if eq $component "initialize" }}Job{{ else }}Deployment{{ end }}
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: {{ include "transit.name" $ctx }}
   labels:
     {{- include "transit.labels" $ctx | nindent 4 }}
 spec:
-  {{- if eq $component "initialize" }}
-  backoffLimit: 0
-  activeDeadlineSeconds: 120
-  {{- else }}
-  # The qualified profile has one authority and one maintenance reconciler.
+  # One server owns authority, maintenance and delivery; workers remain external.
   replicas: {{ ternary 1 0 $.Values.running }}
   strategy: {type: Recreate}
   selector:
     matchLabels:
       {{- include "transit.labels" $ctx | nindent 6 }}
-  {{- end }}
   template:
     metadata:
       labels:
         {{- include "transit.labels" $ctx | nindent 8 }}
       annotations:
         checksum/config: {{ include "transit.config" $configCtx | sha256sum }}
+        {{- if eq $component "node" }}
+        checksum/table: {{ $.Values.node.table | toJson | sha256sum }}
+        {{- end }}
     spec:
       automountServiceAccountToken: false
       {{- if eq $component "controller" }}
       serviceAccountName: {{ include "transit.name" $ctx }}
-      {{- end }}
-      {{- if eq $component "initialize" }}
-      restartPolicy: Never
       {{- end }}
       {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
@@ -66,19 +61,19 @@ spec:
             - --config
             - /config/ursula.toml
             {{- else }}
-            - /config/config.json
-            {{- if eq $component "initialize" }}
-            - --initialize
-            {{- else if eq $component "maintenance" }}
-            - --maintain
+            {{- if eq $component "node" }}
+            - server
+            - --no-ui
+            - --config
             {{- end }}
+            - /config/config.json
             {{- end }}
           env:
             {{- if eq $component "ursula" }}
             - {name: RUST_LOG, value: warn}
             - {name: TOKIO_WORKER_THREADS, value: "2"}
             {{- else }}
-            {{- $logging := ternary $.Values.node.logging $settings.logging (eq $component "initialize") }}
+            {{- $logging := $settings.logging }}
             - {name: LOG_FORMAT, value: {{ $logging.format | quote }}}
             - {name: LOG_LEVEL, value: {{ $logging.level | quote }}}
             {{- end }}
@@ -100,12 +95,6 @@ spec:
                   value: {{ regexReplaceAll "^https?://" $settings.config.public_origin "" | quote }}
               {{- end }}
             periodSeconds: 2
-          {{- else if eq $component "delivery" }}
-          readinessProbe:
-            exec:
-              command: [/bin/transit-delivery, /config/config.json, --check]
-            periodSeconds: 5
-            timeoutSeconds: 6
           {{- else if eq $component "controller" }}
           readinessProbe:
             exec:
@@ -115,7 +104,7 @@ spec:
           {{- end }}
           volumeMounts:
             - {name: config, mountPath: /config, readOnly: true}
-            {{- if and (has $component (list "node" "initialize")) (hasKey $.Values.node.config "local_directory") }}
+            {{- if eq $component "node" }}
             - {name: native-data, mountPath: /data}
             {{- end }}
             {{- if and (eq $component "node") $.Values.node.existingSecret }}
@@ -123,7 +112,7 @@ spec:
             {{- end }}
             {{- if eq $component "ursula" }}
             - {name: data, mountPath: /data}
-            {{- else if has $component (list "maintenance" "board" "controller" "delivery" "station") }}
+            {{- else if has $component (list "board" "controller" "station") }}
             - {name: secrets, mountPath: /secrets, readOnly: true}
             {{- if eq $component "controller" }}
             - {name: provider, mountPath: /provider, readOnly: true}
@@ -135,7 +124,7 @@ spec:
         {{- end }}
         {{- end }}
       volumes:
-        {{- if and (has $component (list "node" "initialize")) (hasKey $.Values.node.config "local_directory") }}
+        {{- if eq $component "node" }}
         - name: native-data
           persistentVolumeClaim:
             claimName: {{ default (include "transit.name" (dict "root" $ "component" "node")) $.Values.node.persistence.existingClaim }}
@@ -159,7 +148,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
-        {{- else if has $component (list "maintenance" "board" "controller" "delivery" "station") }}
+        {{- else if has $component (list "board" "controller" "station") }}
         - name: secrets
           secret:
             secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}
@@ -179,6 +168,6 @@ spec:
 {{- end }}
 {{- end }}
 {{- end }}
-{{- range $component := list "node" "ursula" "maintenance" "board" "initialize" "controller" "delivery" }}
+{{- range $component := list "node" "ursula" "board" "controller" }}
 {{ include "transit.workload" (dict "root" $ "component" $component) }}
 {{- end }}

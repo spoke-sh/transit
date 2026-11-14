@@ -1,5 +1,5 @@
 {{- if .Values.networkPolicy.enabled }}
-{{- range $component := list "board" "delivery" }}
+{{- range $component := list "board" }}
 {{- if (index $.Values $component).enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
 apiVersion: networking.k8s.io/v1
@@ -43,7 +43,7 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        {{- range $component := list "node" "maintenance" "initialize" }}
+        {{- range $component := list "node" }}
         - podSelector:
             matchLabels:
               {{- include "transit.labels" (dict "root" $ "component" $component) | nindent 14 }}

@@ -53,7 +53,6 @@ def run():
 
     root_key, root_public = key("root")
     controller_key, controller_public = key("controller")
-    maintenance_key, maintenance_public = key("maintenance")
     _, worker_public = key("initial-worker")
     port = free_port()
     url = f"http://127.0.0.1:{port}"
@@ -111,19 +110,20 @@ def run():
     def actor():
         return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
 
-    config = {"genesis": {"realm": 49, "root_key": root_public, "allow_history_trim": True, "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
-              "bucket": "transit-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
+    config = {"realm": 49, "applications": None, "sql": {"native": {"local": False}},
+              "external": {"allow_history_trim": True, "ursula": {"url": f"http://ursula.{namespace}.svc.cluster.local:8080",
+                                      "bucket": "transit-reference", "journal": "authority"}}}
     from interfaces.deployment.reference_chart import Chart
     chart = Chart(s, directory, namespace, images, config)
     try:
         apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}})
-        chart.deploy()
-        chart.deploy(initialize={"enabled": True})
-        # Ordinary pod restarts never create a missing realm.
-        chart.deploy(initialize={"enabled": False}, node={"enabled": True})
+        apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "node-root", "namespace": namespace},
+               "stringData": {"root": root_key.read_text()}})
+        chart.deploy(node={"enabled": True})
         forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
                             "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "port-forward")
         time.sleep(1)
+        sequence = post("/v1/query", {"realm": 49, "principal": 0, "kind": {"capabilities": {}}}, "sign-query")["principal_sequence"]
         pid = command({"spawn": {}})
         command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
         command({"grant": {"subject": 2, "public_key": controller_public, "permissions": 17, "pid": pid}})
@@ -201,13 +201,9 @@ def run():
         assert await_state(pid, 1153)["process"]["pid"] == pid
         # Independent maintenance survives lack of incoming requests and trims
         # while the original authority stays running. No key reaches workers.
-        command({"grant": {"subject": 3, "public_key": maintenance_public, "permissions": 161}})
         deadline = int(time.time() * 1000) + 5000
         finite_pid = command({"spawn": {"work_before_ms": deadline, "settle_before_ms": deadline + 1000}})
         command({"send": {"pid": finite_pid, "value": 99}})
-        apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "maintenance", "namespace": namespace},
-               "stringData": {"seed": maintenance_key.read_text()}})
-        chart.deploy(maintenance={"enabled": True, "existingSecret": "maintenance"})
         limit = time.monotonic() + 60
         while view(finite_pid)["process"]["lifecycle"] != "expired":
             assert time.monotonic() < limit, "Finite process did not expire"
@@ -249,7 +245,7 @@ def run():
         board_history = board.read(f"processes/{pid}/history")["observation"]
         board.evidence["retained_history"] = {key: board_history[key] for key in ("cut", "history", "complete")}
         diagnostic_evidence = {}
-        for deployment_name, container_name, event in (("transit", "transit", "transit.http.request"), ("maintenance", "maintenance", "transit.maintenance.step"), ("board", "board", "board.http.request")):
+        for deployment_name, container_name, event in (("transit", "transit", "transit.http.request"), ("transit", "transit", "transit.maintenance.step"), ("board", "board", "board.http.request")):
             output = ref.kube(s, ["-n", namespace, "logs", "deployment/" + deployment_name, "-c", container_name, "--tail=500"], capture=True)
             parsed_logs = [json.loads(line) for line in output.splitlines() if line.startswith('{"schema_version":')]
             assert any(r.get("event", {}).get("name") == event for r in parsed_logs), (deployment_name, output[-3000:])

@@ -59,34 +59,20 @@ class StationReference(Reference):
         selection = i.artifacts.read("selected")
         images = self.images(selection)
         values = self.values() if (self.path / "chart-values.json").exists() else {
-            "running": True, "node": {"enabled": False, "nameOverride": "transit"},
-            "initialize": {"enabled": False, "nameOverride": "initialize"},
+            "running": True, "node": {"enabled": True, "nameOverride": "transit"},
             "ursula": {"enabled": False, "nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
             "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
-            "maintenance": {"enabled": False, "nameOverride": "maintenance", "existingSecret": "maintenance-credentials"},
             "controller": {"enabled": False}, "runtimeControllers": [], "stationControllers": []}
         self.service_values(values, selection, images)
         values["running"] = True
         for pool in values.get("workerPools", []): pool["spec"]["replicas"] = 1
-        if not (self.path / "initialized.json").exists():
-            # The initializer is the native volume's first consumer. Deploy it
-            # with the PVC so WaitForFirstConsumer storage classes can bind;
-            # waiting on an unused PVC first would deadlock Helm readiness.
-            values["initialize"]["enabled"] = True
-            self.deploy(values)
-            write(self.path / "initialized.json", True)
-        values["initialize"]["enabled"] = False
+        self.credentials(("node",))
         values["node"]["enabled"] = True
         self.deploy(values)
         self.forwards()
         wait_for(i.url + "/health")
         i.provision()
-        self.credentials(("board", "delivery"))
-        self.kube("apply", "-f", "-", input=json.dumps({"apiVersion": "v1", "kind": "Secret",
-            "metadata": {"name": "station-node-credentials"}, "stringData": {
-                "registrar": (self.path / 'table/seed.key').read_text().strip(),
-                "maintenance": (self.path / 'maintenance/seed.key').read_text().strip()}}))
-        values['node']['existingSecret'] = 'station-node-credentials'
+        self.credentials(("board", "node"))
         self.service_values(values, selection, images)
         self.deploy(values)
         wait_for(i.url + '/health')
@@ -116,7 +102,7 @@ class StationReference(Reference):
             self.secret(role + "-credentials", self.path / role / "seed.key")
             config = json.loads((self.path / role / "config.json").read_text())
             values["stationControllers"].append({"nameOverride": role, "existingSecret": role + "-credentials", "config": config})
-        for role in ("board", "delivery"): values[role]["enabled"] = True
+        for role in ("board",): values[role]["enabled"] = True
         self.service_values(values, selection, images)
         self.deploy(values)
         for role in i.workloads:
