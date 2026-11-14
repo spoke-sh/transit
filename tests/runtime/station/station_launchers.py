@@ -235,8 +235,12 @@ def exercise(profile, name=None, base=None, existing=False):
             failed = installation.process("ledger")
             assert failed["pid"] == previous["pid"] and failed["generation"] > previous["generation"]
             assert failed["failure"] == failed_input
-            assert failed["binding"]["activation"] is not None
-            assert failed["binding"]["activation"]["worker_incarnation"] != previous["binding"]["activation"]["worker_incarnation"]
+            # The repeated failed turn fences the fresh activation. Its retained
+            # incarnation proves activation occurred, without claiming it is
+            # still authorized to execute after that failure.
+            assert failed["binding"]["activation"] is None
+            incarnation = failed["binding"]["last_worker_incarnation"]
+            assert incarnation is not None and incarnation != previous["binding"]["activation"]["worker_incarnation"]
             supervision = {"input": failed_input, "attempts": 1, "phase": "exhausted",
                            "before": previous, "after": failed}
         evidence = ROOT / ".cache/m9" / ("station-" + profile + "-evidence.json")
