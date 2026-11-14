@@ -49,7 +49,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-native-client-fixture", "Build the private signed ingress driver").dependOn(&b.addInstallArtifact(native_client_fixture, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
     @import("native_fixtures.zig").register(b, target, optimize, context, native_client_fixture);
     const node_artifact = context.node_artifact;
-    const delivery_artifact = context.delivery_artifact;
     const controller_artifact = context.controller_artifact;
     const kubectl_transit = context.kubectl_transit;
     const station_controller = context.station_controller;
@@ -2223,10 +2222,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const station_test = b.addSystemCommand(&.{ "python3", "-B" });
     station_test.addFileArg(b.path("tests/runner/launch.py"));
     station_test.addFileArg(b.path("tests/runtime/station/station.py"));
-    station_test.addArtifactArg(node_artifact);
+    station_test.addArtifactArg(transit_cli);
     station_test.addArtifactArg(native_client_fixture);
     station_test.addArtifactArg(station_ledger);
-    station_test.addArtifactArg(delivery_artifact);
     station_test.addArtifactArg(station_controller);
     station_test.has_side_effects = true;
     station_test.stdio = .inherit;
@@ -2353,7 +2351,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     callers.addFileArg(b.path("tests/runner/launch.py"));
     callers.addFileArg(b.path("tests/runtime/application/callers.py"));
     // Both callers use the exact same authority and private native driver.
-    callers.addArtifactArg(node_artifact);
+    callers.addArtifactArg(transit_cli);
     callers.addArtifactArg(native_client_fixture);
     for (example_artifacts) |example| callers.addArtifactArg(example);
     const client_probe = b.addExecutable(.{ .name = "client-probe", .root_module = b.createModule(.{
@@ -2363,7 +2361,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     callers.addArtifactArg(client_probe);
-    callers.addArtifactArg(delivery_artifact);
     build_test_step.dependOn(&client_probe.step);
     callers.has_side_effects = true;
     callers.stdio = .inherit;
@@ -2371,11 +2368,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const vortex = b.addSystemCommand(&.{ "python3", "-B" });
     vortex.addFileArg(b.path("tests/runner/launch.py"));
     vortex.addFileArg(b.path("tests/runtime/delivery/vortex.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, native_client_fixture, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ transit_cli, native_client_fixture, example_artifacts[0] }) |artifact| vortex.addArtifactArg(artifact);
     vortex.addPassthruArgs();
     vortex.has_side_effects = true;
     vortex.stdio = .inherit;
-    b.step("test-vortex", "Supervise real workers/courier/node and disk Ursula through external faults").dependOn(&vortex.step);
+    b.step("test-vortex", "Supervise server-owned delivery, real workers and disk Ursula through external faults").dependOn(&vortex.step);
     const capacity = b.addExecutable(.{ .name = "transit-capacity-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/retention/capacity.zig"),
         .target = target,

@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import signal
 import copy
 import hashlib
 from pathlib import Path
@@ -21,10 +22,10 @@ def frame(payload, kind=1, correlation=0):
     return (b"STN1" + bytes([kind]) + struct.pack("<Q", correlation) + payload).hex()
 
 
-def run(node, cli, worker, courier):
+def run(server, cli, worker):
     # Capturing the current query format stages durable catalog pages. Use the
     # paged SDK fixture's request budget, independent of inspection deadlines.
-    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True) as s:
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
         def value(resource, key):
             revision = s.native_query({'resource': resource})['body']['resource']['revision']
             entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
@@ -78,12 +79,6 @@ def run(node, cli, worker, courier):
         assert total() == 0
         assert value(ledger_resource, b"\x00station") == b"station.genserver.v1"
 
-        delivery_seed, public = s.key("courier")
-        s.command({"grant": {"subject": 3, "public_key": public, "permissions": 132}})
-        delivery_config = s.root / "courier.json"
-        delivery_config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 3,
-                                               "seed_file": str(delivery_seed), "interval_ms": 10}))
-        delivery_daemon = s.start(courier, delivery_config)
         def await_input(pid):
             for _ in range(200):
                 if s.native_query({"process": pid})["body"]["process"]["input"] is not None:
@@ -239,8 +234,7 @@ def run(node, cli, worker, courier):
             release.set()
             s.authority.kill(); s.authority.wait(timeout=10)
             s.store.stop(); s.store.start()
-            s.authority = s.start(s.node, s.config)
-            wait_ready(s.store.http, s.authority, s.url + '/health')
+            s.restart_authority()
             s.command({'own': {'pid': ledger, 'worker': 1, 'expected_generation': 4}})
             current = {**ledger_config, 'generation': 5}
             once(ledger_config, success=False)
@@ -330,7 +324,7 @@ def run(node, cli, worker, courier):
             # reads and the application's sharing policy. Storage ownership
             # cannot substitute for the original query's selected data role.
             namespace = upload_query()
-            delivery_daemon.terminate(); delivery_daemon.wait(timeout=10)
+            s.delivery_signal(signal.SIGSTOP)
             once(current)
             authority = ledger_config['authorization']
             binding = list(hashlib.sha256(b'transit.catalog.authorization.binding.v1\0' + bytes.fromhex(changes.definition)
@@ -341,7 +335,7 @@ def run(node, cli, worker, courier):
             assert grants['next'] is None and len(select) == 1, grants
             changes.apply('deny-query-select', {'revoke': dict(id=select[0]['id'], privileges=1,
                 grant_option_only=False, behavior='restrict')})
-            delivery_daemon = s.start(courier, delivery_config)
+            s.delivery_signal(signal.SIGCONT)
             pump_until(lambda: phase(namespace) == 6, [current, requester_config])
             assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
             changes.apply('restore-query-select', {'grant': dict(object=target, grantee=authority['role'], privileges=1)})
@@ -349,11 +343,11 @@ def run(node, cli, worker, courier):
 
             # Revoke policy between retained capture and the next self-input.
             namespace = upload_query()
-            delivery_daemon.terminate(); delivery_daemon.wait(timeout=10)
+            s.delivery_signal(signal.SIGSTOP)
             once(current)
             s.command({'send': {'pid': ledger, 'value': frame(b'deny-query')}})
             once(current)
-            delivery_daemon = s.start(courier, delivery_config)
+            s.delivery_signal(signal.SIGCONT)
             pump_until(lambda: phase(namespace) == 6, [current, requester_config])
             assert value(requester_resource, b'answer') == b'station.query.error.QueryDenied'
             drain_ledger()
@@ -386,8 +380,8 @@ def run(node, cli, worker, courier):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:5])
+    run(*sys.argv[1:4])
     from runtime.station.station_services import run as services
     services(*sys.argv[1:])
     from runtime.station.station_lifetime import run as lifetime
-    lifetime(*sys.argv[1:5])
+    lifetime(*sys.argv[1:4])

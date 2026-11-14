@@ -21,15 +21,17 @@ import threading
 import time
 
 from harness.ursula import Fixture
-from harness.services import free_port, wait_ready
+from harness.services import free_port
+from harness.local_installation import ExternalInstallation
+from harness.processes import children as owned_children, command as process_command
 
 
 
 class Peer(ThreadingHTTPServer):
     daemon_threads = False
 
-    def __init__(self, port, record):
-        super().__init__(('127.0.0.1', 0), Handler)
+    def __init__(self, port, record, listen=0):
+        super().__init__(('127.0.0.1', listen), Handler)
         self.upstream = port
         self.record = record
         self.mutex = threading.Lock()
@@ -40,6 +42,7 @@ class Peer(ThreadingHTTPServer):
         self.attempts = {}
         self.last_fault_identity = None
         self.errors = []
+        self.delivery_enabled = False
 
     def arm(self, principal, command, fault, delay):
         with self.mutex:
@@ -54,6 +57,21 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
+    def do_GET(self):
+        connection = HTTPConnection('127.0.0.1', self.server.upstream, timeout=8)
+        try:
+            connection.request('GET', self.path)
+            response = connection.getresponse()
+            data = response.read()
+            self.send_response(response.status)
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+        except (OSError, ConnectionError):
+            self.close_connection = True
+        finally:
+            connection.close()
+
     def do_POST(self):
         peer = self.server
         rule = None
@@ -67,6 +85,13 @@ class Handler(BaseHTTPRequestHandler):
             envelope = json.loads(body)
             request = envelope.get('request', envelope.get('query'))
             command = next(iter(request.get('command', {})), None)
+            if command == 'deliver' and not peer.delivery_enabled:
+                self.send_response(503)
+                data = b'{"err":"AuthorityUnavailable"}'
+                self.send_header('Content-Length', str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
             digest = hashlib.sha256(body).hexdigest()
             with peer.mutex:
                 if command:
@@ -87,7 +112,11 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 time.sleep(rule['delay'])
             connection = HTTPConnection('127.0.0.1', peer.upstream, timeout=8)
-            connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+            headers = {'Content-Type': 'application/json'}
+            for name in ('x-transit-control', 'x-transit-wait'):
+                if (value := self.headers.get(name)) is not None:
+                    headers[name] = value
+            connection.request('POST', self.path, body, headers)
             response = connection.getresponse()
             data = response.read(1024 * 1024 + 1)
             if len(data) > 1024 * 1024:
@@ -149,9 +178,9 @@ def verify(state, expected, pid, sink):
 
 def scenario(args, destination, record, report):
     rng = random.Random(args.seed)
-    binaries = dict(zip(('node', 'cli', 'worker', 'courier'), args.binaries))
+    binaries = dict(zip(('server', 'cli', 'worker'), args.binaries))
     children, handles = [], []
-    peer = thread = None
+    peer = thread = fixture = None
     # Keep disk tests off Nix's potentially memory-backed TMPDIR.
     disk = ROOT / '.cache/verification/storage'
     disk.mkdir(parents=True, exist_ok=True)
@@ -171,7 +200,9 @@ def scenario(args, destination, record, report):
 
     def stop(child, actor):
         record('kill_requested', actor=actor, pid=child.pid)
-        if child.poll() is None:
+        if fixture is not None and child is fixture.process:
+            fixture.stop(kill=True)
+        elif child.poll() is None:
             os.killpg(child.pid, signal.SIGKILL)
         child.wait(timeout=10)
         record('process_exited', actor=actor, pid=child.pid, code=child.returncode)
@@ -185,8 +216,13 @@ def scenario(args, destination, record, report):
     try:
         with store:
             try:
-                port = free_port()
-                url = f'http://127.0.0.1:{port}'
+                fixture = ExternalInstallation(binaries['server'], ursula=store.url)
+                fixture.config['realm'] = 61
+                peer = Peer(fixture.config['ports']['node'], record)
+                fixture.route_courier(f'http://127.0.0.1:{peer.server_port}')
+                thread = threading.Thread(target=peer.serve_forever, name='vortex-proxy')
+                thread.start()
+                url = fixture.url
 
                 def key(name):
                     path = store.root / f'{name}.key'
@@ -194,21 +230,19 @@ def scenario(args, destination, record, report):
                     path.chmod(0o600)
                     return path, invoke([binaries['cli'], 'native', 'public-key', path])
 
-                root_key, public = key('root')
+                root_key = fixture.installation / 'root.seed'
                 worker_key, worker_public = key('worker')
-                courier_key, courier_public = key('courier')
-                config = store.root / 'node.json'
-                config.write_text(json.dumps(dict(genesis=dict(realm=61, root_key=public, max_clock_error_ms=10000),
-                    ursula_url=store.url, bucket='vortex', journal='authority', port=port)))
-                subprocess.run([str(binaries['node']), str(config), '--initialize'], check=True, capture_output=True, timeout=20, env=store.env)
+                courier_key = fixture.installation / 'courier.seed'
 
                 def node():
-                    child = start('node', [binaries['node'], config])
-                    wait_ready(store.http, child, url + '/health')
-                    return child
+                    fixture.stop()
+                    fixture.start()
+                    fixture.ready()
+                    record('process_started', actor='server', pid=fixture.process.pid)
+                    return fixture.process
 
                 authority = node()
-                sequence = 0
+                sequence = None
 
                 def command(value):
                     nonlocal sequence
@@ -225,26 +259,21 @@ def scenario(args, destination, record, report):
                     response = invoke([binaries['cli'], 'native', 'query', credential or root_key, path, url])
                     return response if full else response['body']
 
+                sequence = query(dict(capabilities={}), full=True)['principal_sequence']
                 pid = command(dict(spawn={}))
                 sink = command(dict(spawn={}))
                 command(dict(grant=dict(subject=1, public_key=worker_public, permissions=88, pid=pid)))
-                command(dict(grant=dict(subject=2, public_key=courier_public, permissions=132)))
                 resource = command(dict(create_resource=dict(writer=pid)))
                 for subject in (0, 1):
                     command(dict(grant_resource=dict(resource=resource, subject=subject, permissions=7)))
                 command(dict(associate=dict(pid=pid, name=b'counter'.hex(), resource=resource)))
                 command(dict(own=dict(pid=pid, expected_generation=1, worker=1)))
                 command(dict(own=dict(pid=sink, expected_generation=0, worker=0)))
-                peer = Peer(port, record)
-                thread = threading.Thread(target=peer.serve_forever, name='vortex-proxy')
-                thread.start()
                 proxy_url = f'http://127.0.0.1:{peer.server_port}'
                 worker_config = store.root / 'worker.json'
                 worker_options = dict(url=proxy_url, realm=61, principal=1, pid=pid, generation=2,
                                       state_association='counter', publish_to=sink, seed_file=str(worker_key))
                 worker_config.write_text(json.dumps(worker_options))
-                courier_config = store.root / 'courier.json'
-                courier_config.write_text(json.dumps(dict(url=proxy_url, realm=61, principal=2, seed_file=str(courier_key), interval_ms=20)))
                 report['topology'] = dict(realm=61, pid=pid, sink=sink, resource=resource, authority=url,
                     proxy=proxy_url, store=store.url, wal='disk', filesystem=subprocess.check_output(['stat', '-f', '-c', '%T', store.root], text=True).strip())
                 expected = []
@@ -264,6 +293,7 @@ def scenario(args, destination, record, report):
                     assert not peer.errors, peer.errors
 
                 for index in range(args.rounds):
+                    peer.delivery_enabled = False
                     value = rng.randrange(1, 10)
                     expected.append(value + (expected[-1] if expected else 0))
                     command(dict(send=dict(pid=pid, value=str(value).encode().hex())))
@@ -288,27 +318,26 @@ def scenario(args, destination, record, report):
                             assert peer.attempts[retry_identity][1] >= 2, 'worker never retried lost request'
                         stop(worker, 'worker')
                     assert query(dict(process=pid))['process']['process']['consumed'] == len(expected)
-                    peer.arm(2, 'deliver', 'drop_response', .03)
-                    courier = start('courier', [binaries['courier'], courier_config])
+                    peer.arm(22, 'deliver', 'drop_response', .03)
+                    courier = next(child for child in owned_children(fixture.process.pid)
+                                   if '/courier.json' in process_command(child))
+                    peer.delivery_enabled = True
                     fault_done()
                     retry_identity = peer.last_fault_identity
-                    record('pause_requested', actor='courier', pid=courier.pid)
-                    os.kill(courier.pid, signal.SIGSTOP)
+                    record('pause_requested', actor='courier', pid=courier)
+                    os.kill(courier, signal.SIGSTOP)
                     def paused():
-                        observed, status = os.waitpid(courier.pid, os.WUNTRACED | os.WNOHANG)
-                        if not observed:
-                            return False
-                        assert os.WIFSTOPPED(status), 'courier exited before pause observation'
-                        return True
+                        return '\nState:\tT' in Path(f'/proc/{courier}/status').read_text()
                     until(paused, 'courier pause observation')
-                    record('pause_observed', actor='courier', pid=courier.pid)
-                    os.kill(courier.pid, signal.SIGCONT)
-                    record('resume_requested', actor='courier', pid=courier.pid)
+                    record('pause_observed', actor='courier', pid=courier)
+                    os.kill(courier, signal.SIGCONT)
+                    record('resume_requested', actor='courier', pid=courier)
                     until(lambda: peer.attempts[retry_identity][1] >= 2, 'courier exact retry')
-                    until(lambda: query(dict(delivery={}), 2, courier_key)['delivery']['next'] is None, 'courier progress')
-                    stop(courier, 'courier')
-                    # Recover/replay the courier against current history.
-                    subprocess.run([str(binaries['courier']), str(courier_config), '--once'], check=True, capture_output=True, timeout=20, env=store.env)
+                    until(lambda: query(dict(delivery={}), 22, courier_key)['delivery']['next'] is None, 'courier progress')
+                    record('kill_requested', actor='courier', pid=courier)
+                    os.kill(courier, signal.SIGKILL)
+                    fixture.ready()
+                    assert query(dict(delivery={}), 22, courier_key)['delivery']['next'] is None
                     source = query(dict(process=sink))['process']
                     item = source['input']
                     assert item is not None and int(bytes.fromhex(item['value'])) == expected[-1]
@@ -332,6 +361,9 @@ def scenario(args, destination, record, report):
                     verify(state, expected, pid, sink)
                     record('checked', round=index, state=state, expected=expected.copy())
                     report['rounds_completed'] = index + 1
+                    # Each schedule starts a new manager, preserving its finite
+                    # restart budget while retaining the same installation.
+                    authority = node()
                 # Real current policy and stale ownership refusals, after progress.
                 command(dict(grant=dict(subject=1, public_key=worker_public, permissions=0, pid=pid)))
                 denied = subprocess.run([str(binaries['worker']), '--once', str(worker_config)], capture_output=True, text=True, timeout=20, env=store.env)
@@ -356,6 +388,8 @@ def scenario(args, destination, record, report):
                         raise AssertionError(f'negative control survived: {field}')
                 report['negative_controls'] = ['resource', 'original_destination', 'duplicate_admission']
             finally:
+                if fixture:
+                    fixture.stop()
                 for child in children:
                     if child.poll() is None:
                         stop(child, 'cleanup')
@@ -374,7 +408,7 @@ def scenario(args, destination, record, report):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('binaries', type=Path, nargs=4)
+    parser.add_argument('binaries', type=Path, nargs=3)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--rounds', type=int, default=4)
     args = parser.parse_args()

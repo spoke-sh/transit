@@ -7,11 +7,10 @@ import time
 from interfaces.inspection.inspection import System
 from runtime.station.station import frame
 from runtime.station.station_ledger import audit_total, provision
-from harness.services import wait_ready
 
 
-def run(node, cli, worker, courier):
-    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True) as s:
+def run(server, cli, worker):
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
         deadline = int(time.time() * 1000) + 120000
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
         resource = s.command({"create_resource": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}})
@@ -24,11 +23,6 @@ def run(node, cli, worker, courier):
         provision(s, [(resource, application)])
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 2}})
         config = s.root / "station.json"
-        courier_seed, courier_public = s.key('courier')
-        s.command({'grant': {'subject': 3, 'public_key': courier_public, 'permissions': 132}})
-        courier_config = s.root / 'courier.json'
-        courier_config.write_text(json.dumps(dict(url=s.url, realm=72, principal=3, seed_file=str(courier_seed), interval_ms=10)))
-        s.start(courier, courier_config)
 
         def once(generation, error=None):
             config.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 1,
@@ -74,8 +68,7 @@ def run(node, cli, worker, courier):
         captured = query("entries")
         s.authority.kill(); s.authority.wait(timeout=10)
         s.store.stop(); s.store.start()
-        s.authority = s.start(node, s.config)
-        wait_ready(s.store.http, s.authority, s.url + "/health")
+        s.restart_authority()
         assert query("entries") == captured
         rejection({"suspend": {"pid": pid, "expected_generation": 3,
             "resume_before_ms": deadline + 1}}, "StateResourceExpired")
@@ -97,12 +90,10 @@ def run(node, cli, worker, courier):
         rejection({"resume": {"pid": pid, "expected_generation": 7}}, "DeadlineExpired")
         # Native local storage has one physical owner. Maintenance runs within
         # that node; a second process cannot open the same durable directory.
-        settings = json.loads(s.config.read_text())
-        settings['maintenance'] = dict(principal=0, seed_file=str(s.seed), interval_ms=25)
-        s.authority.terminate(); s.authority.wait(timeout=10)
-        s.config.write_text(json.dumps(settings))
-        s.authority = s.start(node, s.config)
-        wait_ready(s.store.http, s.authority, s.url + '/health')
+        # The server already owns a separately authorized maintenance identity.
+        s.server.config['external']['maintenance'] = {'interval_ms': 25}
+        s.server.path.write_text(json.dumps(s.server.config))
+        s.restart_authority()
         maintenance = s.authority
         until = time.monotonic() + 15
         while query("resources")["resources"][0]["phase"] != "reclaimed":
@@ -111,8 +102,7 @@ def run(node, cli, worker, courier):
         assert s.inspect("process", pid)["processes"][0]["lifecycle"] == "expired"
         once(6, "ProcessExpired")
         s.authority.kill(); s.authority.wait(timeout=10)
-        s.authority = s.start(node, s.config)
-        wait_ready(s.store.http, s.authority, s.url + "/health")
+        s.restart_authority()
         assert query("resources")["resources"][0]["phase"] == "reclaimed"
         once(6, "ProcessExpired")
     print("Station lifetime: direct ledger survives recovery, suspension fits dependencies, and expired native progress remains permanently reclaimed")

@@ -40,7 +40,7 @@ def available_post(post, path, signed):
 
 class System:
     def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800,
-                 storage_config=None, local=False):
+                 storage_config=None, local=False, server=None):
         self.node, self.cli = node, cli
         self.local = local
         self.store = Fixture(storage_config, retain_on_failure=True)
@@ -49,11 +49,28 @@ class System:
         self.clock_error_ms = clock_error_ms
         self.allow_history_trim = allow_history_trim
         self.request_timeout_ms = request_timeout_ms
+        self.server_binary = server
+        self.server = None
 
     @phase("provision", "inspection-authority")
     def __enter__(self):
         self.store.__enter__()
         self.root = self.store.root
+        if self.server_binary:
+            from harness.local_installation import ExternalInstallation
+            self.server = ExternalInstallation(self.server_binary, ursula=None if self.local else self.store.url)
+            self.server.config['realm'] = 72
+            self.server.config['external']['request_timeout_ms'] = self.request_timeout_ms
+            if self.allow_history_trim:
+                self.server.config['external']['allow_history_trim'] = True
+            self.server.path.write_text(json.dumps(self.server.config))
+            self.restart_authority()
+            self.seed = self.server.installation / 'root.seed'
+            self.url = self.server.url
+            self.port = self.server.config['ports']['node']
+            self.config = self.server.installation / 'node.json'
+            self.sequence = self.native_query({'capabilities': {}})['principal_sequence']
+            return self
         self.seed, public = self.key("root")
         self.port = free_port()
         self.url = f"http://127.0.0.1:{self.port}"
@@ -71,6 +88,13 @@ class System:
 
     @phase("teardown", "inspection-authority")
     def __exit__(self, *exc):
+        if self.server:
+            self.server.cleanup()
+            if exc[0] is None:
+                import shutil
+                shutil.rmtree(self.server.root)
+            else:
+                print(f'Failed server evidence retained: {self.server.root}', file=sys.stderr)
         for child in reversed(self.children):
             if child.poll() is None:
                 child.kill()
@@ -81,6 +105,39 @@ class System:
                 print(log.read()[-5000:], file=sys.stderr)
             log.close()
         self.store.__exit__(*exc)
+
+    def restart_authority(self):
+        if self.server:
+            self.server.stop()
+            self.server.start()
+            self.server.ready()
+            self.authority = self.server.process
+        else:
+            self.authority = self.start(self.node, self.config)
+            wait_ready(self.store.http, self.authority, self.url + '/health')
+
+    def configure_table(self, table):
+        if self.server:
+            path = self.root / 'table.json'
+            path.write_text(json.dumps(table))
+            self.server.config['external']['table_file'] = str(path)
+            self.server.path.write_text(json.dumps(self.server.config))
+            self.restart_authority()
+        else:
+            settings = json.loads(self.config.read_text())
+            assert 'local_directory' in settings
+            settings['table'] = table
+            self.authority.terminate()
+            self.authority.wait(timeout=15)
+            self.config.write_text(json.dumps(settings))
+            self.restart_authority()
+
+    def delivery_signal(self, signum):
+        from harness.processes import children, command
+        assert self.server is not None
+        couriers = [pid for pid in children(self.server.process.pid) if '/courier.json' in command(pid)]
+        assert len(couriers) == 1, couriers
+        os.kill(couriers[0], signum)
 
     def start(self, binary, *args, **kwargs):
         log = (self.root / f"child-{len(self.logs)}.log").open("w+")

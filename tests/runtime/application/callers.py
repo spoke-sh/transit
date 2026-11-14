@@ -3,38 +3,40 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import signal
+import shutil
 from pathlib import Path
 import subprocess
 import sys
 import threading
 import time
 from harness.ursula import Fixture
-from harness.services import free_port, wait_ready
+from harness.local_installation import ExternalInstallation
+from interfaces.installation.server_application_faults import install_peer, publish_evidence
 
 
-def run(node, cli, counter, byte_log, probe, delivery):
+def run(server, cli, counter, byte_log, probe):
     with Fixture() as store:
         children, logs = [], []
+        fixture = ExternalInstallation(server, ursula=store.url)
+        fixture.config['realm'] = 61
+        install_peer(fixture)
+        completed = False
         def start():
-            log = (store.root / f"node-{len(logs)}.log").open("w+")
-            logs.append(log)
-            child = subprocess.Popen([str(node), str(config)], stdout=log, stderr=subprocess.STDOUT)
-            children.append(child)
-            wait_ready(store.http, child, url + "/health")
-            return child
+            fixture.stop()
+            fixture.start()
+            fixture.ready()
+            return fixture.process
         def key(name):
             path = store.root / name
             path.write_text(os.urandom(32).hex())
             path.chmod(0o600)
             public = json.loads(subprocess.check_output([str(cli), "native", "public-key", str(path)], timeout=10))
             return path, public
-        root, public = key("root.key")
-        port = free_port()
-        url = f"http://127.0.0.1:{port}"
-        config = store.root / "node.json"
-        config.write_text(json.dumps({"genesis": {"realm": 61, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": store.url,
-                                      "bucket": "caller-proof", "journal": "authority", "port": port}))
-        sequence = 0
+        root = fixture.installation / 'root.seed'
+        port = fixture.config['ports']['node']
+        url = fixture.url
+        sequence = None
         def command(value):
             nonlocal sequence
             sequence += 1
@@ -102,8 +104,11 @@ def run(node, cli, counter, byte_log, probe, delivery):
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()
         try:
-            subprocess.run([str(node), str(config), "--initialize"], check=True, timeout=15)
             authority = start()
+            basis = store.root / 'capabilities.json'
+            basis.write_text(json.dumps(dict(realm=61, principal=0, kind={'capabilities': {}})))
+            sequence = json.loads(subprocess.check_output([str(cli), 'native', 'query', str(root), str(basis), url], timeout=10))['principal_sequence']
+            fixture.signal_role('/courier.json', signal.SIGSTOP)
             # Workload identifiers and data are caller-defined. The node binary
             # and configuration remain identical for both applications.
             pids = [command({"spawn": {"code": 101}}),
@@ -159,32 +164,27 @@ def run(node, cli, counter, byte_log, probe, delivery):
                 check(index, "verify")
             assert set(dropped) == verified_retries == malformed_receipts == {1, 2}
             assert not malformed_views
-            # The runnable courier, not the harness, advances committed outputs.
-            seed, courier_public = key("courier.key")
-            command({"grant": {"subject": 3, "public_key": courier_public, "permissions": 132}})
-            courier_config = store.root / "courier.json"
-            courier_config.write_text(json.dumps({"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 61,
-                                                 "principal": 3, "seed_file": str(seed), "interval_ms": 20}))
-            courier_log = (store.root / "courier.log").open("w+")
-            logs.append(courier_log)
-            courier = subprocess.Popen([str(delivery), str(courier_config)], stdout=courier_log, stderr=subprocess.STDOUT)
-            children.append(courier)
+            # The server owns courier placement and credentials. Its real node
+            # fault peer drops one committed receipt and corrupts the next one.
+            publish_evidence(fixture.root / 'drop-next', dict(command='deliver', label='callers', principal=22, malformed_once=True))
+            (fixture.root / 'release-callers').touch()
+            fixture.signal_role('/courier.json', signal.SIGCONT)
             read = store.root / "sink.json"
             read.write_text(json.dumps({"realm": 61, "principal": 0, "kind": {"process": sink}}))
             deadline = time.monotonic() + 20
             while True:
                 sink_view = json.loads(subprocess.check_output([str(cli), "native", "query", str(root), str(read), url], timeout=10))["body"]["process"]
-                if sink_view["process"]["admitted"] == 1 and 3 in verified_retries:
+                if sink_view["process"]["admitted"] == 1 and (fixture.root / 'retried-callers').exists():
                     break
-                assert courier.poll() is None and time.monotonic() < deadline, "courier failed to make progress"
+                assert fixture.process.poll() is None and time.monotonic() < deadline, "server courier failed to make progress"
                 time.sleep(.05)
-            courier.kill()
-            courier.wait(timeout=10)
-            # Readiness and a restarted idle courier do not append or redeliver.
-            subprocess.run([str(delivery), str(courier_config), "--check"], check=True, timeout=10)
-            subprocess.run([str(delivery), str(courier_config), "--once"], check=True, timeout=10)
+            assert (fixture.root / 'malformed-callers').exists()
+            fixture.kill_role('/courier.json')
+            fixture.ready()
+            # Signed readiness and an idle replacement cannot append/redeliver.
+            seed = fixture.installation / 'courier.seed'
             status_query = store.root / "delivery-status.json"
-            status_query.write_text(json.dumps({"realm": 61, "principal": 3, "kind": {"delivery": {}}}))
+            status_query.write_text(json.dumps({"realm": 61, "principal": 22, "kind": {"delivery": {}}}))
             status = json.loads(subprocess.check_output([str(cli), "native", "query", str(seed), str(status_query), url], timeout=10))
             assert status["body"]["delivery"]["next"] is None and status["principal_sequence"] == 2, status
             source = sink_view["input"]["origin"]["process"]
@@ -229,12 +229,18 @@ def run(node, cli, counter, byte_log, probe, delivery):
             captured = Path(bootstrap_log.name).read_bytes()
             assert captured.count(b'"bootstrap":') == 1 and len(captured) < 8192, len(captured)
             print("Runnable counter and byte-log examples: authenticated automatic delivery, courier recovery, opaque state, atomic outputs, lost/malformed responses, stale activation and authority/storage recovery passed.")
+            completed = True
         except BaseException:
             for log in logs:
                 log.flush()
                 print(Path(log.name).read_text()[-4000:])
             raise
         finally:
+            fixture.cleanup()
+            if completed:
+                shutil.rmtree(fixture.root)
+            else:
+                print(f'Failed server evidence retained: {fixture.root}', file=sys.stderr)
             proxy.shutdown()
             proxy.server_close()
             thread.join(timeout=5)
