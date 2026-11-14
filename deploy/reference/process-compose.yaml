@@ -32,11 +32,3 @@ processes:
     <<: *process
     command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/controller 2>&1'
     log_location: controller.log
-  maintenance:
-    <<: *process
-    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/maintenance 2>&1'
-    log_location: maintenance.log
-  delivery:
-    <<: *process
-    command: 'exec {{.KUBECTL}} logs --follow --tail=50 deployment/delivery 2>&1'
-    log_location: delivery.log

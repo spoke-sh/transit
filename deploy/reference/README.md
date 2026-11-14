@@ -103,8 +103,8 @@ not a separately compiled Nix image. Local Ursula binaries come from the overlay
 
 ## Service diagnostics
 
-The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, node,
-maintenance, the host runtime controller and the counter's Actor template.
+The proof configures `LOG_FORMAT=json` and `LOG_LEVEL=info` for Board, the server,
+the host runtime controller and the counter's Actor template.
 Change the chart's per-component `logging` values for deployed services, and the
 explicit environment entries for the host controller and Actor template. The
 launcher `TRANSIT_*` settings apply to persistent installations; the isolated proof

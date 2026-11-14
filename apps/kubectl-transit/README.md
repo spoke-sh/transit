@@ -60,7 +60,10 @@ json` / `-o json` returns Kubernetes' native list unchanged for `get` and `statu
 Empty discovery succeeds; an empty targeted status/view fails. Denied reads and
 connection failures preserve kubectl's diagnostic and exit status.
 
-`logs` supports `node`, `board`, `maintenance`, `delivery`, `controller`, `ursula`, and `initialize`.
+`logs` supports `node`, `board`, `controller`, and `ursula`. The `node` component
+runs `transit server`, which owns bootstrap, maintenance and delivery. Its
+[diagnostics](../../deploy/reference/README.md#service-diagnostics) describe the
+composed lifecycle; these internal roles have no separate Kubernetes log stream.
 It prefixes pod/container names, includes all containers, and defaults to 100
 lines per container. `--tail` accepts 0–10000; live follow allows at most five
 concurrent streams. Kubernetes log rotation and deletion still apply. `controller`

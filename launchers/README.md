@@ -447,7 +447,9 @@ or rate-limited.
 
 `TRANSIT_LOG_LEVEL` and `TRANSIT_LOG_FORMAT` set installation-wide defaults. Override
 either field per service with `TRANSIT_BOARD_LOG_*`, `TRANSIT_NODE_LOG_*`,
-`TRANSIT_MAINTENANCE_LOG_*`, `TRANSIT_DELIVERY_LOG_*`, `TRANSIT_COUNTER_LOG_*`, or reference `TRANSIT_CONTROLLER_LOG_*`.
+`TRANSIT_COUNTER_LOG_*`, or reference `TRANSIT_CONTROLLER_LOG_*`.
+The server owns internal authority, maintenance and delivery diagnostics; these
+roles do not have separate launcher settings or log attachments.
 Levels are `debug`, `info`,
 `warn`, `error`, and `off`; formats are `text` and `json`. Precedence is the
 per-service variable, global variable, saved service value, then the default:

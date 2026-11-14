@@ -19,6 +19,10 @@ VALUES = {
 
 
 def run():
+    attachments = yaml.safe_load((ROOT / "deploy/reference/process-compose.yaml").read_text())["processes"]
+    for process in attachments.values():
+        assert all("deployment/" + retired not in process["command"]
+                   for retired in ("delivery", "maintenance", "initialize"))
     with tempfile.TemporaryDirectory(prefix="transit-chart-") as directory:
         values_file = Path(directory) / "values.json"
 
