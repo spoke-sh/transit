@@ -759,6 +759,10 @@ that elapsed time cancels an external effect.
 
 External server readiness includes authenticated access and fresh status from
 every declared service. A stopped, stalled or denied service withdraws readiness.
+Temporary unavailability withdraws readiness while the live service retries;
+admission pressure does not exhaust the failure budget or replace its sequencer.
+Fresh failure heartbeats remain distinct from a stalled process. Other transport
+failures have two retries before process exit and bounded server replacement.
 Local application `status.services` reports each principal, mode, readiness,
 completed scan passes and blocking error. These are process observations, not
 proof that a timer closed or a supervisor retry completed; inspect the owning

@@ -124,6 +124,25 @@ def run(server, cli, worker):
                 time.sleep(.025)
             raise AssertionError(("missing input", pid))
 
+        # Explicit admission refusals must withdraw readiness without replacing
+        # a live sequencer or exhausting its transport-failure restart budget.
+        status_path = s.server.installation / 'station/observer/status.json'
+        pressure_boot = json.loads(status_path.read_text())['boot']
+        pressure = s.root / 'station-pressure.json'
+        pressure.with_suffix('.tmp').write_text(json.dumps(dict(until=time.monotonic() + 4)))
+        pressure.with_suffix('.tmp').replace(pressure)
+        deadline = time.monotonic() + 3
+        while (s.server.installation / 'server-ready').exists() or json.loads(status_path.read_text())['ready']:
+            assert time.monotonic() < deadline, 'Station admission pressure did not withdraw readiness'
+            assert s.server.process.poll() is None
+            time.sleep(.025)
+        assert not json.loads(status_path.read_text())['ready']
+        s.server.ready(timeout=30)
+        assert json.loads(status_path.read_text())['boot'] == pressure_boot
+        assert json.loads((s.root / 'station-pressure-observed.json').read_text())['count'] >= 3
+        pressure.unlink()
+        control('observe', [])
+
         def value(pid, key):
             resource = resources[pid]
             revision = s.native_query({'resource': resource})['body']['resource']['revision']

@@ -1407,7 +1407,6 @@
         "RoleReadinessTimeout": 1,
         "ServerStopped": 1,
         "StationServiceExited": 1,
-        "StationServiceUnavailable": 1,
         "UnknownApplicationCaller": 1,
         "UnknownApplicationRole": 1,
         "UnresolvedProvisioning": 1,
@@ -1989,7 +1988,7 @@
         "AuthorityTransportDenied": 4,
         "ChildExited": 8,
         "ConfigurationUnavailable": 1,
-        "FileNotFound": 3,
+        "FileNotFound": 4,
         "InstallationIdentityMismatch": 3,
         "InstallationInUse": 1,
         "InstallationSyncFailed": 1,
@@ -2004,7 +2003,6 @@
         "RoleReadinessTimeout": 1,
         "ServerStopped": 9,
         "StationManifestChanged": 1,
-        "StationServiceUnavailable": 1,
         "StorageIdentityMismatch": 1,
         "UnsafeBoardPrincipal": 2,
         "UnsafeControllerPrincipal": 1,
@@ -2046,7 +2044,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 132,
-        "catch": 17
+        "catch": 18
       },
       "imports": [
         "../Diagnostic.zig",
@@ -2385,7 +2383,8 @@
         "StationManifestChanged": 1,
         "StationReadinessTimeout": 1,
         "StationServiceCapacity": 1,
-        "StationServiceExited": 1
+        "StationServiceExited": 1,
+        "StationServiceUnavailable": 2
       },
       "outcomes": {},
       "error_sets": {},

@@ -474,7 +474,7 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     var unavailable: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
-        self.externalHealth() catch |err| {
+        const services_ready = self.externalHealth(station) catch |err| {
             std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |failure| if (failure != error.FileNotFound) return failure;
             if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
             if (installation.wire.last_rejection != .HttpCapacity and installation.wire.last_rejection != .ControlCapacity) {
@@ -484,16 +484,17 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
             try self.init.io.sleep(.fromMilliseconds(1000), .awake);
             continue;
         };
-        if (station) |services| {
-            self.active_role = .station;
-            if (!try services.check()) return error.StationServiceUnavailable;
+        if (!services_ready) {
+            std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |err| if (err != error.FileNotFound) return err;
+            try self.init.io.sleep(.fromMilliseconds(100), .awake);
+            continue;
         }
         unavailable = 0;
         _ = try Files.jsonIfChanged(self.init.io, self.init.gpa, readiness, true);
         try self.init.io.sleep(.fromMilliseconds(1000), .awake);
     }
 }
-fn externalHealth(self: *Self) !void {
+fn externalHealth(self: *Self, station: ?*StationServices.Group) !bool {
     self.active_role = .node;
     _ = try self.installation.query(.{ .capabilities = {} });
     self.active_role = .courier;
@@ -502,6 +503,11 @@ fn externalHealth(self: *Self) !void {
         self.active_role = .board;
         try Board.check(self.installation);
     }
+    if (station) |services| {
+        self.active_role = .station;
+        return services.check();
+    }
+    return true;
 }
 fn node(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;

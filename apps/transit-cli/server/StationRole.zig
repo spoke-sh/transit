@@ -71,10 +71,16 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const progress = advance(init, &controller, &checked, now) catch |err| {
             status.ready = false;
             status.error_name = @errorName(err);
+            status.observed_ms = @intCast(std.Io.Clock.awake.now(init.io).toMilliseconds());
             _ = try Files.jsonIfChanged(init.io, init.gpa, config.status_file, status);
             diagnostics.event(.{ .name = "station.controller.retry", .level = .warn, .error_type = @errorName(err), .outcome = .failed });
-            if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied or failures == 2) return err;
-            failures += 1;
+            if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
+            // Admission pressure establishes neither owner failure nor an
+            // outcome for a pending mutation. Keep its exact signed request.
+            if (client.last_rejection != .HttpCapacity and client.last_rejection != .ControlCapacity) {
+                if (failures == 2) return err;
+                failures += 1;
+            }
             checked = null;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;

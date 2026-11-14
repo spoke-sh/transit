@@ -73,6 +73,7 @@ pub const Group = struct {
     scratch: std.heap.ArenaAllocator,
     slots: []Slot,
     checked: ?std.Io.Timestamp = null,
+    active: bool = false,
 
     pub fn create(init: std.process.Init, installation: *Installation, executable: []const u8, namespace: []const u8, services: []const Service, local_workers: bool) !*Group {
         try validate(services, installation.config.station.max_services);
@@ -103,6 +104,7 @@ pub const Group = struct {
             if (started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 30000) return error.StationReadinessTimeout;
             try init.io.sleep(.fromMilliseconds(100), .awake);
         }
+        self.active = true;
         return self;
     }
     pub fn destroy(self: *Group) void {
@@ -122,15 +124,19 @@ pub const Group = struct {
         const authenticate = self.checked == null or self.checked.?.durationTo(now).toMilliseconds() >= 1000;
         for (self.slots) |*slot| {
             if (!slot.process.alive()) return error.StationServiceExited;
+            slot.ready = false;
             if (authenticate) try self.access(slot);
             const status = Files.read(Role.Status, self.init.io, self.scratch.allocator(), slot.config.status_file) catch |err| {
                 if (err != error.FileNotFound) return err;
+                if (self.active) return error.StationServiceUnavailable;
                 ready = false;
                 continue;
             };
             const age = std.Io.Clock.awake.now(self.init.io).toMilliseconds() - status.observed_ms;
             const grace: i128 = @as(i128, slot.config.interval_ms) + @as(i128, slot.config.request_timeout_ms) * 3 + 5000;
-            slot.ready = std.mem.eql(u8, &status.boot, &slot.config.boot) and status.ready and age >= 0 and age <= grace;
+            const fresh = std.mem.eql(u8, &status.boot, &slot.config.boot) and age >= 0 and age <= grace;
+            if (self.active and !fresh) return error.StationServiceUnavailable;
+            slot.ready = fresh and status.ready;
             slot.completed_passes = status.completed_passes;
             if (!slot.ready) ready = false;
         }

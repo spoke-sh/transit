@@ -565,7 +565,9 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
                 app.service_restarts += 1;
                 return;
             };
-            if (!ready) return error.StationServiceUnavailable;
+            // A live service can withdraw readiness while retrying its exact
+            // request. Its process exit or stale heartbeat establishes failure.
+            if (!ready) return;
         } else {
             const services = try allocator.alloc(StationServices.Service, record.declaration.station.len);
             for (record.declaration.station, 0..) |service, i| {
