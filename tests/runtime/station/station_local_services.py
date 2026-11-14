@@ -49,11 +49,14 @@ def run(server, worker):
         port = fixture.config['ports']['node']
 
         def query(kind):
-            return post(port, '/v1/query', native(root, realm, 0, kind))
+            return post(port, '/v1/query', native(root, realm, 0, kind), retry_unavailable=True)
 
         def submit(value):
             sequence = query({'capabilities': {}})['principal_sequence'] + 1
-            return post(port, '/v1/command', native(root, realm, 0, value, sequence))
+            # Admission pressure can follow acceptance. Retry only this frozen
+            # signature/sequence through the shared bounded transport helper.
+            signed = native(root, realm, 0, value, sequence)
+            return post(port, '/v1/command', signed, retry_unavailable=True)
 
         def state():
             key = b'\x00c' + child.to_bytes(8, 'little') + b'\x00'

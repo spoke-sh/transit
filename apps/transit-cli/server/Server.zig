@@ -486,7 +486,7 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
         };
         if (!services_ready) {
             std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |err| if (err != error.FileNotFound) return err;
-            try self.init.io.sleep(.fromMilliseconds(100), .awake);
+            try self.init.io.sleep(.fromMilliseconds(1000), .awake);
             continue;
         }
         unavailable = 0;

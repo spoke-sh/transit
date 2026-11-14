@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from interfaces.inspection.inspection import System
+from harness.services import wait_ready
 from runner.paths import ROOT
 from runtime.station.station_service_transport import configure as configure_transport
 from runtime.station.station import frame
@@ -128,7 +129,7 @@ def run(server, cli, worker):
         # a live sequencer or exhausting its transport-failure restart budget.
         status_path = s.server.installation / 'station/observer/status.json'
         pressure_boot = json.loads(status_path.read_text())['boot']
-        pressure = s.root / 'station-pressure.json'
+        pressure = s.server.root / 'station-pressure.json'
         pressure.with_suffix('.tmp').write_text(json.dumps(dict(until=time.monotonic() + 4)))
         pressure.with_suffix('.tmp').replace(pressure)
         deadline = time.monotonic() + 3
@@ -137,11 +138,12 @@ def run(server, cli, worker):
             assert s.server.process.poll() is None
             time.sleep(.025)
         assert not json.loads(status_path.read_text())['ready']
-        s.server.ready(timeout=30)
+        wait_ready(s.server.http, s.server.process, s.url + '/health')
         assert json.loads(status_path.read_text())['boot'] == pressure_boot
-        assert json.loads((s.root / 'station-pressure-observed.json').read_text())['count'] >= 3
+        assert json.loads((s.server.root / 'station-pressure-observed.json').read_text())['count'] >= 3
         pressure.unlink()
         control('observe', [])
+        print('Station service admission: readiness withdrawal and same-boot recovery after repeated capacity refusals passed.', flush=True)
 
         def value(pid, key):
             resource = resources[pid]
