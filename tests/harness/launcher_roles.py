@@ -44,7 +44,7 @@ done
         container = launcher.docker('ps', '-q', 'node', capture=True).strip()
         assert container
         result = subprocess.check_output(['docker', 'run', '--rm', '--network=none',
-            '--pid=container:' + container, '--user=65532:65532', '--cap-drop=ALL',
+            '--pid=container:' + container, f'--user={os.getuid()}:{os.getgid()}', '--cap-drop=ALL',
             '--entrypoint=sh', pins['kind_node'], '-ec', script], text=True, timeout=30)
     else:
         pods = json.loads(launcher.kube('get', 'pods', '-l', 'app.kubernetes.io/component=node', '-o', 'json', capture=True))['items']

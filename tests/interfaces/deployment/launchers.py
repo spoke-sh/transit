@@ -124,7 +124,8 @@ def proof(profile):
         first = observe(12)
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
-        assert len(json.loads(invoke("status"))["services"]) >= 5
+        status = json.loads(invoke("status"))["services"]
+        assert {"ursula", "node", "counter", "board"} <= {row["name"] for row in status}, status
         invoke("reset", success=False)
         invoke("up", success=False)
         # Credentials must stay out of machine-readable output and service logs.
