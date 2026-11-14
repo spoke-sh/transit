@@ -6,6 +6,10 @@ priorities, not delivery dates.
 The supporting [development workflow implementation plan](development-workflow.md)
 records the completed test directory migration, build reuse and feedback
 qualification alongside this product sequence.
+The supporting [Station service ownership and controller removal plan](transit-server-station-implementation.md)
+is Planned under Milestone 3: move timer/lifecycle service registration and
+supervision into `transit server`, then retire the standalone controller artifact.
+It changes no milestone status and leaves Milestone 6's runtime cutover separate.
 The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
 investigates verified CPU specialization, Datalog/RTL analysis and optional
 hardware execution through Nix-packaged experiments and explicit Platform

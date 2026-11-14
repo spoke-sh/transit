@@ -1541,6 +1541,13 @@ the console latency gate remains open on both the candidate and rebased `main`.
 This does not extend the original local-profile evidence below or complete the
 broader Station/Queue cutover.
 
+The [Station service ownership and controller removal plan](transit-server-station-implementation.md)
+is the next proposed consolidation: register and supervise timer observations
+and recorded lifecycle actions through `transit server`, then remove the
+standalone `transit-station-controller` executable and publication. It preserves
+separate observer/lifecycle authority and external provider placement. The plan
+is Planned; it adds no completed P7 check or runtime qualification.
+
 - [x] P7.1 Factor reusable role entry points into explicit build modules with
   direct dependencies. Compose them in `transit`; do not copy implementations,
   embed/extract child executable blobs or introduce another storage owner.
