@@ -773,5 +773,9 @@ Observer and lifecycle credentials remain separate. For hosted local children,
 a lifecycle retry waits for the server to stop and join the old worker; the
 acknowledgement names this service boot and exact native generation/failure.
 Provider-bound children retain their confirmed-stop gate through the separate
-`transit-runtime-controller`. That provider controller is still required for
+`transit-runtime-controller`. Substrate can reuse a cold-booted worker pod;
+that pod remains fenced until placement supplies a fresh pod incarnation.
+The server's Station service does not recycle provider capacity. See the
+[reference runtime controller's placement requirement](../../transit-runtime-controller/README.md)
+before configuring unattended retries. That provider controller is still required for
 Substrate lifecycle operations.

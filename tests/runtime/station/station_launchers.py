@@ -226,12 +226,41 @@ def exercise(profile, name=None, base=None, existing=False):
             failed_input = installation.command("proof-supervised-failure", {"send": {
                 "pid": previous["pid"], "value": frame(b"invalid")}})
             child_key = b"\x00c" + previous["pid"].to_bytes(8, "little") + b"\x00"
+            deadline = time.monotonic() + 240
+            previous_worker = previous["binding"]["activation"]["worker_incarnation"]
+            retried = None
+
+            def retry_recorded():
+                nonlocal retried
+                current = installation.process("ledger")
+                if current["generation"] <= previous["generation"]:
+                    return False
+                if current["failure"] is None or current["binding"]["last_worker_incarnation"] != previous_worker:
+                    retried = current
+                    return True
+                return False
+
+            await_value(retry_recorded, "Provider stop and native retry did not settle",
+                        seconds=max(0, deadline-time.monotonic()))
+            replaced_capacity = False
+            if retried["binding"]["last_worker_incarnation"] == previous_worker:
+                # Native retry requires a confirmed stop, but Substrate may
+                # cold-boot on the same pod. That pod remains fenced. Supply
+                # fresh test-owned placement explicitly; Station credentials
+                # and the runtime controller have no pod-deletion authority.
+                assert retried["owner"] is None and retried["binding"]["activation"] is None
+                pods = json.loads(launcher.kube("get", "pods", "-o", "json", capture=True))["items"]
+                pod = next((p for p in pods if list(uuid.UUID(p["metadata"]["uid"]).bytes) == previous_worker), None)
+                if pod is not None:
+                    launcher.kube("delete", "pod", pod["metadata"]["name"], "--grace-period=0", "--force")
+                    replaced_capacity = True
 
             def exhausted():
                 child = entry("coordinator", child_key)
                 return child is not None and child[13:15] == bytes([1, 4])
 
-            await_value(exhausted, "Provider-bound retry did not exhaust its one attempt", seconds=240)
+            await_value(exhausted, "Provider-bound retry did not exhaust its one attempt",
+                        seconds=max(0, deadline-time.monotonic()))
             failed = installation.process("ledger")
             assert failed["pid"] == previous["pid"] and failed["generation"] > previous["generation"]
             assert failed["failure"] == failed_input
@@ -242,6 +271,7 @@ def exercise(profile, name=None, base=None, existing=False):
             incarnation = failed["binding"]["last_worker_incarnation"]
             assert incarnation is not None and incarnation != previous["binding"]["activation"]["worker_incarnation"]
             supervision = {"input": failed_input, "attempts": 1, "phase": "exhausted",
+                           "test_replaced_worker_capacity": replaced_capacity, "retried": retried,
                            "before": previous, "after": failed}
         evidence = ROOT / ".cache/m9" / ("station-" + profile + "-evidence.json")
         write(evidence, {"profile": profile, "processes": records, "before": before,
