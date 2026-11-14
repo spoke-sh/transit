@@ -460,3 +460,159 @@ public-query deadline failure and standalone gateway SIGSEGV. Complete
 qualification with the loader correction remains separate from these focused
 passes; the earlier Table recovery and installed-session failures remain open.
 
+## Server delivery ownership — 2026-11-14
+
+The [implementation plan](../../roadmap/transit-server-delivery-implementation.md)
+removes the standalone courier executable while preserving server-owned delivery
+and the external Kubernetes/Substrate profile. Current behavior belongs to the
+[server guide](../../../apps/transit-cli/docs/server.md#external-worker-composition)
+and [reference deployment guide](../../../deploy/reference/README.md).
+
+The runtime source is `37a6156ab5bb7285aea22d4404bac76ada146bec`, rebased on
+`96f9b9c9e`. The final test source is `581a9e627a90060442b377f3f335bc10124f5c1e`;
+its additional changes await owned external-role observations before fault signals
+and test missing/duplicate-role and manager-exit refusals, and respect Board's
+read admission spacing in the launcher origin proof. Production code is
+identical between those two commits. The pinned Zig version
+is `0.17.0-dev.2267+48abf1a34`; the flake lock SHA-256 is
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`.
+
+| Command or proof owner | Executed scope and evidence |
+| --- | --- |
+| `just ci clean --lane installation-ui` at `37a6156ab` | All 26 tasks pass in 5,090.026 seconds including preparation; `.cache/ci/clean/37a6156ab5bb-transit-ci-q1r7xov2`. Includes single-executable startup, SQL types, native/installed managed Tables, direct faults, local Station, Board and handbook checks |
+| `just ci clean --lane core` at `581a9e627` | All 28 tasks pass in 4,287.315 seconds including preparation; `.cache/ci/clean/581a9e627a90-transit-ci-2vwvaufv`. Includes native tests, simulations, four Vortex rounds, SDK/runtime boundaries, Station, storage, authorization, callers, inspection and state |
+| `just ci clean --lane launchers` at `581a9e627` | Both tasks pass in 815.759 seconds including preparation; `.cache/ci/clean/581a9e627a90-transit-ci-ztu1xomj`. Covers local persistence, fencing, replacement, retained restart and foreground cleanup |
+| `just test::server-faults`, `server-applications`, `server-application-faults` | All three complete schedules pass at `511c4c563`: 648.291, 263.844 and 87.808 seconds including preparation. Logs: `.cache/delivery-511-server-{faults,applications,application-faults}.log` |
+| Compose counter and Station launchers | Both committed profiles pass at `581a9e627`: counter/foreground lifecycle in 614.027 seconds including compilation and Station in 57.224 seconds; `.cache/delivery-581-{compose,station-compose}.log` |
+| Reference workload, counter launcher and Station launcher | All three pass at `581a9e627`: workload 74.622 seconds, counter 237.925 seconds, Station 240.807 seconds; fresh owned infrastructure cleanup passes in 3.890 seconds. `.cache/delivery-581-reference-queue.json` |
+| `just test::release`, `release-install`, `standalone-chart` | All three pass with the `37a6156ab` release and `511c4c563` driver: 74.583, 75.533 and 69.348 seconds. Installed Board/SQL recovery, real installer identity/refusal, and Helm TLS, retained rows/identity, upgrade, PID-1 recovery and missing-state refusal |
+| `just test console-latency-gate` in `.#ci-experience` | Complete candidate gates fail in 617.302 and 611.230 seconds; the matched `96f9b9c9e` control also fails in 611.422 seconds. Aggregate write-budget failures are detailed below; this gate remains open |
+
+Commands use the repository's pinned Nix shells. Clean lanes start from committed
+source without inherited workspace build outputs. Full runtime qualification,
+other SDK hosts and the broader Station/Queue cutover remain separate obligations.
+
+The application-fault schedule exercises two ordered outputs, original
+provenance, exact lost-reply retry, pending courier loss and retained manager
+restart. Its external profile tests local disk and disk-backed Ursula separately,
+including competing authorized delivery, signed-read readiness withdrawal,
+courier revocation and restart refusal. Callers, Station and Vortex retain their
+independent value/count, stale-activation and original-receipt oracles while using
+the server-owned courier. Native tests preserve bounded pending-output discovery;
+application and manager proofs check resident/checkpoint bounds and joined
+cleanup. These finite schedules establish no unlimited-throughput claim.
+
+A fresh external installation refuses non-genesis native history before issuing
+service grants. The Ursula regression supplies the matching root key after
+courier revocation; the attempted new directory cannot restore those rights,
+and the original retained installation still refuses. Explicit runtime
+replacement validates executable hashes before every recovery cycle. A negative
+control against the earlier `b08c3b314` runtime replaced the live executable
+pathname, killed its courier and exposed adoption of unapproved bytes. The fixed
+schedule requires manager failure, the unchanged accepted pin, and refusal of
+implicit rollback. Startup tests also preserve corrupt-record and invalid-path
+diagnostics.
+
+The static x86_64 release identifies `37a6156ab`. Its `transit` SHA-256 is
+`b633b4cdcac022dd7a237cbb47076ce10c0975c3b10b4d863e7795fdeb0da2cd` and archive
+SHA-256 is `d943c977b8e398bfb98c7cc0bf8c7b703d24aa66bd57195a3df73585b59b8632`.
+Packaging and actual OCI construction contain exactly `transit`, `transit-node`,
+`transit-query-host`, `transit-board` and `transit-station-controller`.
+The `transit` image manifest digest is
+`sha256:a86394d476ec746f7a9acf52e7f5389375e1cf3197d7f7cfeeb387170ca0f7c4`.
+Release manifests, checksums and layouts remain in
+`.cache/delivery-release-artifacts-37a`. Executable inventory controls cover both
+archive architectures; live package and deployment execution is Linux x86_64.
+No public release or channel was published.
+
+The fresh reference cluster is `transit-m1-7d2b34`. Its runtime identifies
+`581a9e627` with executable SHA-256
+`6d30fdf5a806617b0b614a9432165ae568e112780ec8fbc1d38f2a73c5a6c7af`.
+The independent workload uses image digest
+`sha256:21bf7b7996aa0854d964833dd723938923bc334648b1a1121b68b6a966691b5f`;
+its automatic evidence is `.cache/reference/proof-1227e3df/evidence.json`.
+The counter and Station selections verify the same clean source and executable
+hash. Their records are `.cache/delivery-581-reference-counter-selection.json`
+and `.cache/delivery-581-reference-station-selection.json`. The complete command
+results, image selections and owned infrastructure identities are in
+`.cache/delivery-581-reference-queue.json`. Cleanup removes only this new cluster
+and registry after all three schedules pass; exact-ID checks confirm their
+absence and the original cluster's stopped state. This is one owned
+Kind/Substrate host, not physical multi-host qualification. Local and Ursula storage claims remain
+separate; Ursula native history does not establish direct Table/SQL hosting.
+
+Failed attempts retain their original attribution. A pre-rebase installation
+lane refused a managed Table transaction with `ClockUnavailable` while other
+disk proofs ran. The complete native/installed task passes at `37a6156ab` in
+912.83 seconds with unchanged leases and deadlines; this does not establish the
+earlier failure's cause. One earlier reference launcher exceeded its unchanged
+240-second provider-suspension deadline with a snapshot in progress. Transit
+preserved the stop intent and expired the process. Fresh complete runs do not
+erase that failure or establish unbounded provider availability. The original
+reference containers and failed volumes remain stopped and preserved. Their
+files were atomically moved to `.cache/delivery-reference-retained-cd7c8a`,
+with unchanged state/evidence hashes recorded in
+`.cache/delivery-reference-retention-map.json`.
+
+The first rebased core lane fails Vortex after two rounds: immediately after
+manager/storage restart, one process-list snapshot finds no matching courier
+command line. The manager had announced readiness with no terminal role failure.
+The test-only correction waits for exactly one owned courier using its existing
+30-second budget, refusing manager exit or duplicate matches before enabling
+delivery. The same four-round schedule passes against the original failed run's
+runtime binaries in 19.197 seconds and in the committed clean retry in 19.005
+seconds, with joined cleanup and unchanged fault assertions. The failed clean
+checkout remains at `/var/tmp/transit-ci-j_ffccuj`; the focused pass remains in
+`.cache/verification/vortex/1794636208880756336-seed-1`.
+
+The next clean core attempt at `e6a3b4796` passes its first 25 tasks, including
+Table authorization and runtime replacement, then encounters the same immediate
+process-observation assumption in callers. Its original checkout and fixture
+remain at `/var/tmp/transit-ci-1p4f4lmt` and
+`/var/tmp/transit-server-proof-z4h1bk4i`. The shared external fixture now owns the
+bounded observation before a single signal dispatch; Vortex and the runtime-pin
+fault schedule use it too. Nine harness controls pass, including refusal to signal
+missing/ambiguous roles or after manager exit. The complete callers schedule and
+all four Vortex rounds pass with the exact failed run's `e6a3b4796` binaries;
+Vortex takes 19.277 seconds with joined cleanup. The two remaining core tasks
+also pass diagnostically, without turning that interrupted lane into a pass.
+
+A Compose attempt at `511c4c563` reaches its remote Board-origin checks, then
+fails an unconditional HTTP 200 assertion. Retained logs show a successful read
+followed 91 ms later by `429 RateLimited`, inside Board's documented 100 ms
+shared admission spacing. The fixture now retries only that positive GET's
+explicit 429 within its original five-second request budget. Every response
+must remain cookie-free; wrong Host/Origin denial, missing-session behavior and
+other failure statuses remain unchanged. Original state and safe logs remain in
+`.cache/launchers/compose/proof-232da3`. The complete counter and foreground
+Compose schedule passes with that single test correction, committed as
+`581a9e627`; the final committed run is recorded above. An earlier invocation used the build-only shell without PyYAML and stopped before creating
+a fixture; launcher drivers use the normal development shell and enter the
+static shell internally for container builds.
+
+The first final console latency gate completes all five installations but fails
+its aggregate Document and KV write budgets: 129 and 133 ms against 127.2 ms.
+Startup, individual statement and resource comparisons pass. The write-class
+excess recurs across installations; the record is
+`.cache/transit-latency/gate-delivery-581-first/report.json`, with unchanged raw
+samples and hashes retained in `.cache/delivery-581-latency-first-retention.json`.
+An isolated ReleaseSafe control at `96f9b9c9e` uses the same pinned compiler,
+`ci-experience` shell, benchmark drivers and budgets. Its full gate completes in
+611.422 seconds and fails Document/KV writes at 129/131 ms against the same
+127.2 ms limit. The unchanged candidate's complete repeat takes 611.230 seconds:
+Document writes pass, while KV writes fail at 132 ms. All other comparisons pass
+in that repeat. The control and repeat records are
+`.cache/transit-latency/gate-main-96` and
+`.cache/transit-latency/gate-delivery-581-repeat`; command, artifact and timing
+identities are retained in `.cache/delivery-latency-comparison.json`.
+
+Each gate keeps five fresh statement installations, 15 cycles, four CPUs and the
+original startup/restart, value, completion, durability and resource checks. Runs
+are sequential after owned heavy validation finishes; no budgets or workload
+controls are reduced. These results establish a failing baseline gate on `main`
+as well as the candidate, without establishing its cause or waiving acceptance.
+Console latency qualification remains open.
+
+Earlier startup/query deadline failures and intentionally interrupted clean runs
+are not passes. Ordinary logs and reports remain in ignored runner output;
+private credentials and retained installation data are not committed.

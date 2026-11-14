@@ -1531,10 +1531,15 @@ Owners: [runtime build](../../build/runtime.zig), app entry modules, CLI
 process supervision/configuration and source-bundle fixtures.
 
 The [server delivery ownership and executable removal plan](transit-server-delivery-implementation.md)
-defines a planned follow-up: migrate remaining standalone courier consumers to
-the coherent server lifecycle and remove `transit-delivery` from builds and
-publications. Its reference-topology and fault-coverage gates are separate from
-the delivered local-profile evidence below.
+implements the follow-up: remaining standalone courier consumers use the coherent server
+lifecycle, and `transit-delivery` is removed from builds and publications. The
+external-worker composition preserves the reference deployment's disk-backed
+Ursula native history and Kubernetes/Substrate placement. Its
+[qualification account](../history/qualification/deployment.md#server-delivery-ownership--2026-11-14)
+records separate local, Compose, reference, fault and release evidence and limits;
+the console latency gate remains open on both the candidate and rebased `main`.
+This does not extend the original local-profile evidence below or complete the
+broader Station/Queue cutover.
 
 - [x] P7.1 Factor reusable role entry points into explicit build modules with
   direct dependencies. Compose them in `transit`; do not copy implementations,

@@ -1,7 +1,7 @@
 # Server delivery ownership and executable removal
 
 [Milestone 3](03-live-storage-and-sql-cutover.md#p7--deliver-the-single-executable-local-profile)
-· **Status: In progress** · 2026-11-13
+· **Status: In Progress** · planned 2026-11-13, implementation 2026-11-14
 
 Make `transit server` responsible for the delivery work required by its supported
 application and query profiles, then remove `transit-delivery` from source builds,
@@ -17,16 +17,36 @@ renamed delivery executable or executable built solely to replace the deleted
 daemon is part of this plan. Existing independent application binaries and focused
 library/protocol fixtures retain their legitimate boundaries.
 
-**Source basis:** `505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7`, after the
-`transit-admin` removal. This is a proposed follow-up to the delivered single
-executable profile; it does not reopen its historical evidence or complete
+**Planning source basis:** `505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7`, after the
+`transit-admin` removal. This follow-up to the single executable profile
+does not reopen its historical evidence or complete
 [Milestone 6](06-streams-queues-and-durable-runtime.md). Replacing native outboxes
 with transactional Station/Queue semantics remains that milestone's separate
 [consumer cutover](station-transaction-implementation.md#compatibility-and-later-cutover).
 
-## Current behavior and removal inventory
+The implementation removes the executable, build target and publication entries.
+Local, Compose and reference deployments use server-owned delivery. The approved
+external-worker composition preserves disk-backed Ursula native history and
+isolated Kubernetes/Substrate workers; the local direct Table profile remains
+separate. Current behavior and limits belong to the
+[server guide](../../apps/transit-cli/docs/server.md#external-worker-composition)
+and [reference deployment guide](../../deploy/reference/README.md).
 
-| Owner | Current behavior | Required change |
+The [qualification account](../history/qualification/deployment.md#server-delivery-ownership--2026-11-14)
+records executed lifecycle, fault, release, provider and clean-lane results with
+source identities and failed attempts. Live release/reference execution covers
+Linux x86_64; inventory controls cover both archive architectures. The sections
+below retain the implementation requirements and baseline inventory for review.
+
+**Remaining acceptance gate:** the full console latency gate exceeds its
+aggregate Document and KV write budgets on both this implementation and the
+rebased `main` control. Functional, deployment, release and affected clean-lane
+proofs pass. The qualification account records the complete runs and exact
+limits; latency-gate acceptance remains open.
+
+## Planning baseline and removal inventory
+
+| Owner | Behavior at the planning baseline | Required change |
 | --- | --- | --- |
 | [Delivery app](https://github.com/spoke-sh/transit/blob/505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7/apps/transit-delivery/main.zig) | Polls signed delivery status, submits an exact delivery request, retries uncertainty; exposes `--check` and `--once` | Delete after its consumers move |
 | [Server](../../apps/transit-cli/server/Server.zig), [installation](../../apps/transit-cli/server/Installation.zig) | Provisions a dedicated courier identity and supervises the query-host courier using the same `transit` executable by default | Make this the delivery lifecycle exercised by product deployments and tests |
