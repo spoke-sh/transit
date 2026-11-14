@@ -259,6 +259,14 @@ def run(server, cli, worker):
             assert cause in Path(s.server.logs[-1].name).read_text()
             assert not (s.server.installation / 'server-ready').exists()
 
+        s.server.stop()
+        record_path = s.server.installation / 'installation.json'
+        retained_record = record_path.read_bytes()
+        missing_obligation = json.loads(retained_record)
+        missing_obligation.pop('station_manifest')
+        record_path.write_text(json.dumps(missing_obligation))
+        rejected_restart('MissingField')
+        record_path.write_bytes(retained_record)
         changed = json.loads(accepted_manifest)
         changed['services'][0]['watches'].pop()
         manifest.write_text(json.dumps(changed))
