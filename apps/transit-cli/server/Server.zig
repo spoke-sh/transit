@@ -13,7 +13,7 @@ const Startup = @import("Startup.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { node, source, requester, courier, gateway, board, sql };
+const Role = enum { node, source, requester, courier, gateway, board, maintenance, sql };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -24,7 +24,7 @@ startup: *Startup,
 config_path: []const u8,
 loaded: Config.Loaded,
 boot: [16]u8,
-processes: [6]Process = @splat(.{}),
+processes: [7]Process = @splat(.{}),
 active_role: Role = .node,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const started = std.Io.Clock.awake.now(init.io);
@@ -56,15 +56,22 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
     diagnostic.field = null;
     try config.preflight(init.io, !options.no_ui, diagnostic);
     diagnostic.atFile(config.installation);
-    const created = try Installation.prepare(init, config, identity);
     const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
+    // A completed directory remains bound to its original publication. An
+    // explicit runtime replacement never rewrites that immutable assembly.
+    const retained = Files.read(Installation.Record, init.io, init.arena.allocator(), record_path) catch |err| blk: {
+        if (err != error.FileNotFound) return err;
+        break :blk null;
+    };
+    const created = try Installation.prepare(init, config, if (retained) |r| r.identity else identity);
     diagnostic.atFile(record_path);
     const record = Files.read(Installation.Record, init.io, init.arena.allocator(), record_path) catch |err| {
         return diagnostic.fail(err, "cannot read the retained installation record", "This directory contains data and will not be initialized. Verify the installation path and restore missing data from its recovery source.");
     };
-    if (record.definition != q.protocol.Growth.current_definition or record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
-    try @import("DirectoryPublication.zig").check(init.io, init.gpa, config.installation, try @import("DirectoryPublication.zig").binding(init.gpa, identity));
-    if (record.complete) {
+    if (record.definition != q.protocol.Growth.current_definition or record.version != 1) return error.InstallationIdentityMismatch;
+    try @import("RuntimeSelection.zig").validate(config, record, identity);
+    try @import("DirectoryPublication.zig").check(init.io, init.gpa, config.installation, try @import("DirectoryPublication.zig").binding(init.gpa, record.identity));
+    if (record.complete and config.external == null) {
         const checkpoint = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "configuration.json" });
         diagnostic.atFile(checkpoint);
         @import("Configuration.zig").checkRetained(init, checkpoint, try Installation.settingsBinding(record, config.realm)) catch |err| {
@@ -83,6 +90,11 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
         std.crypto.secureZero(u8, std.mem.asBytes(&installation.caller_key));
     }
     if (!std.mem.eql(u8, &record.root_public, &installation.root.public_key.toBytes())) return error.InstallationIdentityMismatch;
+    if (config.external) |external| if (external.root_seed_file) |path| {
+        var provided = try q.wire.readKey(init.gpa, init.io, path);
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&provided));
+        if (!std.mem.eql(u8, &record.root_public, &provided.public_key.toBytes())) return error.InstallationIdentityMismatch;
+    };
     startup.next(.storage);
     try installation.checkStorage();
     diagnostics.event(.{ .name = "server.startup", .message = if (created) "creating installation" else if (record.complete) "opening installation" else "resuming installation", .location = config.installation });
@@ -119,7 +131,7 @@ fn supervise(init: std.process.Init, options: @import("../Options.zig").Options,
             if (diagnostic.cause == null) diagnostic.cause = err;
             // Storage identity/rollback, local durability failure and explicit
             // native denials are never repaired by rewriting installation state.
-            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.ConfigurationUnavailable or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
+            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.ConfigurationUnavailable or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.UnsafeCourierPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
             if (restarts == 3) return error.RestartBudgetExhausted;
             restarts += 1;
             diagnostic.setFailure(err, "server role failed; retrying the same installation", "Wait for a ready record or terminal failure. The server preserves installation history and allows at most three automatic restarts.");
@@ -198,6 +210,7 @@ fn cycle(self: *Self) !void {
     self.diagnostic.atFile(self.config_path);
     try config.preflight(self.init.io, self.ui, self.diagnostic);
     self.diagnostic.atFile(config.installation);
+    if (config.external != null) return self.externalCycle(allocator);
     const had_tables = @import("Tables.zig").configured(installation);
     self.startup.next(.node);
     try self.node(allocator);
@@ -229,6 +242,8 @@ fn cycle(self: *Self) !void {
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
     const destinations = [_]u64{ connection.source, connection.requester };
+    self.active_role = .courier;
+    try self.provision(Installation.checkCourier);
     _ = try Files.jsonIfChanged(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = if (applications != null) destinations[0..0] else destinations[0..], .all_destinations = applications != null } }, .interval_ms = 10, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, try config.command(allocator, self.executable, .query_host, &.{courier_config}), &.{}, false);
     try installation.initializeBehaviors();
@@ -300,6 +315,7 @@ fn cycle(self: *Self) !void {
     }
     var last = std.Io.Clock.awake.now(self.init.io);
     var unavailable_probes: u8 = 0;
+    var unavailable_courier_probes: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
         if (sql) |manager| {
@@ -342,6 +358,18 @@ fn cycle(self: *Self) !void {
                 continue;
             };
             unavailable_probes = 0;
+            self.active_role = .courier;
+            installation.checkCourier() catch |err| {
+                if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
+                if (installation.wire.last_rejection != .HttpCapacity and installation.wire.last_rejection != .ControlCapacity) {
+                    if (unavailable_courier_probes == 2) return err;
+                    unavailable_courier_probes += 1;
+                }
+                last = std.Io.Clock.awake.now(self.init.io);
+                try self.init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            unavailable_courier_probes = 0;
             if (self.ui) {
                 self.active_role = .board;
                 try Board.check(installation);
@@ -373,6 +401,92 @@ fn announceReady(self: *Self) void {
     self.startup.finish(.ok, null);
     self.diagnostics.event(.{ .name = "server.ready", .message = "Server is ready", .endpoint = self.installation.record.endpoint, .location = self.installation.config.installation });
 }
+fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
+    const installation = self.installation;
+    const config = installation.config;
+    const readiness = try installation.path("server-ready");
+    std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |err| if (err != error.FileNotFound) return err;
+    defer std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch {};
+    self.startup.next(.node);
+    try self.node(allocator);
+    self.startup.next(.journal_recovery);
+    try self.provision(Installation.flush);
+    self.startup.next(.provisioning);
+    try self.provision(Installation.provisionExternal);
+    if (config.external.?.ursula != null) {
+        // Ursula permits its independently authorized background owner. Local
+        // storage runs this same work inside its exclusive native owner.
+        try self.start(allocator, .maintenance, try config.command(allocator, self.executable, .node, &.{ try installation.path("node.json"), "--maintain" }), &.{}, false);
+    }
+    self.active_role = .courier;
+    try self.provision(Installation.checkCourier);
+    const courier_config = try installation.path("courier.json");
+    _ = try Files.jsonIfChanged(self.init.io, allocator, courier_config, .{
+        .url = installation.wire.url,
+        .realm = config.realm,
+        .principal = Installation.courier,
+        .seed_file = try installation.path("courier.seed"),
+        .role = .{ .courier = .{ .all_destinations = true } },
+        .interval_ms = 10,
+        .idle_max_interval_ms = 1000,
+        .request_timeout_ms = 2000,
+    });
+    try self.start(allocator, .courier, try config.command(allocator, self.executable, .query_host, &.{courier_config}), &.{}, false);
+    if (self.ui) {
+        self.startup.next(.board_provisioning);
+        try self.provision(Installation.provisionBoard);
+        _ = try self.startBoard(allocator, null);
+    }
+    if (!self.allAlive()) return error.ChildExited;
+    // Commit the replacement only after opening compatible native history and
+    // checking the original grants. Failure before this point leaves the old
+    // selection and explicit replacement intent available for exact recovery.
+    const identity = try Config.identities(config, self.init, self.executable, self.diagnostic);
+    const previous = if (installation.record.runtime) |runtime| runtime.identity else installation.record.identity;
+    if (!std.meta.eql(previous, identity)) installation.record.runtime = .{ .previous = previous.cli, .identity = identity };
+    installation.record.endpoint = installation.wire.url;
+    installation.record.complete = true;
+    try installation.save();
+    _ = try Files.jsonIfChanged(self.init.io, allocator, readiness, true);
+    self.announceReady();
+    var output_buffer: [1024]u8 = undefined;
+    var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
+    try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{f}\n", .{std.json.fmt(.{
+        .ready = true,
+        .profile = "external_workers_v1",
+        .installation = config.installation,
+        .native_url = installation.wire.url,
+        .board_url = if (self.ui) config.board.?.public_origin else null,
+        .ui = if (self.ui) "ready" else "disabled",
+    }, .{})}));
+    var unavailable: u8 = 0;
+    while (!Signals.interrupted()) {
+        if (!self.allAlive()) return error.ChildExited;
+        self.externalHealth() catch |err| {
+            std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |failure| if (failure != error.FileNotFound) return failure;
+            if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
+            if (installation.wire.last_rejection != .HttpCapacity and installation.wire.last_rejection != .ControlCapacity) {
+                if (unavailable == 2) return err;
+                unavailable += 1;
+            }
+            try self.init.io.sleep(.fromMilliseconds(1000), .awake);
+            continue;
+        };
+        unavailable = 0;
+        _ = try Files.jsonIfChanged(self.init.io, self.init.gpa, readiness, true);
+        try self.init.io.sleep(.fromMilliseconds(1000), .awake);
+    }
+}
+fn externalHealth(self: *Self) !void {
+    self.active_role = .node;
+    _ = try self.installation.query(.{ .capabilities = {} });
+    self.active_role = .courier;
+    try self.installation.checkCourier();
+    if (self.ui) {
+        self.active_role = .board;
+        try Board.check(self.installation);
+    }
+}
 fn node(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
     const config = installation.config;
@@ -387,22 +501,40 @@ fn node(self: *Self, allocator: std.mem.Allocator) !void {
     // and every replacement; a generic supervisor failure loses that context.
     installation.wire.observer = self.diagnostics;
     const node_config = try installation.path("node.json");
-    const table = try @import("Tables.zig").node(installation);
-    var storage = config.storage;
-    // Native bootstrap first publishes the catalog's scope and grants. The
-    // owned restart in cycle() activates the Table host and its physical policies
-    // together, before workers or SQL can accept data. There is no Table to
-    // maintain during that initial native-only bootstrap.
-    if (table == null) {
-        storage.maintenance.flush.enabled = false;
-        storage.maintenance.archive.enabled = false;
-        storage.maintenance.compact = false;
+    if (config.external != null) {
+        try @import("External.zig").node(installation, allocator, node_config);
+    } else {
+        const table = try @import("Tables.zig").node(installation);
+        var storage = config.storage;
+        // Native bootstrap first publishes the catalog's scope and grants. The
+        // owned restart in cycle() activates the Table host and its physical policies
+        // together, before workers or SQL can accept data. There is no Table to
+        // maintain during that initial native-only bootstrap.
+        if (table == null) {
+            storage.maintenance.flush.enabled = false;
+            storage.maintenance.archive.enabled = false;
+            storage.maintenance.compact = false;
+        }
+        _ = try Files.jsonIfChanged(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .browser = config.browser, .sql_control = @import("transit_sql_host").Deployment.Config{ .socket = try @import("transit_sql_host").Deployment.socketPath(allocator, self.init.io, self.init.environ_map.get("XDG_RUNTIME_DIR"), config.installation), .crypto_capacity = if ((config.sql.wireListening() and config.sql.tls.mode != .disabled) or (config.sql.native.http != null and config.sql.native.http.?.tls)) (16 + @as(usize, if (config.sql.wireListening() and config.sql.tls.mode != .disabled) config.sql.connections else 0) + @as(usize, if (config.sql.native.http != null and config.sql.native.http.?.tls) 16 else 0)) * 1024 * 1024 else 0 }, .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     }
-    _ = try Files.jsonIfChanged(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .local_directory = try installation.path("data/native"), .browser = config.browser, .sql_control = @import("transit_sql_host").Deployment.Config{ .socket = try @import("transit_sql_host").Deployment.socketPath(allocator, self.init.io, self.init.environ_map.get("XDG_RUNTIME_DIR"), config.installation), .crypto_capacity = if ((config.sql.wireListening() and config.sql.tls.mode != .disabled) or (config.sql.native.http != null and config.sql.native.http.?.tls)) (16 + @as(usize, if (config.sql.wireListening() and config.sql.tls.mode != .disabled) config.sql.connections else 0) + @as(usize, if (config.sql.native.http != null and config.sql.native.http.?.tls) 16 else 0)) * 1024 * 1024 else 0 }, .port = config.ports.node, .resident_pages = 512, .request_timeout_ms = 2000, .storage = storage, .table = table, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ node_config, "--bootstrap" };
     try self.start(allocator, .node, try config.command(allocator, self.executable, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 1) else 2]), &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
-    try self.ready(node_health);
+    if (config.external != null) {
+        // Native control stays available during service bootstrap; public
+        // health remains withdrawn until required services pass signed checks.
+        const started = std.Io.Clock.awake.now(self.init.io);
+        while (true) {
+            if (Signals.interrupted()) return error.ServerStopped;
+            if (!self.allAlive()) return error.ChildExited;
+            _ = installation.query(.{ .capabilities = {} }) catch |err| {
+                if (!q.wire.Client.unavailable(err) or started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) return err;
+                try self.init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            break;
+        }
+    } else try self.ready(node_health);
     _ = try installation.query(.{ .capabilities = {} });
 }
 fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {

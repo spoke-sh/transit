@@ -179,6 +179,14 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     while (true) {
         if (pending) |signed| {
             _ = wire.submit(signed) catch |err| {
+                if (wire.last_rejection == .OutputAlreadyResolved) {
+                    // A competing authorized delivery can resolve the original
+                    // output. Observe current sequence/pending work again; an
+                    // uncertain transport response must retain the frozen bytes.
+                    after = signed.request.command.deliver;
+                    pending = null;
+                    continue;
+                }
                 if (err == error.AccessDenied or err == error.Rejected or (err == error.Conflict and !wire.contended(err))) return err;
                 try courierBackoff(init.io, &retry_ms, config.interval_ms);
                 continue;

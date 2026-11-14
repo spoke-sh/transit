@@ -130,3 +130,57 @@ class LocalInstallation:
         self.stop()
         for log in self.logs:
             log.close()
+
+
+class ExternalInstallation(LocalInstallation):
+    """The native product profile with provider-placed application workers."""
+    def __init__(self, cli, *, ursula=None, parent='/var/tmp'):
+        import ctypes
+        assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
+        super().__init__(cli, parent=parent)
+        self.config.update(executables={}, external={}, applications=None, sql={'native': {'local': False}},
+            storage={'maintenance': {'compact': False, 'archive': {'enabled': False}, 'flush': {'enabled': False}}})
+        for name in ('transit-node', 'transit-query-host', 'transit-sql-gateway', 'transit-board'):
+            (self.root / name).unlink(missing_ok=True)
+        if ursula is not None:
+            self.config['external']['ursula'] = dict(url=ursula, bucket='server', journal='authority')
+        self.url = f"http://127.0.0.1:{self.config['ports']['node']}"
+        self.path.write_text(json.dumps(self.config))
+
+    def ready(self, timeout=45):
+        import select
+        import time
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()
+            if select.select([self.process.stdout], [], [], .1)[0]:
+                line = self.process.stdout.readline()
+                assert line, Path(self.logs[-1].name).read_text()
+                report = json.loads(line)
+                assert report['ready'] and report['profile'] == 'external_workers_v1', report
+                assert report['native_url'] == self.url, report
+                return report
+        raise TimeoutError(f'External server readiness at {self.root}')
+
+    def route_courier(self, url):
+        """Put a test-owned transport peer on the actual owned courier path."""
+        import sys
+        wrapper = self.root / 'transport-courier'
+        target = self.root / 'courier.json'
+        wrapper.write_text('#!' + sys.executable + '\nimport json,os,sys\n'
+            'config=json.load(open(sys.argv[1]))\nconfig["url"]=' + repr(url) + '\n'
+            'open(' + repr(str(target)) + ',"w").write(json.dumps(config))\n'
+            'os.execv(' + repr(self.cli) + ',[' + repr(self.cli) + ',"__transit_role_v1","query_host",' + repr(str(target)) + ']+sys.argv[2:])\n')
+        wrapper.chmod(0o700)
+        self.config['executables']['query_host'] = str(wrapper)
+        self.path.write_text(json.dumps(self.config))
+
+    def kill_role(self, match):
+        import signal
+        self.signal_role(match, signal.SIGKILL)
+
+    def signal_role(self, match, signum):
+        from harness.processes import command
+        owned = [pid for pid in children(self.process.pid) if match in command(pid)]
+        assert len(owned) == 1, owned
+        os.kill(owned[0], signum)

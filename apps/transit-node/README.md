@@ -105,7 +105,7 @@ resumes accepted progress under current maintenance privilege and trusted epoch/
 fences. Retained roots continue to own their objects. The local launcher selects this backend. Configured Table operations
 use the separate direct Table owner; native process, KV and Document state retain
 their paged native commit boundary. The
-[courier](../transit-delivery/README.md) delivers committed outputs via
+[server-owned courier](../transit-cli/docs/server.md#external-worker-composition) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
 reconciles physical placement through Substrate. Workers need neither Ursula
 credentials nor provider access.
@@ -238,3 +238,11 @@ Use an authenticated TLS boundary outside a trusted private network, and keep
 raw storage/provider APIs inaccessible to workloads. [Security](../../docs/handbook/reference/security.md)
 owns these assumptions; the [proof ledger](../../docs/history/qualification/README.md) records executed
 checks and their limits.
+
+When composed by `transit server`, the internal `readiness_file` setting gates
+`/health` on the parent's required-service checks. Signed native operations remain
+available during provisioning. The marker grants no authority; the server removes
+it before recovery and on readiness loss. Standalone node configurations without
+this setting retain native-only health semantics. Ursula maintenance runs as a
+separately authorized process owned by the server; local maintenance shares the
+node's exclusive storage owner.

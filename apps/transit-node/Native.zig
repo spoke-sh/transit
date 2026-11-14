@@ -22,6 +22,7 @@ const Config = struct {
     journal: []const u8,
     listen: []const u8 = "127.0.0.1",
     port: u16 = 8080,
+    readiness_file: ?[]const u8 = null,
     request_timeout_ms: u32 = 2000,
     resident_pages: u16 = 512,
     storage: core.protocol.Storage.Settings = .{},

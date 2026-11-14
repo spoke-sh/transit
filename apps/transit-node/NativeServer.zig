@@ -61,6 +61,7 @@ pub fn Host(comptime Provider: type) type {
             engine: *Engine,
             observation: telemetry.Http = .{},
             accept_trace_parent: bool,
+            readiness_file: ?[]const u8 = null,
             context: *Context = undefined,
             lane: *Lane = undefined,
             mutex: *std.Io.Mutex = undefined,
@@ -402,6 +403,9 @@ pub fn Host(comptime Provider: type) type {
                 if (request.head.method == .GET and std.mem.eql(u8, route, "/health")) {
                     self.beginWork();
                     try self.engine.refresh();
+                    if (self.readiness_file) |path| {
+                        std.Io.Dir.cwd().access(self.io, path, .{}) catch return self.json(request, .service_unavailable, .{ .ready = false, .profile = "native_v1" });
+                    }
                     return self.json(request, .ok, .{ .ready = true, .profile = "native_v1" });
                 }
                 const hint: ?wire.WaitHint = if (try http.header(request, "x-transit-wait")) |value|
@@ -497,7 +501,7 @@ pub fn Host(comptime Provider: type) type {
             pub fn create(init: std.process.Init, engine: *Engine, lanes: []Lane, config: anytype, diagnostics: *telemetry.Runtime) !*Context {
                 const owned_server = try init.gpa.create(Server);
                 errdefer init.gpa.destroy(owned_server);
-                owned_server.* = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent, .request_metrics = config.request_metrics };
+                owned_server.* = .{ .io = init.io, .allocator = init.gpa, .engine = engine, .accept_trace_parent = config.accept_trace_parent, .request_metrics = config.request_metrics, .readiness_file = if (@hasField(@TypeOf(config), "readiness_file")) config.readiness_file else null };
                 const shared_pages = try init.gpa.alloc(?Provider.PageStore.Cached, config.resident_pages);
                 errdefer init.gpa.free(shared_pages);
                 @memcpy(shared_pages, engine.page_store.cache);
