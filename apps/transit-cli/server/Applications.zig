@@ -636,9 +636,7 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
                 return;
             };
             const process = (try self.installation.query(.{ .process = record.pids[i].? })).body.process.process;
-            if (process.owner != record.workers[i] or process.generation != record.generations[i] or process.lifecycle != .running) return error.ProcessUnavailable;
-            if (process.failure != null) {
-                if (!supervisedChild(record.*, i)) return error.ProcessUnavailable;
+            if (!try activationReady(process, record.workers[i], record.generations[i], supervisedChild(record.*, i))) {
                 // The replacement can consume its original poisoned head before
                 // this activation observation. Join it, then await recorded
                 // supervisor intent just as for failure after readiness.
@@ -670,6 +668,19 @@ fn stopDependents(self: *Self, app: *Runtime, record: Record, index: usize) void
 fn supervisedChild(record: Record, i: usize) bool {
     for (record.declaration.station) |service| if (service.mode == .lifecycle and std.mem.eql(u8, service.watches[0].child.?, record.declaration.roles[i].name)) return true;
     return false;
+}
+fn activationReady(process: g.Process, principal: u64, generation: u64, supervised: bool) !bool {
+    if (process.lifecycle != .running) return error.ProcessUnavailable;
+    if (process.failure != null) {
+        // A native failed turn fences its owner and advances generation once.
+        // Recognize only that exact transition, never another owner's activation
+        // or a later lifecycle fence, as a failure of this hosted incarnation.
+        const failed_generation = std.math.add(u64, generation, 1) catch return error.ProcessUnavailable;
+        if (supervised and process.owner == null and process.generation == failed_generation) return false;
+        return error.ProcessUnavailable;
+    }
+    if (process.owner != principal or process.generation != generation) return error.ProcessUnavailable;
+    return true;
 }
 fn startWorker(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: Record, i: usize) !void {
     const selected = try candidate(allocator, record, i);
@@ -718,4 +729,30 @@ test "replacement checkpoint admission reserves recovery space for escaped confi
     try admitCheckpoint(std.testing.allocator, record);
     for (&record.selected) |*slot| slot.* = selected;
     try std.testing.expectError(error.ApplicationCheckpointCapacity, admitCheckpoint(std.testing.allocator, record));
+}
+
+test "activation recognizes the native failure fence without accepting unrelated ownership changes" {
+    const t = std.testing;
+    const running: g.Process = .{ .pid = 3, .code = 1, .owner = 42, .generation = 7 };
+    try t.expect(try activationReady(running, 42, 7, false));
+    const failed: g.Process = .{ .pid = 3, .code = 1, .owner = null, .generation = 8, .failure = 99 };
+    try t.expect(!try activationReady(failed, 42, 7, true));
+    try t.expectError(error.ProcessUnavailable, activationReady(failed, 42, 7, false));
+    var invalid = failed;
+    invalid.owner = 43;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = failed;
+    invalid.generation = 9;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid.generation = 7;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = failed;
+    invalid.lifecycle = .expired;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = running;
+    invalid.owner = 43;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = running;
+    invalid.generation = 8;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
 }

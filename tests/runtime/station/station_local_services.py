@@ -70,7 +70,15 @@ def run(server, worker):
                 if result: return result
                 assert fixture.process.poll() is None
                 time.sleep(.05)
-            raise AssertionError(fixture.status('supervision'))
+            status = fixture.status('supervision')
+            observed = {}
+            try:
+                for name, pid in (('parent', parent), ('child', child)):
+                    process = query({'process': pid})['body']['process']['process']
+                    observed[name] = {key: process[key] for key in ('pid', 'owner', 'generation', 'failure', 'lifecycle')}
+            except Exception as error:
+                observed['observation_error'] = str(error)
+            raise AssertionError(dict(roles=status['roles'], services=status['services'], native=observed))
 
         submit({'grant_resource': dict(resource=resource, subject=0, permissions=3)})
         until(lambda: state() is not None)

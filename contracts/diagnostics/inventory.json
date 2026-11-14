@@ -1402,7 +1402,7 @@
         "InvalidRegistration": 4,
         "InvalidWatch": 1,
         "NoSpaceLeft": 1,
-        "ProcessUnavailable": 4,
+        "ProcessUnavailable": 6,
         "RegistrationTimeout": 1,
         "RoleReadinessTimeout": 1,
         "ServerStopped": 1,
@@ -1435,6 +1435,7 @@
       },
       "error_sets": {},
       "error_returns": {
+        "activationReady()": "<inferred>",
         "add()": "<inferred>",
         "admitCheckpoint()": "<inferred>",
         "advance()": "<inferred>",
@@ -1466,8 +1467,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 186,
-        "catch": 15
+        "try": 187,
+        "catch": 16
       },
       "imports": [
         "../Settings.zig",
