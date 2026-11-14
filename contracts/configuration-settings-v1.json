@@ -50,6 +50,54 @@
       "items_schema": null
     },
     {
+      "name": "startup.replace_runtime",
+      "description": "Explicit external-worker runtime replacement, pinned to original and target executable SHA-256",
+      "owner": "server",
+      "kind": "object",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "startup.replace_runtime.from",
+      "description": "Previously accepted transit executable SHA-256",
+      "owner": "server",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "startup.replace_runtime.to",
+      "description": "Proposed transit executable SHA-256",
+      "owner": "server",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
       "name": "logging.format",
       "description": "Operational log rendering on stderr",
       "owner": "server",
@@ -565,6 +613,201 @@
       "session_mutable": false,
       "nullable": true,
       "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external",
+      "description": "Native server composition for externally placed applications",
+      "owner": "server",
+      "kind": "object",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.allow_history_trim",
+      "description": "Explicit native history trimming opt-in retained with genesis",
+      "owner": "node",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "false",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.request_timeout_ms",
+      "description": "Native request budget for externally placed workers",
+      "owner": "node",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "2000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 60000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.maintenance.interval_ms",
+      "description": "Delay between bounded server-owned native maintenance steps",
+      "owner": "node",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "1000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 60000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.maintenance.checkpoint_every_records",
+      "description": "Optional native checkpoint cadence, requiring the retained history-trim opt-in",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 2,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.root_seed_file",
+      "description": "Explicit operator root seed reference; must match retained authority on every startup",
+      "owner": "server",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.listen",
+      "description": "Signed native listener inside the private deployment boundary",
+      "owner": "node",
+      "kind": "enumeration",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "\"127.0.0.1\"",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [
+        "127.0.0.1",
+        "0.0.0.0"
+      ],
+      "items_schema": null
+    },
+    {
+      "name": "external.ursula",
+      "description": "Explicit Ursula native authority provider; null selects local disk",
+      "owner": "node",
+      "kind": "object",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.ursula.url",
+      "description": "Private Ursula HTTP endpoint without embedded credentials",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.ursula.bucket",
+      "description": "Retained Ursula bucket",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.ursula.journal",
+      "description": "Retained native authority journal",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "external.table_file",
+      "description": "Explicit local direct Table configuration; its first accepted identity is retained",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
       "minimum": 0,
       "maximum": 18446744073709551615,
       "values": [],
@@ -1724,6 +1967,31 @@
             "x-transit-owner": "server",
             "x-transit-change": "restart",
             "default": false
+          },
+          "replace_runtime": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "from": {
+                "type": "string",
+                "description": "Previously accepted transit executable SHA-256",
+                "x-transit-owner": "server",
+                "x-transit-change": "restart"
+              },
+              "to": {
+                "type": "string",
+                "description": "Proposed transit executable SHA-256",
+                "x-transit-owner": "server",
+                "x-transit-change": "restart"
+              }
+            },
+            "description": "Explicit external-worker runtime replacement, pinned to original and target executable SHA-256",
+            "x-transit-owner": "server",
+            "x-transit-change": "restart",
+            "default": null
           }
         }
       },
@@ -2189,6 +2457,138 @@
             "default": null
           }
         }
+      },
+      "external": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "allow_history_trim": {
+            "type": "boolean",
+            "description": "Explicit native history trimming opt-in retained with genesis",
+            "x-transit-owner": "node",
+            "x-transit-change": "initialization",
+            "default": false
+          },
+          "request_timeout_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 60000
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+(ms|s|min|h)$"
+              }
+            ],
+            "description": "Native request budget for externally placed workers",
+            "x-transit-owner": "node",
+            "x-transit-change": "restart",
+            "default": 2000
+          },
+          "maintenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "interval_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 60000
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(ms|s|min|h)$"
+                  }
+                ],
+                "description": "Delay between bounded server-owned native maintenance steps",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 1000
+              },
+              "checkpoint_every_records": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 2,
+                "maximum": 9007199254740991,
+                "description": "Optional native checkpoint cadence, requiring the retained history-trim opt-in",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": null
+              }
+            }
+          },
+          "root_seed_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit operator root seed reference; must match retained authority on every startup",
+            "x-transit-owner": "server",
+            "x-transit-change": "initialization"
+          },
+          "listen": {
+            "type": "string",
+            "enum": [
+              "127.0.0.1",
+              "0.0.0.0"
+            ],
+            "description": "Signed native listener inside the private deployment boundary",
+            "x-transit-owner": "node",
+            "x-transit-change": "initialization",
+            "default": "127.0.0.1"
+          },
+          "ursula": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "Private Ursula HTTP endpoint without embedded credentials",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "bucket": {
+                "type": "string",
+                "description": "Retained Ursula bucket",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "journal": {
+                "type": "string",
+                "description": "Retained native authority journal",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              }
+            },
+            "description": "Explicit Ursula native authority provider; null selects local disk",
+            "x-transit-owner": "node",
+            "x-transit-change": "initialization",
+            "default": null
+          },
+          "table_file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit local direct Table configuration; its first accepted identity is retained",
+            "x-transit-owner": "node",
+            "x-transit-change": "restart"
+          }
+        },
+        "description": "Native server composition for externally placed applications",
+        "x-transit-owner": "server",
+        "x-transit-change": "initialization",
+        "default": null
       },
       "sql": {
         "type": "object",
