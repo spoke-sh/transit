@@ -107,6 +107,7 @@ fn managed(self: *Self, sql: []const u8, prepared: *g.Session.Prepared) !g.resul
     const reference: g.SessionOperations.Reference = .{ .id = admitted.identity.id, .kind = .dataflow, .nonce = token };
     // Submit once. Settlement advances only the retained operation, exactly as
     // the native SQL service does; an uncertain admission fails this case.
+    var interval_ms: u32 = 10;
     while (true) {
         try session.deadline.check(session.io);
         try session.current();
@@ -120,7 +121,8 @@ fn managed(self: *Self, sql: []const u8, prepared: *g.Session.Prepared) !g.resul
             if (!std.meta.eql(completion, try verified.completion())) return error.TestInvalidTerminal;
             return completion;
         }
-        try session.io.sleep(.fromMilliseconds(10), .awake);
+        try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+        interval_ms = @min(interval_ms * 2, 50);
     }
 }
 
@@ -134,6 +136,7 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
     const declaration = try session.fresh(g.ManagedOperations.program, .{ session, try g.catalog.TableAuthority.Name.init(expected.name) }) orelse return error.TestMissingProgram;
     defer declaration.deinit();
     var remaining = expected.observations;
+    var interval_ms: u32 = 10;
     while (remaining > 0) : (remaining -= 1) {
         try session.deadline.check(session.io);
         try session.current();
@@ -147,7 +150,10 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
             const disclosed = try session.fresh(observeWorkflow, .{ session, declaration.value });
             if (disclosed.head.completed == expected.completed and disclosed.head.refused == expected.refused) return null;
         }
-        if (remaining > 1) try session.io.sleep(.fromMilliseconds(10), .awake);
+        if (remaining > 1) {
+            try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+            interval_ms = @min(interval_ms * 2, 50);
+        }
     }
     return .workflow_progress;
 }

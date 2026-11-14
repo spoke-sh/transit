@@ -38776,8 +38776,8 @@
     "packages/zig/transit-sql/src/DatabaseRuntime.zig": {
       "errors": {
         "AccessDenied": 2,
-        "Canceled": 5,
-        "Cancelled": 5,
+        "Canceled": 7,
+        "Cancelled": 7,
         "CatalogIdentityConflict": 2,
         "ClientOperationConflict": 1,
         "ClientOperationPending": 1,
@@ -38805,7 +38805,8 @@
         "MissingGatewayOperation": 1,
         "MissingGatewayTerminal": 2,
         "QueueTimeUnavailable": 1,
-        "StaleGatewayCoordinator": 6,
+        "SqlReadCacheInUse": 1,
+        "StaleGatewayCoordinator": 7,
         "TableDataChanged": 2,
         "TableDefinitionChanged": 2,
         "TableRowMissing": 2,
@@ -38830,6 +38831,7 @@
         "cancel()": "<inferred>",
         "checkFence()": "<inferred>",
         "cleanupClient()": "<inferred>",
+        "drainReadPins()": "<inferred>",
         "execute()": "<inferred>",
         "executePrepared()": "<inferred>",
         "executeWorkloadPrepared()": "<inferred>",
@@ -38861,8 +38863,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 169,
-        "catch": 24
+        "try": 170,
+        "catch": 26
       },
       "imports": [
         "root.zig",
@@ -39056,6 +39058,7 @@
         "releaseCachedSnapshot()": "<inferred>",
         "releaseStream()": "<inferred>",
         "tick()": "<inferred>",
+        "tickLocked()": "<inferred>",
         "write()": "<inferred>"
       },
       "open_error_set_uses": 0,

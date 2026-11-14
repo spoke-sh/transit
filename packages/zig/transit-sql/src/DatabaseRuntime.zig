@@ -356,6 +356,31 @@ pub fn attachReadCache(self: *Self, directory: std.Io.Dir, sources: ReadSources)
     self.read_sources = sources;
     self.notify();
 }
+/// Synchronously drain and reconcile all durable read-pin slots across every
+/// configured route after foreground borrowers and background workers join.
+pub fn drainReadPins(self: *Self) !void {
+    const pins = if (self.read_pins) |*value| value else return;
+    try self.checkFence(&self.private);
+    const route_count = self.execution.configuration.bindings.len + self.read_sources.len;
+    pins.dirty.store(false, .release);
+    for (0..route_count) |route| {
+        self.cleanup_route = route;
+        const caller = self.cleanupClient() catch |err| {
+            if (err != error.Canceled and err != error.Cancelled) self.read_cleanup_failure.store(@intFromError(err), .release);
+            return err;
+        };
+        if (caller) |client| {
+            pins.drain(client) catch |err| {
+                if (err != error.Canceled and err != error.Cancelled and err != error.StaleGatewayCoordinator) self.read_cleanup_failure.store(@intFromError(err), .release);
+                return err;
+            };
+        }
+    }
+    if (pins.dirty.load(.acquire)) return error.SqlReadCacheInUse;
+    self.cleanup_route = 0;
+    self.cleanup_swept_routes = route_count + 1;
+    self.read_cleanup_failure.store(0, .release);
+}
 pub fn tick(self: *Self) !bool {
     if (self.sweep == null) {
         self.sweep = self.work.begin(self.io) orelse return false;

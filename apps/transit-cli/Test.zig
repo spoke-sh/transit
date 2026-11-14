@@ -18,7 +18,18 @@ const CaseReport = struct {
     observation: Host.Observation = .{},
     action_location: ?p.Diagnostic.Location = null,
 };
-pub fn run(init: std.process.Init, options: Options, diagnostic: *Diagnostic) !void {
+pub fn run(original: std.process.Init, options: Options, diagnostic: *Diagnostic) !void {
+    const gpa = if (@import("builtin").mode == .debug) original.gpa else std.heap.c_allocator;
+    const runtime = try @import("transit_io").Threaded.create(gpa, .{
+        .workers = 16,
+        .task_bytes = 1024 * 1024,
+        .environ = original.minimal.environ,
+        .argv0 = .init(original.minimal.args),
+    });
+    defer runtime.destroy();
+    var init = original;
+    init.gpa = gpa;
+    init.io = runtime.io();
     var quota: @import("transit_memory").Quota = .{ .limit = 256 * 1024 * 1024 };
     var adapter: @import("transit_memory").Quota.Allocator = .{ .parent = init.gpa, .quota = &quota };
     var arena: std.heap.ArenaAllocator = .init(adapter.allocator());
