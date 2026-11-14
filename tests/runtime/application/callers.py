@@ -191,6 +191,10 @@ def run(server, cli, counter, byte_log, probe):
             assert source["pid"] == pids[1] and source["output"] == 2
             assert sink_view["process"]["admitted"] == 1
             assert sink_view["input"]["value"] == b"alpha\0".hex()
+            # Keep the original second-turn oracle isolated from later input
+            # delivery. The old fixture stopped its courier here; retain that
+            # fault window across manager recovery, then release it below.
+            (fixture.root / 'block-delivery').touch()
             command({"send": {"pid": pids[0], "value": b"5".hex()}})
             authority.kill()
             authority.wait(timeout=10)
@@ -213,6 +217,19 @@ def run(server, cli, counter, byte_log, probe):
             authority = start()
             for index in range(2):
                 check(index, "verify")
+            (fixture.root / 'block-delivery').unlink()
+            deadline = time.monotonic() + 20
+            while True:
+                status = json.loads(subprocess.check_output([str(cli), 'native', 'query', str(seed), str(status_query), url], timeout=10))
+                if status['body']['delivery']['next'] is None:
+                    break
+                assert fixture.process.poll() is None and time.monotonic() < deadline
+                time.sleep(.05)
+            assert status['principal_sequence'] == 4, status
+            for pid, admitted, consumed in ((pids[1], 3, 2), (sink, 2, 0)):
+                read.write_text(json.dumps(dict(realm=61, principal=0, kind={'process': pid})))
+                view = json.loads(subprocess.check_output([str(cli), 'native', 'query', str(root), str(read), url], timeout=10))['body']['process']
+                assert (view['process']['admitted'], view['process']['consumed']) == (admitted, consumed), view
             # A delayed controller must still be able to read bootstrap evidence.
             # Expected pre-grant denials must not flood its bounded log transport.
             bootstrap_log = (store.root / "bootstrap.log").open("w+b")
