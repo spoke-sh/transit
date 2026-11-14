@@ -51,7 +51,7 @@ pub const Statement = struct { span: Span, value: union(enum) {
     assertion: Assertion,
     workflow: Workflow,
 } };
-pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{} };
+pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant, function, guard, procedure }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{}, return_type: ?TypeRef = null, program: ?Template.Syntax = null };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
 pub const Dependency = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, span: Span };
 pub const File = struct { definitions: []const Definition, imports: []const Import, dependencies: []const Dependency };
@@ -103,14 +103,19 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         } else {
             try self.require("CREATE");
             const public = self.take("PUBLIC");
-            const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
+            const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("FUNCTION")) .function else if (self.take("GUARD")) .guard else if (self.take("PROCEDURE")) .procedure else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
                 try self.require("TARGET");
                 break :blk .test_target;
             } else return error.UnsupportedSourceDeclaration;
             const name = try self.identifier();
-            const parameters = if (kind == .module or kind == .interface) try self.parseParameters() else &.{};
+            const parameters = if (kind == .module or kind == .interface or kind == .function or kind == .guard or kind == .procedure) try self.parseParameters() else &.{};
+            const return_type: ?TypeRef = if (kind == .function) blk: {
+                try self.require("RETURNS");
+                break :blk try self.typeRef();
+            } else null;
             var domain: ?Domain = null;
             var constructors: std.ArrayList(Constructor) = .empty;
+            var program: ?Template.Syntax = null;
             if (kind == .domain) {
                 try self.require("AS");
                 const base = try self.scalarType();
@@ -128,8 +133,29 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
                     if (!self.take(",")) break;
                 }
                 try self.require(")");
+            } else if (kind == .function or kind == .guard or kind == .procedure) {
+                try self.require("AS");
+                try self.require("BEGIN");
+                if (kind == .procedure) {
+                    if (!self.take("ATOMIC")) return error.ProcedureOutsideAtomic;
+                } else if (self.is("ATOMIC")) {
+                    return if (kind == .function) error.ImpureSourceFunction else error.MutationInsideGuard;
+                }
+                const body_begin = self.index;
+                var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
+                const frame = (try script.next()) orelse return error.InvalidSourceSyntax;
+                while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
+                if (self.index == body_begin) return error.InvalidSourceSyntax;
+                const end_token = self.tokens[self.index - 1];
+                if (!std.ascii.eqlIgnoreCase(self.text[end_token.start..end_token.end], "END")) return error.InvalidSourceSyntax;
+                program = try Template.parseHelper(self.a, self.text, self.tokens[body_begin .. self.index - 1], end_token.start, switch (kind) {
+                    .function => .function,
+                    .guard => .guard,
+                    .procedure => .procedure,
+                    else => unreachable,
+                }, self.location);
             }
-            const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant) &.{} else blk: {
+            const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant or kind == .function or kind == .guard or kind == .procedure) &.{} else blk: {
                 try self.require("AS");
                 try self.require("BEGIN");
                 const result = try self.parseBody(.end);
@@ -137,7 +163,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
                 break :blk result;
             };
             try self.require(";");
-            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(a) });
+            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(a), .return_type = return_type, .program = program });
         }
     }
     return .{ .definitions = try definitions.toOwnedSlice(a), .imports = try imports.toOwnedSlice(a), .dependencies = try dependencies.toOwnedSlice(a) };

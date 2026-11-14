@@ -797,5 +797,100 @@
     "parse": true,
     "compile": "test_suite",
     "error": "TestMutationRequired"
+  },
+  {
+    "name": "source-helpers-syntax",
+    "source": "IMPORT ids FROM 'types.transit'; IMPORT lib FROM 'lib.transit'; CREATE PUBLIC FUNCTION normalize_body(body TEXT, suffix TEXT) RETURNS TEXT AS BEGIN RETURN CASE WHEN body = '' THEN 'empty' ELSE body || suffix END; END; CREATE FUNCTION wrap_id(id ids.OrderId) RETURNS ids.OrderId AS BEGIN RETURN id; END; CREATE PUBLIC GUARD valid_account(accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL), account_id ids.AccountId) AS BEGIN LET account = SELECT active FROM accounts WHERE id = account_id; REQUIRE account IS NOT NULL ELSE 'MissingAccount'; IF NOT account.active THEN REQUIRE FALSE ELSE 'InactiveAccount'; END IF; CHECK GUARD extra_guard(account_id); END; CREATE PUBLIC PROCEDURE record_order(orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, body TEXT NOT NULL), events STREAM(id ids.OrderId NOT NULL, body TEXT NOT NULL), jobs QUEUE(id ids.OrderId NOT NULL), id ids.OrderId, account_id ids.AccountId, body TEXT) AS BEGIN ATOMIC CHECK GUARD valid_account(orders, account_id); INSERT INTO orders VALUES (id, account_id, lib.normalize(body)) ON CONFLICT (id) DO ASSERT SAME ROW; CALL inner_proc(events, id, body); PRODUCE INTO events VALUES (id, body); ENQUEUE INTO jobs VALUES (id); END; CREATE MODULE Workflow(name IDENTIFIER, input QUEUE(id ids.OrderId NOT NULL, account_id ids.AccountId NOT NULL, body TEXT NOT NULL), accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL), orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, body TEXT NOT NULL), events STREAM(id ids.OrderId NOT NULL, body TEXT NOT NULL), jobs QUEUE(id ids.OrderId NOT NULL)) AS BEGIN CREATE PUBLIC DATAFLOW $name FROM QUEUE $input AS request AS BEGIN CHECK GUARD lib.valid_account($accounts, request.account_id); LET clean = lib.normalize_body(request.body, '!'); BEGIN ATOMIC CALL lib.record_order($orders, $events, $jobs, request.id, request.account_id, clean); END; END; END;",
+    "parse": true,
+    "checks": {
+      "definitions.0.kind": "function",
+      "definitions.0.public": true,
+      "definitions.0.return_type": {
+        "scalar": "text"
+      },
+      "definitions.0.program.kind": "function_body",
+      "definitions.1.public": false,
+      "definitions.1.return_type": {
+        "named": {
+          "qualifier": "ids",
+          "member": "orderid",
+          "constructor": null
+        }
+      },
+      "definitions.2.kind": "guard",
+      "definitions.2.program.kind": "guard_body",
+      "definitions.3.kind": "procedure",
+      "definitions.3.program.kind": "procedure_body"
+    }
+  },
+  {
+    "name": "helper-words-remain-contextual",
+    "source": "CREATE DOMAIN Function AS BIGINT IDENTITY 'fn-id'; CREATE DOMAIN Guard AS BIGINT IDENTITY 'guard-id'; CREATE DOMAIN Procedure AS BIGINT IDENTITY 'proc-id'; CREATE MODULE Returns(fn_type TYPE, guard_type TYPE, proc_type TYPE, return Function, call Guard, returns Procedure) AS BEGIN CREATE PUBLIC TABLE function (guard $fn_type PRIMARY KEY, procedure $guard_type NOT NULL, returns $proc_type NOT NULL); INSERT INTO function VALUES ($return, $call, $returns); END; CREATE TARGET default AS BEGIN USE Returns(TYPE Function, TYPE Guard, TYPE Procedure, Function(1), Guard(2), Procedure(3)); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 2
+  },
+  {
+    "name": "procedure-outside-atomic",
+    "source": "CREATE PROCEDURE p(t TABLE(id BIGINT PRIMARY KEY)) AS BEGIN INSERT INTO t VALUES (1) ON CONFLICT (id) DO ASSERT SAME ROW; END;",
+    "parse": false,
+    "parse_error": "ProcedureOutsideAtomic",
+    "at": "INSERT"
+  },
+  {
+    "name": "procedure-nested-atomic",
+    "source": "CREATE PROCEDURE p() AS BEGIN ATOMIC BEGIN ATOMIC REQUIRE TRUE ELSE 'No'; END; END;",
+    "parse": false,
+    "parse_error": "NestedAtomicProgram",
+    "at": "BEGIN ATOMIC REQUIRE"
+  },
+  {
+    "name": "guard-atomic-header",
+    "source": "CREATE GUARD g() AS BEGIN ATOMIC REQUIRE TRUE ELSE 'No'; END;",
+    "parse": false,
+    "parse_error": "MutationInsideGuard",
+    "at": "ATOMIC"
+  },
+  {
+    "name": "guard-mutation-insert",
+    "source": "CREATE GUARD g(t TABLE(id BIGINT PRIMARY KEY)) AS BEGIN INSERT INTO t VALUES (1) ON CONFLICT (id) DO ASSERT SAME ROW; END;",
+    "parse": false,
+    "parse_error": "MutationInsideGuard",
+    "at": "INSERT"
+  },
+  {
+    "name": "guard-mutation-call",
+    "source": "CREATE GUARD g() AS BEGIN CALL p(); END;",
+    "parse": false,
+    "parse_error": "MutationInsideGuard",
+    "at": "CALL"
+  },
+  {
+    "name": "function-impure-select",
+    "source": "CREATE FUNCTION f(x BIGINT) RETURNS BIGINT AS BEGIN LET r = SELECT id FROM t WHERE id = x; END;",
+    "parse": false,
+    "parse_error": "ImpureSourceFunction",
+    "at": "LET"
+  },
+  {
+    "name": "function-atomic-header",
+    "source": "CREATE FUNCTION f(x BIGINT) RETURNS BIGINT AS BEGIN ATOMIC RETURN x; END;",
+    "parse": false,
+    "parse_error": "ImpureSourceFunction",
+    "at": "ATOMIC"
+  },
+  {
+    "name": "helper-dollar-hole",
+    "source": "CREATE FUNCTION f(x BIGINT) RETURNS BIGINT AS BEGIN RETURN $x; END;",
+    "parse": false,
+    "parse_error": "InvalidSourceOperand",
+    "at": "$x"
+  },
+  {
+    "name": "program-call-outside-atomic",
+    "source": "CREATE MODULE unused() AS BEGIN CREATE PUBLIC DATAFLOW p FROM QUEUE q AS request AS BEGIN CALL helper(request.id); END; END;",
+    "parse": false,
+    "parse_error": "MutationOutsideAtomic",
+    "at": "CALL"
   }
 ]

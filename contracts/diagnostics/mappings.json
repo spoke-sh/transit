@@ -6000,6 +6000,18 @@
           "code": "application.source.unsupported",
           "category": "unsupported"
         },
+        "MutationInsideGuard": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "ProcedureOutsideAtomic": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "ImpureSourceFunction": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
         "NestedAtomicProgram": {
           "code": "application.source.unsupported",
           "category": "unsupported"
