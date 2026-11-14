@@ -1,5 +1,5 @@
 {
-  "definition": "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2",
+  "definition": "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb",
   "settings": [
     {
       "name": "version",
@@ -114,6 +114,38 @@
         "text",
         "json"
       ],
+      "items_schema": null
+    },
+    {
+      "name": "station.file",
+      "description": "Explicit Station service registration manifest; its first accepted identity is retained",
+      "owner": "station",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "station.max_services",
+      "description": "Active Station service quota per deployment group",
+      "owner": "station",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "32",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 256,
+      "values": [],
       "items_schema": null
     },
     {
@@ -2023,6 +2055,30 @@
             "x-transit-owner": "server",
             "x-transit-change": "restart",
             "default": "info"
+          }
+        }
+      },
+      "station": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Explicit Station service registration manifest; its first accepted identity is retained",
+            "x-transit-owner": "station",
+            "x-transit-change": "restart"
+          },
+          "max_services": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256,
+            "description": "Active Station service quota per deployment group",
+            "x-transit-owner": "station",
+            "x-transit-change": "restart",
+            "default": 32
           }
         }
       },

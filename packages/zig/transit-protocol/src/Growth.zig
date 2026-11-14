@@ -5,9 +5,9 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.v1.native-transaction-execution.2026-11-11.
+/// SHA-256 of transit.v1.server-station-services.2026-11-14.
 pub const Definition = enum {
-    cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2,
+    @"8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb",
 
     fn spelling(bytes: []const u8) !Definition {
         if (!std.mem.eql(u8, bytes, @tagName(current_definition))) return error.InvalidEnumTag;
@@ -1291,4 +1291,8 @@ test "SOURCE declaration cutover rejects the preceding definition" {
 
 test "log .tseg and STREAM_SLICE cutover rejects the preceding definition" {
     try std.testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, std.testing.allocator, "\"b987b6070d2ef1d1dbeec9bd96c19cdd0240eb7cc8bfdf877724dbf7436b9aeb\"", .{}));
+}
+
+test "pre-service application definitions are rejected" {
+    try std.testing.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Definition, std.testing.allocator, "\"cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2\"", .{}));
 }

@@ -108,7 +108,12 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2`.
+`8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb`.
+
+This definition binds server-owned Station service declarations, signed
+installation fields, bootstrap principal bindings and service status. Earlier
+installations and saved requests require their matching build; this cutover does
+not convert retained histories or reassign accepted observer identities.
 
 The application foundation combines typed KV fields, capability values, native
 browser bindings, ordered program and original-effect records, composed request

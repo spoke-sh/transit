@@ -12,7 +12,8 @@
         "resources",
         "callers",
         "initialize",
-        "inspection"
+        "inspection",
+        "station"
       ],
       "properties": {
         "version": {
@@ -305,6 +306,92 @@
               "permissions": 3
             }
           }
+        },
+        "station": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "name",
+              "mode",
+              "watches",
+              "interval_ms",
+              "request_timeout_ms"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 8192
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "observe",
+                  "lifecycle"
+                ]
+              },
+              "watches": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "resource",
+                    "child"
+                  ],
+                  "properties": {
+                    "resource": {
+                      "type": "string",
+                      "maxLength": 8192
+                    },
+                    "child": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 8192
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "resource"
+                  ],
+                  "x-transit-defaults": {
+                    "child": null
+                  }
+                }
+              },
+              "interval_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              },
+              "request_timeout_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "name",
+              "mode",
+              "watches"
+            ],
+            "x-transit-defaults": {
+              "interval_ms": 100,
+              "request_timeout_ms": 2000
+            }
+          }
         }
       },
       "required": [
@@ -316,7 +403,8 @@
       "x-transit-defaults": {
         "version": 1,
         "initialize": [],
-        "inspection": []
+        "inspection": [],
+        "station": []
       }
     },
     "Request": {
@@ -383,7 +471,8 @@
                     "resources",
                     "callers",
                     "initialize",
-                    "inspection"
+                    "inspection",
+                    "station"
                   ],
                   "properties": {
                     "version": {
@@ -676,6 +765,92 @@
                           "permissions": 3
                         }
                       }
+                    },
+                    "station": {
+                      "type": "array",
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "name",
+                          "mode",
+                          "watches",
+                          "interval_ms",
+                          "request_timeout_ms"
+                        ],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "maxLength": 8192
+                          },
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "observe",
+                              "lifecycle"
+                            ]
+                          },
+                          "watches": {
+                            "type": "array",
+                            "maxItems": 16,
+                            "items": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "resource",
+                                "child"
+                              ],
+                              "properties": {
+                                "resource": {
+                                  "type": "string",
+                                  "maxLength": 8192
+                                },
+                                "child": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 8192
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "resource"
+                              ],
+                              "x-transit-defaults": {
+                                "child": null
+                              }
+                            }
+                          },
+                          "interval_ms": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "request_timeout_ms": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "mode",
+                          "watches"
+                        ],
+                        "x-transit-defaults": {
+                          "interval_ms": 100,
+                          "request_timeout_ms": 2000
+                        }
+                      }
                     }
                   },
                   "required": [
@@ -687,7 +862,8 @@
                   "x-transit-defaults": {
                     "version": 1,
                     "initialize": [],
-                    "inspection": []
+                    "inspection": [],
+                    "station": []
                   }
                 }
               }
@@ -941,7 +1117,8 @@
                         "resources",
                         "callers",
                         "initialize",
-                        "inspection"
+                        "inspection",
+                        "station"
                       ],
                       "properties": {
                         "version": {
@@ -1234,6 +1411,92 @@
                               "permissions": 3
                             }
                           }
+                        },
+                        "station": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "name",
+                              "mode",
+                              "watches",
+                              "interval_ms",
+                              "request_timeout_ms"
+                            ],
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "maxLength": 8192
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "observe",
+                                  "lifecycle"
+                                ]
+                              },
+                              "watches": {
+                                "type": "array",
+                                "maxItems": 16,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "resource",
+                                    "child"
+                                  ],
+                                  "properties": {
+                                    "resource": {
+                                      "type": "string",
+                                      "maxLength": 8192
+                                    },
+                                    "child": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "maxLength": 8192
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "resource"
+                                  ],
+                                  "x-transit-defaults": {
+                                    "child": null
+                                  }
+                                }
+                              },
+                              "interval_ms": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 4294967295,
+                                "x-transit-bits": 32,
+                                "x-transit-signed": false
+                              },
+                              "request_timeout_ms": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 4294967295,
+                                "x-transit-bits": 32,
+                                "x-transit-signed": false
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "mode",
+                              "watches"
+                            ],
+                            "x-transit-defaults": {
+                              "interval_ms": 100,
+                              "request_timeout_ms": 2000
+                            }
+                          }
                         }
                       },
                       "required": [
@@ -1245,7 +1508,8 @@
                       "x-transit-defaults": {
                         "version": 1,
                         "initialize": [],
-                        "inspection": []
+                        "inspection": [],
+                        "station": []
                       }
                     }
                   }
@@ -1466,7 +1730,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                    "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                   ]
                 },
                 "realm": {
@@ -2821,7 +3085,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                                        "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                                       ]
                                                     },
                                                     "realm": {
@@ -3011,7 +3275,7 @@
                                                         "definition": {
                                                           "type": "string",
                                                           "enum": [
-                                                            "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                                            "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                                           ]
                                                         },
                                                         "realm": {
@@ -3870,7 +4134,7 @@
                                         "definition": {
                                           "type": "string",
                                           "enum": [
-                                            "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                            "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                           ]
                                         },
                                         "realm": {
@@ -5913,7 +6177,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                                                                "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -7226,7 +7490,7 @@
                                                                                 "definition": {
                                                                                   "type": "string",
                                                                                   "enum": [
-                                                                                    "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                                                                    "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                                                                   ]
                                                                                 },
                                                                                 "realm": {
@@ -8643,7 +8907,7 @@
                                       ],
                                       "x-transit-defaults": {
                                         "version": 1,
-                                        "definition": "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+                                        "definition": "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb"
                                       }
                                     }
                                   }
@@ -10359,6 +10623,7 @@
         "roles",
         "resources",
         "callers",
+        "services",
         "configuration"
       ],
       "properties": {
@@ -10515,6 +10780,36 @@
             "x-transit-defaults": {}
           }
         },
+        "services": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "name",
+              "id"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 8192
+              },
+              "id": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "name",
+              "id"
+            ],
+            "x-transit-defaults": {}
+          }
+        },
         "configuration": {
           "type": "string",
           "maxLength": 8192
@@ -10537,7 +10832,8 @@
         "configuration"
       ],
       "x-transit-defaults": {
-        "version": 1
+        "version": 1,
+        "services": []
       }
     },
     "Management": {
@@ -10767,6 +11063,7 @@
         "roles",
         "resources",
         "receipts",
+        "services",
         "next"
       ],
       "properties": {
@@ -10975,6 +11272,73 @@
             "x-transit-defaults": {}
           }
         },
+        "services": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "name",
+              "principal",
+              "mode",
+              "ready",
+              "completed_passes",
+              "error_name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "maxLength": 8192
+              },
+              "principal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "observe",
+                  "lifecycle"
+                ]
+              },
+              "ready": {
+                "type": "boolean"
+              },
+              "completed_passes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "error_name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 8192
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "principal",
+              "mode",
+              "ready",
+              "completed_passes"
+            ],
+            "x-transit-defaults": {
+              "error_name": null
+            }
+          }
+        },
         "next": {
           "anyOf": [
             {
@@ -11000,6 +11364,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
+        "services": [],
         "next": null
       }
     }

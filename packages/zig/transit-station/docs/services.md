@@ -1,7 +1,7 @@
 # Names, waits and supervision
 
 These policies run above the kernel through [Station](../README.md). The
-[controller](../../../../apps/transit-station-controller/README.md) supplies
+[server-owned service](../../../../apps/transit-cli/docs/server.md#station-services) supplies
 trusted time/lifecycle observations and separately authorized administrative
 actions. No additional durable queue or naming store is introduced.
 
