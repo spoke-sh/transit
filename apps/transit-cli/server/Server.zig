@@ -56,6 +56,9 @@ fn launch(init: std.process.Init, options: @import("../Options.zig").Options, di
     diagnostic.field = null;
     try config.preflight(init.io, !options.no_ui, diagnostic);
     diagnostic.atFile(config.installation);
+    // Preserve path admission before reading any retained record, including
+    // rejection of both live and dangling installation-directory symlinks.
+    _ = try Installation.directoryState(init.io, config.installation);
     const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
     // A completed directory remains bound to its original publication. An
     // explicit runtime replacement never rewrites that immutable assembly.

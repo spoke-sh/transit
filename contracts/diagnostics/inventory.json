@@ -2025,7 +2025,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 128,
+        "try": 129,
         "catch": 17
       },
       "imports": [
