@@ -217,10 +217,32 @@ def exercise(profile, name=None, base=None, existing=False):
         assert installation.records() == records
         await_value(lambda: total() == 14, "Station state lost on stop/start")
         assert entry("requester", b"last-query") is not None
+        supervision = None
+        if profile == "reference":
+            # Exercise the server-owned actuator through a real provider stop,
+            # native retry and fresh activation, keeping the same poisoned head.
+            from runtime.station.station import frame
+            previous = installation.process("ledger")
+            failed_input = installation.command("proof-supervised-failure", {"send": {
+                "pid": previous["pid"], "value": frame(b"invalid")}})
+            child_key = b"\x00c" + previous["pid"].to_bytes(8, "little") + b"\x00"
+
+            def exhausted():
+                child = entry("coordinator", child_key)
+                return child is not None and child[13:15] == bytes([1, 4])
+
+            await_value(exhausted, "Provider-bound retry did not exhaust its one attempt", seconds=240)
+            failed = installation.process("ledger")
+            assert failed["pid"] == previous["pid"] and failed["generation"] > previous["generation"]
+            assert failed["failure"] == failed_input
+            assert failed["binding"]["activation"] is not None
+            assert failed["binding"]["activation"]["worker_incarnation"] != previous["binding"]["activation"]["worker_incarnation"]
+            supervision = {"input": failed_input, "attempts": 1, "phase": "exhausted",
+                           "before": previous, "after": failed}
         evidence = ROOT / ".cache/m9" / ("station-" + profile + "-evidence.json")
         write(evidence, {"profile": profile, "processes": records, "before": before,
                          "recovered": recovered, "upgraded": upgraded, "framework_kinds": sorted(kinds),
-                         "query_kinds": sorted(queries), "total": 14})
+                         "query_kinds": sorted(queries), "total": 14, "supervision": supervision})
         invoke("down")
         invoke("reset")
     except BaseException:
