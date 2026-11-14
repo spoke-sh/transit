@@ -183,6 +183,8 @@ passes from role activation and domain progress. The original declaration and
 service identities survive manager/worker replacement. Revoked grants block the
 application instead of being reissued. Hosted child retries wait for joined worker
 shutdown; the original failed input and Station retry budget remain authoritative.
+A child that fails before its activation is observed follows the same recorded
+supervision policy as a child that fails after readiness.
 The [server guide](server.md#station-services) defines service limits and external
 worker registration, and the [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md#station-service-registration)
 defines signed fields and recovery.

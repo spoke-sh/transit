@@ -1402,7 +1402,7 @@
         "InvalidRegistration": 4,
         "InvalidWatch": 1,
         "NoSpaceLeft": 1,
-        "ProcessUnavailable": 3,
+        "ProcessUnavailable": 4,
         "RegistrationTimeout": 1,
         "RoleReadinessTimeout": 1,
         "ServerStopped": 1,

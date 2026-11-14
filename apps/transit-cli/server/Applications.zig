@@ -636,7 +636,15 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
                 return;
             };
             const process = (try self.installation.query(.{ .process = record.pids[i].? })).body.process.process;
-            if (process.owner != record.workers[i] or process.generation != record.generations[i] or process.failure != null or process.lifecycle != .running) return error.ProcessUnavailable;
+            if (process.owner != record.workers[i] or process.generation != record.generations[i] or process.lifecycle != .running) return error.ProcessUnavailable;
+            if (process.failure != null) {
+                if (!supervisedChild(record.*, i)) return error.ProcessUnavailable;
+                // The replacement can consume its original poisoned head before
+                // this activation observation. Join it, then await recorded
+                // supervisor intent just as for failure after readiness.
+                self.stopDependents(app, record.*, i);
+                return;
+            }
             worker.phase = .ready;
             return;
         }
@@ -659,13 +667,17 @@ fn stopDependents(self: *Self, app: *Runtime, record: Record, index: usize) void
         }
     }
 }
+fn supervisedChild(record: Record, i: usize) bool {
+    for (record.declaration.station) |service| if (service.mode == .lifecycle and std.mem.eql(u8, service.watches[0].child.?, record.declaration.roles[i].name)) return true;
+    return false;
+}
 fn startWorker(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: Record, i: usize) !void {
     const selected = try candidate(allocator, record, i);
     if (!std.mem.eql(u8, &try Config.digest(self.init, selected.artifact.path), &selected.artifact.sha256)) return error.ApplicationArtifactChanged;
     const process = (try self.installation.query(.{ .process = record.pids[i].? })).body.process.process;
     if (process.lifecycle != .running) return error.ProcessUnavailable;
     if (process.failure != null) {
-        for (record.declaration.station) |service| if (service.mode == .lifecycle and std.mem.eql(u8, service.watches[0].child.?, record.declaration.roles[i].name)) return;
+        if (supervisedChild(record, i)) return;
         return error.ProcessUnavailable;
     }
     const generation = try std.math.add(u64, process.generation, 1);
