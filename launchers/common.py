@@ -244,7 +244,17 @@ backend = "inline"
     def attach_server(self):
         """Service readiness and a signed observation precede operator writes."""
         wait_for(self.url + '/health')
-        self.native_query({'capabilities': {}})
+        with lock(self.path / 'operator/lock'):
+            state = json.loads((self.path / 'operator/sequence.json').read_text())
+            # Settle the original request before adopting bootstrap's sequence.
+            # Once ready, the server's retained grants need no new root writes;
+            # launcher commands serialize through this receipt-backed journal.
+            self._flush(state)
+            sequence = self.native_query({'capabilities': {}})['principal_sequence']
+            if sequence < state['sequence']:
+                raise RuntimeError('Server authority is behind the retained operator sequence')
+            state['sequence'] = sequence
+            write(self.path / 'operator/sequence.json', state)
         write(self.path / 'initialized.json', True)
 
     def check_ports(self, board=None):
@@ -299,7 +309,7 @@ backend = "inline"
                     raise RuntimeError("Request ID was already used with different content")
                 return recorded["receipt"]["position"]
             state["pending"] = {"id": identity, "request": {"realm": self.load()["realm"],
-                "principal": 0, "sequence": self.native_query({'capabilities': {}})['principal_sequence'] + 1, "command": body}}
+                "principal": 0, "sequence": state["sequence"] + 1, "command": body}}
             write(self.path / "operator/sequence.json", state)
             self._flush(state)
             return json.loads(receipt.read_text())["receipt"]["position"]
