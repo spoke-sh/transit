@@ -280,7 +280,10 @@ def scenario(args, destination, record, report):
 
                 def until(predicate, label):
                     deadline = time.monotonic() + 30
-                    while not predicate():
+                    while True:
+                        result = predicate()
+                        if result:
+                            return result
                         if peer.errors:
                             raise AssertionError(peer.errors)
                         if time.monotonic() >= deadline:
@@ -319,8 +322,16 @@ def scenario(args, destination, record, report):
                         stop(worker, 'worker')
                     assert query(dict(process=pid))['process']['process']['consumed'] == len(expected)
                     peer.arm(22, 'deliver', 'drop_response', .03)
-                    courier = next(child for child in owned_children(fixture.process.pid)
-                                   if '/courier.json' in process_command(child))
+                    def owned_courier():
+                        assert fixture.process.poll() is None, Path(fixture.logs[-1].name).read_text()
+                        matches = [child for child in owned_children(fixture.process.pid)
+                                   if '/courier.json' in process_command(child)]
+                        assert len(matches) <= 1, matches
+                        return matches[0] if matches else None
+                    # Readiness can precede the child's exec/command-line
+                    # observation. Bind the fault to one observed owned PID
+                    # before enabling delivery, within the existing budget.
+                    courier = until(owned_courier, 'owned courier process')
                     peer.delivery_enabled = True
                     fault_done()
                     retry_identity = peer.last_fault_identity
