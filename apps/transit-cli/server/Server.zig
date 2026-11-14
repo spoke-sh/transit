@@ -409,6 +409,10 @@ fn announceReady(self: *Self) void {
 fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
     const config = installation.config;
+    // Recheck the approved artifact on every recovery cycle before starting
+    // roles. Only this validated identity can become the accepted selection.
+    const identity = try Config.identities(config, self.init, self.executable, self.diagnostic);
+    try @import("RuntimeSelection.zig").validate(config, installation.record, identity);
     const readiness = try installation.path("server-ready");
     std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |err| if (err != error.FileNotFound) return err;
     defer std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch {};
@@ -446,7 +450,6 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     // Commit the replacement only after opening compatible native history and
     // checking the original grants. Failure before this point leaves the old
     // selection and explicit replacement intent available for exact recovery.
-    const identity = try Config.identities(config, self.init, self.executable, self.diagnostic);
     const previous = if (installation.record.runtime) |runtime| runtime.identity else installation.record.identity;
     if (!std.meta.eql(previous, identity)) installation.record.runtime = .{ .previous = previous.cli, .identity = identity };
     installation.record.endpoint = installation.wire.url;

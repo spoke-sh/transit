@@ -679,6 +679,7 @@ An external-worker installation can explicitly replace its server artifact using
 `startup.replace_runtime: {from: OLD_SHA256, to: NEW_SHA256}`. Both hashes refer
 to executable bytes, not an image tag. Replacement requires the same current
 protocol definition, provider/configuration identity and embedded role selection.
+The server rechecks these pins before starting roles in each recovery cycle.
 The server validates retained history and grants before recording the new runtime;
 its original directory publication and accepted work remain unchanged. Missing,
 foreign or reversed pins reject. A failed attempt retains the original selection

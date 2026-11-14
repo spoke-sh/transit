@@ -714,6 +714,7 @@ def external_replacement(cli):
     """An explicit artifact pin never resets native or publication identity."""
     import shutil
     from harness.local_installation import ExternalInstallation
+    from harness.processes import command as process_command
     fixture = ExternalInstallation(cli)
     success = False
     try:
@@ -755,6 +756,17 @@ def external_replacement(cli):
         fixture.start()
         fixture.ready()
         assert fixture.record()['runtime'] == retained['runtime']
+        # A replaced pathname during owned-role recovery is not a new approved
+        # artifact. Keep the accepted pin even if the replacement is valid ELF.
+        unexpected = fixture.root / 'unexpected-transit'
+        unexpected.write_bytes(original_binary + b'\ntransit unapproved replacement\n')
+        unexpected.chmod(0o700)
+        os.replace(unexpected, binary)
+        courier = next(pid for pid in children(fixture.process.pid) if '/courier.json' in process_command(pid))
+        os.kill(courier, signal.SIGKILL)
+        assert fixture.process.wait(timeout=45) != 0, 'Owned recovery adopted an unapproved runtime'
+        assert fixture.record()['runtime'] == retained['runtime'], 'Owned recovery changed the accepted runtime pin'
+        assert 'InstallationIdentityMismatch' in Path(fixture.logs[-1].name).read_text()
         fixture.stop()
         binary.write_bytes(original_binary)
         fixture.config['startup'] = {}

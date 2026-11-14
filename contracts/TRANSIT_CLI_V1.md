@@ -635,7 +635,8 @@ External-worker runtime replacement requires explicit
 `startup.replace_runtime.from` and `.to` executable SHA-256 pins, a complete
 existing installation, matching current protocol definition and unchanged
 configuration/provider identity. Both old and new runtime selections must use
-embedded roles. The original directory publication remains immutable; a separate
+embedded roles. Each recovery cycle validates the approved artifact before
+starting roles. The original directory publication remains immutable; a separate
 accepted runtime identity records the prior hash and selected role hashes only
 after compatible history recovery and current-service checks. Repeating the same
 intent is idempotent; a foreign basis, target or unrequested artifact change
