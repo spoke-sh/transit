@@ -1813,7 +1813,7 @@
         "InvalidInstallationDirectory": 1,
         "InvalidRegistration": 1,
         "ServerStopped": 4,
-        "StorageIdentityMismatch": 1,
+        "StorageIdentityMismatch": 2,
         "UnresolvedProvisioning": 4,
         "UnsafeCourierPrincipal": 1,
         "UnsupportedWorkerRotation": 1

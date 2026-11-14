@@ -633,6 +633,34 @@ def external_delivery(cli):
                 assert fixture.process.wait(timeout=45) != 0, 'Restart restored revoked delivery rights'
                 assert fixture.record()['provision'][10] == receipt, 'Completed courier grant was reissued'
                 assert 'AccessDenied' in Path(fixture.logs[-1].name).read_text()
+                if provider:
+                    # A matching operator key is not a replacement for the
+                    # retained installation journal. A fresh directory must
+                    # neither adopt accepted history nor restore revoked rights.
+                    fixture.stop()
+                    foreign = ExternalInstallation(cli, ursula=provider.url)
+                    foreign.config['realm'] = realm
+                    foreign.config['external']['root_seed_file'] = str(fixture.installation / 'root.seed')
+                    foreign.path.write_text(json.dumps(foreign.config))
+                    refused = False
+                    try:
+                        foreign.start()
+                        assert foreign.process.wait(timeout=45) != 0, 'Fresh installation adopted retained Ursula history'
+                        record = foreign.record()
+                        assert not record['genesis_observed'] and record['position'] == 0
+                        assert record['provision'][10] is None
+                        assert 'StorageIdentityMismatch' in Path(foreign.logs[-1].name).read_text()
+                        refused = True
+                    finally:
+                        foreign.cleanup()
+                        if refused:
+                            shutil.rmtree(foreign.root)
+                        else:
+                            print(f'Failed retained-history refusal evidence: {foreign.root}', file=sys.stderr)
+                    fixture.start()
+                    assert fixture.process.wait(timeout=45) != 0, 'Fresh-directory attempt restored revoked delivery rights'
+                    assert 'AccessDenied' in Path(fixture.logs[-1].name).read_text()
+                    assert fixture.record()['provision'][10] == receipt
                 assert not (fixture.root / 'peer-failure').exists()
                 success = True
             finally:

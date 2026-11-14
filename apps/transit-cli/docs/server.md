@@ -662,6 +662,9 @@ Omission generates a private root. This input never adopts an existing component
 installation. Preserve the complete server installation alongside the Ursula
 volume: it holds recovery identities, frozen provisioning requests, service
 credentials and receipts. Never recreate it to recover missing history.
+A fresh installation accepts only genesis-only native history. Existing accepted
+work requires its original installation record, even when a supplied root key
+matches; first startup refuses before provisioning or restoring service grants.
 
 The server's native `/health` becomes ready after required service provisioning,
 current signed courier access and owned-process startup. It withdraws on failed

@@ -107,6 +107,11 @@ pub fn save(self: *Self) !void {
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
     const response = try Startup.measure(self.startup, Startup.query(kind), q.wire.Client.query, .{ self.wire, g.Query{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root });
+    // First startup may resume creation of the genesis record, but cannot
+    // adopt another installation's accepted work. In particular, a supplied
+    // root key must not let a fresh directory regrant services in retained
+    // Ursula history. Persist this observation before any provisioning write.
+    if (self.config.external != null and !self.record.genesis_observed and response.position != 1) return error.StorageIdentityMismatch;
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;

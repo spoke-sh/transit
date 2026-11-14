@@ -167,6 +167,9 @@ the listener does not add TLS or create an ingress boundary. An explicit
 `external.ursula` supplies the private HTTP URL, bucket and journal for the native
 authority. Without it the server owns local disk storage. Provider and placement
 are bound to the installation; startup never converts or adopts component history.
+A fresh external installation may observe only the initial genesis position before
+recording recovery state. Nonempty accepted history rejects before service grants,
+including when its root key matches the supplied operator key.
 
 For the local provider, `external.table_file` names the existing node's typed
 direct Table configuration, including its catalog and registrar reference. It
