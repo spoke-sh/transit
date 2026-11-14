@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import signal
 import subprocess
+import time
+import uuid
 
 from runner.paths import ROOT
 from harness.processes import children, command
@@ -53,10 +55,28 @@ done
         custom = installation.path / 'role-fault.json'
         custom.write_text(json.dumps({'securityContext': {'runAsUser': 65532, 'runAsGroup': 65532,
             'runAsNonRoot': True, 'allowPrivilegeEscalation': False, 'capabilities': {'drop': ['ALL']}}}))
-        result = launcher.kube('debug', pod['metadata']['name'], '--quiet', '--attach=true',
+        name = 'courier-fault-' + uuid.uuid4().hex[:12]
+        deadline = time.monotonic() + 60
+        launcher.kube('debug', pod['metadata']['name'], '--quiet', '--attach=false', '--container=' + name,
             '--target=' + pod['spec']['containers'][0]['name'], '--image=' + pins['kind_node'],
             '--profile=restricted', '--custom=' + str(custom), '--', 'sh', '-ec', script,
             capture=True, timeout=60)
+        # A short-lived injector can exit before kubectl attaches, losing its
+        # stdout despite successful signaling. Observe this exact container's
+        # terminal status and retained log; never dispatch the signal again.
+        while True:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'Courier signal injector did not complete'
+            current = json.loads(launcher.kube('get', 'pod', pod['metadata']['name'], '-o', 'json', capture=True, timeout=remaining))
+            status = next((item for item in current['status'].get('ephemeralContainerStatuses', [])
+                           if item['name'] == name), None)
+            terminal = status['state'].get('terminated') if status else None
+            if terminal is not None:
+                result = launcher.kube('logs', pod['metadata']['name'], '-c', name, capture=True, timeout=max(.1, deadline-time.monotonic()))
+                assert terminal['exitCode'] == 0, (terminal, result)
+                break
+            assert time.monotonic() < deadline, 'Courier signal injector did not complete'
+            time.sleep(.1)
     values = [int(line) for line in result.splitlines() if line.isdigit()]
     assert len(values) == 1, result
     return values[0]
