@@ -114,6 +114,14 @@ and controller/provider diagnostics in the private proof directory. Substrate
 worker logs remain accessible through its provider log interface; bootstrap
 consumers recognize their machine record among diagnostic records.
 
+The node container now reports `transit server` lifecycle diagnostics, including
+readiness, recovery and bounded role failure causes. Its internal authority,
+maintenance and courier logs use the server's bounded private in-memory prefixes;
+they are not separate container log streams. Inspect authoritative progress through
+the public APIs. The reference proof checks retained expiry and recovery outcomes
+independently of logs; component-level HTTP and maintenance diagnostics retain
+their [observability proof](../../tests/interfaces/inspection/observability.py).
+
 The owned Kind cluster sets kubelet `containerLogMaxSize=5Mi` and
 `containerLogMaxFiles=3`; the proof checks the effective kubelet configuration.
 [Kubernetes rotation](https://kubernetes.io/docs/concepts/cluster-administration/logging/#log-rotation)

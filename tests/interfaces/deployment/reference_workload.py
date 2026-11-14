@@ -135,7 +135,7 @@ def run():
             command({"send": {"pid": pid, "value": value}})
         chart.deploy(workerPool={"enabled": True, "labels": {"workload": namespace},
                                 "spec": {"replicas": 3, "workerImage": images["ateom"],
-                                         "template": {"nodeSelector": {"ate.dev/substrate-version": ref.PINS["substrate"][:7]},
+                                         "template": {"nodeSelector": {"ate.dev/substrate-version": ref.SUBSTRATE_VERSION},
                                                       "resources": {"requests": {"cpu": "100m", "memory": "512Mi"},
                                                                     "limits": {"cpu": "1", "memory": "1Gi"}}}}})
         ref.ate(s, ["create", "atespace", namespace])
@@ -199,7 +199,7 @@ def run():
         ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=ursula", "--grace-period=0", "--force"])
         ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/ursula", "--timeout=120s"])
         assert await_state(pid, 1153)["process"]["pid"] == pid
-        # Independent maintenance survives lack of incoming requests and trims
+        # Server-owned maintenance survives lack of incoming requests and trims
         # while the original authority stays running. No key reaches workers.
         deadline = int(time.time() * 1000) + 5000
         finite_pid = command({"spawn": {"work_before_ms": deadline, "settle_before_ms": deadline + 1000}})
@@ -245,7 +245,12 @@ def run():
         board_history = board.read(f"processes/{pid}/history")["observation"]
         board.evidence["retained_history"] = {key: board_history[key] for key in ("cut", "history", "complete")}
         diagnostic_evidence = {}
-        for deployment_name, container_name, event in (("transit", "transit", "transit.http.request"), ("transit", "transit", "transit.maintenance.step"), ("board", "board", "board.http.request")):
+        # The server owns bounded, private child diagnostic prefixes. Container
+        # logs expose its lifecycle; the expiry/restart assertions above prove
+        # maintenance progress independently of those disposable diagnostics.
+        # Raw node HTTP/maintenance events retain their component-level proof in
+        # tests/interfaces/inspection/observability.py.
+        for deployment_name, container_name, event in (("transit", "transit", "server.ready"), ("board", "board", "board.http.request")):
             output = ref.kube(s, ["-n", namespace, "logs", "deployment/" + deployment_name, "-c", container_name, "--tail=500"], capture=True)
             parsed_logs = [json.loads(line) for line in output.splitlines() if line.startswith('{"schema_version":')]
             assert any(r.get("event", {}).get("name") == event for r in parsed_logs), (deployment_name, output[-3000:])
