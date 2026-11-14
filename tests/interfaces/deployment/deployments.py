@@ -76,6 +76,7 @@ def run():
             deployment = manifests["Deployment", "test-runtime-" + component]
             assert deployment["spec"]["replicas"] == 1 and deployment["spec"]["strategy"]["type"] == "Recreate"
             spec = deployment["spec"]["template"]["spec"]
+            assert spec["enableServiceLinks"] is False
             assert spec["automountServiceAccountToken"] is False
             assert spec["securityContext"]["runAsNonRoot"] is True
             assert spec["containers"][0]["securityContext"]["capabilities"]["drop"] == ["ALL"]

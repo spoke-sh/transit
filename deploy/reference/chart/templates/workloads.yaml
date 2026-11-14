@@ -33,6 +33,8 @@ spec:
         checksum/table: {{ $.Values.node.table | toJson | sha256sum }}
         {{- end }}
     spec:
+      # Service discovery uses DNS; injected TRANSIT_* names are not settings.
+      enableServiceLinks: false
       automountServiceAccountToken: false
       {{- if eq $component "controller" }}
       serviceAccountName: {{ include "transit.name" $ctx }}

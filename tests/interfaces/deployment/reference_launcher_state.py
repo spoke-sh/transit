@@ -179,12 +179,13 @@ class ReadObservationTest(unittest.TestCase):
                 client = factory.return_value
                 client.prepare.return_value = "exact-frozen-read"
                 client.call.side_effect = [ClientError(7, {"err": "ConnectionRefused"}),
+                    ClientError(7, {"err": "ReadFailed"}),
                     ClientError(7, {"err": "HttpCapacity"}),
                     ClientError(7, {"err": "AuthorityUnavailable"}), {"body": {"accepted": True}}]
                 self.assertEqual(Installation.native_query(installation, kind), {"body": {"accepted": True}})
                 client.prepare.assert_called_once_with(installation.path / "operator/root.key",
                     {"realm": 73, "principal": 0, "kind": kind}, query=True)
-                self.assertEqual(client.call.call_count, 4)
+                self.assertEqual(client.call.call_count, 5)
                 for call in client.call.call_args_list:
                     self.assertEqual(call.args, ("exact-frozen-read",))
 
@@ -194,11 +195,11 @@ class ReadObservationTest(unittest.TestCase):
                 (6, {"err": "AuthorityTimeout"}), (8, {"err": "InvalidAuthorityResponse"}),
                 (7, []), (7, None), (7, "AuthorityUnavailable")):
             self.assertFalse(ClientError(status, detail).retryable_read)
-        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused", "HttpCapacity"):
+        for cause in ("AuthorityUnavailable", "AuthorityTimeout", "HttpConnectionClosing", "ConnectionRefused", "ReadFailed", "HttpCapacity"):
             self.assertTrue(ClientError(7, {"err": cause}).retryable_read)
 
     def test_transient_read_failure_exhausts_the_original_read_deadline(self):
-        for cause in ("ConnectionRefused", "HttpCapacity"):
+        for cause in ("ConnectionRefused", "ReadFailed", "HttpCapacity"):
             self.check_read_deadline(cause)
 
     def check_read_deadline(self, cause):
