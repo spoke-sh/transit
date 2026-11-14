@@ -1,15 +1,19 @@
 """Qualify framework services and their separately credentialed controllers."""
 import json
 import struct
+import signal
 import time
+from pathlib import Path
 
 from interfaces.inspection.inspection import System
+from runner.paths import ROOT
+from runtime.station.station_service_transport import configure as configure_transport
 from runtime.station.station import frame
 from runtime.station.station_ledger import AUDIT, audit_state, audit_total, provision
 
 
-def run(server, cli, worker, controller):
-    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
+def run(server, cli, worker):
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server, server_setup=configure_transport) as s:
         configs = {}
         resources = {}
         serial = 0
@@ -66,14 +70,52 @@ def run(server, cli, worker, controller):
         for resource, subject in ((resources[requester], 5), (resources[coordinator], 5), (resources[coordinator], 6)):
             s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 3}})
 
+        manifest = s.root / 'station-services.json'
+        manifest.write_text(json.dumps(dict(version=1,
+            definition=json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'],
+            realm=72, services=[
+                dict(name='observer', principal=5, seed_file=str(observer_seed), mode='observe',
+                     watches=[dict(pid=requester, resource=resources[requester]), dict(pid=coordinator, resource=resources[coordinator])]),
+                dict(name='lifecycle', principal=6, seed_file=str(admin_seed), mode='lifecycle',
+                     watches=[dict(pid=coordinator, resource=resources[coordinator], child=ledger)])])))
+        s.server.config['station'] = dict(file=str(manifest))
+        s.server.path.write_text(json.dumps(s.server.config))
+        original = manifest.read_bytes()
+        # Invalid initial declarations must not freeze an unusable registration.
+        for fault, cause in (('realm', 'InvalidStationManifest'), ('writer', 'InvalidWatch'), ('credential', 'FileNotFound')):
+            s.server.stop()
+            invalid = json.loads(original)
+            if fault == 'realm': invalid['realm'] += 1
+            elif fault == 'writer': invalid['services'][0]['watches'][0]['pid'] = coordinator
+            else: invalid['services'][0]['seed_file'] = str(s.root / 'absent-private-seed')
+            manifest.write_text(json.dumps(invalid))
+            s.server.start()
+            assert s.server.process.wait(timeout=45) != 0
+            assert cause in Path(s.server.logs[-1].name).read_text()
+            assert s.server.record()['station_manifest'] is None
+            assert not (s.server.installation / 'server-ready').exists()
+        manifest.write_bytes(original)
+        s.restart_authority()
+        assert s.native_query({'capabilities': {}})['principal_sequence'] == s.sequence
+        previous_boot = json.loads((s.server.installation / 'station/observer/status.json').read_text())['boot']
+        s.server.signal_role('/station/observer/config.json', signal.SIGSTOP)
+        s.server.ready(timeout=40)
+        assert json.loads((s.server.installation / 'station/observer/status.json').read_text())['boot'] != previous_boot
+
         def control(mode, watches):
-            nonlocal serial
-            serial += 1
-            path = s.root / f"controller-{serial}.json"
-            path.write_text(json.dumps({"url": s.url, "realm": 72, "principal": 5 if mode == "observe" else 6,
-                "seed_file": str(observer_seed if mode == "observe" else admin_seed), "mode": mode, "watches": watches}))
-            process = s.start(controller, path, "--once")
-            assert process.wait(timeout=20) == 0
+            # The continuously running server role must finish fresh passes,
+            # including watches after the first durable page.
+            name = 'observer' if mode == 'observe' else 'lifecycle'
+            path = s.server.installation / 'station' / name / 'status.json'
+            previous = json.loads(path.read_text())
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline:
+                current = json.loads(path.read_text())
+                if current['ready'] and current['boot'] == previous['boot'] and current['completed_passes'] >= previous['completed_passes'] + 2:
+                    return
+                assert s.server.process.poll() is None
+                time.sleep(.05)
+            raise AssertionError(('Station progress stalled', name, current))
 
         def await_input(pid):
             for _ in range(200):
@@ -139,6 +181,8 @@ def run(server, cli, worker, controller):
         worker_once(requester)
         s.command({"own": {"pid": requester, "worker": 2, "expected_generation": 3}})
         configs[requester]["generation"] = 4
+        s.server.stop(kill=True)
+        s.restart_authority()
         control("observe", [{"pid": requester, "resource": resources[requester]}])
         await_input(requester)
         worker_once(requester)
@@ -157,8 +201,8 @@ def run(server, cli, worker, controller):
         watch = [{"pid": coordinator, "resource": resources[coordinator], "child": ledger}]
         control("observe", watch)
         await_input(coordinator)
-        worker_once(coordinator)
         child_key = b"\x00c" + ledger.to_bytes(8, "little") + b"\x00"
+        pump_until(lambda: (value(coordinator, child_key) or bytes(15))[13] == 1, (coordinator,))
         child = value(coordinator, child_key)
         assert child[13] == 1 and child[14] == 3  # one durable retry request
         s.command({"own": {"pid": coordinator, "worker": 4, "expected_generation": 3}})
@@ -166,40 +210,69 @@ def run(server, cli, worker, controller):
         control("lifecycle", watch)
         process = s.inspect("process", ledger)["processes"][0]
         assert process["failure"] is None
+        attempts = [json.loads(line) for line in (s.server.root / 'lifecycle-transport.jsonl').read_text().splitlines()]
+        assert attempts and len({(attempt['sha256'], attempt['sequence'], attempt['position']) for attempt in attempts}) == 1
+
         assert s.native_query({"process": ledger})["body"]["process"]["input"]["position"] == bad_input
-        # A fresh controller sees accepted retry progress and makes no second retry.
+        # Manager loss preserves accepted retry progress and its original input.
+        s.restart_authority()
         control("lifecycle", watch)
+        assert s.inspect("process", ledger)["processes"][0]["generation"] == process["generation"]
         control("observe", watch)
         await_input(coordinator)
-        worker_once(coordinator)
+        pump_until(lambda: value(coordinator, child_key)[14] == 1, (coordinator,))
         generation = process["generation"]
         s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": generation}})
         configs[ledger]["generation"] = generation + 1
         worker_once(ledger, success=False)
         control("observe", watch)
         await_input(coordinator)
-        worker_once(coordinator)
+        pump_until(lambda: value(coordinator, child_key)[14] == 4, (coordinator,))
         assert value(coordinator, child_key)[14] == 4  # exhausted; head retained
         s.command({"terminate": ledger})
         control("observe", watch)
         await_input(coordinator)
-        worker_once(coordinator)
+        pump_until(lambda: value(coordinator, child_key)[14] == 5, (coordinator,))
         assert value(coordinator, child_key)[14] == 5
         control("lifecycle", watch)  # retirement never becomes retry/spawn
         assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
         # One configured supervisor contains more children than a read page.
-        # A complete --once pass must reach every terminal child.
+        # A complete server pass must reach every terminal child.
         children = []
         for _ in range(9):
             child = s.command({"spawn": {}})
             children.append(child)
             command(coordinator, f"watch:{child}".encode())
-            worker_once(coordinator)
+            pump_until(lambda: value(coordinator, b"\x00c" + child.to_bytes(8, "little") + b"\x00") is not None, (coordinator,))
             s.command({"terminate": child})
         control("observe", [{"pid": coordinator, "resource": resources[coordinator]}])
-        for child in children:
-            await_input(coordinator)
-            worker_once(coordinator)
+        pump_until(lambda: all(value(coordinator, b"\x00c" + child.to_bytes(8, "little") + b"\x00")[14] == 5 for child in children), (coordinator,))
         for child in children:
             assert value(coordinator, b"\x00c" + child.to_bytes(8, "little") + b"\x00")[14] == 5
+        # Frozen registration cannot be changed or silently removed on restart.
+        accepted_manifest = manifest.read_bytes()
+
+        def rejected_restart(cause):
+            s.server.stop()
+            s.server.start()
+            assert s.server.process.wait(timeout=45) != 0
+            assert cause in Path(s.server.logs[-1].name).read_text()
+            assert not (s.server.installation / 'server-ready').exists()
+
+        changed = json.loads(accepted_manifest)
+        changed['services'][0]['watches'].pop()
+        manifest.write_text(json.dumps(changed))
+        rejected_restart('StationManifestChanged')
+        manifest.write_bytes(accepted_manifest)
+        s.server.config.pop('station')
+        s.server.path.write_text(json.dumps(s.server.config))
+        rejected_restart('MissingStationManifest')
+        s.server.config['station'] = dict(file=str(manifest))
+        s.server.path.write_text(json.dumps(s.server.config))
+        s.restart_authority()
+        # No due work is needed to detect a revoked read grant.
+        s.command({'grant_resource': dict(resource=resources[requester], subject=5, permissions=0)})
+        assert s.server.process.wait(timeout=45) != 0
+        assert not (s.server.installation / 'server-ready').exists()
+        rejected_restart('AccessDenied')
         print("Station services: durable registry/rebind routing, observed timeout/late-result closure, scoped bounded supervision and recovery passed.")

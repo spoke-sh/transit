@@ -564,6 +564,7 @@
         "MigrationTargetMismatch": 1,
         "MigrationVerificationFailed": 1,
         "MissingField": 2,
+        "MissingStationManifest": 1,
         "NameTooLong": 1,
         "NoSpaceLeft": 2,
         "NotDir": 1,
@@ -572,11 +573,16 @@
         "RoleReadinessTimeout": 2,
         "SqlOperationPartial": 1,
         "SqlOperationRejected": 1,
+        "StationManifestChanged": 1,
+        "StationReadinessTimeout": 1,
+        "StationServiceExited": 1,
+        "StationServiceUnavailable": 1,
         "StorageIdentityMismatch": 1,
         "StreamTooLong": 1,
         "SyntaxError": 1,
         "UnexpectedEndOfInput": 1,
         "UnknownField": 1,
+        "UnsafeControllerPrincipal": 1,
         "UnsafeCourierPrincipal": 1
       },
       "outcomes": {
@@ -1014,7 +1020,8 @@
           "node",
           "query_host",
           "sql_gateway",
-          "board"
+          "board",
+          "station"
         ]
       },
       "error_sets": {},
@@ -1029,6 +1036,7 @@
       },
       "imports": [
         "builtin",
+        "server/StationRole.zig",
         "std",
         "transit_board_role",
         "transit_node_role",
@@ -1389,14 +1397,17 @@
         "FileNotFound": 6,
         "IncompatibleApplicationReplacement": 1,
         "InstallationSyncFailed": 2,
-        "InvalidApplicationCatalog": 6,
+        "InvalidApplicationCatalog": 7,
         "InvalidApplicationCursor": 1,
         "InvalidRegistration": 4,
+        "InvalidWatch": 1,
         "NoSpaceLeft": 1,
-        "ProcessUnavailable": 2,
+        "ProcessUnavailable": 3,
         "RegistrationTimeout": 1,
         "RoleReadinessTimeout": 1,
         "ServerStopped": 1,
+        "StationServiceExited": 1,
+        "StationServiceUnavailable": 1,
         "UnknownApplicationCaller": 1,
         "UnknownApplicationRole": 1,
         "UnresolvedProvisioning": 1,
@@ -1419,7 +1430,8 @@
         "bindings().kind": [
           "roles",
           "resources",
-          "callers"
+          "callers",
+          "services"
         ]
       },
       "error_sets": {},
@@ -1427,6 +1439,7 @@
         "add()": "<inferred>",
         "admitCheckpoint()": "<inferred>",
         "advance()": "<inferred>",
+        "advance().Join.stop()": "<inferred>",
         "bindings()": "<inferred>",
         "callerKey()": "<inferred>",
         "candidate()": "<inferred>",
@@ -1454,8 +1467,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 168,
-        "catch": 14
+        "try": 186,
+        "catch": 15
       },
       "imports": [
         "../Settings.zig",
@@ -1466,6 +1479,7 @@
         "Installation.zig",
         "Process.zig",
         "Provider.zig",
+        "StationServices.zig",
         "std",
         "transit_http_server",
         "transit_query"
@@ -1571,7 +1585,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 50,
+        "try": 51,
         "catch": 20
       },
       "imports": [
@@ -1982,13 +1996,18 @@
         "InvalidBoardResponse": 2,
         "InvalidChildEnvironment": 1,
         "InvalidRegistration": 1,
+        "InvalidStationManifest": 1,
+        "MissingStationManifest": 1,
         "NoSpaceLeft": 1,
         "ProcessUnavailable": 1,
         "RestartBudgetExhausted": 1,
         "RoleReadinessTimeout": 1,
         "ServerStopped": 9,
+        "StationManifestChanged": 1,
+        "StationServiceUnavailable": 1,
         "StorageIdentityMismatch": 1,
         "UnsafeBoardPrincipal": 2,
+        "UnsafeControllerPrincipal": 1,
         "UnsafeCourierPrincipal": 1
       },
       "outcomes": {
@@ -2000,7 +2019,8 @@
           "gateway",
           "board",
           "maintenance",
-          "sql"
+          "sql",
+          "station"
         ],
         "worker().Common.role": [
           "unified_source",
@@ -2025,7 +2045,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 130,
+        "try": 132,
         "catch": 17
       },
       "imports": [
@@ -2048,6 +2068,7 @@
         "RuntimeSelection.zig",
         "Sql.zig",
         "Startup.zig",
+        "StationServices.zig",
         "Tables.zig",
         "std",
         "transit_query",
@@ -2321,6 +2342,74 @@
         "catch": 1
       },
       "imports": [
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/StationRole.zig": {
+      "errors": {
+        "AuthorityTransportDenied": 1,
+        "ExpectedConfig": 1,
+        "FileNotFound": 1,
+        "InvalidClock": 1,
+        "InvalidConfiguration": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Gate.stopped()": "anyerror",
+        "advance()": "<inferred>",
+        "main()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 12,
+        "catch": 3
+      },
+      "imports": [
+        "Files.zig",
+        "std",
+        "transit_query"
+      ]
+    },
+    "apps/transit-cli/server/StationServices.zig": {
+      "errors": {
+        "DuplicateStationService": 1,
+        "FileNotFound": 2,
+        "InvalidController": 2,
+        "InvalidStationManifest": 1,
+        "InvalidWatch": 5,
+        "MissingStationManifest": 1,
+        "ServerStopped": 1,
+        "StationManifestChanged": 1,
+        "StationReadinessTimeout": 1,
+        "StationServiceCapacity": 1,
+        "StationServiceExited": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "Group.access()": "<inferred>",
+        "Group.check()": "<inferred>",
+        "Group.create()": "<inferred>",
+        "Group.joinStops()": "<inferred>",
+        "checkAccess()": "<inferred>",
+        "external()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 32,
+        "catch": 2
+      },
+      "imports": [
+        "../RuntimeRole.zig",
+        "../Signals.zig",
+        "Files.zig",
+        "Installation.zig",
+        "Process.zig",
+        "StationRole.zig",
         "std",
         "transit_query"
       ]
@@ -11981,7 +12070,7 @@
     },
     "packages/zig/transit-client/src/Application.zig": {
       "errors": {
-        "ApplicationLimit": 8,
+        "ApplicationLimit": 9,
         "ApplicationOutcomeUnknown": 2,
         "ApplicationRejected": 1,
         "DuplicateApplicationName": 1,
@@ -11990,17 +12079,18 @@
         "InvalidApplicationConfiguration": 1,
         "InvalidApplicationDeadline": 1,
         "InvalidApplicationEndpoint": 3,
-        "InvalidApplicationGrant": 8,
+        "InvalidApplicationGrant": 9,
         "InvalidApplicationIdentity": 1,
         "InvalidApplicationName": 3,
         "InvalidApplicationPath": 1,
         "InvalidApplicationRequest": 2,
-        "InvalidApplicationResponse": 14,
+        "InvalidApplicationResponse": 16,
         "InvalidStartupDependency": 2,
+        "InvalidStationService": 4,
         "UnknownApplicationBinding": 1,
         "UnknownApplicationCaller": 1,
-        "UnknownApplicationResource": 3,
-        "UnknownApplicationRole": 3,
+        "UnknownApplicationResource": 4,
+        "UnknownApplicationRole": 4,
         "UnsupportedApplicationVersion": 1
       },
       "outcomes": {
@@ -12020,6 +12110,10 @@
           "ready",
           "stopped",
           "failed"
+        ],
+        "StationService.mode": [
+          "observe",
+          "lifecycle"
         ]
       },
       "error_sets": {},
@@ -12050,7 +12144,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 76,
+        "try": 80,
         "catch": 1
       },
       "imports": [
@@ -27036,7 +27130,7 @@
           "deadline"
         ],
         "Definition": [
-          "cca0376c55733fd553a43a187fee9e8c379ab1b14007009a06bfcab3a517fec2"
+          "@\"8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb\""
         ],
         "Effect.phase": [
           "pending",
@@ -42416,8 +42510,9 @@
     "packages/zig/transit-station/src/Controller.zig": {
       "errors": {
         "InvalidAuthorityResponse": 1,
-        "InvalidController": 1,
-        "InvalidWatch": 2
+        "InvalidController": 2,
+        "InvalidWatch": 3,
+        "UnsafeControllerPrincipal": 3
       },
       "outcomes": {
         "Mode": [
@@ -42427,13 +42522,15 @@
       },
       "error_sets": {},
       "error_returns": {
+        "check()": "<inferred>",
         "prepare()": "<inferred>",
+        "retry_gate.stopped()": "anyerror",
         "step()": "<inferred>",
         "view()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 13,
+        "try": 18,
         "catch": 1
       },
       "imports": [

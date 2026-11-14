@@ -697,3 +697,77 @@ checkpoint cadence when genesis permits trimming. These settings do not grant
 retention or expiry rights. The source launchers preserve the native examples'
 explicit policy with Table flush/archive/compaction disabled; changing that policy
 requires its own captured-view and maintenance qualification.
+
+
+## Station services
+
+`transit server` hosts declared Station timer observers and lifecycle actuators as
+private child processes. These use the public client and Station controller
+library; the native node, SQL and storage owners do not execute Station handlers.
+The server owns process startup, current-access checks, bounded restart and joined
+shutdown. Station's durable wait and supervisor records remain the source of work.
+See [names, waits and supervision](../../../packages/zig/transit-station/docs/services.md)
+for mailbox ordering, retry limits and retirement semantics.
+
+Local applications declare `station` services with named resources and optional
+child roles in their signed [application declaration](applications.md#station-services).
+External-worker installations instead set `station.file` to a JSON manifest:
+
+```json
+{
+  "version": 1,
+  "definition": "CURRENT_SHARED_DEFINITION",
+  "realm": 49,
+  "services": [
+    {
+      "name": "observer",
+      "principal": 10,
+      "seed_file": "/run/secrets/observer",
+      "mode": "observe",
+      "watches": [{"pid": 7, "resource": 9}]
+    }
+  ]
+}
+```
+
+Replace `CURRENT_SHARED_DEFINITION` with the matching
+[definition identifier](../../../docs/handbook/reference/versioning.md#current-native-definition).
+Provision the named PIDs, resources, associations and service grants through
+public operations first. Initial server bootstrap can run without a manifest;
+restart with the manifest before activating workers that depend on its services.
+The first authenticated manifest is frozen in the retained installation. Changing
+or removing it rejects on restart. There is no live topology update, reassignment
+of an accepted observer, or inference of watches from all application state.
+Keep the referenced private seed files available across restarts.
+
+Each service has a unique name and nonzero dedicated principal. Observers require
+exactly inspect/send permissions (20). Lifecycle actuators require exactly
+inspect/admin (17), a PID scope, and the same explicit `child` on every watch.
+Each watched resource needs an explicit inspect/read grant (3); its writer must
+match `pid`. A scoped lifecycle identity also needs an association from its child
+to the supervisor resource. Registration confers no native rights. The server
+checks current access while idle and never repairs revoked grants on restart.
+
+A service watches one to four resources. `station.max_services` bounds each
+external deployment group (default 32, maximum 256); each local application has
+at most eight services. `interval_ms` defaults to 100 and `request_timeout_ms` to
+2000; each accepts 1–60000 ms. Reads are paged and the controller retains a bounded
+observation cache and one exact pending signed request. Transport uncertainty
+retries that request; after process loss, reconciliation inspects original durable
+work. It does not promise exactly one observation message, an empty backlog, or
+that elapsed time cancels an external effect.
+
+External server readiness includes authenticated access and fresh status from
+every declared service. A stopped, stalled or denied service withdraws readiness.
+Local application `status.services` reports each principal, mode, readiness,
+completed scan passes and blocking error. These are process observations, not
+proof that a timer closed or a supervisor retry completed; inspect the owning
+Station records for those outcomes. Child logs remain in the server's bounded
+private diagnostic capture and contain no credential export.
+
+Observer and lifecycle credentials remain separate. For hosted local children,
+a lifecycle retry waits for the server to stop and join the old worker; the
+acknowledgement names this service boot and exact native generation/failure.
+Provider-bound children retain their confirmed-stop gate through the separate
+`transit-runtime-controller`. That provider controller is still required for
+Substrate lifecycle operations.

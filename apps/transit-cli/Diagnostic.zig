@@ -331,6 +331,9 @@ pub fn emit(self: *Self, io: std.Io, err: anyerror) void {
 const Advice = struct { []const u8, ?[]const u8 };
 fn adviceFor(err: anyerror) ?Advice {
     return switch (err) {
+        error.StationManifestChanged, error.MissingStationManifest => .{ "the accepted Station service registration is missing or changed", "Restore the original Station manifest and private seed references. Do not reset the installation or reassign accepted observer identities." },
+        error.UnsafeControllerPrincipal => .{ "a Station service identity has an incompatible permission scope", "Check the declared service's current grants: observers require inspect/send; lifecycle services require inspect/admin scoped to their child PID." },
+        error.StationServiceUnavailable, error.StationServiceExited, error.StationReadinessTimeout => .{ "a declared Station service is unavailable", "Inspect its private status and server diagnostics, current grants and storage access. Readiness requires a live runner and current signed access." },
         error.InstallationDirectoryExists => .{ "initialization requires an absent installation directory", "Choose a new child path inside the mounted volume. Existing directories, including empty ones, are never removed by initialization." },
         error.FilesystemPublicationUnsupported => .{ "the filesystem cannot publish files without replacement", "Use a filesystem supporting exclusive hard links and durable file/directory synchronization. Preserve any retained installation; do not bypass exclusive publication." },
         error.DirectoryPublicationOwnershipUnknown => .{ "directory publication ownership is unresolved", "Preserve the assembly, publication intent and destination. An unmarked directory cannot be adopted or removed automatically; reconcile the original attempt." },

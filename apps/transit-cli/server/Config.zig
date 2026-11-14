@@ -17,6 +17,7 @@ ports: Ports,
 executables: Executables = .{},
 applications: ?Applications = null,
 external: ?External = null,
+station: Station = .{},
 gateway_allowed_hosts: []const []const u8 = &.{},
 board: ?Board = null,
 browser: ?@import("transit_serving_http").BrowserRuntime.Config = null,
@@ -29,6 +30,7 @@ pub const Startup = struct {
 };
 pub const Board = struct { port: u16 = 19107, public_origin: ?[]const u8 = null, local_data: bool = true, workbench_file: ?[]const u8 = null };
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
+pub const Station = struct { file: ?[]const u8 = null, max_services: u16 = 32 };
 /// Native applications placed by an external operator/provider. The server
 /// still owns authority, maintenance, delivery and optional Board lifecycle.
 pub const External = struct {
@@ -169,6 +171,10 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         inline for (fields[0..i]) |previous| if (@field(self.ports, name) == @field(self.ports, previous)) return diagnostic.invalidField("ports." ++ name ++ " and ports." ++ previous, "must be different", null);
     }
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
+    if (self.station.file) |path| {
+        if (self.external == null) return diagnostic.invalidField("station.file", "requires external worker placement; local applications declare their own Station services", null);
+        self.station.file = try std.fs.path.resolve(allocator, &.{ base, path });
+    }
     if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "must be a non-root directory without NUL, newline, quote or backslash characters", null);
     if (resolve_executables) inline for (@typeInfo(Executables).@"struct".field_names) |name| {
         if (@field(self.executables, name)) |path| {

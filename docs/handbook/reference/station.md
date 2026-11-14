@@ -64,7 +64,7 @@ newer binding. Name removal does not itself delete the old process or its histor
 
 ## Supervision and time
 
-Station supervision expresses logical child/lifecycle intent. Runtime providers
+Declared observers and lifecycle actuators run as [server-owned Station services](../../../apps/transit-cli/docs/server.md#station-services), with separate current grants and bounded process recovery. Station supervision expresses logical child/lifecycle intent. Runtime providers
 and local supervisors reconcile physical execution. A restart can replace a
 worker for an eligible PID; retirement requires a new PID and explicit bootstrap.
 Supervisor state cannot grant a child missing permissions or revive expired work.

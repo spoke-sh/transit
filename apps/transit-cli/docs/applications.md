@@ -152,3 +152,37 @@ journal. Headless installation may precede Board's first enablement. Subsequent
 restart, replacement and re-enablement do not repeat completed grants or restore
 revoked access. Board's realm-wide process metadata remains visible; resource
 visibility is independently filtered by its current grants.
+
+
+## Station services
+
+A declaration's optional `station` list registers up to eight server-owned
+services. Each has a unique `name`, `mode` (`observe` or `lifecycle`), one to four
+`watches`, and optional polling/request budgets. A watch names an application
+`resource` and optionally a `child` role. Lifecycle watches require one common
+child; that role must associate the watched resource. For example:
+
+```json
+{
+"station": [
+  {"name": "observer", "mode": "observe", "watches": [{"resource": "supervisor"}, {"resource": "waiting"}]},
+  {"name": "retry", "mode": "lifecycle", "watches": [{"resource": "supervisor", "child": "worker"}]}
+]
+}
+```
+
+Include these entries in the complete signed declaration before installation.
+The manager provisions distinct service identities and explicit read grants once,
+records their receipts, and starts services before application workers. Worker
+bootstrap exposes named `services` principal bindings so handlers can record the
+correct observer when creating a wait or supervision policy. These bindings grant
+no permissions. Caller connections never receive service seeds.
+
+Management `status.services` distinguishes service readiness and completed scan
+passes from role activation and domain progress. The original declaration and
+service identities survive manager/worker replacement. Revoked grants block the
+application instead of being reissued. Hosted child retries wait for joined worker
+shutdown; the original failed input and Station retry budget remain authoritative.
+The [server guide](server.md#station-services) defines service limits and external
+worker registration, and the [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md#station-service-registration)
+defines signed fields and recovery.

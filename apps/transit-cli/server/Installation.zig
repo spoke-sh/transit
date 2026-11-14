@@ -41,6 +41,7 @@ pub const Record = struct {
     installer_receipt: ?u64 = null,
     board_receipts: [3]?u64 = @splat(null),
     external_table: ?[32]u8 = null,
+    station_manifest: ?[32]u8 = null,
 };
 pub const Worker = struct {
     public_key: [32]u8,
