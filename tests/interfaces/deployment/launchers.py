@@ -256,9 +256,9 @@ def proof(profile):
             for service in ("node", "ursula"):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
         authority = f"devbox.local:{board_port}"
-        def remote_request(path, *, host=authority, origin=remote_origin, method="GET"):
+        def remote_request(path, *, host=authority, origin=remote_origin, method="GET", timeout=5):
             headers = {"Host": host, "Origin": origin}
-            connection = HTTPConnection("127.0.0.1", board_port, timeout=5)
+            connection = HTTPConnection("127.0.0.1", board_port, timeout=timeout)
             try:
                 connection.request(method, path, headers=headers)
                 response = connection.getresponse()
@@ -269,8 +269,18 @@ def proof(profile):
         assert remote_request("/health")[0] == 200
         assert remote_request("/health", host="evil.example")[0] == 403
         assert remote_request("/health", origin="http://evil.example")[0] == 403
-        status, headers = remote_request("/api/v1/processes")
-        assert status == 200 and "set-cookie" not in headers
+        # observe() just read Board. Its shared 100 ms admission spacing also
+        # applies to this viewer; retry only the read's explicit rate refusal.
+        deadline = time.monotonic() + 5
+        while True:
+            remaining = deadline - time.monotonic()
+            assert remaining > 0, 'Board inspection remained rate limited'
+            status, headers = remote_request("/api/v1/processes", timeout=remaining)
+            assert "set-cookie" not in headers
+            if status != 429:
+                break
+            time.sleep(min(.1, max(0, deadline - time.monotonic())))
+        assert status == 200, status
         assert remote_request("/api/v1/session", method="POST")[0] == 404
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         invoke("restart", "board")
