@@ -1,7 +1,7 @@
 # Server delivery ownership and executable removal
 
 [Milestone 3](03-live-storage-and-sql-cutover.md#p7--deliver-the-single-executable-local-profile)
-· **Status: Planned** · 2026-11-13
+· **Status: In progress** · 2026-11-13
 
 Make `transit server` responsible for the delivery work required by its supported
 application and query profiles, then remove `transit-delivery` from source builds,
@@ -28,7 +28,7 @@ with transactional Station/Queue semantics remains that milestone's separate
 
 | Owner | Current behavior | Required change |
 | --- | --- | --- |
-| [Delivery app](../../apps/transit-delivery/main.zig) | Polls signed delivery status, submits an exact delivery request, retries uncertainty; exposes `--check` and `--once` | Delete after its consumers move |
+| [Delivery app](https://github.com/spoke-sh/transit/blob/505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7/apps/transit-delivery/main.zig) | Polls signed delivery status, submits an exact delivery request, retries uncertainty; exposes `--check` and `--once` | Delete after its consumers move |
 | [Server](../../apps/transit-cli/server/Server.zig), [installation](../../apps/transit-cli/server/Installation.zig) | Provisions a dedicated courier identity and supervises the query-host courier using the same `transit` executable by default | Make this the delivery lifecycle exercised by product deployments and tests |
 | [Query host](../../apps/transit-query-host/main.zig) | Implements bounded output discovery, exact pending requests and notification waits; supports selected destinations or a whole realm | Preserve the server-owned implementation and prove the required fault cases |
 | [Client delivery helper](../../packages/zig/transit-client/src/delivery.zig) | One public-protocol step, also exercised by the [scheduler simulation](../../tests/verification/simulation/scheduler/scheduler_simulation.zig) | Keep the reusable protocol boundary; executable removal alone does not justify deleting this API or its tests |
@@ -187,10 +187,12 @@ owner. Any missing public composition capability needs contract work and its own
 qualified implementation before this step can pass. A private dispatch alias or
 a replacement courier container does not resolve the dependency.
 
-**Blocking decision for final deletion:** confirm the supported reference
-composition, or explicitly revise that profile's supported scope. Until then,
-step 2 can stop publication, but removal from all source builds is incomplete.
-Do not skip reference tests or retire their guarantees implicitly.
+**Approved direction:** preserve the reference profile and extend server
+composition (2026-11-13). The external-worker profile owns native authority,
+maintenance, delivery and optional Board while the existing provider places
+applications. Preserve Ursula native-history and local direct Table profiles
+separately; this does not imply direct Table/SQL support over Ursula. Final
+deletion still requires the actual reference schedules to pass.
 
 ### 5 Delete the executable and close the inventory
 

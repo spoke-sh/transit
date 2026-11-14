@@ -351,6 +351,6 @@ for exact frame and recovery rules. This credit API belongs to query delivery.
 Connector byte/message/concurrency budgets remain
 independent of transport flow control and of retained-history size.
 
-The [delivery executable](../../../apps/transit-delivery/README.md) documents courier
-configuration; [native HTTP](../../../contracts/SERVICE_V1.md) and
+The [server](../../../apps/transit-cli/docs/server.md#external-worker-composition)
+owns delivery lifecycle and current-permission checks; [native HTTP](../../../contracts/SERVICE_V1.md) and
 [native protocol v1](../../../contracts/TRANSIT_V1.md) define admission and origins.
