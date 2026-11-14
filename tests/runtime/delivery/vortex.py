@@ -22,7 +22,6 @@ import time
 
 from harness.ursula import Fixture
 from harness.local_installation import ExternalInstallation
-from harness.processes import children as owned_children, command as process_command
 
 
 
@@ -322,16 +321,10 @@ def scenario(args, destination, record, report):
                         stop(worker, 'worker')
                     assert query(dict(process=pid))['process']['process']['consumed'] == len(expected)
                     peer.arm(22, 'deliver', 'drop_response', .03)
-                    def owned_courier():
-                        assert fixture.process.poll() is None, Path(fixture.logs[-1].name).read_text()
-                        matches = [child for child in owned_children(fixture.process.pid)
-                                   if '/courier.json' in process_command(child)]
-                        assert len(matches) <= 1, matches
-                        return matches[0] if matches else None
                     # Readiness can precede the child's exec/command-line
                     # observation. Bind the fault to one observed owned PID
                     # before enabling delivery, within the existing budget.
-                    courier = until(owned_courier, 'owned courier process')
+                    courier = fixture.role_pid('/courier.json')
                     peer.delivery_enabled = True
                     fault_done()
                     retry_identity = peer.last_fault_identity

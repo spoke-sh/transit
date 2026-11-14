@@ -762,8 +762,7 @@ def external_replacement(cli):
         unexpected.write_bytes(original_binary + b'\ntransit unapproved replacement\n')
         unexpected.chmod(0o700)
         os.replace(unexpected, binary)
-        courier = next(pid for pid in children(fixture.process.pid) if '/courier.json' in process_command(pid))
-        os.kill(courier, signal.SIGKILL)
+        fixture.kill_role('/courier.json')
         assert fixture.process.wait(timeout=45) != 0, 'Owned recovery adopted an unapproved runtime'
         assert fixture.record()['runtime'] == retained['runtime'], 'Owned recovery changed the accepted runtime pin'
         assert 'InstallationIdentityMismatch' in Path(fixture.logs[-1].name).read_text()
