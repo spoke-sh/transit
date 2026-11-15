@@ -78,20 +78,28 @@ externally supplied IDs or grant permission. Explicit log configuration,
 append metadata and RETURNING remain outside this source profile.
 
 Public Queue programs compose those resources through `CREATE PUBLIC DATAFLOW`
-and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, IF, Table inserts and log
-appends use the installed ordered-program binder; mutations require an atomic
-block. Building emits SQL and never activates it. The
+and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, `CHECK GUARD`, IF, Table
+inserts, log appends and statement-form `CALL` use the installed ordered-program
+binder; mutations and procedure calls require an atomic block. Pure
+`CREATE [PUBLIC] FUNCTION` helpers validate through Fuze's deterministic
+`ScalarProgram` owner, ordered `CREATE [PUBLIC] GUARD` declarations expand in
+lexical refusal order while registering referenced Table reads, and inline
+`CREATE [PUBLIC] PROCEDURE ... AS BEGIN ATOMIC ... END` declarations flatten
+hygienically renamed bindings and writes into the caller's single atomic
+transaction decision. Building emits SQL and never activates it. The
 [program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
-defines exact supported instructions, schemas and limits.
+defines exact supported instructions, helper restrictions, schemas and limits.
 Nominal Queue, Stream and Table fields retain their source types through LET,
-record projections, nullable one-record lookups and matching CASE arms. Writes and
+pure function calls, record projections, nullable one-record lookups, ordered
+guards, inline procedures and matching CASE arms. Writes and
 equality comparisons require the same domain, even for identical scalar values.
 Every runtime branch is checked. A domain annotation does not prove that a sender
-is authorized or a referenced row exists; use a lookup and REQUIRE for existence.
-Ordinary SQL still receives scalar columns and values.
+is authorized or a referenced row exists; use a lookup and REQUIRE or `CHECK GUARD`
+for existence. Ordinary SQL still receives scalar columns and values.
 
-This profile rejects runtime-private storage, privileged procedures, protected
-effects, COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
+This profile rejects runtime-private storage, stored runtime or privileged
+procedures, option profiles, runtime variant dispatch, protected effects,
+COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 
 ## Isolated application Table tests
@@ -136,9 +144,10 @@ have a pending acquisition for their next input; this assertion does not establi
 Queue emptiness or program idleness.
 It does not treat activation as completion or replay input. Follow it with Table
 and `CONSUME` row assertions to check state and Stream output. Exhausted polling
-or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md)
-and [nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
-illustrate success, refusal, atomic rollback and isolation; the
+or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md),
+[nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
+and [modular helper fixture](../../../tests/fixtures/application-modular-programs/README.md)
+illustrate success, ordered guard refusal, post-call atomic rollback and isolation; the
 [test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 defines observation limits and scope.
 

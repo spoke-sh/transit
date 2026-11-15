@@ -6,11 +6,13 @@ Milestone 12 has its bounded recursive `.transit` compiler, lockfile and
 subdirectory dependency resolver, ANTLR correspondence corpus, nominal scalar
 domains, closed compile-time variants, exact public `TABLE`/`STREAM`/`QUEUE`
 exports, actionable `application.source.*` diagnostics, public-data Queue
-program compilation and isolated local `transit test` runner. Completing it
-still requires reconciling retained local Queue/test reliability and statement
-size bounds, finishing reusable `FUNCTION`/`GUARD`/`PROCEDURE` and runtime
-variant composition, synthesizing explicit-basis migrations, enforcing
-reference-only exports and runtime module encapsulation, checking linear
+program compilation, pure `FUNCTION` / ordered `GUARD` / inline atomic
+`PROCEDURE` lowering (Slices A and B.1; see
+[November 15 qualification](../history/qualification/query.md#pure-functions-ordered-guards-and-inline-atomic-procedures--2026-11-15)),
+and isolated local `transit test` runner. Completing it
+still requires finishing value-returning `LET res = CALL` and runtime
+variant/cardinality/refinement composition (Slice B.2), synthesizing explicit-basis migrations, enforcing
+reference-only exports and runtime module encapsulation, checking option profiles, linear
 `CAPABILITY`/`OPERATION` workflows and `SECRET` taint once their runtime owners
 land, delivering safe `CREATE OR REPLACE` generation draining, adding
 deterministic subject/clock/effect/replay test controls, and qualifying the

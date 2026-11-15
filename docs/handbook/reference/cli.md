@@ -50,8 +50,10 @@ are never merged between them. The rc files remain DuckDB-style dot-command scri
 ## Application source builds
 
 `transit build [-f FILE] [--target NAME]` reads `build.transit` by default and
-selects target `default`. It compiles new Table definitions, bounded literal
-mutations and finite single-Table reads without opening a Transit connection.
+selects target `default`. It compiles new Table, Stream and Queue definitions,
+bounded literal mutations and log appends, finite single-Table reads, and public
+Queue programs (including pure `FUNCTION`, ordered `GUARD` and inline atomic
+`PROCEDURE` helpers) without opening a Transit connection.
 The entry file's directory is the package root. Relative imports stay below that
 root; source files use the same module language as the build entry.
 

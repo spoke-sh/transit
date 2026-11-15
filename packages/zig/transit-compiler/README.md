@@ -34,12 +34,17 @@ retained schemas and output use the product arena. Both allocators share one
 stable `transit-memory` budget. Inputs have separate aggregate/file bounds.
 
 Ordered public Queue programs and explicit lifecycle controls use the same graph.
-`ProgramCheck` collects proposed dependencies and uses Fuze's program schema,
-type and capability owners before comparing the emitted instruction tree and
-schema bindings. Runtime publication, authorization, progress and completion
+`ProgramLowering` validates pure `FUNCTION`, ordered `GUARD` and inline atomic
+`PROCEDURE` declarations across a non-recursive call DAG, checks function purity
+through Fuze's `ScalarProgram`, hoists multi-use impure call arguments once,
+expands `CHECK GUARD` and `CALL` with hygienic `"__t$<n>_<name>"` bindings into
+canonical program SQL, and preserves both definition-site and call-site source
+locations. `ProgramCheck` collects proposed dependencies and uses Fuze's program
+schema, type and capability owners before comparing the emitted instruction tree
+and schema bindings. Runtime publication, authorization, progress and completion
 remain separate. `ProgramAnnotations` overlays source domains on the shared physical
-binder, preserving nullable records, lexical scopes and ordered boundaries. Both
-runtime branches and failure handlers are checked. Exact expansion spans attach
+binder, preserving nullable records, lexical scopes and ordered boundaries across
+lowered helpers, runtime branches and failure handlers. Exact expansion spans attach
 nominal holes to expression nodes; equality, null tests and matching CASE arms
 preserve domains. Other nominal operations reject. Symbolic program declarations/controls
 and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
@@ -91,9 +96,11 @@ working catalog, emitter and independent SQL verification. Compilation executes
 no SQL. Row expectations use exact schema-bound value encodings with duplicate
 multiplicity; they do not depend on physical ordering or SQL collation equality.
 
-`test::application-source-types` checks three scoped Lean laws and independent
-finite comparisons of source selection, typed Table/domain/operand records and
-ordinary SQL. See the [verification owner](../../../tests/query/application_source/README.md)
-for premises, tool pins and negative controls. The
+`test::application-source-types` checks ten scoped Lean laws and independent
+finite comparisons of source selection, typed Table/domain/operand records,
+ordered nominal/helper program projections and ordinary SQL. See the
+[verification owner](../../../tests/query/application_source/README.md) for
+premises, tool pins and negative controls. The
 [synthetic typed-target fixture](../../../tests/fixtures/application-typed-targets/README.md)
-is executed separately by real build/test CLI checks.
+and [modular Queue fixture](../../../tests/fixtures/application-modular-programs/README.md)
+are executed separately by real build/test CLI checks.

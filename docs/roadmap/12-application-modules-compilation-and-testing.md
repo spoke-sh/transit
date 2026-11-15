@@ -9,7 +9,11 @@ the remaining delivery sequence, effort model and immediate execution slices at
 `CatalogDiff` migrations, `EXPORT REFERENCE` and runtime module grant boundaries,
 protected capability/secret/transition checking, conditional `CREATE OR REPLACE`
 generation draining, deterministic workflow simulation/`--verify-replay`, and
-common-revision qualification on the 6-domain baseline. The earlier
+common-revision qualification on the 6-domain baseline. Slice A and Slice B.1
+deliver local session read-pin drain/publication wakeup and transaction
+commit-invalidation abort recovery alongside pure deterministic `FUNCTION`,
+ordered `GUARD` / `CHECK GUARD` and hygienic inline atomic `PROCEDURE` / `CALL`
+lowering with ten Lean laws; see [executed qualification](../history/qualification/query.md#pure-functions-ordered-guards-and-inline-atomic-procedures--2026-11-15). The earlier
 [remaining implementation plan](application-remaining-implementation.md) retains
 its historical sequence from `bc849156a`; its public-data Queue build/test
 increment merged in [PR #450](https://github.com/spoke-sh/transit/pull/450), and
