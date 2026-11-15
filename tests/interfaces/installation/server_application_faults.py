@@ -294,6 +294,7 @@ def install_peer(fixture):
     wrapper.write_text('#!' + sys.executable + '\nimport sys\nsys.path.insert(0, ' + repr(str(TESTS)) + ')\nfrom interfaces.installation.server_application_faults import node\nnode(' + repr(real) + ', ' + repr(str(fixture.root)) + ', sys.argv[1:])\n')
     wrapper.chmod(0o700)
     (fixture.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
+    fixture.path.write_text(json.dumps(fixture.config))
 
 
 def wait_file(path, timeout=20):
