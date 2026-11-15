@@ -242,9 +242,13 @@ class Reference(Compose):
         output = self.actor_logs(handle)
         values = []
         for line in output.splitlines():
+            if line.startswith('error: '):
+                raise RuntimeError(line)
             try:
                 value = json.loads(line)
                 if "message" in value:
+                    if value['message'].startswith('error: '):
+                        raise RuntimeError(value['message'])
                     value = json.loads(value["message"])
                 else:
                     # Substrate attaches a physical log timestamp to JSON
@@ -316,7 +320,8 @@ class Reference(Compose):
                 assert len(values) == 1
                 return values[0]
             time.sleep(.2)
-        raise TimeoutError("Substrate caller did not complete")
+        raise TimeoutError("Substrate caller did not complete: " +
+            self.actor(handle)['status']['state'] + '\n' + self.actor_logs(handle)[-2000:])
 
     def kill_caller_worker(self):
         handle = self.actors[-1]
