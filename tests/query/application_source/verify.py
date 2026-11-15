@@ -68,11 +68,13 @@ def at_path(value, path):
 
 def cases():
     result = json.loads((ROOT / 'contracts/application-source/corpus.json').read_text())
-    fixture = ROOT / 'tests/fixtures/application-typed-queue'
-    for mode in ('build', 'test_suite'):
-        result.append({'name': f'typed-queue-{mode}', 'source': (fixture / 'build.transit').read_text(),
-                       'parse': True, 'compile': mode,
-                       'files': [{'path': path.name, 'text': path.read_text()} for path in sorted(fixture.glob('*.transit')) if path.name != 'build.transit']})
+    for prefix, directory in (('typed-queue', 'application-typed-queue'),
+                              ('modular-programs', 'application-modular-programs')):
+        fixture = ROOT / 'tests/fixtures' / directory
+        for mode in ('build', 'test_suite'):
+            result.append({'name': f'{prefix}-{mode}', 'source': (fixture / 'build.transit').read_text(),
+                           'parse': True, 'compile': mode,
+                           'files': [{'path': path.name, 'text': path.read_text()} for path in sorted(fixture.glob('*.transit')) if path.name != 'build.transit']})
     rng = random.Random(SEED)
     # Independent bounded construction exercises expressions, conditionals, lexical
     # variants and actual emitted schemas/plans, with a reproducible case identity.

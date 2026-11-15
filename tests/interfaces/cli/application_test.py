@@ -152,6 +152,38 @@ def main():
         refused = invoke(cli, typed_queue, expected=1)
         assert refused['code'] == 'application.source.domain' and refused['outcome'] == 'not_submitted' and 'cases' not in refused, refused
         assert not (typed_queue / '.transit').exists()
+        modular = root / 'modular-programs'
+        shutil.copytree(ROOT / 'tests/fixtures/application-modular-programs', modular)
+        modular_report = invoke(cli, modular, timeout=240)
+        assert modular_report['complete'] and [case['status'] for case in modular_report['cases']] == ['passed'] * 6, modular_report
+        assert [case['observation']['rows'] for case in modular_report['cases']] == [2, 0, 0, 0, 0, 1], modular_report
+        assert 0 < modular_report['compiler_peak_bytes'] <= 64 * 1024 * 1024, modular_report
+        for case in modular_report['cases']:
+            resources = case['observation']['resources']
+            assert 0 < resources['memory_peak_bytes'] <= modular_report['limits']['host_bytes'], case
+            assert 0 < resources['storage_reserved_bytes'] <= modular_report['limits']['storage_bytes'], case
+        modular_workflow = (modular / 'workflow.transit').read_text()
+        modular_helpers = (modular / 'helpers.transit').read_text()
+        for filename, original_text, mutated_text, expected_code in (
+                ('workflow.transit', modular_workflow,
+                 modular_workflow.replace("LET summary = 'caller-local-shadow-sentinel';", "LET summary = helpers.clean_note(order_item.note);"),
+                 'application.source.import'),
+                ('workflow.transit', modular_workflow,
+                 modular_workflow.replace('helpers.verify_account($accounts, order_item.account_id, order_item.amount)',
+                                          'helpers.verify_account($accounts, order_item.id, order_item.amount)'),
+                 'application.source.domain'),
+                ('helpers.transit', modular_helpers,
+                 modular_helpers.replace("RETURN token = token;", "RETURN token = RANDOM_TOKEN(16);"),
+                 'application.source.unsupported'),
+                ('helpers.transit', modular_helpers,
+                 modular_helpers.replace("RETURN order_id;", "RETURN preserve_order(order_id);"),
+                 'application.source.unsupported')):
+            source(modular, filename, mutated_text)
+            refused = invoke(cli, modular, expected=1)
+            assert refused['code'] == expected_code and refused['outcome'] == 'not_submitted' and 'cases' not in refused, (filename, expected_code, refused)
+            assert not (modular / '.transit').exists()
+            source(modular, filename, original_text)
+        shutil.rmtree(modular)
         typed = root / 'typed-targets'
         shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
         typed_report = invoke(cli, typed)

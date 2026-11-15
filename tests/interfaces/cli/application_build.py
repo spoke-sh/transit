@@ -481,9 +481,225 @@ def typed_queue_journey(cli, root):
     return sql
 
 
+def modular_programs_journey(cli, root):
+    fixture = REPO / 'tests/fixtures/application-modular-programs'
+    project = root / 'modular-programs-project'
+    shutil.copytree(fixture, project)
+    checked = cli_build(cli, project, '--check')
+    assert checked['statements'] == 32 and not (project / '.transit').exists()
+    product = cli_build(cli, project)
+    sql = (Path(product['directory']) / 'application.sql').read_text()
+    assert max(len(line.encode()) for line in sql.splitlines()) > 4096
+    assert max(len(line.encode()) for line in sql.splitlines()) <= 65536
+    assert sql == (fixture / 'expected.sql').read_text()
+    assert '__t$' in sql and '__t$' not in (fixture / 'oracle.sql').read_text()
+    assert cli_build(cli, project)['reused']
+    workflow_text = (project / 'workflow.transit').read_text()
+    helpers_text = (project / 'helpers.transit').read_text()
+    for filename, original_text, changed_text, expected_code in (
+            ('workflow.transit', workflow_text,
+             workflow_text.replace("LET summary = 'caller-local-shadow-sentinel';", "LET summary = helpers.clean_note(order_item.note);"),
+             'application.source.import'),
+            ('workflow.transit', workflow_text,
+             workflow_text.replace('helpers.verify_account($accounts, order_item.account_id, order_item.amount)',
+                                   'helpers.verify_account($accounts, order_item.id, order_item.amount)'),
+             'application.source.domain'),
+            ('helpers.transit', helpers_text,
+             helpers_text.replace('RETURN token = token;', 'RETURN token = RANDOM_TOKEN(16);'),
+             'application.source.unsupported'),
+            ('helpers.transit', helpers_text,
+             helpers_text.replace('RETURN order_id;', 'RETURN preserve_order(order_id);'),
+             'application.source.unsupported')):
+        source(project, filename, changed_text)
+        refused = cli_build(cli, project, expected=1)
+        assert refused['code'] == expected_code and refused['location'] is not None, (filename, expected_code, refused)
+        assert (Path(product['directory']) / 'application.sql').read_text() == sql
+        source(project, filename, original_text)
+    moved = root / 'modular-programs-relocated'
+    shutil.copytree(project, moved, ignore=shutil.ignore_patterns('.transit'))
+    entry = (moved / 'build.transit').read_text().replace("IMPORT resources FROM 'resources.transit'", "IMPORT library FROM 'renamed.transit'").replace('resources.', 'library.')
+    source(moved, 'build.transit', entry)
+    (moved / 'resources.transit').rename(moved / 'renamed.transit')
+    relocated = cli_build(cli, moved)
+    assert relocated['sql_digest'] == product['sql_digest'] and relocated['input_digest'] != product['input_digest']
+    repository_path = root / 'modular-programs-repository'
+    revision = repository(repository_path, {f'pkg/{path.name}': path.read_text() for path in fixture.glob('*.transit')})
+    remote = root / 'modular-programs-remote'
+    remote.mkdir()
+    source(remote, 'build.transit', f"DEPENDENCY modular FROM '{repository_path}' REVISION '{revision}' SUBDIRECTORY 'pkg'; IMPORT library FROM PACKAGE modular FILE 'build.transit'; CREATE TARGET default AS BEGIN USE library.Scenario(); END;")
+    fetched = cli_build(cli, remote, '--fetch', fetch=True)
+    assert fetched['dependencies'] == 1
+    lock = (remote / 'transit.lock').read_bytes()
+    shutil.rmtree(repository_path)
+    assert cli_build(cli, remote)['sql_digest'] == product['sql_digest']
+    assert (remote / 'transit.lock').read_bytes() == lock
+    for directory in (project, moved, remote):
+        shutil.rmtree(directory)
+    return sql
+
+
+def install_modular_programs(fixture, sql):
+    lines = sql.splitlines()
+    assert len(lines) == 32, len(lines)
+    # Configure 120s Queue leases before binding Dataflows and activate one
+    # Queue consumer at a time so 50-state 6-participant commits retain wide
+    # margin on synchronous disk storage under CI and host I/O contention.
+    fixture.console(
+        '\n'.join(lines[:6]) + '\n'
+        "ALTER QUEUE modular_requests_a SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        "ALTER QUEUE modular_followup_a SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        + '\n'.join(lines[6:9]))
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        token = list(os.urandom(16))
+        client.call(dict(execute=dict(sql=lines[26], token=token)), discard_response=True)
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['matched'] == original['changed'] == 1, original
+        client.call(dict(execute=dict(sql=lines[26].replace("'priority'", "'changed'"), token=token)), error='SqlTokenConflict')
+        assert client.call(dict(status=dict(token=token)))['operation']['identity'] == original['identity']
+    finally:
+        client.close()
+    head_a = await_head(fixture, 'modular_orders_a', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
+    assert (head_a['completed'], head_a['refused']) == (1, 0), head_a
+    fixture.console('\n'.join(lines[27:31]))
+    head_a = await_head(fixture, 'modular_orders_a', lambda h: h['completed'] + h['refused'] >= 5)['observation']['head']
+    assert (head_a['completed'], head_a['refused']) == (1, 4), head_a
+    await_head(fixture, 'modular_orders_a', lambda h: h['pending'] is not None and h['attempt'] == 6)
+    fixture.console('SUSPEND DATAFLOW modular_orders_a;')
+    settled_orders_a = await_head(fixture, 'modular_orders_a', lambda h: h['pending'] is None)['observation']['head']
+    assert (settled_orders_a['completed'], settled_orders_a['refused']) == (1, 5), settled_orders_a
+
+    fixture.console('\n'.join(lines[9:13]))
+    dispatch_head_a = await_head(fixture, 'modular_dispatch_a', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
+    assert (dispatch_head_a['completed'], dispatch_head_a['refused']) == (1, 0), dispatch_head_a
+    await_head(fixture, 'modular_dispatch_a', lambda h: h['pending'] is not None and h['attempt'] == 2)
+    fixture.console('SUSPEND DATAFLOW modular_dispatch_a;')
+    settled_dispatch_a = await_head(fixture, 'modular_dispatch_a', lambda h: h['pending'] is None)['observation']['head']
+    assert (settled_dispatch_a['completed'], settled_dispatch_a['refused']) == (1, 1), settled_dispatch_a
+
+    fixture.console(
+        '\n'.join(lines[13:19]) + '\n'
+        "ALTER QUEUE modular_requests_b SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        "ALTER QUEUE modular_followup_b SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        + '\n'.join(lines[19:22]) + '\n' + lines[31])
+    head_b = await_head(fixture, 'modular_orders_b', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
+    assert (head_b['completed'], head_b['refused']) == (1, 0), head_b
+    await_head(fixture, 'modular_orders_b', lambda h: h['pending'] is not None and h['attempt'] == 2)
+    fixture.console('SUSPEND DATAFLOW modular_orders_b;')
+    settled_orders_b = await_head(fixture, 'modular_orders_b', lambda h: h['pending'] is None)['observation']['head']
+    assert (settled_orders_b['completed'], settled_orders_b['refused']) == (1, 1), settled_orders_b
+
+    fixture.console('\n'.join(lines[22:26]))
+    dispatch_head_b = await_head(fixture, 'modular_dispatch_b', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
+    assert (dispatch_head_b['completed'], dispatch_head_b['refused']) == (1, 0), dispatch_head_b
+    await_head(fixture, 'modular_dispatch_b', lambda h: h['pending'] is not None and h['attempt'] == 2)
+    fixture.console('SUSPEND DATAFLOW modular_dispatch_b;')
+    settled_dispatch_b = await_head(fixture, 'modular_dispatch_b', lambda h: h['pending'] is None)['observation']['head']
+    assert (settled_dispatch_b['completed'], settled_dispatch_b['refused']) == (1, 1), settled_dispatch_b
+
+    expected_a = 'medium:expedited:priority-note:window=commercial-clearance-corridor-v1/band=medium/ledger-policy=standard-verified-settlement-lane-beta-02|schedule=tier-beta/corridor=standard-commercial-settlement-profile-v1/settlement-class=commercial-mid-value-order|compliance=verified-account-tier-credit-guard-atomic-v1/hygiene=lexical-frame-isolated/audit-band=commercial-std'
+    expected_b = 'large:review:empty:window=institutional-clearance-corridor-v1/band=large/ledger-policy=primary-verified-settlement-lane-alpha-01|schedule=tier-alpha/corridor=priority-wire-settlement-profile-v1/settlement-class=institutional-high-value-order|compliance=dual-control-ledger-stream-followup-atomic-v1/hygiene=lexical-frame-isolated/audit-band=institutional'
+    outcomes = []
+    for suffix, order_id, amount, summary in (
+            ('a', '101', '250', expected_a),
+            ('b', '201', '1500', expected_b)):
+        rows = fixture.console(
+            f'SELECT id, account_id, amount, summary FROM modular_ledger_{suffix} ORDER BY id; '
+            f'CONSUME id, account_id, summary FROM modular_events_{suffix}; '
+            f'SELECT id, account_id, summary FROM modular_dispatched_{suffix} ORDER BY id;')
+        observed = [records(value) for value in rows if 'schema' in value]
+        assert observed == [
+            [{'id': order_id, 'account_id': '7', 'amount': amount, 'summary': summary}],
+            [{'id': order_id, 'account_id': '7', 'summary': summary}],
+            [{'id': order_id, 'account_id': '7', 'summary': summary}],
+        ], observed
+        outcomes += rows
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        token = list(os.urandom(16))
+        client.call(dict(execute=dict(sql="ENQUEUE INTO modular_requests_a VALUES (106, 7, 300, 'retained');", token=token)), discard_response=True)
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['matched'] == original['changed'] == 1
+        return outcomes, token, original['identity']
+    finally:
+        client.close()
+
+
+def resume_modular_programs(fixture, token, identity):
+    client = Client(fixture.console_config(), fixture.record()['definition']).open()
+    try:
+        original = client.terminal(client.call(dict(status=dict(token=token)))['operation'])
+        assert original['identity'] == identity and original['matched'] == original['changed'] == 1, original
+    finally:
+        client.close()
+    orders_head = observation(fixture, 'modular_orders_a')['observation']['head']
+    assert orders_head['control']['state'] == 'suspended' and (orders_head['completed'], orders_head['refused']) == (1, 5), orders_head
+    dispatch_head = observation(fixture, 'modular_dispatch_a')['observation']['head']
+    assert dispatch_head['control']['state'] == 'suspended' and (dispatch_head['completed'], dispatch_head['refused']) == (1, 1), dispatch_head
+    fixture.console('RESUME DATAFLOW modular_orders_a;')
+    settled_orders = await_head(fixture, 'modular_orders_a', lambda h: h['completed'] >= 2)['observation']['head']
+    assert settled_orders['refused'] == 5, settled_orders
+    await_head(fixture, 'modular_orders_a', lambda h: h['pending'] is not None and h['attempt'] == 8)
+    fixture.console('SUSPEND DATAFLOW modular_orders_a;')
+    await_head(fixture, 'modular_orders_a', lambda h: h['pending'] is None)
+    fixture.console('RESUME DATAFLOW modular_dispatch_a;')
+    settled_dispatch = await_head(fixture, 'modular_dispatch_a', lambda h: h['completed'] >= 2)['observation']['head']
+    assert settled_dispatch['refused'] == 1, settled_dispatch
+    first_summary = 'medium:expedited:priority-note:window=commercial-clearance-corridor-v1/band=medium/ledger-policy=standard-verified-settlement-lane-beta-02|schedule=tier-beta/corridor=standard-commercial-settlement-profile-v1/settlement-class=commercial-mid-value-order|compliance=verified-account-tier-credit-guard-atomic-v1/hygiene=lexical-frame-isolated/audit-band=commercial-std'
+    retained_summary = 'medium:routine:retained:window=commercial-clearance-corridor-v1/band=medium/ledger-policy=standard-verified-settlement-lane-beta-02|schedule=tier-beta/corridor=standard-commercial-settlement-profile-v1/settlement-class=commercial-mid-value-order|compliance=verified-account-tier-credit-guard-atomic-v1/hygiene=lexical-frame-isolated/audit-band=commercial-std'
+    expected_ledger = [
+        {'id': '101', 'account_id': '7', 'amount': '250', 'summary': first_summary},
+        {'id': '106', 'account_id': '7', 'amount': '300', 'summary': retained_summary},
+    ]
+    expected_outputs = [
+        {'id': '101', 'account_id': '7', 'summary': first_summary},
+        {'id': '106', 'account_id': '7', 'summary': retained_summary},
+    ]
+    outcomes = fixture.console(
+        'SELECT id, account_id, amount, summary FROM modular_ledger_a ORDER BY id; '
+        'CONSUME id, account_id, summary FROM modular_events_a; '
+        'SELECT id, account_id, summary FROM modular_dispatched_a ORDER BY id;')
+    observed = [sorted(records(value), key=lambda row: int(row['id'])) for value in outcomes if 'schema' in value]
+    assert observed == [expected_ledger, expected_outputs, expected_outputs], observed
+    return outcomes
+
+
+def execute_modular_programs(cli, sql):
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        outcomes, token, identity = install_modular_programs(fixture, sql)
+        fixture.stop(kill=True)
+        fixture.start()
+        fixture.ready()
+        outcomes += resume_modular_programs(fixture, token, identity)
+        disable_sql_credential(fixture.root, fixture.config['ports'], installation=fixture.installation)
+        fixture.console('CONSUME * FROM modular_events_a;', expected=1)
+        fixture.console('SHOW DATAFLOW modular_orders_a;', expected=1)
+        fixture.console('SELECT * FROM modular_ledger_a;', expected=1)
+        fixture.console('SELECT * FROM modular_dispatched_a;', expected=1)
+        passed = True
+        return outcomes
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed modular Queue execution: {fixture.root}', file=sys.stderr)
+
+
 def install_typed_queue(fixture, sql):
     lines = sql.splitlines()
-    fixture.console('\n'.join(lines[:20]))
+    assert len(lines) == 25, len(lines)
+    fixture.console(
+        '\n'.join(lines[:7]) + '\n'
+        "ALTER QUEUE typed_requests_a SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        + '\n'.join(lines[7:17]) + '\n'
+        "ALTER QUEUE typed_requests_b SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+        + '\n'.join(lines[17:20]))
     client = Client(fixture.console_config(), fixture.record()['definition']).open()
     try:
         token = list(os.urandom(16))
@@ -494,6 +710,8 @@ def install_typed_queue(fixture, sql):
         assert client.call(dict(status=dict(token=token)))['operation']['identity'] == original['identity']
     finally:
         client.close()
+    first_head = await_head(fixture, 'typed_process_a', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
+    assert (first_head['completed'], first_head['refused']) == (1, 0), first_head
     fixture.console('\n'.join(lines[21:]))
     outcomes = []
     for suffix, refused in (('a', 3), ('b', 0)):
@@ -580,8 +798,13 @@ def execute_program(cli, sql, typed_sql, queue_sql):
                         if value.get('completion', {}).get('kind') == 'insert']
         assert typed_counts == [{'matched': '1', 'changed': '1'}] * 2
         outcomes += typed_outcomes
-        declarations, enqueue = queue_sql.rsplit('\n', 2)[:2]
-        fixture.console(declarations)
+        queue_lines = queue_sql.splitlines()
+        assert len(queue_lines) == 7, len(queue_lines)
+        fixture.console(
+            '\n'.join(queue_lines[:3]) + '\n'
+            "ALTER QUEUE requests SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+            + '\n'.join(queue_lines[3:6]))
+        enqueue = queue_lines[6]
         # Lose the reply to the emitted append and settle only its original
         # token. Changed source or SQL cannot manufacture another accepted input.
         client = Client(fixture.console_config(), fixture.record()['definition']).open()
@@ -672,16 +895,21 @@ def main():
         typed_sql = typed_journey(cli, Path(temporary))
         queue_sql = queue_journey(cli, Path(temporary))
         typed_queue_sql = typed_queue_journey(cli, Path(temporary))
+        modular_sql = modular_programs_journey(cli, Path(temporary))
         print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
         print('Application build: generated typed Queue fixture', flush=True)
         generated += execute_typed_queue(cli, typed_queue_sql)
+        print('Application build: generated modular Queue fixture', flush=True)
+        generated += execute_modular_programs(cli, modular_sql)
         print('Application build: independent ordinary SQL oracle', flush=True)
         oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
                                  (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
         print('Application build: independent typed Queue SQL oracle', flush=True)
         oracle += execute_typed_queue(cli, (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
+        print('Application build: independent modular Queue SQL oracle', flush=True)
+        oracle += execute_modular_programs(cli, (REPO / 'tests/fixtures/application-modular-programs/oracle.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):
