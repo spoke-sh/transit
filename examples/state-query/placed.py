@@ -190,7 +190,7 @@ def run(profile, kind):
                 time.sleep(.2)
             pages = [json.loads(line) for line in caller('read').splitlines()]
             assert sum(len(page['cells']) for page in pages) == (12 if kind == 'document' else 41)
-            assert all(page['manifest']['basis']['kind'] == kind for page in pages)
+            assert all(page['manifest']['basis']['cut']['kind'] == kind for page in pages)
             assert all(page['complete_coverage'] == (i+1 == len(pages)) for i, page in enumerate(pages))
             versions = invoke('versions')
             assert all(v['released_at'] is not None for v in versions['entries'] if v)
