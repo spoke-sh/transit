@@ -62,18 +62,27 @@ def wait_delivered(query, destinations=None, timeout=30):
     """Observe delivery through public reads; the server owns the courier."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        position = query({'capabilities': {}})['position']
-        after, pending = None, False
-        while True:
-            page = query({'outputs': dict(after=after, position=position)})['body']['outputs']
+        position, after, pending = None, None, False
+        while time.monotonic() < deadline:
+            try:
+                response = query({'outputs': dict(after=after, position=position)})
+            except RuntimeError as error:
+                if (getattr(error, 'status', None) != 5 or
+                        getattr(error, 'detail', None) != {'err': 'QueryExpired'}):
+                    raise
+                # A courier publication invalidated this observation. Discard
+                # the whole prefix and start a fresh bounded observation.
+                break
+            position = response['position']
+            page = response['body']['outputs']
             for entry in filter(None, page['entries']):
                 if destinations is not None:
                     assert entry['destination'] in destinations
                 pending |= entry['phase'] == 'pending'
             after = page['next']
             if after is None:
+                if not pending:
+                    return
                 break
-        if not pending:
-            return
         time.sleep(.05)
     raise TimeoutError('Server delivery did not settle the observed outputs')
