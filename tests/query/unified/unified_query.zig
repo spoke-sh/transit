@@ -159,6 +159,9 @@ fn inspectJob(transport: *s.client.Client, root: p.Ed25519.KeyPair, connection: 
     var reader = try resource_client.open(connection.resource);
     const index = (try reader.read(q.UnifiedRecords.key('i', connection.requester, correlation))) orelse return .{};
     const job = try q.UnifiedCapture.job(&reader, try q.UnifiedRecords.readIdentity(index));
+    // Direct Table jobs first acquire their retained cut. A checkpoint exists
+    // only after acquisition; this observation is not yet a capture boundary.
+    if (job.phase == .admitted or job.phase == .acquiring) return .{ .job = job };
     return .{ .job = job, .checkpoint = try q.UnifiedCapture.checkpoint(&reader, job.id) };
 }
 pub fn main(init: std.process.Init) !void {

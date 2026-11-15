@@ -63,6 +63,8 @@ def run(profile, kind):
 
         def activate(role, recovering=False):
             config = json.loads((work/(role+'.json')).read_text())
+            if config.get('tables'):
+                config['tables']['url'] = placement.authority
             if profile == 'reference':
                 config.pop('seed_file')
                 config.update(url=placement.authority, activation_directory='/runtime-data',
