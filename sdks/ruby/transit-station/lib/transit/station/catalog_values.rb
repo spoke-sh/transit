@@ -362,7 +362,7 @@ module Transit
           definition(value.fetch('definition'))
           result = Capabilities.new(**value.transform_keys(&:to_sym))
           raise UnsupportedCapability, 'Native direct catalog capability mismatch' unless
-            result.version == 1 && result.max_columns == 128 && result.max_rows == 1024 && result.max_sql_bytes == 4096 &&
+            result.version == 1 && result.max_columns == 128 && result.max_rows == 1024 && result.max_sql_bytes == 1048576 &&
             result.max_intent_bytes == LIMITS.fetch('catalog_intent_bytes') && result.max_action_bytes == LIMITS.fetch('catalog_action_bytes') &&
             result.metadata_page_entries == 8 && result.resident_intents == 1
           result

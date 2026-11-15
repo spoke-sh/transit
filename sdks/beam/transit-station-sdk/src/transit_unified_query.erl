@@ -155,7 +155,7 @@ operation(B,#transit_unified_connection{resource=R},{describe,S}) ->
     #transit_unified_description{resource_revision=transit_sdk_value:counter(maps:get(<<"resource_revision">>,V),0),policy_revision=wide(maps:get(<<"policy_revision">>,V)),budgets=parsed_budgets(maps:get(<<"limits">>,V)),active=parsed_optional(maps:get(<<"active">>,V),fun wide/1),bundle_bytes=maps:get(<<"bundle_bytes">>,Caps),segment_bytes=maps:get(<<"segment_bytes">>,Caps),batch_rows=maps:get(<<"batch_rows">>,Caps)};
 operation(B,#transit_unified_connection{resource=R},{inspect,S,Name,Sql,Budgets}) ->
     source_check(S,R),
-    #{<<"inspection">>:=V}=request(B,#{<<"inspect">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096)}}),
+    #{<<"inspection">>:=V}=request(B,#{<<"inspect">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,1048576)}}),
     #{<<"version">>:=1,<<"scope">>:=<<"configured_source">>,<<"resource">>:=Id}=V,SourceResource=source_resource(S),true=Id=:=SourceResource#transit_resource.resource,
     #transit_unified_inspection{name=name(maps:get(<<"name">>,V)),resource=SourceResource,source_kind=known(maps:get(<<"source_kind">>,V),[kv,table,document]),
         source_digest=transit_station_value:digest(maps:get(<<"contract">>,V)),schema_digest=transit_station_value:digest(maps:get(<<"schema">>,V)),
@@ -163,7 +163,7 @@ operation(B,#transit_unified_connection{resource=R},{inspect,S,Name,Sql,Budgets}
 operation(B,#transit_unified_connection{resource=R},{compile,S,Name,Sql,Budgets,Parameters}) ->
     source_check(S,R),
     Values=case Parameters of undefined->null; L when is_list(L),length(L)=<65 -> [scalar(V)||V<-L] end,
-    #{<<"compiled">>:=#{<<"bundle">>:=Bundle}}=request(B,#{<<"compile">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096),<<"parameters">>=>Values}}),
+    #{<<"compiled">>:=#{<<"bundle">>:=Bundle}}=request(B,#{<<"compile">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>name(Name),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,1048576),<<"parameters">>=>Values}}),
     #transit_unified_bundle{bytes=transit_sdk_value:unhex(Bundle,bundle_bytes())};
 operation(B,_,{authorize,#transit_unified_bundle{bytes=Bytes},Capture}) ->
     Encoded=transit_sdk_value:hex(transit_sdk_value:bytes(Bytes,bundle_bytes())),

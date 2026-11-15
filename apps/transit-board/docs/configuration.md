@@ -196,7 +196,7 @@ restores inspection-only configuration; captured work can continue independently
 of the browser and Board configuration.
 
 `POST /api/v1/query` exposes the shared `transit-query.Workspace` operations.
-Its body limit is 65536 bytes. `Origin` must match the admitted request origin and
+Its body limit is 2097152 bytes (2 MiB). `Origin` must match the admitted request origin and
 `Content-Type` must be `application/json`. Deadlines and rate limits apply.
 Retain an uncertain submission's frozen token for exact retry. A read conflict
 permits a read retry; it does not authorize a new query.

@@ -444,7 +444,7 @@ public final class Catalog {
             }, "compiled");
         }
         public CompletableFuture<Compiled> compileSql(String sql, Identity identity, Optional<BigInteger> createObject, Dialect dialect, Ingestion ingestion) {
-            if (text(sql, 4096).isEmpty()) throw new IllegalArgumentException("Empty SQL");
+            if (text(sql, 1048576).isEmpty()) throw new IllegalArgumentException("Empty SQL");
             return compiled(obj("compile", obj("sql", sql, "namespace", identity.namespace(), "operation", identity.operation().toString(),
                 "create_object", createObject.map(v -> positive(v).toString()).orElse(null), "dialect", Logical.tag(dialect), "ingestion", Logical.tag(ingestion))), identity);
         }

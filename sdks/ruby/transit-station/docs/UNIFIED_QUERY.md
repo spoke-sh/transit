@@ -42,7 +42,7 @@ invalidate that expected frontier; saved work never substitutes a later cut.
 `nil` selects ordinary SQL; `[]` selects a template without placeholders.
 The resulting bytes are copied and frozen.
 
-The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+The name binds one explicit source. SQL is limited to 1,048,576 bytes and bindings to
 65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot

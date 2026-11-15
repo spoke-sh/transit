@@ -536,13 +536,25 @@ pub const Console = struct {
         self.diagnostic.sql = q.fuze.SqlDiagnostic.query(text, err, true);
         return err;
     }
+    fn mapPipeEofError(err: anyerror) anyerror {
+        return switch (err) {
+            error.UnterminatedSqlToken, error.UnbalancedSqlParentheses, error.UnbalancedSqlBlock => error.InvalidSqlSyntax,
+            else => err,
+        };
+    }
     fn pipe(self: *Console, source: ?*std.Io.Reader, source_name: []const u8) !void {
         const Position = @import("InputPosition.zig");
         var position = try Position.init(source_name);
         var cursor: Position.Cursor = .{};
-        var buffer: [65536]u8 = undefined;
-        defer std.crypto.secureZero(u8, &buffer);
+        const buffer = try self.init.gpa.alloc(u8, q.fuze.Sql.max_statement_bytes + 1);
+        var high_water: usize = 0;
+        defer {
+            std.crypto.secureZero(u8, buffer[0..high_water]);
+            self.init.gpa.free(buffer);
+        }
         var length: usize = 0;
+        var mode: enum { idle, meta, sql } = .idle;
+        var framer: q.fuze.SqlScript.StreamFramer = .{};
         while (if (source) |reader| reader.takeByte() catch |err| switch (err) {
             error.EndOfStream => null,
             else => return err,
@@ -550,39 +562,81 @@ pub const Console = struct {
             if (Signals.interrupted()) return error.ConsoleInterrupted;
             const byte_position = cursor;
             cursor.advance(byte);
-            if (length == buffer.len) return error.ConsoleInputTooLarge;
-            buffer[length] = byte;
-            length += 1;
-            const text = std.mem.trimStart(u8, buffer[0..length], " \t\r\n");
-            const meta = isMeta(text);
-            if (text.len == 1) position.start = byte_position;
-            position.sql = !meta;
-            self.diagnostic.input = position;
-            if (!meta and text.len > q.fuze.Sql.max_statement_bytes) return self.sqlFailure(text, error.StatementTooLarge);
-            if ((meta and byte == '\n') or (!meta and byte == ';' and (sql_input.terminator(text) catch |err| return self.sqlFailure(text, err)) != null)) {
+            if (mode == .idle) {
+                if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) continue;
+                position.start = byte_position;
+                if (byte == '.') {
+                    mode = .meta;
+                    position.sql = false;
+                    self.diagnostic.input = position;
+                    buffer[0] = byte;
+                    length = 1;
+                    high_water = @max(high_water, 1);
+                    continue;
+                }
+                mode = .sql;
+                position.sql = true;
+                self.diagnostic.input = position;
+            }
+            if (mode == .meta) {
+                if (byte == '\n') {
+                    const text = std.mem.trimEnd(u8, buffer[0..length], " \t\r\n");
+                    const more = try self.execute(text);
+                    position.statement += 1;
+                    position.completed += 1;
+                    length = 0;
+                    mode = .idle;
+                    if (!more) break;
+                    continue;
+                }
+                if (length == buffer.len) return error.ConsoleInputTooLarge;
+                buffer[length] = byte;
+                length += 1;
+                high_water = @max(high_water, length);
+                continue;
+            }
+            const leading_comment = !framer.hasStatement() and switch (framer.lexer.mode) {
+                .line_comment, .block_comment, .block_comment_slash, .block_comment_star => true,
+                else => false,
+            };
+            if (!leading_comment or length < sql_input.max_editor_bytes) {
+                if (length == buffer.len) return self.sqlFailure(buffer[0..length], error.StatementTooLarge);
+                buffer[length] = byte;
+                length += 1;
+                high_water = @max(high_water, length);
+                if (!leading_comment and length > q.fuze.Sql.max_statement_bytes) {
+                    return self.sqlFailure(buffer[0..length], error.StatementTooLarge);
+                }
+            }
+            var chunk_index: usize = 0;
+            const stmt = framer.nextInChunk(&.{byte}, &chunk_index) catch |err| {
+                const err_code = if (err == error.UnterminatedSqlToken) error.InvalidSqlSyntax else err;
+                return self.sqlFailure(buffer[0..length], err_code);
+            };
+            if (stmt != null) {
+                const text = std.mem.trim(u8, buffer[0..length], " \t\r\n");
                 const more = try self.execute(text);
                 position.statement += 1;
                 position.completed += 1;
                 length = 0;
+                framer = .{};
+                mode = .idle;
                 if (!more) break;
-            } else if (byte == '\n' and !meta and !(sql_input.significant(text) catch |err| return self.sqlFailure(text, err))) {
-                var scan = try sql_input.Scan.init(text);
-                var closed = true;
-                while (try scan.next()) |token| if (!token.closed) {
-                    closed = false;
-                };
-                if (closed) length = 0;
+            } else if (!framer.hasStatement() and (framer.lexer.mode == .idle or framer.lexer.mode == .space)) {
+                length = 0;
+                framer = .{};
+                mode = .idle;
             }
         }
-        const rest = std.mem.trim(u8, buffer[0..length], " \t\r\n");
-        if (!isMeta(rest)) {
-            var scan = sql_input.Scan.init(rest) catch |err| return self.sqlFailure(rest, err);
-            while (scan.next() catch |err| return self.sqlFailure(rest, err)) |token| if (!token.closed) return self.sqlFailure(rest, error.InvalidSqlSyntax);
-        }
-        if (isMeta(rest)) {
-            _ = try self.execute(rest);
-        } else if (rest.len > 0 and try sql_input.significant(rest)) {
-            _ = try self.execute(rest);
+        if (mode == .meta) {
+            const rest = std.mem.trim(u8, buffer[0..length], " \t\r\n");
+            if (rest.len > 0) _ = try self.execute(rest);
+        } else if (mode == .sql) {
+            const rest = std.mem.trim(u8, buffer[0..length], " \t\r\n");
+            const final_stmt = framer.finish() catch |err| return self.sqlFailure(rest, mapPipeEofError(err));
+            if (final_stmt != null and rest.len > 0) {
+                _ = try self.execute(rest);
+            }
         }
         if (self.had_error) return error.ConsoleCommandFailed;
     }

@@ -308,7 +308,7 @@ Live interfaces keep their separate authorities.
 Four result readers are shared by the Board deployment. Each has a five-minute
 absolute lifetime and a window of at most 100 rows with a 2 MiB value-allocation
 budget. Metadata retains one bounded source chunk to recheck all held authority
-subjects. Requests are limited to 64 KiB; result replies to 4 MiB. Byte-budget
+subjects. Requests are limited to 2 MiB; result replies to 4 MiB. Byte-budget
 exhaustion fails closed. A display limit is not query completion. Empty results,
 verified result counts and incomplete prefixes are distinct.
 

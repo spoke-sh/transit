@@ -217,7 +217,7 @@ Capabilities capabilities(const Json &v) {
     auto number = [&](const char *k) { return static_cast<uint32_t>(v.at(k).number(UINT32_MAX, false)); };
     out.version = number("version"); out.max_columns = number("max_columns"); out.max_rows = number("max_rows"); out.max_sql_bytes = number("max_sql_bytes");
     out.max_intent_bytes = number("max_intent_bytes"); out.max_action_bytes = number("max_action_bytes"); out.metadata_page_entries = number("metadata_page_entries"); out.resident_intents = number("resident_intents");
-    require(out.version == 1 && out.max_columns == 128 && out.max_rows == 1024 && out.max_sql_bytes == 4096 && out.max_intent_bytes == max_intent && out.max_action_bytes == max_action && out.metadata_page_entries == 8 && out.resident_intents == 1, "catalog-capabilities"); return out;
+    require(out.version == 1 && out.max_columns == 128 && out.max_rows == 1024 && out.max_sql_bytes == 1048576 && out.max_intent_bytes == max_intent && out.max_action_bytes == max_action && out.metadata_page_entries == 8 && out.resident_intents == 1, "catalog-capabilities"); return out;
 }
 Description description(const Json &v, Connection c, uint64_t p) {
     Description out{}; const auto &config = v.at("configuration"); auto &g = out.configuration;

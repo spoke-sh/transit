@@ -331,14 +331,14 @@ transit_sdk_error transit_station_unified_compile_sql(transit_station_unified_cl
         require(source&&out,"query-compilation");require(source->resource.realm==client->connection.resource.realm&&(source->kind==TRANSIT_UNIFIED_TABLE||source->resource.resource==client->connection.resource.resource),"query-source-resource");
         std::string values="null";
         if(parameters){require(parameters->count<=65 && (parameters->values || !parameters->count),"query-parameters");values="[";for(size_t i=0;i<parameters->count;++i){if(i)values+=',';values+=scalar_wire(parameters->values[i]);}values+=']';}
-        const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+",\"parameters\":"+values+"}}");
+        const auto result=n.call("{\"compile\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,1048576))+",\"parameters\":"+values+"}}");
         *out=new transit_station_unified_bundle{unhex(n.local.raw.field(result,"compiled/bundle",true),TRANSIT_SDK_STATION_QUERY_BUNDLE_BYTES)};
     });
 }
 transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){
         require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&(source->kind==TRANSIT_UNIFIED_TABLE||source->resource.resource==client->connection.resource.resource),"query-source-resource");
-        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
+        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(query_name(name))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,1048576))+"}}");
         const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";auto owner=std::make_unique<transit_station_unified_inspection>();auto &result=owner->info;
         require(r.number(v,p+"version")==1&&r.field(v,p+"scope",true)=="configured_source"&&r.number(v,p+"resource")==source->resource.resource,"inspection-scope");
         inspected_name(r,v,p+"name",result.name);result.resource=source->resource;const char *kinds[]={"kv","table","document"};

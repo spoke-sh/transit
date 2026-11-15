@@ -322,7 +322,7 @@ public static class UnifiedQuery
         }
         public Task<Inspection> InspectSqlAsync(Source source,string name,string sql,Budgets budgets,CancellationToken cancellation=default) {
             if(source.Resource.Realm!=connection.Resource.Realm || (source is not TableSource && source.Resource!=connection.Resource)) throw new ArgumentException("Different query resource");
-            var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
+            var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,1048576)))));
             return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],source.Resource),cancellation);
         }
         /// <summary>New owned finite bundle; no upload or admission. Await cancellation retains native ownership.</summary>
@@ -333,7 +333,7 @@ public static class UnifiedQuery
                 if(parameters.Count>65) throw new ArgumentException("Expected at most 65 parameter atoms");
                 values=new();foreach(var scalar in parameters)values.Add(Wire(scalar));
             }
-            var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)),("parameters",values))));
+            var action=V.Obj(("compile",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",ColumnName(name)),("limits",budgets.Wire()))),("sql",V.Text(sql,1048576)),("parameters",values))));
             return worker.Invoke(b=>new Bundle(Encoded(V.Object(b.UnifiedQuery(action)["compiled"])["bundle"],Catalog.Limit("query_bundle_bytes"))),cancellation);
         }
         /// <summary>Seal new work before persistence; recover saved bundles unchanged.</summary>

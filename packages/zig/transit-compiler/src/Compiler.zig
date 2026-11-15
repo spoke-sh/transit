@@ -193,7 +193,7 @@ fn verify(self: *Self) ![]const u8 {
     var verified: Catalog = .{ .output = self.a, .scratch = self.scratch.allocator() };
     var sql: std.ArrayList(u8) = .empty;
     for (self.steps.items) |step| {
-        _ = self.scratch.reset(.retain_capacity);
+        if (!self.scratch.reset(.retain_capacity)) return error.OutOfMemory;
         var at: f.Sql.Location = .{};
         const actual = try verified.check(step.sql, &at);
         if (!std.mem.eql(u8, &actual, &step.plan_digest)) return error.BuildEmissionMismatch;
@@ -616,37 +616,36 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     if (self.in_case and self.actions.items.len == Test.max_actions) return error.TestActionLimit;
     self.file = file;
     self.offset = span.start;
-    var raw_buf: [f.Sql.max_statement_bytes]u8 = undefined;
-    var canonical_buf: [f.Sql.max_statement_bytes]u8 = undefined;
-    var type_sites: [f.Sql.max_statement_bytes]bool = @splat(false);
+    if (!self.scratch.reset(.retain_capacity)) return error.OutOfMemory;
+    const scratch = self.scratch.allocator();
+    const log_statement = switch (template.kind) {
+        .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
+        else => false,
+    };
+    var type_sites: std.ArrayList(usize) = .empty;
     var sites: std.ArrayList(Operands.Site) = .empty;
-    const raw = try expand(self.graph.sources[file].text, tokens, bindings, &raw_buf, template.kind == .program, &type_sites, self.a, &sites, origins);
-    _ = self.scratch.reset(.retain_capacity);
+    const raw = try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, template.kind == .program, if (log_statement) null else &type_sites, self.a, &sites, origins);
     self.catalog.owner = self.owner;
     const is_create = tokenIs(self.graph.sources[file].text, tokens[0], "CREATE");
     // DDL creates the proposed shape; other statements check source annotations
     // before the ordinary binder can erase nominal identity into scalar values.
     var digest: [32]u8 = undefined;
     if (is_create and template.kind != .program) digest = try self.catalog.check(raw, at);
-    const log_statement = switch (template.kind) {
-        .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
-        else => false,
-    };
     const resource_checked = if (log_statement) try @import("ResourceOperands.zig").check(template, bindings) else null;
     const checked = if (template.kind == .program) blk: {
         var analysis = try @import("ProgramCheck.zig").analyze(&self.catalog, raw, at);
         defer analysis.deinit();
         var result = resource_checked.?;
-        result.program = try @import("ProgramAnnotations.zig").check(self.scratch.allocator(), self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, &self.context, &self.work, self.limits.work);
+        result.program = try @import("ProgramAnnotations.zig").check(scratch, self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, &self.context, &self.work, self.limits.work);
         break :blk result;
-    } else if (template.kind == .control) resource_checked.? else try Operands.check(self.scratch.allocator(), self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
+    } else if (template.kind == .control) resource_checked.? else try Operands.check(scratch, self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
     self.context = .{};
     if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, at);
-    if (!log_statement) try Catalog.verifyTypeOperands(self.scratch.allocator(), raw, type_sites[0..raw.len], at);
+    if (!log_statement) try Catalog.verifyTypeOperands(scratch, raw, type_sites.items, at);
     self.checked_statements += 1;
     if (self.symbolic) return;
     origins.clearRetainingCapacity();
-    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, &canonical_buf, true, null, self.a, null, origins);
+    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, true, null, self.a, null, origins);
     if (!is_create or template.kind == .program) digest = try self.catalog.check(canonical, at);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     self.output_bytes += canonical.len + 2;
@@ -690,17 +689,16 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
 fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, bindings: []const Binding) !void {
     if (!self.in_case) return error.TestAssertionOutsideCase;
     try self.emit(file, span, value.sql, bindings);
-    var query_buffer: [f.Sql.max_statement_bytes]u8 = undefined;
-    const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, &query_buffer, false, null, self.a, null, null) else self.steps.items[self.steps.items.len - 1].sql;
+    const scratch = self.scratch.allocator();
+    const sql = if (self.symbolic) try expand(self.graph.sources[file].text, value.sql.tokens, bindings, scratch, f.Sql.max_statement_bytes, false, null, self.a, null, null) else self.steps.items[self.steps.items.len - 1].sql;
     const is_select = value.sql.kind == .select or value.sql.kind == .consume;
     const expected: Test.Expectation = switch (value.expected) {
         .rows => |template| blk: {
             const tokens = template.tokens;
             if (!is_select) return error.TestRowsRequired;
             const schema = try self.catalog.querySchema(sql);
-            var buffer: [f.Sql.max_statement_bytes]u8 = undefined;
-            const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, &buffer, false, null, self.a, null, null);
-            const rows = try Test.bindRows(self.a, self.scratch.allocator(), text, schema);
+            const text = if (tokens.len == 0) "" else try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, false, null, self.a, null, null);
+            const rows = try Test.bindRows(self.a, scratch, text, schema);
             if (rows.values.len > Test.max_rows - self.expected_rows) return error.TestRowsLimit;
             self.expected_rows += rows.values.len;
             for (rows.values) |bytes| {
@@ -733,9 +731,29 @@ fn workflow(self: *Self, file: usize, span: s.Span, value: s.Workflow, bindings:
     if (program.control.state != .active and program.control.state != .suspended and program.control.state != .retired) return error.InvalidDataflowTransition;
     try self.actions.append(self.a, .{ .expectation = .{ .workflow = .{ .name = name.identifier, .completed = value.completed, .refused = value.refused, .observations = value.observations } }, .location = location(self.graph.sources[file], span.start) });
 }
-fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, output: []u8, canonical: bool, type_sites: ?[]bool, allocator: std.mem.Allocator, sites: ?*std.ArrayList(Operands.Site), origins: ?*std.ArrayList(Origin)) ![]const u8 {
+pub const BoundedBuffer = struct {
+    allocator: std.mem.Allocator,
+    limit: usize,
+    bytes: std.ArrayList(u8) = .empty,
+    pub fn len(self: BoundedBuffer) usize {
+        return self.bytes.items.len;
+    }
+    pub fn writeByte(self: *BoundedBuffer, byte: u8) !void {
+        if (self.bytes.items.len == self.limit) return error.BuildStatementLimit;
+        try self.bytes.append(self.allocator, byte);
+    }
+    pub fn writeAll(self: *BoundedBuffer, slice: []const u8) !void {
+        if (slice.len > self.limit - self.bytes.items.len) return error.BuildStatementLimit;
+        try self.bytes.appendSlice(self.allocator, slice);
+    }
+    pub fn print(self: *BoundedBuffer, comptime fmt: []const u8, args: anytype) !void {
+        var buf: [64]u8 = undefined;
+        try self.writeAll(std.fmt.bufPrint(&buf, fmt, args) catch unreachable);
+    }
+};
+fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, buffer_allocator: std.mem.Allocator, limit: usize, canonical: bool, type_sites: ?*std.ArrayList(usize), allocator: std.mem.Allocator, sites: ?*std.ArrayList(Operands.Site), origins: ?*std.ArrayList(Origin)) ![]const u8 {
     if (tokens.len == 0) return error.InvalidSourceSyntax;
-    var writer: std.Io.Writer = .fixed(output);
+    var writer: BoundedBuffer = .{ .allocator = buffer_allocator, .limit = limit };
     var i: usize = 0;
     var parameter: usize = 0;
     if (tokenIs(text, tokens[0], "CREATE")) {
@@ -746,8 +764,8 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
         const token = tokens[i];
         const raw = text[token.start..token.end];
         const joined = s.Template.joinsLexeme(text, tokens, i);
-        if (writer.end != 0 and !joined) writer.writeByte(' ') catch return error.BuildStatementLimit;
-        const origin_start = writer.end;
+        if (writer.len() != 0 and !joined) try writer.writeByte(' ');
+        const origin_start = writer.len();
         if (token.kind == .symbol and std.mem.eql(u8, raw, "$")) {
             i += 1;
             if (i == tokens.len or tokens[i].kind != .word) return error.InvalidSourceOperand;
@@ -756,26 +774,25 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
                 if (std.ascii.eqlIgnoreCase(name, binding.name)) break binding.value;
             } else return error.UnknownSourceOperand;
             if (value == .type) if (type_sites) |type_positions| {
-                if (writer.end >= type_positions.len) return error.BuildStatementLimit;
-                type_positions[writer.end] = true;
+                try type_positions.append(buffer_allocator, writer.len());
             };
-            const start = writer.end;
+            const start = writer.len();
             if (value == .symbolic or (!canonical and value == .nominal)) {
                 parameter += 1;
-                writer.print("${d}", .{parameter}) catch return error.BuildStatementLimit;
-            } else writeValue(&writer, value) catch |err| return if (err == error.WriteFailed) error.BuildStatementLimit else err;
-            if (sites) |record| try record.append(allocator, .{ .start = start, .end = writer.end, .value = value });
+                try writer.print("${d}", .{parameter});
+            } else try writeValue(&writer, value);
+            if (sites) |record| try record.append(allocator, .{ .start = start, .end = writer.len(), .value = value });
         } else if (canonical and token.kind == .word and !s.Template.numericWord(text, token)) {
-            for (raw) |byte| writer.writeByte(std.ascii.toUpper(byte)) catch return error.BuildStatementLimit;
-        } else writer.writeAll(raw) catch return error.BuildStatementLimit;
-        if (origins) |map| try map.append(allocator, .{ .start = origin_start, .end = writer.end, .source = token.start });
+            for (raw) |byte| try writer.writeByte(std.ascii.toUpper(byte));
+        } else try writer.writeAll(raw);
+        if (origins) |map| try map.append(allocator, .{ .start = origin_start, .end = writer.len(), .source = token.start });
     }
-    return writer.buffered();
+    return writer.bytes.items;
 }
 fn tokenIs(text: []const u8, token: s.Token, word: []const u8) bool {
     return token.kind == .word and std.ascii.eqlIgnoreCase(text[token.start..token.end], word);
 }
-fn quoted(writer: *std.Io.Writer, text: []const u8, quote: u8) !void {
+pub fn quoted(writer: *BoundedBuffer, text: []const u8, quote: u8) !void {
     try writer.writeByte(quote);
     for (text) |byte| {
         try writer.writeByte(byte);
@@ -783,7 +800,7 @@ fn quoted(writer: *std.Io.Writer, text: []const u8, quote: u8) !void {
     }
     try writer.writeByte(quote);
 }
-fn writeValue(writer: *std.Io.Writer, value: Value) !void {
+pub fn writeValue(writer: *BoundedBuffer, value: Value) !void {
     switch (value) {
         .integer => |number| try writer.print("{d}", .{number}),
         .boolean => |boolean| try writer.writeAll(if (boolean) "TRUE" else "FALSE"),

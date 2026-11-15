@@ -1013,7 +1013,7 @@ export class Client {
             result_bytes: positive(budgets.resultBytes),
           },
         },
-        sql: text(sql, 4096),
+        sql: text(sql, 1048576),
       },
     });
     if (!("inspection" in value)) throw new IncompatibleNative("Expected SQL inspection");
@@ -1046,7 +1046,7 @@ export class Client {
             result_bytes: positive(budgets.resultBytes),
           },
         },
-        sql: text(sql, 4096),
+        sql: text(sql, 1048576),
         parameters: parameters === undefined ? null : parameters.map(scalar),
       },
     });

@@ -127,7 +127,7 @@ class _Queries:
 
     def compile_sql(self, sql: str, identity: Identity, create_object: int | None = None, *, dialect: str = 'transit', ingestion: str = 'point') -> _Request[Compiled]:
         if not isinstance(identity, Identity): raise TypeError('Expected operation identity')
-        return _request({'compile': dict(sql=v._text(sql, 4096), namespace=identity.namespace, operation=str(identity.operation),
+        return _request({'compile': dict(sql=v._text(sql, 1048576), namespace=identity.namespace, operation=str(identity.operation),
                                         create_object=None if create_object is None else str(v._wide(create_object)),
                                         dialect=v._one_of(dialect, ('transit', 'mysql')), ingestion=v._one_of(ingestion, ('point', 'bulk')))}, 'compiled',
                         lambda value: v._compiled(value, self.connection, self.principal, identity))
@@ -301,7 +301,7 @@ class Client:
         try:
             self._worker.call(create)
             caps = self.capabilities()
-            if (caps.version != 1 or caps.definition != v.DEFINITION or caps.max_columns != 128 or caps.max_rows != 1024 or caps.max_sql_bytes != 4096 or
+            if (caps.version != 1 or caps.definition != v.DEFINITION or caps.max_columns != 128 or caps.max_rows != 1024 or caps.max_sql_bytes != 1048576 or
                 caps.max_intent_bytes != v.LIMITS['catalog_intent_bytes'] or caps.max_action_bytes != v.LIMITS['catalog_action_bytes'] or
                 caps.metadata_page_entries != 8 or caps.resident_intents != 1): raise UnsupportedCapability('Native catalog lacks the direct Table profile')
         except BaseException:

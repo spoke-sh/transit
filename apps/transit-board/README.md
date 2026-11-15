@@ -88,8 +88,8 @@ between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
 across concurrent viewers through an atomic throttle. Excess reads get
 `429 RateLimited`; clients back off. HTTP data capacity returns 503, while exhausted
 socket/task capacity closes the connection without claiming admission. Headers are
-8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query bodies
-64 KiB, request targets 1024 bytes,
+8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query/SQL/workbook bodies
+2 MiB, request targets 1024 bytes,
 and upstream responses 256 KiB.
 
 Inspection data preserves the public inspection observation plus explicit

@@ -77,7 +77,7 @@ different [recovery behavior](../queries.md).
 
 | Form | Support | Caller and boundary |
 | --- | --- | --- |
-| `INSERT INTO ... VALUES ...` | **Implemented — execution** | Bounded multi-row typed values, reordered/omitted fields, DEFAULT and NULL through the configured catalog; up to 1,024 rows and a 4 MiB typed intent, with a separate 4 KiB SQL text bound |
+| `INSERT INTO ... VALUES ...` | **Implemented — execution** | Bounded multi-row typed values, reordered/omitted fields, DEFAULT and NULL through the configured catalog; up to 1,024 rows and a 4 MiB typed intent, with a separate 1 MiB SQL text bound |
 | `UPDATE ... SET ... [WHERE ...]` | **Implemented — execution** | Multiple constant/default assignments and typed Boolean/state predicates; frozen selection and one atomic publication |
 | `DELETE FROM ... [WHERE ...]` | **Implemented — execution** | Point or selected finite predicates; committed matched/changed counts |
 | `PRODUCE INTO`, `ENQUEUE INTO` | **Implemented — single-partition execution** | [Typed VALUES, metadata and original-operation RETURNING](streaming.md#append-events-and-work) through native SQL, console, PostgreSQL and MySQL; cross-partition and attached-transaction appends are excluded |

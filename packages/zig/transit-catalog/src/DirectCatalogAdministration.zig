@@ -57,7 +57,7 @@ pub const PolicyPlan = struct {
 };
 pub const Action = union(enum) {
     compile_namespace: struct {
-        pub const json_schema_text_bounds = .{ .sql = 4096 };
+        pub const json_schema_text_bounds = .{ .sql = c.fuze.Sql.max_statement_bytes };
         namespace: u64,
         operation: []const u8,
         create_namespace: ?u64,
@@ -66,7 +66,7 @@ pub const Action = union(enum) {
     preview_namespace: NamespaceBinding,
     namespace_operation: struct { binding: NamespaceBinding, command: n.Command, steps: u16 },
     compile_policy: struct {
-        pub const json_schema_text_bounds = .{ .sql = 4096 };
+        pub const json_schema_text_bounds = .{ .sql = c.fuze.Sql.max_statement_bytes };
         namespace: u64,
         sql: []const u8,
     },

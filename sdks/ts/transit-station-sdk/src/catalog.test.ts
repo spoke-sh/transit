@@ -720,7 +720,7 @@ async function withHost(
     definition: contract.definition,
     max_columns: 128,
     max_rows: 1024,
-    max_sql_bytes: 4096,
+    max_sql_bytes: 1048576,
     max_intent_bytes: contract.limits.catalog_intent_bytes,
     max_action_bytes: contract.limits.catalog_action_bytes,
     metadata_page_entries: 8,

@@ -3,7 +3,7 @@
 const std = @import("std");
 const f = @import("root.zig");
 const m = f.model;
-pub const max_statement_bytes = 4096;
+pub const max_statement_bytes = 1024 * 1024;
 /// Optional parser evidence. Offsets are UTF-8 byte offsets into this statement;
 /// expected text is static grammar vocabulary, never a borrowed SQL value.
 pub const Location = struct { offset: usize = 0, expected: ?[]const u8 = null };
@@ -271,6 +271,7 @@ pub const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
+    cursor_emitted: bool = false,
     parameters_enabled: bool = false,
     dialect: Dialect = .transit,
     parameter_ordinal: u32 = 0,
@@ -287,7 +288,9 @@ pub const Lexer = struct {
             if (std.mem.indexOfScalar(u8, " \t\r\n", rest[0]) != null) {
                 self.position += 1;
             } else if (std.mem.startsWith(u8, rest, "--")) {
-                self.position += std.mem.indexOfAny(u8, rest, "\r\n") orelse rest.len;
+                const newline = std.mem.indexOfAny(u8, rest, "\r\n");
+                if (newline == null) self.cursor_emitted = true;
+                self.position += newline orelse rest.len;
             } else if (std.mem.startsWith(u8, rest, "/*")) {
                 self.position += 2;
                 var depth: usize = 1;
@@ -307,7 +310,13 @@ pub const Lexer = struct {
         }
         const start = self.position;
         self.start = start;
-        if (start == self.text.len) return .{ .tag = .eof, .text = "" };
+        if (start == self.text.len) {
+            if (self.cursor_enabled and !self.cursor_emitted) {
+                self.cursor_emitted = true;
+                return .{ .tag = .cursor, .text = "" };
+            }
+            return .{ .tag = .eof, .text = "" };
+        }
         const byte = self.text[start];
         self.position += 1;
         const tag: Tag = if (std.ascii.isAlphabetic(byte) or byte == '_') blk: {
@@ -773,11 +782,8 @@ pub const Hints = struct {
 pub fn hints(prefix: []const u8) !Hints {
     if (prefix.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(prefix) or std.mem.indexOfAny(u8, prefix, &.{ 0, 1 }) != null) return error.InvalidSqlEncoding;
-    var bytes: [max_statement_bytes + 1]u8 = undefined;
-    @memcpy(bytes[0..prefix.len], prefix);
-    bytes[prefix.len] = 1;
     var result: Hints = .{};
-    var parser: Parser = .{ .lexer = .{ .text = bytes[0 .. prefix.len + 1], .cursor_enabled = true }, .assistance = &result };
+    var parser: Parser = .{ .lexer = .{ .text = prefix, .cursor_enabled = true }, .assistance = &result };
     var ast: Ast = undefined;
     statement(&parser, &ast) catch {};
     return result;

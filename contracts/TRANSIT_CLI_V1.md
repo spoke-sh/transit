@@ -109,8 +109,8 @@ exact typed scalars. The flag requires `-c`. `.execute FILE` reads the shared
 an explicit array supplies bindings. The service describes the prepared types,
 and the client encodes descriptor-bound logical values without SQL substitution.
 Native catalog/source profiles enforce their own parameter and statement limits.
-Files resolve against the working directory and are bounded to 131072 bytes;
-the input reader admits at most 65 scalars and 4096 SQL bytes. Unknown/duplicate
+Files resolve against the working directory and are bounded to 2097152 bytes;
+the input reader admits at most 65 scalars and 1048576 SQL bytes. Unknown/duplicate
 fields and malformed scalar representations reject. Source templates retain the
 [parameter contract](SQL_PARAMETERS_V1.md), including their smaller admitted
 placeholder profile; catalog parameters use the shared Table compiler.
@@ -323,7 +323,8 @@ it executable at a query endpoint.
 
 Interactive SQL submits on Enter after a semicolon outside literals and nested
 comments. `-c SQL` runs one statement with an optional semicolon; `-f FILE` and
-stdin stream semicolon-delimited statements and dot command lines. A complete
+stdin stream semicolon-delimited statements and dot command lines incrementally
+over arbitrarily long inputs with at most one 1048576-byte active statement buffer. A complete
 final statement runs at EOF; an unclosed literal/comment fails. `-c` and `-f`
 are mutually exclusive and do not read stdin. Batch execution stops on the first
 error. Dot commands start an empty input statement; slash commands are rejected.

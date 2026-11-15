@@ -49569,7 +49569,7 @@
         },
         "T16": {
           "type": "string",
-          "maxLength": 4096
+          "maxLength": 1048576
         },
         "T17": {
           "type": "object",
@@ -57944,7 +57944,7 @@
               "$ref": "#/$defs/HostResult/$defs/T5"
             },
             "max_sql_bytes": {
-              "$ref": "#/$defs/HostResult/$defs/T5"
+              "$ref": "#/$defs/HostResult/$defs/T6"
             },
             "max_intent_bytes": {
               "$ref": "#/$defs/HostResult/$defs/T6"
@@ -57975,7 +57975,7 @@
             "definition": "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb",
             "max_columns": 128,
             "max_rows": 1024,
-            "max_sql_bytes": 4096,
+            "max_sql_bytes": 1048576,
             "max_intent_bytes": 8388644,
             "max_action_bytes": 16793672,
             "metadata_page_entries": 8,

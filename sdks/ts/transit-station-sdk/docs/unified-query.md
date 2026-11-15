@@ -58,7 +58,7 @@ omit it for ordinary SQL, or pass `[]` for a template without placeholders.
 Inputs are converted to owned wire values before the first await; changing the
 original array or binary buffers cannot change the pending compilation.
 
-The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+The name binds one explicit source. SQL is limited to 1,048,576 bytes (1 MiB) and bindings to
 65 exact logical atoms, with an unsigned atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot

@@ -13,7 +13,7 @@ pub fn main(init: std.process.Init) !void {
     try json.beginObject();
     inline for (.{ "ReadRequest", "ReadResponse", "WorkbookRequest", "WorkbookResponse" }, .{ s.ReadWorkspace.Request, s.ReadWorkspace.Response, s.WorkbookWorkspace.Request, s.WorkbookWorkspace.Response }) |name, T| {
         try json.objectField(name);
-        try s.results.protocol.Schema.writeRecursiveAt(T, &json, .{ .output = true, .safe_integers = true, .sequence_max_length = 256, .text_max_length = 262144 }, "/$defs/" ++ name);
+        try s.results.protocol.Schema.writeRecursiveAt(T, &json, .{ .output = true, .safe_integers = true, .sequence_max_length = 256, .text_max_length = s.protocol.max_sql_bytes }, "/$defs/" ++ name);
     }
     try json.endObject();
     try json.endObject();

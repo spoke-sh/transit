@@ -31,7 +31,7 @@ Unicode character limits and NOT NULL violations reject. See
 [constant grammar](../../../../contracts/TABLE_DDL_V1.md#type-and-literal-profile).
 
 One plan admits 1–1024 rows and a 4 MiB canonical intent. SQL text has a separate
-4096-byte bound. Schema, row and logical-value budgets also apply; these bounds
+1 MiB bound. Schema, row and logical-value budgets also apply; these bounds
 limit one operation, not total Table cardinality. Without a declared primary
 key, repeated row values remain separate rows with stable internal identities.
 

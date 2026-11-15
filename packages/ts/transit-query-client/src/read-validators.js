@@ -60,7 +60,7 @@ return errors === 0;
 validate58.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema25 = {"type":"object","additionalProperties":false,"properties":{"id":{"$ref":"#/$defs/ReadRequest/$defs/T5"},"sql":{"$ref":"#/$defs/ReadRequest/$defs/T5"},"expected_definition":{"$ref":"#/$defs/ReadRequest/$defs/T6"}},"required":["id","sql","expected_definition"]};
-const schema26 = {"type":"string","maxLength":262144};
+const schema26 = {"type":"string","maxLength":1048576};
 const func1 = ucs2length;
 
 function validate61(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
@@ -75,7 +75,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate61.errors = [{}];
 return false;
 }
@@ -743,7 +743,7 @@ return errors === 0;
 }
 validate77.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema32 = {"type":"string","maxLength":262144};
+const schema32 = {"type":"string","maxLength":1048576};
 
 function validate79(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -757,7 +757,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate79.errors = [{}];
 return false;
 }
@@ -3794,7 +3794,7 @@ validate164.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema62 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["atom"],"properties":{"atom":{"$ref":"#/$defs/ReadResponse/$defs/T30"}}},{"type":"object","additionalProperties":false,"required":["structure"],"properties":{"structure":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["list"],"properties":{"list":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["array"],"properties":{"array":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["map"],"properties":{"map":{"$ref":"#/$defs/ReadResponse/$defs/T43"}}},{"type":"object","additionalProperties":false,"required":["tagged_union"],"properties":{"tagged_union":{"$ref":"#/$defs/ReadResponse/$defs/T55"}}},{"type":"object","additionalProperties":false,"required":["json"],"properties":{"json":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["range"],"properties":{"range":{"$ref":"#/$defs/ReadResponse/$defs/T58"}}},{"type":"object","additionalProperties":false,"required":["multirange"],"properties":{"multirange":{"$ref":"#/$defs/ReadResponse/$defs/T51"}}},{"type":"object","additionalProperties":false,"required":["vector"],"properties":{"vector":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}}]};
 const schema63 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["decimal"],"properties":{"decimal":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["float_bits"],"properties":{"float_bits":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"$ref":"#/$defs/ReadResponse/$defs/T32"}}},{"type":"object","additionalProperties":false,"required":["utf8"],"properties":{"utf8":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["binary"],"properties":{"binary":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["date_days"],"properties":{"date_days":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["time_nanos"],"properties":{"time_nanos":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["timestamp_micros"],"properties":{"timestamp_micros":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}},{"type":"object","additionalProperties":false,"required":["interval"],"properties":{"interval":{"$ref":"#/$defs/ReadResponse/$defs/T33"}}},{"type":"object","additionalProperties":false,"required":["uuid"],"properties":{"uuid":{"$ref":"#/$defs/ReadResponse/$defs/T31"}}}]};
-const schema64 = {"type":"string","maxLength":262144};
+const schema64 = {"type":"string","maxLength":1048576};
 
 function validate168(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -3808,7 +3808,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate168.errors = [{}];
 return false;
 }
@@ -4783,7 +4783,7 @@ validate192.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema71 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["atom"],"properties":{"atom":{"$ref":"#/$defs/ReadResponse/$defs/T39"}}},{"type":"object","additionalProperties":false,"required":["structure"],"properties":{"structure":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["list"],"properties":{"list":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["array"],"properties":{"array":{"$ref":"#/$defs/ReadResponse/$defs/T34"}}},{"type":"object","additionalProperties":false,"required":["map"],"properties":{"map":{"$ref":"#/$defs/ReadResponse/$defs/T43"}}},{"type":"object","additionalProperties":false,"required":["tagged_union"],"properties":{"tagged_union":{"$ref":"#/$defs/ReadResponse/$defs/T45"}}},{"type":"object","additionalProperties":false,"required":["json"],"properties":{"json":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["range"],"properties":{"range":{"$ref":"#/$defs/ReadResponse/$defs/T48"}}},{"type":"object","additionalProperties":false,"required":["multirange"],"properties":{"multirange":{"$ref":"#/$defs/ReadResponse/$defs/T51"}}},{"type":"object","additionalProperties":false,"required":["vector"],"properties":{"vector":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}}]};
 const schema72 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["decimal"],"properties":{"decimal":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["float_bits"],"properties":{"float_bits":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"$ref":"#/$defs/ReadResponse/$defs/T41"}}},{"type":"object","additionalProperties":false,"required":["utf8"],"properties":{"utf8":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["binary"],"properties":{"binary":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["date_days"],"properties":{"date_days":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["time_nanos"],"properties":{"time_nanos":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["timestamp_micros"],"properties":{"timestamp_micros":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}},{"type":"object","additionalProperties":false,"required":["interval"],"properties":{"interval":{"$ref":"#/$defs/ReadResponse/$defs/T42"}}},{"type":"object","additionalProperties":false,"required":["uuid"],"properties":{"uuid":{"$ref":"#/$defs/ReadResponse/$defs/T40"}}}]};
-const schema73 = {"type":"string","maxLength":262144};
+const schema73 = {"type":"string","maxLength":1048576};
 
 function validate196(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -4797,7 +4797,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate196.errors = [{}];
 return false;
 }
@@ -9604,7 +9604,7 @@ validate295.evaluated = {"dynamicProps":false,"dynamicItems":false};
 const schema100 = {"type":"object","additionalProperties":false,"properties":{"cells":{"$ref":"#/$defs/WorkbookRequest/$defs/T5"}},"required":["cells"]};
 const schema101 = {"type":"array","maxItems":4,"items":{"$ref":"#/$defs/WorkbookRequest/$defs/T6"}};
 const schema102 = {"type":"object","additionalProperties":false,"properties":{"id":{"$ref":"#/$defs/WorkbookRequest/$defs/T7"},"name":{"$ref":"#/$defs/WorkbookRequest/$defs/T7"},"sql":{"$ref":"#/$defs/WorkbookRequest/$defs/T7"}},"required":["id","name","sql"]};
-const schema103 = {"type":"string","maxLength":262144};
+const schema103 = {"type":"string","maxLength":1048576};
 
 function validate300(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -9618,7 +9618,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate300.errors = [{}];
 return false;
 }
@@ -9801,7 +9801,7 @@ return errors === 0;
 }
 validate297.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false};
 
-const schema104 = {"type":"string","maxLength":262144};
+const schema104 = {"type":"string","maxLength":1048576};
 
 function validate307(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -9815,7 +9815,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate307.errors = [{}];
 return false;
 }
@@ -10848,7 +10848,7 @@ return errors === 0;
 }
 validate339.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
-const schema116 = {"type":"string","maxLength":262144};
+const schema116 = {"type":"string","maxLength":1048576};
 
 function validate344(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -10862,7 +10862,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate344.errors = [{}];
 return false;
 }
@@ -11010,7 +11010,7 @@ validate334.evaluated = {"props":true,"dynamicProps":false,"dynamicItems":false}
 const schema117 = {"type":"object","additionalProperties":false,"properties":{"bindings":{"$ref":"#/$defs/WorkbookResponse/$defs/T7"},"issue":{"$ref":"#/$defs/WorkbookResponse/$defs/T11"}},"required":["bindings","issue"]};
 const schema118 = {"type":"array","maxItems":4,"items":{"$ref":"#/$defs/WorkbookResponse/$defs/T8"}};
 const schema119 = {"type":"object","additionalProperties":false,"properties":{"cell":{"$ref":"#/$defs/WorkbookResponse/$defs/T9"},"input":{"$ref":"#/$defs/WorkbookResponse/$defs/T10"}},"required":["cell","input"]};
-const schema120 = {"type":"string","maxLength":262144};
+const schema120 = {"type":"string","maxLength":1048576};
 
 function validate350(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -11024,7 +11024,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate350.errors = [{}];
 return false;
 }
@@ -14737,7 +14737,7 @@ validate465.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema152 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["atom"],"properties":{"atom":{"$ref":"#/$defs/WorkbookResponse/$defs/T43"}}},{"type":"object","additionalProperties":false,"required":["structure"],"properties":{"structure":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["list"],"properties":{"list":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["array"],"properties":{"array":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["map"],"properties":{"map":{"$ref":"#/$defs/WorkbookResponse/$defs/T56"}}},{"type":"object","additionalProperties":false,"required":["tagged_union"],"properties":{"tagged_union":{"$ref":"#/$defs/WorkbookResponse/$defs/T68"}}},{"type":"object","additionalProperties":false,"required":["json"],"properties":{"json":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["range"],"properties":{"range":{"$ref":"#/$defs/WorkbookResponse/$defs/T71"}}},{"type":"object","additionalProperties":false,"required":["multirange"],"properties":{"multirange":{"$ref":"#/$defs/WorkbookResponse/$defs/T64"}}},{"type":"object","additionalProperties":false,"required":["vector"],"properties":{"vector":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}}]};
 const schema153 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["decimal"],"properties":{"decimal":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["float_bits"],"properties":{"float_bits":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"$ref":"#/$defs/WorkbookResponse/$defs/T45"}}},{"type":"object","additionalProperties":false,"required":["utf8"],"properties":{"utf8":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["binary"],"properties":{"binary":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["date_days"],"properties":{"date_days":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["time_nanos"],"properties":{"time_nanos":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["timestamp_micros"],"properties":{"timestamp_micros":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}},{"type":"object","additionalProperties":false,"required":["interval"],"properties":{"interval":{"$ref":"#/$defs/WorkbookResponse/$defs/T46"}}},{"type":"object","additionalProperties":false,"required":["uuid"],"properties":{"uuid":{"$ref":"#/$defs/WorkbookResponse/$defs/T44"}}}]};
-const schema154 = {"type":"string","maxLength":262144};
+const schema154 = {"type":"string","maxLength":1048576};
 
 function validate469(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -14751,7 +14751,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate469.errors = [{}];
 return false;
 }
@@ -15726,7 +15726,7 @@ validate493.evaluated = {"dynamicProps":false,"dynamicItems":false};
 
 const schema161 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["atom"],"properties":{"atom":{"$ref":"#/$defs/WorkbookResponse/$defs/T52"}}},{"type":"object","additionalProperties":false,"required":["structure"],"properties":{"structure":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["list"],"properties":{"list":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["array"],"properties":{"array":{"$ref":"#/$defs/WorkbookResponse/$defs/T47"}}},{"type":"object","additionalProperties":false,"required":["map"],"properties":{"map":{"$ref":"#/$defs/WorkbookResponse/$defs/T56"}}},{"type":"object","additionalProperties":false,"required":["tagged_union"],"properties":{"tagged_union":{"$ref":"#/$defs/WorkbookResponse/$defs/T58"}}},{"type":"object","additionalProperties":false,"required":["json"],"properties":{"json":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["range"],"properties":{"range":{"$ref":"#/$defs/WorkbookResponse/$defs/T61"}}},{"type":"object","additionalProperties":false,"required":["multirange"],"properties":{"multirange":{"$ref":"#/$defs/WorkbookResponse/$defs/T64"}}},{"type":"object","additionalProperties":false,"required":["vector"],"properties":{"vector":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}}]};
 const schema162 = {"oneOf":[{"type":"object","additionalProperties":false,"required":["signed"],"properties":{"signed":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["unsigned"],"properties":{"unsigned":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["decimal"],"properties":{"decimal":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["float_bits"],"properties":{"float_bits":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["boolean"],"properties":{"boolean":{"$ref":"#/$defs/WorkbookResponse/$defs/T54"}}},{"type":"object","additionalProperties":false,"required":["utf8"],"properties":{"utf8":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["binary"],"properties":{"binary":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["date_days"],"properties":{"date_days":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["time_nanos"],"properties":{"time_nanos":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["timestamp_micros"],"properties":{"timestamp_micros":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}},{"type":"object","additionalProperties":false,"required":["interval"],"properties":{"interval":{"$ref":"#/$defs/WorkbookResponse/$defs/T55"}}},{"type":"object","additionalProperties":false,"required":["uuid"],"properties":{"uuid":{"$ref":"#/$defs/WorkbookResponse/$defs/T53"}}}]};
-const schema163 = {"type":"string","maxLength":262144};
+const schema163 = {"type":"string","maxLength":1048576};
 
 function validate497(data, {instancePath="", parentData, parentDataProperty, rootData=data, dynamicAnchors={}}={}){
 let vErrors = null;
@@ -15740,7 +15740,7 @@ evaluated0.items = undefined;
 }
 if(errors === 0){
 if(typeof data === "string"){
-if(func1(data) > 262144){
+if(func1(data) > 1048576){
 validate497.errors = [{}];
 return false;
 }

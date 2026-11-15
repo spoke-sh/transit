@@ -60,7 +60,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
 
     def api(operation, **kwargs): return request('/api/v1/query', operation, **kwargs)
     caps = request('/api/v1/capabilities')
-    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 65536, caps
+    assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 2097152, caps
     atlas = request('/api/v1/atlas')
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 1
     assert atlas['query_resource'] == caller['connection']['resource']

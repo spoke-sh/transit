@@ -14,7 +14,7 @@ pub const unsigned = encoding.unsigned;
 pub const unhex = encoding.unhex;
 pub const decimal = encoding.decimal;
 pub const hex = encoding.hex;
-pub const maximum_json_bytes = @import("transit_protocol").max_body;
+pub const maximum_json_bytes = 2 * f.Sql.max_statement_bytes;
 /// A logical type level uses several JSON containers (field, descriptor and
 /// child collection). The wrapper budget admits all 16 logical levels while
 /// bounding recursive typed decoding before its first allocation.

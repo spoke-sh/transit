@@ -125,7 +125,7 @@ The parameter-only file contains the array. Values use the
 strings, binary and floating-point bits retain their canonical encodings. Values
 are bound to the prepared type; they are never text substitution. The service
 prepares against currently authorized metadata, validates before execution, and
-rejects changed schemas. Up to 65 scalar bindings and 131072 input-file bytes
+rejects changed schemas. Up to 65 scalar bindings and 2097152 input-file bytes
 are accepted. Source bindings currently require non-null scalar parameters.
 Changing or deleting an input file cannot change already accepted work.
 Executing the SQL again requests new work.
@@ -419,8 +419,9 @@ restart invalidates interactive cursors. Starting a new SELECT captures a new sn
 automatically.
 
 Native messages are limited to 4 MiB; batches carry at most 32 rows and 1 MiB of
-canonical cells. SQL API input is at most 64 KiB; the console editor and source
-compiler retain their 4096-byte statement bound. `request_timeout_ms` is
+canonical cells. SQL API input is at most 1 MiB per statement; piped and `-f`
+batch streams frame statements incrementally without bounding total stream length,
+while the interactive terminal editor and cursor assistance retain their 4096-byte draft bound. `request_timeout_ms` is
 1–270000 ms. Uncertain initial submissions use the remaining request budget;
 known accepted statements are observed for at most 270 seconds from submission.
 Polling and reconnection do not reset those deadlines. Idle consoles renew their

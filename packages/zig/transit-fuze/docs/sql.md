@@ -71,7 +71,7 @@ distinguishes AST agreement from engine semantics.
 
 ## Bounds and errors
 
-Statements are at most 4096 UTF-8 bytes; parsed names are at most 16 ASCII
+Statements are at most 1 MiB (1,048,576 UTF-8 bytes), lexed and framed incrementally without heap allocation; parsed names are at most 16 ASCII
 identifier bytes. Block comments nest at most 16 levels. SQL literal decoding
 admits at most 220 value bytes with 442 bytes of hex scratch storage. Typed plans
 have their own larger cell and name bounds. These limits bound one operation,
@@ -80,7 +80,7 @@ parser stack. The AST holds up to eight explicit projection items, each with an
 optional owned alias, and up to 64 postfix predicate instructions. NOT binds
 before AND, which binds before OR; parentheses override precedence. Operators
 and group delimiters share a bounded 64-entry stack. The AST stores string
-literal bytes in one statement-sized pool and owns its instruction storage;
+literal bytes in one bounded literal pool and owns its instruction storage;
 copying it does not retain pointers into the input or the original AST. AND,
 OR and NOT are reserved words. Single-atom/grouped-atom predicates retain their
 existing plan representation; no Boolean algebra rewrites are performed;

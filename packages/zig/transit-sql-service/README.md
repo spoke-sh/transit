@@ -15,7 +15,7 @@ with the computation owner. See the [migration contract](../../../contracts/MIGR
 and [CLI workflow](../../../docs/handbook/reference/cli.md#application-sql-migrations).
 
 Migration source framing uses Fuze's bounded `SqlScript` scanner: files can reach
-64 KiB while executable statements retain their owner's limits. Compound Queue
+2 MiB while executable statements retain their owner's limits. Compound Queue
 dataflow bodies and their EXPLAIN forms remain whole statements. Standalone
 cohosted SQL binds the supported public-data profile through `ApplicationSql`,
 retains typed `ManagedOperations` requests and publishes/controls them through

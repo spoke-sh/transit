@@ -50,7 +50,7 @@ nullability, optional defaults and character bounds. Encoding and collation are
 independent descriptors. New columns default to `PLAIN` and `NONE`; returned
 schemas require both fields explicitly. Shared Zig validates supported
 combinations and conversion semantics. Empty primary keys allow duplicate
-unkeyed rows. Names are at most 255 UTF-8 bytes; SQL is at most 4096 bytes.
+unkeyed rows. Names are at most 255 UTF-8 bytes; SQL is at most 1,048,576 bytes (1 MiB).
 
 `prepare(name, identity, operation)` accepts `Create`, `Alter`, `Rename`, `Drop`
 and `Mutate`. Existing-object actions require the complete `Metadata.basis()`

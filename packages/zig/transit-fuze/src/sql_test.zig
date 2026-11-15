@@ -40,7 +40,10 @@ test "inspection shares lexical bounds and never lowers as executable SELECT" {
     try t.expectError(error.UnsupportedStatement, sql.parseInspection("EXPLAIN ANALYZE SELECT * FROM items"));
     try t.expectError(error.InvalidSqlSyntax, sql.parseInspection("DESCRIBE items /*"));
     try t.expectError(error.InvalidSqlEncoding, sql.parseInspection("SHOW TABLES\x00"));
-    try t.expectError(error.StatementTooLarge, sql.parseInspection(&(@as([sql.max_statement_bytes + 1]u8, @splat(' ')))));
+    const oversized_inspection = try t.allocator.alloc(u8, sql.max_statement_bytes + 1);
+    defer t.allocator.free(oversized_inspection);
+    @memset(oversized_inspection, ' ');
+    try t.expectError(error.StatementTooLarge, sql.parseInspection(oversized_inspection));
     _ = try sql.parse("SELECT explain FROM explain");
 }
 test "SQL bounded lexical decoding and complete-input rejection" {
@@ -48,7 +51,9 @@ test "SQL bounded lexical decoding and complete-input rejection" {
     defer arena.deinit();
     const allocator = arena.allocator();
     const schema = try source(allocator, .int64);
-    try t.expectError(error.StatementTooLarge, sql.parse(&(@as([sql.max_statement_bytes + 1]u8, @splat(' ')))));
+    const oversized = try allocator.alloc(u8, sql.max_statement_bytes + 1);
+    @memset(oversized, ' ');
+    try t.expectError(error.StatementTooLarge, sql.parse(oversized));
     try t.expectError(error.InvalidSqlEncoding, sql.parse("SELECT * FROM items\x00"));
     try t.expectError(error.InvalidSqlEncoding, sql.parse("SELECT * FROM items\xff"));
     try t.expectError(error.InvalidColumnName, sql.parse("SELECT seventeenlettersx FROM items"));
@@ -198,7 +203,10 @@ test "incomplete grammar expectations come from the production parser" {
     }
     try t.expectError(error.InvalidSqlEncoding, sql.hints("SELECT \x01"));
     try t.expectError(error.UnsupportedConstruct, sql.parse("SELECT \x01"));
-    try t.expectError(error.StatementTooLarge, sql.hints(&(@as([4097]u8, @splat(' ')))));
+    const oversized_hints = try t.allocator.alloc(u8, sql.max_statement_bytes + 1);
+    defer t.allocator.free(oversized_hints);
+    @memset(oversized_hints, ' ');
+    try t.expectError(error.StatementTooLarge, sql.hints(oversized_hints));
 }
 
 test "Boolean SQL owns compact literals and preserves precedence without recursion" {
@@ -236,7 +244,7 @@ test "Boolean SQL owns compact literals and preserves precedence without recursi
 }
 
 test "Boolean SQL bounds instructions and operator nesting at exact limits" {
-    var buffer: [sql.max_statement_bytes]u8 = undefined;
+    var buffer: [4096]u8 = undefined;
     for ([_]usize{ 63, 64 }) |count| {
         var out: std.Io.Writer = .fixed(&buffer);
         try out.writeAll("SELECT * FROM items WHERE ");
@@ -270,4 +278,42 @@ test "Boolean SQL bounds instructions and operator nesting at exact limits" {
     try t.expectError(error.InvalidSqlSyntax, sql.parseLocated("SELECT * FROM items WHERE (id = 1", &location));
     try t.expectEqualStrings(")", location.expected.?);
     try t.expectEqual(@as(usize, 33), location.offset);
+}
+
+test "1 MiB SQL parsing, cursor hints and diagnostics execute with zero heap allocations" {
+    const memory = @import("transit_memory");
+    const prefix = "SELECT * FROM items WHERE ";
+    const suffix = "id = 42;";
+    const max_buf = try t.allocator.alloc(u8, sql.max_statement_bytes);
+    defer t.allocator.free(max_buf);
+    @memset(max_buf, ' ');
+    @memcpy(max_buf[0..prefix.len], prefix);
+    @memcpy(max_buf[sql.max_statement_bytes - suffix.len ..], suffix);
+
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    probe.begin(true);
+
+    const ast = try sql.parse(max_buf);
+    try t.expectEqualStrings("items", ast.source.slice());
+    try t.expectEqual(@as(i64, 42), ast.predicate.compare.literal.int64);
+
+    // Hints at the end of a 1 MiB prefix and inside an unclosed trailing line comment.
+    const hint_buf = max_buf[0 .. sql.max_statement_bytes - suffix.len];
+    const hinted = try sql.hints(hint_buf);
+    try t.expect(hinted.name_role == .column);
+
+    @memcpy(max_buf[sql.max_statement_bytes - 10 ..], "-- comment");
+    const commented = try sql.hints(max_buf);
+    try t.expectEqual(@as(?sql.NameRole, null), commented.name_role);
+
+    // Diagnostics on a near-1 MiB statement clip the 120-byte window without stack or heap allocation.
+    @memcpy(max_buf[sql.max_statement_bytes - 10 ..], "id = 'sec;");
+    const diag = f.SqlDiagnostic.query(max_buf, error.InvalidSqlSyntax, true).?;
+    var rendered: [2048]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&rendered);
+    try diag.render(&writer);
+    try t.expect(std.mem.indexOf(u8, writer.buffered(), "sec") == null);
+    try t.expect(std.mem.indexOf(u8, writer.buffered(), "^--- error here") != null);
+
+    try probe.verify();
 }

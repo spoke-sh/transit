@@ -599,14 +599,14 @@ def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
 
 def _inspection_request(source: Source, name: str, sql: str, budgets: Budgets) -> object:
     _name(name)
-    owned_bytes(sql.encode(), 4096)
+    owned_bytes(sql.encode(), 1048576)
     return {'inspect': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()}, 'sql': sql}}
 
 
 def _compilation_request(source: Source, name: str, sql: str, budgets: Budgets,
                          parameters: tuple[Scalar, ...] | None) -> object:
     _name(name)
-    owned_bytes(sql.encode(), 4096)
+    owned_bytes(sql.encode(), 1048576)
     if parameters is not None and (not isinstance(parameters, tuple) or len(parameters) > 65):
         raise ValueError('Expected at most 65 logical parameter atoms in a tuple')
     values = None if parameters is None else [_scalar_wire(value) for value in parameters]

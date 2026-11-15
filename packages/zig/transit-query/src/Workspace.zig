@@ -6,10 +6,10 @@ const v = q.Values;
 const b = q.Bridge;
 const a = q.document.JsonValues;
 const m = q.fuze.Unified;
-pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
-pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = 131072 };
-/// JSON envelope for one complete hexadecimal bundle plus namespace/control fields.
-pub const max_request_bytes = 65536;
+pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = q.fuze.Sql.max_statement_bytes };
+pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.SourceDefinition.max_columns, .text_max_length = q.fuze.Sql.max_statement_bytes };
+/// JSON envelope for one complete statement or hexadecimal bundle plus namespace/control fields.
+pub const max_request_bytes = 2 * 1024 * 1024;
 comptime {
     if (2 * q.Bundle.max_bytes + 1024 > max_request_bytes) @compileError("Workspace request cannot carry its admitted bundle");
 }

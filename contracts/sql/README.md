@@ -7,8 +7,8 @@ They are not executable SQL statements or additions to the runtime ANTLR root.
 Their emitted Table SQL uses the existing typed owners described here. The
 independent [source grammar](../application-source/README.md) imports this SQL
 reference with a distinct source root and typed-hole rules; it adds no runtime
-statements to this root. The shared `SqlScript.Compiler` framer admits 1 MiB source files independently of
-64 KiB migration files and 4,096-byte executable statements.
+statements to this root. The shared `SqlScript.Compiler` framer admits 1 MiB application source files and 2 MiB
+migration files, with 1 MiB executable statements framed incrementally without heap allocation.
 
 
 The public [SQL statement reference](../../docs/handbook/reference/sql.md#statement-forms)

@@ -60,7 +60,7 @@ public static partial class Catalog
             var v = V.Object(value); var saved = SavedIntent.Restore(V.Object(v["saved"]).ToJsonString(CatalogJson)); return new Compiled(ParseSummary(v["summary"],saved,Connection,principal,identity),saved);
         },cancellation,"compiled");
         public Task<Compiled> CompileSqlAsync(string sql, Identity identity, ulong? createObject = null, Dialect dialect = Dialect.Transit, Ingestion ingestion = Ingestion.Point, CancellationToken cancellation = default) {
-            if (V.Text(sql,4096).Length == 0) throw new ArgumentException("Empty SQL");
+            if (V.Text(sql,1048576).Length == 0) throw new ArgumentException("Empty SQL");
             return Compiled(V.Obj(("compile",V.Obj(("sql",sql),("namespace",identity.Namespace),("operation",Turn.Decimal(identity.Operation)),
                 ("create_object",createObject is {} id ? Turn.Decimal(Positive(id)) : null),("dialect",Logical.EnumName(dialect)),("ingestion",Logical.EnumName(ingestion))))),identity,cancellation);
         }

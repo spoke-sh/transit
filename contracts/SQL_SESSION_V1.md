@@ -558,7 +558,7 @@ Metadata batches retain bounded authority subjects for their catalog rows and
 configuration-origin fields. Their checks run again after materialization and
 before repetition; the enclosing session grant alone is insufficient.
 
-Messages are at most 4 MiB, SQL at most 64 KiB, batches at most 1 MiB of encoded
+Messages are at most 4 MiB, SQL at most 1 MiB, batches at most 1 MiB of encoded
 logical payload and 32 rows, and parameters at most 65. Prepared handles, active
 sessions, per-account sessions, handshakes, in-flight data/control requests,
 resident memory, spill, execution time and idle leases have explicit bounds.

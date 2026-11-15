@@ -68,7 +68,7 @@ module Transit
         end
         def compile_sql(sql, identity, create_object = nil, dialect: :transit, ingestion: :point)
           Values.typed(identity, Identity)
-          action = { 'compile' => { 'sql' => Values.text(sql, 4096), 'namespace' => identity.namespace, 'operation' => identity.operation.to_s,
+          action = { 'compile' => { 'sql' => Values.text(sql, 1048576), 'namespace' => identity.namespace, 'operation' => identity.operation.to_s,
             'create_object' => create_object.nil? ? nil : Values.wide(create_object).to_s,
             'dialect' => Values.symbol(dialect, %i[transit mysql]), 'ingestion' => Values.symbol(ingestion, %i[point bulk]) } }
           compiled(action, identity)

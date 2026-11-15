@@ -183,7 +183,7 @@ transit_sdk_error transit_station_catalog_lookup(transit_station_catalog_client 
 transit_sdk_error transit_station_catalog_compile_sql(transit_station_catalog_client *client, const char *sql, Identity id, const uint64_t *create_object, transit_station_catalog_dialect dialect, transit_station_catalog_ingestion ingestion, Compiled **out) {
     const std::optional<uint64_t> requested = create_object ? std::optional<uint64_t>(*create_object) : std::nullopt; if (out) *out = nullptr;
     return action(client, [&] {
-        require(out && dialect <= TRANSIT_CATALOG_MYSQL && ingestion <= TRANSIT_CATALOG_BULK, "catalog-compile"); const auto statement = text(sql, 4096); require(!statement.empty(), "catalog-sql");
+        require(out && dialect <= TRANSIT_CATALOG_MYSQL && ingestion <= TRANSIT_CATALOG_BULK, "catalog-compile"); const auto statement = text(sql, 1048576); require(!statement.empty(), "catalog-sql");
         return action_bytes(tag("compile", Json::object({{"sql", Json::string(statement)}, {"namespace", small(id.namespace_id)}, {"operation", wide(id.operation)}, {"create_object", requested ? wide(*requested) : Json{}}, {"dialect", Json::string(dialect ? "mysql" : "transit")}, {"ingestion", Json::string(ingestion ? "bulk" : "point")}})));
     }, [&](NativeCatalog &n, const std::string &bytes) { auto result = n.read(bytes, {"compiled"}, [&](const Json &v) { auto result = compiled(v, n.connection, n.principal, id); if (requested) prepared_kind(*result->intent, TRANSIT_CATALOG_CREATE, requested); return result; }); *out = result.release(); });
 }

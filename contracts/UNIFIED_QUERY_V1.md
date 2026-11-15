@@ -640,7 +640,7 @@ numeric syntax and typed temporal/UUID/binary constructors use the shared
 not gain comparisons. NULL comparison rejects; use a state predicate.
 UTF-8/binary comparison is lexicographic byte order.
 
-Parser bounds are 4096 statement bytes, 255-byte names and 128 projection slots.
+Parser bounds are 1 MiB (1,048,576) statement bytes, 255-byte names and 128 projection slots.
 Logical descriptors and bound plans retain their separate budgets. Counts return
 uint64 with zero for no contributing values; sum returns checked int64 with null
 for no contributing values.

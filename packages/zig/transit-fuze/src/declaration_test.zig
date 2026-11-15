@@ -54,7 +54,10 @@ test "state declarations reject incomplete, ambiguous and oversized input" {
     }) |text| {
         if (d.compile(text)) |_| return error.InvalidDeclarationAccepted else |_| {}
     }
-    try expectError(error.StatementTooLarge, d.compile(&@as([f.Sql.max_statement_bytes + 1]u8, @splat(' '))));
+    const oversized = try std.testing.allocator.alloc(u8, f.Sql.max_statement_bytes + 1);
+    defer std.testing.allocator.free(oversized);
+    @memset(oversized, ' ');
+    try expectError(error.StatementTooLarge, d.compile(oversized));
     var nested: [64]u8 = undefined;
     var writer = std.Io.Writer.fixed(&nested);
     for (0..f.Sql.max_comment_depth + 1) |_| try writer.writeAll("/*");

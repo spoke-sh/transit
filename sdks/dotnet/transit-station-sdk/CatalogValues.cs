@@ -134,7 +134,7 @@ public static partial class Catalog
     internal static Capabilities ParseCapabilities(JsonNode? value) {
         var v = V.Object(value); Current(V.String(v["definition"]));
         Capabilities c = new(Small(v["version"],1), ContractDefinition, Small(v["max_columns"],1), Small(v["max_rows"],1), Small(v["max_sql_bytes"],1), Small(v["max_intent_bytes"],1), Small(v["max_action_bytes"],1), Small(v["metadata_page_entries"],1), Small(v["resident_intents"],1));
-        if (c.Version != 1 || c.MaxColumns != 128 || c.MaxRows != 1024 || c.MaxSqlBytes != 4096 || c.MaxIntentBytes != Limit("catalog_intent_bytes") || c.MaxActionBytes != Limit("catalog_action_bytes") || c.MetadataPageEntries != 8 || c.ResidentIntents != 1) throw new TransitException(ErrorKind.UnsupportedCapability,"catalog-capabilities");
+        if (c.Version != 1 || c.MaxColumns != 128 || c.MaxRows != 1024 || c.MaxSqlBytes != 1048576 || c.MaxIntentBytes != Limit("catalog_intent_bytes") || c.MaxActionBytes != Limit("catalog_action_bytes") || c.MetadataPageEntries != 8 || c.ResidentIntents != 1) throw new TransitException(ErrorKind.UnsupportedCapability,"catalog-capabilities");
         return c;
     }
     private static Description ParseDescription(JsonNode? value, Connection c, ulong principal) {

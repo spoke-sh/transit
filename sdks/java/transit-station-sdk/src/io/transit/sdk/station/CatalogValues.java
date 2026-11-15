@@ -139,7 +139,7 @@ final class CatalogValues {
         Capabilities c = new Capabilities(Math.toIntExact(number(v.get("version"), 1)), DEFINITION, Math.toIntExact(number(v.get("max_columns"), 1)), Math.toIntExact(number(v.get("max_rows"), 1)),
             Math.toIntExact(number(v.get("max_sql_bytes"), 1)), Math.toIntExact(number(v.get("max_intent_bytes"), 1)), Math.toIntExact(number(v.get("max_action_bytes"), 1)),
             Math.toIntExact(number(v.get("metadata_page_entries"), 1)), Math.toIntExact(number(v.get("resident_intents"), 1)));
-        if (c.version() != 1 || c.maxColumns() != 128 || c.maxRows() != 1024 || c.maxSqlBytes() != 4096 || c.maxIntentBytes() != limit("catalog_intent_bytes") ||
+        if (c.version() != 1 || c.maxColumns() != 128 || c.maxRows() != 1024 || c.maxSqlBytes() != 1048576 || c.maxIntentBytes() != limit("catalog_intent_bytes") ||
             c.maxActionBytes() != limit("catalog_action_bytes") || c.metadataPageEntries() != 8 || c.residentIntents() != 1) throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY, "catalog-capabilities");
         return c;
     }

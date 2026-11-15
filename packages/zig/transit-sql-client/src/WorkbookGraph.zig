@@ -48,7 +48,7 @@ pub fn analyze(allocator: std.mem.Allocator, cells: []const Cell) !Graph {
             return graph;
         }
         bytes += cell.sql.len;
-        if (cell.sql.len == 0 or bytes > 60000) return error.InvalidWorkbookSize;
+        if (cell.sql.len == 0 or cell.sql.len > f.Sql.max_statement_bytes or bytes > f.Sql.max_statement_bytes) return error.InvalidWorkbookSize;
         for (cells[0..i]) |earlier| {
             if (std.mem.eql(u8, earlier.name, cell.name) or std.mem.eql(u8, earlier.id, cell.id)) {
                 graph.validation.issue = .{ .cell = cell.id, .code = "DuplicateCell" };

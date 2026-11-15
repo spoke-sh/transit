@@ -60,7 +60,7 @@ NULL. ADD obtains its column ID at native admission. `Insert`, `Update` and
 `Delete` select an `Ingestion` mode. Input trees are copied before native dispatch.
 
 Schemas admit 128 columns, inserts 1,024 rows and predicates 64 postfix terms.
-SQL admits 4,096 bytes; encoded intents 8,388,644 bytes; complete actions
+SQL admits 1,048,576 bytes; encoded intents 8,388,644 bytes; complete actions
 16,793,672 bytes; responses 16,810,056 bytes. Aggregate construction stops at its
 bound. Catalog, branch, object, operation and accepted positions preserve all
 64 bits; native realm/resource/principal/audience/namespace IDs keep their

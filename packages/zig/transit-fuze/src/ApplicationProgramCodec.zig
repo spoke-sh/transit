@@ -4,7 +4,7 @@
 const std = @import("std");
 const p = @import("transit_protocol");
 const a = @import("ApplicationProgram.zig");
-pub const max_bytes = 1024 * 1024;
+pub const max_bytes = 2 * 1024 * 1024;
 const Envelope = struct {
     definition: p.Growth.Definition,
     source_digest: [32]u8,

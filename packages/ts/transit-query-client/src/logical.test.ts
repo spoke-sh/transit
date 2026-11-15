@@ -301,9 +301,9 @@ test("the complete admitted query bundle fits the bounded browser request envelo
     ).resolves.toEqual({ prepared: null });
     const body = fetcher.mock.calls[0]![1].body as string;
     expect(new TextEncoder().encode(body).length).toBeGreaterThan(49152);
-    expect(new TextEncoder().encode(body).length).toBeLessThan(65536);
+    expect(new TextEncoder().encode(body).length).toBeLessThan(2097152);
     await expect(
-      httpTransport("/query")({ next: { namespace: "1", bundle: "00".repeat(65536) } }),
+      httpTransport("/query")({ compile: { sql: "\u0001".repeat(400000) } }),
     ).rejects.toMatchObject({ code: "RequestTooLarge" });
     expect(fetcher).toHaveBeenCalledTimes(1);
   } finally {

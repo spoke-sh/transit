@@ -222,7 +222,7 @@
     {
       "source": "packages/zig/transit-fuze/src/Sql.zig",
       "symbol": "max_statement_bytes",
-      "expression": "4096",
+      "expression": "1024 * 1024",
       "classification": "operation",
       "meaning": "One SQL statement; no bound on source cardinality."
     },

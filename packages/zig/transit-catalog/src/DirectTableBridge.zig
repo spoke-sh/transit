@@ -36,7 +36,7 @@ pub const Action = union(enum) {
     definitions: c.DirectCatalogDefinitions.Action,
     lookup: struct { namespace: u64, name: []const u8 },
     compile: struct {
-        pub const json_schema_text_bounds = .{ .sql = 4096 };
+        pub const json_schema_text_bounds = .{ .sql = f.Sql.max_statement_bytes };
         namespace: u64,
         operation: []const u8,
         create_object: ?[]const u8,

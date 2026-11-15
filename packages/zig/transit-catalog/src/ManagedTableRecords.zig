@@ -13,7 +13,7 @@ pub const page_format: u32 = c.DirectRecord.guarded_bit | 0x44465031; // guarded
 pub const page_link_format: u32 = c.DirectRecord.guarded_bit | 0x44464c31; // guarded DFL1
 pub const revision_format: u32 = c.DirectRecord.guarded_bit | 0x44465231; // guarded DFR1
 pub const head_key = "\x00dataflow/head";
-pub const max_definition_bytes = 64 * 1024;
+pub const max_definition_bytes = 2 * 1024 * 1024;
 pub const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
 
 pub const Consistency = enum { per_resource_snapshot_vector, independent_table_snapshots, transaction, atomic };

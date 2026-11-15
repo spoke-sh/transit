@@ -421,7 +421,7 @@
         "InvalidEditCommand": 1,
         "InvalidSqlEndpoint": 2,
         "InvalidSqlResponse": 12,
-        "InvalidSqlSyntax": 1,
+        "InvalidSqlSyntax": 2,
         "InvalidTimingCommand": 2,
         "OutOfMemory": 1,
         "ResultCancelled": 3,
@@ -432,15 +432,23 @@
         "SqlResultIncomplete": 1,
         "SqlServiceError": 2,
         "SqlSessionExpired": 2,
-        "StatementTooLarge": 1,
+        "StatementTooLarge": 2,
+        "UnbalancedSqlBlock": 1,
+        "UnbalancedSqlParentheses": 1,
         "UnknownConsoleCommand": 1,
         "UnknownHelpTopic": 1,
-        "UnsupportedFormat": 1
+        "UnsupportedFormat": 1,
+        "UnterminatedSqlToken": 2
       },
       "outcomes": {
         "Console.call().Event": [
           "reply",
           "signal"
+        ],
+        "Console.pipe().mode": [
+          "idle",
+          "meta",
+          "sql"
         ]
       },
       "error_sets": {},
@@ -457,6 +465,7 @@
         "Console.finishTransactionCleanup()": "<inferred>",
         "Console.json()": "<inferred>",
         "Console.keepalive()": "<inferred>",
+        "Console.mapPipeEofError()": "anyerror",
         "Console.perform()": "<inferred>",
         "Console.pipe()": "<inferred>",
         "Console.poll()": "<inferred>",
@@ -469,10 +478,10 @@
         "localConfig()": "<inferred>",
         "run()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 7,
       "propagation": {
-        "try": 95,
-        "catch": 19
+        "try": 94,
+        "catch": 17
       },
       "imports": [
         "ConsoleHelp.zig",
@@ -1183,8 +1192,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
-        "catch": 3
+        "try": 17,
+        "catch": 5
       },
       "imports": [
         "std",
@@ -12961,7 +12970,7 @@
         "BuildEmissionMismatch": 1,
         "BuildMemoryLimit": 3,
         "BuildOutputLimit": 2,
-        "BuildStatementLimit": 7,
+        "BuildStatementLimit": 3,
         "BuildWorkLimit": 2,
         "DuplicateSourceMatchArm": 1,
         "DuplicateSourceName": 5,
@@ -12986,7 +12995,7 @@
         "NestedTestCase": 1,
         "NonExhaustiveSourceMatch": 1,
         "NotModuleConstructor": 2,
-        "OutOfMemory": 3,
+        "OutOfMemory": 5,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
         "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
@@ -13012,7 +13021,6 @@
         "UnsupportedRecursiveExports": 1,
         "UnsupportedSymbolicProgram": 2,
         "UnsupportedSymbolicSchema": 2,
-        "WriteFailed": 1,
         "WrongSourceTargetKind": 1
       },
       "outcomes": {
@@ -13023,6 +13031,9 @@
       },
       "error_sets": {},
       "error_returns": {
+        "BoundedBuffer.print()": "<inferred>",
+        "BoundedBuffer.writeAll()": "<inferred>",
+        "BoundedBuffer.writeByte()": "<inferred>",
         "Step.jsonStringify()": "std . Io . Writer . Error",
         "argument()": "<inferred>",
         "assertion()": "<inferred>",
@@ -13053,8 +13064,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 130,
-        "catch": 15
+        "try": 139,
+        "catch": 11
       },
       "imports": [
         "Graph.zig",
@@ -13691,7 +13702,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 63,
         "catch": 1
       },
       "imports": [
@@ -20083,8 +20094,7 @@
       },
       "imports": [
         "root.zig",
-        "std",
-        "transit_protocol"
+        "std"
       ]
     },
     "packages/zig/transit-fuze/src/QueuePredicate.zig": {
@@ -21689,6 +21699,7 @@
         "PredicateTooComplex": 2,
         "QuerySourceChanged": 3,
         "SourceChanged": 3,
+        "SqlNestingTooDeep": 2,
         "StatementTooLarge": 3,
         "TypeMismatch": 2,
         "UnboundParameters": 2,
@@ -21797,7 +21808,7 @@
       "errors": {
         "CommentTooDeep": 1,
         "InvalidSqlCursor": 2,
-        "InvalidSqlEncoding": 1,
+        "InvalidSqlEncoding": 7,
         "StatementTooLarge": 1
       },
       "outcomes": {
@@ -21809,12 +21820,43 @@
           "string",
           "quoted",
           "symbol"
+        ],
+        "StreamLexer.Mode": [
+          "idle",
+          "space",
+          "maybe_dash",
+          "line_comment",
+          "maybe_slash",
+          "block_comment",
+          "block_comment_slash",
+          "block_comment_star",
+          "string",
+          "string_quote",
+          "quoted",
+          "quoted_quote",
+          "word",
+          "number",
+          "utf8_symbol"
         ]
       },
-      "error_sets": {},
+      "error_sets": {
+        "StreamLexer.consumeByte().<error>": [
+          "InvalidSqlEncoding"
+        ],
+        "StreamLexer.finish().<error>": [
+          "InvalidSqlEncoding"
+        ],
+        "StreamLexer.nextInChunk().<error>": [
+          "InvalidSqlEncoding",
+          "CommentTooDeep"
+        ]
+      },
       "error_returns": {
         "Scanner().<return>.init()": "<inferred>",
         "Scanner().<return>.next()": "<inferred>",
+        "StreamLexer.consumeByte()": "error { InvalidSqlEncoding }",
+        "StreamLexer.finish()": "error { InvalidSqlEncoding }",
+        "StreamLexer.nextInChunk()": "error { InvalidSqlEncoding , CommentTooDeep }",
         "active()": "<inferred>",
         "classifyTableWithAllocator()": "<inferred>",
         "expectRoles()": "<inferred>",
@@ -21824,8 +21866,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
-        "catch": 3
+        "try": 45,
+        "catch": 7
       },
       "imports": [
         "RelationalSql.zig",
@@ -22014,8 +22056,7 @@
       "errors": {
         "InvalidPredicateProgram": 6,
         "LiteralTooLarge": 1,
-        "PredicateTooComplex": 1,
-        "StatementTooLarge": 1
+        "PredicateTooComplex": 2
       },
       "outcomes": {
         "Atom": [
@@ -22168,21 +22209,39 @@
           "expression",
           "loop",
           "match"
+        ],
+        "Pending": [
+          "none",
+          "begin",
+          "case_word"
+        ],
+        "Step": [
+          "more",
+          "incomplete",
+          "statement"
         ]
       },
-      "error_sets": {},
+      "error_sets": {
+        "StreamFramer.pushBlock().<error>": [
+          "SqlNestingTooDeep"
+        ]
+      },
       "error_returns": {
         "Compiler.init()": "<inferred>",
         "Compiler.next()": "<inferred>",
+        "StreamFramer.feedToken()": "<inferred>",
+        "StreamFramer.finish()": "<inferred>",
+        "StreamFramer.finishTokens()": "<inferred>",
+        "StreamFramer.nextInChunk()": "<inferred>",
+        "StreamFramer.pushBlock()": "error { SqlNestingTooDeep }",
         "editorTerminator()": "<inferred>",
-        "followingWord()": "<inferred>",
         "init()": "<inferred>",
         "next()": "<inferred>",
         "nextFrame()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
+        "try": 18,
         "catch": 0
       },
       "imports": [
@@ -36683,7 +36742,9 @@
         "try": 0,
         "catch": 0
       },
-      "imports": []
+      "imports": [
+        "root.zig"
+      ]
     },
     "packages/zig/transit-sql-protocol/src/WireReadBatch.zig": {
       "errors": {

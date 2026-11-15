@@ -29,7 +29,7 @@ KV/Document declarations and do not restrict Table schemas. The syntax follows
 
 The parser consumes complete input, allowing one optional terminator, whitespace,
 line comments and block comments nested up to sixteen levels. Input is valid UTF-8,
-contains no NUL and is at most 4096 bytes. Unsupported types, clauses and extra
+contains no NUL and is at most 1 MiB (1,048,576 bytes). Unsupported types, clauses and extra
 statements reject. `parseDeclaration` returns null for a non-`CREATE` statement;
 unsupported CREATE families, including TABLE, reject with `UnsupportedDeclaration`.
 `compile` rejects non-declarations with `UnsupportedStatement`. Use the Table DDL

@@ -140,7 +140,7 @@ parameters use canonical hexadecimal inside those messages; values do not pass
 through JSON floating point. Fixed byte identities use JSON integer arrays and
 text uses strings.
 
-Messages are at most 4 MiB, SQL at most 64 KiB, parameter lists at most 65 values,
+Messages are at most 4 MiB, SQL at most 1 MiB, parameter lists at most 65 values,
 and batches at most 32 rows and 1 MiB of encoded logical payload. Prepared
 handles, sessions, in-flight requests, memory, spill and execution time have
 additional explicit bounds in the contract and gateway configuration. These

@@ -316,7 +316,7 @@ public final class UnifiedQuery {
         }
         public CompletableFuture<Inspection> inspectSql(Source source,String name,String sql,Budgets budgets) {
             if(source.resource().realm()!=connection.resource().realm() || (!(source instanceof TableSource) && !source.resource().equals(connection.resource())))throw new IllegalArgumentException("Different query resource");
-            JsonObject action=obj("inspect",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096)));
+            JsonObject action=obj("inspect",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,1048576)));
             return worker.submit(b->inspection(b.unifiedQuery(action,false).get("inspection"),source.resource()));
         }
         public CompletableFuture<Bundle> compileSql(Source source,String name,String sql,Budgets budgets) {
@@ -330,7 +330,7 @@ public final class UnifiedQuery {
                 if(parameters.size()>65)throw new IllegalArgumentException("Expected at most 65 parameter atoms");
                 JsonArray bound=new JsonArray();for(Logical.Atom value:parameters)bound.add(wire(Objects.requireNonNull(value)));values=bound;
             }
-            JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,4096),"parameters",values));
+            JsonObject action=obj("compile",obj("scope",obj("source",UnifiedQuery.source(source),"name",columnName(name),"limits",budgets.wire()),"sql",text(sql,1048576),"parameters",values));
             return worker.submit(b -> new Bundle(encoded(object(b.unifiedQuery(action,false).get("compiled")).get("bundle"),Catalog.limit("query_bundle_bytes"))));
         }
         /** Seal new work before persistence; recover saved bundles unchanged. */

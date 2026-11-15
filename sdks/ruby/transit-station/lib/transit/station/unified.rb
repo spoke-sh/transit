@@ -406,7 +406,7 @@ module Transit
           raise ArgumentError, 'Source differs from the connection' unless source.resource.realm == connection.resource.realm && (source.is_a?(TableSource) || source.resource == connection.resource)
           raise ArgumentError, 'Expected Budgets' unless budgets.is_a?(Budgets)
           result = call({ 'inspect' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
-            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096) } })
+            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 1048576) } })
           Values.inspection(result.fetch('inspection'), source.resource)
         end
         def compile_sql(source, name, sql, budgets, parameters: nil)
@@ -421,7 +421,7 @@ module Transit
             Values.scalar_wire(value)
           end
           result = call({ 'compile' => { 'scope' => { 'source' => source.wire, 'name' => Values.name(name),
-            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096), 'parameters' => values } })
+            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 1048576), 'parameters' => values } })
           Bundle.new(data: Internal.unhex(result.fetch('compiled').fetch('bundle'), Catalog::LIMITS.fetch('query_bundle_bytes')))
         end
         # Seal new work before persistence. Saved bundles keep their original proof.

@@ -44,7 +44,7 @@ connection, namespace, name, object, branch, immutable definition and schema
 commitment. Old work cannot retarget a same-name replacement. Logical types,
 physical encoding and collation remain separate. Schemas allow at most 128
 columns, INSERT at most 1,024 rows and predicates at most 64 instructions. SQL is
-bounded to 4,096 UTF-8 bytes and names to 255 bytes. Logical values preserve exact
+bounded to 1,048,576 UTF-8 bytes and names to 255 bytes. Logical values preserve exact
 decimals and recursive shapes within the shared conversion bounds. Native
 counter bounds remain distinct from full-width catalog and operation identities.
 

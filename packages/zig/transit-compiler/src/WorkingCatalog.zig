@@ -155,11 +155,12 @@ pub fn querySchema(self: *Self, sql: []const u8) !f.Types.Type {
 /// grammar. SQL permits some type words as identifiers; successful preparation
 /// alone cannot establish the source operand's kind. Unlike presentation
 /// classification, this parse must finish and allocation/parse errors propagate.
-pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: []const bool, location: *f.Sql.Location) !void {
-    if (std.mem.indexOfScalar(bool, sites, true) == null) return;
-    var roles: [f.Sql.max_statement_bytes]f.Sql.TokenRole = @splat(.unknown);
+pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: []const usize, location: *f.Sql.Location) !void {
+    if (sites.len == 0) return;
+    const roles = try allocator.alloc(f.Sql.TokenRole, sql.len);
+    @memset(roles, .unknown);
     var parser = try f.SqlTyped.initDialect(allocator, sql, location, true, .transit);
-    parser.roles = roles[0..sql.len];
+    parser.roles = roles;
     if (parser.word("CREATE")) {
         _ = try f.TableDdl.syntax(&parser, null);
     } else if (parser.word("INSERT") or parser.word("UPDATE") or parser.word("DELETE")) {
@@ -168,8 +169,8 @@ pub fn verifyTypeOperands(allocator: std.mem.Allocator, sql: []const u8, sites: 
         _ = try f.TableSelect.syntax(&parser, null);
     } else return error.UnsupportedBuildStatement;
     try parser.finish();
-    for (sites, 0..) |site, i| if (site and roles[i] != .type_name) {
-        location.* = .{ .offset = i };
+    for (sites) |offset| if (roles[offset] != .type_name) {
+        location.* = .{ .offset = offset };
         return error.InvalidSourceTypeOperand;
     };
 }

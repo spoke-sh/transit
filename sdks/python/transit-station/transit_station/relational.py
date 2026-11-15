@@ -61,7 +61,7 @@ class Statement:
     namespace: int = 1
 
     def __post_init__(self) -> None:
-        v._text(self.sql, 4096); integer(self.namespace, 'namespace')
+        v._text(self.sql, 1048576); integer(self.namespace, 'namespace')
         object.__setattr__(self, 'routes', tuple(self.routes))
         if not 1 <= len(self.routes) <= 2: raise ValueError('Select one or two explicit catalog routes')
         for route in self.routes: integer(route, 'route', minimum=0, maximum=1)

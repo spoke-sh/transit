@@ -1,7 +1,7 @@
 //! Local command drafts, never signed recovery or execution authority. Disk scans
 //! retain one bounded record, independently of the number of saved statements.
 const std = @import("std");
-const max_bytes = @import("transit_query").fuze.Sql.max_statement_bytes;
+const max_bytes = @import("transit_query").fuze.SqlInput.max_editor_bytes;
 const Signals = @import("Signals.zig");
 const Self = @This();
 const memory_limit = 8;

@@ -2,13 +2,19 @@
 const std = @import("std");
 const q = @import("root.zig");
 const m = q.fuze.Unified;
-const sql = q.fuze.Sql;
 const input = q.fuze.SqlInput;
 pub const max_items = 8;
+pub const max_bytes = input.max_editor_bytes;
 /// Coverage describes matching candidates, never permission to execute SQL.
 pub const Coverage = enum { complete, limited };
 pub const Status = enum { ready, inside_text, unsupported };
-pub const Request = struct { sql: []const u8, cursor: u16, generation: u32, mode: enum { sql, console } = .sql };
+pub const Request = struct {
+    pub const json_schema_text_bounds = .{ .sql = max_bytes };
+    sql: []const u8,
+    cursor: u16,
+    generation: u32,
+    mode: enum { sql, console } = .sql,
+};
 pub const Item = struct { text: []const u8, kind: enum { keyword, source, column, symbol, literal, meta }, detail: []const u8 };
 pub const Completion = struct {
     coverage: Coverage = .complete,
@@ -50,24 +56,24 @@ pub const Edit = struct { text: []const u8, cursor: usize };
 /// tokens. Output borrows the caller's buffer, which must not overlap the inputs.
 /// Existing whitespace, punctuation, quoting and the statement suffix survive.
 pub fn edit(text: []const u8, range: input.Range, candidate: []const u8, output: []u8) !Edit {
-    _ = try input.Scan.init(text);
-    var inserted = try input.Scan.init(candidate);
+    _ = try input.EditorScan.init(text);
+    var inserted = try input.EditorScan.init(candidate);
     if (range.start > range.end or range.end > text.len or
         !std.unicode.utf8ValidateSlice(text[0..range.start]) or
         !std.unicode.utf8ValidateSlice(text[0..range.end])) return error.InvalidSqlCursor;
     const first = try inserted.next() orelse return error.InvalidSqlResponse;
     var last = first;
     while (try inserted.next()) |token| last = token;
-    var prefix = try input.Scan.init(text[0..range.start]);
-    var left: ?input.Token = null;
+    var prefix = try input.EditorScan.init(text[0..range.start]);
+    var left: ?input.EditorScan.Token = null;
     while (try prefix.next()) |token| left = token;
-    var suffix = try input.Scan.init(text[range.end..]);
+    var suffix = try input.EditorScan.init(text[range.end..]);
     const right = try suffix.next();
     const leading = separates(left, first);
     const trailing = separates(last, right);
     const cursor = range.start + @as(usize, @intFromBool(leading)) + candidate.len;
     const length = cursor + @intFromBool(trailing) + text.len - range.end;
-    if (length > sql.max_statement_bytes or length > output.len) return error.StatementTooLarge;
+    if (length > max_bytes or length > output.len) return error.StatementTooLarge;
     @memcpy(output[0..range.start], text[0..range.start]);
     if (leading) output[range.start] = ' ';
     @memcpy(output[cursor - candidate.len .. cursor], candidate);
@@ -75,10 +81,10 @@ pub fn edit(text: []const u8, range: input.Range, candidate: []const u8, output:
     @memcpy(output[cursor + @intFromBool(trailing) .. length], text[range.end..]);
     return .{ .text = output[0..length], .cursor = cursor };
 }
-fn separates(left: ?input.Token, right: ?input.Token) bool {
+fn separates(left: ?input.EditorScan.Token, right: ?input.EditorScan.Token) bool {
     return atom(left) and atom(right);
 }
-fn atom(token: ?input.Token) bool {
+fn atom(token: ?input.EditorScan.Token) bool {
     const value = token orelse return false;
     return switch (value.kind) {
         .word, .number, .string, .quoted => true,
@@ -160,7 +166,7 @@ pub fn complete(allocator: std.mem.Allocator, name: []const u8, schema: q.fuze.T
 fn completeStatement(allocator: std.mem.Allocator, name: []const u8, schema: q.fuze.Types.Type, request: Request, following: ?input.Range) !Completion {
     try schema.validate(.{});
     if (schema != .structure) return error.InvalidQuerySchema;
-    _ = try input.Scan.init(request.sql);
+    _ = try input.EditorScan.init(request.sql);
     if (request.cursor > request.sql.len or !std.unicode.utf8ValidateSlice(request.sql[0..request.cursor])) return error.InvalidSqlCursor;
     if (request.mode == .console and std.mem.startsWith(u8, request.sql, ".")) return meta(allocator, request);
     const range = following orelse try input.replacement(request.sql, request.cursor);
@@ -306,7 +312,7 @@ const Spelling = struct {
     fn identifier(text: []const u8) !Spelling {
         // A disambiguated column is inserted as "alias"."column", but its
         // matching prefix belongs to the column's raw name, not the alias.
-        var scan = try input.Scan.init(text);
+        var scan = try input.EditorScan.init(text);
         var name = text;
         while (try scan.next()) |token| if (token.kind == .quoted) {
             name = text[token.start..token.end];
@@ -443,7 +449,7 @@ test "complete keywords continue grammar while partial words and identifiers ret
 
 test "completion edits separate adjacent tokens without reformatting the draft" {
     const Case = struct { text: []const u8, start: u16, end: u16, candidate: []const u8, expected: []const u8 };
-    var output: [sql.max_statement_bytes]u8 = undefined;
+    var output: [max_bytes]u8 = undefined;
     for ([_]Case{
         .{ .text = "SHOW", .start = 4, .end = 4, .candidate = "ALL", .expected = "SHOW ALL|" },
         .{ .text = "SHOW ", .start = 5, .end = 5, .candidate = "ALL", .expected = "SHOW ALL|" },
@@ -481,19 +487,19 @@ test "completion edits separate adjacent tokens without reformatting the draft" 
 
 test "completion edits check UTF-8 ranges and count separators in the byte budget" {
     const t = std.testing;
-    var output: [sql.max_statement_bytes]u8 = @splat(0xaa);
+    var output: [max_bytes]u8 = @splat(0xaa);
     try t.expectError(error.InvalidSqlCursor, edit("SHOW", .{ .start = 4, .end = 3 }, "ALL", &output));
     try t.expectError(error.InvalidSqlCursor, edit("SHOW", .{ .start = 4, .end = 5 }, "ALL", &output));
     try t.expectError(error.InvalidSqlCursor, edit("\"🌱\"", .{ .start = 2, .end = 5 }, "name", &output));
     try t.expectError(error.InvalidSqlEncoding, edit("SHOW", .{ .start = 4, .end = 4 }, "\xff", &output));
     try t.expectError(error.InvalidSqlResponse, edit("SHOW", .{ .start = 4, .end = 4 }, "", &output));
     try t.expectError(error.StatementTooLarge, edit("SHOW", .{ .start = 4, .end = 4 }, "ALL", output[0..7]));
-    const full: [sql.max_statement_bytes - 1]u8 = @splat('a');
+    const full: [max_bytes - 1]u8 = @splat('a');
     try t.expectError(error.StatementTooLarge, edit(&full, .{ .start = full.len, .end = full.len }, "b", &output));
-    try t.expectEqualSlices(u8, &(@as([sql.max_statement_bytes]u8, @splat(0xaa))), &output);
-    const exact: [sql.max_statement_bytes - 2]u8 = @splat('a');
+    try t.expectEqualSlices(u8, &(@as([max_bytes]u8, @splat(0xaa))), &output);
+    const exact: [max_bytes - 2]u8 = @splat('a');
     const result = try edit(&exact, .{ .start = exact.len, .end = exact.len }, "b", &output);
-    try t.expectEqual(sql.max_statement_bytes, result.text.len);
+    try t.expectEqual(max_bytes, result.text.len);
     try t.expectEqualStrings(" b", result.text[result.text.len - 2 ..]);
 }
 

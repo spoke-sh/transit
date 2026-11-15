@@ -31,9 +31,9 @@ or `<version_id>_<name>.sql`.
   its `source_sha256` is immutable. Modifying an already-recorded migration file
   returns outcome `checksum_mismatch` (`migration.checksum_mismatch`).
 
-Each source file is bounded to 64 KiB, independently of the executable SQL
+Each source file is bounded to 2 MiB, independently of the executable SQL
 owner's statement limit. A file may contain multiple individually bounded
-statements and comments whose total exceeds 4,096 bytes. Its checksum covers
+statements and comments whose total exceeds 1 MiB. Its checksum covers
 all original bytes, including comments and whitespace. This does not raise the
 finite SQL statement limit or grant support to an otherwise unsupported owner.
 
