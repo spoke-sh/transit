@@ -41,6 +41,11 @@ def run(profile,node,catalog,database,gateway):
             call(database,'app-config',8080)
             config = json.loads((work/'sql-gateway.json').read_text())
             config.update(native_url=placement.authority,bind_address='0.0.0.0',mysql_port=3306,health_address='0.0.0.0',health_port=8081,activation_directory='/activation',spill_directory='/spill')
+            # The single account already admits at most eight connections.
+            # Match total admission to that profile instead of reserving the
+            # default 64-connection worker pool inside a 256-PID container.
+            assert len(config['accounts']) == 1 and config['limits']['connections_per_account'] == 8
+            config['limits']['connections'] = 8
             for field in ('certificate_file','certificate_key_file'):
                 source = Path(config[field]); shutil.copyfile(source,work/'gateway-0'/source.name)
                 config[field] = '/gateway/'+source.name
