@@ -1549,9 +1549,10 @@ separate observer/lifecycle authority and external provider placement. The plan
 is Planned; it adds no completed P7 check or runtime qualification.
 
 The [node executable and package retirement plan](transit-node-retirement-implementation.md)
-is Planned as the next artifact cleanup. It moves remaining product consumers to
-`transit server`, retains focused internal authority fixtures, and removes the
-standalone node override, build and publication paths through an explicit
+is In Progress, with implementation complete and qualification continuing. It moves
+remaining product consumers to `transit server`, retains focused internal authority
+fixtures, and removes the standalone node override, build and publication paths
+through an explicit
 compatibility cutover. It adds no completed P7 check or runtime qualification.
 
 - [x] P7.1 Factor reusable role entry points into explicit build modules with

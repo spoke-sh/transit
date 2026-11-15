@@ -11,9 +11,10 @@ is Planned under Milestone 3: move timer/lifecycle service registration and
 supervision into `transit server`, then retire the standalone controller artifact.
 It changes no milestone status and leaves Milestone 6's runtime cutover separate.
 The supporting [node executable and package retirement plan](transit-node-retirement-implementation.md)
-is Planned under Milestone 3: move remaining product consumers to `transit server`,
-retain focused authority fixtures, and remove the standalone node configuration,
-build and publication paths through an explicit compatibility cutover.
+is In Progress under Milestone 3. Implementation moves remaining product consumers
+to `transit server`, retains focused authority fixtures, and removes the standalone
+node configuration, build and publication paths through an explicit compatibility
+cutover. Qualification remains in progress.
 The supporting [on-demand specialization research workflow](on-demand-specialization-research.md)
 investigates verified CPU specialization, Datalog/RTL analysis and optional
 hardware execution through Nix-packaged experiments and explicit Platform

@@ -123,3 +123,7 @@ need a precise delivery boundary pause and resume its actual courier through the
 owned-process harness. SQL/browser/Station fault tests explicitly compose a
 server variant with a test transport descriptor. That descriptor and dispatch
 hook are absent from the production executable.
+
+Board interruption and local SQL owner-bootstrap drivers require an explicit
+`--fault-server` input. Their ordinary lifecycle schedules use the production
+artifact; fault schedules create separate installations from the test variant.
