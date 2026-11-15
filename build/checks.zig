@@ -2106,12 +2106,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");
     sql_wire_gateway.addFileArg(b.path("tests/runner/launch.py"));
     sql_wire_gateway.addFileArg(b.path("tests/interfaces/sql_wire/gateway.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, sql_catalog_proof, sql_gateway_proof, transit_cli, transit_cli, configuration_probe, transit_cli }) |artifact| {
+    for ([_]*std.Build.Step.Compile{ authority_fixture, sql_catalog_proof, sql_gateway_proof, transit_cli, transit_cli, configuration_probe, transit_cli }) |artifact| {
         sql_wire_gateway.addArtifactArg(artifact);
     }
     for ([_]*std.Build.Step.Compile{ sql_catalog_proof, sql_gateway_proof, configuration_probe, transit_cli }) |artifact| {
         sql_wire_build.dependOn(&b.addInstallArtifact(artifact, .{}).step);
     }
+    sql_wire_build.dependOn(&authority_install.step);
     sql_wire_gateway.addPassthruArgs();
     sql_wire_gateway.step.dependOn(&operation_install.step);
     sql_wire_gateway.has_side_effects = true;
