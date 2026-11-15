@@ -248,8 +248,10 @@ test "logical parameters preserve exact source binding widths limits and owned d
 
 test "logical parameter preparation rejects oversized text and bindings before allocation or conversion" {
     var empty: std.heap.FixedBufferAllocator = .init(&.{});
-    const oversized: [f.Sql.max_statement_bytes + 1]u8 = @splat('a');
-    try e.expectError(error.StatementTooLarge, Prepared.init(empty.allocator(), &oversized, "people", schema, basis, null));
+    const oversized = try e.allocator.alloc(u8, f.Sql.max_statement_bytes + 1);
+    defer e.allocator.free(oversized);
+    @memset(oversized, 'a');
+    try e.expectError(error.StatementTooLarge, Prepared.init(empty.allocator(), oversized, "people", schema, basis, null));
     var template = try Prepared.init(e.allocator, "SELECT * FROM people WHERE name = $1", "people", schema, basis, null);
     defer template.deinit();
     const bytes: [t.Query.max_cell_bytes + 1]u8 = @splat(255);

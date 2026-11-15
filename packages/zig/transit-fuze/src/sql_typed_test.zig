@@ -50,8 +50,10 @@ test "direct literal binding rejects recursive and oversized syntax before alloc
     var syntax: Literal = .{ .span = .{ .start = 0, .end = 0 }, .value = .null };
     syntax.value = .{ .list = @as(*const [1]Literal, &syntax) };
     try e.expectError(error.ValueBudgetExceeded, syntax.bind(e.failing_allocator, .int32, null));
-    const oversized: [sql.max_statement_bytes + 1]u8 = @splat('1');
-    syntax.value = .{ .number = &oversized };
+    const oversized = try e.allocator.alloc(u8, sql.max_statement_bytes + 1);
+    defer e.allocator.free(oversized);
+    @memset(oversized, '1');
+    syntax.value = .{ .number = oversized };
     try e.expectError(error.ValueBudgetExceeded, syntax.bind(e.failing_allocator, .int128, null));
     syntax.value = .{ .number = "1" };
     syntax.span = .{ .start = 2, .end = 1 };

@@ -4,6 +4,7 @@ const sql = @import("Sql.zig");
 const m = @import("Unified.zig");
 const Self = @This();
 pub const max_instructions = m.PredicateProgram.max_instructions;
+pub const max_bytes = m.Codec.max_plan_bytes;
 pub const Span = struct { start: u16, len: u16 };
 pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Span, binary: Span };
 pub const Atom = union(enum) {
@@ -14,7 +15,7 @@ pub const Atom = union(enum) {
 pub const Instruction = union(enum) { atom: Atom, negate, conjunction, disjunction };
 instructions: [max_instructions]Instruction = @splat(.negate),
 count: u8 = 0,
-bytes: [sql.max_statement_bytes]u8 = @splat(0),
+bytes: [max_bytes]u8 = @splat(0),
 byte_count: u16 = 0,
 
 pub fn append(self: *Self, instruction: Instruction) !void {
@@ -33,7 +34,7 @@ pub fn appendAtom(self: *Self, atom: sql.PredicateAtom) !void {
             .literal = switch (comparison.literal) {
                 .utf8, .binary => |*value| blk: {
                     if (value.len > value.bytes.len) return error.LiteralTooLarge;
-                    if (value.len > self.bytes.len - self.byte_count) return error.StatementTooLarge;
+                    if (value.len > self.bytes.len - self.byte_count) return error.PredicateTooComplex;
                     const span: Span = .{ .start = self.byte_count, .len = value.len };
                     @memcpy(self.bytes[self.byte_count..][0..value.len], value.slice());
                     self.byte_count += value.len;

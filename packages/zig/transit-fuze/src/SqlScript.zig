@@ -2,9 +2,9 @@
 //! one installation step; the statement owner still validates every instruction.
 const std = @import("std");
 const input = @import("SqlInput.zig");
-pub const max_source_bytes = input.max_source_bytes;
+pub const max_source_bytes = input.max_script_bytes;
 pub const max_depth = 64;
-pub const Token = input.SourceScan.Token;
+pub const Token = input.ScriptScan.Token;
 pub const Statement = struct {
     start: u32,
     end: u32,
@@ -27,7 +27,7 @@ const Step = union(enum) {
     statement: StreamStatement,
 };
 const Self = @This();
-scan: input.SourceScan,
+scan: input.ScriptScan,
 
 /// Allocation-free incremental SQL statement framer over arbitrary byte chunks.
 pub const StreamFramer = struct {
@@ -255,7 +255,7 @@ pub const StreamFramer = struct {
 };
 
 pub fn init(text: []const u8) !Self {
-    return .{ .scan = try input.SourceScan.init(text) };
+    return .{ .scan = try input.ScriptScan.init(text) };
 }
 
 pub const Compiler = struct {
@@ -273,7 +273,7 @@ pub fn next(self: *Self) !?Statement {
 /// Editor input may end at any token or block boundary. Return only an explicit
 /// outer terminator, using the same compound grammar as source-file framing.
 pub fn editorTerminator(text: []const u8) !?u32 {
-    var scan = try input.SourceScan.init(text);
+    var scan = try input.ScriptScan.init(text);
     var framer: StreamFramer = .{};
     while (try scan.next()) |token| {
         switch (try framer.feedToken(toStreamToken(scan.text, scan.position, token), true)) {
@@ -461,17 +461,20 @@ test "source framing covers constructors commands procedures tests and FOR suffi
     try t.expectError(error.UnbalancedSqlBlock, bad.next());
 }
 
-test "compiler files exceed migration input without widening runtime admission" {
+test "migration scripts admit multiple 1 MiB statements while compiler modules cap at 1 MiB" {
     const t = std.testing;
-    const text = try t.allocator.alloc(u8, 1024 * 1024 + 1);
+    const text = try t.allocator.alloc(u8, max_source_bytes + 1);
     defer t.allocator.free(text);
     @memset(text, ' ');
     @memcpy(text[70000..70009], "SELECT 1;");
-    var script = try Compiler.init(text[0 .. 1024 * 1024]);
-    try t.expectEqual(@as(u32, 70000), (try script.next()).?.start);
-    try t.expectEqual(null, try script.next());
-    try t.expectError(error.StatementTooLarge, Compiler.init(text));
-    try t.expectError(error.StatementTooLarge, init(text[0..70010]));
+    var compiler_script = try Compiler.init(text[0 .. 1024 * 1024]);
+    try t.expectEqual(@as(u32, 70000), (try compiler_script.next()).?.start);
+    try t.expectEqual(null, try compiler_script.next());
+    try t.expectError(error.StatementTooLarge, Compiler.init(text[0 .. 1024 * 1024 + 1]));
+    var migration_script = try init(text[0..max_source_bytes]);
+    try t.expectEqual(@as(u32, 70000), (try migration_script.next()).?.start);
+    try t.expectEqual(null, try migration_script.next());
+    try t.expectError(error.StatementTooLarge, init(text));
 }
 
 test "source MATCH framing nests with IF and preserves contextual SQL words" {

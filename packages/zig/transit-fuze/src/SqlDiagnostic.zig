@@ -189,7 +189,7 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         => {},
         else => return null,
     }
-    if (text.len > sql.max_statement_bytes) return .{ .kind = .limit, .cause = error.StatementTooLarge, .summary = "SQL exceeds the 4096-byte statement limit", .hint = "Shorten the statement; do not split one atomic mutation into unrelated commands." };
+    if (text.len > sql.max_statement_bytes) return .{ .kind = .limit, .cause = error.StatementTooLarge, .summary = "SQL exceeds the 1048576-byte statement limit", .hint = "Shorten the statement; do not split one atomic mutation into unrelated commands." };
     var scan = input.Scan.init(text) catch return .{ .kind = .syntax, .cause = error.InvalidSqlEncoding, .summary = "SQL contains invalid encoding", .hint = "Supply UTF-8 SQL without NUL or reserved control bytes." };
     var first: ?input.Token = null;
     var second: ?input.Token = null;
@@ -296,9 +296,17 @@ pub fn applicationProgram(text: []const u8, cause: anyerror, location: sql.Locat
 
 test "program diagnostics preserve source offsets beyond the finite SQL limit" {
     const t = std.testing;
-    const prefix: [5000]u8 = @splat(' ');
-    const text = prefix ++ "LET invalid = SECRET('never-disclose');";
-    const offset = prefix.len;
+    const within_prefix: [5000]u8 = @splat(' ');
+    const within = within_prefix ++ "LET invalid = SECRET('never-disclose');";
+    const within_detail = applicationProgram(within, error.ProtectedProgramValue, .{ .offset = within_prefix.len }).?;
+    try t.expect(within_detail.context_len > 0);
+
+    const suffix = "LET invalid = SECRET('never-disclose');";
+    const offset = sql.max_statement_bytes + 16;
+    const text = try t.allocator.alloc(u8, offset + suffix.len);
+    defer t.allocator.free(text);
+    @memset(text[0..offset], ' ');
+    @memcpy(text[offset..], suffix);
     const detail = applicationProgram(text, error.ProtectedProgramValue, .{ .offset = offset }).?;
     const result = try detail.structured();
     try t.expectEqualStrings("sql.protected_program_value", result.code.slice());
@@ -394,7 +402,7 @@ pub fn tableDml(text: []const u8, cause: anyerror, location: sql.Location) ?Self
     };
     if (cause == error.MutationBatchTooLarge) {
         result.summary = "The Table mutation exceeds its row or typed-intent bound";
-        result.hint = "Use 1 to 1024 rows per INSERT, keep encoded typed intent within 4 MiB, and SQL within its 4096-byte statement limit.";
+        result.hint = "Use 1 to 1024 rows per INSERT, keep encoded typed intent within 4 MiB, and SQL within its 1048576-byte statement limit.";
     } else if (cause == error.UnsupportedNullComparison) {
         result.summary = "NULL requires a state test";
         result.hint = "Use IS NULL or IS NOT NULL instead of comparing a value to NULL.";
@@ -578,32 +586,69 @@ fn source(self: *Self, text: []const u8, location: sql.Location) void {
     const line_end = if (std.mem.indexOfScalarPos(u8, text, offset, '\n')) |end| end else text.len;
     const begin = @max(line_start, offset -| 64);
     const end = @min(line_end, begin + 120);
-    var hidden: [sql.max_statement_bytes]bool = @splat(false);
     var scan = input.Scan.init(text) catch return;
-    var roles: [sql.max_statement_bytes]sql.TokenRole = undefined;
-    input.classify(text, roles[0..text.len]);
+    var window_hidden: [120]bool = @splat(false);
+    var window_roles: [120]sql.TokenRole = @splat(.unknown);
+    var stmt_start: usize = 0;
+    var stmt_end: usize = text.len;
+    var found_stmt_end = false;
     @memset(&self.context_roles, .unknown);
     while (true) {
         const before = scan.position;
         const token = (scan.next() catch {
-            @memset(hidden[before..text.len], true);
+            const h_start = @max(before, begin);
+            const h_end = @min(text.len, end);
+            if (h_start < h_end) @memset(window_hidden[h_start - begin .. h_end - begin], true);
             break;
         }) orelse break;
-        if (token.kind == .string or token.kind == .quoted or token.kind == .number or token.kind == .comment) @memset(hidden[token.start..token.end], true);
+        const t_start: usize = token.start;
+        const t_end: usize = token.end;
+        if (token.kind == .string or token.kind == .quoted or token.kind == .number or token.kind == .comment) {
+            const h_start = @max(t_start, begin);
+            const h_end = @min(t_end, end);
+            if (h_start < h_end) @memset(window_hidden[h_start - begin .. h_end - begin], true);
+        }
+        const lex_role: sql.TokenRole = switch (token.kind) {
+            .word => if (sql.isReserved(text[t_start..t_end])) .keyword else .identifier,
+            .quoted => .identifier,
+            .string => .literal,
+            .number => .number,
+            .comment => .comment,
+            else => .unknown,
+        };
+        const r_start = @max(t_start, begin);
+        const r_end = @min(t_end, end);
+        if (r_start < r_end) @memset(window_roles[r_start - begin .. r_end - begin], lex_role);
+        if (token.kind == .symbol and text[t_start] == ';') {
+            if (t_end <= begin) {
+                stmt_start = t_end;
+            } else if (!found_stmt_end) {
+                stmt_end = t_end;
+                found_stmt_end = true;
+            }
+        }
+    }
+    const contextual_limit = 16 * 1024;
+    if (stmt_end - stmt_start <= contextual_limit and stmt_start <= begin and end <= stmt_end) {
+        var stmt_roles: [contextual_limit]sql.TokenRole = undefined;
+        const stmt_len = stmt_end - stmt_start;
+        input.classify(text[stmt_start..stmt_end], stmt_roles[0..stmt_len]);
+        @memcpy(window_roles[0 .. end - begin], stmt_roles[begin - stmt_start .. end - stmt_start]);
     }
     var out: std.Io.Writer = .fixed(&self.context);
     if (begin > line_start) out.writeAll("...") catch unreachable;
     for (text[begin..end], begin..) |byte, i| {
         if (i == offset) self.caret = out.end;
         const first = out.end;
-        if (hidden[i]) {
+        const w = i - begin;
+        if (window_hidden[w]) {
             out.writeByte('*') catch unreachable;
         } else switch (byte) {
             0x20...0x7e => out.writeByte(byte) catch unreachable,
             '\t' => out.writeAll("    ") catch unreachable,
             else => out.print("\\x{x:0>2}", .{byte}) catch unreachable,
         }
-        if (!hidden[i]) @memset(self.context_roles[first..out.end], roles[i]);
+        if (!window_hidden[w]) @memset(self.context_roles[first..out.end], window_roles[w]);
     }
     if (offset == end) self.caret = out.end;
     if (end < line_end) out.writeAll("...") catch unreachable;

@@ -7,13 +7,15 @@ pub const Token = Scan.Token;
 /// Interactive line-editor drafts and cursor assistance remain u16-addressed.
 pub const max_editor_bytes = 4096;
 pub const EditorScan = Scanner(u16, max_editor_bytes);
-/// File/program lexing has a separate bound from interactive statements. Editor
-/// offsets remain u16; source offsets include the exclusive end of a 64 KiB file.
-pub const max_source_bytes = 64 * 1024;
+/// Single executable statement and program source bound (1 MiB); offsets use u32.
+pub const max_source_bytes = sql.max_statement_bytes;
 pub const SourceScan = Scanner(u32, max_source_bytes);
-/// Offline source compilation has its own quota; runtime inputs keep their bounds.
+/// Offline source compilation module bound (1 MiB); multi-file budgets live in Compiler.
 pub const CompilerScan = Scanner(u32, 1024 * 1024);
-pub const Scan = Scanner(u16, sql.max_statement_bytes);
+/// Multi-statement migration source script bound (2 MiB).
+pub const max_script_bytes = 2 * 1024 * 1024;
+pub const ScriptScan = Scanner(u32, max_script_bytes);
+pub const Scan = Scanner(u32, sql.max_statement_bytes);
 pub const Range = struct { start: u16, end: u16, quoted: bool = false };
 
 pub const StreamToken = struct {
@@ -357,15 +359,6 @@ pub fn classify(text: []const u8, roles: []sql.TokenRole) void {
     var begin: usize = 0;
     while (true) {
         const token = (scan.next() catch break) orelse break;
-        const role: sql.TokenRole = switch (token.kind) {
-            .word => if (sql.isReserved(text[token.start..token.end])) .keyword else .identifier,
-            .quoted => .identifier,
-            .string => .literal,
-            .number => .number,
-            .comment => .comment,
-            else => .unknown,
-        };
-        @memset(roles[token.start..token.end], role);
         if (token.kind == .symbol and text[token.start] == ';') {
             classifyStatement(text[begin..token.end], roles[begin..token.end]);
             begin = token.end;
@@ -375,12 +368,25 @@ pub fn classify(text: []const u8, roles: []sql.TokenRole) void {
 }
 
 fn classifyStatement(text: []const u8, roles: []sql.TokenRole) void {
-    var parsed: [sql.max_statement_bytes]sql.TokenRole = undefined;
-    sql.classifyTokens(text, parsed[0..text.len]);
-    classifyTable(text, parsed[0..text.len]);
-    for (roles, parsed[0..text.len]) |*role, contextual| if (contextual != .unknown) {
-        role.* = contextual;
-    };
+    sql.classifyTokens(text, roles);
+    classifyTable(text, roles);
+    var scan = Scan.init(text) catch return;
+    while (true) {
+        const token = (scan.next() catch break) orelse break;
+        const role: sql.TokenRole = switch (token.kind) {
+            .word => if (sql.isReserved(text[token.start..token.end])) .keyword else .identifier,
+            .quoted => .identifier,
+            .string => .literal,
+            .number => .number,
+            .comment => .comment,
+            else => .unknown,
+        };
+        if (role != .unknown) {
+            for (roles[token.start..token.end]) |*slot| if (slot.* == .unknown) {
+                slot.* = role;
+            };
+        }
+    }
 }
 
 // General Table grammar uses arena-owned syntax. A fixed workspace bounds this
@@ -418,13 +424,13 @@ fn classifyTableWithAllocator(text: []const u8, roles: []sql.TokenRole, allocato
 /// use the source framer, while editor byte and unfinished-input bounds remain.
 /// No terminator means keep editing, even if a complete statement could compile.
 pub fn terminator(text: []const u8) !?u16 {
-    _ = try Scan.init(text);
+    _ = try EditorScan.init(text);
     return if (try @import("SqlScript.zig").editorTerminator(text)) |end| @intCast(end) else null;
 }
 /// Cursor-local statement, retaining its suffix for binding. Dot commands end
 /// at a line boundary; SQL separators inside strings/comments remain inert.
 pub fn active(text: []const u8, cursor: u16, console: bool) !Range {
-    _ = try Scan.init(text);
+    _ = try EditorScan.init(text);
     if (cursor > text.len or !std.unicode.utf8ValidateSlice(text[0..cursor])) return error.InvalidSqlCursor;
     var start: usize = 0;
     while (true) {
@@ -456,7 +462,7 @@ pub fn significant(text: []const u8) !bool {
 /// Replacement includes the current token's suffix, preventing duplicate text
 /// when completing at an interior cursor. Comment/literal positions suppress it.
 pub fn replacement(text: []const u8, cursor: u16) !?Range {
-    var scan = try Scan.init(text);
+    var scan = try EditorScan.init(text);
     if (cursor > text.len or !std.unicode.utf8ValidateSlice(text[0..cursor])) return error.InvalidSqlCursor;
     while (try scan.next()) |token| {
         if (cursor < token.start) break;
@@ -511,16 +517,19 @@ test "cursor ranges replace whole tokens and reject split UTF-8 or protected lex
 
 const ExpectedRole = struct { []const u8, sql.TokenRole };
 fn expectRoles(text: []const u8, expected: []const ExpectedRole) !void {
-    var actual: [sql.max_statement_bytes]sql.TokenRole = undefined;
-    var wanted: [sql.max_statement_bytes]sql.TokenRole = @splat(.unknown);
+    const actual = try std.testing.allocator.alloc(sql.TokenRole, text.len);
+    defer std.testing.allocator.free(actual);
+    const wanted = try std.testing.allocator.alloc(sql.TokenRole, text.len);
+    defer std.testing.allocator.free(wanted);
+    @memset(wanted, .unknown);
     var offset: usize = 0;
     for (expected) |span| {
         const start = std.mem.indexOfPos(u8, text, offset, span[0]) orelse unreachable;
         offset = start + span[0].len;
         @memset(wanted[start..offset], span[1]);
     }
-    classify(text, actual[0..text.len]);
-    try std.testing.expectEqualSlices(sql.TokenRole, wanted[0..text.len], actual[0..text.len]);
+    classify(text, actual);
+    try std.testing.expectEqualSlices(sql.TokenRole, wanted, actual);
 }
 
 test "relational highlighting follows joins aliases and grouped aggregate syntax" {
@@ -623,14 +632,20 @@ test "highlighting keeps incomplete tokens inert and confines malformed suffixes
     try expectRoles("SELECT value FROM items WHERE value IS INVALID AND update IS VALUE;", &.{
         .{ "SELECT", .keyword }, .{ "value", .identifier }, .{ "FROM", .keyword }, .{ "items", .identifier }, .{ "WHERE", .keyword }, .{ "value", .identifier }, .{ "IS", .keyword }, .{ "INVALID", .identifier }, .{ "AND", .keyword }, .{ "update", .identifier }, .{ "IS", .keyword }, .{ "VALUE", .identifier },
     });
-    var oversized: [sql.max_statement_bytes + 1]u8 = @splat('x');
-    var roles: [oversized.len]sql.TokenRole = undefined;
-    classify(&oversized, &roles);
+    const oversized = try std.testing.allocator.alloc(u8, sql.max_statement_bytes + 1);
+    defer std.testing.allocator.free(oversized);
+    @memset(oversized, 'x');
+    const roles = try std.testing.allocator.alloc(sql.TokenRole, oversized.len);
+    defer std.testing.allocator.free(roles);
+    classify(oversized, roles);
     for (roles) |role| try std.testing.expectEqual(.unknown, role);
     classify("SELECT \xff", roles[0..8]);
     for (roles[0..8]) |role| try std.testing.expectEqual(.unknown, role);
     const statement = "SELECT value FROM items WHERE value IS VALUE;";
-    const maximum = statement ++ @as([sql.max_statement_bytes - statement.len]u8, @splat(' '));
+    const maximum = try std.testing.allocator.alloc(u8, sql.max_statement_bytes);
+    defer std.testing.allocator.free(maximum);
+    @memset(maximum, ' ');
+    @memcpy(maximum[0..statement.len], statement);
     try expectRoles(maximum, &.{ .{ "SELECT", .keyword }, .{ "value", .identifier }, .{ "FROM", .keyword }, .{ "items", .identifier }, .{ "WHERE", .keyword }, .{ "value", .identifier }, .{ "IS", .keyword }, .{ "VALUE", .keyword } });
 }
 
@@ -687,7 +702,7 @@ test "general ALTER DROP and EXPLAIN consume contextual grammar without metadata
 
 test "general SQL classification fits dense bounded statements and tolerates allocator exhaustion" {
     const e = std.testing;
-    var storage: [sql.max_statement_bytes]u8 = undefined;
+    var storage: [4096]u8 = undefined;
     var writer: std.Io.Writer = .fixed(&storage);
     try writer.writeAll("INSERT INTO t VALUES ");
     for (0..1018) |i| {
@@ -695,7 +710,7 @@ test "general SQL classification fits dense bounded statements and tolerates all
         try writer.writeAll("(0)");
     }
     const text = writer.buffered();
-    var roles: [sql.max_statement_bytes]sql.TokenRole = @splat(.unknown);
+    var roles: [4096]sql.TokenRole = @splat(.unknown);
     var workspace: [classification_bytes]u8 = undefined;
     var fixed: std.heap.FixedBufferAllocator = .init(&workspace);
     try classifyTableWithAllocator(text, roles[0..text.len], fixed.allocator());
