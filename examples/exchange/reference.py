@@ -139,7 +139,8 @@ class Reference(Compose):
         if not self.server_owned:
             self.secret('native-fixture', self.work / 'operator')
             self.apply(dict(apiVersion='batch/v1', kind='Job', metadata=dict(name='native-initialize'),
-                spec=dict(backoffLimit=0, activeDeadlineSeconds=120, template=dict(spec=dict(
+                spec=dict(backoffLimit=0, activeDeadlineSeconds=120, template=dict(
+                    metadata=dict(labels=self.native_fixture_labels()), spec=dict(
                     restartPolicy='Never', automountServiceAccountToken=False,
                     securityContext=dict(runAsUser=65532, runAsGroup=65532, runAsNonRoot=True),
                     containers=[dict(name='initialize', image=self.env['EXCHANGE_NODE_IMAGE'],
@@ -175,9 +176,10 @@ class Reference(Compose):
             self.pod_deployment('node', dict(name='node', image=self.env['EXCHANGE_NODE_IMAGE'],
                 args=['/operator/node.json'], volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)],
                 readinessProbe=dict(httpGet=dict(path='/health', port=8080), periodSeconds=1)),
-                [dict(name='files', secret=dict(secretName='native-fixture'))])
+                [dict(name='files', secret=dict(secretName='native-fixture'))],
+                labels=self.native_fixture_labels())
             self.apply(dict(apiVersion='v1', kind='Service', metadata=dict(name='node'),
-                spec=dict(selector={'app': 'exchange-node'}, ports=[dict(port=8080, targetPort=8080)])))
+                spec=dict(selector=self.native_fixture_labels(), ports=[dict(port=8080, targetPort=8080)])))
             return self.wait_pod('node')
         if service == "peer":
             self.secret("peer-files", self.work / "peer")
@@ -210,12 +212,20 @@ class Reference(Compose):
         data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("node.json", "seed.key", "credential", "ca.pem", "tls.key", "config.json")}
         self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name}, "data": data})
 
-    def pod_deployment(self, name, container, volumes, init_containers=()):
+    def native_fixture_labels(self):
+        # Match the chart's authority-only ingress to Ursula. Application pods
+        # and direct-Table denial targets do not receive these labels.
+        return {'app': 'node', 'app.kubernetes.io/name': 'transit',
+                'app.kubernetes.io/instance': 'exchange-example',
+                'app.kubernetes.io/component': 'node'}
+
+    def pod_deployment(self, name, container, volumes, init_containers=(), *, labels=None):
+        labels = labels or {'app': 'exchange-' + name}
         container.update(securityContext={"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                          resources={"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}})
         self.apply({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name}, "spec": {
-            "replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": "exchange-" + name}},
-            "template": {"metadata": {"labels": {"app": "exchange-" + name}}, "spec": {"automountServiceAccountToken": False,
+            "replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": labels},
+            "template": {"metadata": {"labels": labels}, "spec": {"automountServiceAccountToken": False,
                 "securityContext": {"runAsUser": 65532, "runAsGroup": 65532, "runAsNonRoot": True, "fsGroup": 65532},
                 "initContainers": list(init_containers), "containers": [container], "volumes": volumes}}}})
 
