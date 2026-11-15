@@ -148,6 +148,9 @@ class Reference(Compose):
                         volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)])],
                     volumes=[dict(name='files', secret=dict(secretName='native-fixture'))])))))
             self.kube('wait', '--for=condition=complete', 'job/native-initialize', '--timeout=150s')
+            # The completed initializer shares the chart's storage-access labels;
+            # remove it before recovery waits select the authority deployment.
+            self.kube('delete', 'job/native-initialize', '--wait=true')
             Reference.start(self, 'node')
             return
         self.values["node"]["enabled"] = True
