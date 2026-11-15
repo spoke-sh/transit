@@ -1664,7 +1664,6 @@ const ApplicationHost = struct {
     finishes: usize = 0,
     authority_checked: [2]bool = .{ false, false },
     lose_request: bool = false,
-    input_acknowledged: bool = false,
     const a = q.fuze.ApplicationProgram;
     fn lookup(_: *anyopaque, _: []const u8) anyerror!a.Values.Value {
         return error.UnknownProgramVariable;
@@ -1698,7 +1697,6 @@ const ApplicationHost = struct {
         try t.expectEqualDeep(scope.work.claim.target, scope.input.source.target);
         try t.expectEqualDeep(scope.client.transaction != null, scope.work.execution.transaction != null);
         try scope.requireCurrent();
-        self.input_acknowledged = scope.work.execution.acknowledged;
         var invalid = scope;
         invalid.client.lease = null;
         try t.expectError(error.DataflowLeaseFenced, invalid.requireCurrent());
@@ -1882,7 +1880,6 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
         // Lose transient request material after the three private mutations.
         // The failure handler must run after their original common abort.
         host.lose_request = id == 8;
-        host.input_acknowledged = false;
         _ = output.reset(.retain_capacity);
         const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = value.resources[0].value.log.declaration, .schema = metadata.definition.schema }, 733100 + ordinal, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = id }} });
         const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
@@ -1900,15 +1897,14 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
         defer if (cancellation) |bytes| client.allocator.free(bytes);
         var cancelled_after_commit = false;
         for (0..200) |_| {
-            // Recovery below reloads the original progress on every step. The
-            // extra observer exists only to stage the post-commit cancellation
-            // race; do not double-read every phase while its input lease is live.
-            if (id == 7 and host.input_acknowledged and !cancelled_after_commit) observe: {
-                const progress = (try T.inspect(client, token)).?;
-                const saved = try owner.load(progress);
-                defer saved.deinit();
-                const execution = saved.value.execution;
-                if (execution.transaction == null or execution.transaction.?.kind != .final) break :observe;
+            // A fresh owner and decoded progress on every iteration must resume
+            // the same instruction/native operation, with no host cursor cache.
+            const progress = (try T.inspect(client, token)).?;
+            const saved = try owner.load(progress);
+            defer saved.deinit();
+            const execution = saved.value.execution;
+            errdefer std.debug.print("Application input {d}, phase {s}, transaction {s}\n", .{ id, @tagName(execution.phase), if (execution.transaction) |transaction| @tagName(transaction.kind) else "none" });
+            if (id == 7 and execution.transaction != null and execution.transaction.?.kind == .final) {
                 if (execution.phase == .checkpoint and execution.checkpoint != null and cancellation == null) {
                     const head = try manager.inspect(value);
                     cancellation = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733200 }, .target = try value.interpretation(client.allocator), .expected = head.head.control, .command = .suspend_computation }, null);
@@ -1937,7 +1933,7 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
                 // The proxy loses accepted replies at native and continuation
                 // boundaries. Reload the same token on the next iteration.
                 if (err == error.InvalidTableResponse) continue;
-                std.debug.print("Application input {d}, native rejection {any}: {s}\n", .{ id, client.service.last_rejection, @errorName(err) });
+                std.debug.print("Application phase {s}, input phase {s}, native rejection {any}: {s}\n", .{ @tagName(saved.value.execution.phase), @tagName(saved.value.phase), client.service.last_rejection, @errorName(err) });
                 return err;
             };
             if (recovered == .complete) {
