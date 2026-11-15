@@ -427,6 +427,24 @@ ip6tables -w -A OUTPUT -j REJECT
         if args[0] == "logs": return self.kube("logs", "-l", "app.kubernetes.io/instance=exchange-example", "--all-containers", "--tail=40", missing=True) or ""
         raise RuntimeError("Unsupported reference diagnostic operation")
 
+    def delete_owned(self, kind, name, uid, deadline):
+        # Provider deletion can outlive its RPC and temporarily lock the actor's
+        # template. Observe removal before deleting dependent resources; every
+        # repeated physical cleanup request remains bound to the recorded UID.
+        while True:
+            current = self.ate("get", kind, name, "-a", self.namespace, missing=True)
+            if current is None: return
+            if json.loads(current)["metadata"]["uid"] != uid:
+                raise RuntimeError("Owned provider resource changed; refusing cleanup")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Provider did not remove owned " + kind)
+            try:
+                self.ate("delete", kind, name, "-a", self.namespace, missing=True)
+            except RuntimeError as error:
+                if "code = Aborted desc = another operation is in progress" not in str(error):
+                    raise
+            time.sleep(.2)
+
     def close(self):
         for child, _, log in self.forwards.values():
             if child.poll() is None: child.terminate()
@@ -442,7 +460,7 @@ ip6tables -w -A OUTPUT -j REJECT
             while self.actor(handle)["status"]["state"] in ("ACTOR_STATE_RUNNING", "ACTOR_STATE_SUSPENDING"):
                 if time.monotonic() >= deadline: raise TimeoutError("Actor did not suspend for cleanup")
                 time.sleep(.2)
-            self.ate("delete", "actor", handle["name"], "-a", self.namespace, missing=True)
-            self.ate("delete", "actor-template", handle["name"], "-a", self.namespace, missing=True)
+            self.delete_owned("actor", handle["name"], handle["uid"], deadline)
+            self.delete_owned("actor-template", handle["name"], handle["template_uid"], deadline)
         self.ate("delete", "atespace", self.namespace, missing=True)
         self.kube("delete", "namespace", self.namespace, "--wait=true", timeout=180)
