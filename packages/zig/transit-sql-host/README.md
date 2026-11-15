@@ -71,10 +71,10 @@ reassignment clears the used high-water range, including freed allocations and
 failed requests, without repeatedly clearing untouched reserve capacity. Data
 and control admission remain separate, and every borrower joins before release.
 
-The installed `transit server` places this host inside `transit-node`. Signed
-Table and native calls use `transit-client.LocalEndpoint` and the node's shared
-request lanes, storage owners and current policy checks. Result storage belongs
-to the caller; request scratch cannot escape. The configuration service retains
+The installed `transit server` places this host inside its embedded native
+authority process. Signed Table and native calls use `transit-client.LocalEndpoint`
+and the node's shared request lanes, storage owners and current policy checks.
+Result storage belongs to the caller; request scratch cannot escape. The configuration service retains
 its existing separate owner.
 
 `transit-sql-gateway` composes the same host with HTTP-backed clients for explicit

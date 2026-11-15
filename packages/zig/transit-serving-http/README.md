@@ -215,7 +215,8 @@ publication, handoff and transactional response facilities; node/SQL
 deployment composition must supply their owners before admitting the complete
 browser application.
 
-`BrowserRuntime.Running` opens the optional browser listener inside `transit-node`.
+`BrowserRuntime.Running` opens the optional browser listener inside the native
+authority process started by `transit server`.
 It reads typed catalog declarations, resolves private mounted secrets, performs
 bounded provider exchanges and obtains published rows through signed native
 Table reads. It does not know application table names or grant social users
