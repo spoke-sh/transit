@@ -2096,7 +2096,7 @@ export class Client {
             operation: ids.operation.toString(),
             create_object:
               options.createObject === undefined ? null : positive(options.createObject).toString(),
-            sql: text(sql, 4096),
+            sql: text(sql, 1048576),
             dialect: options.dialect ?? "transit",
             ingestion: options.ingestion ?? "point",
           },

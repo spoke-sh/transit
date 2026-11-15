@@ -10,6 +10,7 @@ pub const max_steps_per_version = 64;
 pub const max_version_id_bytes = 64;
 pub const max_name_bytes = 128;
 pub const max_path_bytes = 512;
+pub const max_source_bytes = api.fuze.SqlScript.max_source_bytes;
 
 pub const SourceFile = struct {
     version_id: []const u8,
@@ -22,8 +23,8 @@ pub const SourceFile = struct {
         if (self.version_id.len == 0 or self.version_id.len > max_version_id_bytes) return error.InvalidMigrationVersion;
         if (self.name.len == 0 or self.name.len > max_name_bytes) return error.InvalidMigrationVersion;
         if (self.path.len == 0 or self.path.len > max_path_bytes) return error.InvalidMigrationVersion;
-        if (self.sql.len == 0 or self.sql.len > api.max_sql_bytes) return error.InvalidSqlText;
-        _ = try api.fuze.SqlInput.SourceScan.init(self.sql);
+        if (self.sql.len == 0 or self.sql.len > max_source_bytes) return error.InvalidSqlText;
+        _ = try api.fuze.SqlInput.ScriptScan.init(self.sql);
         var computed: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(self.sql, &computed, .{});
         if (!std.mem.eql(u8, &computed, &self.sha256)) return error.MigrationChecksumMismatch;
@@ -223,11 +224,11 @@ test "migration request validates sorted version ordering and source SHA-256 dig
 
 test "migration files retain exact checksums beyond the interactive statement limit" {
     const t = std.testing;
-    const bytes = try t.allocator.alloc(u8, api.max_sql_bytes + 1);
+    const bytes = try t.allocator.alloc(u8, max_source_bytes + 1);
     defer t.allocator.free(bytes);
     @memset(bytes, ' ');
     @memcpy(bytes[0..9], "SELECT 1;");
-    const sql = bytes[0..api.max_sql_bytes];
+    const sql = bytes[0..max_source_bytes];
     var source: SourceFile = .{ .version_id = "0001", .name = "large", .path = "0001-large.sql", .sql = sql, .sha256 = undefined };
     std.crypto.hash.sha2.Sha256.hash(sql, &source.sha256, .{});
     try source.validate();

@@ -62,7 +62,7 @@ fn general(self: Cli, err: anyerror) !d {
         error.InvalidConfiguration, error.InvalidConfigurationPath => .{ "cli.invalid_configuration", .binding, .input, "The command configuration could not be loaded or validated." },
         error.InvalidCredentialFile => .{ "cli.credential_unavailable", .access, .prepare, "The signing credential could not be loaded. Check the configured file and its permissions without disclosing its contents." },
         error.InvalidQueryInput => .{ "cli.invalid_query_input", .syntax, .input, "Supply a JSON query object or exact scalar parameter array for this interface." },
-        error.QueryInputTooLarge => .{ "cli.query_input_limit", .limit, .input, "The SQL query input exceeds 131072 bytes." },
+        error.QueryInputTooLarge => .{ "cli.query_input_limit", .limit, .input, "The SQL query input exceeds 2097152 bytes." },
         error.ConsoleWriterRequired => .{ "cli.writer_required", .unsupported, .prepare, "Configure writes.table to execute this Table mutation. A query connection does not grant writes." },
         error.ConsoleCatalogRequired => .{ "cli.catalog_required", .unsupported, .prepare, "Configure writes.catalog to execute CREATE TABLE." },
         error.ConsoleRecoveryRequired => .{ "cli.recovery_required", .binding, .prepare, "Automatic queries require a private recovery_file in the console configuration." },

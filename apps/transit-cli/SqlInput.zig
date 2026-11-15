@@ -4,7 +4,7 @@ const std = @import("std");
 const q = @import("transit_query");
 pub const Request = @FieldType(q.Workspace.Request, "compile");
 pub const Parameters = []const q.Values.Scalar;
-pub const max_file_bytes = 131072;
+pub const max_file_bytes = 2 * 1024 * 1024;
 
 pub fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
     if (bytes.len > max_file_bytes) return error.QueryInputTooLarge;

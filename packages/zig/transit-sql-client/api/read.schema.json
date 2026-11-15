@@ -130,7 +130,7 @@
         },
         "T5": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T6": {
           "anyOf": [
@@ -268,7 +268,7 @@
         },
         "T3": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T4": {
           "anyOf": [
@@ -1348,7 +1348,7 @@
         },
         "T31": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T32": {
           "type": "boolean"
@@ -1768,7 +1768,7 @@
         },
         "T40": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T41": {
           "type": "boolean"
@@ -2273,11 +2273,11 @@
         },
         "T7": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T8": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T9": {
           "type": "object",
@@ -2539,7 +2539,7 @@
         },
         "T5": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T6": {
           "type": "object",
@@ -2594,7 +2594,7 @@
         },
         "T9": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T10": {
           "anyOf": [
@@ -3871,7 +3871,7 @@
         },
         "T44": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T45": {
           "type": "boolean"
@@ -4291,7 +4291,7 @@
         },
         "T53": {
           "type": "string",
-          "maxLength": 262144
+          "maxLength": 1048576
         },
         "T54": {
           "type": "boolean"

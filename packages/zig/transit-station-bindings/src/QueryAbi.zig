@@ -104,7 +104,7 @@ pub fn observe(pointer: *Client, observer: *q.wire.observability.telemetry.Runti
 }
 pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer) callconv(.c) base.Status {
     out.* = null;
-    if (len == 0 or len > q.protocol.max_body) return invalidEnvelope(error.InvalidQueryRequest, out);
+    if (len == 0 or len > q.Values.maximum_json_bytes) return invalidEnvelope(error.InvalidQueryRequest, out);
     const client = cast(pointer);
     if (client.busy.swap(true, .acquire)) return .busy;
     defer client.busy.store(false, .release);

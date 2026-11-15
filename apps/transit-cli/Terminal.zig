@@ -11,7 +11,7 @@ const Undo = @import("Undo.zig");
 const EditorState = @import("EditorState.zig");
 const AssistanceRequest = @import("AssistanceRequest.zig");
 const input = q.fuze.SqlInput;
-const max_bytes = q.fuze.Sql.max_statement_bytes;
+const max_bytes = input.max_editor_bytes;
 const prompt = "transit> ";
 const continuation_prompt = "    ...> ";
 pub fn run(console: *Console.Console) !void {

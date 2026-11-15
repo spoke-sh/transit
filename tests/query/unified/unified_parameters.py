@@ -13,7 +13,7 @@ def compile_requests(owners, scope, kind, root, fault, *, capability_owners=()):
     sends = fault['console_sends']
     for owner in capability_owners:
         caps = owner.call({'sql_capabilities': {}})['sql_capabilities']
-        assert caps['parameters'] and caps['version'] == 1 and caps['statement_bytes'] == 4096
+        assert caps['parameters'] and caps['version'] == 1 and caps['statement_bytes'] == 1048576
     requests = []
     for fixture in fixtures['cases']:
         if fixture['name'] not in ('utf8', 'ordinary', 'empty'):

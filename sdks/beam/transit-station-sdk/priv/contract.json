@@ -9622,7 +9622,7 @@
         },
         "T215": {
           "type": "string",
-          "maxLength": 4096
+          "maxLength": 1048576
         },
         "T216": {
           "type": "object",
@@ -54955,7 +54955,7 @@
         },
         "T5": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T6": {
           "type": "array",
@@ -55122,7 +55122,7 @@
         },
         "T15": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T16": {
           "anyOf": [
@@ -56073,7 +56073,7 @@
         },
         "T43": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T44": {
           "oneOf": [
@@ -57311,7 +57311,7 @@
         },
         "T100": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T101": {
           "type": "array",
@@ -57701,7 +57701,7 @@
         },
         "T116": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T117": {
           "type": "boolean"
@@ -58524,7 +58524,7 @@
         },
         "T8": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T9": {
           "type": "array",
@@ -58561,7 +58561,7 @@
         },
         "T11": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T12": {
           "type": "object",
@@ -59316,7 +59316,7 @@
         },
         "T32": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T33": {
           "oneOf": [
@@ -61023,7 +61023,7 @@
         },
         "T81": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T82": {
           "type": "boolean"
@@ -61455,7 +61455,7 @@
             "version": 1,
             "parameters": true,
             "max_parameters": 65,
-            "statement_bytes": 4096
+            "statement_bytes": 1048576
           }
         },
         "T104": {
@@ -62367,7 +62367,7 @@
         },
         "T149": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T150": {
           "type": "array",
@@ -62759,7 +62759,7 @@
         },
         "T170": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T171": {
           "type": "array",
@@ -62848,7 +62848,7 @@
         },
         "T174": {
           "type": "string",
-          "maxLength": 524288
+          "maxLength": 1048576
         },
         "T175": {
           "type": "string",
@@ -67307,7 +67307,7 @@
         },
         "T16": {
           "type": "string",
-          "maxLength": 4096
+          "maxLength": 1048576
         },
         "T17": {
           "type": "object",
@@ -76505,7 +76505,7 @@
               "$ref": "#/$defs/T5"
             },
             "max_sql_bytes": {
-              "$ref": "#/$defs/T5"
+              "$ref": "#/$defs/T6"
             },
             "max_intent_bytes": {
               "$ref": "#/$defs/T6"
@@ -76536,7 +76536,7 @@
             "definition": "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb",
             "max_columns": 128,
             "max_rows": 1024,
-            "max_sql_bytes": 4096,
+            "max_sql_bytes": 1048576,
             "max_intent_bytes": 8388644,
             "max_action_bytes": 16793672,
             "metadata_page_entries": 8,

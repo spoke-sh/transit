@@ -327,7 +327,7 @@ def run(node, host, proof, board, browser=False):
                 {"name": "value", "type": {"int64": {}}, "nullable": True, "optional": False, "max_characters": None},
             ]}, table
             sql_caps = api({"sql_capabilities": {}})["sql_capabilities"]
-            assert sql_caps["version"] == 1 and sql_caps["parameters"] and sql_caps["statement_bytes"] == 4096
+            assert sql_caps["version"] == 1 and sql_caps["parameters"] and sql_caps["statement_bytes"] == 1048576
             before = admin("next-sequence").stdout
             api({"compile": {"sql": "DELETE FROM items"}}, status=400)
             assert admin("next-sequence").stdout == before, "invalid SQL admitted a command"

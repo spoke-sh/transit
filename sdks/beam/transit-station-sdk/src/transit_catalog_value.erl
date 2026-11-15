@@ -236,7 +236,7 @@ action({namespaces,Cursor}) -> work(#{<<"catalog">>=>#{<<"namespaces">>=>optiona
 action({tables,N,Cursor}) -> work(#{<<"catalog">>=>#{<<"tables">>=>#{<<"namespace">>=>counter(N),<<"cursor">>=>optional(Cursor,fun wire/1)}}},[<<"catalog">>,<<"tables">>],{page,{tables,N},Cursor},undefined);
 action({lookup,Name,N}) -> work(#{<<"lookup">>=>#{<<"namespace">>=>counter(N),<<"name">>=>identifier(Name)}},[<<"metadata">>],{lookup,Name,N},undefined);
 action({compile,Sql,#transit_catalog_identity{operation=O,namespace=N}=I,Create,Dialect,Ingestion}) ->
-    S=transit_sdk_value:text(Sql,4096),check(byte_size(S)>0),work(#{<<"compile">>=>#{<<"sql">>=>S,<<"namespace">>=>counter(N),<<"operation">>=>decimal(O),<<"create_object">>=>optional(Create,fun decimal/1),<<"dialect">>=>enum(Dialect,[transit,mysql]),<<"ingestion">>=>enum(Ingestion,[point,bulk])}},[<<"compiled">>],{compiled,I},undefined);
+    S=transit_sdk_value:text(Sql,1048576),check(byte_size(S)>0),work(#{<<"compile">>=>#{<<"sql">>=>S,<<"namespace">>=>counter(N),<<"operation">>=>decimal(O),<<"create_object">>=>optional(Create,fun decimal/1),<<"dialect">>=>enum(Dialect,[transit,mysql]),<<"ingestion">>=>enum(Ingestion,[point,bulk])}},[<<"compiled">>],{compiled,I},undefined);
 action({prepare,Name,#transit_catalog_identity{operation=O,namespace=N}=I,Operation}) ->
     work(#{<<"prepare">>=>#{<<"definition">>=>definition(),<<"namespace">>=>counter(N),<<"operation">>=>decimal(O),<<"name">>=>identifier(Name),<<"action">>=>operation(Operation)}},[<<"compiled">>],{compiled,I},undefined);
 action({load,Saved}) -> work(#{<<"load">>=>wire(Saved)},[<<"loaded">>],{loaded,Saved},undefined);
@@ -260,7 +260,7 @@ check_request(_,_,_) -> ok.
 reasons() -> [none,name_conflict,object_conflict,stale_definition,stale_data,dependency,constraint,definition_changed,data_changed,duplicate_key,missing_row,invalid_rows,work_limit,condition_changed,rewrite_required,check_violation].
 capabilities(V) ->
     current(get(definition,V)),#transit_catalog_capabilities{version=small(get(version,V)),definition=definition(),max_columns=small(get(max_columns,V)),max_rows=small(get(max_rows,V)),max_sql_bytes=small(get(max_sql_bytes,V)),max_intent_bytes=small(get(max_intent_bytes,V)),max_action_bytes=small(get(max_action_bytes,V)),metadata_page_entries=small(get(metadata_page_entries,V)),resident_intents=small(get(resident_intents,V))}.
-supported(#transit_catalog_capabilities{version=1,max_columns=128,max_rows=1024,max_sql_bytes=4096,max_intent_bytes=I,max_action_bytes=A,metadata_page_entries=8,resident_intents=1}) -> I=:=limit(<<"catalog_intent_bytes">>) andalso A=:=limit(<<"catalog_action_bytes">>);
+supported(#transit_catalog_capabilities{version=1,max_columns=128,max_rows=1024,max_sql_bytes=1048576,max_intent_bytes=I,max_action_bytes=A,metadata_page_entries=8,resident_intents=1}) -> I=:=limit(<<"catalog_intent_bytes">>) andalso A=:=limit(<<"catalog_action_bytes">>);
 supported(_) -> false.
 parse_configuration(V) -> #transit_catalog_configuration{scope=parse_scope(get(scope,V)),branch=wide(get(branch,V)),partition=wide(get(partition,V)),audience=counter(get(audience,V)),authority=parse_authority(get(authority,V)),database_name=identifier(get(database_name,V)),initial_schema_name=identifier(get(initial_schema_name,V))}.
 namespace(V) -> #transit_catalog_namespace{scope=parse_scope(get(scope,V)),id=counter(get(id,V)),authorization=counter(get(authorization,V)),name=identifier(get(name,V)),revision=counter(get(revision,V)),retired=transit_sdk_value:boolean(get(retired,V))}.

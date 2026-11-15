@@ -7,7 +7,7 @@ const Diagnostic = s.results.protocol.Diagnostic;
 const Self = @This();
 pub const capacity = 4;
 pub const lifetime_ms = 300000;
-pub const max_request_bytes = 65536;
+pub const max_request_bytes = 2 * 1024 * 1024;
 pub const Request = struct {
     definition: p.native.Definition,
     action: union(enum) {
@@ -78,7 +78,7 @@ pub fn apply(self: *Self, allocator: std.mem.Allocator, request: Request) !Respo
     }
     if (request.action == .run) {
         const input = request.action.run;
-        if (input.sql.len == 0 or input.sql.len > 60000) return error.InvalidReadStatement;
+        if (input.sql.len == 0 or input.sql.len > p.max_sql_bytes) return error.InvalidReadStatement;
         if (self.find(id)) |existing| {
             if (!std.mem.eql(u8, existing.*.sql, input.sql) or !optionalEqual(existing.*.expected, input.expected_definition)) return error.ReadIdentityConflict;
         } else |_| {

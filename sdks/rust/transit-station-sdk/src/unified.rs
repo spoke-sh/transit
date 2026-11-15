@@ -1178,7 +1178,7 @@ impl Client {
             || name.len() > 255
             || name.is_empty()
             || name.contains('\0')
-            || sql.len() > 4096
+            || sql.len() > 1048576
         {
             return Err(invalid());
         }
@@ -1201,7 +1201,7 @@ impl Client {
             || name.len() > 255
             || name.is_empty()
             || name.contains('\0')
-            || sql.len() > 4096
+            || sql.len() > 1048576
         {
             return Err(invalid());
         }

@@ -171,7 +171,7 @@ function fixture(role: number | null = null) {
           },
           sql: {
             version: 1,
-            statement_bytes: 4096,
+            statement_bytes: 1048576,
             named_columns: 128,
             star_columns: 128,
             uint64_limits: true,

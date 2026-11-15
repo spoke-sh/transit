@@ -251,7 +251,18 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         before = len(SESSION_ACTIONS)
         invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error',), data=data)
         assert all(action != 'execute' for action, _ in SESSION_ACTIONS[before:]), 'Unclosed batch input reached SQL execution'
-    invoke(['console', '--no-rc', '--config', path], 1, ('4096-byte statement limit',), data=b'SELECT '+b'x'*4096)
+    before = len(SESSION_ACTIONS)
+    invoke(['console', '--no-rc', '--config', path], 1, ('1048576-byte statement limit',), data=b'SELECT '+b'x'*1048576)
+    assert all(action != 'execute' for action, _ in SESSION_ACTIONS[before:]), 'Oversized statement reached SQL execution'
+    streamed = invoke(['console', '--no-rc', '--config', path], 0,
+                      data=b'/* ' + b'c' * (2 * 1024 * 1024 + 17) + b' */\n.show\n-- ' + b'd' * (1024 * 1024 + 9) + b'\n.show\n')
+    assert streamed.stdout.count(SQL_ENDPOINT.encode()) == 2
+    before = len(SESSION_ACTIONS)
+    large_sql = b"SELECT '" + b'a' * 70000 + b"' FROM items;"
+    invoke(['console', '--no-rc', '--config', path], 1, ('Unknown column',),
+           data=b'/* ' + b'c' * 131072 + b' */\n' + large_sql + b'\n')
+    executed = [value['sql'] for action, value in SESSION_ACTIONS[before:] if action == 'execute']
+    assert executed == [large_sql.decode()], len(executed)
     # Built-in roles ignore adjacent files and PATH; explicit overrides still validate.
     adjacent, search = root/'bin', root/'search'
     adjacent.mkdir(); search.mkdir()

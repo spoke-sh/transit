@@ -153,8 +153,31 @@ test "program annotations obey compiler budgets and whole-statement bounds" {
         try std.testing.expectError(case[1], c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = text }}, .{ .compiler_revision = "program-bounds", .limits = case[0] }, &diagnostic));
         try diagnostic.?.validate();
     }
-    var body: std.Io.Writer.Allocating = .init(std.testing.allocator);
-    defer body.deinit();
-    for (0..200) |_| try body.writer.writeAll("REQUIRE request.id = $expected ELSE 'WrongId'; ");
-    try std.testing.expectError(error.BuildStatementLimit, build(std.testing.allocator, body.written()));
+    var medium: std.Io.Writer.Allocating = .init(std.testing.allocator);
+    defer medium.deinit();
+    for (0..120) |_| try medium.writer.writeAll("REQUIRE request.id = $expected ELSE 'WrongId'; ");
+    const expanded = try build(std.testing.allocator, medium.written());
+    defer expanded.deinit();
+    try std.testing.expect(expanded.steps[5].sql.len > 4096);
+    const long_lit = try std.testing.allocator.alloc(u8, 300_000);
+    defer std.testing.allocator.free(long_lit);
+    @memset(long_lit, 'x');
+    const program_oversized = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "{s} CREATE MODULE Workflow(expected MachineId, text Label) AS BEGIN CREATE PUBLIC DATAFLOW process FROM QUEUE requests AS request AS BEGIN REQUIRE request.label = $text ELSE 'WrongLabel'; REQUIRE request.label = $text ELSE 'WrongLabel'; REQUIRE request.label = $text ELSE 'WrongLabel'; REQUIRE request.label = $text ELSE 'WrongLabel'; END; END; CREATE TARGET default AS BEGIN USE Resources(TYPE MachineId, TYPE SiteId, TYPE Label, TYPE Flag); USE Workflow(MachineId(-7), Label('{s}')); END;",
+        .{ declarations, long_lit },
+    );
+    defer std.testing.allocator.free(program_oversized);
+    var limit_diag: ?p.Diagnostic = null;
+    try std.testing.expectError(error.BuildStatementLimit, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = program_oversized }}, .{ .compiler_revision = "program-bounds" }, &limit_diag));
+    try limit_diag.?.validate();
+    const non_program_oversized = try std.fmt.allocPrint(
+        std.testing.allocator,
+        "CREATE MODULE Seed(label TEXT) AS BEGIN CREATE PUBLIC TABLE items (id BIGINT PRIMARY KEY, a TEXT NOT NULL, b TEXT NOT NULL, c TEXT NOT NULL, d TEXT NOT NULL); INSERT INTO items VALUES (1, $label, $label, $label, $label); END; CREATE TARGET default AS BEGIN USE Seed('{s}'); END;",
+        .{long_lit},
+    );
+    defer std.testing.allocator.free(non_program_oversized);
+    var sql_diag: ?p.Diagnostic = null;
+    try std.testing.expectError(error.BuildStatementLimit, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = non_program_oversized }}, .{ .compiler_revision = "program-bounds" }, &sql_diag));
+    try sql_diag.?.validate();
 }

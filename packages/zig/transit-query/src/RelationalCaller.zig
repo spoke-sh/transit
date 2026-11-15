@@ -57,9 +57,9 @@ pub const Profile = struct {
 };
 pub const Request = union(enum) { describe, query: b.Action };
 pub const Response = union(enum) { description: Profile, query: b.Result };
-pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.fuze.Relational.max_outputs, .text_max_length = 4096 };
-pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.fuze.Relational.max_outputs, .text_max_length = 4096 };
-pub const max_request_bytes = 16384;
+pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = q.fuze.Relational.max_outputs, .text_max_length = q.fuze.Sql.max_statement_bytes };
+pub const request_schema_options: q.protocol.Schema.Options = .{ .safe_integers = true, .sequence_max_length = q.fuze.Relational.max_outputs, .text_max_length = q.fuze.Sql.max_statement_bytes };
+pub const max_request_bytes = 2 * 1024 * 1024;
 
 /// Metadata inspection checks every configured catalog; it never opens data cuts.
 pub fn describe(self: *Self, allocator: std.mem.Allocator) !Profile {

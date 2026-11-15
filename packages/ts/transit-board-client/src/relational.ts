@@ -247,7 +247,7 @@ export async function relationalQuery(
   signal?: AbortSignal,
 ): Promise<RelationalResponse> {
   const owned = structuredClone(operation);
-  if (!requestSchema(owned) || new TextEncoder().encode(JSON.stringify(owned)).length > 16384)
+  if (!requestSchema(owned) || new TextEncoder().encode(JSON.stringify(owned)).length > 2097152)
     throw new BoardError(0, "InvalidQuery");
   let response: RelationalResponse;
   for (let attempt = 0; ; attempt++) {

@@ -209,7 +209,7 @@ export function RelationalWorkspace() {
         <textarea
           aria-label="Relational SQL"
           value={sql}
-          maxLength={4096}
+          maxLength={1048576}
           onChange={(event) => {
             setSql(event.target.value);
             setProposed(null);

@@ -9,8 +9,8 @@ const b = q.RelationalBridge;
 const h = c.DirectTableValues;
 const retention = c.DirectCatalogRetention;
 const Self = @This();
-pub const max_request_bytes = 16384;
-pub const max_journal_bytes = 32768;
+pub const max_request_bytes = 2 * 1024 * 1024;
+pub const max_journal_bytes = 4 * 1024 * 1024;
 pub const schema_options = q.RelationalCaller.schema_options;
 pub const request_schema_options = q.RelationalCaller.request_schema_options;
 pub const Open = struct {
@@ -132,7 +132,7 @@ fn validate(self: *Self, record: Record) !void {
     if (!std.mem.eql(u8, &record.profile, &self.profile) or record.pins.len != record.input.sources.len) return error.InvalidRelationalRecovery;
     if (record.input.sources.len == 0 or record.input.sources.len > 2 or record.input.statement.routes.len != record.input.sources.len) return error.InvalidRelationalRecovery;
     _ = try nonce(record.input.id);
-    if (record.input.statement.sql.len == 0 or record.input.statement.sql.len > 4096) return error.InvalidRelationalRecovery;
+    if (record.input.statement.sql.len == 0 or record.input.statement.sql.len > q.fuze.Sql.max_statement_bytes) return error.InvalidRelationalRecovery;
     for (record.pins, record.input.sources, 0..) |pin, source, i| {
         const client = try self.clientFor(record.input, i);
         const expected = try source.position.native();

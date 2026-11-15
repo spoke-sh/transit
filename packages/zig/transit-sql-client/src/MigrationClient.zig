@@ -31,10 +31,10 @@ pub fn loadSourceFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8
     const basename = std.fs.path.basename(path);
     const parsed = try parseFilename(basename);
     // The reader needs one byte beyond the inclusive source limit to prove EOF.
-    const sql = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(api.max_sql_bytes + 1));
+    const sql = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(Migration.max_source_bytes + 1));
     errdefer allocator.free(sql);
     if (sql.len == 0) return error.EmptyMigrationSource;
-    _ = try api.fuze.SqlInput.SourceScan.init(sql);
+    _ = try api.fuze.SqlInput.ScriptScan.init(sql);
     var sha: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(sql, &sha, .{});
     const version_id = try allocator.dupe(u8, parsed.version_id);
@@ -144,9 +144,11 @@ test "migration file loading keeps the source budget separate from statement adm
     defer temporary.cleanup();
     const path = try std.fs.path.join(t.allocator, &.{ ".zig-cache", "tmp", &temporary.sub_path, "0001-source.sql" });
     defer t.allocator.free(path);
-    var bytes: [api.max_sql_bytes + 1]u8 = @splat(' ');
-    @memcpy(bytes[60000..60009], "SELECT 1;");
-    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = bytes[0..api.max_sql_bytes] });
+    const bytes = try t.allocator.alloc(u8, Migration.max_source_bytes + 1);
+    defer t.allocator.free(bytes);
+    @memset(bytes, ' ');
+    @memcpy(bytes[api.max_sql_bytes + 100 ..][0..9], "SELECT 1;");
+    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = bytes[0..Migration.max_source_bytes] });
     const Check = struct {
         fn run(allocator: std.mem.Allocator, source_path: []const u8) !void {
             const source = try loadSourceFile(allocator, t.io, source_path);
@@ -155,7 +157,7 @@ test "migration file loading keeps the source budget separate from statement adm
             defer allocator.free(source.path);
             defer allocator.free(source.sql);
             try source.validate();
-            try t.expectEqual(api.max_sql_bytes, source.sql.len);
+            try t.expectEqual(Migration.max_source_bytes, source.sql.len);
             try t.expectError(error.StatementTooLarge, api.fuze.Sql.validateText(source.sql));
             var script = try api.fuze.SqlScript.init(source.sql);
             const statement = (try script.next()).?;
@@ -164,7 +166,7 @@ test "migration file loading keeps the source budget separate from statement adm
         }
     };
     try t.checkAllAllocationFailures(t.allocator, Check.run, .{path});
-    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = &bytes });
+    try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = bytes });
     try t.expectError(error.StreamTooLong, loadSourceFile(t.allocator, t.io, path));
     for ([_][]const u8{ "SELECT\x001;", "SELECT\xff1;" }) |invalid| {
         try temporary.dir.writeFile(t.io, .{ .sub_path = "0001-source.sql", .data = invalid });

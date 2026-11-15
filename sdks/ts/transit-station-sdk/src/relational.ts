@@ -59,7 +59,7 @@ function statement(value: Statement): Extract<Action, { explain: unknown }>["exp
     throw new TypeError("Select one or two explicit catalog routes");
   return {
     namespace: integer(value.namespace ?? 1, "namespace"),
-    sql: text(value.sql, 4096),
+    sql: text(value.sql, 1048576),
     routes: value.routes.map((v) => integer(v, "route", 0, 1)),
   };
 }

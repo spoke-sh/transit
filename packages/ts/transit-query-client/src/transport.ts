@@ -17,10 +17,10 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
   )
     throw new QueryError(0, "InvalidTransport");
   return async (request, signal) => {
-    if (!boundedQueryJson(request) || !validRequest(request))
+    if (!boundedQueryJson(request, 2097152) || !validRequest(request))
       throw new QueryError(0, "InvalidRequest");
     const body = JSON.stringify(request);
-    if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
+    if (new TextEncoder().encode(body).length > 2097152) throw new QueryError(0, "RequestTooLarge");
     // These operations read or prepare only. Keep this allowlist explicit so a
     // future effectful request cannot inherit read-conflict retry accidentally.
     const readOnly = [

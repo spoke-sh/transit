@@ -9,10 +9,10 @@ export function boundedReadTransport<Q, R>(
   control: (request: Q) => boolean,
 ) {
   return async (request: Q, signal?: AbortSignal): Promise<R> => {
-    if (!boundedQueryJson(request) || !validRequest(request))
+    if (!boundedQueryJson(request, 2097152) || !validRequest(request))
       throw new QueryError(0, "InvalidRequest");
     const body = JSON.stringify(request);
-    if (new TextEncoder().encode(body).length > 65536) throw new QueryError(0, "RequestTooLarge");
+    if (new TextEncoder().encode(body).length > 2097152) throw new QueryError(0, "RequestTooLarge");
     const deadline = signal
       ? AbortSignal.any([signal, AbortSignal.timeout(6000)])
       : AbortSignal.timeout(6000);

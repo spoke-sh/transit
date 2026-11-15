@@ -1559,7 +1559,7 @@ impl Capabilities {
         self.version == 1
             && self.max_columns == 128
             && self.max_rows == 1024
-            && self.max_sql_bytes == 4096
+            && self.max_sql_bytes == 1048576
             && self.max_intent_bytes == abi::CATALOG_INTENT_BYTES
             && self.max_action_bytes == abi::CATALOG_ACTION_BYTES
             && self.metadata_page_entries == 8
@@ -2524,7 +2524,7 @@ impl Client {
         dialect: Dialect,
         ingestion: Ingestion,
     ) -> Result<Compiled> {
-        text(sql, 4096)?;
+        text(sql, 1048576)?;
         create_object.map(positive).transpose()?;
         self.compiled(json!({"compile":{"sql":sql,"namespace":identity.namespace,"operation":identity.operation.to_string(),"create_object":create_object.map(|v|v.to_string()),"dialect":dialect.tag(),"ingestion":ingestion.tag()}}),identity)
     }

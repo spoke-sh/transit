@@ -36,10 +36,10 @@ pub fn text(self: Self, out: *std.Io.Writer, color: Color, value: []const u8) !v
 
 /// Shared token colors for the editable draft, submitted echo and redacted SQL.
 pub const Syntax = struct {
-    roles: [fuze.Sql.max_statement_bytes]fuze.Sql.TokenRole = @splat(.unknown),
+    roles: [input.max_editor_bytes]fuze.Sql.TokenRole = @splat(.unknown),
 
     pub fn init(value: []const u8) Syntax {
-        _ = input.Scan.init(value) catch return .{};
+        _ = input.EditorScan.init(value) catch return .{};
         var result: Syntax = .{};
         var start: usize = 0;
         while (start < value.len) {
@@ -150,15 +150,36 @@ test "diagnostic colors use original context after redaction and clipping" {
 }
 
 pub fn sql(self: Self, out: *std.Io.Writer, value: []const u8) !void {
-    var syntax = Syntax.init(value);
+    if (!self.enabled) return out.writeAll(value);
+    if (value.len <= input.max_editor_bytes) {
+        var syntax = Syntax.init(value);
+        var active: Color = .plain;
+        for (value, 0..) |byte, offset| {
+            const color = syntax.at(offset);
+            if (color != active) try out.writeAll(self.code(color));
+            active = color;
+            try out.writeByte(byte);
+        }
+        if (active != .plain) try out.writeAll(self.code(.plain));
+        return;
+    }
+    var scan = input.Scan.init(value) catch return out.writeAll(value);
     var active: Color = .plain;
-    for (value, 0..) |byte, offset| {
-        const color = syntax.at(offset);
+    while (scan.next() catch null) |token| {
+        const slice = value[token.start..token.end];
+        const color: Color = switch (token.kind) {
+            .word => if (fuze.Sql.isReserved(slice)) .word else .plain,
+            .string => .literal,
+            .number => .number,
+            .comment => .comment,
+            .space, .quoted, .symbol => .plain,
+        };
         if (color != active) try out.writeAll(self.code(color));
         active = color;
-        try out.writeByte(byte);
+        try out.writeAll(slice);
     }
     if (active != .plain) try out.writeAll(self.code(.plain));
+    if (scan.position < value.len) try out.writeAll(value[scan.position..]);
 }
 
 /// Excerpt roles were captured before masking and clipping the original input.
