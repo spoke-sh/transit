@@ -69,7 +69,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const web_dependencies = b.addSystemCommand(&.{ "vp", "install", "--frozen-lockfile" });
     web_dependencies.setCwd(b.path("."));
     web_dependencies.has_side_effects = true;
-    web_dependencies.stdio = .inherit;
+    // Keep package-manager chatter out of machine-readable build targets such
+    // as fixture-authority. Zig retains the captured output for diagnostics.
+    _ = web_dependencies.captureStdOut(.{});
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
     const station_flight = b.dependency("transit_station_flight", .{ .target = target, .optimize = optimize });
