@@ -29475,14 +29475,14 @@
     "packages/zig/transit-query-direct/src/ApplicationInvocation.zig": {
       "errors": {
         "ClientOperationMissing": 1,
-        "Conflict": 1,
+        "Conflict": 3,
         "DataflowIdentityConflict": 2,
         "DataflowLeaseFenced": 3,
         "IncompatibleDefinition": 2,
         "InvalidApplicationEffect": 2,
         "InvalidAuthorizationRole": 1,
         "InvalidDataflowTransition": 1,
-        "InvalidDirectRecord": 29,
+        "InvalidDirectRecord": 31,
         "InvalidProgramNode": 1,
         "InvalidQueueResponse": 3,
         "OwnedRecordAttached": 1,
@@ -29519,7 +29519,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 111,
+        "try": 115,
         "catch": 3
       },
       "imports": [
@@ -39006,7 +39006,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 170,
+        "try": 172,
         "catch": 26
       },
       "imports": [
@@ -48808,6 +48808,7 @@
     },
     "packages/zig/transit-test/src/Runner.zig": {
       "errors": {
+        "Conflict": 1,
         "GatewayMutationRejected": 1,
         "TestIncompleteResult": 1,
         "TestInvalidExpectation": 4,
@@ -48840,10 +48841,10 @@
         "run()": "<inferred>",
         "workflow()": "<inferred>"
       },
-      "open_error_set_uses": 0,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 44,
-        "catch": 1
+        "try": 48,
+        "catch": 5
       },
       "imports": [
         "std",

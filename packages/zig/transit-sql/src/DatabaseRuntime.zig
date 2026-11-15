@@ -66,18 +66,17 @@ const TableClaim = struct {
     pending: ?c.DirectClientToken.Progress = null,
 };
 pub fn notify(self: *Self) void {
-    if (self.foreground_active.load(.acquire) != 0) {
-        self.foreground_notified.store(true, .release);
-        return;
+    self.foreground_notified.store(true, .seq_cst);
+    if (self.foreground_active.load(.seq_cst) == 0) {
+        if (self.foreground_notified.swap(false, .seq_cst)) self.work.notify(self.io);
     }
-    self.work.notify(self.io);
 }
 fn beginForeground(self: *Self) void {
-    _ = self.foreground_active.fetchAdd(1, .acquire);
+    _ = self.foreground_active.fetchAdd(1, .seq_cst);
 }
 fn endForeground(self: *Self) void {
-    if (self.foreground_active.fetchSub(1, .acq_rel) == 1) {
-        if (self.foreground_notified.swap(false, .acq_rel)) self.work.notify(self.io);
+    if (self.foreground_active.fetchSub(1, .seq_cst) == 1) {
+        if (self.foreground_notified.swap(false, .seq_cst)) self.work.notify(self.io);
     }
 }
 pub fn notifyExternal(self: *Self) void {
@@ -216,6 +215,39 @@ test "progress notifications survive the status-to-wait gap and preserve deadlin
     };
     var task = try t.io.concurrent(Wait.run, .{ &runtime, runtime.progress_epoch.load(.acquire), deadline });
     if (task.cancel(t.io)) |_| return error.CancellationMissing else |err| try t.expect(err == error.Canceled or err == error.Cancelled);
+}
+
+test "foreground coalescing never loses a concurrent publication wakeup" {
+    const t = std.testing;
+    var runtime: Self = undefined;
+    runtime.io = t.io;
+    runtime.work = .{};
+    runtime.foreground_active = .init(0);
+    runtime.foreground_notified = .init(false);
+    runtime.work.finish(t.io, runtime.work.begin(t.io).?, false);
+    try t.expectEqual(@as(?u64, null), runtime.work.begin(t.io));
+
+    runtime.beginForeground();
+    runtime.notify();
+    try t.expectEqual(@as(?u64, null), runtime.work.begin(t.io));
+    runtime.endForeground();
+    const coalesced = runtime.work.begin(t.io) orelse return error.LostForegroundNotification;
+    runtime.work.finish(t.io, coalesced, false);
+    try t.expectEqual(@as(?u64, null), runtime.work.begin(t.io));
+
+    const Producer = struct {
+        fn run(value: *Self) void {
+            value.notify();
+        }
+    };
+    for (0..512) |_| {
+        runtime.beginForeground();
+        var producer = try t.io.concurrent(Producer.run, .{&runtime});
+        runtime.endForeground();
+        producer.await(t.io);
+        const generation = runtime.work.begin(t.io) orelse return error.LostConcurrentNotification;
+        runtime.work.finish(t.io, generation, false);
+    }
 }
 
 test "per-table DML stripes preserve fresh single-writer preparation and force refresh after concurrent advancement" {
@@ -685,7 +717,16 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
             if (resource.value != .log or resource.value.log.declaration.stored.declaration.configuration.partitioning.count != 1) return error.InvalidLogPartitioning;
         }
         const owner: g.direct.ApplicationInvocation = .{ .manager = manager };
-        if (try owner.start(declared.value, 0) != null) self.application_pending = true;
+        if (try owner.start(declared.value, 0) != null) {
+            self.application_pending = true;
+        } else {
+            const latest = try manager.inspect(declared.value);
+            if (latest.head.control.state == .retired) {
+                _ = try manager.cleanup(declared.value);
+            } else if (latest.head.control.state == .active) {
+                self.application_pending = true;
+            }
+        }
     }
 }
 fn finishSweep(self: *Self, retry: bool) void {

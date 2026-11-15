@@ -41,6 +41,20 @@ const CaseAction = struct {
         return result.passed;
     }
 };
+const PublicationWatcher = struct {
+    io: std.Io,
+    changes: *g.wire.LocalEndpoint.Changes,
+    runtime: *g.DatabaseRuntime,
+    stop: *const std.atomic.Value(bool),
+    fn run(self: *const @This()) void {
+        var previous: u64 = 0;
+        while (!self.stop.load(.acquire)) {
+            previous = self.changes.wait(self.io, previous) catch return;
+            if (self.stop.load(.acquire)) return;
+            self.runtime.notify();
+        }
+    }
+};
 const Worker = struct {
     runtime: *g.DatabaseRuntime,
     stop: std.atomic.Value(bool) = .init(false),
@@ -131,6 +145,9 @@ const Host = struct {
         defer cleanup.restore();
         const protection = self.io.swapCancelProtection(.blocked);
         defer _ = self.io.swapCancelProtection(protection);
+        if (runtime.read_pins) |*pins| {
+            pins.drain(session.table) catch |err| return if (err == error.OutOfMemory) err else error.TestReadCleanupFailed;
+        }
         runtime.drainReadPins() catch |err| return if (err == error.OutOfMemory) err else error.TestReadCleanupFailed;
         if (runtime.read_cleanup_failure.load(.acquire) != 0) return error.TestReadCleanupFailed;
     }
@@ -139,8 +156,11 @@ fn runIsolated(init: std.process.Init, directory: std.Io.Dir, path: []const u8, 
     var host: Host = .{ .io = init.io, .resources = action.resources, .diagnostics = .init(init.io, "transit-test", .{ .level = .off }) };
     defer host.deinit();
     const outcome = try bounded(CaseOutcome, init.io, deadline, execute, .{ &host, init, directory, path, deadline, action, storage });
-    bounded(void, init.io, .init(init.io, cleanup_ms, null), Host.drain, .{&host}) catch |err| return if (err == error.OutOfMemory) err else error.TestReadCleanupFailed;
-    return outcome.result;
+    const drain_result = bounded(void, init.io, .init(init.io, cleanup_ms, null), Host.drain, .{&host});
+    if (drain_result) |_| {} else |err| if (err == error.OutOfMemory) return err;
+    const passed = try outcome.result;
+    drain_result catch return error.TestReadCleanupFailed;
+    return passed;
 }
 /// Cancellation joins the operation before any borrowed stack or directory is
 /// released. Cleanup calls use a fresh deadline, independent of the case cap.
@@ -252,12 +272,19 @@ fn execute(host: *Host, init: std.process.Init, directory: std.Io.Dir, path: []c
     defer scope.restore();
     const endpoint = local.endpoint();
     var worker: Worker = .{ .runtime = runtime };
+    const watcher: ?PublicationWatcher = if (endpoint.changes) |changes| .{ .io = init.io, .changes = changes, .runtime = runtime, .stop = &worker.stop } else null;
+    var publications: ?std.Io.Future(void) = if (watcher) |*active_watcher| try init.io.concurrent(PublicationWatcher.run, .{active_watcher}) else null;
+    var publications_joined = false;
+    defer if (!publications_joined) if (publications) |*watcher_task| watcher_task.cancel(init.io);
     var task = try init.io.concurrent(Worker.run, .{&worker});
     var joined = false;
     defer if (!joined) task.cancel(init.io);
     const result = action.call(action.context, .{ .session = session, .runtime = runtime, .authority = .{ .wire = wire, .root = root }, .role = installed.role, .endpoint = endpoint });
     worker.stop.store(true, .release);
+    if (endpoint.changes) |changes| changes.notify(init.io);
     runtime.notify();
+    if (publications) |*watcher_task| watcher_task.await(init.io);
+    publications_joined = true;
     task.await(init.io);
     joined = true;
     if (worker.failure.load(.acquire) != 0) return @errorFromInt(worker.failure.load(.acquire));

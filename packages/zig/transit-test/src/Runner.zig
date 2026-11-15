@@ -139,15 +139,43 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
     var interval_ms: u32 = 10;
     while (remaining > 0) : (remaining -= 1) {
         try session.deadline.check(session.io);
-        try session.current();
-        const observed = try session.fresh(observeWorkflow, .{ session, declaration.value });
+        session.current() catch |err| if (workflowObservationContended(session.wire.last_rejection, err)) {
+            try session.deadline.check(session.io);
+            if (remaining > 1) {
+                try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+                interval_ms = @min(interval_ms * 2, 50);
+            }
+            continue;
+        } else return err;
+        const observed = session.fresh(observeWorkflow, .{ session, declaration.value }) catch |err| if (workflowObservationContended(session.wire.last_rejection, err)) {
+            try session.deadline.check(session.io);
+            if (remaining > 1) {
+                try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+                interval_ms = @min(interval_ms * 2, 50);
+            }
+            continue;
+        } else return err;
         try observed.head.validate();
         if (observed.head.completed > expected.completed or observed.head.refused > expected.refused) return .workflow_counts;
         if (observed.head.completed == expected.completed and observed.head.refused == expected.refused) {
             // Recheck disclosure against the same frozen declaration. A new
             // definition or a namespace permission alone cannot stand in for it.
-            try session.current();
-            const disclosed = try session.fresh(observeWorkflow, .{ session, declaration.value });
+            session.current() catch |err| if (workflowObservationContended(session.wire.last_rejection, err)) {
+                try session.deadline.check(session.io);
+                if (remaining > 1) {
+                    try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+                    interval_ms = @min(interval_ms * 2, 50);
+                }
+                continue;
+            } else return err;
+            const disclosed = session.fresh(observeWorkflow, .{ session, declaration.value }) catch |err| if (workflowObservationContended(session.wire.last_rejection, err)) {
+                try session.deadline.check(session.io);
+                if (remaining > 1) {
+                    try session.io.sleep(.fromMilliseconds(interval_ms), .awake);
+                    interval_ms = @min(interval_ms * 2, 50);
+                }
+                continue;
+            } else return err;
             if (disclosed.head.completed == expected.completed and disclosed.head.refused == expected.refused) return null;
         }
         if (remaining > 1) {
@@ -156,6 +184,10 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
         }
     }
     return .workflow_progress;
+}
+
+pub fn workflowObservationContended(rejection: ?g.catalog.protocol.ErrorCode, err: anyerror) bool {
+    return g.wire.Client.unavailable(err) or (err == error.Conflict and rejection == .Conflict);
 }
 
 fn observeWorkflow(session: *g.Session, declaration: g.direct.ApplicationDeclaration) !g.direct.ManagedApplication.Observation {
@@ -212,4 +244,14 @@ test "empty expected rows require zero observed rows" {
     defer bag.deinit();
     try std.testing.expectEqual(0, bag.remaining);
     try std.testing.expect(!bag.take("row"));
+}
+test "workflow observation retry classifies only transient contention" {
+    try std.testing.expect(workflowObservationContended(.Conflict, error.Conflict));
+    try std.testing.expect(workflowObservationContended(null, error.AuthorityTimeout));
+    try std.testing.expect(!workflowObservationContended(null, error.GatewayOwnerUnavailable));
+    try std.testing.expect(!workflowObservationContended(.TableDefinitionChanged, error.Conflict));
+    try std.testing.expect(!workflowObservationContended(.StaleAuthorizationCredential, error.Conflict));
+    try std.testing.expect(!workflowObservationContended(null, error.Conflict));
+    try std.testing.expect(!workflowObservationContended(.AuthorizationSubjectDenied, error.AccessDenied));
+    try std.testing.expect(!workflowObservationContended(null, error.Canceled));
 }
