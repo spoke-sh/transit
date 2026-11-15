@@ -91,6 +91,16 @@ def run(profile, reactive=False, views=False):
                     contention_retries += 1
                     time.sleep(min(.1 * contention_retries, .5))
                     continue
+                if (expected == 200 and path == '/serving/v1/read' and status == 503 and
+                    decoded.get('err') == 'ServingRequestFailed' and
+                    decoded.get('diagnostic', {}).get('code') == 'serving.transport_unavailable' and
+                    time.monotonic() < deadline):
+                    # Physical replacement can close an authority connection
+                    # during an observation. Repeat only this signed read; the
+                    # original command and its completion assertions stay fixed.
+                    transport_retries += 1
+                    time.sleep(min(.1 * transport_retries, .5))
+                    continue
                 if retries or transport_retries or contention_retries:
                     print(f'Serving placement exact request: {retries} capacity refusals, {contention_retries} native contention retries, {transport_retries} uncertain transport retries before status {status}', flush=True)
                 assert status == expected, (path, status, body[:500], expected)

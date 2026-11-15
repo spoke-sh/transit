@@ -67,8 +67,10 @@ class TLSProxy:
             except subprocess.TimeoutExpired:
                 self.process.kill()
                 self.process.wait(timeout=5)
+            self.process = None
         if self.log:
             if exc and exc[0]:
                 self.log.seek(0)
                 print(self.log.read()[-4000:])
             self.log.close()
+            self.log = None
