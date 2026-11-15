@@ -2368,8 +2368,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const callers = b.addSystemCommand(&.{ "python3", "-B" });
     callers.addFileArg(b.path("tests/runner/launch.py"));
     callers.addFileArg(b.path("tests/runtime/application/callers.py"));
-    // Both callers use the exact same authority and private native driver.
-    callers.addArtifactArg(transit_cli);
+    // Both callers share the server with its test-only receipt-loss boundary
+    // and the private native driver.
+    callers.addArtifactArg(fault_server);
     callers.addArtifactArg(native_client_fixture);
     for (example_artifacts) |example| callers.addArtifactArg(example);
     const client_probe = b.addExecutable(.{ .name = "client-probe", .root_module = b.createModule(.{
@@ -2382,7 +2383,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     build_test_step.dependOn(&client_probe.step);
     callers.has_side_effects = true;
     callers.stdio = .inherit;
-    b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);
+    b.step("test-callers", "Prove two independent Zig applications against one server-owned authority").dependOn(&callers.step);
     const vortex = b.addSystemCommand(&.{ "python3", "-B" });
     vortex.addFileArg(b.path("tests/runner/launch.py"));
     vortex.addFileArg(b.path("tests/runtime/delivery/vortex.py"));
