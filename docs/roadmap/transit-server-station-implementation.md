@@ -1,7 +1,7 @@
 # Server ownership of Station services and controller removal
 
 [Milestone 3](03-live-storage-and-sql-cutover.md#p7--deliver-the-single-executable-local-profile)
-· **Status: In progress** · 2026-11-14
+· **Status: In Progress** · 2026-11-14
 
 Make `transit server` advance declared Station timers and supervisor retry
 intents, then remove `transit-station-controller` from executable builds,
@@ -10,14 +10,34 @@ waits, child policies and accepted work; operators run the service through the
 server and inspect whether its registered obligations are progressing.
 
 **Planning source basis:** `caaf43a2b`, after the admin and delivery executable
-removals. Implementation proceeds on `plan/server-station-controller-ownership`;
-the public server and installation references own the resulting interfaces.
-Qualification remains pending until the required runtime and clean gates pass.
+removals. Implementation is committed through `b05f6f640` on
+`plan/server-station-controller-ownership`. The [server guide](../../apps/transit-cli/docs/server.md#station-services)
+and [application guide](../../apps/transit-cli/docs/applications.md) own the current
+interfaces. The delivery sequence and acceptance matrix below preserve the plan;
+they do not establish qualification. The [executed account](../history/qualification/deployment.md#server-ownership-of-station-services--2026-11-14)
+records passing checks and the unresolved clean installation/UI gate.
 It follows the [delivery ownership plan](transit-server-delivery-implementation.md)
 and leaves the broader [Station transaction cutover](station-transaction-implementation.md)
 with Milestone 6. Milestone statuses and earlier proof claims remain unchanged.
 
-## Proposed outcome and scope
+## Delivered scope and remaining qualification
+
+The registration/current-v1 cutover, server ownership, Local/Compose/reference
+migrations, and executable/publication removal are implemented. Local
+applications register explicit services in their signed declaration. External
+workers use `station.file`; the first authenticated manifest is frozen across
+retained restart. Separate observer and lifecycle credentials preserve the
+framework boundary. Provider retry still requires confirmed stop and fresh
+placement supplied by the deployment.
+
+The full clean installation/UI lane remains open because managed Table atomic
+work refuses `ClockUnavailable`. Each constituent task has a separate passing
+result, but that does not establish a complete clean-lane pass. The remaining runtime and release checks, including console latency, pass;
+exact results belong to the linked executed account. No live migration
+from an old controller, live manifest update, or new provider authority is
+introduced.
+
+## Outcome and scope
 
 Keep `station.Controller` as the framework owner. Compose its observer and
 lifecycle roles inside the `transit` executable, supervised by `transit server`
@@ -39,13 +59,13 @@ application registry, implement high availability, or replace timers with Queues
 Existing historical GHCR versions and versioned installation bundles remain
 available; deleting published history is a separate administrative action.
 
-## Current responsibilities and integration gap
+## Responsibilities and integration gap at the planning baseline
 
 The standalone [entry point](https://github.com/spoke-sh/transit/blob/caaf43a2b/apps/transit-station-controller/main.zig) is a
 configuration, clock and polling wrapper around
 [Controller](../../packages/zig/transit-station/src/Controller.zig).
 
-| Owner | Current responsibility | Boundary to preserve |
+| Owner | Responsibility at the planning baseline | Boundary to preserve |
 | --- | --- | --- |
 | Observer mode | Read durable waits and child subscriptions; send authenticated timeout and lifecycle observations | Trusted wall-clock evidence and current send/inspect/resource-read rights; workers validate the recorded observer identity |
 | [Waiting](../../packages/zig/transit-station/src/Waiting.zig) | Close a wait once through reply, timeout or cancellation in admitted mailbox order | A delayed timer is not a hard expiry clock; closure cannot undo accepted peer work |
@@ -53,17 +73,18 @@ configuration, clock and polling wrapper around
 | Lifecycle mode | Apply a recorded retry against the exact generation and failure record | Separate child-scoped admin/inspect identity and explicit resource grants; provider stop must be confirmed first |
 | [Runtime controller](../../apps/transit-runtime-controller/README.md) | Reconcile physical placement and fresh activation | Provider state does not grant execution authority |
 
-The server's [embedded roles](../../apps/transit-cli/RuntimeRole.zig) and
-[supervision loop](../../apps/transit-cli/server/Server.zig) do not include these
-Station services. The [Station launcher](../../launchers/station_example.py)
-currently provisions their identities, grants and watch configurations. Each
-controller accepts one to four explicit watches; there is no automatic realm-wide
-Station discovery. Its seen cache suppresses duplicate observations but owns no
-durable waiting or child state.
+At the planning baseline, the server's [embedded roles](../../apps/transit-cli/RuntimeRole.zig)
+and [supervision loop](../../apps/transit-cli/server/Server.zig) did not include
+these Station services. The [Station launcher](../../launchers/station_example.py)
+provisioned their identities, grants and watch configurations. Each controller
+accepted one to four explicit watches, with no automatic realm-wide Station
+discovery. Its seen cache suppressed duplicate observations but owned no durable
+waiting or child state. The implemented server retains explicit watch registration
+and the same framework authority boundary.
 
-Removing publication alone would leave those deployments without timer
-observations and supervised retry progress. The missing work is server ownership
-of registration, credentials and lifecycle, followed by consumer migration.
+Removing publication alone would have left those deployments without timer
+observations and supervised retry progress. The implementation adds server
+ownership of registration, credentials and lifecycle, and migrates those consumers.
 
 ## Contract decisions before runtime changes
 
