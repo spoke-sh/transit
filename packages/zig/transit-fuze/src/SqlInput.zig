@@ -1,9 +1,12 @@
-//! Bounded editor framing around the selected SQL lexer rules. No execution.
-//! This accepts unfinished tokens; Sql.parse remains authoritative at submission.
+//! Bounded and streaming lexical framing around the selected SQL lexer rules.
+//! Accepts unfinished tokens for editing; Sql.parse remains authoritative at submission.
 const std = @import("std");
 const sql = @import("Sql.zig");
 pub const Kind = enum { space, comment, word, number, string, quoted, symbol };
 pub const Token = Scan.Token;
+/// Interactive line-editor drafts and cursor assistance remain u16-addressed.
+pub const max_editor_bytes = 4096;
+pub const EditorScan = Scanner(u16, max_editor_bytes);
 /// File/program lexing has a separate bound from interactive statements. Editor
 /// offsets remain u16; source offsets include the exclusive end of a 64 KiB file.
 pub const max_source_bytes = 64 * 1024;
@@ -12,6 +15,312 @@ pub const SourceScan = Scanner(u32, max_source_bytes);
 pub const CompilerScan = Scanner(u32, 1024 * 1024);
 pub const Scan = Scanner(u16, sql.max_statement_bytes);
 pub const Range = struct { start: u16, end: u16, quoted: bool = false };
+
+pub const StreamToken = struct {
+    kind: Kind,
+    start: u64,
+    end: u64,
+    line: u64,
+    column: u64,
+    first_byte: u8,
+    closed: bool = true,
+    at_eof: bool = false,
+    word_buf: [16]u8 = @splat(0),
+    word_len: u5 = 0,
+
+    pub fn len(self: StreamToken) u64 {
+        return self.end - self.start;
+    }
+
+    pub fn isWord(self: StreamToken, expected: []const u8) bool {
+        if (self.kind != .word or self.len() != expected.len or expected.len > self.word_buf.len) return false;
+        return std.ascii.eqlIgnoreCase(self.word_buf[0..self.word_len], expected);
+    }
+
+    pub fn isWordPrefixOf(self: StreamToken, expected: []const u8) bool {
+        if (self.kind != .word or self.len() > expected.len or self.len() > self.word_buf.len) return false;
+        return std.ascii.startsWithIgnoreCase(expected, self.word_buf[0..self.word_len]);
+    }
+};
+
+/// Allocation-free incremental SQL lexer over arbitrary byte chunks.
+pub const StreamLexer = struct {
+    pub const Mode = enum {
+        idle,
+        space,
+        maybe_dash,
+        line_comment,
+        maybe_slash,
+        block_comment,
+        block_comment_slash,
+        block_comment_star,
+        string,
+        string_quote,
+        quoted,
+        quoted_quote,
+        word,
+        number,
+        utf8_symbol,
+    };
+
+    offset: u64 = 0,
+    line: u64 = 1,
+    column: u64 = 1,
+    mode: Mode = .idle,
+    token_start: u64 = 0,
+    token_line: u64 = 1,
+    token_column: u64 = 1,
+    first_byte: u8 = 0,
+    comment_depth: u8 = 0,
+    word_buf: [16]u8 = @splat(0),
+    word_len: u5 = 0,
+    utf8_buf: [4]u8 = @splat(0),
+    utf8_len: u3 = 0,
+    utf8_expected: u3 = 0,
+
+    pub fn inComment(self: StreamLexer) bool {
+        return switch (self.mode) {
+            .line_comment, .block_comment, .block_comment_slash, .block_comment_star => true,
+            else => false,
+        };
+    }
+
+    pub fn inSignificantToken(self: StreamLexer) bool {
+        return switch (self.mode) {
+            .idle, .space, .line_comment, .block_comment, .block_comment_slash, .block_comment_star => false,
+            .maybe_dash, .maybe_slash, .string, .string_quote, .quoted, .quoted_quote, .word, .number, .utf8_symbol => true,
+        };
+    }
+
+    fn startToken(self: *StreamLexer, first: u8, mode: Mode) void {
+        self.token_start = self.offset;
+        self.token_line = self.line;
+        self.token_column = self.column;
+        self.first_byte = first;
+        self.word_len = 0;
+        self.mode = mode;
+    }
+
+    fn consumeByte(self: *StreamLexer, byte: u8) error{InvalidSqlEncoding}!void {
+        if (byte == 0 or byte == 1) return error.InvalidSqlEncoding;
+        if (self.utf8_expected == 0) {
+            if (byte >= 0x80) {
+                const seq = std.unicode.utf8ByteSequenceLength(byte) catch return error.InvalidSqlEncoding;
+                self.utf8_buf[0] = byte;
+                self.utf8_len = 1;
+                self.utf8_expected = seq;
+            }
+        } else {
+            if ((byte & 0xc0) != 0x80) return error.InvalidSqlEncoding;
+            self.utf8_buf[self.utf8_len] = byte;
+            self.utf8_len += 1;
+            if (self.utf8_len == self.utf8_expected) {
+                _ = std.unicode.utf8Decode(self.utf8_buf[0..self.utf8_expected]) catch return error.InvalidSqlEncoding;
+                self.utf8_len = 0;
+                self.utf8_expected = 0;
+            }
+        }
+        self.offset += 1;
+        if (byte == '\n') {
+            self.line += 1;
+            self.column = 1;
+        } else {
+            self.column += 1;
+        }
+    }
+
+    fn emit(self: *StreamLexer, kind: Kind, closed: bool, at_eof: bool) StreamToken {
+        const tok: StreamToken = .{
+            .kind = kind,
+            .start = self.token_start,
+            .end = self.offset,
+            .line = self.token_line,
+            .column = self.token_column,
+            .first_byte = self.first_byte,
+            .closed = closed,
+            .at_eof = at_eof,
+            .word_buf = self.word_buf,
+            .word_len = self.word_len,
+        };
+        self.mode = .idle;
+        self.word_len = 0;
+        return tok;
+    }
+
+    pub fn nextInChunk(self: *StreamLexer, chunk: []const u8, index: *usize) error{ InvalidSqlEncoding, CommentTooDeep }!?StreamToken {
+        while (index.* < chunk.len) {
+            const byte = chunk[index.*];
+            switch (self.mode) {
+                .idle => {
+                    if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) {
+                        self.startToken(byte, .space);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (byte == '-') {
+                        self.startToken(byte, .maybe_dash);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (byte == '/') {
+                        self.startToken(byte, .maybe_slash);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (byte == '\'' or byte == '"') {
+                        self.startToken(byte, if (byte == '\'') .string else .quoted);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (std.ascii.isAlphabetic(byte) or byte == '_') {
+                        self.startToken(byte, .word);
+                        self.word_buf[0] = byte;
+                        self.word_len = 1;
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (std.ascii.isDigit(byte)) {
+                        self.startToken(byte, .number);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else if (byte < 0x80) {
+                        self.startToken(byte, .idle);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        return self.emit(.symbol, true, false);
+                    } else {
+                        self.startToken(byte, .utf8_symbol);
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    }
+                },
+                .space => {
+                    if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else return self.emit(.space, true, false);
+                },
+                .maybe_dash => {
+                    if (byte == '-') {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.mode = .line_comment;
+                    } else return self.emit(.symbol, true, false);
+                },
+                .line_comment => {
+                    if (byte == '\r' or byte == '\n') {
+                        if (self.utf8_expected != 0) return error.InvalidSqlEncoding;
+                        return self.emit(.comment, true, false);
+                    }
+                    try self.consumeByte(byte);
+                    index.* += 1;
+                },
+                .maybe_slash => {
+                    if (byte == '*') {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.comment_depth = 1;
+                        self.mode = .block_comment;
+                    } else return self.emit(.symbol, true, false);
+                },
+                .block_comment => {
+                    try self.consumeByte(byte);
+                    index.* += 1;
+                    if (byte == '/') self.mode = .block_comment_slash else if (byte == '*') self.mode = .block_comment_star;
+                },
+                .block_comment_slash => {
+                    if (byte == '*') {
+                        if (self.comment_depth == sql.max_comment_depth) return error.CommentTooDeep;
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.comment_depth += 1;
+                        self.mode = .block_comment;
+                    } else {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.mode = if (byte == '/') .block_comment_slash else .block_comment;
+                    }
+                },
+                .block_comment_star => {
+                    if (byte == '/') {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.comment_depth -= 1;
+                        if (self.comment_depth == 0) return self.emit(.comment, true, false);
+                        self.mode = .block_comment;
+                    } else {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.mode = if (byte == '*') .block_comment_star else .block_comment;
+                    }
+                },
+                .string => {
+                    try self.consumeByte(byte);
+                    index.* += 1;
+                    if (byte == '\'') self.mode = .string_quote;
+                },
+                .string_quote => {
+                    if (byte == '\'') {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.mode = .string;
+                    } else return self.emit(.string, true, false);
+                },
+                .quoted => {
+                    try self.consumeByte(byte);
+                    index.* += 1;
+                    if (byte == '"') self.mode = .quoted_quote;
+                },
+                .quoted_quote => {
+                    if (byte == '"') {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                        self.mode = .quoted;
+                    } else return self.emit(.quoted, true, false);
+                },
+                .word => {
+                    if (std.ascii.isAlphanumeric(byte) or byte == '_') {
+                        if (self.word_len < self.word_buf.len) {
+                            self.word_buf[self.word_len] = byte;
+                            self.word_len += 1;
+                        }
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else return self.emit(.word, true, false);
+                },
+                .number => {
+                    if (std.ascii.isDigit(byte)) {
+                        try self.consumeByte(byte);
+                        index.* += 1;
+                    } else return self.emit(.number, true, false);
+                },
+                .utf8_symbol => {
+                    try self.consumeByte(byte);
+                    index.* += 1;
+                    if (self.utf8_expected == 0) return self.emit(.symbol, true, false);
+                },
+            }
+        }
+        return null;
+    }
+
+    pub fn finish(self: *StreamLexer) error{InvalidSqlEncoding}!?StreamToken {
+        if (self.utf8_expected != 0) return error.InvalidSqlEncoding;
+        return switch (self.mode) {
+            .idle => null,
+            .space => self.emit(.space, true, true),
+            .maybe_dash, .maybe_slash => self.emit(.symbol, true, true),
+            .line_comment => self.emit(.comment, false, true),
+            .block_comment, .block_comment_slash, .block_comment_star => blk: {
+                self.comment_depth = 0;
+                break :blk self.emit(.comment, false, true);
+            },
+            .string => self.emit(.string, false, true),
+            .string_quote => self.emit(.string, true, true),
+            .quoted => self.emit(.quoted, false, true),
+            .quoted_quote => self.emit(.quoted, true, true),
+            .word => self.emit(.word, true, true),
+            .number => self.emit(.number, true, true),
+            .utf8_symbol => unreachable,
+        };
+    }
+};
+
 fn Scanner(comptime Offset: type, comptime max_bytes: usize) type {
     return struct {
         const Self = @This();
@@ -24,64 +333,15 @@ fn Scanner(comptime Offset: type, comptime max_bytes: usize) type {
             return .{ .text = text };
         }
         pub fn next(self: *Self) !?Self.Token {
-            const start = self.position;
-            if (start == self.text.len) return null;
-            const rest = self.text[start..];
-            const byte = rest[0];
-            var closed = true;
-            const kind: Kind = if (std.mem.indexOfScalar(u8, " \t\r\n", byte) != null) value: {
-                self.position += 1;
-                while (self.position < self.text.len and std.mem.indexOfScalar(u8, " \t\r\n", self.text[self.position]) != null) self.position += 1;
-                break :value .space;
-            } else if (std.mem.startsWith(u8, rest, "--")) value: {
-                self.position += std.mem.indexOfAny(u8, rest, "\r\n") orelse rest.len;
-                closed = self.position != self.text.len;
-                break :value .comment;
-            } else if (std.mem.startsWith(u8, rest, "/*")) value: {
-                self.position += 2;
-                var depth: usize = 1;
-                while (self.position < self.text.len and depth > 0) {
-                    const remaining = self.text[self.position..];
-                    if (std.mem.startsWith(u8, remaining, "/*")) {
-                        depth += 1;
-                        if (depth > sql.max_comment_depth) return error.CommentTooDeep;
-                        self.position += 2;
-                    } else if (std.mem.startsWith(u8, remaining, "*/")) {
-                        depth -= 1;
-                        self.position += 2;
-                    } else self.position += 1;
-                }
-                closed = depth == 0;
-                break :value .comment;
-            } else if (byte == '\'' or byte == '"') value: {
-                self.position += 1;
-                closed = false;
-                while (self.position < self.text.len) {
-                    const current = self.text[self.position];
-                    self.position += 1;
-                    if (current == byte) {
-                        if (self.position < self.text.len and self.text[self.position] == byte) {
-                            self.position += 1;
-                        } else {
-                            closed = true;
-                            break;
-                        }
-                    }
-                }
-                break :value if (byte == '\'') .string else .quoted;
-            } else if (std.ascii.isAlphabetic(byte) or byte == '_') value: {
-                self.position += 1;
-                while (self.position < self.text.len and (std.ascii.isAlphanumeric(self.text[self.position]) or self.text[self.position] == '_')) self.position += 1;
-                break :value .word;
-            } else if (std.ascii.isDigit(byte)) value: {
-                self.position += 1;
-                while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
-                break :value .number;
-            } else value: {
-                self.position += 1;
-                break :value .symbol;
-            };
-            return .{ .kind = kind, .start = @intCast(start), .end = @intCast(self.position), .closed = closed };
+            if (self.position == self.text.len) return null;
+            var lexer: StreamLexer = .{};
+            var index: usize = 0;
+            const slice = self.text[self.position..];
+            const tok = (try lexer.nextInChunk(slice, &index)) orelse (try lexer.finish()).?;
+            const start = self.position + @as(usize, @intCast(tok.start));
+            const end = self.position + @as(usize, @intCast(tok.end));
+            self.position = end;
+            return .{ .kind = tok.kind, .start = @intCast(start), .end = @intCast(end), .closed = tok.closed };
         }
     };
 }
@@ -445,4 +705,130 @@ test "general SQL classification fits dense bounded statements and tolerates all
     try e.expectError(error.OutOfMemory, classifyTableWithAllocator(small, roles[0..small.len], e.failing_allocator));
     classify(small, roles[0..small.len]);
     try e.expectEqual(sql.TokenRole.function, roles[std.mem.indexOf(u8, small, "LIST").?]);
+}
+
+test "streaming lexer matches bounded scanner across arbitrary chunk splits and zero heap allocations" {
+    const t = std.testing;
+    const memory = @import("transit_memory");
+    const sample =
+        "-- line comment 東京 🌱\r\n" ++
+        "/* outer /* nested //* **/ * / */ still outer */\n" ++
+        "SELECT 'it''s; ''🌱''', \"quo\"\"ted;\"\"id\", -42, 10 / 2, 🌱\n" ++
+        "FROM _items_1234567890_abcdef WHERE a = 1;-- trailing without newline";
+
+    var baseline_scan = try SourceScan.init(sample);
+    var expected: [64]SourceScan.Token = undefined;
+    var expected_len: usize = 0;
+    while (try baseline_scan.next()) |tok| {
+        expected[expected_len] = tok;
+        expected_len += 1;
+    }
+
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    probe.begin(true);
+
+    for ([_]usize{ 1, 2, 3, 5, 7, 13, 31, sample.len }) |step| {
+        var lexer: StreamLexer = .{};
+        var actual_index: usize = 0;
+        var offset: usize = 0;
+        while (offset < sample.len) {
+            const chunk = sample[offset..@min(sample.len, offset + step)];
+            var idx: usize = 0;
+            while (try lexer.nextInChunk(chunk, &idx)) |tok| {
+                const want = expected[actual_index];
+                try t.expectEqual(want.kind, tok.kind);
+                try t.expectEqual(@as(u64, want.start), tok.start);
+                try t.expectEqual(@as(u64, want.end), tok.end);
+                try t.expectEqual(want.closed, tok.closed);
+                try t.expectEqual(sample[want.start], tok.first_byte);
+                actual_index += 1;
+            }
+            try t.expectEqual(chunk.len, idx);
+            offset += chunk.len;
+        }
+        if (try lexer.finish()) |tok| {
+            const want = expected[actual_index];
+            try t.expectEqual(want.kind, tok.kind);
+            try t.expectEqual(@as(u64, want.start), tok.start);
+            try t.expectEqual(@as(u64, want.end), tok.end);
+            try t.expectEqual(want.closed, tok.closed);
+            try t.expect(tok.at_eof);
+            actual_index += 1;
+        }
+        try t.expectEqual(expected_len, actual_index);
+    }
+
+    var prng = std.Random.DefaultPrng.init(0x517cc1b727220a95);
+    const random = prng.random();
+    for (0..32) |_| {
+        var lexer: StreamLexer = .{};
+        var actual_index: usize = 0;
+        var offset: usize = 0;
+        while (offset < sample.len) {
+            const step = random.intRangeAtMost(usize, 1, 11);
+            const chunk = sample[offset..@min(sample.len, offset + step)];
+            var idx: usize = 0;
+            while (try lexer.nextInChunk(chunk, &idx)) |tok| {
+                const want = expected[actual_index];
+                try t.expectEqual(want.kind, tok.kind);
+                try t.expectEqual(@as(u64, want.start), tok.start);
+                try t.expectEqual(@as(u64, want.end), tok.end);
+                try t.expectEqual(want.closed, tok.closed);
+                actual_index += 1;
+            }
+            offset += chunk.len;
+        }
+        if (try lexer.finish()) |tok| {
+            const want = expected[actual_index];
+            try t.expectEqual(want.kind, tok.kind);
+            try t.expectEqual(@as(u64, want.start), tok.start);
+            try t.expectEqual(@as(u64, want.end), tok.end);
+            try t.expectEqual(want.closed, tok.closed);
+            actual_index += 1;
+        }
+        try t.expectEqual(expected_len, actual_index);
+    }
+    try probe.verify();
+
+    // Encoding and nesting rejections across 1-byte boundaries.
+    for ([_][]const u8{
+        "SELECT \x00",
+        "SELECT \x01",
+        "SELECT \xff",
+        "SELECT '\xf0\x28\x8c\xbc'",
+        "SELECT '\xf0\x9f\x8c'",
+        "-- \xf0\nSELECT 1",
+        "SELECT '\xc0\xaf'",
+        "SELECT '\xed\xa0\x80'",
+    }) |bad| {
+        var lexer: StreamLexer = .{};
+        var caught = false;
+        for (bad) |b| {
+            var idx: usize = 0;
+            const one = [_]u8{b};
+            _ = lexer.nextInChunk(&one, &idx) catch |err| {
+                try t.expectEqual(error.InvalidSqlEncoding, err);
+                caught = true;
+                break;
+            };
+        }
+        if (!caught) {
+            try t.expectError(error.InvalidSqlEncoding, lexer.finish());
+        }
+    }
+
+    var deep_lexer: StreamLexer = .{};
+    var deep_caught = false;
+    outer: for (0..(sql.max_comment_depth + 1)) |_| {
+        for ("/* ") |b| {
+            var idx: usize = 0;
+            const one = [_]u8{b};
+            _ = deep_lexer.nextInChunk(&one, &idx) catch |err| {
+                try t.expectEqual(error.CommentTooDeep, err);
+                deep_caught = true;
+                break :outer;
+            };
+        }
+    }
+    try t.expect(deep_caught);
 }

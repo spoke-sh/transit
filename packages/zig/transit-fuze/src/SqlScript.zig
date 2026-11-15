@@ -1,5 +1,5 @@
-//! Bounded source-file framing. This preserves compound declarations as one
-//! installation step; the statement owner still validates every instruction.
+//! Bounded and streaming source-file framing. Preserves compound declarations as
+//! one installation step; the statement owner still validates every instruction.
 const std = @import("std");
 const input = @import("SqlInput.zig");
 pub const max_source_bytes = input.max_source_bytes;
@@ -10,25 +10,252 @@ pub const Statement = struct {
     end: u32,
     first: [3]?Token,
 };
+pub const StreamStatement = struct {
+    start: u64,
+    end: u64,
+    terminator_end: u64,
+    line: u64,
+    column: u64,
+    terminated: bool = false,
+    first: [3]?input.StreamToken = @splat(null),
+};
 const Block = enum { body, conditional, expression, loop, match };
+const Pending = enum { none, begin, case_word };
+const Step = union(enum) {
+    more,
+    incomplete,
+    statement: StreamStatement,
+};
 const Self = @This();
 scan: input.SourceScan,
 
+/// Allocation-free incremental SQL statement framer over arbitrary byte chunks.
+pub const StreamFramer = struct {
+    lexer: input.StreamLexer = .{},
+    current: ?StreamStatement = null,
+    count: usize = 0,
+    parentheses: usize = 0,
+    blocks: [max_depth]Block = undefined,
+    depth: usize = 0,
+    compound: bool = false,
+    body: bool = false,
+    after_as: bool = false,
+    instruction_start: bool = false,
+    suffix: ?Block = null,
+    create_header: bool = false,
+    explain_header: bool = false,
+    test_header: bool = false,
+    pending: Pending = .none,
+
+    pub fn hasStatement(self: StreamFramer) bool {
+        return self.current != null;
+    }
+
+    pub fn resetStatement(self: *StreamFramer) void {
+        self.current = null;
+        self.count = 0;
+        self.parentheses = 0;
+        self.depth = 0;
+        self.compound = false;
+        self.body = false;
+        self.after_as = false;
+        self.instruction_start = false;
+        self.suffix = null;
+        self.create_header = false;
+        self.explain_header = false;
+        self.test_header = false;
+        self.pending = .none;
+    }
+
+    fn pushBlock(self: *StreamFramer, kind: Block) error{SqlNestingTooDeep}!void {
+        if (self.depth == self.blocks.len) return error.SqlNestingTooDeep;
+        self.blocks[self.depth] = kind;
+        self.depth += 1;
+        self.instruction_start = kind == .body;
+    }
+
+    pub fn feedToken(self: *StreamFramer, token: input.StreamToken, comptime editing: bool) !Step {
+        if (!token.closed and (token.kind == .string or token.kind == .quoted or
+            (token.kind == .comment and token.first_byte == '/')))
+        {
+            if (editing) {
+                self.resetStatement();
+                return .incomplete;
+            }
+            return error.UnterminatedSqlToken;
+        }
+        if (token.kind == .space or token.kind == .comment) return .more;
+
+        const symbol = token.kind == .symbol;
+        const byte = token.first_byte;
+        if (self.current == null) {
+            if (symbol and byte == ';') {
+                if (editing) return .{ .statement = .{
+                    .start = token.start,
+                    .end = token.end,
+                    .terminator_end = token.end,
+                    .line = token.line,
+                    .column = token.column,
+                    .terminated = true,
+                } };
+                return .more;
+            }
+            self.current = .{
+                .start = token.start,
+                .end = token.end,
+                .terminator_end = token.end,
+                .line = token.line,
+                .column = token.column,
+            };
+        }
+        if (self.count < 3) self.current.?.first[self.count] = token;
+        self.count += 1;
+
+        if (self.pending != .none) {
+            const previous = self.pending;
+            self.pending = .none;
+            if (previous == .begin and token.isWord("ATOMIC")) {
+                try self.pushBlock(.body);
+            } else if (previous == .case_word and token.isWord("WHEN")) {
+                try self.pushBlock(.expression);
+            }
+        }
+
+        if (self.count == 1) {
+            self.create_header = token.isWord("CREATE");
+            self.explain_header = token.isWord("EXPLAIN");
+            self.compound = token.isWord("TEST");
+        }
+        if (self.count == 2 and self.explain_header) self.create_header = token.isWord("CREATE");
+        if (self.create_header and self.count <= (if (self.explain_header) @as(usize, 6) else 5)) {
+            inline for (.{ "DATAFLOW", "PROCEDURE", "FUNCTION", "GUARD", "MODULE", "TARGET" }) |kind| {
+                if (token.isWord(kind)) self.compound = true;
+            }
+        }
+        // A finite query owns its contextual aliases. Once AS SELECT starts
+        // that query, a later AS begin cannot open a compound declaration.
+        if (self.compound and !self.body and self.after_as and token.isWord("SELECT")) self.compound = false;
+        if (self.body and self.instruction_start and token.isWord("TEST")) self.test_header = true;
+        const opens_body = self.compound and (!self.body or self.test_header) and self.after_as and token.isWord("BEGIN");
+        if (opens_body) {
+            self.body = true;
+            self.test_header = false;
+        }
+        self.after_as = token.isWord("AS");
+
+        if (self.suffix) |kind| {
+            self.suffix = null;
+            const expected = switch (kind) {
+                .conditional => "IF",
+                .loop => "FOR",
+                .match => "MATCH",
+                .expression => "CASE",
+                .body => unreachable,
+            };
+            if (token.isWord(expected)) {
+                self.current.?.end = token.end;
+                self.current.?.terminator_end = token.end;
+                return .more;
+            }
+            if (editing and token.at_eof and token.isWordPrefixOf(expected)) {
+                self.resetStatement();
+                return .incomplete;
+            }
+            if (kind != .expression) return error.UnbalancedSqlBlock;
+        }
+
+        if (symbol and byte == '(') {
+            if (self.parentheses == max_depth) return error.SqlNestingTooDeep;
+            self.parentheses += 1;
+        } else if (symbol and byte == ')') {
+            if (self.parentheses == 0) return error.UnbalancedSqlParentheses;
+            self.parentheses -= 1;
+        }
+
+        if (self.body) {
+            // These words remain identifiers outside their control positions.
+            // BEGIN ATOMIC also starts the first failure-handler instruction;
+            // searched CASE owns its expression END, unlike a name such as
+            // table.case or a SELECT alias named end.
+            if (token.isWord("BEGIN")) {
+                if (opens_body or self.instruction_start) {
+                    try self.pushBlock(.body);
+                } else {
+                    self.instruction_start = false;
+                    self.pending = .begin;
+                }
+            } else if (token.isWord("CASE")) {
+                self.instruction_start = false;
+                self.pending = .case_word;
+            } else if (self.instruction_start and token.isWord("IF")) {
+                try self.pushBlock(.conditional);
+            } else if (self.instruction_start and token.isWord("FOR")) {
+                try self.pushBlock(.loop);
+            } else if (self.instruction_start and token.isWord("MATCH")) {
+                try self.pushBlock(.match);
+            } else if (token.isWord("END") and (self.instruction_start or (self.depth > 0 and self.blocks[self.depth - 1] == .expression))) {
+                if (self.depth == 0) return error.UnbalancedSqlBlock;
+                self.depth -= 1;
+                self.suffix = if (self.blocks[self.depth] == .body) null else self.blocks[self.depth];
+                self.instruction_start = false;
+            } else if (self.depth > 0 and (self.blocks[self.depth - 1] == .conditional or self.blocks[self.depth - 1] == .loop or self.blocks[self.depth - 1] == .match) and
+                (token.isWord("THEN") or token.isWord("ELSE") or token.isWord("DO")))
+            {
+                self.instruction_start = true;
+            } else if (!token.isWord("ATOMIC")) {
+                self.instruction_start = false;
+            }
+        }
+
+        if (symbol and byte == ';') {
+            if (self.parentheses != 0) return error.UnbalancedSqlParentheses;
+            if (self.depth == 0) {
+                var finished = self.current.?;
+                finished.terminator_end = token.end;
+                finished.terminated = true;
+                self.resetStatement();
+                return .{ .statement = finished };
+            }
+            self.instruction_start = true;
+        }
+        self.current.?.end = token.end;
+        self.current.?.terminator_end = token.end;
+        return .more;
+    }
+
+    pub fn finishTokens(self: *StreamFramer, comptime editing: bool) !?StreamStatement {
+        defer self.resetStatement();
+        if (editing) return null;
+        if (self.depth != 0 or (self.suffix != null and self.suffix.? != .expression)) return error.UnbalancedSqlBlock;
+        if (self.parentheses != 0) return error.UnbalancedSqlParentheses;
+        return self.current;
+    }
+
+    pub fn nextInChunk(self: *StreamFramer, chunk: []const u8, index: *usize) !?StreamStatement {
+        while (try self.lexer.nextInChunk(chunk, index)) |token| {
+            switch (try self.feedToken(token, false)) {
+                .more => {},
+                .incomplete => unreachable,
+                .statement => |stmt| return stmt,
+            }
+        }
+        return null;
+    }
+
+    pub fn finish(self: *StreamFramer) !?StreamStatement {
+        if (try self.lexer.finish()) |token| {
+            switch (try self.feedToken(token, false)) {
+                .more => {},
+                .incomplete => unreachable,
+                .statement => |stmt| return stmt,
+            }
+        }
+        return self.finishTokens(false);
+    }
+};
+
 pub fn init(text: []const u8) !Self {
     return .{ .scan = try input.SourceScan.init(text) };
-}
-
-fn word(text: []const u8, token: anytype, value: []const u8) bool {
-    return token.kind == .word and std.ascii.eqlIgnoreCase(text[token.start..token.end], value);
-}
-
-fn followingWord(scan: anytype, value: []const u8) !bool {
-    var following = scan.*;
-    while (try following.next()) |token| {
-        if (token.kind == .space or token.kind == .comment) continue;
-        return word(following.text, token, value);
-    }
-    return false;
 }
 
 pub const Compiler = struct {
@@ -37,130 +264,73 @@ pub const Compiler = struct {
         return .{ .scan = try input.CompilerScan.init(text) };
     }
     pub fn next(self: *Compiler) !?Statement {
-        return nextFrame(&self.scan, false);
+        return nextFrame(&self.scan);
     }
 };
 pub fn next(self: *Self) !?Statement {
-    return nextFrame(&self.scan, false);
+    return nextFrame(&self.scan);
 }
 /// Editor input may end at any token or block boundary. Return only an explicit
 /// outer terminator, using the same compound grammar as source-file framing.
 pub fn editorTerminator(text: []const u8) !?u32 {
     var scan = try input.SourceScan.init(text);
-    _ = try nextFrame(&scan, true) orelse return null;
-    return @intCast(scan.position);
-}
-fn nextFrame(scan: anytype, comptime editing: bool) !?Statement {
-    const text = scan.text;
-    var result: ?Statement = null;
-    var count: usize = 0;
-    var parentheses: usize = 0;
-    var blocks: [max_depth]Block = undefined;
-    var depth: usize = 0;
-    var compound = false;
-    var body = false;
-    var after_as = false;
-    var instruction_start = false;
-    var suffix: ?Block = null;
-    var create_header = false;
-    var explain_header = false;
-    var test_header = false;
+    var framer: StreamFramer = .{};
     while (try scan.next()) |token| {
-        if (!token.closed and (token.kind == .string or token.kind == .quoted or
-            token.kind == .comment and std.mem.startsWith(u8, text[token.start..token.end], "/*")))
-        {
-            if (editing) return null;
-            return error.UnterminatedSqlToken;
+        switch (try framer.feedToken(toStreamToken(scan.text, scan.position, token), true)) {
+            .more => {},
+            .incomplete => return null,
+            .statement => |stmt| return @intCast(stmt.terminator_end),
         }
-        if (token.kind == .space or token.kind == .comment) continue;
-        const symbol = token.kind == .symbol;
-        const byte = text[token.start];
-        if (result == null) {
-            if (symbol and byte == ';') {
-                if (editing) return .{ .start = token.start, .end = token.end, .first = @splat(null) };
-                continue;
-            }
-            result = .{ .start = token.start, .end = token.end, .first = @splat(null) };
-        }
-        if (count < 3) result.?.first[count] = .{ .kind = token.kind, .start = token.start, .end = token.end, .closed = token.closed };
-        count += 1;
-        if (count == 1) {
-            create_header = word(text, token, "CREATE");
-            explain_header = word(text, token, "EXPLAIN");
-            compound = word(text, token, "TEST");
-        }
-        if (count == 2 and explain_header) create_header = word(text, token, "CREATE");
-        if (create_header and count <= (if (explain_header) @as(usize, 6) else 5)) {
-            inline for (.{ "DATAFLOW", "PROCEDURE", "FUNCTION", "GUARD", "MODULE", "TARGET" }) |kind|
-                if (word(text, token, kind)) {
-                    compound = true;
-                };
-        }
-        // A finite query owns its contextual aliases. Once AS SELECT starts
-        // that query, a later AS begin cannot open a compound declaration.
-        if (compound and !body and after_as and word(text, token, "SELECT")) compound = false;
-        if (body and instruction_start and word(text, token, "TEST")) test_header = true;
-        const opens_body = compound and (!body or test_header) and after_as and word(text, token, "BEGIN");
-        if (opens_body) body = true;
-        if (opens_body) test_header = false;
-        after_as = word(text, token, "AS");
-        if (suffix) |kind| {
-            suffix = null;
-            const expected = switch (kind) {
-                .conditional => "IF",
-                .loop => "FOR",
-                .match => "MATCH",
-                .expression => "CASE",
-                .body => unreachable,
-            };
-            if (word(text, token, expected)) {
-                result.?.end = token.end;
-                continue;
-            }
-            if (editing and token.kind == .word and scan.position == text.len and
-                std.ascii.startsWithIgnoreCase(expected, text[token.start..token.end])) return null;
-            if (kind != .expression) return error.UnbalancedSqlBlock;
-        }
-        if (symbol and byte == '(') {
-            if (parentheses == max_depth) return error.SqlNestingTooDeep;
-            parentheses += 1;
-        } else if (symbol and byte == ')') {
-            if (parentheses == 0) return error.UnbalancedSqlParentheses;
-            parentheses -= 1;
-        }
-        if (body) {
-            // These words remain identifiers outside their control positions.
-            // BEGIN ATOMIC also starts the first failure-handler instruction;
-            // searched CASE owns its expression END, unlike a name such as
-            // table.case or a SELECT alias named end.
-            const block: ?Block = if (word(text, token, "BEGIN") and (opens_body or instruction_start or try followingWord(scan, "ATOMIC"))) .body else if (word(text, token, "CASE") and try followingWord(scan, "WHEN")) .expression else if (instruction_start and word(text, token, "IF")) .conditional else if (instruction_start and word(text, token, "FOR")) .loop else if (instruction_start and word(text, token, "MATCH")) .match else null;
-            if (block) |kind| {
-                if (depth == blocks.len) return error.SqlNestingTooDeep;
-                blocks[depth] = kind;
-                depth += 1;
-                instruction_start = kind == .body;
-            } else if (word(text, token, "END") and (instruction_start or depth > 0 and blocks[depth - 1] == .expression)) {
-                if (depth == 0) return error.UnbalancedSqlBlock;
-                depth -= 1;
-                suffix = if (blocks[depth] == .body) null else blocks[depth];
-                instruction_start = false;
-            } else if (depth > 0 and (blocks[depth - 1] == .conditional or blocks[depth - 1] == .loop or blocks[depth - 1] == .match) and
-                (word(text, token, "THEN") or word(text, token, "ELSE") or word(text, token, "DO")))
-            {
-                instruction_start = true;
-            } else if (!word(text, token, "ATOMIC")) instruction_start = false;
-        }
-        if (symbol and byte == ';') {
-            if (parentheses != 0) return error.UnbalancedSqlParentheses;
-            if (depth == 0) return result;
-            instruction_start = true;
-        }
-        result.?.end = token.end;
     }
-    if (editing) return null;
-    if (depth != 0 or (suffix != null and suffix.? != .expression)) return error.UnbalancedSqlBlock;
-    if (parentheses != 0) return error.UnbalancedSqlParentheses;
-    return result;
+    return null;
+}
+
+fn toStreamToken(text: []const u8, position: usize, token: anytype) input.StreamToken {
+    const slice = text[token.start..token.end];
+    var word_buf: [16]u8 = @splat(0);
+    const word_len: u5 = if (token.kind == .word) @intCast(@min(slice.len, word_buf.len)) else 0;
+    @memcpy(word_buf[0..word_len], slice[0..word_len]);
+    return .{
+        .kind = token.kind,
+        .start = token.start,
+        .end = token.end,
+        .line = 1,
+        .column = 1,
+        .first_byte = slice[0],
+        .closed = token.closed,
+        .at_eof = position == text.len,
+        .word_buf = word_buf,
+        .word_len = word_len,
+    };
+}
+
+fn toStatement(stmt: StreamStatement) Statement {
+    var first: [3]?Token = @splat(null);
+    for (stmt.first, &first) |maybe_tok, *slot| {
+        if (maybe_tok) |tok| slot.* = .{
+            .kind = tok.kind,
+            .start = @intCast(tok.start),
+            .end = @intCast(tok.end),
+            .closed = tok.closed,
+        };
+    }
+    return .{
+        .start = @intCast(stmt.start),
+        .end = @intCast(stmt.end),
+        .first = first,
+    };
+}
+
+fn nextFrame(scan: anytype) !?Statement {
+    var framer: StreamFramer = .{};
+    while (try scan.next()) |token| {
+        switch (try framer.feedToken(toStreamToken(scan.text, scan.position, token), false)) {
+            .more => {},
+            .incomplete => unreachable,
+            .statement => |stmt| return toStatement(stmt),
+        }
+    }
+    return if (try framer.finishTokens(false)) |stmt| toStatement(stmt) else null;
 }
 
 test "script framing keeps EXPLAIN Queue programs intact" {
@@ -320,4 +490,112 @@ test "source MATCH framing nests with IF and preserves contextual SQL words" {
     try std.testing.expect((try script.next()) == null);
     var invalid = try Compiler.init("CREATE TARGET default AS BEGIN MATCH value WHEN Choice.One() THEN END IF; END;");
     try std.testing.expectError(error.UnbalancedSqlBlock, invalid.next());
+}
+
+test "streaming framer matches bounded script framer across arbitrary chunk splits and zero heap allocations" {
+    const t = std.testing;
+    const memory = @import("transit_memory");
+    const source =
+        "-- leading comment 🌱\n" ++
+        "EXPLAIN CREATE DATAFLOW action FROM QUEUE requests AS request AS BEGIN\n" ++
+        "  LET value = 'it''s; END; 🌱';\n" ++
+        "  BEGIN ATOMIC\n" ++
+        "    IF value IS NOT NULL THEN\n" ++
+        "      PUT INTO values KEY 'k' VALUE CASE WHEN TRUE THEN 'END IF;' ELSE NULL END IF ABSENT;\n" ++
+        "    ELSE\n" ++
+        "      FOR row IN items DO SELECT CASE WHEN TRUE THEN 1 ELSE 2 END CASE; END FOR;\n" ++
+        "    END IF;\n" ++
+        "  END;\n" ++
+        "ON FAILURE failure\n" ++
+        "  BEGIN ATOMIC\n" ++
+        "    MATCH value WHEN Choice.One(id) THEN SELECT begin AS end, end AS begin FROM case; END MATCH;\n" ++
+        "  END;\n" ++
+        "END;\n" ++
+        "/* inter-statement /* nested */ comment ; */\n" ++
+        "CREATE DATAFLOW projection INTO output AS SELECT id AS begin FROM input;\n" ++
+        ";;\n" ++
+        "ACTIVATE DATAFLOW projection;\n" ++
+        "SELECT 'final' -- trailing comment without semicolon";
+
+    var baseline = try Compiler.init(source);
+    var expected: [8]Statement = undefined;
+    var expected_len: usize = 0;
+    while (try baseline.next()) |stmt| {
+        expected[expected_len] = stmt;
+        expected_len += 1;
+    }
+    try t.expectEqual(@as(usize, 4), expected_len);
+
+    var probe: memory.AllocationProbe = .{ .parent = t.allocator };
+    var workspace = try memory.Workspace.init(probe.allocator(), 4096);
+    defer workspace.deinit();
+
+    // Seal backing allocator: steady-state streaming framing + reusable workspace
+    // lease resets must perform zero OS/heap allocations across all chunk splits.
+    probe.begin(true);
+
+    for ([_]usize{ 1, 2, 3, 5, 11, 29, source.len }) |step| {
+        var framer: StreamFramer = .{};
+        var actual_index: usize = 0;
+        var offset: usize = 0;
+        while (offset < source.len) {
+            const chunk = source[offset..@min(source.len, offset + step)];
+            var idx: usize = 0;
+            while (try framer.nextInChunk(chunk, &idx)) |stmt| {
+                const lease = try workspace.acquire();
+                defer lease.release(false) catch unreachable;
+                const a = try lease.allocator();
+                const copy = try a.dupe(u8, source[@intCast(stmt.start)..@intCast(stmt.end)]);
+                const want = expected[actual_index];
+                try t.expectEqual(@as(u64, want.start), stmt.start);
+                try t.expectEqual(@as(u64, want.end), stmt.end);
+                try t.expect(stmt.terminated);
+                try t.expectEqualStrings(source[want.start..want.end], copy);
+                actual_index += 1;
+            }
+            try t.expectEqual(chunk.len, idx);
+            offset += chunk.len;
+        }
+        if (try framer.finish()) |stmt| {
+            const want = expected[actual_index];
+            try t.expectEqual(@as(u64, want.start), stmt.start);
+            try t.expectEqual(@as(u64, want.end), stmt.end);
+            try t.expect(!stmt.terminated);
+            actual_index += 1;
+        }
+        try t.expectEqual(expected_len, actual_index);
+    }
+
+    // Stream an unbounded (> 4 MiB) multi-statement input in fixed 256-byte chunks
+    // with zero heap allocations.
+    var unbounded_framer: StreamFramer = .{};
+    const unit = "/* header comment */\nSELECT 1, 'ok;still-string';\n";
+    const total_units = 90_000; // > 4.4 MiB total stream
+    var emitted: usize = 0;
+    var pending_chunk: [256]u8 = undefined;
+    var pending_len: usize = 0;
+    for (0..total_units) |_| {
+        for (unit) |b| {
+            pending_chunk[pending_len] = b;
+            pending_len += 1;
+            if (pending_len == pending_chunk.len) {
+                var idx: usize = 0;
+                while (try unbounded_framer.nextInChunk(&pending_chunk, &idx)) |stmt| {
+                    try t.expect(stmt.terminated);
+                    emitted += 1;
+                }
+                pending_len = 0;
+            }
+        }
+    }
+    if (pending_len > 0) {
+        var idx: usize = 0;
+        while (try unbounded_framer.nextInChunk(pending_chunk[0..pending_len], &idx)) |stmt| {
+            try t.expect(stmt.terminated);
+            emitted += 1;
+        }
+    }
+    try t.expectEqual(null, try unbounded_framer.finish());
+    try t.expectEqual(total_units, emitted);
+    try probe.verify();
 }
