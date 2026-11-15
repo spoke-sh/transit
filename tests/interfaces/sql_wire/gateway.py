@@ -80,7 +80,7 @@ def run(node, catalog, ledger, host, gateway, configuration_host, console, slice
             except OSError:
                 shutil.copy2(path, target)
             return str(target)
-        node = role_binary(node, 'transit-node')
+        assert Path(node).name != 'transit', 'SQL component proofs require the explicit authority fixture'
         host = role_binary(host, 'transit-query-host')
         gateway = role_binary(gateway, 'transit-sql-gateway')
         http = urllib.request.build_opener(urllib.request.ProxyHandler({}))

@@ -24,17 +24,17 @@ def run(node, cli, raw_library, install, label, evidence=None):
 
 
 def _run(node, cli, raw_library, install, label, report):
-    from sdk.client_abi_growing import GrowingSystem
+    from sdk.installed_server import InstalledServer
     from sdk.client_abi import Native
     from sdk.sdk_scenarios import check
-    with tempfile.TemporaryDirectory(prefix='transit-client-consumer-') as temporary, GrowingSystem(node, cli) as system:
+    with tempfile.TemporaryDirectory(prefix='transit-client-consumer-') as temporary, InstalledServer(node, cli) as system:
         consumer_root = Path(temporary)
         with phase("consumer-install", "sdk-raw-client"):
             invoke_consumer = install(consumer_root)
         native = Native(raw_library)
         admin = native.client(system.url)
         root_seed = bytes.fromhex(system.seed.read_text().strip())
-        sequence = 0
+        sequence = system.sequence
         def command(body):
             nonlocal sequence
             sequence += 1
@@ -47,7 +47,7 @@ def _run(node, cli, raw_library, install, label, report):
         key, public = system.key('python-sdk')
         original_seed = key.read_bytes()
         command({'grant': {'subject': 65536, 'public_key': public, 'permissions': 255}})
-        unrelated = native.prepare(6, root_seed, {'realm': 72, 'principal': 0, 'sequence': 3, 'command': {'spawn': {}}})
+        unrelated = native.prepare(6, root_seed, {'realm': 72, 'principal': 0, 'sequence': sequence + 1, 'command': {'spawn': {}}})
         spawn = consumer_root / 'spawn.json'
         spawn.write_bytes(native.export(unrelated))
         native.lib.transit_operation_destroy(unrelated)

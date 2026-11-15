@@ -421,10 +421,7 @@ def rollback(cli, node, host):
     success = False
     try:
         # Mutate only an owned executable copy when checking artifact identity.
-        owned_node = fixture.root / "transit-node"
-        shutil.copy2(fixture.config["executables"]["node"], owned_node)
-        fixture.config["executables"]["node"] = str(owned_node)
-        fixture.path.write_text(json.dumps(fixture.config))
+        owned_node = Path(fixture.cli)
         fixture.start()
         fixture.ready()
         fixture.stop()

@@ -24,7 +24,7 @@ def qualify(archive, runtime):
         shutil.copytree(application / 'zig-out/bin', installed)
         # Runtime and application both execute outside their source tree, with
         # no developer PATH. The private test driver calls public library APIs.
-        run(runtime / 'bin/transit', runtime / 'bin/transit-node',
+        run(runtime / 'bin/transit', runtime / 'bin/transit',
             runtime / 'bin/transit-query-host', installed / 'transit-work-items',
             installed / 'work-items', embedded=True)
 

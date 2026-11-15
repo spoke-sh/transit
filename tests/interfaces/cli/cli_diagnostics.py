@@ -170,7 +170,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     config = {'version': 1, 'installation': str(installation), 'realm': 73,
               'ports': dict(zip(('node', 'gateway'), range(29004, 29006))),
-              'executables': dict.fromkeys(('node', 'query_host', 'board', 'sql_gateway'), sys.executable)}
+              'executables': dict.fromkeys(('query_host', 'board', 'sql_gateway'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
     server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
@@ -288,10 +288,17 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for name in names:
         (adjacent/name).unlink(); (search/name).unlink(); (search/name).symlink_to(sys.executable)
     convention()  # Removing adjacent files still uses built-in roles.
-    # Explicit standalone overrides validate instead of falling back to a built-in role.
+    # The retired node override rejects; it must never select another authority.
     discovery_config.write_text(json.dumps({'executables': {'node': 'absent-node'}}))
     invoke(['server', '--config', discovery_config], contains=('executables.node',),
            env=dict(ENV, PATH=str(search)), cwd=root, binary=str(local_cli))
+
+    discovery_config.write_text('{}')
+    invoke(['server', '--config', discovery_config], contains=('executables.node',),
+           env=dict(ENV, TRANSIT_EXECUTABLES__NODE=str(sys.executable)), cwd=root, binary=str(local_cli))
+    retired = root / 'transit-node'
+    retired.symlink_to(local_cli)
+    invoke(['retired-node-config.json'], binary=str(retired), contains=('retired-node-config.json',))
 
     # Real file selection, typed overlays, no fallback and rc precedence.
     home, project = root/'home', root/'project'
@@ -318,7 +325,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
            contains=('version', 'xdg/transit.yaml'))
     invoke(['server'], env=dict(environment, TRANSIT_CONFIG=str(project/'absent.yaml')), cwd=project,
            contains=('absent.yaml', 'was not found'))
-    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('node', 'query_host', 'board', 'sql_gateway'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('query_host', 'board', 'sql_gateway'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
     # Installed runtime loading must coexist with the repository's supported

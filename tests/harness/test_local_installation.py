@@ -124,7 +124,7 @@ for line in sys.stdin:
         cli = root / 'transit'
         cli.write_text(f'#!{sys.executable}\n' + body)
         cli.chmod(0o700)
-        for name in ('transit-node', 'transit-query-host', 'transit-board', 'transit-sql-gateway'):
+        for name in ('transit-query-host', 'transit-board', 'transit-sql-gateway'):
             (root / name).write_bytes(name.encode())
         environment = patch.dict(os.environ, {
             'TEST_TRANSIT_BOARD_BINARY': str(root / 'transit-board'),
@@ -132,7 +132,7 @@ for line in sys.stdin:
         })
         environment.start()
         self.addCleanup(environment.stop)
-        return cli, root / 'transit-node', root / 'transit-query-host'
+        return cli, cli, root / 'transit-query-host'
 
     def report(self, fixture):
         self.assertTrue(select.select([fixture.process.stdout], [], [], 5)[0])

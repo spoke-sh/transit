@@ -26,7 +26,7 @@ EXPECTED = {
     "clients": {"lib/libtransit_client.so", "lib/libtransit_station.so",
                 "bin/transit-client-host", "bin/transit-station-host", "tests/native-client-fixture",
                 "bin/transit-station-http-worker", "bin/transit-station-grpc-worker"},
-    "authority": {"bin/transit-node"},
+    "authority": {"tests/native-authority-fixture", "bin/transit"},
     "c-sdk": {"lib/libtransit_sdk_client.so", "lib/libtransit_sdk_station.so",
               "lib/libtransit_sdk_examples_c.a", "bin/transit-c-counter", "bin/transit-cpp-counter"},
 }

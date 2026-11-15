@@ -45,7 +45,7 @@ def service_failures(binaries):
     for binary in binaries:
         for format in ('text', 'json'):
             for level in ('info', 'off', 'private-invalid-level'):
-                result = subprocess.run([str(binary)], env=os.environ | {'LOG_FORMAT': format, 'LOG_LEVEL': level},
+                result = subprocess.run(binary, env=os.environ | {'LOG_FORMAT': format, 'LOG_LEVEL': level},
                                         capture_output=True, text=True, timeout=10)
                 assert result.returncode == 1 and not result.stdout, result
                 assert 'private-invalid-level' not in result.stderr
@@ -140,7 +140,8 @@ def run(cli, node, host, board, gateway):
     fixture.path.write_text(json.dumps(fixture.config))
     success = False
     try:
-        service_failures([fixture.config['executables'][role] for role in ('node', 'query_host', 'board', 'sql_gateway')])
+        service_failures([[fixture.cli, '__transit_role_v1', 'node'],
+                          *[[fixture.config['executables'][role]] for role in ('query_host', 'board', 'sql_gateway')]])
         # No logging config: defaults are readable even with unrelated ambient LOG_*.
         text_path = start(fixture, True, {'LOG_FORMAT': 'json'})
         # Native-only bootstrap defers all Table maintenance. After the owner

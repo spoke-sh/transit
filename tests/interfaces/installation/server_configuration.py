@@ -205,10 +205,10 @@ def run(fixture):
         fixture.config['admission_ceiling'] = original.get('admission_ceiling',65536)
         foreign = fixture.root/'foreign-executable'
         foreign.write_text('#!/bin/false\n'); foreign.chmod(0o700)
-        fixture.config['executables']['node'] = str(foreign)
+        fixture.config['executables']['query_host'] = str(foreign)
         write()
         assert sql('SELECT transit_reload_conf()',ok=False)[0]['outcome']['error_code']=='ConfigurationArtifactMismatch'
-        fixture.config['executables']['node'] = original['executables']['node']
+        fixture.config['executables']['query_host'] = original['executables']['query_host']
         write()
         fixture.stop()
         fixture.url = f"http://127.0.0.1:{fixture.config['ports']['gateway']}"

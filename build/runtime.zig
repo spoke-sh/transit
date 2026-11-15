@@ -36,7 +36,6 @@ pub const Context = struct {
     board: *std.Build.Step.Compile,
     runtime: *std.Build.Dependency,
     node_module: *std.Build.Module,
-    node_artifact: *std.Build.Step.Compile,
     controller_artifact: *std.Build.Step.Compile,
     kubectl_transit: *std.Build.Step.Compile,
     station_host: *std.Build.Step.Compile,
@@ -148,7 +147,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
         node_module.addImport("clock_c", clock_c.createModule());
     }
-    var node_artifact: *std.Build.Step.Compile = undefined;
     var controller_artifact: *std.Build.Step.Compile = undefined;
     const apps_step = b.step("apps", "Install platform executables");
     apps_step.dependOn(&install_board.step);
@@ -163,8 +161,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
     var serving_client: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "transit-runtime-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
-        const app = b.addExecutable(.{ .name = name, .root_module = if (std.mem.eql(u8, name, "transit-node")) node_module else b.addModule(name, .{
+    for ([_][]const u8{ "transit-runtime-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
+        const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
             .optimize = optimize,
@@ -174,7 +172,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
                 .{ .name = "transit_observability", .module = observations.module("transit_observability") },
             },
         }) });
-        if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
         apps_step.dependOn(&install.step);
@@ -249,8 +246,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
-    // One implementation module per role is shared by the standalone artifact
-    // and the local executable. Process isolation and acceptance owners stay
+    // The node module belongs to the server. Other component modules are shared
+    // with their standalone artifacts. Process isolation and acceptance owners stay
     // unchanged; `transit` dispatches only the selected private role at startup.
     transit_cli.root_module.addImport("transit_node_role", node_module);
     transit_cli.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
@@ -299,7 +296,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .board = board,
         .runtime = runtime,
         .node_module = node_module,
-        .node_artifact = node_artifact,
         .controller_artifact = controller_artifact,
         .kubectl_transit = kubectl_transit,
         .station_host = station_host,

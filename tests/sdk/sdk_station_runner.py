@@ -40,13 +40,12 @@ def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, f
 def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitions=1, failures_only=False):
     if not 1 <= decode_block_repetitions <= 1024:
         raise ValueError('decode-block repetitions must be in 1..1024')
-    from sdk.client_abi_growing import GrowingSystem
+    from sdk.installed_server import InstalledServer
     from sdk.client_abi import Native
     from runtime.station.station import frame
     from sdk.sdk_scenarios import check
     root = ROOT
-    fixture = GrowingSystem(node, cli, storage_config=cold.config())
-    fixture.resident_pages = 64
+    fixture = InstalledServer(node, cli, storage_config=cold.config(), manual_delivery=True)
     with tempfile.TemporaryDirectory(prefix='transit-station-consumer-') as temporary, fixture as system:
         target = Path(temporary)
         with phase("consumer-install", "sdk-station"):
@@ -63,7 +62,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
         native = Native(raw_library)
         admin = native.client(system.url)
         private = bytes.fromhex(system.seed.read_text().strip())
-        sequence, principal = 0, 65536
+        sequence, principal = system.sequence, 65536
         def command(body):
             nonlocal sequence
             sequence += 1
@@ -387,11 +386,9 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             expect_one(service, 'NeedsRecovery')
             accepted = fault['commands'][-1]
             service.kill(); service.wait(timeout=10); children.remove(service)
-            system.authority.kill(); system.authority.wait(timeout=10)
+            system.crash_authority()
             system.store.stop(); system.store.start()
-            system.authority = system.start(node, system.config)
-            from harness.services import wait_ready
-            wait_ready(system.store.http, system.authority, system.url + '/health')
+            system.restart_authority()
             seed_path = Path(source['seed_file'])
             saved_seed = seed_path.read_bytes(); seed_path.unlink()
             invoke('recover', source)
@@ -598,7 +595,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                 'owned_ipc_after_close': not children, 'revoked_result_denied': denied['denied'],
             })
             assert cold.data_objects() > 0, 'Retained history did not reach cold storage'
-            print(f'{label} storage: 8 MiB hot cache, {fixture.resident_pages} authority pages, {cold.data_objects()} cold objects.', flush=True)
+            print(f'{label} storage: 8 MiB provider hot cache, installed server defaults, {cold.data_objects()} cold objects.', flush=True)
             print(f'{label} Station: clean artifacts/examples, full-width codecs, gated mutations, callback failures, scope safety, stop/join, codec policy, poisoned reads, fencing/expiry, exact disk/host recovery, retained Tables and six owned IPC segments passed.')
             print(f'{label} Station recovery: {recovered_events} transient outcomes reconciled with unchanged signed attempts.')
             print(f'{label} Station reads: {repeated_reads} unavailable observations repeated within the same progress budget.')

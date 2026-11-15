@@ -22,7 +22,7 @@ def run(prefix):
     for binary in [*(prefix / 'bin').iterdir(), Path(operations())]:
         assert 'INTERP' not in subprocess.check_output(['readelf', '-l', str(binary)], text=True), binary
         assert '(NEEDED)' not in subprocess.check_output(['readelf', '-d', str(binary)], text=True), binary
-    fixture = Board(prefix / 'bin/transit', prefix / 'bin/transit-node',
+    fixture = Board(prefix / 'bin/transit', prefix / 'bin/transit',
                     prefix / 'bin/transit-query-host', prefix / 'bin/transit-board')
     # Exercise the single executable's embedded roles, independently of sibling files.
     fixture.config['executables'] = {}

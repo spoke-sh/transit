@@ -47,8 +47,12 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{.{ .name = "transit_client", .module = client.module("transit_client") }},
     }) });
     b.step("test-native-client-fixture", "Build the private signed ingress driver").dependOn(&b.addInstallArtifact(native_client_fixture, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
-    @import("native_fixtures.zig").register(b, target, optimize, context, native_client_fixture);
-    const node_artifact = context.node_artifact;
+    // Isolated authority schedules need explicit bootstrap and failure control.
+    // This artifact is never installed as a runtime app or included in releases.
+    const authority_fixture = b.addExecutable(.{ .name = "native-authority-fixture", .root_module = context.node_module });
+    const authority_install = b.addInstallArtifact(authority_fixture, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } });
+    b.step("test-native-authority-fixture", "Build the isolated authority fixture").dependOn(&authority_install.step);
+    @import("native_fixtures.zig").register(b, target, optimize, context, native_client_fixture, authority_fixture);
     const controller_artifact = context.controller_artifact;
     const kubectl_transit = context.kubectl_transit;
     const station_host = context.station_host;
@@ -573,7 +577,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     exchange_failure_test.stdio = .inherit;
     fixtures_step.dependOn(&exchange_failure_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
-    for ([_]*std.Build.Step.Compile{ node_artifact, native_client_fixture, station_host, client_host, transit_cli }) |app| {
+    for ([_]*std.Build.Step.Compile{ authority_fixture, native_client_fixture, station_host, client_host, transit_cli }) |app| {
         build_test_step.dependOn(&app.step);
     }
     build_test_step.dependOn(&work_items.step);
@@ -939,7 +943,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const grpc_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
     grpc_worker_test.addFileArg(b.path("tests/runner/launch.py"));
     grpc_worker_test.addFileArg(b.path("tests/runtime/effects/grpc_worker.py"));
-    grpc_worker_test.addArtifactArg(node_artifact);
+    grpc_worker_test.addArtifactArg(authority_fixture);
     grpc_worker_test.addArtifactArg(grpc_provision);
     grpc_worker_test.addArtifactArg(grpc_worker);
     const grpc_browser = b.option(bool, "grpc-board-browser", "Qualify captured RPC metadata in the browser") orelse false;
@@ -959,7 +963,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const flight_outbound_test = b.addSystemCommand(&.{ "python3", "-B" });
     flight_outbound_test.addFileArg(b.path("tests/runner/launch.py"));
     flight_outbound_test.addFileArg(b.path("tests/interfaces/flight/flight_outbound.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, grpc_provision, grpc_worker, flight_outbound }) |artifact| flight_outbound_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, grpc_provision, grpc_worker, flight_outbound }) |artifact| flight_outbound_test.addArtifactArg(artifact);
     flight_outbound_test.has_side_effects = true;
     flight_outbound_test.stdio = .inherit;
     b.step("test-flight-outbound", "Qualify Flight recorded effects and network-free replay").dependOn(&flight_outbound_test.step);
@@ -968,7 +972,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
     http_worker_test.addFileArg(b.path("tests/runner/launch.py"));
     http_worker_test.addFileArg(b.path("tests/runtime/effects/http_worker.py"));
-    http_worker_test.addArtifactArg(node_artifact);
+    http_worker_test.addArtifactArg(authority_fixture);
     http_worker_test.addArtifactArg(http_provision);
     http_worker_test.addArtifactArg(http_worker);
     http_worker_test.addArtifactArg(station_bindings.artifact("transit_station"));
@@ -1324,10 +1328,16 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     // Keep Debug fixture DWARF outside the installation's executable-byte cap.
     // Runtime assertions and the selected optimization mode remain unchanged.
     browser_fault_module.strip = true;
-    var browser_imports = node_artifact.root_module.import_table.iterator();
+    var browser_imports = context.node_module.import_table.iterator();
     while (browser_imports.next()) |entry| browser_fault_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_serving_http")) browser_fault_host else entry.value_ptr.*);
-    const browser_fault_node = b.addExecutable(.{ .name = "transit-node-browser-fixture", .root_module = browser_fault_module });
-    b.step("browser-fault-fixture", "Build browser buffered-read fault boundary").dependOn(&b.addInstallArtifact(browser_fault_node, .{}).step);
+    const browser_fault_role = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/installation/node_fault_role.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "node", .module = browser_fault_module }},
+    });
+    const browser_fault_server = serverWithNode(b, target, optimize, transit_cli, browser_fault_role, "transit-browser-fault-fixture");
+    b.step("browser-fault-fixture", "Build browser buffered-read fault boundary").dependOn(&b.addInstallArtifact(browser_fault_server, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
     if (sdk) |public_sdk| {
         const browser_publisher = b.addExecutable(.{ .name = "example-browser-publish", .root_module = b.createModule(.{
             .root_source_file = b.path("examples/declarative-browser/publish.zig"),
@@ -1339,7 +1349,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const browser_test = b.addSystemCommand(&.{ "python3", "-B" });
         browser_test.addFileArg(b.path("tests/runner/launch.py"));
         browser_test.addFileArg(b.path("tests/interfaces/http/declarative_browser.py"));
-        for ([_]*std.Build.Step.Compile{ transit_cli, browser_publisher, browser_fault_node }) |artifact| browser_test.addArtifactArg(artifact);
+        for ([_]*std.Build.Step.Compile{ transit_cli, browser_publisher, browser_fault_server }) |artifact| browser_test.addArtifactArg(artifact);
         browser_test.has_side_effects = true;
         browser_test.stdio = .inherit;
         b.step("test-declarative-browser", "Qualify durable browser sessions, provider exchanges and native publications").dependOn(&browser_test.step);
@@ -1350,20 +1360,27 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/interfaces/installation/sql_fault_host.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "sql_host", .module = node_artifact.root_module.import_table.get("transit_sql_host").? }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") } },
+        .imports = &.{ .{ .name = "sql_host", .module = context.node_module.import_table.get("transit_sql_host").? }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") } },
     });
     const fault_node_module = b.createModule(.{ .root_source_file = b.path("apps/transit-node/main.zig"), .target = target, .optimize = optimize, .link_libc = true });
-    var node_imports = node_artifact.root_module.import_table.iterator();
+    var node_imports = context.node_module.import_table.iterator();
     while (node_imports.next()) |entry| fault_node_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_sql_host")) fault_host else entry.value_ptr.*);
-    const fault_node = b.addExecutable(.{ .name = "transit-node-fault-fixture", .root_module = fault_node_module });
+    const fault_role = b.createModule(.{
+        .root_source_file = b.path("tests/interfaces/installation/node_fault_role.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "node", .module = fault_node_module }},
+    });
+    const fault_server = serverWithNode(b, target, optimize, transit_cli, fault_role, "transit-server-fault-fixture");
+    b.step("test-server-fault-fixture", "Build the installed server with test-only fault boundaries").dependOn(&b.addInstallArtifact(fault_server, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
     // The lifecycle proof also withholds accepted direct execution to exercise
     // native-session reply loss; co-hosted calls bypass its HTTP proxy.
-    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ fault_server, fault_server, fault_server, fault_server, fault_server }) |artifact| server_test.addArtifactArg(artifact);
     if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     const direct_fault_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_fault_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_fault_test.addFileArg(b.path("tests/interfaces/installation/server_direct_faults.py"));
-    for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| direct_fault_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ fault_server, fault_server, fault_server, fault_server, fault_server }) |artifact| direct_fault_test.addArtifactArg(artifact);
     direct_fault_test.has_side_effects = true;
     direct_fault_test.stdio = .inherit;
     b.step("test-server-direct-faults", "Prove installed direct Table recovery and control during data-owner failures").dependOn(&direct_fault_test.step);
@@ -1394,7 +1411,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
         } else {
-            for ([_]*std.Build.Step.Compile{ transit_cli, fault_node, transit_cli, transit_cli, transit_cli }) |artifact| run.addArtifactArg(artifact);
+            for ([_]*std.Build.Step.Compile{ fault_server, fault_server, fault_server, fault_server, fault_server }) |artifact| run.addArtifactArg(artifact);
         }
         run.step.dependOn(&operation_install.step);
         run.has_side_effects = true;
@@ -1404,7 +1421,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/runner/launch.py"));
     serving_test.addFileArg(b.path("tests/interfaces/http/serving.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host, station_host }) |artifact| serving_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, serving_example, query_host, station_host }) |artifact| serving_test.addArtifactArg(artifact);
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
@@ -1432,7 +1449,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("public-query-proof", "Install the public query provisioning proof").dependOn(&b.addInstallArtifact(public_query, .{}).step);
     build_test_step.dependOn(&public_query.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = sql_gateway_app.root_module })).step);
-    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = node_artifact.root_module.import_table.get("transit_sql_host").? })).step);
+    components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = context.node_module.import_table.get("transit_sql_host").? })).step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
         flight_test.addFileArg(b.path("examples/flight/run.py"));
@@ -1441,7 +1458,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         flight_test.addFileArg(b.path("tests/runner/launch.py"));
         flight_test.addFileArg(b.path("tests/interfaces/flight/flight.py"));
     }
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
     if (b.option(bool, "flight-faults", "Qualify Flight authority, retry and physical recovery boundaries") orelse false) {
         flight_test.addArg("faults");
         flight_test.addArtifactArg(board);
@@ -1452,7 +1469,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const public_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     public_query_test.addFileArg(b.path("tests/runner/launch.py"));
     public_query_test.addFileArg(b.path("tests/query/execution/public_query.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, query_host, operations, public_query }) |artifact| public_query_test.addArtifactArg(artifact);
     public_query_test.has_side_effects = true;
     public_query_test.stdio = .inherit;
     b.step("test-public-query", "Qualify public query hosts and native callers over local direct Tables").dependOn(&public_query_test.step);
@@ -1476,7 +1493,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const unified_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_query_test.addFileArg(b.path("tests/runner/launch.py"));
     unified_query_test.addFileArg(b.path("tests/query/unified/unified_query.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
     if (b.option(bool, "unified-example", "Run the finite SQL example and recover its original intent") orelse false) {
         unified_query_test.addArg("--example");
         unified_query_test.addArtifactArg(query_example);
@@ -1505,7 +1522,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const query_board_test = b.addSystemCommand(&.{ "python3", "-B" });
     query_board_test.addFileArg(b.path("tests/runner/launch.py"));
     query_board_test.addFileArg(b.path("tests/interfaces/board/board_query.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, public_query, board }) |artifact| query_board_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, query_host, public_query, board }) |artifact| query_board_test.addArtifactArg(artifact);
     if (b.option(bool, "query-browser", "Include the public query browser proof") orelse false) query_board_test.addArg("--browser");
     query_board_test.has_side_effects = true;
     query_board_test.stdio = .inherit;
@@ -1520,7 +1537,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const node_recovery = b.addSystemCommand(&.{ "python3", "-B" });
     node_recovery.addFileArg(b.path("tests/runner/launch.py"));
     node_recovery.addFileArg(b.path("tests/storage/providers/node_recovery.py"));
-    node_recovery.addArtifactArg(node_artifact);
+    node_recovery.addArtifactArg(authority_fixture);
     node_recovery.addArtifactArg(growing_client);
     node_recovery.has_side_effects = true;
     node_recovery.stdio = .inherit;
@@ -1534,7 +1551,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const node_concurrency = b.addSystemCommand(&.{ "python3", "-B" });
     node_concurrency.addFileArg(b.path("tests/runner/launch.py"));
     node_concurrency.addFileArg(b.path("tests/storage/providers/node_concurrency.py"));
-    node_concurrency.addArtifactArg(node_artifact);
+    node_concurrency.addArtifactArg(authority_fixture);
     node_concurrency.addArtifactArg(node_concurrency_fixtures);
     node_concurrency.has_side_effects = true;
     node_concurrency.stdio = .inherit;
@@ -1542,13 +1559,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const native_blocks = b.addSystemCommand(&.{ "python3", "-B" });
     native_blocks.addFileArg(b.path("tests/runner/launch.py"));
     native_blocks.addFileArg(b.path("tests/storage/providers/block_native.py"));
-    native_blocks.addArtifactArg(node_artifact);
+    native_blocks.addArtifactArg(authority_fixture);
     native_blocks.has_side_effects = true;
     native_blocks.stdio = .inherit;
     b.step("test-native-blocks", "Qualify atomic native bulk publication and current-authorized retained reads").dependOn(&native_blocks.step);
     growing_service.addFileArg(b.path("tests/runner/launch.py"));
     growing_service.addFileArg(b.path("tests/interfaces/native/growing_service.py"));
-    growing_service.addArtifactArg(node_artifact);
+    growing_service.addArtifactArg(authority_fixture);
     growing_service.addArtifactArg(growing_client);
     const growing_station = b.addExecutable(.{ .name = "transit-growing-station-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/runtime/application/growing_station.zig"),
@@ -1566,7 +1583,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const station_turn_run = b.addSystemCommand(&.{ "python3", "-B" });
     station_turn_run.addFileArg(b.path("tests/runner/launch.py"));
     station_turn_run.addFileArg(b.path("tests/performance/load/station_turn.py"));
-    station_turn_run.addArtifactArg(node_artifact);
+    station_turn_run.addArtifactArg(authority_fixture);
     station_turn_run.addArtifactArg(station_turn);
     station_turn_run.addPassthruArgs();
     station_turn_run.has_side_effects = true;
@@ -1574,7 +1591,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-station-turn-baseline", "Measure confirmed installed Station handler turns and restart readback").dependOn(&station_turn_run.step);
     const station_turn_build = b.step("station-turn-baseline-build", "Build installed Station handler baseline artifacts");
     station_turn_build.dependOn(&station_turn.step);
-    station_turn_build.dependOn(&node_artifact.step);
+    station_turn_build.dependOn(&authority_fixture.step);
     const growing_query = b.addExecutable(.{ .name = "transit-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/query/execution/growing_query.zig"),
         .target = target,
@@ -1590,7 +1607,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }) });
     growing_service.addArtifactArg(growing_quota);
     const growing_build = b.step("test-growing-service-build", "Compile growing service proof binaries without executing scenarios");
-    for ([_]*std.Build.Step.Compile{ node_artifact, growing_client, growing_station, growing_query, growing_quota }) |artifact| growing_build.dependOn(&artifact.step);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, growing_client, growing_station, growing_query, growing_quota }) |artifact| growing_build.dependOn(&artifact.step);
     growing_service.has_side_effects = true;
     growing_service.stdio = .inherit;
     b.step("test-growing-service", "Prove the explicit growing node/client profile over signed HTTP").dependOn(&growing_service.step);
@@ -1598,7 +1615,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_service.addFileArg(b.path("tests/runner/launch.py"));
     local_service.addFileArg(b.path("tests/interfaces/native/growing_service.py"));
     local_service.addArg("--local");
-    local_service.addArtifactArg(node_artifact);
+    local_service.addArtifactArg(authority_fixture);
     local_service.addArtifactArg(growing_client);
     local_service.has_side_effects = true;
     local_service.stdio = .inherit;
@@ -1608,7 +1625,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .imports = &.{.{ .name = "transit_node", .module = node_artifact.root_module }},
+        .imports = &.{.{ .name = "transit_node", .module = context.node_module }},
     }) });
     const local_owner_recovery = b.addSystemCommand(&.{ "python3", "-B" });
     local_owner_recovery.addFileArg(b.path("tests/runner/launch.py"));
@@ -1620,7 +1637,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const local_payload_service = b.addSystemCommand(&.{ "python3", "-B" });
     local_payload_service.addFileArg(b.path("tests/runner/launch.py"));
     local_payload_service.addFileArg(b.path("tests/storage/local/local_payload_service.py"));
-    local_payload_service.addArtifactArg(node_artifact);
+    local_payload_service.addArtifactArg(authority_fixture);
     local_payload_service.addArtifactArg(growing_client);
     local_payload_service.has_side_effects = true;
     local_payload_service.stdio = .inherit;
@@ -1636,7 +1653,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const transactional_station = b.addSystemCommand(&.{ "python3", "-B" });
     transactional_station.addFileArg(b.path("tests/runner/launch.py"));
     transactional_station.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    transactional_station.addArtifactArg(node_artifact);
+    transactional_station.addArtifactArg(authority_fixture);
     transactional_station.addArtifactArg(direct_table_client);
     transactional_station.addArg("station-transaction");
     transactional_station.has_side_effects = true;
@@ -1652,7 +1669,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const log_runtime = b.addSystemCommand(&.{ "python3", "-B" });
     log_runtime.addFileArg(b.path("tests/runner/launch.py"));
     log_runtime.addFileArg(b.path("tests/performance/storage/log_runtime.py"));
-    log_runtime.addArtifactArg(node_artifact);
+    log_runtime.addArtifactArg(authority_fixture);
     log_runtime.addArtifactArg(direct_table_client);
     log_runtime.addPassthruArgs();
     log_runtime.has_side_effects = true;
@@ -1661,7 +1678,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_table_service = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_service.addFileArg(b.path("tests/runner/launch.py"));
     direct_table_service.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_table_service.addArtifactArg(node_artifact);
+    direct_table_service.addArtifactArg(authority_fixture);
     direct_table_service.addArtifactArg(direct_table_client);
     direct_table_service.addPassthruArgs();
     direct_table_service.has_side_effects = true;
@@ -1681,7 +1698,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const proof = b.addSystemCommand(&.{ "python3", "-B" });
         proof.addFileArg(b.path("tests/runner/launch.py"));
         proof.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-        proof.addArtifactArg(node_artifact);
+        proof.addArtifactArg(authority_fixture);
         proof.addArtifactArg(direct_table_client);
         proof.addArg(mode);
         proof.addArtifactArg(transaction_client);
@@ -1692,7 +1709,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_kv = b.addSystemCommand(&.{ "python3", "-B" });
     direct_kv.addFileArg(b.path("tests/runner/launch.py"));
     direct_kv.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_kv.addArtifactArg(node_artifact);
+    direct_kv.addArtifactArg(authority_fixture);
     direct_kv.addArtifactArg(direct_table_client);
     direct_kv.addArg("kv");
     direct_kv.has_side_effects = true;
@@ -1701,7 +1718,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_table_maintenance = b.addSystemCommand(&.{ "python3", "-B" });
     direct_table_maintenance.addFileArg(b.path("tests/runner/launch.py"));
     direct_table_maintenance.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_table_maintenance.addArtifactArg(node_artifact);
+    direct_table_maintenance.addArtifactArg(authority_fixture);
     direct_table_maintenance.addArtifactArg(direct_table_client);
     direct_table_maintenance.addArg("maintenance");
     direct_table_maintenance.has_side_effects = true;
@@ -1709,7 +1726,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_stream_maintenance = b.addSystemCommand(&.{ "python3", "-B" });
     direct_stream_maintenance.addFileArg(b.path("tests/runner/launch.py"));
     direct_stream_maintenance.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_stream_maintenance.addArtifactArg(node_artifact);
+    direct_stream_maintenance.addArtifactArg(authority_fixture);
     direct_stream_maintenance.addArtifactArg(direct_table_client);
     direct_stream_maintenance.addArg("stream-maintenance");
     direct_stream_maintenance.has_side_effects = true;
@@ -1720,7 +1737,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_callers = b.addSystemCommand(&.{ "python3", "-B" });
     direct_callers.addFileArg(b.path("tests/runner/launch.py"));
     direct_callers.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_callers.addArtifactArg(node_artifact);
+    direct_callers.addArtifactArg(authority_fixture);
     direct_callers.addArtifactArg(direct_table_client);
     direct_callers.addArg("callers");
     direct_callers.has_side_effects = true;
@@ -1729,7 +1746,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_catalog_abi = b.addSystemCommand(&.{ "python3", "-B" });
     direct_catalog_abi.addFileArg(b.path("tests/runner/launch.py"));
     direct_catalog_abi.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_catalog_abi.addArtifactArg(node_artifact);
+    direct_catalog_abi.addArtifactArg(authority_fixture);
     direct_catalog_abi.addArtifactArg(direct_table_client);
     direct_catalog_abi.addArg("abi");
     direct_catalog_abi.addArtifactArg(station_bindings.artifact("transit_station"));
@@ -1743,7 +1760,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_python.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_python.addArtifactArg(node_artifact);
+        direct_catalog_python.addArtifactArg(authority_fixture);
     }
     direct_catalog_python.addArtifactArg(direct_table_client);
     direct_catalog_python.addArgs(&.{ "sdk-python", b.pathJoin(&.{ sdk_packages, "wheels" }) });
@@ -1756,7 +1773,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_node.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_node.addArtifactArg(node_artifact);
+        direct_catalog_node.addArtifactArg(authority_fixture);
     }
     direct_catalog_node.addArtifactArg(direct_table_client);
     direct_catalog_node.addArgs(&.{ "sdk-node", b.pathJoin(&.{ sdk_packages, "node" }) });
@@ -1769,7 +1786,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_ruby.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_ruby.addArtifactArg(node_artifact);
+        direct_catalog_ruby.addArtifactArg(authority_fixture);
     }
     direct_catalog_ruby.addArtifactArg(direct_table_client);
     direct_catalog_ruby.addArgs(&.{ "sdk-ruby", b.pathJoin(&.{ sdk_packages, "ruby" }) });
@@ -1782,7 +1799,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_java.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_java.addArtifactArg(node_artifact);
+        direct_catalog_java.addArtifactArg(authority_fixture);
     }
     direct_catalog_java.addArtifactArg(direct_table_client);
     direct_catalog_java.addArgs(&.{ "sdk-java", b.pathJoin(&.{ sdk_packages, "java" }) });
@@ -1795,7 +1812,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_dotnet.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_dotnet.addArtifactArg(node_artifact);
+        direct_catalog_dotnet.addArtifactArg(authority_fixture);
     }
     direct_catalog_dotnet.addArtifactArg(direct_table_client);
     direct_catalog_dotnet.addArgs(&.{ "sdk-dotnet", b.pathJoin(&.{ sdk_packages, "dotnet" }) });
@@ -1808,7 +1825,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_rust.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_rust.addArtifactArg(node_artifact);
+        direct_catalog_rust.addArtifactArg(authority_fixture);
     }
     direct_catalog_rust.addArtifactArg(direct_table_client);
     direct_catalog_rust.addArgs(&.{ "sdk-rust", b.pathJoin(&.{ sdk_packages, "rust" }) });
@@ -1821,7 +1838,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_beam.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_beam.addArtifactArg(node_artifact);
+        direct_catalog_beam.addArtifactArg(authority_fixture);
     }
     direct_catalog_beam.addArtifactArg(direct_table_client);
     direct_catalog_beam.addArgs(&.{ "sdk-beam", b.pathJoin(&.{ sdk_packages, "beam" }) });
@@ -1834,7 +1851,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     if (sdk_authority) |node| {
         direct_catalog_c.addFileArg(.{ .cwd_relative = node });
     } else {
-        direct_catalog_c.addArtifactArg(node_artifact);
+        direct_catalog_c.addArtifactArg(authority_fixture);
     }
     direct_catalog_c.addArtifactArg(direct_table_client);
     direct_catalog_c.addArgs(&.{ "sdk-c", b.pathJoin(&.{ sdk_packages, "c" }) });
@@ -1845,7 +1862,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_board = b.addSystemCommand(&.{ "python3", "-B" });
     direct_board.addFileArg(b.path("tests/runner/launch.py"));
     direct_board.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_board.addArtifactArg(node_artifact);
+    direct_board.addArtifactArg(authority_fixture);
     direct_board.addArtifactArg(direct_table_client);
     direct_board.addArg(if (b.option(bool, "direct-board-browser", "Qualify direct relational Board in Chromium") orelse false) "board-browser" else "board");
     direct_board.addArtifactArg(station_bindings.artifact("transit_station"));
@@ -1857,7 +1874,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const managed_board = b.addSystemCommand(&.{ "python3", "-B" });
     managed_board.addFileArg(b.path("tests/runner/launch.py"));
     managed_board.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    managed_board.addArtifactArg(node_artifact);
+    managed_board.addArtifactArg(authority_fixture);
     managed_board.addArtifactArg(direct_table_client);
     managed_board.addArg(if (b.option(bool, "computation-browser", "Qualify managed computation inspection in Chromium") orelse false) "managed-board-browser" else "managed-board");
     managed_board.addArtifactArg(board);
@@ -1868,7 +1885,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_dependencies = b.addSystemCommand(&.{ "python3", "-B" });
     direct_dependencies.addFileArg(b.path("tests/runner/launch.py"));
     direct_dependencies.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    direct_dependencies.addArtifactArg(node_artifact);
+    direct_dependencies.addArtifactArg(authority_fixture);
     direct_dependencies.addArtifactArg(direct_table_client);
     direct_dependencies.addArg("dependencies");
     direct_dependencies.has_side_effects = true;
@@ -1877,7 +1894,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const named_resources = b.addSystemCommand(&.{ "python3", "-B" });
     named_resources.addFileArg(b.path("tests/runner/launch.py"));
     named_resources.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    named_resources.addArtifactArg(node_artifact);
+    named_resources.addArtifactArg(authority_fixture);
     named_resources.addArtifactArg(direct_table_client);
     named_resources.addArg("resources");
     named_resources.has_side_effects = true;
@@ -1886,7 +1903,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const direct_captured_query = b.addSystemCommand(&.{ "python3", "-B" });
     direct_captured_query.addFileArg(b.path("tests/runner/launch.py"));
     direct_captured_query.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
-    direct_captured_query.addArtifactArg(node_artifact);
+    direct_captured_query.addArtifactArg(authority_fixture);
     direct_captured_query.addArtifactArg(direct_table_client);
     if (b.option(bool, "direct-query-example", "Run the finite SQL example through direct capture and restart recovery") orelse false) {
         direct_captured_query.addArg("--example");
@@ -1906,7 +1923,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const load_proof = b.addSystemCommand(&.{ "python3", "-B" });
     load_proof.addFileArg(b.path("tests/runner/launch.py"));
     load_proof.addFileArg(b.path("tests/performance/load/growing_load.py"));
-    load_proof.addArtifactArg(node_artifact);
+    load_proof.addArtifactArg(authority_fixture);
     load_proof.addArtifactArg(growing_load);
     load_proof.addPassthruArgs();
     load_proof.has_side_effects = true;
@@ -1916,7 +1933,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     scale.addFileArg(b.path("tests/runner/launch.py"));
     scale.addFileArg(b.path("tests/performance/scale/scale.py"));
     scale.addArtifactArg(growth_proof);
-    scale.addArtifactArg(node_artifact);
+    scale.addArtifactArg(authority_fixture);
     scale.addArtifactArg(growing_load);
     scale.addPassthruArgs();
     scale.has_side_effects = true;
@@ -1925,7 +1942,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const quota_proof = b.addSystemCommand(&.{ "python3", "-B" });
     quota_proof.addFileArg(b.path("tests/runner/launch.py"));
     quota_proof.addFileArg(b.path("tests/runtime/station/growing_quota.py"));
-    quota_proof.addArtifactArg(node_artifact);
+    quota_proof.addArtifactArg(authority_fixture);
     quota_proof.addArtifactArg(growing_quota);
     quota_proof.has_side_effects = true;
     quota_proof.stdio = .inherit;
@@ -1933,7 +1950,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const growing_behavior = b.addSystemCommand(&.{ "python3", "-B" });
     growing_behavior.addFileArg(b.path("tests/runner/launch.py"));
     growing_behavior.addFileArg(b.path("tests/runtime/application/growing_station.py"));
-    growing_behavior.addArtifactArg(node_artifact);
+    growing_behavior.addArtifactArg(authority_fixture);
     growing_behavior.addArtifactArg(growing_station);
     growing_behavior.addPassthruArgs();
     growing_behavior.has_side_effects = true;
@@ -1942,7 +1959,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const query_capture = b.addSystemCommand(&.{ "python3", "-B" });
     query_capture.addFileArg(b.path("tests/runner/launch.py"));
     query_capture.addFileArg(b.path("tests/query/execution/growing_query.py"));
-    query_capture.addArtifactArg(node_artifact);
+    query_capture.addArtifactArg(authority_fixture);
     query_capture.addArtifactArg(growing_query);
     query_capture.addPassthruArgs();
     query_capture.has_side_effects = true;
@@ -1958,7 +1975,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const document_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_test.addFileArg(b.path("tests/runner/launch.py"));
     document_test.addFileArg(b.path("tests/runtime/document/document.py"));
-    document_test.addArtifactArg(node_artifact);
+    document_test.addArtifactArg(authority_fixture);
     document_test.addArtifactArg(document_proof);
     document_test.addPassthruArgs();
     document_test.has_side_effects = true;
@@ -1967,7 +1984,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const work_items_native = b.addSystemCommand(&.{ "python3", "-B" });
     work_items_native.addFileArg(b.path("tests/runner/launch.py"));
     work_items_native.addFileArg(b.path("tests/runtime/application/work_items.py"));
-    work_items_native.addArtifactArg(node_artifact);
+    work_items_native.addArtifactArg(authority_fixture);
     work_items_native.addArtifactArg(work_items);
     work_items_native.addArtifactArg(work_items_proof);
     work_items_native.addArtifactArg(query_host);
@@ -1977,7 +1994,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const work_items_browser = b.addSystemCommand(&.{ "python3", "-B" });
     work_items_browser.addFileArg(b.path("tests/runner/launch.py"));
     work_items_browser.addFileArg(b.path("tests/runtime/application/work_items_browser.py"));
-    for ([_]*std.Build.Step.Compile{ node_artifact, work_items, query_host, work_items_gateway, work_items_browser_proof }) |artifact| work_items_browser.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ authority_fixture, work_items, query_host, work_items_gateway, work_items_browser_proof }) |artifact| work_items_browser.addArtifactArg(artifact);
     work_items_browser.has_side_effects = true;
     work_items_browser.stdio = .inherit;
     b.step("test-work-items-browser", "Qualify generated application queries through publication and data migration").dependOn(&work_items_browser.step);
@@ -1991,7 +2008,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const application_test = b.addSystemCommand(&.{ "python3", "-B" });
     application_test.addFileArg(b.path("tests/runner/launch.py"));
     application_test.addFileArg(b.path("tests/runtime/application/application.py"));
-    application_test.addArtifactArg(node_artifact);
+    application_test.addArtifactArg(authority_fixture);
     application_test.addArtifactArg(application_proof);
     application_test.has_side_effects = true;
     application_test.stdio = .inherit;
@@ -1999,7 +2016,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const application_browser = b.addSystemCommand(&.{ "python3", "-B" });
     application_browser.addFileArg(b.path("tests/runner/launch.py"));
     application_browser.addFileArg(b.path("tests/interfaces/installation/application_board.py"));
-    application_browser.addArtifactArg(node_artifact);
+    application_browser.addArtifactArg(authority_fixture);
     application_browser.addArtifactArg(application_proof);
     application_browser.addArtifactArg(board);
     application_browser.has_side_effects = true;
@@ -2015,13 +2032,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const publication_test = b.addSystemCommand(&.{ "python3", "-B" });
     publication_test.addFileArg(b.path("tests/runner/launch.py"));
     publication_test.addFileArg(b.path("tests/runtime/application/publication.py"));
-    publication_test.addArtifactArg(node_artifact);
+    publication_test.addArtifactArg(authority_fixture);
     publication_test.addArtifactArg(publication_proof);
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
     const relational_capacity_proof = b.step("relational-capacity-proof", "Build native relational physical-capacity fixtures");
-    relational_capacity_proof.dependOn(&b.addInstallArtifact(node_artifact, .{}).step);
+    relational_capacity_proof.dependOn(&b.addInstallArtifact(authority_fixture, .{ .dest_dir = .{ .override = .{ .custom = "tests" } } }).step);
     relational_capacity_proof.dependOn(&b.addInstallArtifact(direct_table_client, .{}).step);
     const sql_catalog_proof = b.addExecutable(.{ .name = "transit-sql-catalog-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/sql/sql_catalog_native.zig"),
@@ -2040,7 +2057,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const sql_gateway_native = b.addSystemCommand(&.{ "python3", "-B" });
     sql_gateway_native.addFileArg(b.path("tests/runner/launch.py"));
     sql_gateway_native.addFileArg(b.path("tests/interfaces/sql/sql_gateway_native.py"));
-    sql_gateway_native.addArtifactArg(node_artifact);
+    sql_gateway_native.addArtifactArg(authority_fixture);
     sql_gateway_native.addArtifactArg(sql_catalog_proof);
     sql_gateway_native.addArtifactArg(sql_gateway_proof);
     sql_gateway_native.has_side_effects = true;
@@ -2104,7 +2121,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const placed = b.addSystemCommand(&.{ "python3", "-B" });
         placed.addFileArg(b.path("examples/sql-wire/run.py"));
         placed.addArg(placement);
-        for ([_]*std.Build.Step.Compile{ node_artifact, sql_catalog_proof, sql_gateway_proof, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
+        for ([_]*std.Build.Step.Compile{ authority_fixture, sql_catalog_proof, sql_gateway_proof, sql_gateway_app }) |artifact| placed.addArtifactArg(artifact);
         placed.has_side_effects = true;
         placed.stdio = .inherit;
         b.step("test-sql-wire-placement", "Qualify scoped SQL deployment and fenced physical recovery").dependOn(&placed.step);
@@ -2112,7 +2129,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const relational_callers_native = b.addSystemCommand(&.{ "python3", "-B" });
     relational_callers_native.addFileArg(b.path("tests/runner/launch.py"));
     relational_callers_native.addFileArg(b.path("tests/storage/tables/direct_table_service.py"));
-    relational_callers_native.addArtifactArg(node_artifact);
+    relational_callers_native.addArtifactArg(authority_fixture);
     relational_callers_native.addArtifactArg(direct_table_client);
     const relational_sdk = b.option(enum { python, node }, "relational-sdk", "Include installed relational SDK callers");
     relational_callers_native.addArg(if (relational_sdk) |language| switch (language) {
@@ -2132,7 +2149,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         const exchange_proof = b.addSystemCommand(&.{ "python3", "-B" });
         exchange_proof.addFileArg(b.path("tests/runner/launch.py"));
         exchange_proof.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
-        exchange_proof.addArtifactArg(node_artifact);
+        exchange_proof.addArtifactArg(authority_fixture);
         exchange_proof.addArtifactArg(direct_table_client);
         exchange_proof.addArg(mode);
         exchange_proof.has_side_effects = true;
@@ -2144,7 +2161,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const named_relational_native = b.addSystemCommand(&.{ "python3", "-B" });
     named_relational_native.addFileArg(b.path("tests/runner/launch.py"));
     named_relational_native.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
-    named_relational_native.addArtifactArg(node_artifact);
+    named_relational_native.addArtifactArg(authority_fixture);
     named_relational_native.addArtifactArg(direct_table_client);
     named_relational_native.addArg("--named-only");
     named_relational_native.has_side_effects = true;
@@ -2153,7 +2170,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
     combined_table_test.addFileArg(b.path("tests/runner/launch.py"));
     combined_table_test.addFileArg(b.path("tests/query/execution/direct_captured_query.py"));
-    combined_table_test.addArtifactArg(node_artifact);
+    combined_table_test.addArtifactArg(authority_fixture);
     combined_table_test.addArtifactArg(direct_table_client);
     combined_table_test.addArg("--unified-boundaries-only");
     combined_table_test.has_side_effects = true;
@@ -2167,7 +2184,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     abi_tests.addFileArg(b.path("tests/runner/launch.py"));
     abi_tests.addFileArg(b.path("tests/sdk/client_abi.py"));
     abi_tests.addArtifactArg(client.artifact("transit_client"));
-    abi_tests.addArtifactArg(node_artifact);
+    abi_tests.addArtifactArg(authority_fixture);
     abi_tests.addArtifactArg(native_client_fixture);
     abi_tests.addArtifactArg(c_proof);
     abi_tests.has_side_effects = true;
@@ -2178,7 +2195,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     client_host_tests.addFileArg(b.path("tests/runner/launch.py"));
     client_host_tests.addFileArg(b.path("tests/sdk/client_host.py"));
     client_host_tests.addArtifactArg(client_host);
-    client_host_tests.addArtifactArg(node_artifact);
+    client_host_tests.addArtifactArg(authority_fixture);
     client_host_tests.addArtifactArg(native_client_fixture);
     client_host_tests.has_side_effects = true;
     client_host_tests.stdio = .inherit;
@@ -2186,7 +2203,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const binding_tests = b.addSystemCommand(&.{ "python3", "-B" });
     binding_tests.addFileArg(b.path("tests/runner/launch.py"));
     binding_tests.addFileArg(b.path("tests/sdk/bindings.py"));
-    binding_tests.addArtifactArg(node_artifact);
+    binding_tests.addArtifactArg(authority_fixture);
     binding_tests.addArtifactArg(native_client_fixture);
     binding_tests.addArtifactArg(station_bindings.artifact("transit_station"));
     binding_tests.addArtifactArg(client.artifact("transit_client"));
@@ -2225,13 +2242,14 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     station_test.addArtifactArg(native_client_fixture);
     station_test.addArtifactArg(station_ledger);
     station_test.addArtifactArg(operations);
+    station_test.addArtifactArg(fault_server);
     station_test.has_side_effects = true;
     station_test.stdio = .inherit;
     b.step("test-station", "Prove recoverable Station callers against durable authority").dependOn(&station_test.step);
     const upgrade_tests = b.addSystemCommand(&.{ "python3", "-B" });
     upgrade_tests.addFileArg(b.path("tests/runner/launch.py"));
     upgrade_tests.addFileArg(b.path("tests/runtime/deployment/runtime_upgrade.py"));
-    upgrade_tests.addArtifactArg(node_artifact);
+    upgrade_tests.addArtifactArg(authority_fixture);
     upgrade_tests.addArtifactArg(native_client_fixture);
     upgrade_tests.addArtifactArg(controller_artifact);
     upgrade_tests.has_side_effects = true;
@@ -2251,7 +2269,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         b.step("example-" ++ name, "Install example-" ++ name).dependOn(&install.step);
         build_test_step.dependOn(&example.step);
     }
-    services.addArtifactArg(node_artifact);
+    services.addArtifactArg(authority_fixture);
     services.addArtifactArg(example_artifacts[0]);
     services.addArtifactArg(native_client_fixture);
     services.has_side_effects = true;
@@ -2313,7 +2331,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const board_tests = b.addSystemCommand(&.{ "python3", "-B" });
     board_tests.addFileArg(b.path("tests/runner/launch.py"));
     board_tests.addFileArg(b.path("tests/interfaces/board/board.py"));
-    board_tests.addArtifactArg(node_artifact);
+    board_tests.addArtifactArg(authority_fixture);
     board_tests.addArtifactArg(native_client_fixture);
     board_tests.addArtifactArg(board);
     if (b.option(bool, "transit-board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
@@ -2323,7 +2341,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const observation_tests = b.addSystemCommand(&.{ "python3", "-B" });
     observation_tests.addFileArg(b.path("tests/runner/launch.py"));
     observation_tests.addFileArg(b.path("tests/interfaces/inspection/observability.py"));
-    observation_tests.addArtifactArg(node_artifact);
+    observation_tests.addArtifactArg(authority_fixture);
     observation_tests.addArtifactArg(native_client_fixture);
     observation_tests.addArtifactArg(board);
     observation_tests.has_side_effects = true;
@@ -2332,7 +2350,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const inspection = b.addSystemCommand(&.{ "python3", "-B" });
     inspection.addFileArg(b.path("tests/runner/launch.py"));
     inspection.addFileArg(b.path("tests/interfaces/inspection/inspection.py"));
-    inspection.addArtifactArg(node_artifact);
+    inspection.addArtifactArg(authority_fixture);
     inspection.addArtifactArg(native_client_fixture);
     inspection.has_side_effects = true;
     inspection.stdio = .inherit;
@@ -2340,7 +2358,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const state_api = b.addSystemCommand(&.{ "python3", "-B" });
     state_api.addFileArg(b.path("tests/runner/launch.py"));
     state_api.addFileArg(b.path("tests/interfaces/native/state_api.py"));
-    state_api.addArtifactArg(node_artifact);
+    state_api.addArtifactArg(authority_fixture);
     state_api.addArtifactArg(native_client_fixture);
     state_api.addArtifactArg(example_artifacts[0]);
     state_api.has_side_effects = true;
@@ -2429,4 +2447,17 @@ fn requireIndependentTransactionClient(b: *std.Build, root: *std.Build.Module) v
             modules.put(b.allocator, dependency, {}) catch @panic("OOM");
         }
     }
+}
+
+/// Recompose the actual CLI around an explicit test-only node module.
+fn serverWithNode(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, cli: *std.Build.Step.Compile, node: *std.Build.Module, name: []const u8) *std.Build.Step.Compile {
+    const module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-cli/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    var imports = cli.root_module.import_table.iterator();
+    while (imports.next()) |entry| module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_node_role")) node else entry.value_ptr.*);
+    module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
+    return b.addExecutable(.{ .name = name, .root_module = module, .use_llvm = cli.use_llvm, .use_lld = cli.use_lld });
 }

@@ -11,15 +11,14 @@ import tempfile
 import time
 
 from sdk.client_abi import Native
-from sdk.client_abi_growing import GrowingSystem
+from sdk.installed_server import InstalledServer
 from runtime.document.document_contract import encode
 from runtime.station.station import frame
 
 
 def run(node, cli, library, install, label):
     started = time.monotonic()
-    fixture = GrowingSystem(node, cli)
-    fixture.resident_pages = 64
+    fixture = InstalledServer(node, cli)
     with tempfile.TemporaryDirectory(prefix='transit-document-sdk-') as temporary, fixture as system:
         target = Path(temporary)
         consumer = install(target)
@@ -28,7 +27,7 @@ def run(node, cli, library, install, label):
         native = Native(library)
         admin = native.client(system.url, timeout_ms=15000)
         private = bytes.fromhex(system.seed.read_text().strip())
-        sequence, children = 0, []
+        sequence, children = system.sequence, []
         def command(body):
             nonlocal sequence
             sequence += 1

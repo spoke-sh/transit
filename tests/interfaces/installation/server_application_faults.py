@@ -37,11 +37,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -289,13 +289,11 @@ def node(real, directory, args):
 
 
 def install_peer(fixture):
-    configured = fixture.config.setdefault('executables', {}).get('node')
-    real = [configured] if configured else [fixture.cli, '__transit_role_v1', 'node']
+    real = [fixture.cli, '__transit_role_v1', 'node', '__test_native_node']
     wrapper = fixture.root / 'fault-node'
     wrapper.write_text('#!' + sys.executable + '\nimport sys\nsys.path.insert(0, ' + repr(str(TESTS)) + ')\nfrom interfaces.installation.server_application_faults import node\nnode(' + repr(real) + ', ' + repr(str(fixture.root)) + ', sys.argv[1:])\n')
     wrapper.chmod(0o700)
-    fixture.config['executables']['node'] = str(wrapper)
-    fixture.path.write_text(json.dumps(fixture.config))
+    (fixture.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
 
 
 def wait_file(path, timeout=20):
@@ -409,7 +407,7 @@ def run(cli, node_binary, host, worker, operator):
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     fixture = Applications(cli, node_binary, host)
     fixture.config['executables'] = {}
-    for name in ('transit-node', 'transit-query-host', 'transit-sql-gateway', 'transit-board'):
+    for name in ('transit-query-host', 'transit-sql-gateway', 'transit-board'):
         (fixture.root / name).unlink(missing_ok=True)
     install_peer(fixture)
     started = time.monotonic()

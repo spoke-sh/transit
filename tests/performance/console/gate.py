@@ -523,7 +523,7 @@ def run_workload(cli, node, host, output_dir, workload):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cli', type=Path, help='built ReleaseSafe transit binary')
-    parser.add_argument('--node', type=Path, help='built ReleaseSafe transit-node binary')
+    parser.add_argument('--node', type=Path, help='the same ReleaseSafe transit binary (embedded node)')
     parser.add_argument('--host', type=Path, help='built ReleaseSafe transit-query-host binary')
     parser.add_argument('--budgets', type=Path, default=BUDGETS, help='checked-in budgets JSON file')
     parser.add_argument('--output', type=Path, default=ROOT / '.cache/transit-latency/gate',
