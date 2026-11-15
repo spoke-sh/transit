@@ -22,6 +22,9 @@ class Compose(BaseCompose):
         super().__init__(work, 'query')
         self.command[-1] = str(Path(__file__).with_name('docker-compose.yaml'))
 
+    def initialize(self):
+        self.call('run', '--rm', '--no-deps', '-T', 'node', '/operator/node.json', '--initialize')
+
     def stop_for_recovery(self, service, process):
         process.kill(); process.wait(timeout=10)
 
