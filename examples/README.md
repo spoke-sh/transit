@@ -114,3 +114,9 @@ bootstrap, direct Table attachment and deliberately stalled delivery. The check
 graph builds that fixture under `tests/`; it is not a released executable or
 container. These schedules establish component and provider behavior. Installed
 server and launcher proofs establish product composition.
+
+The reference component fixture uses the chart's authority labels on its
+initializer and authority pod so the storage ingress policy admits only those
+owners. Application workers and denial probes keep their separate labels. The
+initializer job is removed after successful completion, before starting the
+authority, so recovery selectors identify only the running authority.

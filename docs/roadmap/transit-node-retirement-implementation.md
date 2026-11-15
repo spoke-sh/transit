@@ -9,7 +9,7 @@ container publications. Applications keep the same data, authorization and
 accepted-operation owners. Operators use the server's configuration, readiness,
 recovery and shutdown lifecycle to inspect whether those owners are available.
 
-**Source basis:** `560218772`. This follows the
+**Original analysis basis:** `560218772`. This follows the
 [delivery ownership](transit-server-delivery-implementation.md) and
 [Station service ownership](transit-server-station-implementation.md) removals.
 It changes no milestone status or existing qualification claim.
@@ -41,23 +41,23 @@ the public configuration path that selects a standalone node. Decision 4 makes
 its compatibility cost explicit. Existing installations must retain their
 matching artifacts; this plan adds no automatic migration or reset.
 
-## Current implementation and consumers
+## Implementation and consumers at the original analysis basis
 
-The [runtime build](../../build/runtime.zig) creates a standalone node executable
-and imports its root module into `transit`. The
-[private dispatcher](../../apps/transit-cli/RuntimeRole.zig) calls that same node
-entry point. The [Nix release build](../../nix/transit.nix) already compiles only
-`transit` for these roles and copies its bytes to `transit-node`. The
-[release inventory](../../tasks/package_release.py) still requires the copy;
+At the original analysis basis, the [runtime build](../../build/runtime.zig)
+created a standalone node executable and imported its root module into `transit`.
+The [private dispatcher](../../apps/transit-cli/RuntimeRole.zig) called that same
+node entry point. The [Nix release build](../../nix/transit.nix) already compiled
+only `transit` for these roles and copied its bytes to `transit-node`. The
+[release inventory](../../tasks/package_release.py) required the copy;
 [image generation](../../tasks/release_images.py) and
-[publication](../../tasks/publish_release.py) turn it into a separate image.
+[publication](../../tasks/publish_release.py) turned it into a separate image.
 
 The [server](../../apps/transit-cli/docs/server.md) supports the installed local
 database and an external-worker profile with local or Ursula native storage.
 The external profile owns maintenance and delivery; it does not supply SQL or
 direct Tables over Ursula. Retirement must preserve those supported boundaries.
 
-| Consumer | Current dependency | Planned destination |
+| Consumer | Dependency at the original basis | Implementation destination |
 | --- | --- | --- |
 | [Runtime graph](../../build/runtime.zig), [check graph](../../build/checks.zig) | `node_artifact` is both an executable and the source of shared module imports | Explicit node module; production composition through `transit`; test fixtures owned by checks |
 | [Application test host](../../apps/transit-cli/TestHost.zig) | Imports the node's listener-free `LocalRuntime` | Same implementation, endpoint ownership and close/join rules |
