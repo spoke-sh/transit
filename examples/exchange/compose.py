@@ -102,7 +102,13 @@ class Compose:
         self.call("up", "-d", service)
         process = Process(self, service, self.call("ps", "-q", service).strip())
         if service == "node" and self.server_owned:
-            wait_started(process, lambda: self.call("logs", "--no-log-prefix", service))
+            # Docker retains prior output when a stopped container is started
+            # again. Readiness must belong to this start, including recovery.
+            started = subprocess.check_output(["docker", "inspect", "--format",
+                "{{.State.StartedAt}}", process.identity], text=True).strip()
+            wait_started(process, lambda: subprocess.check_output([
+                "docker", "logs", "--since", started, process.identity],
+                text=True, stderr=subprocess.STDOUT))
         return process
 
     def address(self, service, network):
