@@ -290,15 +290,15 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     convention()  # Removing adjacent files still uses built-in roles.
     # The retired node override rejects; it must never select another authority.
     discovery_config.write_text(json.dumps({'executables': {'node': 'absent-node'}}))
-    invoke(['server', '--config', discovery_config], contains=('executables.node',),
+    invoke(['server', '--config', discovery_config], contains=('executables contains an unknown field',),
            env=dict(ENV, PATH=str(search)), cwd=root, binary=str(local_cli))
 
     discovery_config.write_text('{}')
-    invoke(['server', '--config', discovery_config], contains=('executables.node',),
+    invoke(['server', '--config', discovery_config], contains=('TRANSIT_EXECUTABLES__NODE',),
            env=dict(ENV, TRANSIT_EXECUTABLES__NODE=str(sys.executable)), cwd=root, binary=str(local_cli))
     retired = root / 'transit-node'
     retired.symlink_to(local_cli)
-    invoke(['retired-node-config.json'], binary=str(retired), contains=('retired-node-config.json',))
+    invoke(['retired-node-config.json'], binary=str(retired), contains=('unknown command',))
 
     # Real file selection, typed overlays, no fallback and rc precedence.
     home, project = root/'home', root/'project'
