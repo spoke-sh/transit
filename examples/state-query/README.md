@@ -15,7 +15,8 @@ just examples::query-reference table
 ```
 
 Each task accepts `kv`, `table` or `document`. They create isolated disposable
-fixtures with disk Ursula and an 8 MiB hot-store budget. Their provisioning keys
+fixtures. KV and Document use disk Ursula and an 8 MiB hot-store budget; Table
+uses the native local persistence owner and its direct catalog. Their provisioning keys
 are public test fixtures; use these tasks only for the fresh synthetic realm they
 create. The reference task uses existing owned infrastructure while creating its
 own namespace and Substrate actors. It does not adopt a launcher installation.
@@ -46,8 +47,9 @@ zig build test-direct-captured-query -Doptimize=ReleaseSafe -Ddirect-query-examp
 ```
 
 This uses the native local persistence owner and separate Table, query-worker and
-requester resources. It does not qualify the older Compose or reference Table
-fixtures, which still require migration to the direct service.
+requester resources. The Table placement tasks use the same catalog bootstrap and
+direct service with retained container/PVC storage. Each physical profile requires
+its own executed proof; the local result alone does not qualify it.
 
 The recovery file atomically preserves one original bundle and exact pending
 signed operation before dispatch. A network error exits with that operation

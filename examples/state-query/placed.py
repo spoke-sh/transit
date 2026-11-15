@@ -2,6 +2,7 @@
 import json
 import ipaddress
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -104,7 +105,11 @@ def run(profile, kind):
             return result.stdout
 
         try:
-            placement = Reference(work) if profile == 'reference' else Compose(work)
+            reference = Reference
+            if kind == 'table':
+                from table_placement import Reference as TableReference
+                reference = TableReference
+            placement = reference(work) if profile == 'reference' else Compose(work)
             if profile == 'compose':
                 (work/'ursula.toml').touch()
                 placement.call('create', 'ursula')
@@ -119,12 +124,26 @@ def run(profile, kind):
             config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config()
             (work/'ursula.toml').write_text(config); (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public']))
-            write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
-                ursula_url='http://ursula:8080', bucket='query-example', journal='authority', port=8080, listen='0.0.0.0',
-                resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000))
+            node_config = dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
+                port=8080, listen='0.0.0.0', resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000)
+            if kind == 'table':
+                node_config['local_directory'] = '/authority'
+            else:
+                node_config.update(ursula_url='http://ursula:8080', bucket='query-example', journal='authority')
+            write('operator/node.json', node_config)
             storage = placement.start('ursula'); ready(storage, placement.url('ursula')+'/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
+            if kind == 'table':
+                invoke('catalog-bootstrap', timeout=300)
+                placement.stop_for_recovery('node', authority)
+                table = json.loads((work/'catalog-node.json').read_text())
+                table['registrar']['seed_file'] = '/operator/registrar.seed'
+                shutil.copyfile(work/'registrar.seed', work/'operator/registrar.seed')
+                (work/'operator/registrar.seed').chmod(0o600)
+                node_config['table'] = table
+                write('operator/node.json', node_config)
+                authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
             denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':'+str(cold.port), '1.1.1.1:443']
             assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
             invoke('provision', kind, timeout=1800)
@@ -179,7 +198,7 @@ def run(profile, kind):
                 raise AssertionError('retired source disclosed results')
             except RuntimeError as error:
                 assert any(name in str(error) for name in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied')), str(error)
-            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; 8 MiB hot store, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
+            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; native backend={"local_directory" if kind == "table" else "ursula"}, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
         except BaseException:
             if placement:
                 print(placement.call('ps'), file=sys.stderr)
