@@ -1043,9 +1043,9 @@ server-application-capacity:
 
 # Default embedded Board, retained inspection grants and local UI recovery.
 server-board:
-    zig build transit -Doptimize=ReleaseSafe
+    zig build transit test-server-fault-fixture -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items --fault-server zig-out/tests/transit-server-fault-fixture
 
 # Ordinary server/console and Board from one copied executable with unavailable PATH.
 server-single-executable:

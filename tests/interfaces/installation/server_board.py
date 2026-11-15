@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Actual embedded Board, explicit grants, UI toggles and owned disk recovery."""
+import argparse
 import ctypes
 import json
 import os
@@ -387,6 +388,10 @@ def incompatible(cli, node, host, board):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('binaries', nargs=6, type=Path)
+    parser.add_argument('--fault-server', required=True, type=Path)
+    args = parser.parse_args()
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
     # Installation identity pins every executable. Concurrent builds may replace
     # zig-out files; run the whole recovery schedule against owned frozen copies.
@@ -394,21 +399,23 @@ if __name__ == '__main__':
     success = False
     try:
         binaries = []
-        for argument in sys.argv[1:]:
+        for argument in args.binaries:
             source = Path(argument).resolve()
             target = artifacts / source.name
             if not target.exists():
                 shutil.copy2(source, target)
             binaries.append(str(target))
-        default_gateway = Path(sys.argv[1]).resolve().parent / 'transit-sql-gateway'
+        fault_server = artifacts / 'transit-server-fault-fixture'
+        shutil.copy2(args.fault_server.resolve(), fault_server)
+        default_gateway = args.binaries[0].resolve().parent / 'transit-sql-gateway'
         sql_gateway = artifacts / 'transit-sql-gateway'
-        shutil.copy2(default_gateway if default_gateway.exists() else Path(sys.argv[1]).resolve(), sql_gateway)
+        shutil.copy2(default_gateway if default_gateway.exists() else args.binaries[0].resolve(), sql_gateway)
         os.environ['TEST_TRANSIT_SQL_GATEWAY_BINARY'] = str(sql_gateway)
         preflight(*binaries[:4])
         incompatible(*binaries[:4])
         lifecycle(*binaries)
-        interrupted(*binaries[:4])
-        interrupted(*binaries)
+        interrupted(*([str(fault_server)] * 4))
+        interrupted(*([str(fault_server)] * 4), *binaries[4:])
         success = True
     finally:
         if success:

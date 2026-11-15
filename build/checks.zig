@@ -1410,6 +1410,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             run.addArg("--source-install");
             run.addDirectoryArg2(.{ .relative = .{ .base = .install_prefix } }, .{});
             run.step.dependOn(b.getInstallStep());
+            // Ordinary SQL uses the shipped installation. Receipt-loss recovery
+            // uses a separate installation of the explicit test-only variant.
+            run.addArg("--fault-server");
+            run.addArtifactArg(fault_server);
         } else {
             for ([_]*std.Build.Step.Compile{ fault_server, fault_server, fault_server, fault_server, fault_server }) |artifact| run.addArtifactArg(artifact);
         }
