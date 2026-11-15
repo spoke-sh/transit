@@ -7,7 +7,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "exchange"))
 from compose import Compose as BaseCompose
-from interfaces.deployment.reference import Reference as BaseReference
+from reference import Reference as BaseReference
 
 
 class Compose(BaseCompose):

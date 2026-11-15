@@ -11,6 +11,8 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'examples'))
+from server_config import configuration as server_configuration, wait_delivered
 sys.path.insert(0, str(ROOT / "launchers"))
 from native_client import Client, public_key
 sys.path.insert(0, str(ROOT / "tests"))
@@ -104,8 +106,8 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
 ''' + cold.config().replace(cold.url, endpoint)
             (work / "ursula.toml").write_text(config)
             (work / "ursula.toml").chmod(0o600)
-            write("operator/node.json", dict(profile="native_v1", genesis=dict(realm=realm, root_key=public["operator"], max_clock_error_ms=10000),
-                ursula_url="http://ursula:8080", bucket="document-example", journal="authority", port=8080, listen="0.0.0.0", resident_pages=64, request_timeout_ms=10000))
+            write("operator/node.json", server_configuration(realm, '/operator/seed.key',
+                ursula=dict(url='http://ursula:8080', bucket='document-example', journal='authority')))
             if profile == "compose" and cold_network is None:
                 placement.call("create", "ursula")
                 cold_network = placement.project + "_storage"
@@ -167,14 +169,7 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
                 return activate("writer", mode, policies=policies, **extra)
 
             def deliver():
-                after = None
-                while True:
-                    position = query({"capabilities": {}})["position"]
-                    page = query({"outputs": {"after": after, "position": position}})["body"]["outputs"]
-                    for output in page["entries"]:
-                        if output and output["phase"] == "pending": command({"deliver": output["id"]})
-                    after = page["next"]
-                    if after is None: return
+                wait_delivered(query)
 
             def dot(counter, replica=1): return dict(counter=str(counter), replica=str(replica))
             def assign(value, observed=()): return {"assign": {"field": "title", "observed": list(observed), "value": {"string": value}}}

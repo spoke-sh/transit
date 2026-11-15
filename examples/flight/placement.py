@@ -6,7 +6,7 @@ from pathlib import Path
 spec = importlib.util.spec_from_file_location('serving_placement', Path(__file__).resolve().parents[1] / 'serving/placement.py')
 serving = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(serving)
-BINARIES = dict(NODE='transit-node', CALLER='transit-query-host', CONNECTOR='transit-query-host', BOARD='transit-flight-gateway')
+BINARIES = dict(NODE='native-authority-fixture', CALLER='transit-query-host', CONNECTOR='transit-query-host', BOARD='transit-flight-gateway')
 
 
 class Compose(serving.Compose):

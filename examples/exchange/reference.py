@@ -15,6 +15,7 @@ import time
 import uuid
 
 from compose import Compose, ROOT
+from server_config import wait_started
 
 
 class Pod:
@@ -109,9 +110,13 @@ class Reference(Compose):
         # Create, never adopt. Cleanup checks the recorded UID before deletion.
         self.kube("create", "namespace", self.namespace)
         self.namespace_uid = self.get("namespace", self.namespace)["metadata"]["uid"]
+        if self.server_owned:
+            operator = self.work / 'operator'
+            root_seed = operator / ('root.seed' if (operator / 'root.seed').exists() else 'seed.key')
+            self.apply(dict(apiVersion='v1', kind='Secret', metadata=dict(name='server-root'),
+                data=dict(root=base64.b64encode(root_seed.read_bytes()).decode())))
         self.values = {"node": {"nameOverride": "node", "enabled": False, "image": self.env["EXCHANGE_NODE_IMAGE"],
-                                  "config": json.loads((self.work / "operator/node.json").read_text())},
-                       "initialize": {"nameOverride": "initialize", "enabled": False},
+                                  "config": json.loads((self.work / "operator/node.json").read_text()), "existingSecret": "server-root"},
                        "ursula": {"nameOverride": "ursula", "image": self.env["EXCHANGE_URSULA_IMAGE"]},
                        "workerPool": {"nameOverride": "caller", "enabled": True, "labels": {"transit.dev/exchange-example": self.namespace},
                            "spec": {"replicas": 2, "workerImage": self.runtime["image"], "template": {
@@ -130,9 +135,20 @@ class Reference(Compose):
         if result.returncode: raise RuntimeError(result.stderr[-4000:])
 
     def initialize(self):
-        self.values["initialize"]["enabled"] = True
-        self.deploy()
-        self.values["initialize"]["enabled"] = False
+        self.setup()
+        if not self.server_owned:
+            self.secret('native-fixture', self.work / 'operator')
+            self.apply(dict(apiVersion='batch/v1', kind='Job', metadata=dict(name='native-initialize'),
+                spec=dict(backoffLimit=0, activeDeadlineSeconds=120, template=dict(spec=dict(
+                    restartPolicy='Never', automountServiceAccountToken=False,
+                    securityContext=dict(runAsUser=65532, runAsGroup=65532, runAsNonRoot=True),
+                    containers=[dict(name='initialize', image=self.env['EXCHANGE_NODE_IMAGE'],
+                        args=['/operator/node.json', '--initialize'],
+                        volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)])],
+                    volumes=[dict(name='files', secret=dict(secretName='native-fixture'))])))))
+            self.kube('wait', '--for=condition=complete', 'job/native-initialize', '--timeout=150s')
+            Reference.start(self, 'node')
+            return
         self.values["node"]["enabled"] = True
         self.deploy()
 
@@ -145,12 +161,24 @@ class Reference(Compose):
             pods = json.loads(self.kube("get", "pods", "-l", ",".join(k + "=" + v for k, v in selector.items()), "-o", "json"))["items"]
             for pod in pods:
                 if not pod["metadata"].get("deletionTimestamp") and any(c["type"] == "Ready" and c["status"] == "True" for c in pod["status"].get("conditions", [])):
-                    return Pod(self, pod["metadata"]["name"], pod["metadata"]["uid"])
+                    process = Pod(self, pod["metadata"]["name"], pod["metadata"]["uid"])
+                    if service == "node" and self.server_owned:
+                        wait_started(process, lambda: self.kube("logs", process.name, "-c", "node"))
+                    return process
             time.sleep(.2)
         raise TimeoutError("No ready pod for " + service)
 
     def start(self, service):
         self.setup()
+        if service == 'node' and not self.server_owned:
+            self.secret('native-fixture', self.work / 'operator')
+            self.pod_deployment('node', dict(name='node', image=self.env['EXCHANGE_NODE_IMAGE'],
+                args=['/operator/node.json'], volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)],
+                readinessProbe=dict(httpGet=dict(path='/health', port=8080), periodSeconds=1)),
+                [dict(name='files', secret=dict(secretName='native-fixture'))])
+            self.apply(dict(apiVersion='v1', kind='Service', metadata=dict(name='node'),
+                spec=dict(selector={'app': 'exchange-node'}, ports=[dict(port=8080, targetPort=8080)])))
+            return self.wait_pod('node')
         if service == "peer":
             self.secret("peer-files", self.work / "peer")
             container = {"name": "peer", "image": self.env["EXCHANGE_PEER_IMAGE"], "args": ["/peer/config.json"],
@@ -179,7 +207,7 @@ class Reference(Compose):
         return self.get("service", service)["spec"]["clusterIP"]
 
     def secret(self, name, directory):
-        data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("seed.key", "credential", "ca.pem", "tls.key", "config.json")}
+        data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("node.json", "seed.key", "credential", "ca.pem", "tls.key", "config.json")}
         self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name}, "data": data})
 
     def pod_deployment(self, name, container, volumes, init_containers=()):

@@ -12,7 +12,7 @@ spec.loader.exec_module(flight)
 
 
 class Images:
-    binary_names = dict(NODE='transit-node', CALLER='transit-query-host', CONNECTOR='transit-query-host', BOARD='transit-sql-gateway')
+    binary_names = dict(NODE='native-authority-fixture', CALLER='transit-query-host', CONNECTOR='transit-query-host', BOARD='transit-sql-gateway')
 
     def build(self):
         # The Zig hosts are static. OpenSSL and its pinned dynamic loader travel

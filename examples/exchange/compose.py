@@ -8,6 +8,8 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "examples"))
+from server_config import wait_started
 
 
 class Process:
@@ -29,6 +31,7 @@ class Compose:
     binary_names = None
     def __init__(self, work, protocol="http"):
         self.work = work
+        (work / "authority").mkdir(mode=0o700, exist_ok=True)
         self.protocol = protocol
         assert protocol in ("http", "grpc", "document", "query", "serving", "flight", "sql-wire", "work-items")
         self.project = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
@@ -48,16 +51,16 @@ class Compose:
     def build(self):
         prefix = ROOT / f".cache/{self.protocol}-example/images"
         prefix.mkdir(parents=True, exist_ok=True)
-        names = self.binary_names or {"NODE": "transit-node", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
+        names = self.binary_names or {"NODE": "transit", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
         architecture = subprocess.check_output(["docker", "info", "--format", "{{.Architecture}}"], text=True).strip()
         target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}[architecture]
-        subprocess.run(["zig", "build", *names.values(), "-Doptimize=ReleaseSafe", "-Dtarget=" + target,
+        subprocess.run(["zig", "build", *["test-native-authority-fixture" if name == "native-authority-fixture" else name for name in names.values()], "-Doptimize=ReleaseSafe", "-Dtarget=" + target,
                         "--prefix", str(prefix / "static")], cwd=ROOT, check=True, timeout=900)
         for role, binary in names.items():
             context = prefix / binary
             context.mkdir(exist_ok=True)
             (context / "app").unlink(missing_ok=True)
-            shutil.copyfile(prefix / "static/bin" / binary, context / "app")
+            shutil.copyfile(prefix / ("static/tests" if binary == "native-authority-fixture" else "static/bin") / binary, context / "app")
             (context / "app").chmod(0o555)
             (context / "Dockerfile").write_text('FROM scratch\nCOPY app /bin/app\nENTRYPOINT ["/bin/app"]\n')
             self.env["EXCHANGE_" + role + "_IMAGE"] = self.image(context)
@@ -91,7 +94,10 @@ class Compose:
 
     def start(self, service):
         self.call("up", "-d", service)
-        return Process(self, service, self.call("ps", "-q", service).strip())
+        process = Process(self, service, self.call("ps", "-q", service).strip())
+        if service == "node" and self.server_owned:
+            wait_started(process, lambda: self.call("logs", "--no-log-prefix", service))
+        return process
 
     def address(self, service, network):
         identity = self.call("ps", "-q", service).strip()
@@ -114,8 +120,14 @@ class Compose:
     def invoke(self, service, *args):
         return json.loads(self.call("run", "--rm", "--no-deps", "-T", service, *args))
 
+    @property
+    def server_owned(self):
+        return self.binary_names is None or self.binary_names['NODE'] == 'transit'
+
     def initialize(self):
-        self.call("run", "--rm", "--no-deps", "-T", "node", "/node.json", "--initialize")
+        if not self.server_owned:
+            self.call("run", "--rm", "--no-deps", "-T", "node", "/node.json", "--initialize")
+        # The product server initializes its retained installation on startup.
 
     def close(self):
         self.call("down", "--volumes", "--remove-orphans")

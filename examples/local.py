@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'examples'))
+from server_config import configuration as server_configuration, ServerProcess, wait_started
 sys.path.insert(0, str(ROOT / "launchers"))
 from native_client import Client, public_key
 
@@ -24,7 +26,7 @@ def free_port():
 
 
 def run(name, board=False):
-    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit-node", "transit-client-host", f"example-{name}")}
+    binaries = {n: ROOT / "zig-out/bin" / n for n in ("transit", "transit-client-host", f"example-{name}")}
     if board:
         binaries["board"] = ROOT / "zig-out/bin/transit-board"
     for binary in binaries.values():
@@ -40,8 +42,11 @@ def run(name, board=False):
         def start(argv):
             log = (work / f"service-{len(logs)}.log").open("w+")
             logs.append(log)
-            child = subprocess.Popen(list(map(str, argv)), cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT)
+            process_type = ServerProcess if str(argv[0]) == str(binaries["transit"]) else subprocess.Popen
+            child = process_type(list(map(str, argv)), cwd=work, env=env, stdout=log, stderr=subprocess.STDOUT)
             children.append(child)
+            if str(argv[0]) == str(binaries["transit"]):
+                wait_started(child, lambda: Path(log.name).read_text())
             return child
 
         def ready(child, url):
@@ -96,11 +101,13 @@ backend = "inline"
             worker_key, worker_public = key("caller")
             port = free_port()
             url = f"http://127.0.0.1:{port}"
-            node = write("node", {"genesis": {"realm": 71, "root_key": root_public, "max_clock_error_ms": 10000},
-                "ursula_url": ursula_url, "bucket": f"example-{name}", "journal": "authority", "port": port})
-            authority = start([binaries["transit-node"], node, "--bootstrap"])
+            node = write("node", server_configuration(71, root_key,
+                installation=work / 'installation', port=port, listen='127.0.0.1',
+                ursula=dict(url=ursula_url, bucket=f'example-{name}', journal='authority')))
+            authority = start([binaries["transit"], "server", "--no-ui", "--config", node])
             ready(authority, url + "/health")
-            sequence = 0
+            sequence = Client(binaries["transit-client-host"], url).query(root_key,
+                dict(realm=71, principal=0, kind=dict(capabilities={})))['principal_sequence']
 
             def command(value):
                 nonlocal sequence

@@ -13,7 +13,7 @@ spec = importlib.util.spec_from_file_location('document_placement', Path(__file_
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-BINARIES = dict(NODE='transit-node', CALLER='transit-query-host', CONNECTOR='example-state-query')
+BINARIES = dict(NODE='native-authority-fixture', CALLER='transit-query-host', CONNECTOR='example-state-query')
 
 
 class Compose(BaseCompose):

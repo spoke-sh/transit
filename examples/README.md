@@ -44,7 +44,7 @@ just examples::run byte-log
 ```
 
 Each command builds the platform and example binaries, then [local.py](local.py)
-starts a fresh disk-backed Ursula and `transit-node` on loopback ports. It creates
+starts fresh disk-backed Ursula and `transit server` on loopback ports. It creates
 random private keys, provisions a PID with a scoped caller grant and ownership,
 sends two inputs, runs the actual Zig application, and reads back committed state.
 The expected results are `12` and `hello world`. The launcher removes its own
@@ -66,7 +66,7 @@ zig-out/bin/example-counter counter.json
 zig-out/bin/example-byte-log byte-log.json
 ```
 
-`just build::debug apps` installs platform commands (`transit-node`, `transit-runtime-controller`,
+`just build::debug apps` installs platform commands (`transit`, `transit-runtime-controller`,
 `transit-client-host`). `just examples::build` installs the Zig example applications. The root
 Zig build supplies the counter/byte-log dependency, `transit-client`; no example
 imports `transit-core`, Ursula or a deployment provider.
@@ -100,3 +100,17 @@ The probe never performs a successful application turn.
 The counter additionally supplies the workload for `just test::service` and the
 Kubernetes/Substrate reference proof. See the [client guide](../packages/zig/transit-client/README.md)
 and [command reference](../tasks/README.md).
+
+
+The counter, byte-log, exchange and Document launchers use the public server
+composition, including its owned maintenance and delivery. Container placements
+retain the server installation independently of the container and wait for the
+supervisor's readiness record.
+
+The serving, Flight, SQL-wire, state-query and work-item placement scripts also
+serve as component qualification schedules. Their explicit
+`native-authority-fixture` image preserves restricted caches, independent
+bootstrap, direct Table attachment and deliberately stalled delivery. The check
+graph builds that fixture under `tests/`; it is not a released executable or
+container. These schedules establish component and provider behavior. Installed
+server and launcher proofs establish product composition.

@@ -11,17 +11,22 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'examples'))
+from server_config import wait_delivered
 sys.path.insert(0, str(ROOT / "launchers"))
 from native_client import Client, public_key
 sys.path.insert(0, str(ROOT / "tests"))
-from sdk.client_abi_growing import GrowingSystem
+from sdk.installed_server import InstalledServer
 from storage.providers.cold_storage import ColdStore
 from runtime.document.document_contract import encode
 from harness.ursula import Fixture
 from harness.services import wait_ready
 
 
-class DocumentSystem(GrowingSystem):
+class DocumentSystem(InstalledServer):
+    def native_query(self, kind):
+        return Client(self.cli, self.url).query(self.seed, dict(realm=72, principal=0, kind=kind))
+
     def key(self, name):
         path = self.root / f"{name}.key"
         path.write_text(os.urandom(32).hex())
@@ -31,12 +36,11 @@ class DocumentSystem(GrowingSystem):
 
 def run(*, board=False, browser=False):
     binaries = {name: ROOT / "zig-out/bin" / name for name in (
-        "transit-board", "transit-node", "transit-client-host", "transit-station-document-worker", "example-station-document")}
+        "transit-board", "transit", "transit-client-host", "transit-station-document-worker", "example-station-document")}
     started = time.monotonic()
     with ColdStore() as cold:
-        fixture = DocumentSystem(binaries["transit-node"], None)
+        fixture = DocumentSystem(binaries["transit"], binaries["transit-client-host"])
         fixture.store = Fixture(cold.config())
-        fixture.resident_pages = 64
         with fixture as system:
             env = system.store.env | {"LOG_LEVEL": "warn"}
             def write(name, value):
@@ -99,17 +103,7 @@ def run(*, board=False, browser=False):
                 record["generation"] += 1
 
             def deliver():
-                after = None
-                while True:
-                    position = query({"capabilities": {}})["position"]
-                    page = query({"outputs": {"after": after, "position": position}})["body"]["outputs"]
-                    for entry in page["entries"]:
-                        if entry and entry["phase"] == "pending":
-                            assert entry["destination"] in [r["pid"] for r in records.values()]
-                            command({"deliver": entry["id"]})
-                    after = page["next"]
-                    if after is None:
-                        return
+                wait_delivered(query, [r['pid'] for r in records.values()])
 
             # Only the writer uses this proxy. Faults inspect framing/metadata;
             # no change bytes or keys are emitted in the evidence report.
@@ -234,12 +228,10 @@ def run(*, board=False, browser=False):
                 child.kill()
                 assert child.wait(timeout=10) == -9
                 release.set()
-                system.authority.kill()
-                system.authority.wait(timeout=10)
+                system.crash_authority()
                 system.store.stop()
                 system.store.start()
-                system.authority = system.start(binaries["transit-node"], system.config)
-                wait_ready(system.store.http, system.authority, system.url + "/health")
+                system.restart_authority()
                 # Revocation blocks a reconstructed candidate without permanently
                 # poisoning the mailbox. Fresh ownership plus restored policy resumes.
                 command({"grant_resource": {"resource": records["left"]["resource"], "subject": writer["principal"], "permissions": 0}})
