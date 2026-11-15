@@ -97,11 +97,11 @@ def run(profile="local", bootstrap=False, protocol="http"):
         store_url = f"http://127.0.0.1:{store_port}"
         if profile != "local":
             if profile == "reference":
-                from reference import Reference
+                from exchange.reference import Reference
                 placement = Reference(work, protocol)
                 bootstrap = True
             else:
-                from compose import Compose
+                from exchange.compose import Compose
                 placement = Compose(work, protocol)
             (work / "wal").mkdir()
             (work / "activations").mkdir()

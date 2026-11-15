@@ -14,7 +14,7 @@ import sys
 import time
 import uuid
 
-from compose import Compose, ROOT
+from exchange.compose import Compose, ROOT
 from server_config import wait_started
 
 
