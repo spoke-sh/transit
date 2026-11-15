@@ -36,7 +36,7 @@ def configuration(realm, root_seed, *, installation='/authority', port=8080,
         external['ursula'] = ursula
     return dict(version=1, installation=str(installation), realm=realm,
                 ports=dict(node=port), sql=dict(native=dict(local=False)),
-                external=external,
+                external=external, applications=None,
                 storage=dict(maintenance=dict(compact=False,
                     archive=dict(enabled=False), flush=dict(enabled=False))))
 
