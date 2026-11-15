@@ -54,13 +54,19 @@ class Compose:
         names = self.binary_names or {"NODE": "transit", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
         architecture = subprocess.check_output(["docker", "info", "--format", "{{.Architecture}}"], text=True).strip()
         target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}[architecture]
-        subprocess.run(["zig", "build", *["test-native-authority-fixture" if name == "native-authority-fixture" else name for name in names.values()], "-Doptimize=ReleaseSafe", "-Dtarget=" + target,
+        # The composed server embeds SQL TLS. A musl target alone still picks
+        # the development shell's shared OpenSSL; use the static toolchain.
+        subprocess.run(["nix", "develop", str(ROOT) + "#release-checks", "--command", "zig", "build", *["test-native-authority-fixture" if name == "native-authority-fixture" else name for name in names.values()], "-Doptimize=ReleaseSafe", "-Dtarget=" + target,
                         "--prefix", str(prefix / "static")], cwd=ROOT, check=True, timeout=900)
         for role, binary in names.items():
+            source = prefix / ("static/tests" if binary == "native-authority-fixture" else "static/bin") / binary
+            if ('INTERP' in subprocess.check_output(['readelf', '-l', source], text=True) or
+                    '(NEEDED)' in subprocess.check_output(['readelf', '-d', source], text=True)):
+                raise RuntimeError(f'Container artifact {binary} requires a loader or shared library')
             context = prefix / binary
             context.mkdir(exist_ok=True)
             (context / "app").unlink(missing_ok=True)
-            shutil.copyfile(prefix / ("static/tests" if binary == "native-authority-fixture" else "static/bin") / binary, context / "app")
+            shutil.copyfile(source, context / "app")
             (context / "app").chmod(0o555)
             (context / "Dockerfile").write_text('FROM scratch\nCOPY app /bin/app\nENTRYPOINT ["/bin/app"]\n')
             self.env["EXCHANGE_" + role + "_IMAGE"] = self.image(context)
