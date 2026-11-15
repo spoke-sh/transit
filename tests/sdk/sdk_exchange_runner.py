@@ -152,7 +152,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
             command({'own': {'pid': cfg['pid'], 'worker': cfg['principal'], 'expected_generation': cfg['generation']}})
             cfg['generation'] += 1
         after = None
-        def deliver():
+        def deliver(terminal='delivered'):
             nonlocal after
             position = read({'capabilities': {}})['position']
             outputs = []
@@ -160,13 +160,12 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 page = read({'outputs': {'after': after, 'position': position}})['body']['outputs']
                 for item in page['entries']:
                     if item:
-                        terminal = 'retired' if fault == 'retirement' else 'delivered'
                         assert item['phase'] in ('pending', terminal)
                         if item['phase'] == 'pending':
                             command({'deliver': item['id']})
                         settled = read({'outputs': {'after': item['id']-1,
                             'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
-                        assert settled['id'] == item['id'] and settled['phase'] == terminal
+                        assert settled['id'] == item['id'] and settled['phase'] == terminal, settled
                         outputs.append(item)
                         after = item['id']
                 if page['next'] is None: return outputs
@@ -310,7 +309,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 assert invoke()['phase'] == 'complete'
             else:
                 assert invoke()['phase'] == 'complete'
-            outputs = deliver()
+            outputs = deliver('retired' if fault == 'retirement' else 'delivered')
             assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
             if fault:
                 # The server courier may settle this retained output during
