@@ -248,7 +248,6 @@ ports:
   node: 19104
   gateway: 19105
 executables:
-  node: "/absolute/path/to/transit-node"
   query_host: "/absolute/path/to/transit-query-host"
   board: "/absolute/path/to/transit-board"
   sql_gateway: "/absolute/path/to/transit-sql-gateway"
@@ -258,7 +257,10 @@ Configuration rejects unknown fields and incompatible versions; ports must be di
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
-Installed SQL listeners and execution belong to the selected node artifact.
+The node is always embedded in the selected `transit` executable. The removed
+`executables.node` setting rejects as an unknown field. Its role identity still
+binds the embedded mode, role and executable bytes. Installed SQL listeners and
+execution belong to that same node.
 `executables.sql_gateway` remains part of the installation artifact identity for
 standalone SQL placement and separately invoked operator controls; the server
 uses the shared host inside the node for its SQL listeners.

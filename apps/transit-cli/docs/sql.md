@@ -1,6 +1,6 @@
 # Local PostgreSQL and MySQL access
 
-The local bundle runs the shared SQL service inside `transit-node`, alongside
+The local bundle runs the shared SQL service inside the server-owned node, alongside
 the Catalog and Table owners. Its private Unix socket provides
 independent console sessions by default, using an OS peer check and a managed
 `local` login. PostgreSQL, MySQL and native HTTP/TLS listeners are independently

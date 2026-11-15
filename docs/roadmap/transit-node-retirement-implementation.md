@@ -66,7 +66,7 @@ direct Tables over Ursula. Retirement must preserve those supported boundaries.
 | [SDK release consumers](../../tests/sdk/release.py), [SDK profile runner](../../tests/runner/external_profiles.py) | Take a node path and construct component configuration | Shared external-server setup, scoped caller credentials and retained restart |
 | [Installation harness](../../tests/harness/local_installation.py), [SQL wire harness](../../tests/interfaces/sql_wire/gateway.py) | Node override paths and hard links named `transit-node` | Embedded server node; internal fixtures only for component SQL placements |
 | [SQL fault build](../../build/checks.zig) | Replaces the SQL host import in a standalone node | Test-only `transit` variant with the same fault decoration in its embedded node module |
-| [Example image builder](../../examples/exchange/compose.py), example launchers and Compose files | Build and invoke standalone node images from raw node JSON | Server configuration, retained installation volume and server readiness |
+| [Example image builder](../../examples/exchange/compose.py), example launchers and Compose files | Build and invoke standalone node images from raw node JSON | Server configuration, retained installation volume and server readiness; explicit internal fixtures for component placement schedules |
 | [Release installation proof](../../tests/interfaces/installation/release.py), [runtime boundary proof](../../tests/sdk/sdk_runtime.py) | Still enumerate or pass sibling node paths | Bundle/image inventory and real execution with `transit-node` absent |
 
 ## Implementation sequence
@@ -235,3 +235,16 @@ Record executed source, artifact, storage and topology identities in the owning
 and limits. Update current public behavior with implementation. Completion
 requires the acceptance matrix and retirement inventory to pass; this plan does
 not authorize registry deletion, publication or channel promotion.
+
+
+### Implementation boundary refinement
+
+The ordinary counter, byte-log, exchange and Document examples use the server.
+Serving, Flight, SQL-wire, state-query and work-item physical placement scripts
+remain component qualifications: their restricted caches, independently attached
+Tables and stalled-delivery schedules are explicit inputs to their proofs.
+They build `native-authority-fixture` through the check graph instead of creating
+a production node artifact. Their standalone images remain local test outputs.
+Installed server/browser/application and launcher checks separately qualify the
+product composition. SDK product consumers use the server; the isolated ABI and
+cross-language interop schedules retain their original authority-cache budgets.

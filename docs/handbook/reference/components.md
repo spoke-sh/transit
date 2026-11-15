@@ -85,7 +85,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-document-worker](../../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance |
 | [transit-station-grpc-worker](../../../apps/transit-station-grpc-worker/README.md) | finite RPC preparation/dispatch/capture worker |
 | [transit-station-http-worker](../../../apps/transit-station-http-worker/README.md) | finite HTTP preparation/dispatch/capture worker |
-| [transit-node](../../../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
+| [transit-node](../../../apps/transit-node/README.md) | Internal server module: hosts core, local/Ursula storage, signed ingress and trusted time |
 | [transit-runtime-controller](../../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-host](../../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |

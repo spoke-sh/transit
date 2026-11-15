@@ -4,12 +4,14 @@
 
 ## Configuration and bootstrap
 
-`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` uses the
-[configuration fields and maintenance policy](growing.md). Only `--bootstrap`
-or `--initialize` creates storage; the latter exits after initialization.
-Ordinary startup requires an existing history/checkpoint with the current
-contract definition and matching genesis. An outage or incompatible history
-cannot initialize an empty realm. The node needs no root signing seed.
+The [server](../../transit-cli/docs/server.md) owns initialization and recovery.
+It passes generated [node configuration](growing.md) to its private node role;
+these are implementation inputs, not a standalone command-line interface.
+The internal `--bootstrap` and `--initialize` modes create storage only during
+explicit initialization; the latter exits after initialization. Ordinary role
+startup requires an existing history/checkpoint with the current contract
+definition and matching genesis. An outage or incompatible history cannot
+initialize an empty realm. The node role needs no root signing seed.
 
 Ordinary startup makes at most three attempts to read retained history when
 storage returns a temporary transport failure or service-unavailable response,

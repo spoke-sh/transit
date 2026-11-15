@@ -1,6 +1,8 @@
 # Native authority configuration
 
-[transit-node](../README.md) serves one paged native v1 definition. `profile`
+The internal [node module](../README.md) serves one paged native v1 definition.
+The server generates this configuration; public setup belongs to
+[transit server](../../transit-cli/docs/server.md). `profile`
 defaults to `native_v1`; other values reject. Launchers, Board, Station and
 runtime controllers use the same native command/query boundary.
 
@@ -268,7 +270,7 @@ share one conditional publication journal per realm.
 
 ## Background maintenance
 
-With Ursula, run `transit-node CONFIG.json --maintain` as a separate trusted process. Its
+With Ursula, the server starts its private maintenance role as a separate trusted process. Its
 `maintenance` configuration supplies a dedicated full-width `principal` and
 `seed_file`, with `interval_ms` (default 1000) and `operation_timeout_ms` (default
 5000), both 1–60000. Use a separate principal from application and administrative
