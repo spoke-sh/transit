@@ -131,7 +131,7 @@ stdenv.mkDerivation {
   buildPhase = ''
     runHook preBuild
     zig build transit ${lib.optionalString releaseBuild "-Dtarget=${stdenv.hostPlatform.parsed.cpu.name}-linux-musl"} -Drelease-version=${lib.escapeShellArg version} -Dsource-revision=${lib.escapeShellArg sourceRevision} -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Dchecks=false -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
-    for role in transit-node transit-query-host transit-board; do
+    for role in transit-query-host transit-board; do
       cp "$out/bin/transit" "$out/bin/$role"
     done
     ${lib.optionalString releaseBuild ''
