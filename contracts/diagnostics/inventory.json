@@ -12819,11 +12819,8 @@
     "packages/zig/transit-client/src/bootstrap.zig": {
       "errors": {
         "AccessDenied": 1,
-        "AuthorityTimeout": 1,
-        "AuthorityUnavailable": 1,
         "BlockedProcess": 1,
         "BootstrapTimeout": 1,
-        "HttpConnectionClosing": 1,
         "InvalidGrowingBootstrap": 1,
         "ProcessExpired": 1,
         "ProcessTerminated": 1,
@@ -12834,7 +12831,8 @@
       "error_returns": {
         "awaitActivation()": "<inferred>",
         "awaitGrowingOwnership()": "<inferred>",
-        "growingOwned()": "<inferred>"
+        "growingOwned()": "<inferred>",
+        "growingOwnership()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
