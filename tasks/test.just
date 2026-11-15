@@ -438,8 +438,8 @@ client-abi:
 # the SDK query profile without changing the finite progress deadlines.
 station:
     zig build test-native-client-fixture test-operation-fixture example-station-ledger
-    zig build transit -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/tests/operation-fixture
+    zig build transit test-server-fault-fixture -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/tests/operation-fixture zig-out/tests/transit-server-fault-fixture
 
 # Check each library using its own declared dependencies.
 packages:
