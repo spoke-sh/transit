@@ -160,8 +160,13 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 page = read({'outputs': {'after': after, 'position': position}})['body']['outputs']
                 for item in page['entries']:
                     if item:
-                        assert item['phase'] == 'pending'
-                        command({'deliver': item['id']})
+                        terminal = 'retired' if fault == 'retirement' else 'delivered'
+                        assert item['phase'] in ('pending', terminal)
+                        if item['phase'] == 'pending':
+                            command({'deliver': item['id']})
+                        settled = read({'outputs': {'after': item['id']-1,
+                            'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
+                        assert settled['id'] == item['id'] and settled['phase'] == terminal
                         outputs.append(item)
                         after = item['id']
                 if page['next'] is None: return outputs
@@ -294,6 +299,10 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 children.remove(executing)
                 # Restart the authority and its disk store after committed output,
                 # before any delivery to the saved destination.
+                pending = [item for item in read({'outputs': {'after': after,
+                    'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'] if item]
+                assert len(pending) == 1 and pending[0]['phase'] == 'pending'
+                assert pending[0]['destination'] == caller['pid']
                 system.crash_authority()
                 system.store.stop(); system.store.start()
                 system.restart_authority()
@@ -303,6 +312,12 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 assert invoke()['phase'] == 'complete'
             outputs = deliver()
             assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+            if fault:
+                # The server courier may settle this retained output during
+                # readiness, before the test pauses the new courier process.
+                # Recovery must preserve the exact pre-crash identity and value.
+                for field in ('id', 'destination', 'value'):
+                    assert outputs[0][field] == pending[0][field]
             if fault == 'retirement':
                 item = read({'outputs': {'after': outputs[0]['id']-1, 'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
                 assert item['id'] == outputs[0]['id'] and item['phase'] == 'retired'
