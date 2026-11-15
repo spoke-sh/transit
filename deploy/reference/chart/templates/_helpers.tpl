@@ -41,11 +41,6 @@ app: {{ include "transit.name" . | quote }}
 {{- include "transit.nodeConfig" .root -}}
 {{- else if eq .component "board" -}}
 {{- include "transit.boardConfig" .root -}}
-{{- else if eq .component "station" -}}
-{{- $config := deepCopy (index .root.Values .component).config -}}
-{{- $_ := set $config "url" (printf "http://%s:8080" (include "transit.name" (dict "root" .root "component" "node"))) -}}
-{{- $_ := set $config "seed_file" "/secrets/seed" -}}
-{{- toJson $config -}}
 {{- else if eq .component "controller" -}}
 {{- $config := deepCopy .root.Values.controller.config -}}
 {{- $_ := required "controller.config.provider is required" $config.provider -}}

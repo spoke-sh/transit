@@ -16,6 +16,9 @@ principal: u64,
 key: p.Ed25519.KeyPair,
 mode: Mode,
 watches: []const Watch,
+/// A local process owner may require joined physical shutdown before retry.
+/// This gate can delay an authorized action; it cannot authorize one.
+retry_gate: ?struct { context: *anyopaque, stopped: *const fn (*anyopaque, g.Process) anyerror!bool } = null,
 pending: ?g.SignedRequest = null,
 pending_token: ?Token = null,
 seen: [128]?Token = @splat(null),
@@ -36,6 +39,24 @@ fn prepare(self: *Controller, sequence: u64, command: g.Command, token: Token) !
     return true;
 }
 const View = struct { process: g.Process, principal_sequence: u64, position: u64 };
+/// Readiness uses the service identity, including while no timer is due. It
+/// neither grants permissions nor advances the principal's command sequence.
+pub fn check(self: *Controller) !void {
+    if (self.principal == 0 or self.principal > p.max_counter or self.watches.len == 0 or self.watches.len > 4) return error.InvalidController;
+    const identity = (try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .identity }, self.key)).body.identity;
+    const permissions = p.permission(.inspect) | (if (self.mode == .observe) p.permission(.send) else p.permission(.admin));
+    if (identity.principal != self.principal or identity.permissions != permissions) return error.UnsafeControllerPrincipal;
+    if (self.mode == .lifecycle and identity.pid == null) return error.UnsafeControllerPrincipal;
+    for (self.watches) |watch| {
+        if (self.mode == .lifecycle and watch.child != identity.pid) return error.UnsafeControllerPrincipal;
+        const resource = (try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .read_access = watch.resource } }, self.key)).body.read_access;
+        if (resource.writer != watch.pid) return error.InvalidWatch;
+        _ = try self.view(if (self.mode == .lifecycle) watch.child.? else watch.pid);
+        if (self.mode == .observe) if (watch.child) |child| {
+            _ = try self.view(child);
+        };
+    }
+}
 fn view(self: *Controller, pid: u64) !View {
     const response = try self.client.query(.{ .realm = self.realm, .principal = self.principal, .kind = .{ .process = pid } }, self.key);
     return .{ .process = response.body.process.process, .principal_sequence = response.principal_sequence, .position = response.position };
@@ -100,6 +121,7 @@ pub fn step(self: *Controller, now_ms: u64) !bool {
             }
             // Re-observation after controller loss proves an accepted retry
             // by its changed generation; no second administrative retry.
+            if (self.retry_gate) |gate| if (!try gate.stopped(gate.context, process)) continue;
             return self.prepare(current.principal_sequence, action, .{ .owner = watch.pid, .identity = child.pid, .generation = child.generation, .detail = child.failure, .kind = 255 });
         }
         if (child.observer != self.principal or child.phase == .retired) continue;

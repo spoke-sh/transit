@@ -66,22 +66,6 @@ processes:
     depends_on:
       provision: {condition: process_completed_successfully}
 
-  station-observer:
-    <<: *managed
-    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} station-observer 2>&1'
-    log_location: '{{.STATE_DIR}}/station-observer.log'
-    environment: ['LOG_LEVEL={{.STATION_OBSERVER_LOG_LEVEL}}', 'LOG_FORMAT={{.STATION_OBSERVER_LOG_FORMAT}}']
-    depends_on:
-      provision: {condition: process_completed_successfully}
-
-  station-lifecycle:
-    <<: *managed
-    command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} station-lifecycle 2>&1'
-    log_location: '{{.STATE_DIR}}/station-lifecycle.log'
-    environment: ['LOG_LEVEL={{.STATION_LIFECYCLE_LOG_LEVEL}}', 'LOG_FORMAT={{.STATION_LIFECYCLE_LOG_FORMAT}}']
-    depends_on:
-      provision: {condition: process_completed_successfully}
-
   board:
     <<: *managed
     command: 'exec {{.PYTHON_Q}} -B {{.ROOT_Q}}/launchers/main.py local service --name {{.NAME_Q}} board 2>&1'

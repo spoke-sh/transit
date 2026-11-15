@@ -3,7 +3,7 @@
 Transit is programmable, versioned data infrastructure. This chart packages one
 realm's [server](../../../apps/transit-cli/docs/server.md#external-worker-composition),
 persistent storage, optional [Board](../../../apps/transit-board/README.md),
-runtime/framework controllers and Agent Substrate worker capacity.
+runtime controllers and Agent Substrate worker capacity.
 
 The [reference proof](../../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
@@ -26,7 +26,7 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
 | `runtimeControllers` | Up to 15 additional PID-scoped controllers using the same deployment and credential boundary. Each requires a unique `nameOverride`, `config`, and `existingSecret`; supply its image. |
-| `stationControllers` | Up to 15 framework observers/lifecycle controllers. Each requires a unique `nameOverride`, image, public-client `config`, and separate `existingSecret`. They receive no provider token or storage mount; egress is limited to Transit and DNS. |
+| `node.station` | Optional frozen Station service manifest, mounted as `/config/station.json`; set `node.config.station.file` to that path and reference separately provisioned service seeds in `node.existingSecret`. |
 | `workerPools` | Named version-specific pools; keep old capacity until a recorded workload switch has reconciled and a fresh activation is established. |
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
@@ -37,7 +37,7 @@ required for recovery. Native history trimming requires the explicit genesis
 opt-in `node.config.external.allow_history_trim`; this does not enable application
 expiry. Old `initialize`, `maintenance` and `delivery` values reject.
 
-Additional controller names must be unique across both arrays and base components.
+Additional controller names must be unique across the runtime controller array and base components.
 Their `config` is public configuration: signing credentials come from the
 mounted Secret's `seed` key. Use separate recorded grants for each responsibility;
 creating a Deployment does not grant access to a PID or state resource.

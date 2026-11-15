@@ -51,7 +51,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const node_artifact = context.node_artifact;
     const controller_artifact = context.controller_artifact;
     const kubectl_transit = context.kubectl_transit;
-    const station_controller = context.station_controller;
     const station_host = context.station_host;
     const client_host = context.client_host;
     const query_host = context.query_host;
@@ -2225,7 +2224,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     station_test.addArtifactArg(transit_cli);
     station_test.addArtifactArg(native_client_fixture);
     station_test.addArtifactArg(station_ledger);
-    station_test.addArtifactArg(station_controller);
+    station_test.addArtifactArg(operations);
     station_test.has_side_effects = true;
     station_test.stdio = .inherit;
     b.step("test-station", "Prove recoverable Station callers against durable authority").dependOn(&station_test.step);

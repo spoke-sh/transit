@@ -11,6 +11,8 @@ pub const descriptors = [_]D{
     .{ .name = "startup.replace_runtime.from", .description = "Previously accepted transit executable SHA-256", .owner = "server", .kind = .string, .change = .restart },
     .{ .name = "startup.replace_runtime.to", .description = "Proposed transit executable SHA-256", .owner = "server", .kind = .string, .change = .restart },
     .{ .name = "logging.format", .default_json = "\"text\"", .description = "Operational log rendering on stderr", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "text", "json" } },
+    .{ .name = "station.file", .default_json = "null", .description = "Explicit Station service registration manifest; its first accepted identity is retained", .owner = "station", .kind = .string, .change = .restart, .nullable = true, .sensitive = true },
+    .{ .name = "station.max_services", .default_json = "32", .description = "Active Station service quota per deployment group", .owner = "station", .kind = .unsigned, .change = .restart, .minimum = 1, .maximum = 256 },
     .{ .name = "logging.level", .default_json = "\"info\"", .description = "Minimum operational log severity", .owner = "server", .kind = .enumeration, .change = .restart, .values = &.{ "debug", "info", "warn", "error", "off" } },
     .{ .name = "realm", .default_json = "1", .description = "Native security realm", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 1, .maximum = 9007199254740991 },
     .{ .name = "admission_ceiling", .default_json = "65536", .description = "Immutable ordinary admission quota", .owner = "node", .kind = .unsigned, .scope = .installation, .change = .initialization, .minimum = 128, .maximum = 65536 },

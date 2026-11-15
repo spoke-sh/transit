@@ -2,6 +2,7 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 import signal
 import copy
 import hashlib
@@ -382,6 +383,9 @@ def run(server, cli, worker):
 if __name__ == "__main__":
     run(*sys.argv[1:4])
     from runtime.station.station_services import run as services
-    services(*sys.argv[1:])
+    services(*sys.argv[1:4])
+    from runtime.station.station_local_services import run as local_services
+    os.environ["TEST_TRANSIT_OPERATIONS"] = str(Path(sys.argv[4]).resolve())
+    local_services(sys.argv[1], sys.argv[3])
     from runtime.station.station_lifetime import run as lifetime
     lifetime(*sys.argv[1:4])

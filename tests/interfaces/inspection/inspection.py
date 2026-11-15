@@ -40,7 +40,7 @@ def available_post(post, path, signed):
 
 class System:
     def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800,
-                 storage_config=None, local=False, server=None):
+                 storage_config=None, local=False, server=None, server_setup=None):
         self.node, self.cli = node, cli
         self.local = local
         self.store = Fixture(storage_config, retain_on_failure=True)
@@ -51,6 +51,7 @@ class System:
         self.request_timeout_ms = request_timeout_ms
         self.server_binary = server
         self.server = None
+        self.server_setup = server_setup
 
     @phase("provision", "inspection-authority")
     def __enter__(self):
@@ -63,6 +64,8 @@ class System:
             self.server.config['external']['request_timeout_ms'] = self.request_timeout_ms
             if self.allow_history_trim:
                 self.server.config['external']['allow_history_trim'] = True
+            if self.server_setup:
+                self.server_setup(self.server)
             self.server.path.write_text(json.dumps(self.server.config))
             self.restart_authority()
             self.seed = self.server.installation / 'root.seed'

@@ -38,7 +38,6 @@ pub const Context = struct {
     node_artifact: *std.Build.Step.Compile,
     controller_artifact: *std.Build.Step.Compile,
     kubectl_transit: *std.Build.Step.Compile,
-    station_controller: *std.Build.Step.Compile,
     station_host: *std.Build.Step.Compile,
     client_host: *std.Build.Step.Compile,
     serving_client: *std.Build.Step.Compile,
@@ -137,11 +136,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const install_plugin = b.addInstallArtifact(kubectl_transit, .{});
     apps_step.dependOn(&install_plugin.step);
     b.step("kubectl-transit", "Install the Kubernetes inspection plugin").dependOn(&install_plugin.step);
-    var station_controller: *std.Build.Step.Compile = undefined;
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
     var serving_client: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "transit-runtime-controller", "transit-station-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
+    for ([_][]const u8{ "transit-node", "transit-runtime-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -167,10 +165,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         apps_step.dependOn(&install.step);
         b.step(name, b.fmt("Install {s}", .{name})).dependOn(&install.step);
         if (std.mem.eql(u8, name, "transit-runtime-controller")) app.root_module.addImport("transit_runtime_substrate", runtime.module("transit_runtime_substrate"));
-        if (std.mem.eql(u8, name, "transit-station-controller")) {
-            app.root_module.addImport("transit_station", station.module("transit_station"));
-            station_controller = app;
-        }
         if (std.mem.eql(u8, name, "transit-station-host")) {
             station_host = app;
             app.root_module.addImport("transit_station", station.module("transit_station"));
@@ -296,7 +290,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .node_artifact = node_artifact,
         .controller_artifact = controller_artifact,
         .kubectl_transit = kubectl_transit,
-        .station_controller = station_controller,
         .station_host = station_host,
         .client_host = client_host,
         .serving_client = serving_client,

@@ -1,7 +1,7 @@
 # transit-cli
 
 `transit server` starts and supervises a Transit installation, including its
-required delivery lifecycle. The default local profile hosts SQL and applications;
+required delivery lifecycle and declared Station services. The default local profile hosts SQL and applications;
 the [external-worker profile](docs/server.md#external-worker-composition) preserves
 Ursula and Kubernetes/Substrate placement.
 `transit console` opens interactive or batch SQL sessions for queries, Table

@@ -23,6 +23,14 @@ pub const Resource = struct { name: []const u8, writer: []const u8 };
 pub const Read = struct { resource: []const u8, permissions: u8 = read_permissions };
 pub const Caller = struct { name: []const u8, send_to: ?[]const u8 = null, reads: []const Read = &.{} };
 pub const Initialize = struct { role: []const u8, caller: []const u8, value: p.Value };
+pub const StationWatch = struct { resource: []const u8, child: ?[]const u8 = null };
+pub const StationService = struct {
+    name: []const u8,
+    mode: enum { observe, lifecycle },
+    watches: []const StationWatch,
+    interval_ms: u32 = 100,
+    request_timeout_ms: u32 = 2000,
+};
 pub const Declaration = struct {
     pub const json_schema_fields = .{ .version = .{ .type = "integer", .@"const" = 1 } };
     version: u32 = 1,
@@ -32,6 +40,7 @@ pub const Declaration = struct {
     callers: []const Caller,
     initialize: []const Initialize = &.{},
     inspection: []const Read = &.{},
+    station: []const StationService = &.{},
     pub fn jsonStringify(self: Declaration, out: *std.json.Stringify) std.Io.Writer.Error!void {
         try out.beginObject();
         inline for (@typeInfo(Declaration).@"struct".field_names) |field| {
@@ -47,6 +56,26 @@ pub const Declaration = struct {
         try unique(self.roles);
         try unique(self.resources);
         try unique(self.callers);
+        if (self.station.len > max_roles) return error.ApplicationLimit;
+        try unique(self.station);
+        for (self.station) |service| {
+            if (service.watches.len == 0 or service.watches.len > 4 or service.interval_ms == 0 or service.interval_ms > 60000 or service.request_timeout_ms == 0 or service.request_timeout_ms > 60000) return error.InvalidStationService;
+            for (service.watches, 0..) |watch, i| {
+                _ = index(Resource, self.resources, watch.resource) orelse return error.UnknownApplicationResource;
+                for (service.watches[0..i]) |old| if (std.mem.eql(u8, old.resource, watch.resource)) return error.InvalidStationService;
+                if (watch.child) |child| {
+                    const role = self.roles[index(Role, self.roles, child) orelse return error.UnknownApplicationRole];
+                    if (service.mode == .lifecycle) {
+                        var associated = false;
+                        for (role.accesses) |access| if (std.mem.eql(u8, access.resource, watch.resource)) {
+                            associated = true;
+                        };
+                        if (!associated) return error.InvalidApplicationGrant;
+                        if (i > 0 and !std.mem.eql(u8, service.watches[0].child.?, child)) return error.InvalidStationService;
+                    }
+                } else if (service.mode == .lifecycle) return error.InvalidStationService;
+            }
+        }
         for (self.roles, 0..) |role, i| {
             try name(role.contract);
             try artifact(role.artifact);
@@ -183,14 +212,15 @@ pub const Bootstrap = struct {
     roles: []const Binding,
     resources: []const Binding,
     callers: []const Binding,
+    services: []const Binding = &.{},
     configuration: []const u8,
     pub fn validate(self: Bootstrap) !void {
         if (self.version != 1 or self.realm == 0 or self.realm > p.max_counter or self.principal == 0 or self.principal > p.max_counter or self.pid == 0 or self.pid > p.max_counter or self.generation == 0 or self.generation > p.max_counter) return error.InvalidApplicationBootstrap;
         try name(self.application);
         try name(self.role);
         try name(self.contract);
-        if (self.roles.len > max_roles or self.resources.len > max_resources or self.callers.len > max_callers) return error.ApplicationLimit;
-        for ([_][]const Binding{ self.roles, self.resources, self.callers }) |bindings| {
+        if (self.roles.len > max_roles or self.resources.len > max_resources or self.callers.len > max_callers or self.services.len > max_roles) return error.ApplicationLimit;
+        for ([_][]const Binding{ self.roles, self.resources, self.callers, self.services }) |bindings| {
             try unique(bindings);
             for (bindings) |entry| if (entry.id == 0 or entry.id > p.max_counter) return error.InvalidApplicationBootstrap;
         }
@@ -240,6 +270,7 @@ pub const Management = struct {
     recovery_directory: []const u8,
 };
 pub const RoleStatus = struct { name: []const u8, pid: u64, principal: u64, generation: u64, revision: [32]u8, state: enum { pending, starting, ready, stopped, failed }, error_name: ?[]const u8 = null };
+pub const ServiceStatus = struct { name: []const u8, principal: u64, mode: @FieldType(StationService, "mode"), ready: bool, completed_passes: u64, error_name: ?[]const u8 = null };
 pub const Receipt = struct { index: u32, principal: u64, sequence: u64, position: u64, digest: [32]u8 };
 pub const Status = struct {
     pub const json_schema_fields = .{ .version = .{ .@"const" = 1 } };
@@ -250,11 +281,19 @@ pub const Status = struct {
     roles: []const RoleStatus,
     resources: []const Binding,
     receipts: []const Receipt,
+    services: []const ServiceStatus = &.{},
     next: ?u32 = null,
     pub fn validate(self: Status, after: u32) !void {
         if (self.version != 1 or self.roles.len == 0 or self.roles.len > max_roles or self.receipts.len > 8 or std.mem.allEqual(u8, &self.declaration, 0)) return error.InvalidApplicationResponse;
         try name(self.application);
         try unique(self.roles);
+        if (self.services.len > max_roles) return error.InvalidApplicationResponse;
+        try unique(self.services);
+        for (self.services) |service| {
+            try identifier(service.principal, false);
+            if (service.ready and (!self.installed or service.error_name != null)) return error.InvalidApplicationResponse;
+            if (service.error_name) |err| try name(err);
+        }
         try validateBindings(self.resources, max_resources, !self.installed);
         for (self.roles) |role| {
             try identifier(role.pid, !self.installed);
@@ -440,4 +479,20 @@ test "v1 declarations sign explicit inspection scopes and reject other versions"
     try std.testing.expectError(error.UnknownApplicationResource, declaration.validate());
     declaration.inspection = &.{ .{ .resource = "data", .permissions = 1 }, .{ .resource = "data", .permissions = 3 } };
     try std.testing.expectError(error.InvalidApplicationGrant, declaration.validate());
+}
+
+test "Station declarations bind observations and scoped lifecycle to named resources" {
+    const observer: StationService = .{ .name = "timer", .mode = .observe, .watches = &.{.{ .resource = "state" }} };
+    var declaration: Declaration = .{ .application = "actors", .roles = &.{.{ .name = "child", .contract = "child-v1", .artifact = .{ .path = "/worker", .sha256 = @splat(1) }, .accesses = &.{.{ .name = "state", .resource = "state", .permissions = 7 }} }}, .resources = &.{.{ .name = "state", .writer = "child" }}, .callers = &.{}, .station = &.{observer} };
+    try declaration.validate();
+    const before = try digest(std.testing.allocator, declaration);
+    declaration.station = &.{.{ .name = "retry", .mode = .lifecycle, .watches = &.{.{ .resource = "state", .child = "child" }} }};
+    try declaration.validate();
+    try std.testing.expect(!std.mem.eql(u8, &before, &try digest(std.testing.allocator, declaration)));
+    declaration.station = &.{.{ .name = "retry", .mode = .lifecycle, .watches = &.{.{ .resource = "state" }} }};
+    try std.testing.expectError(error.InvalidStationService, declaration.validate());
+    declaration.station = &.{.{ .name = "timer", .mode = .observe, .watches = &.{.{ .resource = "unknown" }} }};
+    try std.testing.expectError(error.UnknownApplicationResource, declaration.validate());
+    declaration.station = &.{ observer, observer };
+    try std.testing.expectError(error.DuplicateApplicationName, declaration.validate());
 }

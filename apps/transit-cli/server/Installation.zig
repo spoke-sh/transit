@@ -41,6 +41,7 @@ pub const Record = struct {
     installer_receipt: ?u64 = null,
     board_receipts: [3]?u64 = @splat(null),
     external_table: ?[32]u8 = null,
+    station_manifest: ?[32]u8,
 };
 pub const Worker = struct {
     public_key: [32]u8,
@@ -425,7 +426,7 @@ fn create(init: std.process.Init, config: Config, identity: Config.Identity) !vo
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         worker.* = .{ .public_key = key.public_key.toBytes(), .enrollment = @splat(null) };
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .default_table = null, .table_registrar_receipt = null, .complete = false, .workers = workers });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public, .endpoint = try @import("Provider.zig").url(allocator, config.ports.gateway), .realm = config.realm, .default_table_complete = false, .default_table = null, .table_registrar_receipt = null, .complete = false, .workers = workers, .station_manifest = null });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     try Publication.publish(init.io, init.gpa, temporary, config.installation, try Publication.binding(init.gpa, identity));
 }

@@ -173,6 +173,8 @@ class Reference:
                            ("node", {"root": "operator/root.key", **({"registrar": "table/seed.key"} if (self.path / "table/seed.key").exists() else {})}), ("controller", {"seed": "controller/seed.key"})):
             if roles is not None and role not in roles:
                 continue
+            if role == "node" and (self.path / "station-services/services.json").exists():
+                data.update({name: "station-services/" + name + ".seed" for name in ("station-observer", "station-lifecycle")})
             # Structured stdin prevents credentials entering argv or Helm history.
             self.kube("apply", "-f", "-", input=json.dumps({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": role + "-credentials"},
                 "stringData": {key: (self.path / relative).read_text().strip() for key, relative in data.items()}}))
@@ -234,6 +236,7 @@ class Reference:
     def service_values(self, values, selection, images):
         i = self.installation
         values["node"].update(image=images["transit"], existingSecret="node-credentials", config=json.loads((self.path / "transit.json").read_text()), table=json.loads((self.path / "table/config.json").read_text()) if (self.path / "table/config.json").exists() else None)
+        values["node"]["station"] = json.loads((self.path / "station-services/services.json").read_text()) if (self.path / "station-services/services.json").exists() else None
         values["board"].update(image=images["transit-board"], config=json.loads((self.path / "board/config.json").read_text()))
         values["controller"].update(image=images["transit-runtime-controller"])
         if "provider" in values["controller"].get("config", {}):

@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARIES = ('transit', 'transit-node', 'transit-query-host',
-            'transit-board', 'transit-station-controller')
+            'transit-board')
 
 
 def sha256(path):

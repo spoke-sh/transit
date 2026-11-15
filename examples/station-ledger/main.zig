@@ -14,6 +14,7 @@ const Config = struct {
     pid: u64,
     generation: u64 = 0,
     seed_file: ?[]const u8 = null,
+    activation_directory: ?[]const u8 = null,
     association: []const u8 = "data",
     role: @FieldType(handler.Application, "role") = .ledger,
     destination: ?u64 = null,
@@ -39,14 +40,23 @@ pub fn main(init: std.process.Init) !void {
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     const once = args.len == 3 and std.mem.eql(u8, args[1], "--once");
-    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    const local = args.len == 3 and std.mem.eql(u8, args[1], "--transit-bootstrap-v1");
+    const bootstrap = local or (args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json"));
     if (args.len != 2 and !once and !bootstrap) return error.ExpectedConfiguration;
-    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[if (once) 2 else 1], init.gpa, .limited(wire.max_body));
-    defer if (!bootstrap) init.gpa.free(bytes);
-    var parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
-    defer parsed.deinit();
-    var config = parsed.value;
-    if (bootstrap and (config.seed_file != null or config.generation != 0)) return error.InvalidBootstrap;
+    const allocator = init.arena.allocator();
+    const bytes = if (bootstrap and !local) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[if (once or local) 2 else 1], allocator, .limited(wire.max_body));
+    var config = if (local) value: {
+        const A = wire.Application;
+        const supplied = (try wire.protocol.Json.parseFromSlice(A.Bootstrap, allocator, bytes)).value;
+        try supplied.validate();
+        if (!std.mem.eql(u8, supplied.contract, "station-ledger-v1")) return error.UnsupportedApplicationContract;
+        const domain = (try wire.protocol.Json.parseFromSlice(struct { role: @FieldType(Config, "role"), destination: []const u8, observer: []const u8 }, allocator, supplied.configuration)).value;
+        // The local coordinator profile needs native state only. Ledger/requester
+        // Table authority is provisioned by the external example's declaration.
+        if (domain.role != .coordinator) return error.UnsupportedApplicationRole;
+        break :value Config{ .url = supplied.url, .realm = supplied.realm, .principal = supplied.principal, .pid = supplied.pid, .generation = supplied.generation, .activation_directory = supplied.activation_directory, .role = domain.role, .destination = try A.binding(supplied.roles, domain.destination), .observer = try A.binding(supplied.services, domain.observer) };
+    } else (try wire.protocol.Json.parseFromSlice(Config, allocator, bytes)).value;
+    if (bootstrap and (config.seed_file != null or (!local and config.generation != 0))) return error.InvalidBootstrap;
     if (!bootstrap and config.seed_file == null) return error.MissingSeedFile;
     var key = if (config.seed_file) |path| try wire.readKey(init.gpa, init.io, path) else key: {
         var seed: [32]u8 = undefined;
@@ -58,7 +68,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var client = wire.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
     client.observer = diagnostics;
-    if (bootstrap) config.generation = try wire.bootstrap.awaitActivation(&client, config.realm, config.pid, config.principal, key);
+    if (local) try wire.bootstrap.awaitGrowingOwnership(&client, .{ .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000) else if (bootstrap) config.generation = try wire.bootstrap.awaitActivation(&client, config.realm, config.pid, config.principal, key);
     var behavior = try station.GenServer.init(.{
         .client = &client,
         .realm = config.realm,
@@ -68,6 +78,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .key = key,
     }, config.association);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&behavior.session.key));
+    if (config.activation_directory) |directory| {
+        _ = try behavior.session.receive();
+        const marker = try std.fmt.allocPrint(allocator, "{s}/{d}-{d}-{d}.activation", .{ directory, config.realm, config.pid, config.generation });
+        const file = try std.Io.Dir.cwd().createFile(init.io, marker, .{ .exclusive = true });
+        file.close(init.io);
+    }
+
     const resources: wire.ResourceReader = .{ .wire = &client, .realm = config.realm, .principal = config.principal, .key = key };
     var application: handler.Application = .{ .allocator = init.gpa, .resources = resources, .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry, .source_resource = config.source_resource, .peer_resource = config.peer_resource, .peer_principal = config.peer_principal };
     if (config.authorization) |authorization| {

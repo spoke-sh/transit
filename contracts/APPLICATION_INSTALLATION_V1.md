@@ -70,6 +70,35 @@ encodings are not accepted through a fallback decoder. Persisted installation
 records require the native contract definition identifier before any provider
 work can resume.
 
+## Station service registration
+
+The declaration always serializes `station` after `inspection`, including an
+empty list. This changes canonical installation signatures and the shared current
+native definition. Earlier declarations and retained records require their original
+build; no missing persisted definition is defaulted to the current one.
+
+`station` contains at most eight uniquely named services. Each has `name`, `mode`
+(`observe` or `lifecycle`), `watches`, `interval_ms` (default 100) and
+`request_timeout_ms` (default 2000); both budgets are 1–60000 ms. One to four
+watches name distinct declared resources and optional declared child roles.
+Lifecycle services require the same child on every watch and an association from
+that child to each watched resource. Observers and lifecycle services receive
+distinct retained principals, respectively inspect/send (20) and inspect/admin
+(17); lifecycle principals are scoped to their child PID. Each resource receives
+an explicit inspect/read grant (3). Provisioning uses the existing exact native
+request/receipt journal, and never restores completed grants on restart.
+
+Bootstrap `services` binds names to principals without credentials or rights.
+Service startup and signed access checks precede worker startup. Status `services`
+contains name, principal, mode, ready, completed_passes and optional error_name.
+Readiness requires current access and a fresh private runner observation; complete
+scan passes are not evidence of domain completion. The local process owner must
+join the exact failed worker before a lifecycle retry. The acknowledgement binds
+the runner boot and native PID/generation/failure, and cannot authorize a retry
+without Station's durable intent and current native grants. Unknown provider state
+still requires the existing confirmed-stop gate. Exhaustion never discards a head
+input or creates a replacement PID.
+
 ## Management authentication and recovery
 
 Management uses a separate local endpoint and explicit private connection file.
@@ -114,7 +143,7 @@ changed intent or a new signed sequence cannot resolve a lost reply.
 The manager executes the declared artifact with `--transit-bootstrap-v1 PATH`.
 The private file contains `Bootstrap`: version, application, role, contract,
 revision digest, native URL/realm/principal/PID/expected generation, an activation
-marker directory, named role/resource/caller bindings and opaque configuration.
+marker directory, named role/resource/caller/service bindings and opaque configuration.
 There is no signing seed in that file. Bindings identify public references,
 not access rights. The worker validates the version and bounds, generates a fresh
 in-memory key and uses the existing [growing registration](../packages/zig/transit-client/docs/growing-bootstrap.md).

@@ -79,6 +79,12 @@
             "object",
             "null"
           ]
+        },
+        "station": {
+          "type": [
+            "object",
+            "null"
+          ]
         }
       }
     },
@@ -399,66 +405,6 @@
           "config",
           "existingSecret"
         ]
-      }
-    },
-    "stationControllers": {
-      "type": "array",
-      "maxItems": 15,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "nameOverride",
-          "image",
-          "config",
-          "existingSecret"
-        ],
-        "properties": {
-          "nameOverride": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "image": {
-            "type": "string"
-          },
-          "config": {
-            "type": "object"
-          },
-          "existingSecret": {
-            "type": "string",
-            "maxLength": 63,
-            "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "resources": {
-            "type": "object"
-          },
-          "logging": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "level",
-              "format"
-            ],
-            "properties": {
-              "level": {
-                "enum": [
-                  "debug",
-                  "info",
-                  "warn",
-                  "error",
-                  "off"
-                ]
-              },
-              "format": {
-                "enum": [
-                  "text",
-                  "json"
-                ]
-              }
-            }
-          }
-        }
       }
     }
   }

@@ -19,6 +19,10 @@ data:
   table.json: |
     {{- $.Values.node.table | toJson | nindent 4 }}
   {{- end }}
+  {{- if and (eq $component "node") $.Values.node.station }}
+  station.json: |
+    {{- $.Values.node.station | toJson | nindent 4 }}
+  {{- end }}
   {{- if eq $component "controller" }}
   egress.json: {{ dict "rules" (list (dict "hostnames" (dict "patterns" (list $settings.config.provider.authority_host)))) | toJson | quote }}
   kubeconfig: |

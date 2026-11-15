@@ -4,7 +4,7 @@ import secrets
 import struct
 import subprocess
 
-from common import Installation, ROOT, lock, run, write, wait_for
+from common import Installation, ROOT, DEFINITION, lock, run, write, wait_for
 from native_client import Client
 from authorization import Changes, station
 
@@ -19,10 +19,8 @@ class StationInstallation(Installation):
     principals = {"ledger": 1, "requester": 6, "coordinator": 7}
     artifact_roles = {"node": "transit",
                       "board": "transit-board", **dict.fromkeys(workloads, "example-station-ledger"),
-                      "station-observer": "transit-station-controller", "station-lifecycle": "transit-station-controller",
                       "controller": "transit-runtime-controller"}
-    service_names = ("node", "board", *workloads,
-                     "station-observer", "station-lifecycle")
+    service_names = ("node", "board", *workloads)
     local_topology = ROOT / "examples/station-ledger/process-compose.yaml"
     compose_topology = ROOT / "examples/station-ledger/docker-compose.yaml"
 
@@ -32,6 +30,9 @@ class StationInstallation(Installation):
         node['external'].pop('ursula')
         placed = self.profile in ('compose', 'reference')
         (self.path / 'table').mkdir(exist_ok=True, mode=0o700)
+        (self.path / 'station-services').mkdir(exist_ok=True, mode=0o700)
+        if (self.path / 'station-services/services.json').exists():
+            node['station'] = dict(file='/config/station.json' if self.profile == 'reference' else '/station/services.json' if placed else str(self.path / 'station-services/services.json'))
         catalog = self.path / 'station-direct.json'
         if catalog.exists():
             registrar_seed = '/secrets/registrar' if self.profile == 'reference' else '/table/seed.key' if placed else str(self.path / 'table/seed.key')
@@ -81,7 +82,7 @@ class StationInstallation(Installation):
         write(self.path / 'station-authorization.json', authorization)
         for principal, label, permissions in ((2, "board", 16),
                                               (10, "station-observer", 20), (11, "station-lifecycle", 17)):
-            grant = {"subject": principal, "public_key": self.key(label + "/seed.key"), "permissions": permissions}
+            grant = {"subject": principal, "public_key": self.key("board/seed.key" if label == "board" else "station-services/" + label + ".seed"), "permissions": permissions}
             if label == "station-lifecycle": grant["pid"] = records["ledger"]["pid"]
             self.command("grant-" + label, {"grant": grant})
         for role, record in records.items():
@@ -96,19 +97,20 @@ class StationInstallation(Installation):
             "value": frame(f'lookup-peer:{records["requester"]["pid"]}'.encode())}})
         registration = b"RGQ1\x02" + struct.pack("<IQQB", 1, 0, records["ledger"]["pid"], 6) + b"ledger"
         self.command("registry-ledger", {"send": {"pid": records["coordinator"]["pid"], "value": frame(registration)}})
-        self.controller_configs()
+        self.service_manifest()
         self.configs()
         write(self.path / 'station-provisioned.json', dict(definition=changes.definition))
 
-    def controller_configs(self):
+    def service_manifest(self):
         records = self.records()
+        services = []
         for role, principal, mode in (("station-observer", 10, "observe"), ("station-lifecycle", 11, "lifecycle")):
             watches = [{"pid": records["coordinator"]["pid"], "resource": records["coordinator"]["resource"],
                         "child": records["ledger"]["pid"]}]
             if mode == "observe": watches.append({"pid": records["requester"]["pid"], "resource": records["requester"]["resource"]})
-            write(self.path / role / "config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
-                "realm": self.load()["realm"], "principal": principal, "mode": mode, "watches": watches,
-                "seed_file": f"/{role}/seed.key" if self.profile == "compose" else str(self.path / role / "seed.key")})
+            seed = '/secrets/' + role if self.profile == 'reference' else '/station/' + role + '.seed' if self.profile == 'compose' else str(self.path / 'station-services' / (role + '.seed'))
+            services.append(dict(name=role, principal=principal, mode=mode, watches=watches, seed_file=seed))
+        write(self.path / 'station-services/services.json', dict(version=1, definition=DEFINITION, realm=self.load()['realm'], services=services))
 
     def worker_config(self, role):
         records = self.records()

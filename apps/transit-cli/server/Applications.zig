@@ -10,6 +10,7 @@ const Config = @import("Config.zig");
 const Files = @import("Files.zig");
 const Publication = @import("DirectoryPublication.zig");
 const Process = @import("Process.zig");
+const StationServices = @import("StationServices.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Candidate = struct { artifact: A.Artifact, configuration: []const u8, revision: [32]u8 };
@@ -26,6 +27,7 @@ const Record = struct {
     resources: [A.max_resources]?u64 = @splat(null),
     workers: [A.max_roles]u64 = @splat(0),
     callers: [A.max_callers]u64 = @splat(0),
+    services: []u64 = &.{},
     public_keys: [A.max_roles][32]u8 = @splat(@splat(0)),
     generations: [A.max_roles]u64 = @splat(0),
     selected: [A.max_roles]?Candidate = @splat(null),
@@ -53,6 +55,8 @@ const Runtime = struct {
     length: usize = 0,
     role_count: usize = 0,
     workers: [A.max_roles]Worker = @splat(.{}),
+    services: ?*StationServices.Group = null,
+    service_restarts: u8 = 0,
     fn label(self: *const Runtime) []const u8 {
         return self.name[0..self.length];
     }
@@ -128,6 +132,7 @@ pub fn destroy(self: *Self) void {
     if (self.future) |*future| future.cancel(self.init.io);
     self.listener.deinit(self.init.io);
     for (self.apps[0..self.count]) |*app| {
+        if (app.services) |services| services.destroy();
         var i = app.role_count;
         while (i > 0) {
             i -= 1;
@@ -150,6 +155,7 @@ fn load(self: *Self, allocator: std.mem.Allocator, application: []const u8) !Rec
     const record = try Files.readBounded(Record, self.init.io, allocator, try self.path(allocator, application, "record.json"), record_bytes);
     if (record.version != 1 or record.definition != g.current_definition or !std.mem.eql(u8, &record.installation, &self.installation.record.installation) or !std.mem.eql(u8, record.declaration.application, application) or !std.mem.eql(u8, &record.digest, &try A.digest(allocator, record.declaration))) return error.InvalidApplicationCatalog;
     try record.declaration.validate();
+    if (record.services.len != record.declaration.station.len) return error.InvalidApplicationCatalog;
     return record;
 }
 // Management admission reserves space for the next frozen native request and
@@ -297,6 +303,14 @@ fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
     defer directory.close(self.init.io);
     for ([_][]const u8{ "requests", "receipts", "activations" }) |child| try directory.createDir(self.init.io, child, .fromMode(0o700));
     var record: Record = .{ .definition = g.current_definition, .installation = self.installation.record.installation, .declaration = declaration, .digest = digest, .installer = signed.identity };
+    record.services = try allocator.alloc(u64, declaration.station.len);
+    for (record.services, 0..) |*principal, i| {
+        principal.* = try self.randomPrincipal();
+        var seed: [32]u8 = undefined;
+        try self.init.io.randomSecure(&seed);
+        defer std.crypto.secureZero(u8, &seed);
+        try Files.write(self.init.io, try self.path(allocator, staging, try std.fmt.allocPrint(allocator, "service-{d}.seed", .{i})), &std.fmt.bytesToHex(seed, .lower));
+    }
     for (declaration.roles, 0..) |_, i| {
         record.workers[i] = try self.randomPrincipal();
         var seed: [32]u8 = undefined;
@@ -327,17 +341,19 @@ fn randomPrincipal(self: *Self) !u64 {
     try self.init.io.randomSecure(&bytes);
     return (std.mem.readInt(u64, &bytes, .little) & ((@as(u64, 1) << 52) - 1)) | (@as(u64, 1) << 52);
 }
-fn bindings(allocator: std.mem.Allocator, record: Record, comptime kind: enum { roles, resources, callers }) ![]A.Binding {
+fn bindings(allocator: std.mem.Allocator, record: Record, comptime kind: enum { roles, resources, callers, services }) ![]A.Binding {
     const values = switch (kind) {
         .roles => record.declaration.roles,
         .resources => record.declaration.resources,
         .callers => record.declaration.callers,
+        .services => record.declaration.station,
     };
     const result = try allocator.alloc(A.Binding, values.len);
     for (values, 0..) |value, i| result[i] = .{ .name = value.name, .id = switch (kind) {
         .roles => record.pids[i] orelse 0,
         .resources => record.resources[i] orelse 0,
         .callers => record.callers[i],
+        .services => record.services[i],
     } };
     return result;
 }
@@ -364,7 +380,12 @@ fn status(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: Reco
     const count = @min(8, record.receipt_count - after);
     const receipts = try allocator.alloc(A.Receipt, count);
     for (receipts, 0..) |*receipt, i| receipt.* = try Files.read(A.Receipt, self.init.io, allocator, try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "receipts/{d}.json", .{after + i})));
-    return .{ .application = app.label(), .declaration = record.digest, .installed = record.installed, .roles = roles, .resources = try bindings(allocator, record, .resources), .receipts = receipts, .next = if (after + count < record.receipt_count) after + count else null };
+    const services = try allocator.alloc(A.ServiceStatus, record.declaration.station.len);
+    for (record.declaration.station, 0..) |service, i| {
+        const progress: StationServices.Group.Progress = if (app.services) |group| group.progress(i) else .{ .ready = false, .completed_passes = 0 };
+        services[i] = .{ .name = service.name, .principal = record.services[i], .mode = service.mode, .ready = progress.ready and record.blocked == null, .completed_passes = progress.completed_passes, .error_name = record.blocked };
+    }
+    return .{ .application = app.label(), .declaration = record.digest, .installed = record.installed, .roles = roles, .resources = try bindings(allocator, record, .resources), .receipts = receipts, .services = services, .next = if (after + count < record.receipt_count) after + count else null };
 }
 
 const Step = struct { command: g.Command, principal: u64 = 0, effect: @FieldType(Pending, "effect") = .{ .provision = .{} } };
@@ -392,6 +413,14 @@ fn plan(self: *Self, allocator: std.mem.Allocator, record: Record) !?Step {
         if (at(record.next, &n)) return .{ .command = .{ .grant_resource = .{ .resource = resource, .subject = record.workers[i], .permissions = access.permissions } } };
     };
     for (d.callers, 0..) |caller, i| for (caller.reads) |read| if (at(record.next, &n)) return .{ .command = .{ .grant_resource = .{ .resource = record.resources[A.index(A.Resource, d.resources, read.resource).?].?, .subject = record.callers[i], .permissions = read.permissions } } };
+    for (d.station, 0..) |service, i| {
+        if (at(record.next, &n)) {
+            var key = try q.wire.readKey(allocator, self.init.io, try self.path(allocator, d.application, try std.fmt.allocPrint(allocator, "service-{d}.seed", .{i})));
+            defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+            return .{ .command = .{ .create_principal = .{ .subject = record.services[i], .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | (if (service.mode == .observe) p.permission(.send) else p.permission(.admin)), .pid = if (service.mode == .lifecycle) record.pids[A.index(A.Role, d.roles, service.watches[0].child.?).?].? else null } } };
+        }
+        for (service.watches) |watch| if (at(record.next, &n)) return .{ .command = .{ .grant_resource = .{ .resource = record.resources[A.index(A.Resource, d.resources, watch.resource).?].?, .subject = record.services[i], .permissions = A.read_permissions } } };
+    }
     for (d.initialize) |initial| if (at(record.next, &n)) return .{ .principal = record.callers[A.index(A.Caller, d.callers, initial.caller).?], .command = .{ .send = .{ .pid = record.pids[A.index(A.Role, d.roles, initial.role).?].?, .value = initial.value } } };
     if (record.next != n) return error.InvalidApplicationCatalog;
     return null;
@@ -482,6 +511,10 @@ pub fn tick(self: *Self) !void {
             }
         }
         try self.save(allocator, record);
+        if (app.services) |services| {
+            services.destroy();
+            app.services = null;
+        }
         for (app.workers[0..app.role_count]) |*worker| {
             worker.process.stop(self.init.io);
             worker.phase = .failed;
@@ -509,6 +542,44 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
         const resource = record.resources[A.index(A.Resource, record.declaration.resources, read.resource).?].?;
         try self.submit(allocator, record, .{ .command = .{ .grant_resource = .{ .resource = resource, .subject = Installation.board, .permissions = read.permissions } }, .effect = .inspection });
         return;
+    }
+    if (record.declaration.station.len != 0) {
+        if (app.services) |services| {
+            const Join = struct {
+                manager: *Self,
+                app: *Runtime,
+                record: *Record,
+                fn stop(context: @This(), pid: u64) !void {
+                    for (context.record.pids[0..context.record.declaration.roles.len], 0..) |id, i| if (id == pid) {
+                        context.manager.stopDependents(context.app, context.record.*, i);
+                        return;
+                    };
+                    return error.InvalidWatch;
+                }
+            };
+            try services.joinStops(Join{ .manager = self, .app = app, .record = record }, Join.stop);
+            const ready = services.check() catch |err| {
+                if (err != error.StationServiceExited or app.service_restarts == 3) return err;
+                services.destroy();
+                app.services = null;
+                app.service_restarts += 1;
+                return;
+            };
+            // A live service can withdraw readiness while retrying its exact
+            // request. Its process exit or stale heartbeat establishes failure.
+            if (!ready) return;
+        } else {
+            const services = try allocator.alloc(StationServices.Service, record.declaration.station.len);
+            for (record.declaration.station, 0..) |service, i| {
+                const watches = try allocator.alloc(q.station.Controller.Watch, service.watches.len);
+                for (service.watches, 0..) |watch, j| {
+                    const r = A.index(A.Resource, record.declaration.resources, watch.resource).?;
+                    watches[j] = .{ .pid = record.pids[A.index(A.Role, record.declaration.roles, record.declaration.resources[r].writer).?].?, .resource = record.resources[r].?, .child = if (watch.child) |child| record.pids[A.index(A.Role, record.declaration.roles, child).?].? else null };
+                }
+                services[i] = .{ .name = service.name, .principal = record.services[i], .seed_file = try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "service-{d}.seed", .{i})), .mode = if (service.mode == .observe) .observe else .lifecycle, .watches = watches, .interval_ms = service.interval_ms, .request_timeout_ms = service.request_timeout_ms };
+            }
+            app.services = try StationServices.Group.create(self.init, self.installation, self.executable, try std.fmt.allocPrint(allocator, "applications/{s}/station", .{app.label()}), services, true);
+        }
     }
     if (record.replacement) |replacement| {
         try self.installer(replacement.signed.identity, self.installation.wire);
@@ -565,7 +636,13 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
                 return;
             };
             const process = (try self.installation.query(.{ .process = record.pids[i].? })).body.process.process;
-            if (process.owner != record.workers[i] or process.generation != record.generations[i] or process.failure != null or process.lifecycle != .running) return error.ProcessUnavailable;
+            if (!try activationReady(process, record.workers[i], record.generations[i], supervisedChild(record.*, i))) {
+                // The replacement can consume its original poisoned head before
+                // this activation observation. Join it, then await recorded
+                // supervisor intent just as for failure after readiness.
+                self.stopDependents(app, record.*, i);
+                return;
+            }
             worker.phase = .ready;
             return;
         }
@@ -588,13 +665,34 @@ fn stopDependents(self: *Self, app: *Runtime, record: Record, index: usize) void
         }
     }
 }
+fn supervisedChild(record: Record, i: usize) bool {
+    for (record.declaration.station) |service| if (service.mode == .lifecycle and std.mem.eql(u8, service.watches[0].child.?, record.declaration.roles[i].name)) return true;
+    return false;
+}
+fn activationReady(process: g.Process, principal: u64, generation: u64, supervised: bool) !bool {
+    if (process.lifecycle != .running) return error.ProcessUnavailable;
+    if (process.failure != null) {
+        // A native failed turn fences its owner and advances generation once.
+        // Recognize only that exact transition, never another owner's activation
+        // or a later lifecycle fence, as a failure of this hosted incarnation.
+        const failed_generation = std.math.add(u64, generation, 1) catch return error.ProcessUnavailable;
+        if (supervised and process.owner == null and process.generation == failed_generation) return false;
+        return error.ProcessUnavailable;
+    }
+    if (process.owner != principal or process.generation != generation) return error.ProcessUnavailable;
+    return true;
+}
 fn startWorker(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: Record, i: usize) !void {
     const selected = try candidate(allocator, record, i);
     if (!std.mem.eql(u8, &try Config.digest(self.init, selected.artifact.path), &selected.artifact.sha256)) return error.ApplicationArtifactChanged;
     const process = (try self.installation.query(.{ .process = record.pids[i].? })).body.process.process;
-    if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
+    if (process.lifecycle != .running) return error.ProcessUnavailable;
+    if (process.failure != null) {
+        if (supervisedChild(record, i)) return;
+        return error.ProcessUnavailable;
+    }
     const generation = try std.math.add(u64, process.generation, 1);
-    const config: A.Bootstrap = .{ .application = app.label(), .role = record.declaration.roles[i].name, .contract = record.declaration.roles[i].contract, .revision = selected.revision, .url = self.installation.wire.url, .realm = self.installation.config.realm, .principal = record.workers[i], .pid = record.pids[i].?, .generation = generation, .activation_directory = try self.path(allocator, app.label(), "activations"), .roles = try bindings(allocator, record, .roles), .resources = try bindings(allocator, record, .resources), .callers = try bindings(allocator, record, .callers), .configuration = selected.configuration };
+    const config: A.Bootstrap = .{ .application = app.label(), .role = record.declaration.roles[i].name, .contract = record.declaration.roles[i].contract, .revision = selected.revision, .url = self.installation.wire.url, .realm = self.installation.config.realm, .principal = record.workers[i], .pid = record.pids[i].?, .generation = generation, .activation_directory = try self.path(allocator, app.label(), "activations"), .roles = try bindings(allocator, record, .roles), .resources = try bindings(allocator, record, .resources), .callers = try bindings(allocator, record, .callers), .services = try bindings(allocator, record, .services), .configuration = selected.configuration };
     try config.validate();
     const path_name = try self.path(allocator, app.label(), try std.fmt.allocPrint(allocator, "{s}.bootstrap.json", .{config.role}));
     try Files.json(self.init.io, allocator, path_name, config);
@@ -631,4 +729,30 @@ test "replacement checkpoint admission reserves recovery space for escaped confi
     try admitCheckpoint(std.testing.allocator, record);
     for (&record.selected) |*slot| slot.* = selected;
     try std.testing.expectError(error.ApplicationCheckpointCapacity, admitCheckpoint(std.testing.allocator, record));
+}
+
+test "activation recognizes the native failure fence without accepting unrelated ownership changes" {
+    const t = std.testing;
+    const running: g.Process = .{ .pid = 3, .code = 1, .owner = 42, .generation = 7 };
+    try t.expect(try activationReady(running, 42, 7, false));
+    const failed: g.Process = .{ .pid = 3, .code = 1, .owner = null, .generation = 8, .failure = 99 };
+    try t.expect(!try activationReady(failed, 42, 7, true));
+    try t.expectError(error.ProcessUnavailable, activationReady(failed, 42, 7, false));
+    var invalid = failed;
+    invalid.owner = 43;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = failed;
+    invalid.generation = 9;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid.generation = 7;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = failed;
+    invalid.lifecycle = .expired;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = running;
+    invalid.owner = 43;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
+    invalid = running;
+    invalid.generation = 8;
+    try t.expectError(error.ProcessUnavailable, activationReady(invalid, 42, 7, true));
 }

@@ -616,3 +616,132 @@ Console latency qualification remains open.
 Earlier startup/query deadline failures and intentionally interrupted clean runs
 are not passes. Ordinary logs and reports remain in ignored runner output;
 private credentials and retained installation data are not committed.
+
+## Server ownership of Station services — 2026-11-14
+
+The [implementation plan](../../roadmap/transit-server-station-implementation.md) moves
+the existing Station observer and lifecycle library into server-owned roles and retires
+the standalone executable. Current registration, authority, recovery and placement
+limits belong to the [server
+guide](../../../apps/transit-cli/docs/server.md#station-services).
+
+The final implementation source is `b05f6f640d83b50ca5f2f8427a8cdc53b98c52f2`, based on
+`caaf43a2b`. The shared current-v1 definition is
+`8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb`. The pinned Zig
+version is `0.17.0-dev.2267+48abf1a34`; the flake lock SHA-256 is
+`865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264`.
+
+| Executed check | Source and outcome |
+| --- | --- |
+| `just ci clean --lane core` | `b05f6f640`: all 28 tasks pass, including contracts, 48 package builds, Station and provider-boundary checks |
+| `just ci clean --lane sdks` | `26472486494b`: all 16 tasks pass; subsequent changes do not alter SDK/contract sources |
+| `just ci clean --lane launchers` | `b05f6f640`: both tasks pass, including local lifecycle and replacement |
+| `just ci clean --lane installation-ui` | Fails at managed Table atomic work in three attempts; both final-source attempts pass their first ten tasks, including `server-sql-types` |
+| Remaining installation/UI tasks | All 15 pass separately at `b05f6f640`; a separate complete managed Table command also passes |
+| Local, Compose and reference Station launchers | All pass at `b05f6f640`; reference retry supplies explicit fresh placement |
+| `test::server-faults`, `test::server-applications`, `test::server-application-faults` | All pass at `b05f6f640`; the first also executes the ordinary server lifecycle |
+| Static release, `test::release`, archive packaging and local OCI image construction | Pass at `b05f6f640`, Linux x86_64 |
+| `test::release-install`, `test::standalone-chart` | Pass using the exact static release; installed browser/Board and retained Helm recovery execute |
+| `test console-latency-gate` | Pass at `b05f6f640` in `ci-experience`: five installations, fifteen cycles, four CPUs, no budget violations |
+
+Saved command output and automatic records are in `.cache/station-qualification-b05/`.
+Clean core/SDK/launcher completion is recorded in
+`transit-station-final-clean-core.log`, `transit-station-clean-sdks.log` and
+`transit-station-continuation-clean-launchers.log`. The resumed server and release
+commands are recorded in `transit-station-recovered-validation.json` with a separate log
+per command. Dependency installation is preparation, not a test pass.
+
+The console gate retains its original budgets and complete workload. Its report and raw
+samples are in `.cache/transit-latency/station-b05-recovered-gate/`; `report.json`
+records `completed: true`, `status: passed`, and no violations. This is local Linux
+x86_64 evidence, not a distributed performance claim.
+
+The complete Station schedule passes in the clean core lane at the final implementation
+revision. It covers durable registry routing and wait closure, paged observation, exact
+retry after a lost accepted response, separate child-scoped administration, idle
+revocation, stalled-role replacement, readiness withdrawal and recovery during repeated
+admission refusals, retained service identities, joined local retry, exhaustion of the
+original poisoned head, and lifetime/recovery checks. The provider fixture separately
+enforces its existing placement requirement.
+
+The fresh reference proof uses the task-owned `transit-m1-21b2dd` Kind/Substrate
+cluster. Installation `station-c807f0` passes real worker loss, same-PID replacement,
+three-worker upgrades, Board provenance, retained stop/start, and one retry of the
+original failed input. Its native retry is followed by explicit test-owned fresh pod
+placement; the repeated failure fences that activation and preserves its last
+incarnation. This proves bounded logical supervision with supplied placement, not
+automatic recycling of provider capacity. The fresh installation is stopped and reset by
+the successful fixture. The earlier provider failure remains failed; its saved command
+log survives the checkout loss described below.
+
+Earlier failures remain distinct from passing runs. Compose at `264724864` exhausted
+recovery while replacing a live service during admission pressure. The correction
+retains its sequencer and pending signed request, publishes fresh unavailability, and
+withdraws readiness until the same service recovers. The local proof exposed a child
+failing before the manager observed activation: a native failed turn clears ownership
+and increments generation. The manager now recognizes only that exact supervised failure
+fence; unrelated owners, later fences and terminal lifecycles still reject. Focused
+negative controls and the complete Station schedule pass. A separate test-only barrier
+waits for the parent worker's committed activation before the fixture uses the root
+mutation sequence.
+
+The first provider proof timed out after native retry because Substrate reused the old
+pod. `StaleWorkerIncarnation` correctly prevented execution. Explicit replacement of
+that test-owned pod allowed the retained input to exhaust its one attempt; that
+diagnostic does not turn the original timed run into a pass. The fresh complete proof
+supplies placement explicitly within its original deadline. No controller gains
+pod-deletion rights and no activation fence is weakened.
+
+Three clean installation/UI attempts fail at managed Table verification with
+`ClockUnavailable`. The first `b05f6f640` full-lane attempt passes its first ten tasks,
+then fails during input 7's atomic transaction settlement. It runs the standalone native
+node and direct Table caller, without a Station service. The final lease expires at
+`2026-11-15T00:58:16.587Z`; the request refuses at `00:58:07.950Z`, within the
+configured ±10-second uncertainty envelope. The existing 30-second lease and time checks
+are preserved. The failed run used `/var/tmp/transit-ci-9cq4048c` and fixture
+`/var/tmp/transit-table-managed-ugyonf96`. Its saved command output is
+`.cache/station-qualification-b05/transit-station-final-clean-installation-ui.log`. The
+pre-change `caaf43a2b` native managed Table schedule passes in a separate worktree at
+`/var/tmp/transit-station-baseline-caaf43a2b`. Request latencies differ substantially
+between the two runs, so this is not a matched performance control and does not
+establish the candidate failure's cause. The complete baseline `just
+test::managed-tables` command, including its installed-server schedule, passes in
+1,487.40 seconds. The unchanged candidate's focused native schedule also passes,
+including atomic settlement and the original physical effect deadlines. The complete
+focused candidate command passes in 1,506.26 seconds. A fresh complete clean lane again
+passes its first ten tasks, then fails managed Table input 8 during atomic execution
+with `ClockUnavailable`. It used checkout and fixture `/var/tmp/transit-ci-06pxasm4` and
+`/var/tmp/transit-table-managed-5v4ud8i6`. The clean installation/UI gate remains
+failed. All fifteen remaining installation/UI tasks pass as separate committed-source
+runs, including local Station, application/migration, SQL, Board and browser proofs.
+Their automatic records are
+`.cache/station-qualification-b05/transit-station-continuation-validation-worktree-loss.json`.
+Together with the focused managed Table pass, every constituent task has passing
+evidence; this does not turn either failed complete clean lane into a pass. Neither
+passing comparison changes the earlier failed outcomes or establishes their cause.
+Interrupted, superseded and incomplete clean runs are not reported as passes.
+
+During the remaining server-fault build, the task worktree, branch, failed clean
+checkouts and fixture data disappeared outside this task. Git retained all
+implementation commits. The worktree was restored at the exact revision, and the
+interrupted build was stopped without claiming a test result. Saved logs and automatic
+command records were recovered from `/tmp` into `.cache/station-qualification-b05/`;
+earlier per-run caches and raw fixtures are no longer available. The static release
+survived in the Nix store and its hash was reverified before the remaining tests.
+
+The static Linux x86_64 `transit` executable SHA-256 is
+`ae87400e4cfb6c71e9cf7ff9b31f4ad7df6bad3e46a757eab37aa79632cab62f`. The packaged archive
+SHA-256 is `c7903133c43928ecec2996fe06dff74f8640b535f4e24cfc479fd7cb358544c0`; the local
+`transit` OCI manifest digest is
+`sha256:2e7a88aa6a292d16626d38547e2bddc18b3ac35a31ebb7185fb4e37371b10a64`.
+`dist/release/release-manifest.json` records all four image and executable identities.
+The installer and standalone Helm proofs pass with this release. Future distribution
+inventory contains `transit`, `transit-node`, `transit-query-host` and `transit-board`.
+Historical artifacts are retained; no public release, package or channel is published or
+deleted by this work.
+
+These passing runtime checks cover matching new installations and their retained
+restart; they do not complete the failed clean installation/UI qualification. They do
+not qualify a handoff from an existing standalone controller, live external registration
+updates, high availability, physical multi-host placement, or live ARM64 execution. The
+broader Station/database cutover remains separate.

@@ -11,9 +11,10 @@ const Provider = @import("Provider.zig");
 const Sql = @import("Sql.zig");
 const Startup = @import("Startup.zig");
 const Signals = @import("../Signals.zig");
+const StationServices = @import("StationServices.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
-const Role = enum { node, source, requester, courier, gateway, board, maintenance, sql };
+const Role = enum { node, source, requester, courier, gateway, board, maintenance, sql, station };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
@@ -136,7 +137,7 @@ fn supervise(init: std.process.Init, options: @import("../Options.zig").Options,
             if (diagnostic.cause == null) diagnostic.cause = err;
             // Storage identity/rollback, local durability failure and explicit
             // native denials are never repaired by rewriting installation state.
-            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.ConfigurationUnavailable or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.UnsafeCourierPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
+            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.ConfigurationUnavailable or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.UnsafeCourierPrincipal or err == error.UnsafeControllerPrincipal or err == error.InvalidStationManifest or err == error.StationManifestChanged or err == error.MissingStationManifest or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
             if (restarts == 3) return error.RestartBudgetExhausted;
             restarts += 1;
             diagnostic.setFailure(err, "server role failed; retrying the same installation", "Wait for a ready record or terminal failure. The server preserves installation history and allows at most three automatic restarts.");
@@ -450,6 +451,9 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     // Commit the replacement only after opening compatible native history and
     // checking the original grants. Failure before this point leaves the old
     // selection and explicit replacement intent available for exact recovery.
+    self.active_role = .station;
+    const station = try StationServices.external(self.init, installation, self.executable);
+    defer if (station) |services| services.destroy();
     const previous = if (installation.record.runtime) |runtime| runtime.identity else installation.record.identity;
     if (!std.meta.eql(previous, identity)) installation.record.runtime = .{ .previous = previous.cli, .identity = identity };
     installation.record.endpoint = installation.wire.url;
@@ -470,7 +474,7 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     var unavailable: u8 = 0;
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
-        self.externalHealth() catch |err| {
+        const services_ready = self.externalHealth(station) catch |err| {
             std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |failure| if (failure != error.FileNotFound) return failure;
             if (!q.wire.Client.unavailable(err) or err == error.AuthorityTransportDenied) return err;
             if (installation.wire.last_rejection != .HttpCapacity and installation.wire.last_rejection != .ControlCapacity) {
@@ -480,12 +484,17 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
             try self.init.io.sleep(.fromMilliseconds(1000), .awake);
             continue;
         };
+        if (!services_ready) {
+            std.Io.Dir.cwd().deleteFile(self.init.io, readiness) catch |err| if (err != error.FileNotFound) return err;
+            try self.init.io.sleep(.fromMilliseconds(1000), .awake);
+            continue;
+        }
         unavailable = 0;
         _ = try Files.jsonIfChanged(self.init.io, self.init.gpa, readiness, true);
         try self.init.io.sleep(.fromMilliseconds(1000), .awake);
     }
 }
-fn externalHealth(self: *Self) !void {
+fn externalHealth(self: *Self, station: ?*StationServices.Group) !bool {
     self.active_role = .node;
     _ = try self.installation.query(.{ .capabilities = {} });
     self.active_role = .courier;
@@ -494,6 +503,11 @@ fn externalHealth(self: *Self) !void {
         self.active_role = .board;
         try Board.check(self.installation);
     }
+    if (station) |services| {
+        self.active_role = .station;
+        return services.check();
+    }
+    return true;
 }
 fn node(self: *Self, allocator: std.mem.Allocator) !void {
     const installation = self.installation;
