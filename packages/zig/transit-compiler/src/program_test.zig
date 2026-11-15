@@ -181,3 +181,303 @@ test "program annotations obey compiler budgets and whole-statement bounds" {
     try std.testing.expectError(error.BuildStatementLimit, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = non_program_oversized }}, .{ .compiler_revision = "program-bounds" }, &sql_diag));
     try sql_diag.?.validate();
 }
+
+const helper_types_file =
+    \\CREATE PUBLIC DOMAIN OrderId AS BIGINT IDENTITY 'example.order-id';
+    \\CREATE PUBLIC DOMAIN AccountId AS BIGINT IDENTITY 'example.account-id';
+;
+
+const helper_lib_file =
+    \\IMPORT ids FROM 'types.transit';
+    \\CREATE PUBLIC FUNCTION is_eligible(priority BIGINT, ignored ids.OrderId) RETURNS BOOLEAN AS BEGIN
+    \\  RETURN priority >= 0;
+    \\END;
+    \\CREATE FUNCTION format_inner(prefix TEXT, body TEXT) RETURNS TEXT AS BEGIN
+    \\  RETURN CASE WHEN body = '' THEN prefix ELSE prefix || ':' || body END;
+    \\END;
+    \\CREATE PUBLIC FUNCTION tag_note(body TEXT, ignored BIGINT) RETURNS TEXT AS BEGIN
+    \\  RETURN format_inner('ord', body);
+    \\END;
+    \\CREATE PUBLIC FUNCTION keep_order_id(id ids.OrderId, ignored BIGINT) RETURNS ids.OrderId AS BEGIN
+    \\  RETURN id;
+    \\END;
+    \\CREATE PUBLIC FUNCTION pair_token(tok TEXT) RETURNS TEXT AS BEGIN
+    \\  RETURN tok || ':' || tok;
+    \\END;
+    \\CREATE PUBLIC FUNCTION append_bang(body TEXT) RETURNS TEXT AS BEGIN
+    \\  RETURN body || '!';
+    \\END;
+    \\CREATE GUARD ensure_enabled(active BOOLEAN) AS BEGIN
+    \\  IF NOT active THEN
+    \\    REQUIRE FALSE ELSE 'InactiveAccount';
+    \\  END IF;
+    \\END;
+    \\CREATE PUBLIC GUARD valid_account(accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL), target ids.AccountId) AS BEGIN
+    \\  LET found = SELECT active FROM accounts WHERE id = target;
+    \\  REQUIRE found IS NOT NULL ELSE 'MissingAccount';
+    \\  CHECK GUARD ensure_enabled(found.active);
+    \\END;
+    \\CREATE PROCEDURE publish_effects(events STREAM(id ids.OrderId NOT NULL, note TEXT NOT NULL), jobs QUEUE(id ids.OrderId NOT NULL), id ids.OrderId, note TEXT) AS BEGIN ATOMIC
+    \\  PRODUCE INTO events VALUES (id, note);
+    \\  ENQUEUE INTO jobs VALUES (id);
+    \\END;
+    \\CREATE PUBLIC PROCEDURE commit_order(
+    \\  accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL),
+    \\  orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, note TEXT NOT NULL),
+    \\  events STREAM(id ids.OrderId NOT NULL, note TEXT NOT NULL),
+    \\  jobs QUEUE(id ids.OrderId NOT NULL),
+    \\  id ids.OrderId,
+    \\  account_id ids.AccountId,
+    \\  note TEXT
+    \\) AS BEGIN ATOMIC
+    \\  CHECK GUARD valid_account(accounts, account_id);
+    \\  INSERT INTO orders VALUES (id, account_id, note) ON CONFLICT (id) DO ASSERT SAME ROW;
+    \\  CALL publish_effects(events, jobs, id, note);
+    \\END;
+;
+
+const helper_build_file =
+    \\IMPORT ids FROM 'types.transit';
+    \\IMPORT lib FROM 'lib.transit';
+    \\CREATE MODULE Setup(in_name IDENTIFIER, acc_name IDENTIFIER, ord_name IDENTIFIER, ev_name IDENTIFIER, fol_name IDENTIFIER, order_type TYPE, account_type TYPE) AS BEGIN
+    \\  CREATE PUBLIC QUEUE $in_name (id $order_type NOT NULL, account_id $account_type NOT NULL, priority BIGINT NOT NULL, note TEXT NOT NULL);
+    \\  CREATE PUBLIC TABLE $acc_name (id $account_type PRIMARY KEY, active BOOLEAN NOT NULL);
+    \\  CREATE PUBLIC TABLE $ord_name (id $order_type PRIMARY KEY, account_id $account_type NOT NULL, note TEXT NOT NULL);
+    \\  CREATE PUBLIC STREAM $ev_name (id $order_type NOT NULL, note TEXT NOT NULL);
+    \\  CREATE PUBLIC QUEUE $fol_name (id $order_type NOT NULL);
+    \\  EXPORT QUEUE $in_name AS incoming;
+    \\  EXPORT TABLE $acc_name AS accounts;
+    \\  EXPORT TABLE $ord_name AS orders;
+    \\  EXPORT STREAM $ev_name AS events;
+    \\  EXPORT QUEUE $fol_name AS followups;
+    \\END;
+    \\CREATE MODULE Pipeline(
+    \\  name IDENTIFIER,
+    \\  incoming QUEUE(id ids.OrderId NOT NULL, account_id ids.AccountId NOT NULL, priority BIGINT NOT NULL, note TEXT NOT NULL),
+    \\  accounts TABLE(id ids.AccountId PRIMARY KEY, active BOOLEAN NOT NULL),
+    \\  orders TABLE(id ids.OrderId PRIMARY KEY, account_id ids.AccountId NOT NULL, note TEXT NOT NULL),
+    \\  events STREAM(id ids.OrderId NOT NULL, note TEXT NOT NULL),
+    \\  followups QUEUE(id ids.OrderId NOT NULL)
+    \\) AS BEGIN
+    \\  CREATE PUBLIC DATAFLOW $name FROM QUEUE $incoming AS request
+    \\  WHERE lib.is_eligible(request.priority, request.id)
+    \\  AS BEGIN
+    \\    LET id = request.account_id;
+    \\    CHECK GUARD lib.valid_account($accounts, id);
+    \\    CHECK GUARD lib.valid_account($accounts, request.account_id);
+    \\    LET nonce = lib.pair_token(RANDOM_TOKEN(16));
+    \\    LET tagged = lib.tag_note(request.note, 0) || ':' || nonce;
+    \\    LET order_id = lib.keep_order_id(request.id, 1);
+    \\    BEGIN ATOMIC
+    \\      CALL lib.commit_order($accounts, $orders, $events, $followups, order_id, id, tagged);
+    \\    END;
+    \\  END;
+    \\END;
+    \\CREATE TARGET default AS BEGIN
+    \\  USE Setup(NAME 'incoming', NAME 'accounts', NAME 'orders', NAME 'events', NAME 'followups', TYPE ids.OrderId, TYPE ids.AccountId) AS s;
+    \\  USE Pipeline(NAME 'process_orders', s.incoming, s.accounts, s.orders, s.events, s.followups);
+    \\END;
+;
+
+fn compileHelperFixture(allocator: std.mem.Allocator) !*c.Product {
+    var diagnostic: ?p.Diagnostic = null;
+    return c.compile(allocator, &.{
+        .{ .path = "types.transit", .text = helper_types_file },
+        .{ .path = "lib.transit", .text = helper_lib_file },
+        .{ .path = "build.transit", .text = helper_build_file },
+    }, .{ .compiler_revision = "helper-lowering" }, &diagnostic);
+}
+
+test "functions ordered guards and inline procedures lower hygienically across modules" {
+    const product = try compileHelperFixture(std.testing.allocator);
+    defer product.deinit();
+    try std.testing.expectEqual(@as(usize, 6), product.steps.len);
+    const step = product.steps[5];
+    try std.testing.expectEqualStrings("root/build.transit", step.definition.source.?.slice());
+    try std.testing.expectEqualStrings("root/build.transit", step.call.?.source.?.slice());
+
+    // Multi-use impure argument RANDOM_TOKEN(16) is hoisted once into a LET binding.
+    const first_rand = std.mem.indexOf(u8, step.sql, "RANDOM_TOKEN") orelse return error.TestExpectedEqual;
+    try std.testing.expect(std.mem.indexOfPos(u8, step.sql, first_rand + 1, "RANDOM_TOKEN") == null);
+
+    // Flattened CALL procedures emit exactly one BEGIN ATOMIC ... END block.
+    const checked = step.checked.program.?;
+    var atomic_begins: usize = 0;
+    var atomic_ends: usize = 0;
+    var inserts: usize = 0;
+    var appends: usize = 0;
+    for (checked.events) |ev| {
+        if (ev.kind == .atomic_begin) atomic_begins += 1;
+        if (ev.kind == .atomic_end) atomic_ends += 1;
+        if (ev.kind == .insert) inserts += 1;
+        if (ev.kind == .append) appends += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 1), atomic_begins);
+    try std.testing.expectEqual(@as(usize, 1), atomic_ends);
+    try std.testing.expectEqual(@as(usize, 1), inserts);
+    try std.testing.expectEqual(@as(usize, 2), appends);
+}
+
+fn helperAllocations(allocator: std.mem.Allocator) !void {
+    const product = try compileHelperFixture(allocator);
+    defer product.deinit();
+}
+
+test "helper lowering cleans up each failed allocation" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, helperAllocations, .{});
+}
+
+test "helper validation rejects unused invalid bodies recursion impurity visibility and mismatches" {
+    const Case = struct { build_src: []const u8, lib_extra: []const u8 = "", expected: anyerror };
+    const base_build =
+        \\IMPORT ids FROM 'types.transit';
+        \\IMPORT lib FROM 'lib.transit';
+        \\CREATE MODULE Resources(order_type TYPE, account_type TYPE) AS BEGIN
+        \\  CREATE PUBLIC QUEUE q (id $order_type NOT NULL, account_id $account_type NOT NULL, priority BIGINT NOT NULL, note TEXT NOT NULL);
+        \\  CREATE PUBLIC TABLE accounts (id $account_type PRIMARY KEY, active BOOLEAN NOT NULL);
+        \\  CREATE PUBLIC TABLE orders (id $order_type PRIMARY KEY, account_id $account_type NOT NULL, note TEXT NOT NULL);
+        \\  CREATE PUBLIC STREAM events (id $order_type NOT NULL, note TEXT NOT NULL);
+        \\  CREATE PUBLIC QUEUE jobs (id $order_type NOT NULL);
+        \\END;
+        \\CREATE TARGET default AS BEGIN
+        \\  USE Resources(TYPE ids.OrderId, TYPE ids.AccountId);
+    ;
+    const cases = [_]Case{
+        // Unused invalid helpers rejected at definition time.
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE FUNCTION unused_bad_domain(x ids.AccountId) RETURNS ids.OrderId AS BEGIN RETURN x; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE FUNCTION unused_impure_call() RETURNS BIGINT AS BEGIN RETURN LENGTH(RANDOM_TOKEN(16)); END;",
+            .expected = error.ImpureSourceFunction,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE FUNCTION unused_impure_word() RETURNS BOOLEAN AS BEGIN RETURN CURRENT_TIMESTAMP IS NOT NULL; END;",
+            .expected = error.ImpureSourceFunction,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE GUARD unused_bad_guard(t TABLE(id BIGINT PRIMARY KEY)) AS BEGIN LET r = SELECT missing FROM t WHERE id = 1; END;",
+            .expected = error.UnknownProgramField,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE PROCEDURE unused_bad_proc(t TABLE(id ids.OrderId PRIMARY KEY), raw BIGINT) AS BEGIN ATOMIC INSERT INTO t VALUES (raw) ON CONFLICT (id) DO ASSERT SAME ROW; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        // Direct and mutual recursion.
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE FUNCTION self_rec(x BIGINT) RETURNS BIGINT AS BEGIN RETURN self_rec(x); END;",
+            .expected = error.RecursiveSourceCall,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE FUNCTION ping(x BIGINT) RETURNS BIGINT AS BEGIN RETURN pong(x); END; CREATE FUNCTION pong(x BIGINT) RETURNS BIGINT AS BEGIN RETURN ping(x); END;",
+            .expected = error.RecursiveSourceCall,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE GUARD g1(x BIGINT) AS BEGIN CHECK GUARD g2(x); END; CREATE GUARD g2(x BIGINT) AS BEGIN CHECK GUARD g1(x); END;",
+            .expected = error.RecursiveSourceCall,
+        },
+        .{
+            .build_src = base_build ++ "END;",
+            .lib_extra = "CREATE PROCEDURE p1(x BIGINT) AS BEGIN ATOMIC CALL p2(x); END; CREATE PROCEDURE p2(x BIGINT) AS BEGIN ATOMIC CALL p1(x); END;",
+            .expected = error.RecursiveSourceCall,
+        },
+        // Cross-file visibility.
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET s = lib.format_inner('a', r.note); END; END;",
+            .expected = error.PrivateSourceSymbol,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN CHECK GUARD lib.ensure_enabled(TRUE); END; END;",
+            .expected = error.PrivateSourceSymbol,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN BEGIN ATOMIC CALL lib.publish_effects(events, jobs, r.id, r.note); END; END; END;",
+            .expected = error.PrivateSourceSymbol,
+        },
+        // Helper kind mismatches and arity mismatches.
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN CHECK GUARD lib.tag_note(r.note, 0); END; END;",
+            .expected = error.SourceTypeMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = lib.valid_account(accounts, r.account_id); END; END;",
+            .expected = error.SourceTypeMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = lib.tag_note(r.note); END; END;",
+            .expected = error.SourceArgumentCount,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN CHECK GUARD lib.valid_account(accounts); END; END;",
+            .expected = error.SourceArgumentCount,
+        },
+        // Resource signature and domain mismatches (including unused function parameters).
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN CHECK GUARD lib.valid_account(orders, r.account_id); END; END;",
+            .expected = error.TableInterfaceMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN CHECK GUARD lib.valid_account(accounts, r.id); END; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = lib.keep_order_id(r.account_id, 0); END; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = lib.tag_note(r.note, r.id); END; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r WHERE lib.is_eligible(r.priority, r.account_id) AS BEGIN END; END;",
+            .expected = error.SourceDomainMismatch,
+        },
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = lib.tag_note(r.priority, 0); END; END;",
+            .expected = error.ProgramTypeMismatch,
+        },
+        // Multi-use impure argument in short-circuit branch cannot hoist safely.
+        .{
+            .build_src = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r AS BEGIN LET x = CASE WHEN r.priority > 0 THEN lib.pair_token(RANDOM_TOKEN(16)) ELSE '' END; END; END;",
+            .expected = error.ImpureSourceFunction,
+        },
+    };
+    for (cases) |case| {
+        const lib_text = try std.fmt.allocPrint(std.testing.allocator, "{s}\n{s}", .{ helper_lib_file, case.lib_extra });
+        defer std.testing.allocator.free(lib_text);
+        var diagnostic: ?p.Diagnostic = null;
+        try std.testing.expectError(case.expected, c.compile(std.testing.allocator, &.{
+            .{ .path = "types.transit", .text = helper_types_file },
+            .{ .path = "lib.transit", .text = lib_text },
+            .{ .path = "build.transit", .text = case.build_src },
+        }, .{ .compiler_revision = "helper-negative" }, &diagnostic));
+        try diagnostic.?.validate();
+    }
+
+    // Cross-file dual-span diagnostic: pure string concatenation is valid in lib.transit,
+    // but rejected when specialized inside a Queue acquisition predicate in build.transit.
+    const bad_pred_build = base_build ++ "CREATE PUBLIC DATAFLOW d FROM QUEUE q AS r WHERE lib.append_bang(r.note) = 'x!' AS BEGIN END; END;";
+    var dual_diag: ?p.Diagnostic = null;
+    try std.testing.expectError(error.InvalidQueuePredicate, c.compile(std.testing.allocator, &.{
+        .{ .path = "types.transit", .text = helper_types_file },
+        .{ .path = "lib.transit", .text = helper_lib_file },
+        .{ .path = "build.transit", .text = bad_pred_build },
+    }, .{ .compiler_revision = "helper-dual-span" }, &dual_diag));
+    try dual_diag.?.validate();
+    try std.testing.expectEqualStrings("root/lib.transit", dual_diag.?.location.?.source.?.slice());
+    var found_call_site = false;
+    for (dual_diag.?.facts) |fact_opt| if (fact_opt) |fact| if (fact.field == .first_occurrence) {
+        try std.testing.expectEqualStrings("root/build.transit", fact.value.?.location.source.?.slice());
+        found_call_site = true;
+    };
+    try std.testing.expect(found_call_site);
+}

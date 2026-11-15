@@ -5,7 +5,9 @@ const f = @import("transit_fuze");
 const Token = f.SqlInput.CompilerScan.Token;
 pub const Role = enum { identifier, type, value, operand, table, stream, queue };
 pub const Hole = struct { name: []const u8, role: Role, start: u32, end: u32 };
-pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue, consume, program, control };
+pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue, consume, program, control, function_body, guard_body, procedure_body };
+pub const HelperKind = enum { function, guard, procedure };
+const BlockMode = enum { dataflow, function, guard, procedure };
 pub const Syntax = struct { kind: Kind, tokens: []const Token, holes: []const Hole };
 const Self = @This();
 a: std.mem.Allocator,
@@ -15,6 +17,7 @@ location: *usize,
 end: u32,
 i: usize = 0,
 depth: usize = 0,
+allow_holes: bool = true,
 holes: std.ArrayList(Hole) = .empty,
 
 pub fn parse(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, expected_rows: bool, location: *usize) !Syntax {
@@ -23,6 +26,35 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end:
         if (tokens.len != 0) try self.rows(false);
         break :blk Kind.rows;
     } else try self.statement();
+    if (self.i != tokens.len) return self.invalid();
+    return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
+}
+pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, helper: HelperKind, location: *usize) !Syntax {
+    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .allow_holes = false };
+    const kind: Kind = switch (helper) {
+        .function => blk: {
+            if (self.take("RETURN")) {
+                try self.programExpression(0);
+                try self.require(";");
+            } else {
+                if (self.i == self.tokens.len) return self.invalid();
+                const first = self.at();
+                try self.programBlock(false, .function);
+                if (self.i != self.tokens.len) return self.invalid();
+                self.location.* = first;
+                return error.ImpureSourceFunction;
+            }
+            break :blk .function_body;
+        },
+        .guard => blk: {
+            try self.programBlock(false, .guard);
+            break :blk .guard_body;
+        },
+        .procedure => blk: {
+            try self.programBlock(true, .procedure);
+            break :blk .procedure_body;
+        },
+    };
     if (self.i != tokens.len) return self.invalid();
     return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
 }
@@ -61,7 +93,7 @@ fn enter(self: *Self) !void {
 fn hole(self: *Self, role: Role) !bool {
     const start = self.at();
     if (!self.take("$")) return false;
-    if (!self.tag(.word)) {
+    if (!self.tag(.word) or !self.allow_holes) {
         self.location.* = start;
         return error.InvalidSourceOperand;
     }
@@ -409,6 +441,15 @@ fn programName(self: *Self) !void {
     if (self.tag(.word) and self.raw().len > 63) return error.InvalidSourceName;
     self.i += 1;
 }
+fn sourceWordName(self: *Self) !void {
+    if (!self.tag(.word)) return self.invalid();
+    if (self.raw().len > 63) return error.InvalidSourceName;
+    self.i += 1;
+}
+fn helperName(self: *Self) !void {
+    try self.sourceWordName();
+    if (self.take(".")) try self.sourceWordName();
+}
 fn resourceName(self: *Self, role: Role) !void {
     if (!try self.hole(role)) try self.programName();
 }
@@ -445,7 +486,13 @@ fn programPrimary(self: *Self) anyerror!void {
         self.i += 1;
     } else {
         try self.programName();
-        if (self.is("(")) try self.programArguments();
+        if (self.is("(")) {
+            try self.programArguments();
+        } else if (self.is(".") and self.i + 2 < self.tokens.len and std.mem.eql(u8, self.text[self.tokens[self.i + 2].start..self.tokens[self.i + 2].end], "(")) {
+            _ = self.take(".");
+            try self.programName();
+            try self.programArguments();
+        }
     }
     while (self.take(".")) try self.programName();
 }
@@ -475,10 +522,11 @@ fn programExpression(self: *Self, minimum: u8) anyerror!void {
         try self.programExpression(precedence + 1);
     }
 }
-fn programBlock(self: *Self, atomic: bool) anyerror!void {
+fn programBlock(self: *Self, atomic: bool, mode: BlockMode) anyerror!void {
     try self.enter();
     defer self.depth -= 1;
-    while (!self.is("END") and !self.is("ELSE") and !self.is("ON")) {
+    while (self.i < self.tokens.len and !self.is("END") and !self.is("ELSE") and !self.is("ON")) {
+        const start = self.at();
         if (self.take("LET")) {
             try self.programName();
             try self.require("=");
@@ -495,20 +543,49 @@ fn programBlock(self: *Self, atomic: bool) anyerror!void {
             try self.programExpression(0);
             try self.require("ELSE");
             try self.string();
+        } else if (self.take("CHECK")) {
+            try self.require("GUARD");
+            try self.helperName();
+            try self.programArguments();
+        } else if (self.take("CALL")) {
+            if (mode == .guard) {
+                self.location.* = start;
+                return error.MutationInsideGuard;
+            }
+            if (!atomic and mode != .function) {
+                self.location.* = start;
+                return error.MutationOutsideAtomic;
+            }
+            try self.helperName();
+            try self.programArguments();
         } else if (self.take("BEGIN")) {
-            if (atomic) return error.NestedAtomicProgram;
+            if (mode == .guard) {
+                self.location.* = start;
+                return error.MutationInsideGuard;
+            }
+            if (atomic and mode != .function) {
+                self.location.* = start;
+                return error.NestedAtomicProgram;
+            }
             try self.require("ATOMIC");
-            try self.programBlock(true);
+            try self.programBlock(true, mode);
             try self.require("END");
         } else if (self.take("IF")) {
             try self.programExpression(0);
             try self.require("THEN");
-            try self.programBlock(atomic);
-            if (self.take("ELSE")) try self.programBlock(atomic);
+            try self.programBlock(atomic, mode);
+            if (self.take("ELSE")) try self.programBlock(atomic, mode);
             try self.require("END");
             try self.require("IF");
         } else if (self.take("INSERT")) {
-            if (!atomic) return error.MutationOutsideAtomic;
+            if (mode == .guard) {
+                self.location.* = start;
+                return error.MutationInsideGuard;
+            }
+            if (!atomic and mode != .function) {
+                self.location.* = start;
+                return error.MutationOutsideAtomic;
+            }
             try self.require("INTO");
             try self.resourceName(.table);
             try self.require("VALUES");
@@ -524,7 +601,14 @@ fn programBlock(self: *Self, atomic: bool) anyerror!void {
             try self.require("SAME");
             try self.require("ROW");
         } else if (self.is("PRODUCE") or self.is("ENQUEUE")) {
-            if (!atomic) return error.MutationOutsideAtomic;
+            if (mode == .guard) {
+                self.location.* = start;
+                return error.MutationInsideGuard;
+            }
+            if (!atomic and mode != .function) {
+                self.location.* = start;
+                return error.MutationOutsideAtomic;
+            }
             const stream = self.take("PRODUCE");
             if (!stream) try self.require("ENQUEUE");
             try self.require("INTO");
@@ -545,11 +629,11 @@ fn program(self: *Self) !Kind {
     if (self.take("WHERE")) try self.programExpression(0);
     try self.require("AS");
     try self.require("BEGIN");
-    try self.programBlock(false);
+    try self.programBlock(false, .dataflow);
     if (self.take("ON")) {
         try self.require("FAILURE");
         try self.programName();
-        try self.programBlock(false);
+        try self.programBlock(false, .dataflow);
     }
     try self.require("END");
     return .program;

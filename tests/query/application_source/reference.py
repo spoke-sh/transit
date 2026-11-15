@@ -42,20 +42,48 @@ def parse(source):
     def span(ctx):
         return {'start': offsets[ctx.start.start], 'end': offsets[ctx.stop.stop + 1]}
 
-    def bounds(node, atomic=False):
+    def bounds(node, atomic=False, helper_mode=None):
         if not hasattr(node, 'getRuleIndex'):
             return
         rule = parser.ruleNames[node.getRuleIndex()]
+        if rule == 'definition' and (node.FUNCTION() or node.GUARD() or node.PROCEDURE()):
+            bounds(node.sourceName(), False, None)
+            bounds(node.parameters(), False, None)
+            if node.sourceType():
+                bounds(node.sourceType(), False, None)
+            if node.PROCEDURE():
+                if not node.ATOMIC():
+                    following = tokens.tokens[node.BEGIN().symbol.tokenIndex + 1]
+                    raise Refusal(offsets[following.start], 'procedure requires BEGIN ATOMIC')
+                bounds(node.programBlock(), True, 'procedure')
+            elif node.GUARD():
+                if node.ATOMIC():
+                    raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic guard')
+                bounds(node.programBlock(), False, 'guard')
+            else:
+                if node.ATOMIC():
+                    raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic function')
+                bounds(node.functionBody(), False, 'function')
+            return
+        if helper_mode and rule in ('identifierHole', 'typeHole', 'valueHole', 'checkHole', 'scalarHole', 'tableHole', 'streamHole', 'queueHole'):
+            raise Refusal(span(node)['start'], 'hole inside helper')
+        if rule == 'functionBody' and node.programInstruction():
+            for child in node.children or []:
+                bounds(child, atomic, 'function')
+            raise Refusal(span(node.programInstruction(0))['start'], 'impure source function')
         if rule == 'programInstruction':
             if node.LET() and node.programExpression() and node.programExpression().start.text.upper() == 'SELECT':
                 following = tokens.tokens[node.programExpression().start.tokenIndex + 1]
                 raise Refusal(offsets[following.start], 'LET SELECT requires a complete read')
-            if node.BEGIN():
-                if atomic:
-                    raise Refusal(span(node)['start'], 'nested atomic program')
-                atomic = True
-            elif (node.INSERT() or node.PRODUCE() or node.ENQUEUE()) and not atomic:
-                raise Refusal(span(node)['start'], 'mutation outside atomic program')
+            if helper_mode == 'guard' and (node.BEGIN() or node.INSERT() or node.PRODUCE() or node.ENQUEUE() or node.CALL()):
+                raise Refusal(span(node)['start'], 'mutation inside guard')
+            if helper_mode != 'function':
+                if node.BEGIN():
+                    if atomic:
+                        raise Refusal(span(node)['start'], 'nested atomic program')
+                    atomic = True
+                elif (node.INSERT() or node.PRODUCE() or node.ENQUEUE() or node.CALL()) and not atomic:
+                    raise Refusal(span(node)['start'], 'mutation outside atomic program')
         if rule in ('sourceName', 'referenceHead') and len(node.getText().encode()) > 63:
             raise Refusal(span(node)['start'], 'name bound')
         if rule == 'parameters':
@@ -73,7 +101,7 @@ def parse(source):
         if rule == 'sourceStatement' and len(node.matchArm()) > 64:
             raise Refusal(span(node)['start'], 'arm bound')
         for child in node.children or []:
-            bounds(child, atomic)
+            bounds(child, atomic, helper_mode)
     bounds(root)
 
     def string(token):
@@ -85,9 +113,9 @@ def parse(source):
                 'member': parts[1] if len(parts) >= 2 else parts[0],
                 'constructor': parts[2] if len(parts) == 3 else None}
 
-    def template(ctx, rows=False):
+    def template(ctx, rows=False, helper=None):
         result = []
-        if ctx:
+        if ctx and ctx.stop and ctx.stop.tokenIndex >= ctx.start.tokenIndex:
             # ANTLR's SQL lexer combines numbers/operators. Project their constituent
             # source scanner tokens independently; never split quoted bytes.
             for token in tokens.tokens[ctx.start.tokenIndex:ctx.stop.tokenIndex + 1]:
@@ -115,13 +143,16 @@ def parse(source):
                     visit(child)
         if ctx:
             visit(ctx)
-        kind = 'rows' if rows else result[0]['text'].lower()
-        if kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
-            kind += '_' + result[2]['text'].lower()
-        elif kind == 'create' and result[2]['text'] == 'DATAFLOW':
-            kind = 'program'
-        elif kind in ('authorize', 'activate', 'suspend', 'resume', 'retire'):
-            kind = 'control'
+        if helper:
+            kind = helper
+        else:
+            kind = 'rows' if rows else result[0]['text'].lower()
+            if kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
+                kind += '_' + result[2]['text'].lower()
+            elif kind == 'create' and result[2]['text'] == 'DATAFLOW':
+                kind = 'program'
+            elif kind in ('authorize', 'activate', 'suspend', 'resume', 'retire'):
+                kind = 'control'
         return {'kind': kind, 'tokens': result, 'holes': holes}
 
     binary = {'+': 'add', '-': 'subtract', '*': 'multiply', '=': 'equal', '<>': 'not_equal',
@@ -259,10 +290,21 @@ def parse(source):
             names = [ctor['name'] for ctor in constructors]
             if len(constructors) > 64 or len(set(names)) != len(names):
                 raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
+        return_type = None
+        if definition.FUNCTION():
+            raw_ret = definition.sourceType()
+            return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
+        program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
+                   template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
+                   template(definition.programBlock(), helper='procedure_body') if definition.PROCEDURE() else None)
         definitions.append({'name': definition.sourceName().getText().lower(), 'public': bool(definition.PUBLIC()),
-                            'kind': 'domain' if domain else 'variant' if constructors else 'module' if definition.MODULE() else 'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target',
+                            'kind': ('domain' if domain else 'variant' if constructors else
+                                     'function' if definition.FUNCTION() else 'guard' if definition.GUARD() else
+                                     'procedure' if definition.PROCEDURE() else 'module' if definition.MODULE() else
+                                     'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target'),
                             'parameters': parameters(definition.parameters()), 'body': body(definition.body()) if definition.body() else [],
-                            'span': span(definition), 'domain': domain, 'constructors': constructors})
+                            'span': span(definition), 'domain': domain, 'constructors': constructors,
+                            'return_type': return_type, 'program': program})
     imports = [{'alias': item.sourceName(0).getText().lower(), 'package': item.sourceName(1).getText().lower() if item.PACKAGE() else None,
                 'path': string(item.STRING()), 'span': span(item)} for item in root.sourceImport()]
     dependencies = [{'name': item.sourceName().getText().lower(), 'repository': string(item.STRING(0)), 'revision': string(item.STRING(1)),

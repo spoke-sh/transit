@@ -28,6 +28,7 @@ structure SourceType where
 structure Value (type : SourceType) where
   scalar : Scalar
   valid : scalar.base = type.base
+  deriving DecidableEq
 
 inductive Var : List SourceType → SourceType → Type where
   | head : Var (type :: context) type
@@ -210,3 +211,242 @@ theorem ordered_erasure (events : List BoundEvent) :
 #print axioms projection_substitution
 #print axioms program_substitution
 #print axioms ordered_erasure
+
+/- A third fragment models five-state pure function substitution, ordered guard
+   refusal precedence (including non-commutativity under reordering), and
+   hygienic inline atomic procedure expansion with single-decision rollback. -/
+inductive FiveVal (type : SourceType) where
+  | value (v : Value type)
+  | null
+  | missing
+  | typeError
+  | conflict
+  deriving DecidableEq
+
+abbrev FiveEnv (context : List SourceType) := {type : SourceType} → Var context type → FiveVal type
+
+def extendFive (v : FiveVal type) (env : FiveEnv context) : FiveEnv (type :: context)
+  | _, .head => v
+  | _, .tail var => env var
+
+inductive FiveExpr (context : List SourceType) : SourceType → Type where
+  | const : FiveVal type → FiveExpr context type
+  | var : Var context type → FiveExpr context type
+  | isNull : FiveExpr context operand → FiveExpr context ⟨.boolean, none⟩
+  | equal : FiveExpr context type → FiveExpr context type → FiveExpr context ⟨.boolean, none⟩
+  | branch : FiveExpr context ⟨.boolean, none⟩ → FiveExpr context type → FiveExpr context type → FiveExpr context type
+
+def evalIsNull (v : FiveVal operand) : FiveVal ⟨.boolean, none⟩ :=
+  match v with
+  | .value _ => .value ⟨.boolean false, rfl⟩
+  | .null => .value ⟨.boolean true, rfl⟩
+  | .missing => .missing
+  | .typeError => .typeError
+  | .conflict => .conflict
+
+def evalEqual (l r : FiveVal type) : FiveVal ⟨.boolean, none⟩ :=
+  match l, r with
+  | .missing, _ => .missing
+  | _, .missing => .missing
+  | .typeError, _ => .typeError
+  | _, .typeError => .typeError
+  | .conflict, _ => .conflict
+  | _, .conflict => .conflict
+  | .null, _ => .null
+  | _, .null => .null
+  | .value lv, .value rv => .value ⟨.boolean (decide (lv.scalar = rv.scalar)), rfl⟩
+
+def evalBranch (c : FiveVal ⟨.boolean, none⟩) (y n : FiveVal type) : FiveVal type :=
+  match c with
+  | .value ⟨.boolean true, _⟩ => y
+  | .value ⟨.boolean false, _⟩ => n
+  | .value ⟨.integer _, h⟩ => nomatch h
+  | .value ⟨.text _, h⟩ => nomatch h
+  | .null => n
+  | .missing => .missing
+  | .typeError => .typeError
+  | .conflict => .conflict
+
+def FiveExpr.eval (env : FiveEnv context) : FiveExpr context type → FiveVal type
+  | .const v => v
+  | .var index => env index
+  | .isNull operand => evalIsNull (operand.eval env)
+  | .equal left right => evalEqual (left.eval env) (right.eval env)
+  | .branch cond yes no => evalBranch (cond.eval env) (yes.eval env) (no.eval env)
+
+def FiveExpr.substExpr (arg : FiveExpr context parameter) :
+    FiveExpr (parameter :: context) result → FiveExpr context result
+  | .const v => .const v
+  | .var .head => arg
+  | .var (.tail index) => .var index
+  | .isNull operand => .isNull (FiveExpr.substExpr arg operand)
+  | .equal left right => .equal (FiveExpr.substExpr arg left) (FiveExpr.substExpr arg right)
+  | .branch cond yes no => .branch (FiveExpr.substExpr arg cond) (FiveExpr.substExpr arg yes) (FiveExpr.substExpr arg no)
+
+/-- Pure function call expansion preserves exact five-state meaning across
+    zero, one or multiple parameter occurrences without rebinding caller names. -/
+theorem function_substitution (env : FiveEnv context) (arg : FiveExpr context parameter)
+    (body : FiveExpr (parameter :: context) result) :
+    (FiveExpr.substExpr arg body).eval env = body.eval (extendFive (arg.eval env) env) := by
+  induction body with
+  | const => rfl
+  | var index => cases index <;> rfl
+  | isNull operand ih =>
+    change evalIsNull ((FiveExpr.substExpr arg operand).eval env) = _
+    rw [ih]; rfl
+  | equal left right ihl ihr =>
+    change evalEqual ((FiveExpr.substExpr arg left).eval env) ((FiveExpr.substExpr arg right).eval env) = _
+    rw [ihl, ihr]; rfl
+  | branch cond yes no ihc ihy ihn =>
+    change evalBranch ((FiveExpr.substExpr arg cond).eval env) ((FiveExpr.substExpr arg yes).eval env) ((FiveExpr.substExpr arg no).eval env) = _
+    rw [ihc, ihy, ihn]; rfl
+
+inductive GuardOutcome where
+  | accept
+  | refuse (code : String)
+  deriving DecidableEq, Repr
+
+structure GuardCheck (context : List SourceType) where
+  condition : Expr context ⟨.boolean, none⟩
+  code : String
+
+def GuardCheck.run (env : Env context) (g : GuardCheck context) : GuardOutcome :=
+  match (g.condition.eval env).scalar with
+  | .boolean true => .accept
+  | _ => .refuse g.code
+
+def runGuards (env : Env context) : List (GuardCheck context) → GuardOutcome
+  | [] => .accept
+  | g :: rest =>
+    match g.run env with
+    | .accept => runGuards env rest
+    | .refuse code => .refuse code
+
+/-- Lexical expansion of nested or sequential guards preserves the first
+    failing refusal code and evaluates subsequent guards only on acceptance. -/
+theorem guard_sequence_refusal (env : Env context)
+    (first second : List (GuardCheck context)) :
+    runGuards env (first ++ second) =
+      match runGuards env first with
+      | .accept => runGuards env second
+      | .refuse code => .refuse code := by
+  induction first with
+  | nil => rfl
+  | cons g rest ih =>
+    simp only [List.cons_append, runGuards]
+    cases g.run env with
+    | accept => exact ih
+    | refuse code => rfl
+
+def emptyGuardEnv : Env [] := fun index => nomatch index
+
+/-- Guard composition is non-commutative: reordering failing guards with
+    distinct refusal codes changes the observable refusal outcome. -/
+theorem guard_reorder_non_equivalent :
+    ∃ (g1 g2 : GuardCheck []),
+      runGuards emptyGuardEnv [g1, g2] ≠ runGuards emptyGuardEnv [g2, g1] := by
+  refine ⟨⟨.literal ⟨.boolean false, rfl⟩, "MissingAccount"⟩,
+          ⟨.literal ⟨.boolean false, rfl⟩, "InactiveAccount"⟩, ?_⟩
+  decide
+
+inductive AtomicStep (context : List SourceType) where
+  | check (guard : GuardCheck context)
+  | mutate (write : Write context)
+
+inductive TxDecision where
+  | commit (writes : List BoundAction)
+  | rollback (code : String)
+  deriving DecidableEq, Repr
+
+def AtomicStep.substitute (value : Value parameter) :
+    AtomicStep (parameter :: context) → AtomicStep context
+  | .check ⟨cond, code⟩ => .check ⟨cond.substitute value, code⟩
+  | .mutate w => .mutate (w.substitute value)
+
+def prependAction (action : BoundAction) (decision : TxDecision) : TxDecision :=
+  match decision with
+  | .commit writes => .commit (action :: writes)
+  | .rollback code => .rollback code
+
+def sequenceDecision (first second : TxDecision) : TxDecision :=
+  match first with
+  | .rollback code => .rollback code
+  | .commit firstWrites =>
+    match second with
+    | .rollback code => .rollback code
+    | .commit secondWrites => .commit (firstWrites ++ secondWrites)
+
+def runAtomic (env : Env context) : List (AtomicStep context) → TxDecision
+  | [] => .commit []
+  | .check g :: rest =>
+    match g.run env with
+    | .accept => runAtomic env rest
+    | .refuse code => .rollback code
+  | .mutate w :: rest => prependAction (w.eval env) (runAtomic env rest)
+
+def evalProcedureCall (env : Env context) (arg : Value parameter)
+    (callee : List (AtomicStep (parameter :: context)))
+    (continuation : List (AtomicStep context)) : TxDecision :=
+  sequenceDecision (runAtomic (extend arg env) callee) (runAtomic env continuation)
+
+/-- Flattening a hygienically specialized procedure into the enclosing atomic
+    block preserves isolated lexical evaluation and single-decision rollback,
+    discarding earlier procedure writes if a later guard refuses. -/
+theorem procedure_inline_atomic (env : Env context) (arg : Value parameter)
+    (callee : List (AtomicStep (parameter :: context)))
+    (continuation : List (AtomicStep context)) :
+    runAtomic env (callee.map (AtomicStep.substitute arg) ++ continuation) =
+      evalProcedureCall env arg callee continuation := by
+  induction callee with
+  | nil =>
+    unfold evalProcedureCall sequenceDecision
+    simp only [List.map_nil, List.nil_append, runAtomic]
+    cases runAtomic env continuation <;> rfl
+  | cons step rest ih =>
+    cases step with
+    | check g =>
+      cases g with
+      | mk cond code =>
+        have hrun : (GuardCheck.mk (cond.substitute arg) code).run env =
+            (GuardCheck.mk cond code).run (extend arg env) := by
+          change (match ((cond.substitute arg).eval env).scalar with
+            | .boolean true => GuardOutcome.accept
+            | _ => GuardOutcome.refuse code) = _
+          rw [nominal_substitution]
+          rfl
+        unfold evalProcedureCall at ih ⊢
+        change (match (GuardCheck.mk (cond.substitute arg) code).run env with
+          | GuardOutcome.accept => runAtomic env (rest.map (AtomicStep.substitute arg) ++ continuation)
+          | GuardOutcome.refuse c => TxDecision.rollback c) =
+          sequenceDecision (match (GuardCheck.mk cond code).run (extend arg env) with
+            | GuardOutcome.accept => runAtomic (extend arg env) rest
+            | GuardOutcome.refuse c => TxDecision.rollback c) (runAtomic env continuation)
+        rw [hrun]
+        cases (GuardCheck.mk cond code).run (extend arg env) with
+        | accept => exact ih
+        | refuse c => rfl
+    | mutate w =>
+      cases w with
+      | insert table expr =>
+        have hw : (Write.insert table (expr.substitute arg)).eval env =
+            (Write.insert table expr).eval (extend arg env) := by
+          change BoundAction.mk table.binding _ ((expr.substitute arg).eval env).scalar = _
+          rw [nominal_substitution]
+          rfl
+        unfold evalProcedureCall at ih ⊢
+        change prependAction ((Write.insert table (expr.substitute arg)).eval env)
+            (runAtomic env (rest.map (AtomicStep.substitute arg) ++ continuation)) =
+          sequenceDecision (prependAction ((Write.insert table expr).eval (extend arg env))
+            (runAtomic (extend arg env) rest)) (runAtomic env continuation)
+        rw [hw, ih]
+        cases runAtomic (extend arg env) rest with
+        | rollback code => rfl
+        | commit calleeWrites =>
+          cases runAtomic env continuation with
+          | rollback code => rfl
+          | commit contWrites => rfl
+
+#print axioms function_substitution
+#print axioms guard_sequence_refusal
+#print axioms guard_reorder_non_equivalent
+#print axioms procedure_inline_atomic

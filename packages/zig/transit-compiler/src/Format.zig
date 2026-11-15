@@ -44,8 +44,11 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                 .test_target => "TEST TARGET",
                 .domain => "DOMAIN",
                 .variant => "VARIANT",
+                .function => "FUNCTION",
+                .guard => "GUARD",
+                .procedure => "PROCEDURE",
             }, def.name });
-            if (def.kind == .module or def.kind == .interface) {
+            if (def.kind == .module or def.kind == .interface or def.kind == .function or def.kind == .guard or def.kind == .procedure) {
                 try writer.writeByte('(');
                 for (def.parameters, 0..) |param, n| {
                     if (n != 0) try writer.writeAll(", ");
@@ -53,6 +56,13 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                     try self.kind(param.kind);
                 }
                 try writer.writeByte(')');
+            }
+            if (def.return_type) |ret| {
+                try writer.writeAll(" RETURNS ");
+                switch (ret) {
+                    .scalar => |v| try writer.writeAll(scalarName(v)),
+                    .named => |v| try self.name(v),
+                }
             }
             if (def.domain) |domain| {
                 try writer.print(" AS {s} IDENTITY ", .{scalarName(domain.base)});
@@ -70,6 +80,14 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                     try writer.writeByte(')');
                 }
                 try writer.writeByte(')');
+            } else if (def.program) |prog| {
+                try writer.writeAll(if (def.kind == .procedure) " AS BEGIN ATOMIC\n" else " AS BEGIN\n");
+                if (prog.tokens.len != 0) {
+                    try self.indent(1);
+                    try self.template(prog);
+                    try writer.writeByte('\n');
+                }
+                try writer.writeAll("END");
             } else if (def.kind != .interface) {
                 try writer.writeAll(" AS BEGIN\n");
                 try self.body(def.body, 1);

@@ -267,14 +267,32 @@ pub fn resumeAttachment(self: Self, value: M.Declaration, progress: T.Progress, 
     if (original.phase != .ready and original.phase != .attaching) return error.OwnedRecordPending;
     return self.attach(progress, work) catch |err| switch (err) {
         error.TableDataChanged, error.TableDefinitionChanged, error.Conflict => {
-            const current = try T.inspect(self.manager.client, progress.receipt.binding.key) orelse return err;
-            _ = c.DirectOwnedRecord.call(self.manager.client, .{ .close_original = .{ .key = current.receipt.binding.key, .expected = current.revision } }) catch |close_error| switch (close_error) {
-                // A concurrently completed attachment wins. Reobserve that
-                // exact native attachment, never manufacture another head.
-                error.OwnedRecordAttached => return try self.attach(current, work),
-                else => return close_error,
-            };
-            return null;
+            var attempt: u2 = 0;
+            while (attempt < 2) : (attempt += 1) {
+                const current = try T.inspect(self.manager.client, progress.receipt.binding.key) orelse return err;
+                const current_original = current.original orelse return error.InvalidDirectRecord;
+                if (current_original.phase == .attached) return try self.attach(current, work);
+                if (current_original.phase == .closed) return null;
+                _ = c.DirectOwnedRecord.call(self.manager.client, .{ .close_original = .{ .key = current.receipt.binding.key, .expected = current.revision } }) catch |close_error| switch (close_error) {
+                    // A concurrently completed attachment wins. Reobserve that
+                    // exact native attachment, never manufacture another head;
+                    // wire transport maps OwnedRecordAttached to Conflict.
+                    error.OwnedRecordAttached => return try self.attach(current, work),
+                    error.Conflict => {
+                        const after = try T.inspect(self.manager.client, progress.receipt.binding.key) orelse return close_error;
+                        const after_original = after.original orelse return error.InvalidDirectRecord;
+                        if (after_original.phase == .attached) return try self.attach(after, work);
+                        if (after_original.phase == .closed) return null;
+                        if (after_original.phase == .attaching and std.meta.eql(after.revision, current.revision)) {
+                            return try self.attach(after, work);
+                        }
+                        continue;
+                    },
+                    else => return close_error,
+                };
+                return null;
+            }
+            return error.Conflict;
         },
         else => return err,
     };

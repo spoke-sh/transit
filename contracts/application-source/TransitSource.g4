@@ -10,7 +10,11 @@ definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
     | DOMAIN sourceName AS sourceBaseType IDENTITY STRING
     | VARIANT sourceName AS LPAREN variantConstructor (COMMA variantConstructor)* RPAREN
     | INTERFACE sourceName parameters
+    | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
+    | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
+    | PROCEDURE sourceName parameters AS BEGIN ATOMIC? programBlock END
     | TEST? TARGET sourceName AS BEGIN body END) SEMI;
+functionBody: RETURN programExpression SEMI | programInstruction+;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 parameter: sourceName parameterKind;
 parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName
@@ -81,11 +85,14 @@ programBlock: programInstruction*;
 programInstruction
     : LET programName EQ (programSelect | programExpression) SEMI
     | REQUIRE programExpression ELSE sourceString SEMI
+    | CHECK GUARD helperName programArguments SEMI
+    | CALL helperName programArguments SEMI
     | BEGIN ATOMIC programBlock END SEMI
     | IF programExpression THEN programBlock (ELSE programBlock)? END IF SEMI
     | INSERT INTO tableOperand VALUES programArguments ON CONFLICT LPAREN programName (COMMA programName)* RPAREN DO ASSERT SAME ROW SEMI
     | PRODUCE INTO programStream VALUES programArguments SEMI
     | ENQUEUE INTO programQueue VALUES programArguments SEMI;
+helperName: sourceName (DOT sourceName)?;
 programSelect: SELECT (STAR | programName (COMMA programName)*) FROM tableOperand (WHERE programExpression)?;
 programArguments: LPAREN (programExpression (COMMA programExpression)*)? RPAREN;
 programExpression: programOr;
@@ -100,7 +107,7 @@ programUnary: NOT programUnary | MINUS programUnary | programPrimary;
 programPrimary: (LPAREN programExpression RPAREN | valueHole | NULL_ | TRUE | FALSE | INTEGER | STRING
     | CASE WHEN programExpression THEN programExpression ELSE programExpression END
     | CAST LPAREN programExpression AS TEXT RPAREN
-    | ROW programArguments | programAtomName programArguments?) (DOT programName)*;
+    | ROW programArguments | programAtomName (DOT programName programArguments | programArguments)?) (DOT programName)*;
 programName: sourceName | QUOTED_IDENTIFIER;
 programAtomName: typeWordOrdinary | STREAM | QUEUE | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
     | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE | QUOTED_IDENTIFIER;
@@ -142,7 +149,7 @@ tableConstraint: (CONSTRAINT identifier)? checkConstraint;
 identifier: identifierHole | plainIdentifier;
 plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
+sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -201,7 +208,7 @@ typeWordOrdinary: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MUL
     | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
     | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
     | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME
-    | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
+    | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 
 IMPORT: 'IMPORT';
 DEPENDENCY: 'DEPENDENCY';
@@ -242,6 +249,12 @@ IDENTITY: 'IDENTITY';
 EXPORT: 'EXPORT';
 MATCH: 'MATCH';
 WHEN: 'WHEN';
+FUNCTION: 'FUNCTION';
+GUARD: 'GUARD';
+PROCEDURE: 'PROCEDURE';
+RETURNS: 'RETURNS';
+RETURN: 'RETURN';
+CALL: 'CALL';
 LET: 'LET';
 REQUIRE: 'REQUIRE';
 ATOMIC: 'ATOMIC';

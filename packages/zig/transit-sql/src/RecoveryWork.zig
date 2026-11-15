@@ -35,6 +35,11 @@ pub fn begin(self: *Self, io: std.Io) ?u64 {
     defer self.mutex.unlock(io);
     return self.state.begin();
 }
+pub fn requestedGeneration(self: *Self, io: std.Io) u64 {
+    self.mutex.lockUncancelable(io);
+    defer self.mutex.unlock(io);
+    return self.state.requested;
+}
 pub fn finish(self: *Self, io: std.Io, generation: u64, retry: bool) void {
     self.mutex.lockUncancelable(io);
     defer self.mutex.unlock(io);

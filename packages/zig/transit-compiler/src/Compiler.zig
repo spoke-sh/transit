@@ -144,6 +144,9 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
     try types.validate(graph, self.a, &self.file, &self.offset, &self.work, self.limits.work);
     try self.validateInterfaces();
+    try @import("ProgramLowering.zig").validateAll(self);
+    self.call_site = null;
+    self.context = .{};
     try self.body(target.file, definition.body, &.{}, 0);
     if (self.test_mode) {
         if (self.cases.items.len == 0) return error.EmptyTestTarget;
@@ -202,7 +205,7 @@ fn verify(self: *Self) ![]const u8 {
     }
     return sql.toOwnedSlice(self.a);
 }
-fn tick(self: *Self) !void {
+pub fn tick(self: *Self) !void {
     if (self.work == self.limits.work) return error.BuildWorkLimit;
     self.work += 1;
 }
@@ -600,15 +603,19 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
 fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding) !void {
     var origins: std.ArrayList(Origin) = .empty;
     defer origins.deinit(self.a);
-    var at: f.Sql.Location = .{};
+    const before_call_site = self.call_site;
+    var at: f.Sql.Location = .{ .offset = std.math.maxInt(usize) };
     self.emitStatement(file, span, template, bindings, &origins, &at) catch |err| {
         const offset = self.context.offset orelse at.offset;
         for (origins.items) |origin| if (offset >= origin.start and offset < origin.end) {
+            if (origin.file) |origin_file| self.file = origin_file;
             self.offset = origin.source;
+            if (origin.call) |call| self.call_site = location(self.graph.sources[call.file], call.offset);
             break;
         };
         return err;
     };
+    self.call_site = before_call_site;
 }
 fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bindings: []const Binding, origins: *std.ArrayList(Origin), at: *f.Sql.Location) !void {
     const tokens = template.tokens;
@@ -624,9 +631,15 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     };
     var type_sites: std.ArrayList(usize) = .empty;
     var sites: std.ArrayList(Operands.Site) = .empty;
-    const raw = try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, template.kind == .program, if (log_statement) null else &type_sites, self.a, &sites, origins);
+    defer sites.deinit(self.a);
+    var obligations: std.ArrayList(@import("ProgramAnnotations.zig").Obligation) = .empty;
+    defer obligations.deinit(self.a);
     self.catalog.owner = self.owner;
     const is_create = tokenIs(self.graph.sources[file].text, tokens[0], "CREATE");
+    const raw = if (template.kind == .program)
+        try @import("ProgramLowering.zig").lowerProgram(self, file, tokens, bindings, scratch, f.Sql.max_statement_bytes, &sites, origins, &obligations)
+    else
+        try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, false, if (log_statement) null else &type_sites, self.a, &sites, origins);
     // DDL creates the proposed shape; other statements check source annotations
     // before the ordinary binder can erase nominal identity into scalar values.
     var digest: [32]u8 = undefined;
@@ -636,7 +649,7 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
         var analysis = try @import("ProgramCheck.zig").analyze(&self.catalog, raw, at);
         defer analysis.deinit();
         var result = resource_checked.?;
-        result.program = try @import("ProgramAnnotations.zig").check(scratch, self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, &self.context, &self.work, self.limits.work);
+        result.program = try @import("ProgramAnnotations.zig").check(scratch, self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, obligations.items, &self.context, &self.work, self.limits.work);
         break :blk result;
     } else if (template.kind == .control) resource_checked.? else try Operands.check(scratch, self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
     self.context = .{};
@@ -644,8 +657,10 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     if (!log_statement) try Catalog.verifyTypeOperands(scratch, raw, type_sites.items, at);
     self.checked_statements += 1;
     if (self.symbolic) return;
-    origins.clearRetainingCapacity();
-    const canonical = try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, true, null, self.a, null, origins);
+    const canonical = if (template.kind == .program) raw else blk: {
+        origins.clearRetainingCapacity();
+        break :blk try expand(self.graph.sources[file].text, tokens, bindings, scratch, f.Sql.max_statement_bytes, true, null, self.a, null, origins);
+    };
     if (!is_create or template.kind == .program) digest = try self.catalog.check(canonical, at);
     if (canonical.len + 2 > self.limits.output_bytes - self.output_bytes) return error.BuildOutputLimit;
     self.output_bytes += canonical.len + 2;

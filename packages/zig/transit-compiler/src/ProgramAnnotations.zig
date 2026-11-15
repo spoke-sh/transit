@@ -21,6 +21,14 @@ pub const Event = struct {
 };
 /// Internal evidence only. Step.jsonStringify never persists this projection.
 pub const Evidence = struct { nodes: []const Node, events: []const Event };
+pub const Obligation = struct {
+    target: union(enum) {
+        binding: []const u8,
+        span: struct { start: usize, end: usize },
+    },
+    expected: types.Scalar,
+    name: []const u8,
+};
 const Value = struct { domain: ?Graph.Ref = null, fields: []const Named = &.{} };
 const Named = struct { name: []const u8, value: Value };
 const Self = @This();
@@ -32,7 +40,9 @@ bound: *const a.Types.Bound,
 sql: []const u8,
 sites: []const Operands.Site,
 origins: []const Operands.Origin,
+obligations: []const Obligation,
 used: []bool,
+obligation_used: []bool,
 context: *Context,
 work: *usize,
 work_limit: usize,
@@ -41,10 +51,12 @@ columns: []const Named = &.{},
 nodes: std.ArrayList(Node) = .empty,
 events: std.ArrayList(Event) = .empty,
 
-pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, program: a.Program, bound: *const a.Types.Bound, sql: []const u8, sites: []const Operands.Site, origins: []const Operands.Origin, context: *Context, work: *usize, work_limit: usize) !Evidence {
+pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, program: a.Program, bound: *const a.Types.Bound, sql: []const u8, sites: []const Operands.Site, origins: []const Operands.Origin, obligations: []const Obligation, context: *Context, work: *usize, work_limit: usize) !Evidence {
     const used = try scratch.alloc(bool, sites.len);
     @memset(used, false);
-    var self: Self = .{ .scratch = scratch, .output = output, .graph = graph, .catalog = catalog, .bound = bound, .sql = sql, .sites = sites, .origins = origins, .used = used, .context = context, .work = work, .work_limit = work_limit };
+    const obligation_used = try scratch.alloc(bool, obligations.len);
+    @memset(obligation_used, false);
+    var self: Self = .{ .scratch = scratch, .output = output, .graph = graph, .catalog = catalog, .bound = bound, .sql = sql, .sites = sites, .origins = origins, .obligations = obligations, .used = used, .obligation_used = obligation_used, .context = context, .work = work, .work_limit = work_limit };
     const input = try catalog.findResource(program.queue);
     const input_record = try self.record(input);
     try self.symbols.append(scratch, .{ .name = program.input, .value = input_record });
@@ -66,6 +78,7 @@ pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph
         context.* = .{ .offset = site.start };
         return error.InvalidSourceOperand;
     };
+    for (obligation_used) |consumed| if (!consumed) return error.BuildEmissionMismatch;
     return .{ .nodes = try self.nodes.toOwnedSlice(output), .events = try self.events.toOwnedSlice(output) };
 }
 fn tick(self: *Self) !void {
@@ -123,6 +136,21 @@ fn project(self: *Self, value: Value, physical_: a.Types.Value, depth: usize) an
         out.* = .{ .name = try self.output.dupe(u8, input.name), .value = try self.project(annotation, input.value, depth + 1) };
     }
     return .{ .kind = physical_.kind, .nullable = physical_.nullable, .domain = self.domain(value.domain), .fields = fields };
+}
+fn checkObligation(self: *Self, ob: Obligation, actual: Value, physical_: a.Types.Value, offset: usize) !void {
+    const want_kind: a.Types.Kind = switch (ob.expected.base) {
+        .bigint => .integer,
+        .text => .text,
+        .boolean => .boolean,
+    };
+    if (physical_.kind != .null and physical_.kind != want_kind) {
+        self.context.* = .{ .offset = offset, .name = ob.name, .expected = ob.expected.label(self.graph), .actual = @tagName(physical_.kind) };
+        return error.ProgramTypeMismatch;
+    }
+    if (!std.meta.eql(ob.expected.domain, actual.domain) or (ob.expected.domain == null and nominal(actual))) {
+        self.context.* = .{ .offset = offset, .name = ob.name, .expected = ob.expected.label(self.graph), .actual = self.domain(actual.domain) orelse @tagName(physical_.kind) };
+        return error.SourceDomainMismatch;
+    }
 }
 fn node(self: *Self, id: a.Id, offset: usize, kind: []const u8, value: Value) !void {
     try self.nodes.append(self.output, .{ .id = id, .source_offset = self.origin(offset), .kind = kind, .type = try self.project(value, try self.physical(id), 0) });
@@ -187,6 +215,11 @@ fn expression(self: *Self, input: *const a.Expression) anyerror!Value {
         self.used[i] = true;
         value.domain = site.value.nominal.type.domain;
     };
+    const phys = try self.physical(input.id);
+    for (self.obligations, 0..) |ob, idx| if (ob.target == .span and ob.target.span.start == input.span.start and ob.target.span.end == input.span.end) {
+        self.obligation_used[idx] = true;
+        try self.checkObligation(ob, value, phys, input.span.start);
+    };
     try self.node(input.id, input.span.start, @tagName(input.value), value);
     return value;
 }
@@ -240,6 +273,12 @@ fn block(self: *Self, instructions: []const a.Instruction) anyerror!void {
                     .expression => |input| try self.expression(input),
                     .select => |input| try self.select(input),
                     else => return error.ApplicationHostUnavailable,
+                };
+                const phys = try self.physical(id);
+                for (self.obligations, 0..) |ob, idx| if (ob.target == .binding and std.mem.eql(u8, ob.target.binding, binding.name)) {
+                    self.obligation_used[idx] = true;
+                    const err_offset = if (binding.value == .expression) binding.value.expression.span.start else offset;
+                    try self.checkObligation(ob, value, phys, err_offset);
                 };
                 try self.symbols.append(self.scratch, .{ .name = binding.name, .value = value });
                 try self.node(id, offset, "binding", value);

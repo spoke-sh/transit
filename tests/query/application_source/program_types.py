@@ -136,7 +136,184 @@ def lean_examples(cases_):
         name = f'{label}_ordered'
         lines += [f'theorem {name} : (({label}Events {label}Input).map (SourceEvent.substitute {label}Input)).map (SourceEvent.eval emptyEnv) = [{", ".join(want)}] := by decide', f'#print axioms {name}']
         names.add(name)
+    for i, case in enumerate(helper_cases()):
+        label = f'helper{i}'
+        domain = DOMAINS[case['domain']]
+        ty = f'⟨.integer, some "{domain}"⟩'
+        raw = case['raw']
+        lines += [
+            f'def {label}Type : SourceType := {ty}',
+            f'def {label}Val : Value {label}Type := ⟨.integer ({raw}), rfl⟩',
+            f'def {label}FiveEnv : FiveEnv [] := fun index => nomatch index',
+            f'def {label}FnBody : FiveExpr [{label}Type] {label}Type := .branch (.isNull (.var .head)) (.const .null) (.var .head)',
+        ]
+        fn_val_name = f'{label}_fn_value'
+        fn_null_name = f'{label}_fn_null'
+        lines += [
+            f'theorem {fn_val_name} : (FiveExpr.substExpr (.const (.value {label}Val)) {label}FnBody).eval {label}FiveEnv = .value {label}Val := by decide',
+            f'#print axioms {fn_val_name}',
+            f'theorem {fn_null_name} : (FiveExpr.substExpr (.const .null) {label}FnBody).eval {label}FiveEnv = .null := by decide',
+            f'#print axioms {fn_null_name}',
+        ]
+        names.update((fn_val_name, fn_null_name))
+
+        g_missing = '⟨.literal ⟨.boolean false, rfl⟩, "Missing"⟩'
+        g_wrong = '⟨.literal ⟨.boolean false, rfl⟩, "Wrong"⟩'
+        seq = f'[{g_wrong}, {g_missing}]' if case['swap_guards'] else f'[{g_missing}, {g_wrong}]'
+        want_refusal = '"Wrong"' if case['swap_guards'] else '"Missing"'
+        guard_name = f'{label}_guard_order'
+        lines += [
+            f'theorem {guard_name} : runGuards emptyEnv {seq} = .refuse {want_refusal} := by decide',
+            f'#print axioms {guard_name}',
+        ]
+        names.add(guard_name)
+
+        lines += [
+            f'def {label}Callee : List (AtomicStep [{label}Type]) := ['
+            f'.mutate (.insert (type := {label}Type) ⟨"state"⟩ (.var .head)), '
+            f'.mutate (.insert (type := {label}Type) ⟨"events"⟩ (.var .head))]',
+            f'def {label}AcceptCont : List (AtomicStep []) := [.check ⟨.literal ⟨.boolean true, rfl⟩, "PostCall"⟩]',
+            f'def {label}RejectCont : List (AtomicStep []) := [.check ⟨.literal ⟨.boolean false, rfl⟩, "PostCall"⟩]',
+        ]
+        commit_name = f'{label}_proc_commit'
+        rollback_name = f'{label}_proc_rollback'
+        want_writes = f'[⟨"state", {ty}, .integer ({raw})⟩, ⟨"events", {ty}, .integer ({raw})⟩]'
+        lines += [
+            f'theorem {commit_name} : runAtomic emptyEnv (({label}Callee.map (AtomicStep.substitute {label}Val)) ++ {label}AcceptCont) = .commit {want_writes} := by decide',
+            f'#print axioms {commit_name}',
+            f'theorem {rollback_name} : runAtomic emptyEnv (({label}Callee.map (AtomicStep.substitute {label}Val)) ++ {label}RejectCont) = .rollback "PostCall" := by decide',
+            f'#print axioms {rollback_name}',
+        ]
+        names.update((commit_name, rollback_name))
     return '\n'.join(lines) + '\n', names
+
+
+def helper_cases():
+    for raw in (-7, 7):
+        for domain in DOMAINS:
+            for swap_guards in (False, True):
+                yield {'raw': raw, 'domain': domain, 'swap_guards': swap_guards}
+
+
+def helper_source(case):
+    g1 = 'CHECK GUARD guard_present(lookup, clean); '
+    g2 = 'CHECK GUARD guard_expected(clean, $expected); '
+    guards = (g2 + g1) if case['swap_guards'] else (g1 + g2)
+    return (
+        f"CREATE DOMAIN Id AS BIGINT IDENTITY '{DOMAINS[case['domain']]}'; "
+        "CREATE FUNCTION pass_id(id Id) RETURNS Id AS BEGIN RETURN id; END; "
+        "CREATE GUARD guard_present(rows TABLE(id Id PRIMARY KEY), target Id) AS BEGIN "
+        "LET found = SELECT id FROM rows WHERE id = target; "
+        "REQUIRE found IS NOT NULL ELSE 'Missing'; END; "
+        "CREATE GUARD guard_expected(actual Id, expected Id) AS BEGIN "
+        "REQUIRE actual = expected ELSE 'Wrong'; END; "
+        "CREATE PROCEDURE write_both(state TABLE(id Id PRIMARY KEY), events STREAM(id Id NOT NULL), id Id) AS BEGIN ATOMIC "
+        "INSERT INTO state VALUES (id) ON CONFLICT (id) DO ASSERT SAME ROW; "
+        "PRODUCE INTO events VALUES (id); END; "
+        "CREATE MODULE Run(ty TYPE, expected Id) AS BEGIN "
+        "CREATE PUBLIC QUEUE jobs (id $ty NOT NULL); "
+        "CREATE PUBLIC TABLE lookup (id $ty PRIMARY KEY); "
+        "CREATE PUBLIC TABLE state (id $ty PRIMARY KEY); "
+        "CREATE PUBLIC STREAM events (id $ty NOT NULL); "
+        "CREATE PUBLIC DATAFLOW process FROM QUEUE jobs AS request AS BEGIN "
+        "LET clean = pass_id(request.id); "
+        + guards
+        + "BEGIN ATOMIC "
+        "CALL write_both(state, events, clean); "
+        "REQUIRE clean = $expected ELSE 'PostCall'; "
+        "END; END; END; "
+        f"CREATE TARGET default AS BEGIN USE Run(TYPE Id, Id({case['raw']})); END;"
+    )
+
+
+def expected_helper_sql(case):
+    raw = case['raw']
+    lines = [
+        'CREATE QUEUE JOBS ( ID BIGINT NOT NULL )',
+        'CREATE TABLE LOOKUP ( ID BIGINT PRIMARY KEY )',
+        'CREATE TABLE STATE ( ID BIGINT PRIMARY KEY )',
+        'CREATE STREAM EVENTS ( ID BIGINT NOT NULL )',
+    ]
+    if not case['swap_guards']:
+        guards_sql = (
+            'LET "__t$3_target" = "__t$2_clean" ; '
+            'LET "__t$4_found" = SELECT ID FROM "lookup" WHERE ID = "__t$3_target" ; '
+            'REQUIRE "__t$4_found" IS NOT NULL ELSE \'Missing\' ; '
+            'LET "__t$5_actual" = "__t$2_clean" ; '
+            f'LET "__t$6_expected" = {raw} ; '
+            'REQUIRE "__t$5_actual" = "__t$6_expected" ELSE \'Wrong\' ; '
+        )
+    else:
+        guards_sql = (
+            'LET "__t$3_actual" = "__t$2_clean" ; '
+            f'LET "__t$4_expected" = {raw} ; '
+            'REQUIRE "__t$3_actual" = "__t$4_expected" ELSE \'Wrong\' ; '
+            'LET "__t$5_target" = "__t$2_clean" ; '
+            'LET "__t$6_found" = SELECT ID FROM "lookup" WHERE ID = "__t$5_target" ; '
+            'REQUIRE "__t$6_found" IS NOT NULL ELSE \'Missing\' ; '
+        )
+    lines += [
+        'CREATE DATAFLOW PROCESS FROM QUEUE JOBS AS "__t$1_request" AS BEGIN '
+        'LET "__t$2_clean" = ( ( "__t$1_request" . ID ) ) ; '
+        + guards_sql
+        + 'BEGIN ATOMIC '
+        'LET "__t$7_id" = "__t$2_clean" ; '
+        'INSERT INTO "state" VALUES ( "__t$7_id" ) ON CONFLICT ( ID ) DO ASSERT SAME ROW ; '
+        'PRODUCE INTO "events" VALUES ( "__t$7_id" ) ; '
+        f'REQUIRE "__t$2_clean" = {raw} ELSE \'PostCall\' ; '
+        'END ; END'
+    ]
+    return lines
+
+
+def expected_helper_events(case):
+    domain = DOMAINS[case['domain']]
+    present_events = [('let', None), ('read', 'lookup'), ('require', None)]
+    expected_events_seq = [('let', None), ('let', None), ('require', None)]
+    guard_events = (expected_events_seq + present_events) if case['swap_guards'] else (present_events + expected_events_seq)
+    kinds = (
+        [('acquire', 'jobs'), ('let', None)]
+        + guard_events
+        + [('atomic_begin', None), ('let', None), ('insert', 'state'), ('append', 'events'), ('require', None), ('atomic_end', None)]
+    )
+    return [
+        dict(kind=kind, resource=resource, columns=[] if resource is None else [dict(column='id', domain=domain)])
+        for kind, resource in kinds
+    ]
+
+
+def compare_helper(case, product):
+    same(expected_helper_sql(case), [step['sql'] for step in product['steps']], 'helper lowered ordinary SQL')
+    same(''.join(sql + ';\n' for sql in expected_helper_sql(case)), product['sql'], 'complete helper SQL')
+    evidence = product['steps'][4]['checked']['program']
+    assert len({node['id'] for node in evidence['nodes']}) == len(evidence['nodes']), 'duplicate helper node ID'
+    events = [
+        {k: v for k, v in event.items() if k not in ('node', 'source_offset', 'columns')}
+        | {'columns': [{k: v for k, v in col.items() if k != 'value'} for col in event['columns']]}
+        for event in evidence['events']
+    ]
+    same(expected_helper_events(case), events, 'ordered helper program events')
+
+    # Verify nominal domain preservation on function binding and procedure writes,
+    # and verify guard REQUIRE source attribution tracks the lexical CHECK GUARD order.
+    domain = DOMAINS[case['domain']]
+    by_id = {node['id']: node for node in evidence['nodes']}
+    clean_binding = [node for node in evidence['nodes'] if node['kind'] == 'binding'][0]
+    same(domain, clean_binding['type']['domain'], 'function return nominal domain')
+
+    text = helper_source(case)
+    require_offsets = [ev['source_offset'] for ev in evidence['events'] if ev['kind'] == 'require']
+    want_req_offsets = (
+        [text.index("REQUIRE actual = expected"), text.index("REQUIRE found IS NOT NULL"), text.index("REQUIRE clean = $expected")]
+        if case['swap_guards']
+        else [text.index("REQUIRE found IS NOT NULL"), text.index("REQUIRE actual = expected"), text.index("REQUIRE clean = $expected")]
+    )
+    same(want_req_offsets, require_offsets, 'ordered guard definition offsets')
+
+    for event in evidence['events']:
+        if event['kind'] in ('insert', 'append'):
+            value_node = by_id[event['columns'][0]['value']]
+            same(domain, value_node['type']['domain'], 'procedure write nominal domain')
 
 
 def run(driver, destination, must_fail):
@@ -158,4 +335,74 @@ def run(driver, destination, must_fail):
         else:
             damaged['steps'][4]['sql'] = damaged['steps'][4]['sql'].replace("'Missing'", "'Wrong'")
         controls.append(must_fail(label, lambda: compare(descriptors[0], damaged)))
-    return len(outputs), controls
+
+    h_descriptors = list(helper_cases())
+    h_outputs = execute(driver, [dict(name=f'helper-{i}', source=helper_source(case), compile='build') for i, case in enumerate(h_descriptors)], destination, 'helper-products')
+    for case, output in zip(h_descriptors, h_outputs):
+        assert 'product' in output, output
+        compare_helper(case, output['product'])
+    for label in ('helper dropped domain', 'helper swapped guard order', 'helper nested atomic', 'helper changed SQL'):
+        damaged = copy.deepcopy(h_outputs[0]['product'])
+        evidence = damaged['steps'][4]['checked']['program']
+        if label == 'helper dropped domain':
+            for node in evidence['nodes']:
+                if node['kind'] == 'binding':
+                    node['type']['domain'] = None
+                    break
+        elif label == 'helper swapped guard order':
+            req_indices = [idx for idx, ev in enumerate(evidence['events']) if ev['kind'] == 'require']
+            evidence['events'][req_indices[0]], evidence['events'][req_indices[1]] = (
+                evidence['events'][req_indices[1]],
+                evidence['events'][req_indices[0]],
+            )
+        elif label == 'helper nested atomic':
+            evidence['events'].insert(9, dict(kind='atomic_begin', node=None, source_offset=0, resource=None, columns=[]))
+        else:
+            damaged['steps'][4]['sql'] = damaged['steps'][4]['sql'].replace("'PostCall'", "'Tampered'")
+        controls.append(must_fail(label, lambda: compare_helper(h_descriptors[0], damaged)))
+
+    helper_refusals = [
+        (
+            'helper-domain-refusal',
+            "CREATE DOMAIN OrderId AS BIGINT IDENTITY 'example.machine-id'; "
+            "CREATE DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; "
+            "CREATE FUNCTION pass_order(id OrderId) RETURNS OrderId AS BEGIN RETURN id; END; "
+            "CREATE MODULE M(o TYPE, s TYPE) AS BEGIN CREATE PUBLIC QUEUE q (id $o NOT NULL, other $s NOT NULL); "
+            "CREATE PUBLIC DATAFLOW p FROM QUEUE q AS r AS BEGIN LET bad = pass_order(r.other); END; END; "
+            "CREATE TARGET default AS BEGIN USE M(TYPE OrderId, TYPE SiteId); END;",
+            'SourceDomainMismatch',
+        ),
+        (
+            'helper-guard-interface-refusal',
+            "CREATE DOMAIN OrderId AS BIGINT IDENTITY 'example.machine-id'; "
+            "CREATE DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id'; "
+            "CREATE GUARD check_order(rows TABLE(id OrderId PRIMARY KEY), target OrderId) AS BEGIN "
+            "LET f = SELECT id FROM rows WHERE id = target; REQUIRE f IS NOT NULL ELSE 'Missing'; END; "
+            "CREATE MODULE M(o TYPE, s TYPE) AS BEGIN CREATE PUBLIC QUEUE q (id $o NOT NULL); "
+            "CREATE PUBLIC TABLE wrong_rows (id $s PRIMARY KEY); "
+            "CREATE PUBLIC DATAFLOW p FROM QUEUE q AS r AS BEGIN CHECK GUARD check_order(wrong_rows, r.id); END; END; "
+            "CREATE TARGET default AS BEGIN USE M(TYPE OrderId, TYPE SiteId); END;",
+            'TableInterfaceMismatch',
+        ),
+        (
+            'helper-recursion-refusal',
+            "CREATE FUNCTION f1(x BIGINT) RETURNS BIGINT AS BEGIN RETURN f2(x); END; "
+            "CREATE FUNCTION f2(x BIGINT) RETURNS BIGINT AS BEGIN RETURN f1(x); END; "
+            "CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); END;",
+            'RecursiveSourceCall',
+        ),
+        (
+            'helper-impure-refusal',
+            "CREATE FUNCTION f1() RETURNS TEXT AS BEGIN RETURN RANDOM_TOKEN(16); END; "
+            "CREATE TARGET default AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); END;",
+            'ImpureSourceFunction',
+        ),
+    ]
+    for (_, _, want_err), output in zip(
+        helper_refusals,
+        execute(driver, [dict(name=name, source=src, compile='build') for name, src, _ in helper_refusals], destination, 'helper-refusals'),
+    ):
+        same(want_err, output.get('compile_error'))
+        assert 'product' not in output
+
+    return len(outputs) + len(h_outputs), controls

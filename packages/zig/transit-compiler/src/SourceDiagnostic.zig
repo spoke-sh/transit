@@ -104,6 +104,10 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "RuntimePrivateOrUnsupportedDeclaration", .capability },
     .{ "ApplicationHostUnavailable", .capability },
     .{ "MutationOutsideAtomic", .capability },
+    .{ "MutationInsideGuard", .capability },
+    .{ "ProcedureOutsideAtomic", .capability },
+    .{ "ImpureSourceFunction", .capability },
+    .{ "RecursiveSourceCall", .capability },
     .{ "NestedAtomicProgram", .capability },
     .{ "ProtectedProgramValue", .capability },
     .{ "FileNotFound", .io },
@@ -226,6 +230,10 @@ pub fn project(err: anyerror, at: ?d.Location, call: ?d.Location, instance: ?[]c
     const selected = rule(family);
     const message = switch (err) {
         error.InvalidQueuePredicate => "The Queue acquisition predicate cannot use this expression. Use supported direct column/literal comparisons, Boolean combinations or null tests; move other guards into the program body.",
+        error.ImpureSourceFunction => "A source function must be a pure deterministic RETURN expression. Move Table reads and REQUIRE checks into a GUARD, and move mutations into an atomic PROCEDURE or DATAFLOW block.",
+        error.MutationInsideGuard => "A source guard is read-only and cannot open an atomic block or mutate Tables, Streams or Queues. Keep mutations in an atomic PROCEDURE or DATAFLOW block.",
+        error.ProcedureOutsideAtomic => "A source procedure must declare AS BEGIN ATOMIC ... END so its inlined mutations execute within one atomic transaction boundary.",
+        error.RecursiveSourceCall => "Source functions, guards and procedures must form a finite acyclic call graph. Remove the direct or mutual recursion so every program lowers into bounded SQL.",
         error.UnknownProgramVariable, error.UnknownProgramField, error.UnknownProgramResource, error.UnknownColumn => "The program name or field is not in scope. Check the bound resource signature and lexical names; branch/body locals are not available after scope exit or in a failure handler.",
         error.DuplicateProgramVariable, error.DuplicateProgramField, error.DuplicateProgramResource => "The program declares a name more than once. Give each field, resource and in-scope variable a distinct name.",
         error.MissingRequiredField, error.NullNotAllowed => "A required column is missing or NULL. Supply a non-null value for each required destination column, preserving its declared source domain.",
@@ -302,6 +310,10 @@ test "source diagnostic families validate within the shared envelope bounds" {
     for (families.values()) |family| {
         const selected = rule(family);
         const value = try d.init(selected.code, selected.category, selected.stage, .not_submitted, .local_before_dispatch, selected.message);
+        try value.validate();
+    }
+    inline for (.{ error.InvalidQueuePredicate, error.ImpureSourceFunction, error.MutationInsideGuard, error.ProcedureOutsideAtomic, error.RecursiveSourceCall, error.UnknownProgramVariable, error.DuplicateProgramVariable, error.MissingRequiredField, error.UnsupportedNominalColumn, error.UnsupportedNominalOperation }) |cause| {
+        const value = project(cause, null, null, null);
         try value.validate();
     }
 }

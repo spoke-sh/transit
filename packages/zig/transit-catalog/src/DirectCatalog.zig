@@ -4036,7 +4036,8 @@ fn validateTransactionTransfer(self: *Self, source: TransactionLogSource, access
     defer destination.deinit();
     const frozen = try destination.inspect(source.pin, access.read.guard());
     if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
-    if (unchanged) try source.guard.log.requireUnchanged(try destination.basis());
+    const current = try destination.basis();
+    if (unchanged) try source.guard.log.requireUnchanged(current);
     try destination.validatePayload(work, payload);
     try access.checkCurrent();
 }
@@ -4104,10 +4105,13 @@ fn stageTransactionLogBounded(self: *Self, progress: c.DirectClientToken.Progres
         defer view.deinit();
         const frozen = try view.inspect(source.pin, read_fence.guard());
         if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
-        try source.guard.log.requireUnchanged(try view.basis());
+        // Defer serializable cut advancement to statement evaluation so concurrent
+        // log appends record a typed `.rejected = .conflict` outcome instead of a
+        // retriable wire conflict before evaluation can run.
+        _ = try view.basis();
         if (work == .queue_transfer) try view.validateTransferPayload(work.queue_transfer, read_fence.guard()) else try view.validatePayload(work, payload);
     }
-    if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, work, payload, true);
+    if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, work, payload, false);
     try TransactionLogWork.stagePayload(staging.objects(), work, payload);
     try check(read_fence.guard());
     try check(write_fence.guard());
@@ -4195,10 +4199,10 @@ fn transactionLogStatementBounded(self: *Self, progress: c.DirectClientToken.Pro
             defer view.deinit();
             const frozen = try view.inspect(source.pin, read_fence.guard());
             if (!std.meta.eql(try frozen.guard(), request.guard)) return error.InvalidTransactionCut;
-            try request.guard.requireUnchanged(try view.basis());
+            _ = try view.basis();
             if (request.work == .queue_transfer) try view.validateTransferPayload(request.work.queue_transfer, read_fence.guard()) else try view.validatePayload(request.work, payload);
         }
-        if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, request.work, payload, true);
+        if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, request.work, payload, false);
         staging.used = try std.math.add(u64, staging.used, if (payload) |bytes| bytes.len else 0);
         if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
         try c.OperationBinding.claimTransactionLogStatement(self.allocator, self.data_objects, request);
@@ -4362,7 +4366,7 @@ pub fn transactionCallOutcome(self: *Self, key: c.DirectClientToken.Key, policy:
     return self.observeTransactionCall(call, policy);
 }
 
-fn isPermanentCommitInvalidation(err: anyerror) bool {
+pub fn isPermanentCommitInvalidation(err: anyerror) bool {
     return switch (err) {
         error.TransactionConflict,
         error.LogDeclarationConflict,

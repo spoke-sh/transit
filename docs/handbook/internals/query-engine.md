@@ -34,6 +34,12 @@ share one compiler memory budget.
 
 Stream and Queue handles also retain their exact resource kind and schema.
 `LogDdl`, `LogAppendSql` and `LogConsumeSql` own their statement checking.
+[`ProgramLowering`](../../../packages/zig/transit-compiler/src/ProgramLowering.zig)
+validates pure `FUNCTION`, ordered `GUARD` and inline atomic `PROCEDURE`
+declarations across a non-recursive call DAG, checks function bodies through
+Fuze's `ScalarProgram` owner, hoists multi-use impure call arguments once, and
+expands `CHECK GUARD` and `CALL` with hygienic `"__t$<n>_<name>"` bindings while
+retaining both definition and invocation spans.
 [ProgramCheck](../../../packages/zig/transit-compiler/src/ProgramCheck.zig)
 collects a Queue program's referenced resources, then uses the installed
 `ApplicationProgram` type binder, schema mapping and public-data facility set.
@@ -83,15 +89,18 @@ rejects. Branch allocations and checking consume the existing compiler budgets.
 The [source verification owner](../../../tests/query/application_source/README.md)
 defines reproducible grammar, Lean and finite correspondence checks. The
 [Lean specification](../../../contracts/application-source/TypedTarget.lean)
-models typed substitution, complete unique arm selection and preservation of
-ordered bound inserts for one scalar payload per constructor. Its source
+models typed substitution, complete unique arm selection and ordered Table
+insert preservation alongside nominal program domain erasure, five-state pure
+function substitution, ordered guard refusal non-commutativity and hygienic
+inline atomic procedure rollback (ten scoped laws). Its source
 interpreter extends an environment; specialization substitutes into a typed
 action program. Independent expectations compare both interpretations with
-Zig's checked actions and emitted SQL, including equal raw values in different
-domains. This is a model proof plus finite implementation comparisons, not a
+Zig's checked actions, program projections and emitted SQL, including equal raw
+values in different domains and reordered guard chains. This is a model proof plus finite implementation comparisons, not a
 proof of the Zig parser, checker, SQL executor or all compiler programs. Real
-[CLI fixtures](../../../tests/fixtures/application-typed-targets/README.md)
-separately exercise source-free SQL, counts, rows and current authority.
+[CLI fixtures](../../../tests/fixtures/application-typed-targets/README.md) and
+the [modular Queue fixture](../../../tests/fixtures/application-modular-programs/README.md)
+separately exercise source-free SQL, counts, rows, rollback and current authority.
 
 This design pays for checking every reached arm and retaining annotations before
 erasure. It avoids inventing runtime tags or trusting a build artifact as a

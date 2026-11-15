@@ -1,0 +1,3 @@
+CREATE PUBLIC DOMAIN OrderId AS BIGINT IDENTITY 'example.modular.order-id';
+CREATE PUBLIC DOMAIN AccountId AS BIGINT IDENTITY 'example.modular.account-id';
+CREATE PUBLIC DOMAIN AuditId AS BIGINT IDENTITY 'example.modular.audit-id';

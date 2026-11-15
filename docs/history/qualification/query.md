@@ -9,6 +9,73 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Pure functions, ordered guards and inline atomic procedures — 2026-11-15
+
+This slice implements Slices A and B.1 of the
+[M12 completion plan](../../roadmap/application-modules-completion.md) on top of
+streaming SQL statement framing ([PR #461](https://github.com/spoke-sh/transit/pull/461),
+base `b36d806c5a25beff25d1090859ce2c1d2e99ba99`): pure deterministic
+`CREATE [PUBLIC] FUNCTION`, ordered `CREATE [PUBLIC] GUARD` / `CHECK GUARD`,
+hygienic inline `CREATE [PUBLIC] PROCEDURE ... AS BEGIN ATOMIC ... END` /
+statement-form `CALL`, four new Lean 4 theorems (ten total), local `TestHost`
+read-pin drain and publication watch fixes, and `ApplicationExecution`
+transaction commit-invalidation abort recovery with bounded sweep wakeups.
+Current semantics belong to the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md),
+[application reference](../../handbook/reference/applications.md) and
+[compiler internals](../../handbook/internals/query-engine.md).
+
+The implementation source is `8ee2ad304a57a60b9927f4ca3a663b661d771350`. Later
+changes on this branch update contract, handbook, roadmap and qualification
+documentation only. Milestone 12 remains In Progress: value-returning
+`LET res = CALL`, runtime `VARIANT` dispatch, `PROFILE`, `EXPORT REFERENCE`
+runtime grants, protected command/effect workflows, explicit-basis `CatalogDiff`
+migrations, conditional `CREATE OR REPLACE` draining and `--verify-replay`
+remain open.
+
+### Executed gates
+
+| Check | Source and result |
+| --- | --- |
+| Clean formal (`just ci clean --lane formal`) | Passed all 16 tasks at `8ee2ad304a57`, including 10 Lean laws, 96 finite equalities, 16 typed-action/SQL and 16 nominal/helper program comparisons, 8 compiler refusals and 18 negative controls (`test::application-source-types`), plus `queue-lease-transaction-model` and all SQL/TLA+ owners. |
+| Clean core (`just ci clean --lane core`) | Passed all 28 tasks at `8ee2ad304a57`, including 70 fast checks, 20 contract checks, 209 server/console and 96 artifact/file CLI diagnostic cases, all package unit suites, SQL wire contracts, SDK/runtime boundaries, authorization and recovery. |
+| Clean storage/query (`just ci clean --lane storage-query`) | Passed all 38 tasks at `8ee2ad304a57`, including `application-compiler`, `application-source-grammar` (169 source cases, 124 formatter round trips, 10 negative controls), `application-runner`, Fuze, storage, direct transactions, Queue transfers, publications and full 139-resource Catalog growth/recovery. |
+| Focused CLI and managed-table gates | Passed `just test::application-build` (all 6 installed journeys across generated and independent ordinary, typed and modular Queue pipelines), `just test::application-test` (including all 5 modular helper cases), `just test::cli-diagnostics` and `just test::managed-tables` (including `.lease_fenced`, `.table_conflict` and `.ack_log_conflict` abort recovery) at `8ee2ad304a57`. |
+| Installed SQL types (`just test server-sql-types`) | Passed all 28 console, PostgreSQL, MySQL, alias/wildcard and disk-restart cases in the pinned `ci-experience` shell at `8ee2ad304a57` (ReleaseSafe binary SHA-256 `34fde456db3d09ad0e010f05d081f49f2fbe2c1fcd1f85e0c920b81483ad8ca8`). |
+| Local console latency (`just test console-latency-gate`) | Failed locally at `8ee2ad304a57` during statement run 3 (`document_delete`: `SqlOutcomeUnknown`); fixture `/var/tmp/transit-server-proof-754m0hu9` and `.cache/transit-latency/gate/report.json` retained while unrelated host workloads were active. Hosted isolated `console-latency-gate` and `installation-ui` runs remain required before merge. |
+| Final fast, contracts and handbook | Passed `just check fast`, `just check contracts`, locked dependency installation and `just transit-docs::check` on the final documentation commit. |
+
+| Local record | SHA-256 |
+| --- | --- |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-8dtzhbqc/formal.json` | `9e2637205d6a2b31d12f0045b044a00aba6fbf44683833a54d87ba7d58748e6a` |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-8dtzhbqc/preparation.json` | `8eaacfd16a34cd7215dea48706521ecdd6455efe08fe2e380bd7bbad6446649f` |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-uyxpssl3/core.json` | `2bbd659352bee6b329ed1cbd677c2366e3fdca732d6143730c27c269ec5ccb5e` |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-uyxpssl3/preparation.json` | `62cd5ec1ae207b18b3febb78244d1dd751f48d2b8e0c1989afdd17c5131cbff3` |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-mirhulhb/storage-query.json` | `ca18122127a9a480facfbc845092971fe8327bd8e21b0adcd74e90049b993c9e` |
+| `.cache/ci/clean/8ee2ad304a57-transit-ci-mirhulhb/preparation.json` | `6e37bb556c07d0b5be771c8e07dfdea04fdbefbb58cdd3d4d2e2d09e629613f1` |
+| Failed local latency report `.cache/transit-latency/gate/report.json` | `9fb77e3d8e190609d1d0c116cfa082e3ffdca658e23602d89beb04f215c03e5b` |
+
+### What the checks establish and remaining limits
+
+- `TypedTarget.lean` proves five-state pure function substitution, lexical
+  guard-sequence refusal preservation, a concrete non-commutativity witness for
+  guard reordering, and single-decision rollback for hygienically specialized
+  inline atomic procedures under `propext` only (`Quot.sound` remains confined
+  to `exhaustive_selection`). These laws model the scoped typed fragments and do
+  not prove the Zig compiler, SQL parser or database runtime.
+- `DirectCatalog` defers cut-conflict checks on transaction-bound log statements
+  from staging/admission to `executeTransactionLog`, allowing
+  `ApplicationExecution` to observe durable `.conflict` outcomes and cleanly
+  abort invalidated transactions (`.lease_fenced`, `.table_conflict`,
+  `.ack_log_conflict`) rather than retrying HTTP `409 Conflict` indefinitely.
+  `DatabaseRuntime` re-evaluates waiting declarations when publication epochs
+  advance mid-sweep or every 100 ms across active sweeps without extending idle
+  passes.
+- The local `console-latency-gate` failure (`SqlOutcomeUnknown` on
+  `document_delete`) and full `installation-ui` clean lane remain open gates for
+  isolated CI execution; no runtime budget, lease guard or durability check was
+  relaxed.
+
 ## Actionable source diagnostics and nominal Queue programs — 2026-11-13
 
 This slice implements the [reviewed M12 plan](../../roadmap/application-typed-queue-implementation.md):

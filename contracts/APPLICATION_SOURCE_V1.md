@@ -21,8 +21,9 @@ and formal preservation proofs.
 
 `build.transit` and imported files use the same grammar. Names are case-insensitive
 ASCII identifiers; quoted SQL identifiers retain SQL semantics. Source declarations
-are modules, interfaces, domains, variants, targets, imports and repository
-dependencies. Modules, interfaces and types are private unless declared PUBLIC. Targets are selected by name in
+are modules, interfaces, domains, variants, functions, guards, atomic procedures,
+targets, imports and repository dependencies. Modules, interfaces, functions,
+guards, procedures and types are private unless declared PUBLIC. Targets are selected by name in
 the entry file. Imports expose only public declarations. All source files are
 parsed before evaluation; duplicate names, missing imports and cycles reject.
 
@@ -112,7 +113,7 @@ STREAM/QUEUE and literal PRODUCE/ENQUEUE through the shared log owners. Resource
 PUBLIC in source, with ordinary runtime permissions; PUBLIC is erased before
 runtime SQL preparation and grants no access. CHECK/key/type/predicate restrictions
 are those of the shared owners. Views, foreign-key resolution, ALTER/DROP,
-multi-source queries, procedures, effects, COMMAND programs, deadlines,
+multi-source queries, stored runtime procedures, effects, COMMAND programs, deadlines,
 publication and migration synthesis reject. No unsupported declaration is omitted.
 
 Log declarations use the ordinary single-partition defaults, including unlimited
@@ -154,11 +155,44 @@ execution. Current runtime authorization and operation identity checks still app
 
 `CREATE PUBLIC DATAFLOW name FROM QUEUE input AS request AS BEGIN ... END;`
 lowers to the installed [ordered program](APPLICATION_PROGRAM_V1.md) profile.
-The source supports LET expressions and finite Table reads, REQUIRE, IF, atomic
-blocks, Table INSERT with `ON CONFLICT (...) DO ASSERT SAME ROW`, and Stream/Queue
-appends. Mutations require an atomic block; nesting atomic blocks rejects even
-in unused modules. Failure handlers use `ON FAILURE name` and the same admitted
-instructions. Expressions and branch/result types use the ordinary program binder.
+The source supports LET expressions and finite Table reads, REQUIRE, CHECK GUARD,
+IF, atomic blocks, CALL to inline atomic procedures, Table INSERT with
+`ON CONFLICT (...) DO ASSERT SAME ROW`, and Stream/Queue appends. Mutations and
+procedure calls require an enclosing atomic block; nesting explicit atomic blocks
+rejects even in unused modules. Failure handlers use `ON FAILURE name` and the
+same admitted instructions. Expressions and branch/result types use the ordinary
+program binder.
+
+Source helpers compose into public Queue programs without adding stored runtime
+procedures, functions or sidecars:
+
+- `CREATE [PUBLIC] FUNCTION name(params) RETURNS type AS BEGIN [LET ...;] RETURN expr; END;`
+  accepts `BIGINT`, `TEXT`, `BOOLEAN` and nominal domain parameters and return
+  types. Bodies are validated through Fuze's deterministic `ScalarProgram` owner
+  and preserve five-state evaluation, checked arithmetic and nominal domains;
+  clock, random, database, capability, secret and effect operations reject
+  (`ImpureSourceFunction`). When an impure caller argument (such as `RANDOM_TOKEN`)
+  binds to a parameter referenced more than once, lowering hoists a single
+  hygienic `LET` binding before substituting the call.
+- `CREATE [PUBLIC] GUARD name(params) AS BEGIN ... END;` accepts scalar, nominal
+  domain and exact `TABLE(...)` parameters. Invoking `CHECK GUARD [alias.]name(args);`
+  expands ordered `LET` bindings (including zero-or-one Table lookups), `IF`
+  branches, nested `CHECK GUARD` calls and `REQUIRE ... ELSE 'Code'` checks in
+  exact lexical sequence, registering every referenced Table in the program's
+  dependency set. Mutations and procedure calls inside guards reject
+  (`MutationInsideGuard`).
+- `CREATE [PUBLIC] PROCEDURE name(params) AS BEGIN ATOMIC ... END;` accepts
+  scalar, nominal domain and exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
+  parameters. Statement-form `CALL [alias.]name(args);` is valid only inside an
+  enclosing `BEGIN ATOMIC` block (`ProcedureOutsideAtomic`); value-returning
+  `LET res = CALL ...`, nested explicit `BEGIN ATOMIC` blocks and external
+  effects reject. Lowering assigns fresh hygienic `"__t$<n>_<name>"` bindings so
+  caller and callee locals never collide, flattening nested procedure writes and
+  guards into the caller's single atomic transaction decision.
+
+Functions, guards and procedures form a non-recursive call DAG; direct or mutual
+cycles reject (`RecursiveSourceCall`). Helper diagnostics retain both the helper
+definition span and the caller invocation site.
 
 Programs bind at most thirteen proposed Table/log dependencies. The input is one
 Queue partition. Exact resource kinds, schemas, keys, instruction order and atomic
@@ -295,20 +329,24 @@ and scalar assignment/predicate operands before final SQL emission. It is not a
 persisted IR, additional authority or mandatory runtime sidecar. The current
 native definition, lock and artifact formats are unchanged.
 
-The [typed-target specification](application-source/TypedTarget.lean) proves
-nominal substitution, selection from a checked total arm table, and ordered
-action preservation for a fragment with one scalar payload per constructor and
-Table inserts. Exact source types, well-typed environments and signatures are
-premises; de Bruijn variables express capture-free payload substitution. Three
-additional scoped laws cover record projection under substitution, ordered
-program substitution and domain erasure preserving event order and bindings.
-The program trace fragment assumes ordinary physical typing and well-formed
-execution; it does not model nullable lookup execution or prove runtime atomicity.
-These laws do not prove the ANTLR/Zig parser, source checker, arbitrary recursion,
-SQL encoding, runtime, authorization or effects. Independent finite comparisons
-connect synthetic source, Lean source/action interpretations, checked Zig
-operands and ordinary SQL. Real CLI execution is separate evidence. This slice
-adds no temporal state or TLA+ model.
+The [typed-target specification](application-source/TypedTarget.lean) proves ten
+scoped laws across three fragments: nominal substitution, selection from a
+checked total arm table and ordered action preservation for one scalar payload
+per constructor and Table inserts; record projection under substitution, ordered
+program substitution and domain erasure preserving event order and bindings; and
+five-state pure function substitution (`function_substitution`), lexical
+guard-sequence refusal preservation (`guard_sequence_refusal`), guard-reordering
+non-equivalence (`guard_reorder_non_equivalent`) and hygienic inline atomic
+procedure expansion preserving single-decision rollback
+(`procedure_inline_atomic`). Exact source types, well-typed environments and
+signatures are premises; de Bruijn variables express capture-free substitution.
+The program trace and atomic-procedure fragments assume ordinary physical typing
+and well-formed execution; they do not model nullable lookup execution or prove
+runtime database atomicity. These laws do not prove the ANTLR/Zig parser, source
+checker, arbitrary recursion, SQL encoding, runtime, authorization or effects.
+Independent finite comparisons connect synthetic source, Lean interpretations,
+checked Zig operands/program projections and ordinary SQL. Real CLI execution is
+separate evidence. This slice adds no temporal state or TLA+ model.
 
 ## Compilation core and extension obligations
 
@@ -336,7 +374,8 @@ Later transition/effect constructs must supply explicit TLA+ abstractions and
 native trace projections when introduced. Later typed-core transformations must
 state and check selected Lean preservation obligations with their lowering.
 Shared generation of a model and SQL does not itself prove correspondence.
-This source grammar slice adds no temporal-model result or Lean theorem.
+Selected Lean laws cover only the scoped fragments stated above; this slice adds
+no temporal-model result.
 
 ## Resolution and locks
 
