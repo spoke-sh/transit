@@ -48,7 +48,7 @@ Namespaces and budgets retain the full unsigned 64-bit range.
 `Scalar` values to bind `$1`, `$2`, and so on. `None` selects ordinary SQL; an
 empty tuple selects a template without placeholders.
 
-The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+The name binds one explicit source. SQL is limited to 1,048,576 bytes (1 MiB) and bindings to
 65 exact logical atoms, with an unsigned atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot

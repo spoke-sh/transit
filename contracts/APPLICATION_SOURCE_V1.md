@@ -204,7 +204,7 @@ ACTIVATE, SUSPEND, RESUME and RETIRE. A prior program declaration and the shared
 lifecycle transition rules are required. Controls are emitted as separate
 statements. Building never applies them, and activation completion does not mean
 that a Queue input has completed. All emitted statements retain the ordinary
-4,096-byte SQL limit, including a complete program body.
+1 MiB (1,048,576-byte) SQL limit, including a complete program body.
 
 The package's bounded source formatter writes the parsed AST to a caller-owned
 writer. It normalizes source names/keywords and expression parentheses, omits
@@ -392,7 +392,7 @@ Missing locks, missing cached content, undeclared imports and changed bytes reje
 
 Default maximums are 1 MiB per file, 16 MiB aggregate source, 256 source files,
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB accounted compiler
-allocations and 8 MiB output SQL. Statement owners retain their 4,096-byte bound.
+allocations and 8 MiB output SQL. Statement owners retain their 1 MiB (1,048,576-byte) bound.
 Compiler callers may lower quotas; they cannot use budgets to enable unsupported
 syntax. Bounds cover both conditional branches' syntax; execution work covers
 the evaluated branch. Parser recursion has an independent bounded depth.
@@ -510,7 +510,7 @@ multiplicity. This is exact-value equality, not collation-based SQL equality or
 an implicit ORDER BY. Types, field names/order, NULL and supported cell states
 are preserved. No JSON-number conversion or presentation string comparison is
 permitted. Every expected row is bounded by the shared value codec; expected
-literal text retains the 4,096-byte statement-parser limit. The observed schema
+literal text retains the 1 MiB (1,048,576-byte) statement-parser limit. The observed schema
 must match, and success requires complete terminal coverage and the exact row
 count. Missing/extra/duplicate rows fail; reaching a result limit is not success.
 

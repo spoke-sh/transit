@@ -74,7 +74,7 @@ finite row counts do not allow unbounded aggregate allocation.
 
 Catalog, branch, object, operation and accepted positions use all 64 bits. Native
 realm/resource/principal/audience/namespace identities retain their safe-integer
-bound. Names admit 255 UTF-8 bytes; SQL admits 4,096 bytes. Native encoded intents
+bound. Names admit 255 UTF-8 bytes; SQL admits 1,048,576 bytes. Native encoded intents
 admit 8,388,644 bytes, complete actions 16,793,672 bytes and responses 16,810,056
 bytes. One installed intent is resident per client. Other SDK routes retain their
 own limits.

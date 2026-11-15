@@ -38,7 +38,7 @@ request before worker submission. The four-argument overload or `null` selects
 ordinary SQL; an empty list selects a template without placeholders.
 The immutable bundle survives the input list and client.
 
-The name binds one explicit source. SQL is limited to 4096 bytes and bindings to
+The name binds one explicit source. SQL is limited to 1,048,576 bytes (1 MiB) and bindings to
 65 exact logical atoms, with an unsigned uint64-range atom for LIMIT; no casts, null parameters or
 text substitution occur. Compilation checks current source access and budgets
 before and after binding and returns no bundle on failure. It takes no snapshot

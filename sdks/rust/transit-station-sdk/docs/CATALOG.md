@@ -52,7 +52,7 @@ retarget an object subsequently created under the same name.
 Catalog, object, branch, operation, definition revision and accepted positions
 use full-width `u64`. Native resource, audience, principal, role and namespace
 identities retain native safe-integer bounds. `Identity::new(operation, namespace)`
-requires positive identities. SQL text is limited to 4,096 UTF-8 bytes; names to
+requires positive identities. SQL text is limited to 1,048,576 UTF-8 bytes; names to
 255 UTF-8 bytes. Generated capability values expose intent/action bounds.
 
 `Schema` owns up to 128 columns and stable primary-key column IDs. Logical

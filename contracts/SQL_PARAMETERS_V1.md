@@ -50,7 +50,7 @@ representations as inspection. `parameters` is either omitted/null for ordinary
 SQL or an ordered array of neutral scalars for the template grammar. An empty
 array accepts only a template with no placeholders. Every ordinal must have one
 value of its exact inferred type. The grammar-derived parameter-count bound,
-4096-byte SQL limit and existing request/scalar/bundle limits apply before any
+1 MiB SQL limit and existing request/scalar/bundle limits apply before any
 execution. SQL text is never constructed from parameter values.
 
 `Workspace.compile` accepts the same optional `parameters` with its configured
@@ -205,7 +205,7 @@ owner. It does not implement every SQL dialect feature.
 `TableDmlPrepared` accepts parameters in INSERT values, UPDATE assignments and
 right comparison operands for UPDATE/DELETE. It owns the full Table schema and
 syntax, infers exact descriptors, and rejects gaps and inconsistent repeated
-slots. It admits at most 256 parameters in one 4096-byte statement. Binding
+slots. It admits at most 256 parameters in one 1 MiB statement. Binding
 checks count, types, NULL constraints and column limits and returns an owned
 canonical DML plan. Explicit NULL never requests a default. The existing
 1024-row and 4 MiB intent limits apply; binding uses a bounded codec buffer of

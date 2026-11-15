@@ -43,7 +43,7 @@ SQL/PostgreSQL reference semantics and explicit exclusions.
 
 ## Supported forms
 
-The compiler accepts one statement of at most 4096 bytes. Names contain at most
+The compiler accepts one statement of at most 1 MiB (1,048,576 bytes). Names contain at most
 63 UTF-8 bytes. Quoted identifiers preserve case; unquoted identifiers follow
 the shared SQL name rules. Each grant/revoke targets one object and one grantee.
 

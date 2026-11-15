@@ -58,7 +58,7 @@ and allocation boundary; constructing a Limits value does not reserve capacity.
 | Native HTTP session lease (`session_lease_ms`) | 30 seconds | 270 seconds |
 
 Every configured bound except the wire idle timeout is positive. A cycle
-accommodates at least one frame and fits the session budget. SQL text remains at most 4096 bytes. The common maximum
+accommodates at least one frame and fits the session budget. SQL text remains at most 1 MiB (1,048,576 bytes). The common maximum
 parameter count is 256; the owning SELECT/DML compiler can impose a tighter
 syntax/plan bound. The constants reserve at most 63 bytes for account/database/statement/portal
 names and 32 configured accounts. Their owning session/configuration APIs must

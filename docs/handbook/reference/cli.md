@@ -96,7 +96,7 @@ retain their case outcomes and do not make that claim.
 
 The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 files,
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations
-and 8 MiB emitted SQL. The ordinary SQL owner retains its 4,096-byte statement
+and 8 MiB emitted SQL. The ordinary SQL owner retains its 1 MiB statement
 limit. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
 additional tooling limits and syntax. Migration synthesis and the
 broader [source model](applications.md#planned-source-language-and-build-model)

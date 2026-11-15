@@ -229,6 +229,6 @@ atom, order or literal changes the plan fingerprint; changes during execution
 fail before the next row. Fingerprints use at most 8192 encoded bytes, including
 the whole plan and each literal's typed encoding. Each typed literal is at most
 4096 bytes; satisfying that bound alone does not satisfy the complete fingerprint
-budget. SQL keeps its 220-byte per-literal and 4096-byte statement bounds.
+budget. SQL keeps its 220-byte per-literal and 1 MiB statement bounds.
 Existing single-atom fingerprints are unchanged. File programs do not change
 native saved-plan encodings, language ABI layouts or file-source bindings.

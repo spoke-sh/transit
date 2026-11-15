@@ -54,7 +54,7 @@ optional defaults and character bounds. Encoding and collation are independent
 physical descriptors. New columns default to `:plain` encoding and `:none`
 collation; returned schemas require both fields explicitly. Shared Zig validation
 owns supported combinations and conversion semantics. Empty primary keys allow
-unkeyed duplicate rows. Names are at most 255 UTF-8 bytes; SQL is at most 4096.
+unkeyed duplicate rows. Names are at most 255 UTF-8 bytes; SQL is at most 1,048,576 bytes.
 
 `prepare(name, identity, operation)` accepts these typed operations:
 

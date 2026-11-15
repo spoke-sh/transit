@@ -15,7 +15,7 @@ Capacity refusals, lost responses,
 other errors and cancellation do not retry or create replacement statements.
 Runtime validation checks typed cells, full-width counts, result identity and
 completion. Requests are
-limited to 64 KiB and replies to 4 MiB. The facade defaults to Board's same-origin
+limited to 2 MiB and replies to 4 MiB. The facade defaults to Board's same-origin
 `/api/v1/sql-read`; an injected `ReadTransport` must preserve that contract.
 Consumers clear cached presentation on every failed observation and close on
 departure. A successful close response is distinct from aborting a browser wait.
@@ -23,7 +23,7 @@ Views carry exact canonical observation JSON as an opaque string, not JavaScript
 numbers. This read facade does not replace finite Live or captured-query owners.
 
 `httpTransport(path, timeoutMs)` calls one configured same-origin host. It bounds
-requests to 64 KiB and decoded replies to 1 MiB before parsing, validates response
+requests to 2 MiB and decoded replies to 1 MiB before parsing, validates response
 structure and semantic cell/budget bounds. At most three retries
 use the identical request for pre-dispatch 429s or explicit 409 read conflicts
 (`QueryReadConflict` / Board's `QueryExpired`) or classified 503 authority failures

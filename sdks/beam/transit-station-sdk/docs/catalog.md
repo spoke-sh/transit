@@ -57,7 +57,7 @@ conversion bounds apply before later values are encoded. Application-owned
 handler Tables reuse these codecs with their separate native turn semantics.
 
 The mutation form is `{mutate, Basis, Mutation, point | bulk}`. Names are bounded
-to 255 UTF-8 bytes; SQL to 4,096 bytes. Catalog, object, branch, operation,
+to 255 UTF-8 bytes; SQL to 1,048,576 bytes. Catalog, object, branch, operation,
 definition and accepted-position identities preserve full-width unsigned 64-bit
 values. Namespace, audience, role and native resource IDs retain native counter
 bounds. `capabilities/1` exposes the current intent/action limits.

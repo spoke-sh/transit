@@ -77,7 +77,7 @@ unbound parameters even if its configured account can write. Results preserve on
 logical schema, exact cells, observation and terminal count across physical
 batches. Up to four readers and 100 rows per display window are retained; metadata
 windows may be smaller to preserve their disclosure scope. Requests are limited
-to 64 KiB, value allocations to 2 MiB per window and SQL-read replies to 4 MiB.
+to 2 MiB, value allocations to 2 MiB per window and SQL-read replies to 4 MiB.
 Current authority is rechecked before every disclosure, including repeated and
 empty terminal windows. Limits, failures or closed readers cannot establish
 complete coverage. Reader IDs do not create per-viewer sessions.
@@ -93,7 +93,7 @@ and close. Two sessions each admit four single-input SELECT cells, 32 cell
 evaluations, five minutes, 10,000 rows per relation and 16 MiB of retained relation
 allocations. Eight source readers per session bound current/earlier input
 lifetimes separately from explicit SQL readers and their native client reserves.
-Requests remain 64 KiB and responses 4 MiB. Work uses complete typed relations,
+Requests remain 2 MiB and responses 4 MiB. Work uses complete typed relations,
 never displayed rows. Cycles and missing inputs block admission. The reserved
 quoted relation identifier `"workbook.name"` cannot fall back to the catalog.
 
@@ -150,7 +150,7 @@ return a bad-request response. The separate `sql_capabilities` request reports
 local parameter support and grammar bounds. The worksheet has no parameter-entry
 form; existing SQL drafts continue to use ordinary compilation.
 
-The query route accepts at most 64 KiB of JSON per request, including a complete
+The query route accepts at most 2 MiB of JSON per request, including a complete
 hexadecimal query bundle. Replies are bounded to 1 MiB. A result page contains
 at most eight rows and 128 columns with complete logical descriptors, nullability
 and optionality. The browser checks recursive shape and value limits before

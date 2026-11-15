@@ -151,7 +151,7 @@ The native HTTP session lease is a separate setting.
 
 The default gateway limits include 64 connections, eight per account, 16 prepared
 statements and four portals per session, with a 16 MiB session allocator budget.
-Wire SQL text is at most 4096 bytes. Interactive reads admit at most 10,000 output
+Wire SQL text is at most 1 MiB (1,048,576 bytes). Interactive reads admit at most 10,000 output
 rows, 16 MiB of result bytes and 10,000 native requests; relational execution has
 separate bounded work and spill. The wire contract lists configurable ceilings.
 

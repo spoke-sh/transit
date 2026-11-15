@@ -8,7 +8,7 @@ source and requester access and current query policy are required, as for
 
 The shared Fuze parser recognizes `DESCRIBE name`, `SHOW TABLES`, and
 `EXPLAIN SELECT ...`. Inspection consumes one complete statement with the same
-4096-byte UTF-8, identifier and comment bounds as SELECT. The query compiler's
+1 MiB UTF-8, identifier and comment bounds as SELECT. The query compiler's
 SELECT entry point rejects all three inspection forms. `EXPLAIN ANALYZE`,
 `DESCRIBE SELECT`, catalog filters and multiple statements are excluded.
 `SHOW SOURCES`, `SHOW SINKS` and `SHOW CONNECTIONS` name connector catalogs;

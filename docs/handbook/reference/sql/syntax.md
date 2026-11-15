@@ -99,7 +99,7 @@ operator support remain separate.
 
 ## Query bounds and rejection
 
-The production parser accepts at most 4096 UTF-8 bytes, 16-byte identifiers,
+The production parser accepts at most 1 MiB (1,048,576 UTF-8 bytes), 16-byte identifiers,
 16 levels of block comments and 220 bytes per decoded literal cell. It rejects
 NUL, malformed UTF-8, unterminated tokens and out-of-range integers. The AST holds
 at most eight explicit projected columns and a predicate of at most 64 instructions.

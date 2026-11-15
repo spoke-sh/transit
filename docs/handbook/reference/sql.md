@@ -310,7 +310,7 @@ define precedence, unknown values, eager errors and the 64-instruction bound.
 
 ## Bounds and unsupported operations
 
-Input is at most 4096 UTF-8 bytes. The scalar query profile bounds names to 16
+Input is at most 1 MiB (1,048,576 UTF-8 bytes) per statement. The scalar query profile bounds names to 16
 ASCII identifier bytes; general Table and relational names admit 255 UTF-8
 bytes. Nested block comments are bounded to 16 levels. One optional semicolon, whitespace,
 line comments and nested block comments are accepted. Additional statements and

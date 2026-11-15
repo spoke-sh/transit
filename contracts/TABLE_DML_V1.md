@@ -31,7 +31,7 @@ the schema/value owners. Duplicate unkeyed values remain separate row inputs.
 The execution owner checks declared uniqueness against the complete candidate
 and current frozen data; compilation does not claim a primary key is available.
 
-SQL has a 4096-byte input bound. The owned plan admits 1–1024 INSERT rows, each
+SQL has a 1 MiB input bound. The owned plan admits 1–1024 INSERT rows, each
 within the existing schema/value limits. These bound one operation, not total
 Table cardinality. Row identities come from durable operation identity and row
 ordinal at execution; this compiler does not invent identities or consume IDs.
@@ -43,7 +43,7 @@ and keyword case do not affect the compiled intent. Names resolve before this
 step; schema/object identity prevents later name rebinding. Explicit assignment
 order remains part of intent. The canonical intent has a 4 MiB operation bound;
 encoding uses at most one value envelope or one predicate atom as workspace.
-This additional typed-caller bound does not change SQL's 4096-byte text limit.
+This additional typed-caller bound does not change SQL's 1 MiB text limit.
 
 ## Schema-bound plan payload
 
