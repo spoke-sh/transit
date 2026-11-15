@@ -79,28 +79,30 @@ pub const migrate =
 pub const build =
     \\Compile typed application modules offline without applying SQL.
     \\
-    \\Usage: transit build [-f FILE] [--target NAME] [--out DIRECTORY]
-    \\                     [--check] [--fetch] [--override NAME=DIRECTORY]
-    \\                     [--format text|json] [--help]
+    \\Usage: transit build [-f FILE] [--target NAME] [--out DIRECTORY] [--check] [--fetch] [--override NAME=DIRECTORY] [--format text|json] [--help]
     \\
-    \\The default entry is build.transit and the default target is default.
-    \\Normal builds verify frozen dependencies without network access.
-    \\--fetch explicitly fetches pinned repositories and writes transit.lock.
-    \\--check validates and verifies SQL without publishing an artifact.
-    \\--fetch cannot combine with --check, --out or --override.
-    \\--check cannot combine with --out. Explicit outputs must be absent.
+    \\Options:
+    \\  -f FILE                    Build entry file (default: build.transit)
+    \\  --target NAME              Build target (default: default)
+    \\  --out DIRECTORY            Publish artifacts to a new directory
+    \\  --check                    Validate and verify SQL without publishing artifacts
+    \\  --fetch                    Fetch pinned repositories and write transit.lock
+    \\  --override NAME=DIRECTORY  Use a local dependency directory (repeatable)
+    \\  --format text|json         Output format (default: text)
+    \\  --help                     Show this help
     \\
 ;
 
 pub const @"test" =
     \\Run Table and Queue program tests in fresh local databases.
     \\
-    \\Usage: transit test [-f FILE] [--target NAME]
-    \\                    [--override NAME=DIRECTORY] [--format text|json] [--help]
+    \\Usage: transit test [-f FILE] [--target NAME] [--override NAME=DIRECTORY] [--format text|json] [--help]
     \\
-    \\The default entry is build.transit and the default target is tests.
-    \\Dependencies must already be frozen by transit build --fetch.
-    \\All cases compile before execution. Each case owns a temporary database.
-    \\Exit 0 requires complete assertions and successful cleanup.
+    \\Options:
+    \\  -f FILE                    Build entry file (default: build.transit)
+    \\  --target NAME              Test target (default: tests)
+    \\  --override NAME=DIRECTORY  Use a local dependency directory (repeatable)
+    \\  --format text|json         Output format (default: text)
+    \\  --help                     Show this help
     \\
 ;
