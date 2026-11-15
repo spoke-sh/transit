@@ -124,7 +124,9 @@ backend = "inline"
 ''')
         node_config = write("operator/node.json", server_configuration(realm,
             '/operator/seed.key' if placement else keys['operator'],
-            installation='/authority' if placement else work / 'authority',
+            # Keep the server's sibling lock and publication staging directory
+            # inside the writable mount as well as the retained installation.
+            installation='/authority/installation' if placement else work / 'authority',
             port=8080 if placement else node_port,
             listen='0.0.0.0' if placement else '127.0.0.1',
             ursula=dict(url='http://ursula:8080' if placement else store_url,

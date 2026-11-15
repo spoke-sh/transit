@@ -28,7 +28,7 @@ class ServerProcess(subprocess.Popen):
         return result
 
 
-def configuration(realm, root_seed, *, installation='/authority', port=8080,
+def configuration(realm, root_seed, *, installation='/authority/installation', port=8080,
                   listen='0.0.0.0', ursula=None, request_timeout_ms=10000):
     external = dict(root_seed_file=str(root_seed), listen=listen,
                     request_timeout_ms=request_timeout_ms)
