@@ -63,7 +63,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
         admin = native.client(system.url)
         private = bytes.fromhex(system.seed.read_text().strip())
         sequence, principal = system.sequence, 65536
-        def command(body):
+        def command(body, *, rejected=None):
             nonlocal sequence
             sequence += 1
             op = native.prepare(6, private, {'realm': 72, 'principal': 0, 'sequence': sequence, 'command': body})
@@ -73,6 +73,8 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                     status, response = native.exchange(admin, op)
                     if status == 0:
                         return response['position']
+                    if rejected is not None and status == 3 and response == {'err': rejected}:
+                        return None
                     assert status in (6, 7) and time.monotonic() < deadline, (status, response)
                     # An ambiguous acknowledgement retains this exact signed
                     # operation; fixture recovery never allocates a new sequence.
@@ -585,8 +587,19 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             # Expiry remains retirement, distinct from stale activation or access.
             while time.time_ns() // 1_000_000 <= expired['settle_before_ms'] + 10000:
                 time.sleep(0.05)
-            command({'expire': expired['pid']})
+            # Server-owned maintenance can retire this process before the
+            # fixture requests expiry. A rejection is not an expiry receipt:
+            # verify the exact saved process and its unchanged lifetime below.
+            expiry_position = command({'expire': expired['pid']}, rejected='RetiredProcess')
+            expired_state = process(expired)
+            assert expired_state['lifecycle'] == 'expired' and expired_state['owner'] is None, expired_state
+            assert expired_state['pid'] == expired['pid']
+            assert expired_state['work_before_ms'] == expired['work_before_ms']
+            assert expired_state['settle_before_ms'] == expired['settle_before_ms']
             invoke('expired', expired)
+            print(json.dumps(dict(profile='sdk_process_expiry', language=label,
+                                  command='applied' if expiry_position is not None else 'already_retired',
+                                  observed=expired_state['lifecycle'])), flush=True)
             check('public-runner-lifecycle', {
                 'gated_purposes': gates['gates'], 'handler_calls_after_recovery': gates['handled'],
                 'mutation_dispatches': gates['dispatches'], 'exact_commit_retry': exact_commit_retry,
