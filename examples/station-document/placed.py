@@ -1,5 +1,6 @@
 """Two-editor Document schedule in owned Compose or reference infrastructure."""
 import json
+import ipaddress
 import os
 from pathlib import Path
 import secrets
@@ -36,7 +37,6 @@ def run(profile):
         (work / "wal").mkdir()
         placement = None
         cold = None
-        cold_network = None
 
         def write(path, value):
             path = work / path
@@ -81,17 +81,17 @@ def run(profile):
 
         try:
             placement = Reference(work) if profile == "reference" else Compose(work)
-            cold = ColdStore().__enter__()
-            # Owned object storage stays outside the authority. Join only the
-            # storage/provider network; clients still cannot reach it directly.
-            if profile == "reference":
-                cold_network = "kind"
-                subprocess.run(["docker", "network", "connect", cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(["docker", "inspect", cold.name]))[0]
-                placement.cold_address = record["NetworkSettings"]["Networks"][cold_network]["IPAddress"]
-                endpoint = "http://" + placement.cold_address + ":9000"
+            if profile == "compose":
+                (work / "ursula.toml").touch()
+                placement.call("create", "ursula")
+                network = placement.project + "_storage"
             else:
-                endpoint = "http://document-cold:9000"
+                network = "kind"
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if 'Gateway' in item and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None: raise RuntimeError('Document placement needs a private IPv4 bridge gateway')
+            cold = ColdStore(bind_address=bridge).__enter__()
+            placement.cold_address, placement.cold_port = bridge, cold.port
             config = f'''[server]
 listen = "0.0.0.0:8080"
 admin_listen = "127.0.0.1:0"
@@ -103,24 +103,18 @@ group_count = 1
 [raft.wal]
 backend = "disk"
 path = "{'/data/wal' if profile == 'reference' else '/wal'}"
-''' + cold.config().replace(cold.url, endpoint)
+''' + cold.config()
             (work / "ursula.toml").write_text(config)
             (work / "ursula.toml").chmod(0o600)
             write("operator/node.json", server_configuration(realm, '/operator/seed.key',
                 ursula=dict(url='http://ursula:8080', bucket='document-example', journal='authority')))
-            if profile == "compose" and cold_network is None:
-                placement.call("create", "ursula")
-                cold_network = placement.project + "_storage"
-                subprocess.run(["docker", "network", "connect", "--alias", "document-cold", cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(["docker", "inspect", cold.name]))[0]
-                placement.cold_address = record["NetworkSettings"]["Networks"][cold_network]["IPAddress"]
             storage = placement.start("ursula")
             ready(storage, placement.url("ursula")+"/__ursula/ready")
             placement.initialize()
             authority = placement.start("node")
             url = placement.url("node")
             ready(authority, url+"/health")
-            denied = [placement.address("ursula", "storage")+":8080", placement.cold_address+":9000", "1.1.1.1:443"]
+            denied = [placement.address("ursula", "storage")+":8080", placement.cold_address+":"+str(cold.port), "1.1.1.1:443"]
             assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == dict(authority="reachable", denied=3)
             records = {}
             for principal, role in enumerate(("writer", "left", "right"), 1):
@@ -233,9 +227,6 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
                 print(placement.call("logs", "--tail", "80"))
             raise
         finally:
-            # Detach our external container before Compose deletes its network.
-            if cold and cold_network:
-                subprocess.run(["docker", "network", "disconnect", "--force", cold_network, cold.name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try:
                 if placement: placement.close()
             finally:

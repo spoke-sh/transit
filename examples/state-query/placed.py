@@ -1,5 +1,6 @@
 """Owned placement/recovery of the real query hosts and finite Zig SQL caller."""
 import json
+import ipaddress
 import os
 from pathlib import Path
 import subprocess
@@ -28,7 +29,7 @@ def run(profile, kind):
             (work/role).mkdir(mode=0o700)
             (work/(role+'-data')).mkdir(mode=0o700)
         (work/'wal').mkdir()
-        placement, cold, cold_network = None, None, None
+        placement, cold = None, None
         local, logs = [], []
         url = ''
 
@@ -104,30 +105,27 @@ def run(profile, kind):
 
         try:
             placement = Reference(work) if profile == 'reference' else Compose(work)
-            cold = ColdStore().__enter__()
-            if profile == 'reference':
-                cold_network = 'kind'
-                subprocess.run(['docker', 'network', 'connect', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
-                endpoint = 'http://'+placement.cold_address+':9000'
-            else: endpoint = 'http://query-cold:9000'
-            config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config().replace(cold.url, endpoint)
+            if profile == 'compose':
+                (work/'ursula.toml').touch()
+                placement.call('create', 'ursula')
+                network = placement.project+'_storage'
+            else:
+                network = 'kind'
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if 'Gateway' in item and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None: raise RuntimeError('Query placement needs a private IPv4 bridge gateway')
+            cold = ColdStore(bind_address=bridge).__enter__()
+            placement.cold_address, placement.cold_port = bridge, cold.port
+            config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config()
             (work/'ursula.toml').write_text(config); (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public']))
             write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 ursula_url='http://ursula:8080', bucket='query-example', journal='authority', port=8080, listen='0.0.0.0',
                 resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000))
-            if profile == 'compose':
-                placement.call('create', 'ursula')
-                cold_network = placement.project+'_storage'
-                subprocess.run(['docker', 'network', 'connect', '--alias', 'query-cold', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
             storage = placement.start('ursula'); ready(storage, placement.url('ursula')+'/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
-            denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':9000', '1.1.1.1:443']
+            denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':'+str(cold.port), '1.1.1.1:443']
             assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
             invoke('provision', kind, timeout=1800)
             requester, source = activate('requester'), activate('source')
@@ -194,7 +192,7 @@ def run(profile, kind):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)
             for log in logs: log.close()
-            if cold and cold_network:
-                subprocess.run(['docker', 'network', 'disconnect', cold_network, cold.name], capture_output=True, timeout=15)
-            if placement: placement.close()
-            if cold: cold.__exit__(None, None, None)
+            try:
+                if placement: placement.close()
+            finally:
+                if cold: cold.__exit__(None, None, None)
