@@ -194,6 +194,8 @@ def run(profile, kind):
             assert all(page['complete_coverage'] == (i+1 == len(pages)) for i, page in enumerate(pages))
             versions = invoke('versions')
             assert all(v['released_at'] is not None for v in versions['entries'] if v)
+            if kind == 'table':
+                assert invoke('released-pins')['released'] > 0
             invoke('retire-source')
             try:
                 caller('read')
