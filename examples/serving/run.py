@@ -230,7 +230,10 @@ def run(profile, reactive=False, views=False):
                     try:
                         request('https://127.0.0.1:' + str(proxy.port), '/health', tls=proxy.context, headers={'Host': 'serving.example.test'})
                         break
-                    except (OSError, AssertionError):
+                    # The TLS proxy can return a non-JSON gateway error while
+                    # the replacement port-forward starts. Only readiness is
+                    # retried here; no application operation has been sent.
+                    except (OSError, HTTPException, AssertionError, json.JSONDecodeError):
                         assert time.monotonic() < until
                         time.sleep(.1)
             return handles
