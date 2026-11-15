@@ -1,7 +1,7 @@
 # Retire the standalone transit-node executable and package
 
 [Milestone 3](03-live-storage-and-sql-cutover.md#p7--deliver-the-single-executable-local-profile)
-· **Status: Planned** · 2026-11-14
+· **Status: Implemented; qualification in progress** · 2026-11-14
 
 Make `transit server` the supported way to start native authority, then remove
 `transit-node` from production build targets, installed bundles and future

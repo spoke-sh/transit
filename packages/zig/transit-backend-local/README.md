@@ -3,8 +3,8 @@
 This package persists the existing native authority engine through `TransitLog`
 and `TransitObjectStore` on a local POSIX filesystem. `Backend` owns an exclusive
 directory; request-owned `Store` and `PageStore` instances borrow it.
-`transit-node` selects this adapter with its `local_directory` configuration;
-`transit server` selects it by default. See the [node configuration](../../../apps/transit-node/docs/growing.md)
+`transit server` selects this adapter by default for its embedded native node.
+See the [internal node configuration](../../../apps/transit-node/docs/growing.md)
 for supported operations and current maintenance/diagnostic limits.
 
 Named temporary immutable files publish through the storage package's

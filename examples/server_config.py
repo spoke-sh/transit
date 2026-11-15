@@ -24,6 +24,7 @@ class ServerProcess(subprocess.Popen):
     def wait(self, timeout=None):
         result = super().wait(timeout)
         joined(self.owned)
+        self.owned.clear()
         return result
 
 
