@@ -5578,7 +5578,7 @@
       },
       "open_error_set_uses": 15,
       "propagation": {
-        "try": 2970,
+        "try": 2968,
         "catch": 36
       },
       "imports": [
@@ -9093,7 +9093,8 @@
         "QueueServiceUnavailable": 2,
         "SourceCaptureReadUnavailable": 2,
         "StreamServiceUnavailable": 2,
-        "TableDelegationDenied": 1
+        "TableDelegationDenied": 1,
+        "TransactionDeadlineElapsed": 1
       },
       "outcomes": {},
       "error_sets": {},
@@ -9124,7 +9125,7 @@
       "open_error_set_uses": 13,
       "propagation": {
         "try": 267,
-        "catch": 0
+        "catch": 1
       },
       "imports": [
         "DirectCatalogRecords.zig",
@@ -29263,7 +29264,7 @@
     },
     "packages/zig/transit-query-direct/src/ApplicationExecution.zig": {
       "errors": {
-        "AccessDenied": 1,
+        "AccessDenied": 2,
         "ApplicationEffectPending": 2,
         "ApplicationEffectUnknown": 1,
         "ApplicationHostUnavailable": 2,
@@ -29284,7 +29285,7 @@
         "InvalidDirectRecord": 48,
         "InvalidProgramJson": 1,
         "InvalidProgramNode": 4,
-        "InvalidQueueResponse": 3,
+        "InvalidQueueResponse": 4,
         "InvalidTransactionGuard": 4,
         "NestedAtomicProgram": 2,
         "Overflow": 1,
@@ -29302,9 +29303,11 @@
         "QueryPageBudget": 1,
         "QueryResultBudget": 6,
         "QueueLeaseExpired": 1,
+        "QueueTimeUnavailable": 1,
         "TableDefinitionChanged": 3,
         "TableNotFound": 2,
         "TransactionCapacity": 1,
+        "TransactionDeadlineElapsed": 1,
         "UnknownProgramResource": 1,
         "WriteFailed": 2
       },
@@ -29433,7 +29436,7 @@
       "open_error_set_uses": 7,
       "propagation": {
         "try": 229,
-        "catch": 7
+        "catch": 8
       },
       "imports": [
         "root.zig",

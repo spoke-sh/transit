@@ -1018,6 +1018,7 @@ fn refuse(self: Self, value: M.Declaration, progress: T.Progress, original: I.Wo
         error.ProgramNullabilityMismatch,
         error.DuplicateBrowserParameter,
         error.DuplicateOrEmptyCookie,
+        error.TransactionDeadlineElapsed,
         => .execution,
         error.QueryResultBudget, error.QueryPageBudget, error.TransactionCapacity, error.ProgramTooComplex, error.ProgramTooDeep, error.ApplicationReservationCapacity => .budget,
         error.OwnedRecordClosed => .original_lost,
@@ -1130,7 +1131,30 @@ fn advance(self: Self, client: c.DirectTableClient, value: M.Declaration, work: 
             const status = try tx.settle(transaction.key, self.operation(value, work.*, transaction.step, "commit"), .commit, 1);
             if (status.observation != .decided or !status.cleanup_complete) return;
             if (status.observation.decided.outcome == .committed) return self.committed(client, value, work, status.observation.decided);
-            work.execution.aborting = .{ .refusal = null, .reason = .execution, .evidence = .{ .transaction = transaction.key, .statement = work.execution.completion, .decision = status.observation.decided }, .effect = try work.execution.effectEvidence() };
+            var reason: @FieldType(Failure, "reason") = .execution;
+            if (!work.execution.acknowledged) if (work.receipt) |receipt| {
+                var output: std.heap.ArenaAllocator = .init(client.allocator);
+                defer output.deinit();
+                const page_result = c.DirectQueueClient.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = receipt, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = value.limits.continuation_bytes } } }) catch |err| switch (err) {
+                    error.AccessDenied => blk: {
+                        reason = .authorization;
+                        break :blk null;
+                    },
+                    else => return err,
+                };
+                if (page_result) |result| {
+                    if (result == .recovering) return;
+                    if (result != .page or result.page.rows.len != 1) return error.InvalidQueueResponse;
+                    switch (result.page.rows[0].lease.liveness) {
+                        .expired => reason = .lease_expired,
+                        .fenced => reason = .lease_fenced,
+                        .unavailable => return error.QueueTimeUnavailable,
+                        .live => {},
+                    }
+                }
+            };
+            if (reason == .authorization or reason == .lease_expired or reason == .lease_fenced) work.execution.cancelled = true;
+            work.execution.aborting = .{ .refusal = null, .reason = reason, .evidence = .{ .transaction = transaction.key, .statement = work.execution.completion, .decision = status.observation.decided }, .effect = try work.execution.effectEvidence() };
             work.execution.phase = .abort;
         },
         .abort => return self.abort(client, value, work),

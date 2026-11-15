@@ -208,29 +208,39 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
         },
         .transaction => {
             const request = @field(action.*, @tagName(action_tag));
-            return .{ .transaction = switch (request) {
-                .recover => |value| .{ .recovered = try catalog.recoverTransaction(value, policy) },
-                .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
-                .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
-                .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
-                .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
-                .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
-                .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
-                .stage_kv => |value| .{ .staged = try catalog.stageTransactionKV(value.key, value.basis, value.sequence, value.work, policy) },
-                .stage_log => |value| staged: {
-                    const payload = if (value.payload) |encoded| try encoded.decode(catalog.allocator, c.storage.LogTransactionActions.max_payload_bytes) else null;
-                    defer if (payload) |bytes| catalog.allocator.free(bytes);
-                    break :staged .{ .staged_log = try catalog.stageTransactionLog(value.key, value.basis, value.sequence, value.work, payload, policy) };
+            return .{
+                .transaction = switch (request) {
+                    .recover => |value| .{ .recovered = try catalog.recoverTransaction(value, policy) },
+                    .call => |value| .{ .call = try catalog.transactionCall(value.key, value.steps, value.control, value.cancel, policy) },
+                    .call_outcome => |value| .{ .call = try catalog.transactionCallOutcome(value, policy) },
+                    .begin => |value| .{ .begun = try catalog.beginTransaction(value, policy) },
+                    .acquire => |key| .{ .acquired = try catalog.acquireTransaction(key, policy) },
+                    .inspect => |key| .{ .status = try catalog.inspectTransaction(key, policy) },
+                    .stage => |value| .{ .staged = try catalog.stageTransactionStatement(value.key, value.basis, value.sequence, value.work, policy) },
+                    .stage_kv => |value| .{ .staged = try catalog.stageTransactionKV(value.key, value.basis, value.sequence, value.work, policy) },
+                    .stage_log => |value| staged: {
+                        const payload = if (value.payload) |encoded| try encoded.decode(catalog.allocator, c.storage.LogTransactionActions.max_payload_bytes) else null;
+                        defer if (payload) |bytes| catalog.allocator.free(bytes);
+                        break :staged .{ .staged_log = try catalog.stageTransactionLog(value.key, value.basis, value.sequence, value.work, payload, policy) };
+                    },
+                    .log_statement => |value| .{ .log_statement = if (value.execute) try catalog.executeTransactionLog(value.key, value.request, policy) else try catalog.admitTransactionLog(value.key, value.request, policy) },
+                    .log_outcome => |value| .{ .log_statement = try catalog.transactionLogOutcome(value.key, value.request, policy) },
+                    .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
+                    .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
+                    .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
+                    .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
+                    .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
+                    .settle => |value| .{
+                        .status = catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) catch |err| retry: {
+                            // Wire transport collapses permanent commit invalidations into Conflict.
+                            // Record the abort on the same original attempt while preserving explicit
+                            // DeadlineExpired refusals that already cross the wire distinctly.
+                            if (value.command != .commit or err == error.TransactionDeadlineElapsed or !c.DirectCatalog.isPermanentCommitInvalidation(err)) return err;
+                            break :retry try catalog.settleTransaction(value.key, value.operation, .abort, value.steps, policy);
+                        },
+                    },
                 },
-                .log_statement => |value| .{ .log_statement = if (value.execute) try catalog.executeTransactionLog(value.key, value.request, policy) else try catalog.admitTransactionLog(value.key, value.request, policy) },
-                .log_outcome => |value| .{ .log_statement = try catalog.transactionLogOutcome(value.key, value.request, policy) },
-                .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
-                .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
-                .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
-                .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
-                .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },
-                .settle => |value| .{ .status = try catalog.settleTransaction(value.key, value.operation, value.command, value.steps, policy) },
-            } };
+            };
         },
         .managed_inspection => return .{ .managed_inspection = try catalog.inspectManaged(allocator, action.managed_inspection, policy) },
         .record => {

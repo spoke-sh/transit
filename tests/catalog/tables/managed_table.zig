@@ -486,7 +486,10 @@ fn applicationPublication(init: std.process.Init, client: c.DirectTableClient, a
     const p = c.protocol;
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
-    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_input (id BIGINT NOT NULL)", .transit, null);
+    // The service proof runs with resident_pages = 1 across ~172 synchronous
+    // steps per multi-branch invocation, taking ~30s on disk. Use 120s leases
+    // for non-expiry cases; settle invalidation is proved explicitly below.
+    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_input (id BIGINT NOT NULL) WITH (lease_duration = '120s', max_lease_duration = '120s')", .transit, null);
     defer queue.deinit();
     const schema = try queue.statement.action.create.bind(730010);
     const configured = try queue.statement.configure(null, schema);
@@ -674,7 +677,7 @@ fn applicationPhysicalEffects(init: std.process.Init, client: c.DirectTableClien
             sink.* = (try c.DirectSourceClient.apply(&output, client, .{ .inspect = sink.state.declaration.interpretation })).metadata.?;
         }
     }
-    var queue = try q.fuze.LogDdl.compile(allocator, "CREATE QUEUE application_http_input (id UUID NOT NULL, mode BIGINT NOT NULL, request CAPABILITY NOT NULL)", .transit, null);
+    var queue = try q.fuze.LogDdl.compile(allocator, "CREATE QUEUE application_http_input (id UUID NOT NULL, mode BIGINT NOT NULL, request CAPABILITY NOT NULL) WITH (lease_duration = '120s', max_lease_duration = '120s')", .transit, null);
     defer queue.deinit();
     const schema = try queue.statement.action.create.bind(748010);
     const configured = try queue.statement.configure(null, schema);
@@ -854,7 +857,7 @@ fn applicationEffects(init: std.process.Init, client: c.DirectTableClient, limit
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
     const allocator = output.allocator();
-    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_effect_input (id UUID NOT NULL)", .transit, null);
+    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_effect_input (id UUID NOT NULL) WITH (lease_duration = '120s', max_lease_duration = '120s')", .transit, null);
     defer queue.deinit();
     const schema = try queue.statement.action.create.bind(737010);
     const configured = try queue.statement.configure(null, schema);
@@ -1052,7 +1055,7 @@ fn applicationOrderedEffects(init: std.process.Init, client: c.DirectTableClient
     var output: std.heap.ArenaAllocator = .init(client.allocator);
     defer output.deinit();
     const allocator = output.allocator();
-    var queue = try q.fuze.LogDdl.compile(client.allocator, "CREATE QUEUE application_ordered_effect_input (id UUID NOT NULL)", .transit, null);
+    var queue = try q.fuze.LogDdl.compile(allocator, "CREATE QUEUE application_ordered_effect_input (id UUID NOT NULL) WITH (lease_duration = '120s', max_lease_duration = '120s')", .transit, null);
     defer queue.deinit();
     const schema = try queue.statement.action.create.bind(737040);
     const configured = try queue.statement.configure(null, schema);
@@ -2012,4 +2015,154 @@ fn applicationExecution(client: c.DirectTableClient, published: q.ManagedApplica
     try t.expectEqual(@as(usize, 2), page.rows.len);
     for (page.rows, [_]i64{ 7, -8 }) |row, expected| try t.expectEqual(expected, row.value.cells[0].value.atom.signed);
     _ = try c.DirectStreamClient.apply(&output, client, .{ .mutate = .{ .work = .{ .release = .{ .target = target, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733301 }, .read = consumed.handle() } } } });
+    try applicationSettleInvalidation(client, published.limits, &.{ published.resources[0], .table(table.value.result.lookup.?), policy_binding }, metadata.definition.schema, role);
+}
+
+fn applicationSettleInvalidation(client: c.DirectTableClient, limits: q.ApplicationDeclaration.Limits, resources: []const q.ApplicationBinding, input_schema: q.fuze.TableSchema.Schema, role: u64) !void {
+    const p = c.protocol;
+    const T = c.DirectClientToken;
+    const declared = try q.ApplicationDeclaration.prepare(client.allocator, .{
+        .connection = client.connection,
+        .namespace = 1,
+        .object = 733420,
+        .operation = 733400,
+        .source =
+        \\CREATE DATAFLOW application_settle_invalidation FROM QUEUE application_input AS event WHERE id = 5 OR id = 6 OR id = 10 AS BEGIN
+        \\  BEGIN ATOMIC
+        \\    LET policy = SELECT * FROM application_policy WHERE id = 1;
+        \\    REQUIRE policy.enabled ELSE 'Disabled';
+        \\    INSERT INTO application_rows VALUES (event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\  END;
+        \\ON FAILURE failure
+        \\  BEGIN ATOMIC
+        \\    INSERT INTO application_rows VALUES (-event.id) ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\  END;
+        \\END;
+        ,
+        .resources = resources,
+        .limits = limits,
+    });
+    defer declared.deinit();
+    const value = declared.value;
+    const manager: q.ManagedApplication = .{ .client = client };
+    const owner: q.ApplicationInvocation = .{ .manager = manager };
+    var observed = try manager.publish(value);
+    for ([_]p.Dataflow.Command{ .authorize, .activate }, 0..) |command, index| {
+        const saved = try manager.prepareControl(value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733401 + @as(u64, index) }, .target = try value.interpretation(client.allocator), .expected = observed.head.control, .command = command }, if (command == .authorize) role else null);
+        defer client.allocator.free(saved);
+        _ = try manager.applyControl(saved);
+        observed = try manager.inspect(value);
+    }
+    var output: std.heap.ArenaAllocator = .init(client.allocator);
+    defer output.deinit();
+
+    var host: ApplicationHost = .{};
+    for ([_]enum { lease_fenced, table_conflict, ack_log_conflict }{ .lease_fenced, .table_conflict, .ack_log_conflict }, [_]i64{ 5, 6, 10 }, 0..) |mode, item_id, round| {
+        _ = output.reset(.retain_capacity);
+        if (mode == .ack_log_conflict) {
+            for (0..8) |_| {
+                if (dml(client, "UPDATE application_policy SET enabled = TRUE WHERE id = 1", 733411)) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+            } else return error.PolicyRestoreIncomplete;
+        }
+        const append = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, 733405 + round, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = item_id }} });
+        const payload = try append.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+        for (0..8) |_| {
+            if (c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = append.work.append }, .payload = payload } })) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+        } else return error.QueueEnqueueIncomplete;
+        const token = blk: {
+            for (0..8) |_| {
+                if (owner.start(value, 0)) |started| break :blk started.? else |err| if (err != error.InvalidTableResponse) return err;
+            }
+            return error.ApplicationAttachmentIncomplete;
+        };
+        var invalidated = false;
+        var complete = false;
+        for (0..200) |_| {
+            const progress = blk: {
+                for (0..8) |_| {
+                    if (T.inspect(client, token)) |inspected| break :blk inspected.? else |err| if (err != error.InvalidTableResponse) return err;
+                }
+                return error.ApplicationInspectIncomplete;
+            };
+            const saved = blk: {
+                for (0..8) |_| {
+                    if (owner.load(progress)) |loaded| break :blk loaded else |err| if (err != error.InvalidTableResponse) return err;
+                }
+                return error.ApplicationLoadIncomplete;
+            };
+            defer saved.deinit();
+            const target_phase: @FieldType(q.ApplicationExecution.State, "phase") = if (mode == .ack_log_conflict) .ack else .settle;
+            if (!invalidated and saved.value.execution.phase == target_phase and saved.value.execution.transaction.?.kind == .atomic) {
+                switch (mode) {
+                    .lease_fenced => {
+                        for (0..8) |_| {
+                            if (c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .settle = .{ .operation = .{ .scope = client.connection.scope, .principal = client.connection.principal, .operation = 733408 }, .lease = saved.value.input_lease.?, .action = .{ .nack = .{ .visible_ms = 0 } } } } } })) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+                        } else return error.QueueNackIncomplete;
+                    },
+                    .table_conflict => {
+                        for (0..8) |_| {
+                            if (dml(client, "UPDATE application_policy SET enabled = FALSE WHERE id = 1", 733410)) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+                        } else return error.PolicyConflictIncomplete;
+                    },
+                    .ack_log_conflict => {
+                        const extra = try q.ApplicationData.prepareAppend(output.allocator(), client.connection, .{ .declaration = resources[0].value.log.declaration, .schema = input_schema }, 733412, .{ .kind = .queue, .target = "application_input", .values = &.{.{ .integer = 99 }} });
+                        const extra_payload = try extra.payload.decode(output.allocator(), c.DirectTableProtocol.max_work_bytes);
+                        for (0..8) |_| {
+                            if (c.DirectQueueClient.apply(&output, client, .{ .mutate = .{ .work = .{ .enqueue = extra.work.append }, .payload = extra_payload } })) |_| break else |err| if (err != error.InvalidTableResponse) return err;
+                        } else return error.QueueConflictEnqueueIncomplete;
+                    },
+                }
+                invalidated = true;
+            }
+            const recovered = q.ApplicationRecovery.step(manager, token, .{ .context = &host, .ready = q.ApplicationHost.requireReady, .bind = ApplicationHost.bind }) catch |err| {
+                if (err == error.InvalidTableResponse) continue;
+                return err;
+            };
+            if (recovered == .complete) {
+                const next = blk: {
+                    for (0..8) |_| {
+                        if (T.inspect(client, token)) |inspected| break :blk inspected.? else |err| if (err != error.InvalidTableResponse) return err;
+                    }
+                    return error.ApplicationInspectIncomplete;
+                };
+                const final = blk: {
+                    for (0..8) |_| {
+                        if (owner.load(next)) |loaded| break :blk loaded else |err| if (err != error.InvalidTableResponse) return err;
+                    }
+                    return error.ApplicationLoadIncomplete;
+                };
+                defer final.deinit();
+                try t.expectEqual(.complete, final.value.execution.phase);
+                try t.expectEqual(mode == .lease_fenced, final.value.execution.cancelled);
+                try t.expectEqual(mode != .lease_fenced, final.value.execution.acknowledged);
+                try t.expectEqual(if (mode == .lease_fenced) @FieldType(q.ApplicationExecution.Failure, "reason").lease_fenced else .execution, final.value.execution.failure.?.reason);
+                if (mode == .ack_log_conflict) try t.expectEqual(.conflict, final.value.execution.failure.?.evidence.?.statement.?.log.outcome.rejected.reason);
+                try t.expectEqual(.aborted, final.value.execution.failure.?.evidence.?.decision.?.outcome);
+                complete = true;
+                break;
+            }
+        }
+        try t.expect(invalidated and complete);
+        observed = blk: {
+            for (0..8) |_| {
+                if (manager.inspect(value)) |inspected| break :blk inspected else |err| if (err != error.InvalidTableResponse) return err;
+            }
+            return error.ApplicationInspectIncomplete;
+        };
+        try t.expect(observed.head.pending == null);
+        try t.expectEqual(@as(u64, 0), observed.head.completed);
+        try t.expectEqual(@as(u64, round + 1), observed.head.refused);
+        const lookup = blk: {
+            for (0..8) |_| {
+                if (client.call(.{ .lookup = .{ .namespace = 1, .name = "application_rows" } })) |found| break :blk found else |err| if (err != error.InvalidTableResponse) return err;
+            }
+            return error.TableLookupIncomplete;
+        };
+        defer lookup.deinit();
+        try t.expectEqual(@as(u64, switch (mode) {
+            .lease_fenced => 2,
+            .table_conflict => 3,
+            .ack_log_conflict => 4,
+        }), lookup.value.result.lookup.?.row_count);
+    }
 }

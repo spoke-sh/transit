@@ -1006,7 +1006,7 @@ def run(node, caller, mode="tables", *artifacts):
                 authority = start()
                 with ApplicationEffectPeer() as peer:
                     environment = dict(os.environ, TRANSIT_TEST_APPLICATION_EFFECT_PORT=str(peer.server.server_port))
-                    subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=600, env=environment)
+                    subprocess.run([caller, endpoint, "managed-verify", str(profile)], check=True, timeout=900, env=environment)
                 # Native retained history may contain opaque references and
                 # commitments, never request credentials or provider bodies.
                 for retained in (root / "native").rglob("*"):

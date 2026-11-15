@@ -50,6 +50,12 @@ application_work: bool = true,
 application_pending: bool = false,
 application_waiting: bool = false,
 application_has_declarations: u64 = 0,
+application_declarations_scanned: u64 = 0,
+application_declarations_clean: bool = true,
+application_waiting_mask: u64 = 0,
+application_waiting_tokens: [64][16]u8 = undefined,
+sweep_generation: u64 = 0,
+waiting_checked_ns: i96 = 0,
 application_scratch: ?std.heap.ArenaAllocator = null,
 /// Deployment-owned composition, fixed before the runtime starts and borrowed
 /// until every recovery task joins. Absence selects the public data-only host.
@@ -416,6 +422,8 @@ pub fn drainReadPins(self: *Self) !void {
 pub fn tick(self: *Self) !bool {
     if (self.sweep == null) {
         self.sweep = self.work.begin(self.io) orelse return false;
+        self.sweep_generation = self.sweep.? +% @intFromBool(self.foreground_notified.load(.acquire));
+        self.waiting_checked_ns = std.Io.Clock.awake.now(self.io).nanoseconds;
         self.after = 0;
         self.scan_complete = false;
         self.retry_pending = false;
@@ -428,6 +436,9 @@ pub fn tick(self: *Self) !bool {
         self.application_work = true;
         self.application_pending = false;
         self.application_waiting = false;
+        self.application_declarations_scanned = 0;
+        self.application_declarations_clean = true;
+        self.application_waiting_mask = 0;
     }
     errdefer {
         self.ready.store(false, .release);
@@ -519,8 +530,21 @@ pub fn tick(self: *Self) !bool {
     if (!was_ready or progressed) self.notifyProgress();
     if (!self.scan_complete or cleanup_pending) return true;
     if (self.managed_directory != null and try self.managedStep()) return true;
+    const current_generation = self.work.requestedGeneration(self.io) +% @intFromBool(self.foreground_notified.load(.acquire));
+    if (current_generation != self.sweep_generation) {
+        self.sweep_generation = current_generation;
+        self.waiting_checked_ns = std.Io.Clock.awake.now(self.io).nanoseconds;
+        self.application_waiting_mask = 0;
+        self.application_declarations_scanned = 0;
+    }
     if (try self.applicationStep()) return true;
     if (self.managed_pending or self.application_pending) {
+        const now_ns = std.Io.Clock.awake.now(self.io).nanoseconds;
+        if (now_ns - self.waiting_checked_ns >= 100 * std.time.ns_per_ms) {
+            self.waiting_checked_ns = now_ns;
+            self.application_waiting_mask = 0;
+            self.application_declarations_scanned = 0;
+        }
         self.managed_route = 0;
         self.managed_after = null;
         self.managed_work = true;
@@ -529,6 +553,7 @@ pub fn tick(self: *Self) !bool {
         self.application_after = null;
         self.application_work = true;
         self.application_pending = false;
+        self.application_declarations_clean = true;
         return true;
     }
     self.finishSweep(self.retry_pending);
@@ -629,12 +654,14 @@ fn applicationStep(self: *Self) !bool {
             self.application_route += 1;
             self.application_after = null;
             self.application_work = true;
+            self.application_declarations_clean = true;
         }
         if (self.application_route >= bindings.len) return false;
         const bit = @as(u64, 1) << @intCast(self.application_route);
         if (self.application_work and (self.application_has_declarations & bit) == 0) {
             self.application_work = false;
             self.application_after = null;
+            self.application_declarations_clean = true;
         }
         const caller = self.private.table(bindings[self.application_route]);
         const manager: M = .{ .client = caller };
@@ -649,14 +676,28 @@ fn applicationStep(self: *Self) !bool {
             if (original.phase == .reserved or original.phase == .closed) continue;
             if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidDirectRecord;
             if (!g.Client.hasConnectionNamespace(bindings, self.application_route, entry.receipt.binding.intent.external.namespace)) continue;
+            if (self.application_work) {
+                const slot_idx: u6 = @truncate(std.hash.Wyhash.hash(0, &entry.receipt.binding.key.token));
+                if ((self.application_waiting_mask & (@as(u64, 1) << slot_idx)) != 0 and
+                    std.mem.eql(u8, &self.application_waiting_tokens[slot_idx], &entry.receipt.binding.key.token))
+                {
+                    continue;
+                }
+            }
             const selected = self.claim(entry.receipt.binding.key.token);
             if (!selected.tryLock()) {
+                if (!self.application_work) self.application_declarations_clean = false;
                 self.retry_pending = true;
                 return true;
             }
             defer selected.unlock(self.io);
             self.applicationOne(manager, entry) catch |err| {
                 if (err == error.Canceled or err == error.Cancelled) return err;
+                if (self.application_work) {
+                    self.application_declarations_scanned &= ~bit;
+                } else {
+                    self.application_declarations_clean = false;
+                }
                 self.direct_work_failure.store(@intFromError(err), .release);
                 if (wire.Client.unavailable(err) or self.background.contended(err) or
                     err == error.InvalidTableResponse or err == error.ManagedTableInitializationPending or
@@ -671,13 +712,19 @@ fn applicationStep(self: *Self) !bool {
             return true;
         }
         if (self.application_work) {
-            self.application_work = false;
-            self.application_after = null;
-            continue;
+            if ((self.application_declarations_scanned & bit) == 0) {
+                self.application_work = false;
+                self.application_after = null;
+                self.application_declarations_clean = true;
+                continue;
+            }
+        } else if (self.application_declarations_clean) {
+            self.application_declarations_scanned |= bit;
         }
         self.application_route += 1;
         self.application_after = null;
         self.application_work = true;
+        self.application_declarations_clean = true;
     }
 }
 fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.DirectClientToken.Progress) !void {
@@ -688,11 +735,18 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
         var host: g.direct.ApplicationHost = .{ .scratch = scratch.allocator(), .io = self.io };
         const selected = self.application_host orelse host.recovery();
         switch (try g.direct.ApplicationRecovery.step(manager, entry.receipt.binding.key, selected)) {
-            .complete => {},
+            .complete => {
+                self.application_declarations_scanned &= ~(@as(u64, 1) << @intCast(self.application_route));
+                self.application_waiting_mask = 0;
+                self.application_pending = true;
+            },
             .progressed => self.application_pending = true,
             .waiting => {
                 self.retry_pending = true;
                 self.application_waiting = true;
+                const slot_idx: u6 = @truncate(std.hash.Wyhash.hash(0, &entry.receipt.binding.key.token));
+                self.application_waiting_mask |= @as(u64, 1) << slot_idx;
+                self.application_waiting_tokens[slot_idx] = entry.receipt.binding.key.token;
             },
         }
     } else {
