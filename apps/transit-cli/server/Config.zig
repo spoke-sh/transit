@@ -45,7 +45,8 @@ pub const External = struct {
 pub const Ports = struct { node: u16, gateway: u16 };
 /// Null selects the role compiled into `transit`. Explicit paths select the
 /// matching standalone role, never an ambient PATH or adjacent-file fallback.
-pub const Executables = struct { sql_gateway: ?[]const u8 = null, node: ?[]const u8 = null, query_host: ?[]const u8 = null, board: ?[]const u8 = null };
+pub const Executables = struct { sql_gateway: ?[]const u8 = null, query_host: ?[]const u8 = null, board: ?[]const u8 = null };
+pub const artifact_roles = .{ "node", "query_host", "sql_gateway", "board" };
 pub const Identity = struct { sql_gateway: [32]u8, config: [32]u8, cli: [32]u8, node: [32]u8, query_host: [32]u8, board: [32]u8 };
 pub const Inputs = struct {
     path: []const u8,
@@ -236,10 +237,10 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8, di
     }
     diagnostic.field = "transit executable";
     result.cli = try checkedDigest(init, executable, diagnostic);
-    inline for (@typeInfo(Executables).@"struct".field_names) |name| {
-        diagnostic.field = "executables." ++ name;
+    inline for (artifact_roles) |name| {
+        diagnostic.field = if (comptime std.mem.eql(u8, name, "node")) "transit executable" else "executables." ++ name;
         @field(result, name) = self.roleDigest(init, result.cli, @field(RuntimeRole.Role, name)) catch |err| {
-            diagnostic.setFailure(err, "cannot validate the configured executable", "Use the matching transit executable or an explicit matching standalone role.");
+            diagnostic.setFailure(err, "cannot validate the configured executable", "Use the matching transit executable and matching configured components.");
             return error.InvalidConfiguration;
         };
     }
@@ -248,14 +249,18 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8, di
 }
 
 pub fn command(self: Self, allocator: std.mem.Allocator, executable: []const u8, comptime role: RuntimeRole.Role, args: []const []const u8) ![]const []const u8 {
-    return RuntimeRole.arguments(allocator, executable, @field(self.executables, @tagName(role)), role, args);
+    return RuntimeRole.arguments(allocator, executable, self.externalExecutable(role), role, args);
+}
+
+fn externalExecutable(self: Self, comptime role: RuntimeRole.Role) ?[]const u8 {
+    return if (role == .node) null else @field(self.executables, @tagName(role));
 }
 
 /// The retained artifact identity binds role and invocation mode as well as the
 /// shared definition and actual executable bytes. Equal files in different roles
 /// or a changed external/embedded selection cannot silently reuse installation.
 pub fn roleDigest(self: Self, init: std.process.Init, executable_digest: [32]u8, comptime role: RuntimeRole.Role) ![32]u8 {
-    const external = @field(self.executables, @tagName(role));
+    const external = self.externalExecutable(role);
     // All embedded roles share the exact CLI bytes already validated during
     // this observation. Hash that file once, then bind each role separately.
     const bytes = if (external) |path| try digest(init, path) else executable_digest;

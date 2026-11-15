@@ -40,7 +40,6 @@ pub const descriptors = [_]D{
     .{ .name = "query.statement_timeout_ceiling", .default_json = "0", .description = "Maximum session deadline; zero is unlimited", .owner = "query", .kind = .duration, .scope = .session, .change = .new_session, .maximum = 86400000 },
     port("ports.node", "node"),
     port("ports.gateway", "gateway"),
-    executable("executables.node", "node"),
     executable("executables.query_host", "query"),
     executable("executables.board", "board"),
     executable("executables.sql_gateway", "sql"),

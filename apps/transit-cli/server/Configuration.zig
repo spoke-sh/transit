@@ -308,7 +308,7 @@ fn matchingArtifacts(init: std.process.Init, config: Config, identity: Config.Id
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const executable_digest = try Config.digest(init, executable);
     if (!std.mem.eql(u8, &executable_digest, &identity.cli)) return false;
-    inline for (@typeInfo(Config.Executables).@"struct".field_names) |name| {
+    inline for (Config.artifact_roles) |name| {
         const actual = try config.roleDigest(init, executable_digest, @field(@import("../RuntimeRole.zig").Role, name));
         if (!std.mem.eql(u8, &actual, &@field(identity, name))) return false;
     }
