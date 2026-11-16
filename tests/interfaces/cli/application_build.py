@@ -716,7 +716,11 @@ def install_typed_queue(fixture, sql):
     outcomes = []
     for suffix, refused in (('a', 3), ('b', 0)):
         name = f'typed_process_{suffix}'
-        head = await_head(fixture, name, lambda h: h['completed'] + h['refused'] >= refused + 1)['observation']['head']
+        # Both pipelines keep running after the same batch of enqueues. Give
+        # each expected terminal outcome the existing bounded observation wait;
+        # attempts and pending work cannot reset it. A's first item settled above.
+        for terminal_count in range(2 if suffix == 'a' else 1, refused + 2):
+            head = await_head(fixture, name, lambda h, expected=terminal_count: h['completed'] + h['refused'] >= expected)['observation']['head']
         assert (head['completed'], head['refused']) == (1, refused), head
         rows = fixture.console(f'SELECT id, machine_id, body FROM typed_accepted_{suffix} ORDER BY id; CONSUME id, machine_id, body FROM typed_events_{suffix};')
         assert [records(value) for value in rows if 'schema' in value] == [[{'id': '7', 'machine_id': '7', 'body': 'ready'}]] * 2, rows

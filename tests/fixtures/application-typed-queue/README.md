@@ -19,6 +19,14 @@ asserts both zero Table rows and zero Stream rows. The installed build journey
 checks the combined scenario and retained recovery; isolated cases do not replace
 that shared-installation proof.
 
+In the installed journey both consumers remain active and the remaining inputs
+are enqueued together. Each expected terminal outcome has its own 180-second
+observation allowance; the three refusals can therefore span three such waits.
+Only completed/refused counts advance this finite schedule. Pending work and
+attempt changes do not extend a wait. Exact final counts, rows, rollback,
+original-token recovery and revocation remain required. These allowances qualify
+completion and recovery; batch-latency budgets belong to the performance suite.
+
 `expected.sql` is independently authored scalar SQL with explicit bindings,
 instruction order and atomic boundaries. It contains no runtime source domains
 or sidecar. Ordinary SQL can submit scalar values to these resources: source
