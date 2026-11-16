@@ -128,7 +128,9 @@ def _run(node, cli, libraries, cold):
         maintenance_config = s.root / "maintenance.json"
         maintenance_config.write_text(json.dumps({**json.loads(s.config.read_text()), "maintenance": {
             "principal": 2, "seed_file": str(maintenance_seed), "interval_ms": 25, "checkpoint_every_records": 4}}))
-        maintenance = s.start(node, maintenance_config, "--maintain", env=os.environ | {"LOG_LEVEL": "info", "LOG_FORMAT": "json"})
+        s.authority.kill(); s.authority.wait(timeout=10)
+        maintenance = s.authority = s.start(node, maintenance_config, env=os.environ | {"LOG_LEVEL": "info", "LOG_FORMAT": "json"})
+        wait_ready(s.store.http, maintenance, s.url + "/health")
         until = time.monotonic() + 15
         while True:
             assert maintenance.poll() is None and time.monotonic() < until
@@ -147,6 +149,8 @@ def _run(node, cli, libraries, cold):
             assert maintenance.poll() is None and time.monotonic() < until
             time.sleep(.05)
         maintenance.terminate(); maintenance.wait(timeout=10)
+        s.authority = s.start(node, s.config)
+        wait_ready(s.store.http, s.authority, s.url + "/health")
         # This update/reinsertion is in the tail after the published checkpoint.
         assert update(1, 4)['counts'] == {'matched': '1', 'changed': '1'}
         assert insert((2, 3))['counts'] == {'matched': '1', 'changed': '1'}

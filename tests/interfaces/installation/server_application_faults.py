@@ -121,8 +121,6 @@ def node(real, directory, args):
     No private Transit installation checkpoint is edited by the fault injector.
     """
     directory = Path(directory)
-    if '--maintain' in args:
-        os.execv(real[0], [*real, *args])
     source = json.loads(Path(args[0]).read_text())
     external = source['port']
     source['port'] = free_port()
