@@ -14,6 +14,7 @@ import uuid
 
 sys.path.insert(0, str(ROOT / "launchers"))
 from common import HTTP, run, write
+from native_client import ClientError
 from station_example import StationInstallation
 from interfaces.deployment.launchers import ports
 from runtime.station.station_ledger import audit_total
@@ -60,7 +61,14 @@ def exercise(profile, name=None, base=None, existing=False):
     def await_value(predicate, description, seconds=60):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            if predicate(): return
+            try:
+                if predicate(): return
+            except ClientError as error:
+                if error.status != 5 or error.detail != {'err': 'QueryExpired'}:
+                    raise
+                # Owner replacement invalidates volatile snapshots. Discard
+                # the entire incomplete audit and poll a new snapshot within
+                # the original budget; never combine pages from different cuts.
             time.sleep(.2)
         raise AssertionError(description)
 
