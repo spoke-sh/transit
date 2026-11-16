@@ -896,6 +896,7 @@
       "implementation": [
         "packages/zig/transit-exchange/src/Exchange.zig",
         "packages/zig/transit-station-http/src/Transport.zig",
+        "packages/zig/transit-http/src/Transport.zig",
         "apps/transit-station-http-worker/main.zig",
         "packages/zig/transit-station-http/src/Service.zig",
         "packages/zig/transit-station-bindings/src/HttpCodec.zig"
