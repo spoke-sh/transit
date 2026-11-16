@@ -24,34 +24,6 @@ test "shared HTTP fixtures fix Unicode escaping and terminal record encodings" {
     var buffer: [http.Request.maximum_head_bytes]u8 = undefined;
     try t.expectEqualStrings(fixture.rendered, try fixture.request.render("example.test", 443, &buffer, null, false));
 }
-test "request rendering preserves duplicate headers and escapes variables without resolving capture secrets" {
-    const request: http.Request = .{ .method = .GET, .target = &.{ .{ .literal = "/search?q=" }, .{ .variable = .{ .name = "query", .value = "a&b\r\n" } } }, .headers = &.{ .{ .name = "X-Tag", .value = &.{.{ .literal = "one" }} }, .{ .name = "X-Tag", .value = &.{.{ .literal = "two" }} }, .{ .name = "Authorization", .value = &.{ .{ .literal = "Bearer " }, .{ .secret = .{ .binding = "api", .version = 7 } } } } } };
-    var buffer: [http.Request.maximum_head_bytes]u8 = undefined;
-    const captured = try request.render("example.test", 443, &buffer, null, false);
-    try t.expect(std.mem.indexOf(u8, captured, "/search?q=a%26b%0D%0A") != null);
-    try t.expect(std.mem.indexOf(u8, captured, "X-Tag: one\r\nX-Tag: two") != null);
-    try t.expect(std.mem.indexOf(u8, captured, "{{secrets.api@7}}") != null);
-    const template = try request.render("example.test", 443, &buffer, null, true);
-    try t.expect(std.mem.indexOf(u8, template, "{{vars.query}}") != null);
-    var provenance: std.Io.Writer = .fixed(&buffer);
-    try request.provenance(&provenance);
-    const parsed = try std.json.parseFromSlice(http.Request, t.allocator, provenance.buffered(), .{});
-    defer parsed.deinit();
-    try t.expectEqualStrings("a&b\r\n", parsed.value.target[1].variable.value);
-    try t.expectEqual(@as(u64, 7), parsed.value.headers[2].value[1].secret.version);
-}
-test "reject header injection, ambient routing fields and unsafe request target" {
-    var buffer: [http.Request.maximum_head_bytes]u8 = undefined;
-    var request: http.Request = .{ .method = .POST, .target = &.{.{ .literal = "/" }}, .headers = &.{.{ .name = "X-Test", .value = &.{.{ .variable = .{ .name = "x", .value = "safe\r\nHost: stolen" } }} }} };
-    try t.expectError(error.InvalidHttpHeader, request.render("example.test", 443, &buffer, null, false));
-    request.headers = &.{.{ .name = "Transfer-Encoding", .value = &.{.{ .literal = "chunked" }} }};
-    try t.expectError(error.ReservedHttpHeader, request.render("example.test", 443, &buffer, null, false));
-    request.headers = &.{};
-    request.target = &.{.{ .literal = "//other.test/" }};
-    try t.expectError(error.InvalidHttpTarget, request.render("example.test", 443, &buffer, null, false));
-    request.target = &.{ .{ .literal = "/" }, .{ .literal = "/other.test/" } };
-    try t.expectError(error.InvalidHttpTarget, request.render("example.test", 443, &buffer, null, false));
-}
 fn replayFixture(validator: *http.Replay.Validator, omit: bool) !void {
     try validator.push(.request_template, "{}");
     try validator.push(.request_head, "POST / HTTP/1.1\r\nContent-Length: 4\r\n\r\n");
@@ -118,23 +90,6 @@ test "explicit followup policies preserve destination credentials and permitted 
     next.cancel_policy.?.revision += 1;
     try t.expectError(error.HttpFollowupChanged, http.Policy.followup(t.allocator, .cancel, parent, next, null, null));
 }
-test "response framing rejects ambiguous lengths and unqualified decompression" {
-    try t.expectError(error.InvalidHttpFraming, http.validateResponse("HTTP/1.1 xyz Invalid\r\n\r\n"));
-    _ = try http.validateResponse("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nX-A: one\r\nX-A: two\r\n\r\n");
-    try t.expectError(error.InvalidHttpFraming, http.validateResponse("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nTransfer-Encoding: chunked\r\n\r\n"));
-    try t.expectError(error.InvalidHttpFraming, http.validateResponse("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n"));
-    try t.expectError(error.UnsupportedHttpEncoding, http.validateResponse("HTTP/1.1 200 OK\r\nContent-Encoding: gzip\r\n\r\n"));
-    try t.expectError(error.InvalidHttpHeader, http.validateResponse("HTTP/1.1 200 OK\r\nBad Header: x\r\n\r\n"));
-}
-test "trailer capture enforces the same finite field count as response heads" {
-    var input: [1024]u8 = undefined;
-    var output: [1024]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&input);
-    for (0..65) |_| try writer.writeAll("X: v\r\n");
-    try writer.writeAll("\r\n");
-    try t.expectError(error.HttpHeadersOversize, http.Transport.captureHeaders(.{ .host = "example.test", .address = "127.0.0.1", .port = 443, .tls = true }, writer.buffered(), true, &output));
-}
-
 test "followup diagnostics retain exact policy differences, key bounds and redirect failures" {
     const parent: http.Policy.Prepared = .{ .endpoint_revision = 7, .host = "example.test", .address = "127.0.0.1", .port = 443, .tls = true, .timeout_ms = 1000, .request_bytes = 64, .response_bytes = 64, .response_headers = &.{"location"}, .trust_digest = @splat(1), .request = .{ .method = .POST, .target = &.{.{ .literal = "/operation" }}, .body_bytes = 4, .headers = &.{.{ .name = "Idempotency-Key", .value = &.{.{ .literal = "stable" }} }} }, .retry_policy = .{ .id = 1, .revision = 1, .key_header = "Idempotency-Key" }, .redirect_policy = .{ .id = 2, .revision = 1 } };
     var context: ?http.Service.Rejection = null;
@@ -193,7 +148,7 @@ test "request rendering attributes later pieces and header bounds without disclo
     var buffer: [http.Request.maximum_head_bytes]u8 = undefined;
     var context: ?http.Service.Rejection = null;
     const target: http.Request = .{ .method = .GET, .target = &.{ .{ .literal = "/ok/" }, .{ .literal = "bad path" } } };
-    try t.expectError(error.InvalidHttpTarget, target.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectError(error.InvalidHttpTarget, http.renderDiagnostic(target, "example.test", 443, &buffer, null, false, &context));
     try t.expectEqualStrings("request.target[1]", context.?.field[0..context.?.field_len]);
     try t.expectEqualStrings("bad path", context.?.actual_text[0..context.?.actual_len]);
     context = null;
@@ -201,12 +156,12 @@ test "request rendering attributes later pieces and header bounds without disclo
         .{ .name = "X-Ok", .value = &.{.{ .literal = "fine" }} },
         .{ .name = "X-Bad", .value = &.{.{ .literal = "private\r\nvalue" }} },
     } };
-    try t.expectError(error.InvalidHttpHeader, header.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectError(error.InvalidHttpHeader, http.renderDiagnostic(header, "example.test", 443, &buffer, null, false, &context));
     try t.expectEqualStrings("request.headers[1]", context.?.field[0..context.?.field_len]);
     try t.expectEqual(.redacted, context.?.actual_kind);
     context = null;
     const valid: http.Request = .{ .method = .GET, .target = &.{.{ .literal = "/" }} };
-    try t.expectError(error.WriteFailed, valid.renderDiagnostic("example.test", 443, buffer[0..1], null, false, &context));
+    try t.expectError(error.WriteFailed, http.renderDiagnostic(valid, "example.test", 443, buffer[0..1], null, false, &context));
     try t.expectEqualStrings("request.head.bytes", context.?.field[0..context.?.field_len]);
     try t.expectEqual(@as(u64, 1), context.?.expected_number);
     try t.expectEqual(.unrecorded, context.?.actual_kind);
@@ -214,7 +169,7 @@ test "request rendering attributes later pieces and header bounds without disclo
     var too_many = valid;
     const headers: [65]http.Request.Header = @splat(.{ .name = "X", .value = &.{} });
     too_many.headers = &headers;
-    try t.expectError(error.HttpRequestTooLarge, too_many.renderDiagnostic("example.test", 443, &buffer, null, false, &context));
+    try t.expectError(error.HttpRequestTooLarge, http.renderDiagnostic(too_many, "example.test", 443, &buffer, null, false, &context));
     try t.expectEqualStrings("request.headers", context.?.field[0..context.?.field_len]);
     try t.expectEqual(@as(u64, 64), context.?.expected_number);
     try t.expectEqual(@as(u64, 65), context.?.actual_number);

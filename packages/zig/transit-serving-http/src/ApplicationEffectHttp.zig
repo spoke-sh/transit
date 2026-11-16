@@ -3,7 +3,7 @@
 //! keeps the request reservation borrowed and checks current authority at send.
 const std = @import("std");
 const q = @import("transit_query_direct");
-const connector = @import("transit_station_http");
+const connector = @import("transit_http");
 const R = @import("ApplicationReservation.zig");
 const a = q.fuze.ApplicationProgram;
 const Self = @This();
@@ -136,7 +136,7 @@ pub const Capture = struct {
         std.crypto.secureZero(u8, self.memory);
         self.* = undefined;
     }
-    fn segment(context: *anyopaque, kind: connector.Kind, bytes: []const u8) !void {
+    fn segment(context: *anyopaque, kind: connector.Transport.Kind, bytes: []const u8) !void {
         const self: *Capture = @ptrCast(@alignCast(context));
         if (kind != .response_body) return;
         const limit = @min(self.memory.len, max_body_bytes);

@@ -181,7 +181,7 @@ const Driver = struct {
         var validation: ?http.Service.Rejection = null;
         Secrets.validateDiagnostic(self.config, request, &validation) catch |err| return .{ .rejected = validation orelse return err };
         var header: [http.Request.maximum_head_bytes]u8 = undefined;
-        const rendered = request.renderDiagnostic(self.config.endpoint.host, self.config.endpoint.port, &header, null, false, &validation) catch |err| return .{ .rejected = validation orelse return err };
+        const rendered = http.renderDiagnostic(request, self.config.endpoint.host, self.config.endpoint.port, &header, null, false, &validation) catch |err| return .{ .rejected = validation orelse return err };
         var scope_failure: ?http.Service.Rejection = null;
         http.Service.validateRequestDiagnostic(policy.scope, request, rendered, &scope_failure) catch |err| return .{ .rejected = scope_failure orelse http.Service.Rejection.detail(.denied, .policy, "request.scope", .unrecorded, .unrecorded, err) };
         const prepared = try self.prepareMetadata(request);
@@ -307,7 +307,7 @@ fn prepare(driver: *Driver, failure: ?*?http.Service.Rejection) !void {
     const observed_clock = now(driver.io);
     if (deadline <= observed_clock) return validationFailure(failure, http.Service.Rejection.detail(.denied, .before, "preparation.clock_ms", .{ .unsigned = deadline }, .{ .unsigned = observed_clock }, error.ExpiredReconciliation), error.ExpiredReconciliation);
     var header: [http.Request.maximum_head_bytes]u8 = undefined;
-    const rendered = try request.renderDiagnostic(config.endpoint.host, config.endpoint.port, &header, null, false, failure);
+    const rendered = try http.renderDiagnostic(request, config.endpoint.host, config.endpoint.port, &header, null, false, failure);
     if (public_reference != null) try http.Service.validateRequestDiagnostic(config.admission.?.scope, request, rendered, failure);
     // Construct metadata before committing any effect intent. Public calls may
     // already have an accepted route whose failure must be retained.

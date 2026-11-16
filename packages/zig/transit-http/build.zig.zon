@@ -1,0 +1,8 @@
+.{
+    .name = .transit_http,
+    .fingerprint = 0xf06ef8888da8755e,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_tls = .{ .path = "../transit-tls" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

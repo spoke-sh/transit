@@ -1,6 +1,6 @@
 # 13. Declarative serving and reactive dataflows
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** In Progress ([implementation plan](declarative-serving-implementation.md))
 
 Let an application declare typed inputs, data dependencies, computations,
 authorized operations and publications, then consume their results through a web
@@ -13,6 +13,10 @@ This Phase I milestone owns the complete serving and reactive-consumption
 boundary. It replaces the target of a declarative UI language with declarative
 dataflows that UI and non-UI clients can consume. It does not describe newly
 implemented syntax or change any current wire contract by itself.
+
+The [first contract/dependency review](declarative-serving-cutover.md) records the
+proposed operation owners, endpoint/retained-record migration inventory and the
+neutral HTTP extraction. The complete serving/subscription cutover remains open.
 
 ## Prerequisites and current evidence
 

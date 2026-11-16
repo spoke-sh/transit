@@ -25147,6 +25147,179 @@
         "std"
       ]
     },
+    "packages/zig/transit-http/src/Chunked.zig": {
+      "errors": {
+        "EndOfStream": 2,
+        "HttpChunkInvalid": 12,
+        "HttpChunkLineTooLong": 1,
+        "HttpChunkSizeOverflow": 2,
+        "HttpChunkTruncated": 2,
+        "HttpResponseTooLarge": 1,
+        "HttpTrailersOversize": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "byte()": "<inferred>",
+        "line()": "<inferred>",
+        "read()": "<inferred>",
+        "size()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 7,
+        "catch": 5
+      },
+      "imports": [
+        "std"
+      ]
+    },
+    "packages/zig/transit-http/src/Request.zig": {
+      "errors": {
+        "HttpRequestTooLarge": 4,
+        "InvalidHttpAuthority": 2,
+        "InvalidHttpBinding": 2,
+        "InvalidHttpSecret": 1,
+        "InvalidHttpTarget": 4,
+        "ReservedHttpHeader": 1,
+        "UnsupportedHttpMethod": 1
+      },
+      "outcomes": {
+        "Diagnostic.Check": [
+          "decode",
+          "maximum",
+          "different",
+          "policy"
+        ],
+        "Diagnostic.Scalar": [
+          "unrecorded",
+          "redacted",
+          "unsigned",
+          "text"
+        ],
+        "Piece": [
+          "literal",
+          "variable",
+          "secret"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Resolver.resolve()": "anyerror",
+        "fail()": "anyerror",
+        "identifier()": "<inferred>",
+        "parts()": "<inferred>",
+        "provenance()": "<inferred>",
+        "render()": "<inferred>",
+        "renderDiagnostic()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 12,
+        "catch": 9
+      },
+      "imports": [
+        "root.zig",
+        "std"
+      ]
+    },
+    "packages/zig/transit-http/src/Transport.zig": {
+      "errors": {
+        "EndOfStream": 1,
+        "HttpConnectionClosing": 1,
+        "HttpHeadersOversize": 1,
+        "HttpOutcomeUnknown": 1,
+        "HttpRequestBodyReadFailed": 1,
+        "HttpRequestBodyTruncated": 1,
+        "HttpRequestTooLarge": 1,
+        "HttpRequestTruncated": 1,
+        "HttpResponseHeadTruncated": 1,
+        "HttpResponseMissing": 1,
+        "HttpResponseTooLarge": 2,
+        "IncompleteHttpBody": 1,
+        "InvalidHttpEndpoint": 1,
+        "InvalidHttpFraming": 2,
+        "InvalidHttpHeader": 1,
+        "MissingHttpCredential": 1,
+        "ReadFailed": 3,
+        "UnframedTlsResponse": 1,
+        "UnsupportedHttpResponse": 1,
+        "WriteFailed": 1
+      },
+      "outcomes": {
+        "Kind": [
+          "response_head",
+          "response_body",
+          "response_trailers"
+        ],
+        "execute().Choice": [
+          "response",
+          "timeout"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Capture.complete()": "anyerror",
+        "Capture.segment()": "anyerror",
+        "Endpoint.validate()": "<inferred>",
+        "WriteGate.check()": "anyerror",
+        "captureHeaders()": "<inferred>",
+        "emit()": "<inferred>",
+        "execute()": "<inferred>",
+        "readCause()": "anyerror",
+        "run()": "<inferred>",
+        "timeout()": "<inferred>",
+        "writeCause()": "anyerror"
+      },
+      "open_error_set_uses": 9,
+      "propagation": {
+        "try": 37,
+        "catch": 8
+      },
+      "imports": [
+        "Chunked.zig",
+        "root.zig",
+        "std",
+        "transit_tls"
+      ]
+    },
+    "packages/zig/transit-http/src/root.zig": {
+      "errors": {
+        "HttpHeadersOversize": 2,
+        "InvalidHttpCapture": 3,
+        "InvalidHttpFraming": 7,
+        "InvalidHttpHeader": 3,
+        "UnsupportedHttpEncoding": 1,
+        "UnsupportedHttpFraming": 1,
+        "UnsupportedHttpResponse": 1
+      },
+      "outcomes": {
+        "Completion.framing": [
+          "none",
+          "length",
+          "chunked",
+          "close"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Completion.validate()": "<inferred>",
+        "Omission.validate()": "<inferred>",
+        "Timing.validate()": "<inferred>",
+        "validateHeader()": "<inferred>",
+        "validateResponse()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 2,
+        "catch": 0
+      },
+      "imports": [
+        "Request.zig",
+        "Transport.zig",
+        "std"
+      ]
+    },
     "packages/zig/transit-io/src/Notification.zig": {
       "errors": {
         "InvalidNotificationCapacity": 1,
@@ -33489,8 +33662,8 @@
       "imports": [
         "ApplicationReservation.zig",
         "std",
-        "transit_query_direct",
-        "transit_station_http"
+        "transit_http",
+        "transit_query_direct"
       ]
     },
     "packages/zig/transit-serving-http/src/ApplicationEffectRuntime.zig": {
@@ -33568,9 +33741,9 @@
         "ApplicationReservation.zig",
         "ApplicationSecrets.zig",
         "std",
+        "transit_http",
         "transit_memory",
-        "transit_query_direct",
-        "transit_station_http"
+        "transit_query_direct"
       ]
     },
     "packages/zig/transit-serving-http/src/ApplicationEffectTasks.zig": {
@@ -33905,7 +34078,7 @@
       "imports": [
         "std",
         "transit_catalog",
-        "transit_station_http"
+        "transit_http"
       ]
     },
     "packages/zig/transit-serving-http/src/BrowserRequest.zig": {
@@ -42319,33 +42492,6 @@
         "transit_grpc"
       ]
     },
-    "packages/zig/transit-station-http/src/Chunked.zig": {
-      "errors": {
-        "EndOfStream": 2,
-        "HttpChunkInvalid": 12,
-        "HttpChunkLineTooLong": 1,
-        "HttpChunkSizeOverflow": 2,
-        "HttpChunkTruncated": 2,
-        "HttpResponseTooLarge": 1,
-        "HttpTrailersOversize": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "byte()": "<inferred>",
-        "line()": "<inferred>",
-        "read()": "<inferred>",
-        "size()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 7,
-        "catch": 5
-      },
-      "imports": [
-        "std"
-      ]
-    },
     "packages/zig/transit-station-http/src/Inspection.zig": {
       "errors": {
         "ExchangeUnavailable": 1,
@@ -42442,41 +42588,20 @@
         "std"
       ]
     },
-    "packages/zig/transit-station-http/src/Request.zig": {
-      "errors": {
-        "HttpRequestTooLarge": 4,
-        "InvalidHttpAuthority": 2,
-        "InvalidHttpBinding": 2,
-        "InvalidHttpSecret": 1,
-        "InvalidHttpTarget": 4,
-        "ReservedHttpHeader": 1,
-        "UnsupportedHttpMethod": 1
-      },
-      "outcomes": {
-        "Piece": [
-          "literal",
-          "variable",
-          "secret"
-        ]
-      },
+    "packages/zig/transit-station-http/src/RequestDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "Resolver.resolve()": "anyerror",
-        "fail()": "anyerror",
-        "identifier()": "<inferred>",
-        "parts()": "<inferred>",
-        "provenance()": "<inferred>",
-        "render()": "<inferred>",
-        "renderDiagnostic()": "<inferred>"
+        "render()": "<inferred>"
       },
-      "open_error_set_uses": 3,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 12,
-        "catch": 9
+        "try": 0,
+        "catch": 0
       },
       "imports": [
-        "root.zig",
-        "std"
+        "root.zig"
       ]
     },
     "packages/zig/transit-station-http/src/RequestRecord.zig": {
@@ -42570,77 +42695,31 @@
       ]
     },
     "packages/zig/transit-station-http/src/Transport.zig": {
-      "errors": {
-        "EndOfStream": 1,
-        "HttpConnectionClosing": 1,
-        "HttpHeadersOversize": 1,
-        "HttpOutcomeUnknown": 1,
-        "HttpRequestBodyReadFailed": 1,
-        "HttpRequestBodyTruncated": 1,
-        "HttpRequestTooLarge": 1,
-        "HttpRequestTruncated": 1,
-        "HttpResponseHeadTruncated": 1,
-        "HttpResponseMissing": 1,
-        "HttpResponseTooLarge": 2,
-        "IncompleteHttpBody": 1,
-        "InvalidHttpEndpoint": 1,
-        "InvalidHttpFraming": 2,
-        "InvalidHttpHeader": 1,
-        "MissingHttpCredential": 1,
-        "ReadFailed": 3,
-        "UnframedTlsResponse": 1,
-        "UnsupportedHttpResponse": 1,
-        "WriteFailed": 1
-      },
-      "outcomes": {
-        "execute().Choice": [
-          "response",
-          "timeout"
-        ]
-      },
+      "errors": {},
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "Capture.complete()": "<inferred>",
+        "Capture.emit()": "<inferred>",
         "Capture.segment()": "anyerror",
-        "Endpoint.validate()": "<inferred>",
-        "WriteGate.check()": "anyerror",
-        "captureHeaders()": "<inferred>",
-        "emit()": "<inferred>",
-        "execute()": "<inferred>",
-        "readCause()": "anyerror",
-        "run()": "<inferred>",
-        "timeout()": "<inferred>",
-        "writeCause()": "anyerror"
+        "execute()": "<inferred>"
       },
-      "open_error_set_uses": 8,
+      "open_error_set_uses": 1,
       "propagation": {
-        "try": 39,
-        "catch": 8
+        "try": 3,
+        "catch": 0
       },
       "imports": [
-        "Chunked.zig",
         "root.zig",
         "std",
-        "transit_tls"
+        "transit_http"
       ]
     },
     "packages/zig/transit-station-http/src/root.zig": {
       "errors": {
-        "HttpHeadersOversize": 2,
-        "InvalidHttpCapture": 3,
-        "InvalidHttpFraming": 7,
-        "InvalidHttpHeader": 3,
-        "UnsupportedHttpEncoding": 1,
-        "UnsupportedHttpFraming": 1,
-        "UnsupportedHttpResponse": 1,
         "WrongExchangeProtocol": 1
       },
       "outcomes": {
-        "Completion.framing": [
-          "none",
-          "length",
-          "chunked",
-          "close"
-        ],
         "Kind": [
           "request_template",
           "request_head",
@@ -42655,28 +42734,23 @@
       },
       "error_sets": {},
       "error_returns": {
-        "Completion.validate()": "<inferred>",
-        "Omission.validate()": "<inferred>",
-        "Timing.validate()": "<inferred>",
-        "beginSegment()": "<inferred>",
-        "validateHeader()": "<inferred>",
-        "validateResponse()": "<inferred>"
+        "beginSegment()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 4,
+        "try": 2,
         "catch": 0
       },
       "imports": [
         "Inspection.zig",
         "Policy.zig",
         "Replay.zig",
-        "Request.zig",
+        "RequestDiagnostic.zig",
         "RequestRecord.zig",
         "Service.zig",
         "Transport.zig",
-        "std",
-        "transit_exchange"
+        "transit_exchange",
+        "transit_http"
       ]
     },
     "packages/zig/transit-station/src/BlockRecord.zig": {

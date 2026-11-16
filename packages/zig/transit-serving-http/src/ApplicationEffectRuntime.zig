@@ -11,7 +11,7 @@ const Tasks = @import("ApplicationEffectTasks.zig");
 const Requests = @import("ApplicationRequestHost.zig");
 const R = @import("ApplicationReservation.zig");
 const Secrets = @import("ApplicationSecrets.zig");
-const Transport = @import("transit_station_http").Transport;
+const Transport = @import("transit_http").Transport;
 const Memory = @import("transit_memory");
 const Self = @This();
 
