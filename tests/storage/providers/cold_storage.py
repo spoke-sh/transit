@@ -179,8 +179,9 @@ class ColdStore:
         return options
 
     def native_data_objects(self):
-        # MinIO's actual per-generation object metadata; exclude owner markers.
-        return sum(1 for path in (self.root / self.bucket).glob('native-*/objects/*/*/xl.meta') if path.is_file())
+        # Scenario owners may add namespace components below the private prefix.
+        # Count actual generation metadata at either depth, excluding owner markers.
+        return sum(1 for path in (self.root / self.bucket).glob('native-*/**/objects/*/*/xl.meta') if path.is_file())
 
     def file_bytes(self):
         total = 0
