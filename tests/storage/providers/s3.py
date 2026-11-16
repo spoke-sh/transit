@@ -29,6 +29,8 @@ class CountedTransport:
         self.release = threading.Event()
         self.finished = threading.Event()
         self.delayed_status = None
+        self.drop_retirement_reply = False
+        self.retirement_reply_lost = threading.Event()
         measurement = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -58,6 +60,12 @@ class CountedTransport:
                     if delay:
                         measurement.delayed_status = response.status
                         measurement.finished.set()
+                    if self.command == 'PUT' and len(body) == 512 and body[40] == 3 and measurement.drop_retirement_reply:
+                        assert response.status == 200
+                        measurement.drop_retirement_reply = False
+                        measurement.retirement_reply_lost.set()
+                        self.close_connection = True
+                        return
                     self.send_response(response.status)
                     for name, value in response.getheaders():
                         if name.lower() not in ('connection', 'transfer-encoding'):
@@ -114,6 +122,14 @@ def request(cold, method, key, payload=b'', *, prefix='native-conformance'):
             method=method, headers={'Authorization': authorization, 'x-amz-date': stamp,
                                     'x-amz-content-sha256': hashed}), timeout=10) as response:
         return response.read(), dict(response.headers)
+
+
+def assert_retired(raw):
+    assert len(raw) == 512 and raw[:8] == b'TS3O\x01\x00\x00\x00' and raw[40] == 3
+    assert int.from_bytes(raw[48:56], 'little') == 0
+    assert raw[56:88] == hashlib.sha256(b'').digest()
+    assert raw[88:120] == hashlib.sha256(b'').digest()
+    assert raw[480:512] == hashlib.sha256(raw[:480]).digest()
 
 
 def run(binary):
@@ -301,11 +317,9 @@ def run(binary):
         tier('tier-read')
         tier('tier-recreate')
         tier('tier-drain')
-        try:
-            request(cold, 'GET', remote_object(0))
-            raise AssertionError('The old remote generation survived its deletion intent')
-        except urllib.error.HTTPError as error:
-            assert error.code == 404
+        retired, _ = request(cold, 'GET', remote_object(0))
+        assert_retired(retired)
+        tier('tier-retired')
         raw, _ = request(cold, 'GET', remote_object(2))
         assert raw.endswith(b'original accepted immutable segment')
         tier('tier-read')
@@ -349,24 +363,27 @@ def run(binary):
             assert transport.held.is_set() and attempt.returncode != 0
             assert b'ObjectRequestTimeout' in attempt.stderr, attempt.stderr[-1000:]
             tier('tier-recreate', late_native)
+            transport.drop_retirement_reply = True
+            attempt = subprocess.run([binary, str(config), 'tier-drain', str(late_native)],
+                                     capture_output=True, timeout=20)
+            assert transport.retirement_reply_lost.is_set() and attempt.returncode != 0
             tier('tier-drain', late_native)
             transport.release.set()
             assert transport.finished.wait(timeout=10), 'Delayed provider request did not finish'
             assert transport.delayed_status == 412, 'Late PUT recreated a retired remote generation'
             retired, _ = request(cold, 'GET', remote_object(0), prefix=late_prefix)
-            assert len(retired) == 512 and retired[40] == 3
-            assert int.from_bytes(retired[48:56], 'little') == 0
-            assert retired[56:88] == hashlib.sha256(b'').digest()
-            assert retired[480:512] == hashlib.sha256(retired[:480]).digest()
+            assert_retired(retired)
             current, _ = request(cold, 'GET', remote_object(2), prefix=late_prefix)
             assert current.endswith(b'original accepted immutable segment')
             tier('tier-read', late_native)
+            tier('tier-retired', late_native)
+            print('Native tier retirement: 512-byte permanent generation fence, zero retained payload, lost accepted retirement reply, process reopen and rejection of a delayed original PUT passed.', flush=True)
         finally:
             transport.release.set()
             config.write_text(json.dumps(options))
         print('Native tier batch: eight distinct original generations, exact retry, immediate reads, process-death reopen and verified cold provider reads passed.', flush=True)
         print('Native tier cache: 34 MiB exceeds the 32 MiB disk budget; cold A/B/A reads, eviction and original byte verification passed.', flush=True)
-        print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation, missing original descriptor refusal, provider-denied backlog and control reserve passed.', flush=True)
+        print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation retirement, recreation, missing original descriptor refusal, provider-denied backlog and control reserve passed.', flush=True)
         print('Native S3: real MinIO PUT/CAS/HEAD/range/DELETE, independent envelope oracle, competing clients, live credential rotation, lost accepted reply, corrupt payload and joined deadline passed.', flush=True)
 
     with ColdStore(tls=True) as cold:

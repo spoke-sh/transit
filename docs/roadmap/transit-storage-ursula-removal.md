@@ -43,6 +43,15 @@ qualification gaps against the implementation base before editing runtime code.
    an explicit offline migration becomes a prerequisite to retiring that
    installation, with a separate reviewed format and recovery proof.
 
+Implementation review reproduced a timed-out PUT arriving after DELETE against
+real MinIO. Generation-specific keys protect replacements but do not fence that
+late creation. The current retirement protocol therefore replaces each retired
+generation's payload with a permanent empty 512-byte control envelope using
+provider conditions. These envelopes must not expire; their provider storage
+cost is separate from local staging/cache budgets. The current-v1 definition
+changes with this format, and qualification includes the delayed PUT and a lost
+retirement response before restart.
+
 This proposes replacing Milestone 25's `UrsulaWal` delivery obligation and pulling
 the single-owner S3 slice forward independently of distributed-writer work.
 On acceptance, reconcile the milestone/index and relevant #109/#121/#124 scope

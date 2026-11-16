@@ -27482,7 +27482,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"0664703391ceb74fb1b025d11e5fe80c40c97e12060e6b131c27e390a3e4833c\""
+          "@\"06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5\""
         ],
         "Effect.phase": [
           "pending",
@@ -47447,23 +47447,23 @@
       "errors": {
         "BufferTooSmall": 1,
         "CertificateAuthorityBundleTooBig": 1,
-        "CorruptObjectDescriptor": 5,
+        "CorruptObjectDescriptor": 6,
         "EmptyCertificateAuthorityBundle": 1,
         "EndOfStream": 1,
-        "ImmutableObjectConflict": 3,
+        "ImmutableObjectConflict": 5,
         "IncompatibleDefinition": 1,
         "InvalidCredentials": 2,
         "InvalidObjectClock": 1,
         "InvalidObjectEndpoint": 1,
         "InvalidObjectRange": 4,
-        "InvalidObjectResponse": 6,
+        "InvalidObjectResponse": 7,
         "InvalidProviderETag": 1,
         "ObjectAccessDenied": 1,
-        "ObjectChanged": 4,
+        "ObjectChanged": 6,
         "ObjectConditionalConflict": 1,
         "ObjectDigestMismatch": 4,
         "ObjectKeyConflict": 1,
-        "ObjectNotFound": 2,
+        "ObjectNotFound": 4,
         "ObjectProviderFailure": 1,
         "ObjectRequestTimeout": 1,
         "ObjectResponseTooLarge": 1,
@@ -47472,12 +47472,13 @@
         "ObjectTooLarge": 1,
         "RangeOutOfBounds": 1,
         "ReadFailed": 2,
-        "ReadOnlyObjectStore": 3
+        "ReadOnlyObjectStore": 4
       },
       "outcomes": {
         "Kind": [
           "immutable",
-          "conditional"
+          "conditional",
+          "retired"
         ],
         "S3ObjectStore.request().Result": [
           "response",
@@ -47502,13 +47503,14 @@
         "S3ObjectStore.readRange()": "<inferred>",
         "S3ObjectStore.request()": "<inferred>",
         "S3ObjectStore.require()": "<inferred>",
+        "S3ObjectStore.retireImmutable()": "<inferred>",
         "S3ObjectStore.sleep()": "<inferred>",
         "decode()": "<inferred>"
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 53,
-        "catch": 4
+        "try": 58,
+        "catch": 5
       },
       "imports": [
         "S3Signing.zig",

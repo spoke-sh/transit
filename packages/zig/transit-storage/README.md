@@ -628,13 +628,18 @@ and the catalog's retained dependency graph.
   allocation or cross-command queue is introduced.
 - `S3ObjectStore.zig`: S3-compatible `TransitObjectStore` adapter with AWS Signature
   Version 4 (`AWS4-HMAC-SHA256`) over actual HTTP/TLS, conditional publication,
-  HEAD, verified byte ranges and DELETE. Each operation has a joined deadline;
-  redirects and automatic retries are disabled. A file reference supplies access,
+  HEAD, verified byte ranges and DELETE. Each request has a joined deadline;
+  redirects and automatic transport retries are disabled. A file reference supplies access,
   secret and optional session credentials on every request, including rotation.
   The remote envelope binds definition, logical key, size, content and chunk
   digests. Digest-shaped conditions are checked against that descriptor and
   converted to the actual provider ETag for atomic publication. See the
   [remote object contract](../../../contracts/TRANSIT_STORAGE_V1.md#s3-object-operations).
+  Separate `retireImmutable` lifecycle authority conditionally replaces a known
+  generation with a permanent empty 512-byte envelope. Ordinary reads treat it
+  as absent; delayed create-only PUTs cannot restore it. At most three conditional
+  races are re-observed, while transport uncertainty returns to the durable owner.
+  These control envelopes must not be deleted by bucket lifecycle rules.
   `just test::s3` uses real pinned MinIO and an independent Python wire oracle.
   This qualifies provider primitives; installed asynchronous tiering and AWS
   qualification have separate gates.

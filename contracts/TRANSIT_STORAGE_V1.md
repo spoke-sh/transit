@@ -1019,8 +1019,8 @@ prefix, a credential-file reference and a request deadline. Optional `ca_file`
 loads a private PEM trust bundle on open; omission uses system roots. HTTPS is required;
 explicit loopback HTTP supports the pinned integration provider. The adapter
 reopens the JSON credential file (`access_key_id`, `secret_access_key`, optional
-`session_token`) on every request. It follows no redirects, retries no request
-implicitly and logs no credentials or provider response bodies. Deadline
+`session_token`) on every request. It follows no redirects, retries no transport
+failure implicitly and logs no credentials or provider response bodies. Deadline
 cancellation joins the request before releasing borrowed buffers. A failed or
 lost PUT/DELETE response preserves uncertainty for the caller to reconcile.
 
@@ -1032,6 +1032,13 @@ including its empty representation. Every payload size has an inline vector.
 Physical HTTP lengths include the envelope; interface lengths describe only the
 logical payload. The maximum logical object remains 32 MiB. The adapter retains
 one bounded transfer slab, independent of bucket cardinality.
+
+Descriptor byte 40 is immutable (1), conditional (2), or permanently retired (3).
+A retirement envelope has zero logical bytes, the empty SHA-256 payload/vector
+digests and no inline vector or payload: exactly 512 provider bytes. Ordinary
+HEAD/GET treat it as absent; immutable and conditional publication cannot replace
+it. The shared definition identifies this current format; earlier definitions
+must not decode it as a live or empty object.
 
 HEAD obtains the provider length and opaque ETag. A conditional range GET reads
 and verifies the descriptor and chunk vector against that same ETag. Subsequent
@@ -1050,6 +1057,17 @@ false; conflicting concurrent requests, throttling and access failures remain
 distinct errors. DELETE requires the caller's collection authority; it cannot
 infer that retained readers released an object. Provider CAS tests establish
 primitive conditions, not concurrent Transit writer safety.
+
+The separate `retireImmutable` lifecycle operation replaces an exact immutable
+descriptor with a retirement envelope using its provider ETag, or installs the
+envelope with `If-None-Match: *` when the generation is absent. It verifies the
+result and permits at most three re-observations after competing conditional
+publication; transport failures preserve uncertainty for the owning queue.
+An already verified retirement is idempotent. Keep this envelope permanently:
+removing it would allow an earlier timed-out create-only PUT to recreate the
+payload. This lifecycle operation does not make immutable objects mutable
+through the manifest API. Raw DELETE remains a separate primitive and must not
+erase a live installation's retirement records.
 
 `tests/storage/providers/s3.py` exercises actual pinned MinIO with an independent
 signing/envelope oracle, competing clients, corrupt bytes, live credential
@@ -1114,10 +1132,19 @@ intents one record at a time; the latest position determines each key's state.
 Uncertain queue/state persistence poisons the owner until exclusive recovery.
 
 Collection still requires its existing complete retained graph, epoch and reader
-fences. It enqueues a deletion intent before local reclamation. The remote DELETE
-always names the original generation, so a delayed delete cannot remove a
-recreated key. Coverage removal precedes consuming its deletion intent. Provider
-failure retains that intent; listing a bucket never grants deletion authority.
+fences. It enqueues a deletion intent before local reclamation. Remote retirement
+always names the original generation, so it cannot remove a recreated key. Its
+permanent empty envelope also rejects a delayed original PUT after local process
+death, request timeout or a lost retirement response. Verify the retirement before
+removing coverage and consuming the deletion intent. `deletes_completed` counts
+these completed generation retirements. Provider failure retains the intent;
+listing a bucket never grants deletion authority.
+
+Retirement removes the live generation's original payload, retaining one
+512-byte control envelope per retired generation. These records are not cache
+and have no automatic expiry. They consume provider storage independently of the
+local staging/cache budgets. The qualified MinIO bucket is unversioned;
+provider-managed versions, snapshots and backups are outside this cleanup proof.
 
 Uploaded reads may use local bytes, a verified disk-cache hit or the provider.
 Every path compares content against the retained original descriptor. The disk

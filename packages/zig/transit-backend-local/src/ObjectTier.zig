@@ -452,7 +452,7 @@ fn stepImpl(self: *Self) !u64 {
             removed = try self.local.disk.?.evictImmutable(key, state.meta);
         }
     } else {
-        try self.remote.objectStore().delete(remoteKey(key, record.item.remote_generation.?, &remote_name));
+        try self.remote.retireImmutable(remoteKey(key, record.item.remote_generation.?, &remote_name), record.item.meta);
         if (state.position == record.position) {
             errdefer self.poisoned.store(true, .release);
             removed = try self.local.reclaimImmutableObject(key, record.item.meta);

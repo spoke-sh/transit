@@ -114,10 +114,23 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
     } else if (std.mem.eql(u8, mode, "tier-recreate")) {
         const pending = (try tier.queue.current()).pending_objects;
         _ = try owner.objects.reclaimImmutableObject(key, expected);
-        // The delayed DELETE names the old generation even when its content is
+        // Retirement names the old generation even when its content is
         // recreated exactly before the background worker reaches it.
         try owner.put(key, content, false);
         try t.expectEqual(pending + 2, (try tier.queue.current()).pending_objects);
+    } else if (std.mem.eql(u8, mode, "tier-retired")) {
+        var name: [96]u8 = undefined;
+        const remote = try std.fmt.bufPrint(&name, "objects/{s}/0000000000000000", .{std.fmt.bytesToHex(hash(key), .lower)});
+        const raw = tier.remote.objectStore();
+        var bytes: [128]u8 = undefined;
+        try t.expect(try raw.head(remote) == null);
+        try t.expect(try raw.getObject(remote, &bytes) == null);
+        try t.expectError(error.ObjectNotFound, raw.getRange(remote, 0, 1, &bytes));
+        try t.expectError(error.ImmutableObjectConflict, raw.putImmutable(remote, content, expected.sha256));
+        try tier.remote.retireImmutable(remote, expected);
+        var reader = try storage.S3ObjectStore.S3ObjectStore.initReadOnly(init.gpa, init.io, settings);
+        defer reader.deinit();
+        try t.expectError(error.ReadOnlyObjectStore, reader.retireImmutable(remote, expected));
     } else if (std.mem.eql(u8, mode, "tier-outage")) {
         // Credentials are deliberately unavailable: foreground durable staging
         // remains local while remote work fails with its original intent intact.

@@ -45,9 +45,15 @@ visible to the original allocation collector or exact publication retry; the
 uploader never invents missing bytes or discards accepted work.
 
 Remote keys bind the logical key hash and upload generation. Collection first
-records a deletion intent under the same per-key lock. Remote deletion uses the
-old generation even if a new generation reuses exactly the same logical key and
-content. Queue progress and coverage have checksums and the shared definition;
+records a deletion intent under the same per-key lock. Remote reclamation replaces
+the old generation with a verified, permanent 512-byte retirement envelope. This
+removes its payload and fences a delayed create-only PUT, including one whose
+client timed out or died. A new generation uses a different key. Never delete
+these retirement envelopes or apply a bucket lifecycle rule that expires them:
+they are control records, not cache. They consume provider storage separately
+from local staging/cache budgets. The qualified MinIO bucket is unversioned;
+provider-managed versions and backups are outside this cleanup proof.
+Queue progress and coverage have checksums and the shared definition;
 missing required inventory refuses recovery. No quota, upload failure, cache
 pressure or remote listing grants deletion authority.
 

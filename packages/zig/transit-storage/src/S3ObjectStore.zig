@@ -12,7 +12,7 @@ pub const chunk_bytes = 64 * 1024;
 const header_bytes = 512;
 const max_checks = object.max_object_bytes / chunk_bytes * 32;
 const max_envelope = header_bytes + max_checks + object.max_object_bytes;
-const Kind = enum(u8) { immutable = 1, conditional = 2 };
+const Kind = enum(u8) { immutable = 1, conditional = 2, retired = 3 };
 
 pub const Options = struct {
     endpoint: []const u8,
@@ -88,6 +88,7 @@ fn decode(key: []const u8, bytes: []const u8, total: u64, response: Response) !D
     for (header[120 + key_len .. 480]) |c| if (c != 0) return error.CorruptObjectDescriptor;
     const size = std.mem.readInt(u64, header[48..56], .little);
     if (size > object.max_object_bytes) return error.ObjectTooLarge;
+    if (kind == .retired and (size != 0 or !std.mem.eql(u8, header[56..88], &digest("")))) return error.CorruptObjectDescriptor;
     const checks_len = checksSize(size);
     if (total != header_bytes + checks_len + size or bytes.len < header_bytes + checks_len) return error.ObjectSizeMismatch;
     const checks = bytes[header_bytes..][0..checks_len];
@@ -144,6 +145,37 @@ pub const S3ObjectStore = struct {
     }
     pub fn objectStore(self: *S3ObjectStore) object.ObjectStore {
         return .{ .context = self, .vtable = &.{ .putImmutable = putImmutable, .putConditional = putConditional, .getRange = getRange, .getObject = getObject, .head = head, .delete = delete } };
+    }
+    /// Permanently fence a generation's create-only PUTs while removing its
+    /// payload. A raw DELETE cannot fence a timed-out request still in flight
+    /// at the provider. Keep the empty retirement envelope at this key forever.
+    /// This is physical lifecycle authority, separate from mutable manifests.
+    pub fn retireImmutable(self: *S3ObjectStore, key: []const u8, expected: object.ObjectMeta) !void {
+        try object.validateKey(key);
+        if (self.transfer.len == 0) return error.ReadOnlyObjectStore;
+        try self.mutex.lock(self.io);
+        defer self.mutex.unlock(self.io);
+        for (0..3) |_| {
+            const existing = self.descriptor(key) catch |err| switch (err) {
+                error.ObjectChanged => continue,
+                else => return err,
+            };
+            if (existing) |found| {
+                if (found.kind == .retired) return;
+                if (found.kind != .immutable or !std.meta.eql(found.meta, expected)) return error.ImmutableObjectConflict;
+            }
+            const condition: signing.Condition = if (existing) |*found| .{ .if_match = found.tag() } else .if_none_match;
+            const encoded = encode(key, .retired, "", self.transfer);
+            var response_bytes: [4096]u8 = undefined;
+            const response = try self.request(.PUT, key, condition, null, encoded, &response_bytes);
+            if (response.status == .precondition_failed) continue;
+            try require(response.status);
+            if (response.status != .ok) return error.InvalidObjectResponse;
+            const verified = (try self.descriptor(key)) orelse return error.ObjectNotFound;
+            if (verified.kind != .retired) return error.ImmutableObjectConflict;
+            return;
+        }
+        return error.ObjectChanged;
     }
     fn request(self: *S3ObjectStore, method: std.http.Method, key: []const u8, condition: ?signing.Condition, range: ?signing.Range, body: []const u8, out: []u8) !Response {
         const Result = union(enum) { response: anyerror!Response, timeout: anyerror!void };
@@ -368,6 +400,7 @@ pub const S3ObjectStore = struct {
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         const desc = (try self.descriptor(key)) orelse return error.ObjectNotFound;
+        if (desc.kind == .retired) return error.ObjectNotFound;
         if (offset > desc.meta.size) return error.RangeOutOfBounds;
         const wanted: usize = @intCast(@min(length, desc.meta.size - offset));
         try self.readPayload(key, &desc, offset, out[0..wanted]);
@@ -378,6 +411,7 @@ pub const S3ObjectStore = struct {
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         const desc = (try self.descriptor(key)) orelse return null;
+        if (desc.kind == .retired) return null;
         if (desc.meta.size > out.len) return error.BufferTooSmall;
         try self.readPayload(key, &desc, 0, out[0..@intCast(desc.meta.size)]);
         return desc.meta;
@@ -386,7 +420,7 @@ pub const S3ObjectStore = struct {
         const self: *S3ObjectStore = @ptrCast(@alignCast(ctx));
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
-        return if (try self.descriptor(key)) |value| value.meta else null;
+        return if (try self.descriptor(key)) |value| if (value.kind == .retired) null else value.meta else null;
     }
     fn delete(ctx: *anyopaque, key: []const u8) !void {
         const self: *S3ObjectStore = @ptrCast(@alignCast(ctx));
@@ -408,4 +442,15 @@ test "S3 envelopes bind keys, definitions, descriptors and chunk digests" {
     try std.testing.expectError(error.ObjectKeyConflict, decode("proof/two", encoded, encoded.len, .{ .status = .ok, .length = encoded.len }));
     bytes[header_bytes] ^= 1;
     try std.testing.expectError(error.ObjectDigestMismatch, decode("proof/one", encoded, encoded.len, .{ .status = .ok, .length = encoded.len }));
+}
+
+test "S3 retirement envelopes retain no original payload" {
+    var bytes: [header_bytes + 64]u8 = undefined;
+    const retired = encode("proof/retired", .retired, "", &bytes);
+    const descriptor = try decode("proof/retired", retired, retired.len, .{ .status = .ok, .length = retired.len });
+    try std.testing.expectEqual(Kind.retired, descriptor.kind);
+    try std.testing.expectEqual(@as(usize, 512), retired.len);
+    try std.testing.expectEqual(@as(u64, 0), descriptor.meta.size);
+    const nonempty = encode("proof/retired", .retired, "payload", &bytes);
+    try std.testing.expectError(error.CorruptObjectDescriptor, decode("proof/retired", nonempty, nonempty.len, .{ .status = .ok, .length = nonempty.len }));
 }
