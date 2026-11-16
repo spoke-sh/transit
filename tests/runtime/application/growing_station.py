@@ -14,7 +14,7 @@ from storage.providers.cold_storage import ColdStore
 
 def run(node, caller, *, resident_pages=64):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with ColdStore() as cold, Fixture() as fixture:
+    with ColdStore() as cold, Fixture(retain_on_failure=True) as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
@@ -172,6 +172,10 @@ def run(node, caller, *, resident_pages=64):
                 "namespace_checks": fault['namespace_checks'], "history_head_reads": fault['history_head_reads'],
                 "retained_steps": fault["version_steps"], "cold_objects": cold.native_data_objects()}), flush=True)
         except BaseException:
+            print('Growing Station incomplete:', json.dumps({
+                name: fault[name] for name in ('point_reads', 'version_reads',
+                    'version_steps', 'namespace_checks', 'history_head_reads')
+            }), file=sys.stderr, flush=True)
             log.flush()
             log.seek(0)
             sys.stderr.write(log.read()[-12000:])
