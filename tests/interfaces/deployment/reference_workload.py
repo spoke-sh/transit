@@ -204,8 +204,14 @@ def run():
         assert board_after["pid"] == board_before["pid"]
         assert board_after["generation"] > board_before["generation"]
         assert board_after["binding"]["activation"]["worker_incarnation"] != board_before["binding"]["activation"]["worker_incarnation"]
+        # The native storage owner is the Transit pod itself. kubectl binds its
+        # forward to one pod, so join it and reconnect to the replacement owner.
+        forward.kill()
+        forward.wait(timeout=10)
         ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=transit", "--grace-period=0", "--force"])
         ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/transit", "--timeout=120s"])
+        forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
+                            "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "storage-replacement-forward")
         assert await_state(pid, 1153)["process"]["pid"] == pid
         # Server-owned maintenance survives lack of incoming requests and trims
         # while the original authority stays running. No key reaches workers.
