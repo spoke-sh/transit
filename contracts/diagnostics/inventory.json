@@ -391,8 +391,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 8,
-        "catch": 0
+        "try": 6,
+        "catch": 2
       },
       "imports": [
         "Diagnostic.zig",
