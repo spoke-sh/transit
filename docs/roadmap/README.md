@@ -182,7 +182,7 @@ combines that evidence at one revision.
 
 | Order | Milestone | Status | Intended outcome |
 | --- | --- | --- | --- |
-| 25 | [Storage providers and concurrent-writer qualification](25-storage-providers-and-concurrency.md) | Planned | Real provider/cache profiles, KMS/BYOK envelope encryption at rest, enforceable partitioned authority and distributed fine-grained concurrent-writer qualification |
+| 25 | [Storage providers and concurrent-writer qualification](25-storage-providers-and-concurrency.md) | Planned ([Transit storage and Ursula removal implementation](transit-storage-ursula-removal.md)) | Real provider/cache profiles, KMS/BYOK envelope encryption at rest, enforceable partitioned authority and distributed fine-grained concurrent-writer qualification |
 | 26 | [Replication and durable failover](26-replication-and-failover.md) | Planned | Complete replicated history, transaction decisions and objects, bounded catch-up and fenced failover |
 | 27 | [Operations, backup, restore and upgrades](27-operations-and-recovery.md) | Planned | Verified transaction-consistent backups/PITR, authority-safe disaster recovery, upgrades and operational workflows |
 | 28 | [Clustered execution and storage-disaggregated placement](28-clustered-execution.md) | Planned | Fenced placement changes and distributed queries preserving qualified transaction, replication and operational contracts |
