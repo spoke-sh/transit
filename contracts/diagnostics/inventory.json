@@ -47667,7 +47667,7 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 0,
-        "catch": 1
+        "catch": 2
       },
       "imports": [
         "std"

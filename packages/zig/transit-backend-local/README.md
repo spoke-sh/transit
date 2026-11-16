@@ -157,9 +157,10 @@ cache. A full buffer flushes through the same allocation/object publication path
 `finish` flushes the remainder before preparation returns and before any native
 WAL acceptance. Discard drops only unflushed private pages and blocks. Already published
 private objects retain their allocation evidence and ordinary collection rules.
-File barriers within a group use at most eight concurrent tasks, joined before
-name/directory publication continues, including after a sync failure. Inline
-execution remains valid when the supplied I/O runtime cannot schedule tasks.
+File barriers use the storage helper’s bounded concurrent I/O group, even on
+one CPU, and join before name/directory publication continues, including after
+a sync failure. Inline execution remains valid when the supplied I/O runtime
+cannot schedule concurrent tasks.
 Native page/block creation likewise uses its own allocation-queue mutex and
 holds a shared creation/reclamation fence until immutable publication finishes.
 Only the accepted-epoch check and quota reservation take the journal mutex;

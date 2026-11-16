@@ -229,6 +229,8 @@ WAL acceptance. These buffers do not grow with retained history and their memory
 included in the owner's resident accounting.
 The finite model checks one- and two-object groups; disk tests
 cover the eight-object bound, overlapping groups, partial failures and restart.
+The file-barrier helper requests bounded concurrent I/O independently of CPU
+parallelism, with joined completion and an inline fallback when unavailable.
 These checks do not prove arbitrary batch sizes or physical power-loss behavior.
 
 Deferring indexes would require
