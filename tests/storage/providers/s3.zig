@@ -29,9 +29,12 @@ pub fn main(init: std.process.Init) !void {
     const parsed = try std.json.parseFromSlice(s3.Options, init.gpa, raw, .{});
     defer parsed.deinit();
     if (std.mem.startsWith(u8, args[2], "tier-")) return @import("s3_tier.zig").run(init, parsed.value, args);
-    if (std.mem.eql(u8, args[2], "move")) {
+    if (std.mem.eql(u8, args[2], "move") or std.mem.eql(u8, args[2], "idle")) {
         var moved = try moveConnectedStore(init, parsed.value);
         defer moved.deinit();
+        // Exceed the pinned provider's 30-second idle timeout without changing
+        // its configuration. A new read must not use the expired TLS socket.
+        if (std.mem.eql(u8, args[2], "idle")) try init.io.sleep(.fromSeconds(35), .awake);
         var out: [64]u8 = undefined;
         const meta = (try moved.objectStore().getObject("proof/moved", &out)).?;
         try check.expectEqualStrings("original connected owner", out[0..@intCast(meta.size)]);

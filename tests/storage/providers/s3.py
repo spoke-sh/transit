@@ -460,13 +460,13 @@ def run(binary):
                    'credentials_file', 'ca_file', 'allow_loopback_http')}
         config = root / 'tls.json'
         config.write_text(json.dumps(options))
-        for mode in ('move', 'write', 'read'):
+        for mode in ('move', 'idle', 'write', 'read'):
             subprocess.run([binary, str(config), mode], check=True, timeout=90)
         for changed in (dict(ca_file=None), dict(endpoint=options['endpoint'].replace('127.0.0.1', 'localhost'))):
             config.write_text(json.dumps(options | changed))
             attempt = subprocess.run([binary, str(config), 'read'], capture_output=True, timeout=30)
             assert attempt.returncode != 0, 'Untrusted or incorrectly named provider certificate accepted'
-        print('Native S3 TLS: moved connected owner, private PEM trust, verified requests, unknown CA and hostname mismatch rejection passed.', flush=True)
+        print('Native S3 TLS: moved connected owner, reconnect after provider idle expiry, private PEM trust, verified requests, unknown CA and hostname mismatch rejection passed.', flush=True)
 
 
 if __name__ == '__main__':
