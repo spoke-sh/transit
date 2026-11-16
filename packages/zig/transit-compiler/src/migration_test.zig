@@ -11,6 +11,15 @@ fn desired(a: std.mem.Allocator, basis: []const u8, version: []const u8, body: [
 }
 const initial = "CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY, note TEXT NOT NULL DEFAULT 'initial');";
 const additive = "CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY, note TEXT NOT NULL DEFAULT 'initial', extra TEXT DEFAULT 'a,b', amount BIGINT NOT NULL DEFAULT 7);";
+test "synthesized migration filenames preserve the version at the native boundary" {
+    const a = std.testing.allocator;
+    const path = try d.fileName(a, "2026.11.15", "add_note");
+    defer a.free(path);
+    try std.testing.expectEqualStrings("2026.11.15-add_note.sql", path);
+    for ([_][]const u8{ "0001_patch", "_0001", "0001-patch" }) |version| {
+        try std.testing.expectError(error.InvalidMigrationVersion, d.fileName(a, version, "schema"));
+    }
+}
 test "migration synthesis preserves history projects additions and emits zero unchanged steps" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();

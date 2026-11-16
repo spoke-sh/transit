@@ -491,7 +491,9 @@ Output is one atomically published directory containing `desired.sql`,
 `provenance.json`, `basis.json` and `migrations/`. Historical SQL is copied exactly;
 the proposed version adds one new file only when the diff contains steps. An
 unchanged target emits zero steps and creates no empty version. Versions strictly
-increase lexicographically and use 1–64 ASCII alphanumeric, `.` or `_` bytes;
+increase lexicographically and use 1–64 ASCII alphanumeric or `.` bytes. `_`
+and `-` are filename separators in the native migration client and cannot occur
+inside a synthesized version;
 synthesized names use 1–128 ASCII alphanumeric, `_` or `-` bytes. Existing explicit
 output directories reject, and cached artifacts must match every generated file.
 Build reports count newly synthesized steps; their `sql_digest` identifies

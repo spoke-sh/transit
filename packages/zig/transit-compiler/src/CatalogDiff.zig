@@ -42,7 +42,9 @@ pub fn hash(bytes: []const u8) [32]u8 {
 }
 pub fn fileName(a: std.mem.Allocator, version: []const u8, name: []const u8) ![]const u8 {
     if (version.len == 0 or version.len > 64 or name.len == 0 or name.len > 128) return error.InvalidMigrationVersion;
-    for (version) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '.' and byte != '_') return error.InvalidMigrationVersion;
+    // MigrationClient parses both '-' and '_' as filename separators. Keep
+    // synthesized versions unambiguous so applying a file preserves its identity.
+    for (version) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '.') return error.InvalidMigrationVersion;
     for (name) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '-') return error.InvalidMigrationVersion;
     return std.fmt.allocPrint(a, "{s}-{s}.sql", .{ version, name });
 }

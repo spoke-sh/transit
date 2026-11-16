@@ -905,6 +905,10 @@ def migration_journey(cli, temporary):
     original = first_sql.read_bytes()
     assert first['statements'] == 1 and b'CREATE TABLE' in original
     assert cli_build(cli, root)['reused']
+    target(version='0001_patch')
+    failure = cli_build(cli, root, '--out', root / 'ambiguous-version', expected=1)
+    assert 'InvalidMigrationVersion' in json.dumps(failure)
+    assert not (root / 'ambiguous-version').exists()
     basis_path = first_dir.relative_to(root) / 'basis.json'
     target(f"'{basis_path}'", '0002')
     definitions.write_text(definitions.read_text().replace(", CHECK (id > 0)", ", extra TEXT DEFAULT 'a,b', amount BIGINT NOT NULL DEFAULT 7, CHECK (id > 0)"))
