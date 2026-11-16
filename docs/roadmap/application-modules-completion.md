@@ -25,7 +25,7 @@ estimates, not measured delivery velocity. They include M12's compiler, CLI,
 migration-diff, test-runner, formal-correspondence and integration work, while
 excluding implementation of external runtime milestones ([M7](07-document-storage-and-station-decoupling.md)
 `DOCUMENT` transactions, [M11](11-indexing-and-access-paths.md) online table/index
-rewrites, and [M13](13-sql-and-dataflows.md)/[M28](28-control-and-policy-plane.md)/[M29](29-published-resources-and-investigations.md)
+rewrites, and [M14](14-sql-and-dataflows.md)/[M29](29-control-and-policy-plane.md)/[M30](30-published-resources-and-investigations.md)
 live HTTP ingress, sink execution, protected response handoff and publications).
 
 **Source basis:** local `main` at `505d8ac3147dd9cdc0fa4a26c11bc8f334b2bae7`,
@@ -55,7 +55,7 @@ acceptance criteria and historical slice records.
 | Nominal types, variants and public data | `BIGINT`/`TEXT`/`BOOLEAN` nominal domains, closed compile-time `VARIANT` + exhaustive `MATCH` with symbolic all-arm checking, exact `TABLE`/`STREAM`/`QUEUE` signatures, nominal `DATAFLOW ... FROM QUEUE` propagation across `LET`/nullable `SELECT`/`REQUIRE`/`IF`/`CASE`/`BEGIN ATOMIC`/`INSERT`/`PRODUCE`/`ENQUEUE`/`ON FAILURE`, and 6 Lean laws | Runtime variant/tag dispatch, zero/one/many query cardinality, bounded scalar refinements with dynamic boundary validation, symbolic `DATAFLOW`/control specialization in parameterized modules, and remaining scalar/composite source types |
 | Compile-time helpers and procedures | Parameterized `MODULE` and `INTERFACE` specialization over types, identifiers, scalars, variants and public resources | `CREATE PROFILE` + `USING PROFILE`; pure deterministic `CREATE FUNCTION` via Fuze `ScalarProgram`; ordered `CREATE GUARD` with refusal precedence and dual spans; hygienic inline `CREATE PROCEDURE ... AS BEGIN ATOMIC ... END` |
 | Module encapsulation and schemas | `WorkingCatalog` binds explicit names in `public`; compile-time visibility hides unexported module locals from `.transit` callers | Multi-schema bindings (`CREATE SCHEMA`), `EXPORT REFERENCE` preserving `FOREIGN KEY` and `DROP` edges without row access, and runtime catalog/grant protection so direct SQL callers cannot bypass private module tables or forge procedure authority |
-| Protected commands, effects and transitions | Runtime `ApplicationProgram` parses protected types and host steps, while `ProgramCheck` restricts source compilation to public-data `FROM QUEUE` programs | After M13/#430/M28/M29 land: `FROM COMMAND`, `SOURCE`/`SINK`/`CONNECTION`/`PUBLICATION` declarations, static CFG linear `CAPABILITY`/`OPERATION` settlement, `Secret<T>` taint rejection, `DEADLINE` budgets, and Case 2/Case 3 transition proofs |
+| Protected commands, effects and transitions | Runtime `ApplicationProgram` parses protected types and host steps, while `ProgramCheck` restricts source compilation to public-data `FROM QUEUE` programs | After M14/#430/M29/M30 land: `FROM COMMAND`, `SOURCE`/`SINK`/`CONNECTION`/`PUBLICATION` declarations, static CFG linear `CAPABILITY`/`OPERATION` settlement, `Secret<T>` taint rejection, `DEADLINE` budgets, and Case 2/Case 3 transition proofs |
 | Explicit-basis migrations and replacement | Immutable `migrations/<version>-<name>.sql` ledger (`TMD1`/`TMV1`), deterministic step tokens, `IF NOT EXISTS` logical fingerprint drift checks, Table and finite Table-dataflow adapters (`64 KiB` file, `64` steps) | Offline explicit-basis `CatalogDiff` (Tables first, then logs/KV/Documents/definitions), `1 MiB` / `256`-step script cutover with $O(\text{statement})$ scratch, Queue-program migration receipts, and `CREATE OR REPLACE ... IF REVISION` with `require_idle`, `pin_generation` and `drain_active` |
 | Deterministic testing, replay and baseline | Disposable local `TestHost` (`128` cases, `1,024` actions/case, `30 s`/case, `256 MiB`), `ASSERT ROWS`, `ASSERT COMMAND`, Table failure assertions and bounded `ASSERT WORKFLOW` polling | Close retained local Queue `TestDeadline`/`TestReadCleanupFailed`/`lease_expired` failures; add `SET TEST SUBJECT`, `SET TEST CLOCK`/`ADVANCE TEST CLOCK`, `MOCK SINK`/`MOCK OBSERVATION`, `--verify-replay` yield-point sweeps, and qualify the 6-domain Platform refactoring (`> 35%` deduplication, `< 500 ms` `--check`, `< 2 s` test/replay) |
 
@@ -99,7 +99,7 @@ owners (`transit-sql`, `transit-catalog` and `transit-query-direct`)**.
 | Neutral catalog & migration descriptors | Logical column/constraint/resource fingerprints, definition revision hashes (`SHA-256`), step classifications and `DirectMigration` receipt payloads | Shared between offline `CatalogDiff` and live `MigrationRunner` without pulling runtime storage into the compiler |
 | `transit-compiler` | `.transit` parsing, `Format`, module/interface recursion, nominal/variant/refinement/capability/secret checking, helper lowering, `WorkingCatalog`, `CatalogDiff` and independent emitted-SQL rebinding | Zero OS/filesystem/network I/O, zero Station dependency, bounded `64 MiB` arena, and zero runtime `.transit` sidecars or persistent binary IR |
 | `apps/transit-cli` & `transit-test` | Confined `BuildSources` discovery, `transit.lock` verification/fetching, atomic output writing, `MigrationClient` submission, isolated `TestHost` simulation and `--verify-replay` | Never fetch or contact a server during `transit build` unless `--fetch` is requested; reject test-only directives in build/library sources |
-| Database & dataflow runtime owners | Authoritative catalog namespaces/grants, `DirectMigration` ledger execution, M5/M6 atomic transactions, M13 `ManagedApplication`/effect/source/publication lifecycles and generation draining | Enforce security, quotas, deadlines and idempotence on raw SQL callers; never trust compiler provenance comments for runtime authority |
+| Database & dataflow runtime owners | Authoritative catalog namespaces/grants, `DirectMigration` ledger execution, M5/M6 atomic transactions, M14 `ManagedApplication`/effect/source/publication lifecycles and generation draining | Enforce security, quotas, deadlines and idempotence on raw SQL callers; never trust compiler provenance comments for runtime authority |
 
 Emitted `.sql` remains the sole deployable artifact (`D1`, `D4`). Source-only
 constructs (`TYPE`, `VARIANT`, `MATCH`, `MODULE`, `INTERFACE`, `PROFILE`, inline
@@ -124,12 +124,12 @@ profiles admit a surface only when its runtime owner and recovery proofs exist:
 | [M7](07-document-storage-and-station-decoupling.md) | Direct `DOCUMENT` DDL, schema fingerprints and mixed-transaction participation | Keep `DOCUMENT` rejected in `.transit` programs and `CatalogDiff` until M7's direct lifecycle and participant contracts pass |
 | [M8](08-gateway-architecture-and-protocol-ingress.md) & [M9](09-client-foundation-and-language-apis.md) | Inherited command deadlines, cancellation join and shared client recovery handles | Offline builds, isolated local `TestHost` deadlines and CLI `MigrationClient` file submission |
 | [M10](10-standards-and-catalogs.md) & [M11](11-indexing-and-access-paths.md) | Lazy additive column projection, historical catalog cuts, `FOREIGN KEY` index backing and online table/index rewrites | Unit C additive `ALTER TABLE ADD COLUMN` and `CREATE TABLE` diffs; refuse destructive/rewrite diffs with `MigrationRequiresExplicitTransform` |
-| [M13](dataflow-sql-implementation.md) & `#430` | Unit 2 Queue-program migration receipts; Unit 5 `FROM COMMAND`, `CREATE SOURCE`/`SINK`/`CONNECTION`, `ApplicationProtectedHost` and `DEADLINE` enforcement | Public-data Queue `DATAFLOW` builds/tests now; Queue-program `CatalogDiff` joins M13 Unit 2; Unit E live admission joins M13 Unit 5 |
-| [M16](16-data-centric-compilation-and-specialization.md) | Optional `transit build` AOT query/view specialization | Keep M12 SQL output self-sufficient and canonical; expose clean typed plan hooks without coupling M12 completion to AOT codegen |
-| [M21](21-branches-merges-and-restore.md) & [M30](30-reviewed-data-collaboration.md) | Branch `DIFF_SCHEMA` and governed change-request migration review | Keep `CatalogDiff` fingerprints and `MIGRATION_V1` deterministic so branch/governance workflows consume the exact same descriptors |
-| [M23](23-formal-semantics-and-correspondence.md) | `T8` catalog/dataflow lifecycle TLA+ models and `A1`/`A6` Lean proofs | Co-own M12's Lean laws (`TypedTarget.lean`) and TLA+ capability/replacement models with native trace replay |
-| [M28](28-control-and-policy-plane.md), [M29](29-published-resources-and-investigations.md) & [M31](31-board-reimplementation.md) | Installed `CREATE PUBLICATION` (HTTP/OpenAPI, SSE/AsyncAPI) and read-only Board lineage inspection | Defer live `PUBLICATION` emission to Unit E alongside M28/M29; preserve source-origin metadata for M31 read-only inspection |
-| [M44](44-sql-grammar-and-dialect-ergonomics.md) | Harmonized SQL and application grammar audit | Maintain strict ANTLR/Zig correspondence in `contracts/application-source/` on every grammar addition |
+| [M14](dataflow-sql-implementation.md) & `#430` | Unit 2 Queue-program migration receipts; Unit 5 `FROM COMMAND`, `CREATE SOURCE`/`SINK`/`CONNECTION`, `ApplicationProtectedHost` and `DEADLINE` enforcement | Public-data Queue `DATAFLOW` builds/tests now; Queue-program `CatalogDiff` joins M14 Unit 2; Unit E live admission joins M14 Unit 5 |
+| [M17](17-data-centric-compilation-and-specialization.md) | Optional `transit build` AOT query/view specialization | Keep M12 SQL output self-sufficient and canonical; expose clean typed plan hooks without coupling M12 completion to AOT codegen |
+| [M22](22-branches-merges-and-restore.md) & [M31](31-reviewed-data-collaboration.md) | Branch `DIFF_SCHEMA` and governed change-request migration review | Keep `CatalogDiff` fingerprints and `MIGRATION_V1` deterministic so branch/governance workflows consume the exact same descriptors |
+| [M24](24-formal-semantics-and-correspondence.md) | `T8` catalog/dataflow lifecycle TLA+ models and `A1`/`A6` Lean proofs | Co-own M12's Lean laws (`TypedTarget.lean`) and TLA+ capability/replacement models with native trace replay |
+| [M29](29-control-and-policy-plane.md), [M30](30-published-resources-and-investigations.md) & [M32](32-board-reimplementation.md) | Installed `CREATE PUBLICATION` (HTTP/OpenAPI, SSE/AsyncAPI) and read-only Board lineage inspection | Defer live `PUBLICATION` emission to Unit E alongside M29/M30; preserve source-origin metadata for M32 read-only inspection |
+| [M45](45-sql-grammar-and-dialect-ergonomics.md) | Harmonized SQL and application grammar audit | Maintain strict ANTLR/Zig correspondence in `contracts/application-source/` on every grammar addition |
 
 ## Review units and effort estimate
 
@@ -144,7 +144,7 @@ qualification for each unit.
 | B. Deliver pure functions, ordered guards, inline procedures and runtime variants | 3–4 | 4–6 | `D3`, `D4`, `P0`–`P3`, `P5` public-data composition and Lean laws |
 | C. Synthesize explicit-basis migrations and raise script bounds | 2–3 | 3–5 | `D1`, `D4`, `P0`, `P4` offline `CatalogDiff` and `MIGRATION_V1` bounds |
 | D. Enforce reference-only exports, schemas and runtime module boundaries | 2 | 2.5–4 | `D2`, `P1`–`P3` `EXPORT REFERENCE`, multi-schema and catalog/grant isolation |
-| E. Check profiles, linear capabilities, secrets and state transitions | 2–3 | 3–5 | `D3`, `D4`, `P2`, `P3`, `P5` protected workflows (live activation gated on M13/M28/M29) |
+| E. Check profiles, linear capabilities, secrets and state transitions | 2–3 | 3–5 | `D3`, `D4`, `P2`, `P3`, `P5` protected workflows (live activation gated on M14/M29/M30) |
 | F. Replace definitions safely and drain active generations | 2–3 | 2.5–4.5 | `D5`, `P4` `CREATE OR REPLACE ... IF REVISION` and `require_idle` / `pin_generation` / `drain_active` |
 | G. Complete deterministic workflow testing and replay fault sweeps | 1–2 | 1.5–2.5 | `D6`, `P5` subject/clock/effect simulation and `--verify-replay` |
 | H. Qualify the multi-module application baseline and close Milestone 12 | 1 | 1–1.5 | `P6` 6-domain Platform refactoring, performance budgets, handbook promotion and common-HEAD closure |
@@ -154,8 +154,8 @@ Units A, B and the Table slice of C have **no external milestone blockers** and
 form the immediate execution wave. Units D and F require focused catalog and
 dataflow-lifecycle contract reviews before coding. Unit E's static checker can be
 built and model-checked ahead of time, while its end-to-end SQL execution waits
-on M13 Unit 5 and M28/M29. Re-estimate after Units B and C land if multi-schema
-encapsulation or M13 protected-host integration expands the cutover surface.
+on M14 Unit 5 and M29/M30. Re-estimate after Units B and C land if multi-schema
+encapsulation or M14 protected-host integration expands the cutover surface.
 
 ## A Reconcile retained failures and freeze compilation bounds
 
@@ -294,7 +294,7 @@ immutability, ledger-token and drift-detection guarantees:
      default, or primary/foreign-key rewrites.
    - **Phase C.2 — Logs, KV, Documents and definitions:** extend `CatalogDiff` to
      `STREAM`, `QUEUE`, `KV`, `VIEW` and Queue `DATAFLOW` definitions as
-     [M13 Unit 2](dataflow-sql-implementation.md#2-review-and-apply-the-same-sql-through-migrations--r0r9)
+     [M14 Unit 2](dataflow-sql-implementation.md#2-review-and-apply-the-same-sql-through-migrations--r0r9)
      adds Queue-program `DirectMigration` receipts, emitting required planning
      controls (`VERIFY SHADOW`, `BACKFILL`) where applicable and keeping
      `DOCUMENT` gated on [M7](07-document-storage-and-station-decoupling.md).
@@ -352,9 +352,9 @@ effects, protected credentials and state-transition invariants (`D3`, `D4`, `P2`
 1. **Runtime prerequisite gate.** Keep live `transit build` SQL emission for
    `FROM COMMAND`, `CREATE SOURCE ... FROM HTTP REQUEST`, `CREATE SINK`,
    `CREATE CONNECTION`, `CREATE PUBLICATION` and whole-program `DEADLINE` gated
-   until [M13 Unit 5](dataflow-sql-implementation.md#5-compose-effects-protected-responses-and-deadlines--r8r9),
-   `#430`, [M28](28-control-and-policy-plane.md) and
-   [M29](29-published-resources-and-investigations.md) qualify their installed database
+   until [M14 Unit 5](dataflow-sql-implementation.md#5-compose-effects-protected-responses-and-deadlines--r8r9),
+   `#430`, [M29](29-control-and-policy-plane.md) and
+   [M30](30-published-resources-and-investigations.md) qualify their installed database
    and gateway owners. Build and verify the pure compiler checkers and finite
    models first; enable executable SQL emission per declaration kind only as its
    runtime owner passes recovery qualification.
@@ -398,7 +398,7 @@ effects, protected credentials and state-transition invariants (`D3`, `D4`, `P2`
 
 **Exit:** profile option merging, CFG capability linearity, secret-taint
 rejection, activation ordering, TLA+ models (positive + failing negative controls)
-and installed Case 2 / Case 3 executions pass once the M13/M28/M29 runtime gates
+and installed Case 2 / Case 3 executions pass once the M14/M29/M30 runtime gates
 are met.
 
 ## F Replace definitions safely and drain active generations
@@ -412,7 +412,7 @@ runtime owners:
    `DirectMigration` (`TMV1` step kinds for `replace_view`, `replace_dataflow`,
    `replace_publication`, `replace_sink` and `replace_source` binding both
    `expected_prior_definition_sha256` and `object_definition`),
-   `DirectDefinition`, `ManagedTable`, `ManagedApplication` ([M13](13-sql-and-dataflows.md))
+   `DirectDefinition`, `ManagedTable`, `ManagedApplication` ([M14](14-sql-and-dataflows.md))
    and `CatalogDiff` together under one current-v1 cutover. Refusal on a stale or
    mismatched `IF REVISION` hash must fail closed before mutating catalog state,
    while retry of an already-applied step with the matching original migration
@@ -434,7 +434,7 @@ runtime owners:
      drain fence and original replacement receipt across crash/restart.
 3. **Formal race models and replay correspondence.** Check concurrent
    `{admit_work, yield_continuation, resume_continuation, replace_definition, crash_recover}`
-   schedules in TLA+ (coordinated with [M23 `T8`](23-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)),
+   schedules in TLA+ (coordinated with [M24 `T8`](24-formal-semantics-and-correspondence.md#t8-catalog-ddl-evolution-and-dataflow-lifecycle-state-machines)),
    verify a broken unpinned/unfenced model violates safety, and replay the same
    transitions through `MigrationRunner` and `TestHost`.
 
@@ -605,7 +605,7 @@ flowchart LR
 
 The critical compiler and runtime spine is **A → B → D → E → F → H**. **C.1**
 (Table migration synthesis and `1 MiB` / `256`-step bounds) runs in parallel with
-**B** after **A**, then joins **B** and [M13 Unit 2](dataflow-sql-implementation.md#2-review-and-apply-the-same-sql-through-migrations--r0r9)
+**B** after **A**, then joins **B** and [M14 Unit 2](dataflow-sql-implementation.md#2-review-and-apply-the-same-sql-through-migrations--r0r9)
 for **C.2** (Queue/Stream/View migration diffs). **G** lands incrementally with
 each capability (**G.1** subject/grant controls with **B/D**, **G.2** simulated
 clocks, mocked sinks and `--verify-replay` with **E/F**) rather than deferring
@@ -616,7 +616,7 @@ simulation and fault injection to the end.
 1. **Sequence immediate unblocked value first (Slices A, B.1/B.2 and C.1).**
    Finish Queue test reliability, statement bounds, `FUNCTION`/`GUARD`/`PROCEDURE`,
    runtime variants and Table migration synthesis now over existing database
-   owners, rather than blocking M12 compiler progress on M13/M28/M29 HTTP and
+   owners, rather than blocking M12 compiler progress on M14/M29/M30 HTTP and
    connector work.
 2. **Keep `.sql` canonical and runtime-sidecar-free.** Lower all compile-time
    modules, profiles, functions, guards and inline procedures to standard

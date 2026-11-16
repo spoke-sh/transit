@@ -224,7 +224,7 @@ No new TLA+ theorem, Lean proof or temporal-model result is claimed in this slic
 Document the bridge: later transition/effect constructs supply explicit temporal
 abstractions and native trace projections; later core/lowering transformations
 supply selected Lean preservation obligations. Their first execution belongs
-with those constructs, as M12 already requires, rather than waiting for M23.
+with those constructs, as M12 already requires, rather than waiting for M24.
 This slice supplies the syntax and stage correspondence needed to state those
 claims precisely. Existing formal suites remain regression owners if shared
 semantics or tooling changes.

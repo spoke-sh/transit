@@ -16,11 +16,17 @@ removing HTTP requests, reducing threads or returning an earlier acknowledgement
 does not by itself establish the target. Gateway placement, recovery scheduling
 and physical publication are separate, coordinated optimization boundaries.
 
+[M13 declarative serving](13-declarative-serving-and-reactive-dataflows.md) owns
+publication, application API and subscription semantics, including the removal of
+Station dependencies. This milestone supplies its shared hosting, transport and
+deadline infrastructure. Co-location alone does not satisfy that dependency cutover;
+the existing serving/reactive contracts remain in force until migrated.
+
 ## Prerequisites and architectural rationale
 
 The [nightly container performance tracker #378](https://github.com/spoke-sh/transit/issues/378)
 connects this milestone's ingress/scheduler work to the
-[local-to-distributed scorecard](14-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs).
+[local-to-distributed scorecard](15-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs).
 Measure current connection-driven worker sizing, admission waits and complete
 statement costs before replacing the host driver. Runnable capacity must follow
 effective CPU budgets; parked connection state has a separate bound. Preserve
@@ -596,16 +602,16 @@ Merged source does not certify a combined pass. Retain these evidence boundaries
 
 | Owner | Available input and immediate M8 use | Incoming gate or later responsibility |
 | --- | --- | --- |
-| [M1–M3](03-live-storage-and-sql-cutover.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Stable definitions, local durability, logical `StatementOutcome`/`ResultSet`, common Table cuts, provisional counts/savepoints and original decisions | M3 remains In Progress; M4/M5 completion has their selected scope. Preserve bootstrap/recovery and Table transaction semantics through placement and scheduling. |
+| [M3–M3](03-live-storage-and-sql-cutover.md), [M4](04-statement-results-and-consumption.md), [M5](05-transactions-and-atomic-composition.md) | Stable definitions, local durability, logical `StatementOutcome`/`ResultSet`, common Table cuts, provisional counts/savepoints and original decisions | M3 remains In Progress; M4/M5 completion has their selected scope. Preserve bootstrap/recovery and Table transaction semantics through placement and scheduling. |
 | [M6](06-streams-queues-and-durable-runtime.md#completion-plan-at-current-main--2026-11-05) | Current direct KV/log SQL, authenticated progress, native waits/mixed decisions/DLQ and #386's Queue WAIT/pending-result contract are regression inputs | Stream WAIT and the remaining M6 verbs consume the qualified host seam. M6 supplies selection/settlement and Station semantics; M8 supplies deadlines and resumable scheduling. M6 R9 and M8 P2 jointly retain account-token/commit and #211 latency closure. |
 | [M7](07-document-storage-and-station-decoupling.md#remaining-work-packages-and-gates) | Retained collection cuts, #388's logical deletion and partition-aware guards provide component lifetime semantics; coordinate staging/borrow/cancellation interfaces now | Remaining C0 staging/discovery contracts, protected staging, C4 signed lifecycle/discovery, C5 participants, C6 SQL and C7/C8 consumer qualification gate direct Documents. A component root or independent partition vector grants neither acceptance nor an atomic cut. |
-| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M22](22-service-and-sdk-coverage.md) | Context leases, bounded admission, `LocalRecoveryStore`, frozen SQL/KV attempts and shared result readers | Define remote handles/authority together. Principal coordination, ordinary settlement, managed handles/data ABI and language breadth remain there; M8 migrates every existing consumer affected by its cutover without waiting for all SDK redesigns. |
+| [M9](09-client-foundation-and-language-apis.md#remaining-implementation-plan--2026-11-01), [M23](23-service-and-sdk-coverage.md) | Context leases, bounded admission, `LocalRecoveryStore`, frozen SQL/KV attempts and shared result readers | Define remote handles/authority together. Principal coordination, ordinary settlement, managed handles/data ABI and language breadth remain there; M8 migrates every existing consumer affected by its cutover without waiting for all SDK redesigns. |
 | [M10](10-standards-and-catalogs.md), [M11](11-indexing-and-access-paths.md) | Historical catalogs/cuts, exact scalar/collation descriptors and current policy checks constrain all metadata and data output | Index-backed execution, online maintenance and narrower conflict tracking remain M11. Cached preparation cannot invent current coverage or remove existing conflict guards. |
-| [M13](13-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification) | Batched finite results and `TXR1`/`CPR1`/`SOR1` owned work; typed relational execution and independent inspection | Provide bounded execution/yield/cancel seams; M12 owns complete-history activation, incremental processing and finite recovery/fairness. A gateway connection is not a durable subscription or history cursor. |
-| [M14](14-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs), [M15](15-vectorized-strings-and-search.md), [M16](16-data-centric-compilation-and-specialization.md) | Existing scorecards and execution-owned predicate/buffer interfaces | M8 proves ingress allocations, queues and CPU-sized progress. General metering, storage/cache work, search and compilation stay with these owners; future meters cannot excuse an unbounded M8 queue. |
-| [M17](17-document-profiles-and-gateway-exchange-lifecycle.md) | Offline JSON/XML/MIME codecs, construction, framing and commitments can consume pure byte/event interfaces | Profile expansion and gateway/connector capture require M7 acceptance and explicit effect contracts. Reuse pure libraries; do not migrate `STATION_EXCHANGE_V1` or dispatch effects in a codec. |
-| [M21](21-branches-merges-and-restore.md), [M23](23-formal-semantics-and-correspondence.md), [M27](27-clustered-execution.md) | Immutable branches/forks and mixed pending directories must survive discovery; finite scheduler traces support correspondence | Branch mutation/merge, general refinement, replication/failover and distributed transaction behavior remain separate. A remote protocol frontend and three independent container authorities establish none of them. |
-| [M31](31-board-reimplementation.md), [M46](46-releases.md) | Read-only public inspection, computation/retained-result views, installed artifacts and filesystem publication | Preserve Board/browser control progress and source-bound output; UI work and hosted filesystem qualification retain their owners. Keep build/package cost separate from runtime startup. |
+| [M14](14-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification) | Batched finite results and `TXR1`/`CPR1`/`SOR1` owned work; typed relational execution and independent inspection | Provide bounded execution/yield/cancel seams; M12 owns complete-history activation, incremental processing and finite recovery/fairness. A gateway connection is not a durable subscription or history cursor. |
+| [M15](15-data-structures-and-performance.md#nightly-container-scorecard-and-distributed-handoffs), [M16](16-vectorized-strings-and-search.md), [M17](17-data-centric-compilation-and-specialization.md) | Existing scorecards and execution-owned predicate/buffer interfaces | M8 proves ingress allocations, queues and CPU-sized progress. General metering, storage/cache work, search and compilation stay with these owners; future meters cannot excuse an unbounded M8 queue. |
+| [M18](18-document-profiles-and-gateway-exchange-lifecycle.md) | Offline JSON/XML/MIME codecs, construction, framing and commitments can consume pure byte/event interfaces | Profile expansion and gateway/connector capture require M7 acceptance and explicit effect contracts. Reuse pure libraries; do not migrate `STATION_EXCHANGE_V1` or dispatch effects in a codec. |
+| [M22](22-branches-merges-and-restore.md), [M24](24-formal-semantics-and-correspondence.md), [M28](28-clustered-execution.md) | Immutable branches/forks and mixed pending directories must survive discovery; finite scheduler traces support correspondence | Branch mutation/merge, general refinement, replication/failover and distributed transaction behavior remain separate. A remote protocol frontend and three independent container authorities establish none of them. |
+| [M32](32-board-reimplementation.md), [M47](47-releases.md) | Read-only public inspection, computation/retained-result views, installed artifacts and filesystem publication | Preserve Board/browser control progress and source-bound output; UI work and hosted filesystem qualification retain their owners. Keep build/package cost separate from runtime startup. |
 
 Native SQL retains its rejection of browser Origin/cookie/forwarded identity.
 Browser listeners retain Host/Origin, provider, session and publication checks.
@@ -783,11 +789,11 @@ readiness and first verified result remain separate. Extend bounded counters
 rather than increasing telemetry volume or allowing missing spans to imply zero
 work. Allocation/copy measurements that are unavailable remain explicit gaps.
 
-M14 additionally owns plain/dictionary/FSST selectivity, collation and cardinality
+M15 additionally owns plain/dictionary/FSST selectivity, collation and cardinality
 controls through the real reader: CPU, page reads, streamed/materialized bytes,
 warmed allocations and verified raw output. M7 owns causal edit/value-page/replay
-amplification; M16 owns scalar JSON/XML parsing plus hash/grammar completion;
-M17 owns filtered versus exact spatial predicate costs. These component baselines
+amplification; M17 owns scalar JSON/XML parsing plus hash/grammar completion;
+M18 owns filtered versus exact spatial predicate costs. These component baselines
 remain separate from installed SDK scores until their public adapters exist.
 No new Document API, incremental engine, spatial SQL or search support is implied.
 
@@ -886,9 +892,9 @@ complete revision, current permissions and cleanup ownership throughout.
 | --- | --- | --- |
 | [#330](https://github.com/spoke-sh/transit/pull/330), SDK initialization/recovery | Generated Node validators and renewal of definitively rejected expired view opens; source-specific import/metadata comparisons and selected clean checks | V2 is delivered. Preserve its checks and remeasure regenerated packages; prioritize full reads, writes and cleanup instead of repeating schema-compilation work. Default SDK acquisition conflicts and earlier console cancellation remain open. |
 | [#328](https://github.com/spoke-sh/transit/pull/328), M12 owned staging | `TXR1` result pages/manifests belong to the original transaction; reservations precede bytes, readiness precedes commit, and authoritative abort cleanup permits payload collection | M3 must batch inside this ownership protocol. Measure reservation/readiness publications, workspace charges, collector work and retained/aborted inventory growth in addition to elapsed refresh time. Declaration/work-record closure and completed-result expiry remain separate M12 work. |
-| [#329](https://github.com/spoke-sh/transit/pull/329), M14 encoded predicates | One encoded column traversal serves multiple atoms, with active-width dictionary scratch and shared FSST validation; projection still reads separately | Establish installed benefit across codecs, atom counts, selectivity and projection. The next candidate is shared page/literal ownership, not another implementation of the delivered traversal. |
-| [#327](https://github.com/spoke-sh/transit/pull/327), M16 construction | Offline bounded JSON/XML writers and compound commitments, with caller-owned workspace and independent semantic/byte oracles | Add parse, construct, drain and commitment component measurements now. Installed Document publication, exchange migration, SIMD/AOT and other formats retain their milestone dependencies. |
-| [#331](https://github.com/spoke-sh/transit/pull/331), qualification repairs | Corrected physical-rewrite refusal fixtures and rendered Board pagination checks; recorded clean core/storage/SQL and separate browser results | Investigate its reported intermittent Board `UnsupportedQuery` on `empty_metrics`. Retain the separately recorded M16 service-wait and M12 publication/observation failures; unrelated successful reruns do not explain them. |
+| [#329](https://github.com/spoke-sh/transit/pull/329), M15 encoded predicates | One encoded column traversal serves multiple atoms, with active-width dictionary scratch and shared FSST validation; projection still reads separately | Establish installed benefit across codecs, atom counts, selectivity and projection. The next candidate is shared page/literal ownership, not another implementation of the delivered traversal. |
+| [#327](https://github.com/spoke-sh/transit/pull/327), M17 construction | Offline bounded JSON/XML writers and compound commitments, with caller-owned workspace and independent semantic/byte oracles | Add parse, construct, drain and commitment component measurements now. Installed Document publication, exchange migration, SIMD/AOT and other formats retain their milestone dependencies. |
+| [#331](https://github.com/spoke-sh/transit/pull/331), qualification repairs | Corrected physical-rewrite refusal fixtures and rendered Board pagination checks; recorded clean core/storage/SQL and separate browser results | Investigate its reported intermittent Board `UnsupportedQuery` on `empty_metrics`. Retain the separately recorded M17 service-wait and M12 publication/observation failures; unrelated successful reruns do not explain them. |
 | [#332](https://github.com/spoke-sh/transit/pull/332), Board observation ownership | Bounded scheduling, visibility/reconnect controls, original result correspondence and independent connection profiles | Add visible/hidden/reconnect and admission-pressure controls to interactive Board measurements. Keep its recorded managed restart/authorization failure separate from later successful schedules. |
 | [#333](https://github.com/spoke-sh/transit/pull/333), M6 Queue recovery | Reuse of verified provider pages, bitmap buffers and eligibility prefixes; selected profile-4 recovery and separate integration evidence | Measure first original-operation lookup and retained-page recovery separately from readiness across all supported profiles, cache bounds and retained histories. Its earlier-definition profile-4 timings are not a current-definition or all-profile baseline. |
 | [#334](https://github.com/spoke-sh/transit/pull/334), recovery qualification | Distinguishes storage-epoch fencing from authorization changes; preserves native SQL rejection diagnostics and original Board recovery identities | Requalify the original failure schedules before attributing old conflicts to current policy handling. Exact SDK capture semantics remain unchanged; diagnostics do not authorize resubmission. |
@@ -898,7 +904,7 @@ complete revision, current permissions and cleanup ownership throughout.
 | [#339](https://github.com/spoke-sh/transit/pull/339), [#340](https://github.com/spoke-sh/transit/pull/340), computation inspection | Shared persisted-record codecs and signed independent-reader metadata inspection, reused by SQL SHOW and Board Computations | Measure current/retained metadata observation separately from retained-row consumption and execution. Include independent-reader rights, after-buffer revocation and visible/hidden polling under active work. The F0 SHOW timings predate this owner; absence of pending work is not proof of source freshness. |
 | [#341](https://github.com/spoke-sh/transit/pull/341), SQL Queue renewal results | Receipt-returning `EXTEND LEASE`, exact original renewal-result recovery and a shared-definition cutover | Measure settlement, original-handle recovery and verified terminal delivery separately from current lease liveness. Use fresh installations and matching regenerated SDKs; the `c3cbdfe9…` F0 diagnostics do not qualify this definition. |
 | [#342](https://github.com/spoke-sh/transit/pull/342), [#345](https://github.com/spoke-sh/transit/pull/345), qualification ownership | Joined fault-proxy handlers, independent signing files, original retained-cut/flush recovery and independent-reader Board checks | Retain these assertions in affected checks. Measure original settlement and after-buffer authorization separately from steady reads; a later passing schedule does not explain a prior timeout or watch cancellation. |
-| [#343](https://github.com/spoke-sh/transit/pull/343), [#346](https://github.com/spoke-sh/transit/pull/346), Document profile composition | Bounded offline candidate commitments and incremental MIME entity framing | Extend M16 component cases to candidate verification and chunked MIME framing, including caller workspace and exact source/coverage checks. These do not measure installed Document publication or gateway exchange. |
+| [#343](https://github.com/spoke-sh/transit/pull/343), [#346](https://github.com/spoke-sh/transit/pull/346), Document profile composition | Bounded offline candidate commitments and incremental MIME entity framing | Extend M17 component cases to candidate verification and chunked MIME framing, including caller workspace and exact source/coverage checks. These do not measure installed Document publication or gateway exchange. |
 | [#344](https://github.com/spoke-sh/transit/pull/344), immutable Table branches | Paged discovery and explicit retiring/retired lifecycle, preserving creation receipts while closing reads and releasing retention | Measure discovery growth, retirement progress, restart and retention release separately from physical reclamation. Preserve current authorization and original identities; branch merge/restore remains outside this implemented boundary. |
 
 PR #337 repairs release prerequisites without supplying a new performance baseline.
@@ -1048,7 +1054,7 @@ statements, quota/resident/retained bytes and abort-to-reclaim work.
 with no hidden cleanup debt or foreground/recovery regression. A 10× improvement
 is a candidate goal for the larger fixed workloads, not a forecast. Do not promise
 100× from batching: if evaluation or unavoidable synchronization dominates, report
-the measured floor and hand the remaining work to M12/M13. WAL-driven incremental
+the measured floor and hand the remaining work to M12/M14. WAL-driven incremental
 execution remains M12 R2–R4, not part of this finite batching change.
 
 ##### C4b, D5 and S6 — The next measured reductions
@@ -1077,13 +1083,13 @@ do not combine its older-definition observations with the current Table timings.
 | Workload | New dimensions and oracle | Implementation owner / boundary |
 | --- | --- | --- |
 | Owned managed results | Active/pending/committed/aborted ownership, reservation/readiness counts, inventory cardinality, cleanup debt, collection work and retained-reader latency | Installed managed runner plus catalog/storage fault owners; reclamation excludes committed revisions and retained declaration/work records |
-| Encoded strings | Plain/dictionary/FSST; 1/2/4/6 atoms; same/multiple columns; filter-only versus projecting the predicate column; cardinality, selectivity, long strings, five admitted collations; WAL-only/flushed/mixed/historical cuts | M14 independent string oracle and real direct/SQL readers; count range reads, checksum/decode work, copy/allocation bytes and total completion. Preserve malformed-suffix failures and lossless spelling. |
-| JSON/XML construction and compound commitments | Parse versus construct/drain/hash, one-byte and practical output windows, nesting, long scalars, part count and external references; cold setup and warmed reuse | M16 pure package and independent Python/Expat oracle. Fixed workspace and exact bytes/commitments; no installed ingestion, external-part availability or SIMD claim. |
+| Encoded strings | Plain/dictionary/FSST; 1/2/4/6 atoms; same/multiple columns; filter-only versus projecting the predicate column; cardinality, selectivity, long strings, five admitted collations; WAL-only/flushed/mixed/historical cuts | M15 independent string oracle and real direct/SQL readers; count range reads, checksum/decode work, copy/allocation bytes and total completion. Preserve malformed-suffix failures and lossless spelling. |
+| JSON/XML construction and compound commitments | Parse versus construct/drain/hash, one-byte and practical output windows, nesting, long scalars, part count and external references; cold setup and warmed reuse | M17 pure package and independent Python/Expat oracle. Fixed workspace and exact bytes/commitments; no installed ingestion, external-part availability or SIMD claim. |
 | Catalog/history and Stream/Queue | Object/column/history growth, retained selection/release, empty/terminal reads; hot/sealed/cold logs, key skew, waits, lease expiry/redelivery and original settlement | M10/M6 public owners and existing log-runtime/Station-turn runners; report actual supported caller surfaces separately from pending SQL/Station composition |
 | Board and published watches | Polling/reconnect/freshness, empty tables, active watches, policy-progress delay, admission refusal, grant/revoke latency, idle CPU and foreground interference; first verified read after retained restart for independent and combined catalog/SQL profiles | Existing read-only Board and real HTTP/WebSocket fixtures. Preserve the failed combined-profile read at `bf1ad51fa` with its two-second request budget and the separate watch closure (`1011` / `Canceled`) before verified changed-row delivery. Readiness and console success do not establish watch delivery. Observer requests are counted separately; no pin, mutation or additional policy authority is added. |
 | Original control operations | Declaration/provider publication, native admission/work time, deadline failures and original-outcome inspection under background observation; distinguish accepted mutation, response delivery and pending-quota settlement | The retained F0 browser-provisioning failure supplies an original request, not a successful latency sample. Use the real administrative/native owners; preserve its mutation and ordinary budgets. Do not replay as new work or infer rejection from transport timeout. |
 
-After M14's baseline, choose plan-owned literal preparation and shared
+After M15's baseline, choose plan-owned literal preparation and shared
 filter/projection page ownership as separate measured candidates. Preserve eager
 structural/semantic failure ordering, borrowed lifetimes, current disclosure
 checks and the existing decoded-memory budget. Do not combine packed dictionary
@@ -1093,7 +1099,7 @@ formats, new search semantics, ANN or AOT into this optimization review.
 
 The recommended first three PRs are **F0 attribution and current-definition
 controls**, **R1/C4a shared fresh-read lifecycle**, then **M3a owned multi-row result
-pages**. Follow with M3b statement batches. M14/M16 component baselines and S6
+pages**. Follow with M3b statement batches. M15/M17 component baselines and S6
 history measurements can progress independently; serialize heavy builds, disk
 proofs and timing campaigns on the shared host. C4b and D5 candidates follow their
 measured cost and correctness gates, rather than a speculative implementation.
@@ -1143,7 +1149,7 @@ PR #324's retained managed revisions. This is the detailed next-delivery plan fo
 [#211](https://github.com/spoke-sh/transit/issues/211), coordinated with
 [#76](https://github.com/spoke-sh/transit/issues/76),
 [M9](09-client-foundation-and-language-apis.md#sdk-performance-implementation-sequence--2026-11-01)
-and [M13](13-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
+and [M14](14-sql-and-dataflows.md#retained-completed-table-revisions--2026-11-01).
 It refines the earlier performance packets without replacing M8 P0–P6, startup
 S0–S6, or the other milestones' acceptance obligations. The tasks below are planned,
 not executed qualification or a claim that the 10–100× goals have been achieved.
@@ -1357,7 +1363,7 @@ lost replies, empty results and the final batch's deadline.
 **Exit:** fewer measured staged records/statements/publications, lower full
 successor latency, and bounded memory without regressing foreground latency or
 recovery. A count reduction alone is insufficient. If evaluations dominate after
-batching, hand the measured operator cost to M12/M13 instead of claiming that
+batching, hand the measured operator cost to M12/M14 instead of claiming that
 finite recomputation has become incremental.
 
 ##### C4a–b — Reduce shared SQL/SDK and durable-write overhead
@@ -1463,10 +1469,10 @@ before accepting M3; the other profiles need not delay an independent V2 change.
 | Retained revisions / M12 | Manifest publication, fixed-revision open, first row, complete consumption, early close; authorization/root checks after buffering and at empty/terminal disclosure; encoded bytes, read attempts, checksum/decode/copy/allocation work and resident/storage growth. Verify original values/schema after successors, output edits, retirement and restart. |
 | Streams, queues and Station / M6 | Extend [log-runtime](../../tests/performance/storage/log_runtime.md) and [Station-turn](../../tests/performance/load/station_turn.md) owners: warm/sealed/cold reads, group settlement, key skew, delays, lease expiry, redelivery and offered load. Retain original accepted work and cold Queue recovery failures. Missing workload SQL/Station composition is a capability dependency. |
 | Catalogs and column semantics / M10 | Named capture/enumeration, historical metadata and release, schema projection, defaults/generated columns, composite/foreign-key integrity and collations. Vary object/column/history counts; distinguish metadata retention from data pins and accepted writes from pre-admission refusals. |
-| Board observations / M30, merged in #326 | Exact Table storage inspection through the catalog owner, including deployments without SQL; initial load, polling, stale/disconnected/reconnecting transitions, request/byte/CPU cost and interference with foreground SQL. Separate observation age from fetch latency; preserve current rights and binding checks, and prove inspection creates no query, retained pin or maintenance work. |
+| Board observations / M31, merged in #326 | Exact Table storage inspection through the catalog owner, including deployments without SQL; initial load, polling, stale/disconnected/reconnecting transitions, request/byte/CPU cost and interference with foreground SQL. Separate observation age from fetch latency; preserve current rights and binding checks, and prove inspection creates no query, retained pin or maintenance work. |
 | Published HTTP/WebSocket watches / serving and reactive owners | Reuse the [real-listener fixture](../../tests/interfaces/http/declarative_browser.py) for a separate measured profile: active-watch count, native admission refusals, policy-progress observation delay, grant/revoke latency, idle work and foreground fairness. Preserve original policy-change identities and authorization after buffering; a retried observation cannot restart accepted work. The qualification fixture's capacity refusal motivates this profile but supplies no accepted performance score. |
-| Encoded strings / M14 | Plain/dictionary/FSST controls through the real reader, with cardinality/selectivity/collation variation, verified raw values, page reads, materialized bytes and warmed allocations. Installed UTF-8 SDK coverage does not establish codec throughput. |
-| Incoming Document/parser/spatial work / M7, M16, M17 | Keep component paging/replay, parse-and-verify and spatial costs with their owners. Add installed profiles only when public adapters execute those contracts; do not manufacture private substitutes. |
+| Encoded strings / M15 | Plain/dictionary/FSST controls through the real reader, with cardinality/selectivity/collation variation, verified raw values, page reads, materialized bytes and warmed allocations. Installed UTF-8 SDK coverage does not establish codec throughput. |
+| Incoming Document/parser/spatial work / M7, M17, M18 | Keep component paging/replay, parse-and-verify and spatial costs with their owners. Add installed profiles only when public adapters execute those contracts; do not manufacture private substitutes. |
 | Developer boot loop | Clean/incremental native compile/link, frontend build, package preparation and process startup separately, with exact cache identities. These do not contribute to a claimed runtime speedup. |
 
 For current M12, SQL revision inspection returns metadata; historical rows use
@@ -2176,7 +2182,7 @@ Persistent console pipes include client overhead and do not measure TCP/TLS;
 three client-routed independent authorities on one Docker host do not establish
 replication, shared data or multi-host scaling. Report exact values/counts, complete
 sample inventory, original uncertain writes, retained restart and joined cleanup.
-PIDs/RSS snapshots do not prove allocations or physical syncs. #378/M13 own expanded
+PIDs/RSS snapshots do not prove allocations or physical syncs. #378/M14 own expanded
 topologies and regression-budget review; M8 still owns ingress progress and latency.
 
 Keep these decisions explicit at review boundaries:
@@ -2247,11 +2253,11 @@ from application call counts.
 | M6 / M7 | Preserve named direct KV, typed Stream/Queue owners, native mixed decisions/DLQ and executable declaration/workload SQL including groups/offsets. Gate remaining SQL waits/predicates/TVF/mixed transactions, Station composition and public Documents individually. Retained Document collection cuts do not establish the installed caller cutover. |
 | #211 W5a | Bounded native/direct page groups share directory barriers; later single-chunk sidecar elision, allocation batching and pipelining also landed. Keep each recorded sync count scoped to its revision/object profile; installed latency closure remains open. |
 | #211 W5b/W6 | Make coordination/index/outcome state reconstructible where justified; define an account-wide token/commit envelope. Co-hosting preserves today's separate decisions until that contract lands. |
-| #211 W7 / M13 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
-| M9 / M21 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
-| M16 | Pure protocol/Document transformations use shared ingress; durable capture uses separately qualified Document/effect owners. A codec neither accesses storage nor dispatches effects. |
-| M22 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
-| M26 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
+| #211 W7 / M14 | Reduce fresh-cut cost and allocations after attribution. Preserve exact open-result cuts and bound deferred maintenance. |
+| M9 / M22 | Reuse coarse execution and typed transport for language/service consumers; do not duplicate settlement, decoding or result protocols. |
+| M17 | Pure protocol/Document transformations use shared ingress; durable capture uses separately qualified Document/effect owners. A codec neither accesses storage nor dispatches effects. |
+| M23 / #211 IO-1–IO-6 | Compose framing, buffer, recovery, database and publication obligations; replay failures against production owners. Evaluate io_uring, direct I/O, mmap and partition affinity after attribution/safety gates. |
+| M27 / packaging and Board | Preserve remote placement, the combined `transit` distribution and standalone roles. Board remains a public-client read-only inspector. |
 
 ### Accepted architectural decisions
 
@@ -2286,7 +2292,7 @@ that capacity errors can never occur.
 Serving, reactive, captured Query and connector operations retain their owners.
 Optional adapters share listener/TLS/admission machinery. The kernel does not
 import SQL execution or application handlers; Fuze/storage remain independent
-of Station. M16 codecs transform bytes/Document values; only the authorized host
+of Station. M17 codecs transform bytes/Document values; only the authorized host
 submits those values or external intents.
 
 ```mermaid
@@ -2659,12 +2665,12 @@ M8 closure requires evidence for each selected capability:
 ## Later owners and execution gates
 
 [Shared clients](09-client-foundation-and-language-apis.md) and
-[service/SDK coverage](22-service-and-sdk-coverage.md) consume qualified boundaries.
-[M14](14-data-structures-and-performance.md),
-[strings/search](15-vectorized-strings-and-search.md) and
-[compilation](16-data-centric-compilation-and-specialization.md) extend workload
-scorecards. [Document profiles/exchange lifecycle](17-document-profiles-and-gateway-exchange-lifecycle.md)
+[service/SDK coverage](23-service-and-sdk-coverage.md) consume qualified boundaries.
+[M15](15-data-structures-and-performance.md),
+[strings/search](16-vectorized-strings-and-search.md) and
+[compilation](17-data-centric-compilation-and-specialization.md) extend workload
+scorecards. [Document profiles/exchange lifecycle](18-document-profiles-and-gateway-exchange-lifecycle.md)
 add pure grammars and qualified capture over the Document owner.
-[Clustered execution](27-clustered-execution.md) extends placement/lease handoff
+[Clustered execution](28-clustered-execution.md) extends placement/lease handoff
 with its own failure evidence. Sharing the gateway host confers neither broader
 support nor performance guarantees.

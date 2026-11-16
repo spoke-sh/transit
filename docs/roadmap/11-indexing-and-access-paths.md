@@ -33,7 +33,7 @@ indexes, pruning, range reads and local recovery. The transaction milestone owns
 every constraint and isolation guarantee it advertises. Neither can defer an
 unmet acceptance criterion here. This milestone adds the shared indexing model,
 secondary access paths, online lifecycle and basic planner integration. Later
-[performance work](14-data-structures-and-performance.md) compares and optimizes
+[performance work](15-data-structures-and-performance.md) compares and optimizes
 qualified implementations; a safe usable baseline is required here.
 
 At source `8309a0dc`, the storage component's
@@ -132,14 +132,14 @@ does not supply a portable cross-vendor indexing grammar.
    indexes require their own admitted profiles; 2D/3D bounding-box (`RTREE`),
    discrete global grid (`S2` / `H3` Roaring cell-covering) and 2D spatial-range
    SSI access paths are owned by
-   [geospatial and spatio-temporal computing](18-geospatial-and-spatio-temporal-computing.md),
+   [geospatial and spatio-temporal computing](19-geospatial-and-spatio-temporal-computing.md),
    while segment-backed lexical, substring/proximity, structural and vector/hybrid
    search indexes (starting with the 256-doc Block-Max BM25 and ANN profiles) are
    owned by
-   [first-class strings and search](15-vectorized-strings-and-search.md),
-   [multi-model and foreign relations](19-multi-model-and-foreign-relations.md),
-   [reactive agent context](33-reactive-context-and-agent-activation.md) and
-   [declarative language, context and synthesis research](47-declarative-language-context-and-synthesis.md).
+   [first-class strings and search](16-vectorized-strings-and-search.md),
+   [multi-model and foreign relations](20-multi-model-and-foreign-relations.md),
+   [reactive agent context](34-reactive-context-and-agent-activation.md) and
+   [declarative language, context and synthesis research](48-declarative-language-context-and-synthesis.md).
 5. **Integrate the planner and shared public operations.** Expose define, inspect,
    build/rebuild and retire/drop through owning typed operations and SQL adapters,
    using shared statement outcomes and original-operation recovery. Define DDL
@@ -182,21 +182,21 @@ success as winning a map microbenchmark. Record scoped results in the
 
 ## Later owners
 
-- [Managed computations](13-sql-and-dataflows.md) use complete source commits
+- [Managed computations](14-sql-and-dataflows.md) use complete source commits
   and compatible access paths without equating an index generation to a derived
   computation's completed revision.
-- [Multi-model access](19-multi-model-and-foreign-relations.md) qualifies graph
+- [Multi-model access](20-multi-model-and-foreign-relations.md) qualifies graph
   adjacency and selected document projections against this lifecycle; specialized
   index semantics and external-source coverage need independent evidence.
-- [Branches](21-branches-merges-and-restore.md) qualify sharing, divergence,
+- [Branches](22-branches-merges-and-restore.md) qualify sharing, divergence,
   constraint validation and GC reachability. Immutable reuse alone supplies no
   constant-time preparation, merge or historical-correctness guarantee.
-- [Providers](24-storage-providers-and-concurrency.md),
-  [replication](25-replication-and-failover.md),
-  [operations](26-operations-and-recovery.md) and
-  [clustered execution](27-clustered-execution.md) extend writer scope, copy/rebuild
+- [Providers](25-storage-providers-and-concurrency.md),
+  [replication](26-replication-and-failover.md),
+  [operations](27-operations-and-recovery.md) and
+  [clustered execution](28-clustered-execution.md) extend writer scope, copy/rebuild
   decisions, recovery readiness and distributed uniqueness explicitly.
-- [Board](31-board-reimplementation.md) presents shared definitions, progress,
+- [Board](32-board-reimplementation.md) presents shared definitions, progress,
   coverage and plans. Inspection remains read-only; administrative actions use
   separately authorized public operations.
 

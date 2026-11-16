@@ -12,6 +12,12 @@ The [read ownership slice](transaction-read-ownership.md) implements owned Table
 transaction reads through that API with scoped installed evidence. Most remaining effort sits in service migration and
 proof of the complete replacement.
 
+The [Phase I serving milestone](13-declarative-serving-and-reactive-dataflows.md)
+owns generic API publication and reactive subscriptions. This plan retains
+Station call/reply, behavior and effect migration; its durable-service work cannot
+become a prerequisite for serving an ordinary database API. Reuse the neutral
+database lifecycle and keep Station adapters above it.
+
 Plan for **15–21 review units and 19–32 engineer-weeks of direct work**. Allowing
 roughly 25% for integration and investigation gives **about 24–40 engineer-weeks**.
 These are planning estimates, not measured delivery velocity. The largest
@@ -461,9 +467,9 @@ waiting for extraction.
 M12's Queue compiler/program delivery is reusable context, not a reason to
 reimplement the runner or add source-language features to M6. M6 B and M9's
 transaction facet share one implementation and contract; M6 does not wait for
-M9's full language redesign. M9/M22 own broader language API expansion, while
-existing affected SDKs migrate in F. M13 owns continuous computations;
-M14 owns wider optimization and scorecards; M24/M25/M27
+M9's full language redesign. M9/M23 own broader language API expansion, while
+existing affected SDKs migrate in F. M14 owns continuous computations;
+M15 owns wider optimization and scorecards; M25/M26/M28
 own new providers, replication and distributed execution. Those future scopes
 do not excuse M6's existing latency, resource or recovery obligations.
 
