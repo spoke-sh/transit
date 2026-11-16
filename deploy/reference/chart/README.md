@@ -66,7 +66,8 @@ release history. Supply the complete upstream configuration, including listener
 `0.0.0.0:8080`, disk WAL at `/data/wal`, explicit hot/cache limits and snapshot/cold
 backend settings. Preserve these settings during recovery. The deployment keeps
 its PVC and readiness probe; credentials remain available only to Ursula.
-The default profile is still disk WAL with inline snapshots and no cold tier.
+The optional Ursula profile uses disk WAL with inline snapshots and no cold tier.
+The default storage owner is native Transit on the node PVC.
 
 
 Supply immutable service images from a matching source or published release.

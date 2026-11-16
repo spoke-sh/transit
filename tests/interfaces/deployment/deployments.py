@@ -10,6 +10,7 @@ import yaml
 
 CHART = ROOT / "deploy/reference/chart"
 VALUES = {
+    "ursula": {"enabled": True},
     "node": {"image": "example.invalid/transit:proof", "existingSecret": "node-credentials", "config": {
         "realm": 49, "applications": None, "sql": {"native": {"local": False}},
         "external": {"ursula": {"url": "http://store:8080", "bucket": "proof", "journal": "authority"}}}},
@@ -39,7 +40,7 @@ def run():
 
         manifests = render(VALUES)
         cold = copy.deepcopy(VALUES)
-        cold["ursula"] = {"existingConfigSecret": "private-store-config"}
+        cold["ursula"] = {"enabled": True, "existingConfigSecret": "private-store-config"}
         configured = render(cold)
         assert ("ConfigMap", "test-runtime-ursula") not in configured
         store = configured["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]
@@ -157,7 +158,7 @@ def run():
         rendered = render(local)
         assert not any(kind == 'PersistentVolumeClaim' for kind, _ in rendered)
         existing = copy.deepcopy(minimal)
-        existing["ursula"] = {"persistence": {"existingClaim": "retained-data"}}
+        existing["ursula"] = {"enabled": True, "persistence": {"existingClaim": "retained-data"}}
         rendered = render(existing)
         assert ("PersistentVolumeClaim", "test-runtime-ursula") not in rendered
         assert rendered["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]["volumes"][1]["persistentVolumeClaim"]["claimName"] == "retained-data"

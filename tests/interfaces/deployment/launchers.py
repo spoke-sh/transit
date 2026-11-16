@@ -97,6 +97,8 @@ def proof(profile):
             assert not launcher.services()
         invoke("up", settings={"TRANSIT_LOG_FORMAT": "json", "TRANSIT_NODE_LOG_LEVEL": "debug"})
         first = observe(12)
+        assert "ursula" not in json.loads((installation.path / "transit.json").read_text())["external"]
+        assert not (installation.path / "ursula.toml").exists()
         assert installation.load()["observability"]["node"]["level"] == "debug"
         time.sleep(.1)
         visible = invoke("logs", "board")
@@ -125,7 +127,7 @@ def proof(profile):
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
         status = json.loads(invoke("status"))["services"]
-        assert {"ursula", "node", "counter", "board"} <= {row["name" if profile == "local" else "Service"] for row in status}, status
+        assert {"node", "counter", "board"} <= {row["name" if profile == "local" else "Service"] for row in status}, status
         invoke("reset", success=False)
         invoke("up", success=False)
         # Credentials must stay out of machine-readable output and service logs.
@@ -136,7 +138,7 @@ def proof(profile):
         for path in installation.path.rglob("*.key"):
             assert path.stat().st_mode & 0o077 == 0, path
             credentials.append(path.read_text())
-        for service in ("ursula", "node", "counter", "board"):
+        for service in ("node", "counter", "board"):
             output = invoke("logs", service)
             assert all(key not in output for key in credentials)
         admitted = json.loads(invoke("send", "9", "--request-id", "same-input"))
@@ -197,6 +199,21 @@ def proof(profile):
         installation.artifacts.select(selection)
         saved_manifest = installation.manifest.read_bytes()
         manifest = json.loads(saved_manifest)
+        # A retained Ursula launcher cannot be adopted as an empty native realm.
+        config_before = (installation.path / "transit.json").read_bytes()
+        for runtime in (None, "server_external_v1"):
+            changed = dict(manifest)
+            if runtime is None:
+                del changed["runtime"]
+            else:
+                changed["runtime"] = runtime
+            write(installation.manifest, changed)
+            rejected_manifest = installation.manifest.read_bytes()
+            invoke("up", success=False)
+            invoke("update", "--no-build", success=False)
+            assert installation.manifest.read_bytes() == rejected_manifest
+            assert (installation.path / "transit.json").read_bytes() == config_before
+            assert not launcher.services()
         for definition in (None, "00" * 32):
             changed = dict(manifest)
             if definition is None:
@@ -217,7 +234,7 @@ def proof(profile):
         assert recovered["consumed"] == recovered["admitted"] == 4
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         assert not (installation.path / "board/access.key").exists()
-        for service in ("ursula", "node", "board"):
+        for service in ("node", "board"):
             invoke("restart", service)
             assert observe(25)["pid"] == first["pid"]
         # Change the endpoint of an existing installation, without resetting its
@@ -253,7 +270,7 @@ def proof(profile):
         else:
             topology = json.loads(launcher.docker("config", "--format", "json", capture=True))
             assert topology["services"]["board"]["ports"][0]["host_ip"] == "0.0.0.0"
-            for service in ("node", "ursula"):
+            for service in ("node",):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
         authority = f"devbox.local:{board_port}"
         def remote_request(path, *, host=authority, origin=remote_origin, method="GET", timeout=5):
@@ -409,7 +426,7 @@ def foreground_proof(profile):
 
         # A startup failure must report the owned service's error, exit nonzero,
         # and clean up its own manager without deleting the saved installation.
-        wal = installation.path / "wal"
+        wal = installation.path / "server-data/installation/data/native/wal"
         saved_wal = installation.path / "saved-wal"
         wal.rename(saved_wal)
         wal.mkdir()
@@ -433,7 +450,7 @@ def foreground_proof(profile):
             if profile == "local":
                 wait_for(lambda: "Process Compose v" in output.read_text())
             else:
-                wait_for(lambda: any(row["Service"] == "ursula" for row in launcher.services()), seconds=600)
+                wait_for(lambda: any(row["Service"] == "node" for row in launcher.services()), seconds=600)
                 assert "Compose stack ready." not in output.read_text()
             child.send_signal(signal.SIGTERM)
             assert child.wait(timeout=30) == 0

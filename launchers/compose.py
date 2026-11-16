@@ -56,10 +56,9 @@ class Compose:
         self.installation.configs()
         value = self.installation.load()
         base = value["base_port"]
-        pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
         values = {"STATE": str(self.path),
-                  "UID": str(os.getuid()), "GID": str(os.getgid()), "URSULA_IMAGE": pins["ursula"],
-                  "URSULA_PORT": str(base), "TRANSIT_PORT": str(base + 1),
+                  "UID": str(os.getuid()), "GID": str(os.getgid()),
+                  "TRANSIT_PORT": str(base + 1),
                   "BOARD_HOST": self.installation.board["host"], "BOARD_PORT": str(self.installation.board["port"])}
         selected = self.installation.artifacts.read("selected")
         for role in self.installation.artifacts.roles([]):
@@ -76,9 +75,6 @@ class Compose:
         self.installation.configure_board()
         self.config()
         write(self.path / "session.json", {"id": secrets.token_hex(16)})
-        if 'ursula' in self.installation.service_names:
-            self.docker("up", "-d", "ursula", timeout=300)
-            self.ready("ursula", f'http://127.0.0.1:{self.installation.load()["base_port"]}/__ursula/ready')
         self.installation.initialize()
         self.docker("up", "-d", "node")
         self.ready("node", self.installation.url + "/health")
@@ -87,7 +83,7 @@ class Compose:
             self.docker('up', '-d', '--no-deps', '--force-recreate', '--no-build', 'node')
             self.ready('node', self.installation.url + '/health')
         self.installation.activate()
-        self.docker("up", "-d", *[name for name in self.installation.service_names if name not in ("ursula", "node")])
+        self.docker("up", "-d", *[name for name in self.installation.service_names if name != "node"])
         if not detached:
             self.manager = self.docker("logs", "--follow", "--tail", "200", spawn=True)
         self.ready("board", self.installation.board_url + "/health", self.installation.board_headers)

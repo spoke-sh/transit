@@ -7,7 +7,7 @@ environment's tasks. Use double colons between task groups.
 | Environment | Purpose | Services and limits |
 | --- | --- | --- |
 | `local` | Fast iteration without Docker or Kubernetes | Transit server, selected example and Board, managed by Process Compose; the server owns authority, delivery and maintenance |
-| `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose with static Zig images; the counter also uses the official pinned Ursula image |
+| `compose` | Check container packaging, mounts, service discovery and restart | The same scenario in Docker Compose with static Zig images; both examples use the native storage owner |
 | `reference` | Qualify the deployment target | Kubernetes/Substrate, real provider controller, gVisor workers and recovery/isolation proofs; [reference runbook](../deploy/reference/README.md) |
 
 All three profiles have persistent, separate installations. Moving between them
@@ -32,11 +32,11 @@ example. Use a different name to run both, with non-overlapping base ports.
 Its checked-in Process Compose and Docker Compose topologies live beside the
 example; the reference uses the shared [Transit chart](../deploy/reference/chart/README.md).
 
-The counter uses disk-backed Ursula. Station keeps native history and direct
-Table storage in a retained local directory. In both profiles `transit server`
+Both examples keep native history in the server installation directory. Station
+adds direct Table storage in that same retained owner. In both profiles `transit server`
 owns delivery and maintenance; Kubernetes/Substrate continues to place isolated
 application workers and their controllers. Server installation metadata has its
-own retained volume, including with Ursula. See the
+own retained volume alongside native history. See the
 [external-worker server profile](../apps/transit-cli/docs/server.md#external-worker-composition).
 Component-era installations reject with their original data and artifact
 selection preserved; use their matching build for recovery.
@@ -56,8 +56,7 @@ just launchers::local::restart board
 `build [SERVICE...]` produces candidates without changing running services or
 the selected version. `update` builds, applies affected services and verifies
 readiness; `--no-build` selects saved candidates. `restart` uses the selected
-artifact/configuration. Omit names to select all application services. All internal server roles use the selected `transit` artifact together. Ursula and provider
-infrastructure are separately pinned and excluded from application builds.
+artifact/configuration. Omit names to select all application services. All internal server roles use the selected `transit` artifact together. Provider infrastructure is separately pinned and excluded from application builds.
 For Station, `update ledger` updates all three workers because they share one
 executable. The two framework controllers also share an artifact. Each reference
 worker retains its PID and Actor identity through a separately recorded upgrade.
@@ -188,15 +187,13 @@ just launchers::compose::down
 ```
 
 Board defaults to `http://127.0.0.1:18202`. Provisioning uses the shared client through host-side `transit-client-host`
-and explicit initialization; runtime containers contain Zig binaries and the
-upstream Ursula image, with no Node.js or Python application runtime. The
+and explicit initialization; runtime containers contain Zig binaries, with no
+Node.js or Python application runtime. The
 launcher builds static Linux binaries for the Docker engine architecture.
 Container builds select the pinned static OpenSSL environment and reject binaries
 that require an ELF loader or shared library before constructing an image.
-The official Ursula digest comes from the same
-[version pins](../deploy/reference/versions.json) as the reference deployment.
 
-`up` stays in the foreground, following Docker Compose service logs and reporting container exits. Startup first brings up Ursula and the node for ordered
+`up` stays in the foreground, following Docker Compose service logs and reporting container exits. Startup first brings up the node for ordered
 provisioning, then attaches to all services as the application containers start.
 Earlier startup logs are included; failures before attachment print recent
 container logs before cleanup. An individual service exit leaves the others
@@ -219,8 +216,8 @@ user's numeric UID/GID so private bind mounts remain owner-readable. Transit
 containers have read-only root filesystems, dropped capabilities, and only their
 own configuration/credential mounts. The root signing seed is never mounted.
 
-Storage and client services use separate bridge networks. Published Ursula and
-Transit ports bind to host loopback. Board defaults to loopback and can be
+The node and client services share a bridge network. The published Transit
+port binds to host loopback. Board defaults to loopback and can be
 configured separately for remote development. These are **trusted development
 workloads**, with ordinary Docker egress; network segmentation is not the
 reference sandbox or a hostile-workload isolation proof. Docker's internal-only
@@ -270,7 +267,7 @@ capacity replacement. The controller itself does not have pod-deletion rights.
 cluster and registry, including every application and proof namespace. The
 separate `images`/`test` commands build and run the destructive kernel recovery
 proof. See the [reference runbook](../deploy/reference/README.md). Ordinary updates do not rebuild
-Kind, Ursula or Substrate. The pinned Substrate worker runtime image is built and
+Kind or Substrate. The pinned Substrate worker runtime image is built and
 cached once per owned registry/pin.
 
 If `infra-down` deleted an installation's cluster, its local files no longer
@@ -399,7 +396,7 @@ TRANSIT_BOARD_ALLOW_INSECURE_HTTP=true
 | Setting | Meaning |
 | --- | --- |
 | `TRANSIT_BOARD_HOST` | IPv4 bind address; `0.0.0.0` listens on all IPv4 interfaces |
-| `TRANSIT_BOARD_PORT` | Board listener/published port; independent of Ursula/Transit ports |
+| `TRANSIT_BOARD_PORT` | Board listener/published port; independent of reserved/Transit ports |
 | `TRANSIT_BOARD_PUBLIC_ORIGIN` | Exact browser URL origin, used for Host/Origin checks and printed links |
 | `TRANSIT_BOARD_ALLOW_INSECURE_HTTP` | Explicit `true`/`false` development HTTP opt-in; default false |
 
@@ -416,7 +413,7 @@ Health probes and agent inspection use the listener's local address with the
 configured Host header, so the server does not need to resolve the browser's DNS
 name or contact a TLS proxy to check its own health. The native manager uses an
 exec probe because its pinned HTTP checker cannot override the Host header;
-startup waits for the manager's readiness result. Ursula and Transit remain
+startup waits for the manager's readiness result. Transit remains
 private. Board has no viewer authentication; the network/deployment boundary
 controls who can read its inspection data. Remote HTTP sends that data without
 encryption; this option is for a trusted development network. Use a trusted
@@ -457,7 +454,7 @@ per-service variable, global variable, saved service value, then the default:
 persists settings for its selected roles; `up` applies them when starting a
 stopped installation. `restart` uses the saved configuration.
 The launcher maps them to each executable's `LOG_LEVEL` and `LOG_FORMAT`.
-Ursula and the process/container managers keep their upstream logging controls.
+The process/container managers keep their upstream logging controls.
 The launcher's internal native read helper explicitly selects JSON error events.
 It retries only classified transient read failures within its existing deadline,
 keeping the same request; unknown, malformed or denied outcomes fail immediately.
@@ -504,10 +501,9 @@ reports. These budgets are independent of mailbox/history retention.
 
 To run another independent installation, set `TRANSIT_LAUNCHER_NAME` and
 `TRANSIT_LAUNCHER_BASE_PORT` before its first `up`, and use that name for subsequent
-commands. Locally and in Compose, the three consecutive ports are Ursula,
-Transit and Board. Reference forwards only Transit and Board on base+1/base+2.
+commands. Locally and in Compose, the base port remains reserved; Transit and Board use base+1/base+2. Reference forwards only Transit and Board on base+1/base+2.
 The name and internal base port are persisted; use a new name to change the
-Ursula/Transit ports. Board's settings can change as described above. An occupied
+reserved/Transit ports. Board's settings can change as described above. An occupied
 port fails rather than adopting a service.
 The selected checkout must have a path short enough for the local Unix socket.
 Use Linux x86_64 with the documented engine configuration.

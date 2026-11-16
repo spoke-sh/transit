@@ -27,7 +27,7 @@ node:
     limits: {cpu: "2", memory: 1Gi}
 
 ursula:
-  enabled: true
+  enabled: false
   nameOverride: ""
   # Optional Secret key ursula.toml; keeps cold-store credentials out of values.
   existingConfigSecret: ""

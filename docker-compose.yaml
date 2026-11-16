@@ -14,19 +14,6 @@ x-service: &service
   logging: *logging
 
 services:
-  ursula:
-    <<: *service
-    image: '${TRANSIT_COMPOSE_URSULA_IMAGE:?}'
-    read_only: false
-    command: [server, --config, /ursula.toml]
-    environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
-    volumes:
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/ursula.toml', target: /ursula.toml, read_only: true, bind: {create_host_path: false}}
-      - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/wal', target: /wal, bind: {create_host_path: false}}
-    networks: [storage]
-    ports:
-      - {target: 8080, published: '${TRANSIT_COMPOSE_URSULA_PORT:?}', host_ip: 127.0.0.1}
-
   node:
     <<: *service
     image: '${TRANSIT_COMPOSE_NODE_IMAGE:?}'
@@ -36,7 +23,7 @@ services:
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/transit.json', target: /transit.json, read_only: true, bind: {create_host_path: false}}
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/server-data', target: /data, bind: {create_host_path: false}}
       - {type: bind, source: '${TRANSIT_COMPOSE_STATE:?}/operator', target: /operator, read_only: true, bind: {create_host_path: false}}
-    networks: [storage, client]
+    networks: [client]
     ports:
       - {target: 8080, published: '${TRANSIT_COMPOSE_TRANSIT_PORT:?}', host_ip: 127.0.0.1}
 
@@ -63,5 +50,4 @@ services:
 # Ordinary bridges: host loopback publication is needed by provisioning tools.
 # This is development segmentation, not the reference sandbox's isolation.
 networks:
-  storage: {}
   client: {}
