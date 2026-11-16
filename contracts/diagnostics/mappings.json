@@ -5704,7 +5704,8 @@
       "owners": [
         "packages/zig/transit-compiler/src/*.zig",
         "apps/transit-cli/BuildSources.zig",
-        "apps/transit-cli/Build.zig"
+        "apps/transit-cli/Build.zig",
+        "apps/transit-cli/BuildMigration.zig"
       ],
       "exclude": [
         "packages/zig/transit-compiler/src/SourceDiagnostic.zig"
@@ -5740,12 +5741,84 @@
         {
           "source": "packages/zig/transit-compiler/src/resource_test.zig",
           "name": "nominal log checks cover literal names identifier holes metadata and omitted fields"
+        },
+        {
+          "source": "packages/zig/transit-compiler/src/migration_test.zig",
+          "name": "migration basis rejects changed history foreign definitions duplicates and stale versions"
+        },
+        {
+          "source": "packages/zig/transit-compiler/src/program_test.zig",
+          "name": "returning procedures refuse missing early void mismatched and escaping results"
         }
       ],
       "exceptions": [],
       "codes": {
         "MissingBuildEntry": {
           "code": "application.source.entry",
+          "category": "binding"
+        },
+        "MissingMigrationTarget": {
+          "code": "application.source.target",
+          "category": "binding"
+        },
+        "MigrationHistoryLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "MigrationStepLimit": {
+          "code": "application.source.limit",
+          "category": "limit"
+        },
+        "InvalidMigrationBasisPath": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "InvalidMigrationBasis": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "IncompatibleMigrationBasis": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MigrationNamespaceMismatch": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MissingMigrationBasis": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MigrationBasisMismatch": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MigrationVersionOrder": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MigrationHistoryChanged": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "DuplicateMigrationBinding": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "InvalidMigrationVersion": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "MigrationTransformRequired": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "UnsupportedMigrationDefinition": {
+          "code": "application.source.migration",
+          "category": "binding"
+        },
+        "UnsupportedMigrationHistory": {
+          "code": "application.source.migration",
           "category": "binding"
         },
         "UnsupportedSourceFileKind": {
@@ -6011,6 +6084,18 @@
         "ImpureSourceFunction": {
           "code": "application.source.unsupported",
           "category": "unsupported"
+        },
+        "MissingProcedureReturn": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "UnexpectedProcedureReturn": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "ProcedureHasNoResult": {
+          "code": "application.source.type",
+          "category": "binding"
         },
         "RecursiveSourceCall": {
           "code": "application.source.unsupported",

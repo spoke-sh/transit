@@ -46,6 +46,11 @@ pub fn fileName(a: std.mem.Allocator, version: []const u8, name: []const u8) ![]
     for (name) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '-') return error.InvalidMigrationVersion;
     return std.fmt.allocPrint(a, "{s}-{s}.sql", .{ version, name });
 }
+fn compilerValid(value: []const u8) bool {
+    if (value.len != 64) return false;
+    for (value) |byte| if (!std.ascii.isDigit(byte) and !(byte >= 'a' and byte <= 'f')) return false;
+    return true;
+}
 fn nameValid(name: []const u8) bool {
     return name.len > 0 and name.len <= 63 and std.unicode.utf8ValidateSlice(name) and std.mem.indexOfScalar(u8, name, 0) == null;
 }
@@ -115,7 +120,7 @@ fn table(a: std.mem.Allocator, value: Table) !Schema {
 pub fn build(a: std.mem.Allocator, product: *const Compiler.Product, prior: ?Basis, files: []const File, compiler: []const u8, context: *Context) !Result {
     const target = product.migration orelse return error.MissingMigrationTarget;
     const new_path = try fileName(a, target.version, target.name);
-    if (!nameValid(target.database) or !nameValid(target.schema) or compiler.len == 0 or compiler.len > 128) return error.InvalidMigrationBasis;
+    if (!nameValid(target.database) or !nameValid(target.schema) or !compilerValid(compiler)) return error.InvalidMigrationBasis;
     if ((target.basis == null) != (prior == null)) return error.MissingMigrationBasis;
     var entries: std.ArrayList(Entry) = .empty;
     var history: std.ArrayList(History) = .empty;
@@ -124,7 +129,7 @@ pub fn build(a: std.mem.Allocator, product: *const Compiler.Product, prior: ?Bas
     if (prior) |basis| {
         if (!std.mem.eql(u8, basis.format, format) or !std.mem.eql(u8, basis.definition, definition)) return error.IncompatibleMigrationBasis;
         if (!std.mem.eql(u8, basis.database, target.database) or !std.mem.eql(u8, basis.schema, target.schema)) return error.MigrationNamespaceMismatch;
-        if (basis.compiler.len == 0 or basis.compiler.len > 128 or basis.history.len > max_versions or files.len != basis.history.len) return error.InvalidMigrationBasis;
+        if (!compilerValid(basis.compiler) or basis.history.len > max_versions or files.len != basis.history.len) return error.InvalidMigrationBasis;
         for (basis.history, files, 0..) |version, file, i| {
             const path = try fileName(a, version.version, version.name);
             if (!std.mem.eql(u8, version.path, path) or !std.mem.eql(u8, file.path, path)) return error.MigrationBasisMismatch;

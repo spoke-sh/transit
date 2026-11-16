@@ -42,6 +42,9 @@ fn rule(family: Family) Rule {
 }
 const families = std.StaticStringMap(Family).initComptime(.{
     .{ "MissingBuildEntry", .entry },
+    .{ "MissingMigrationTarget", .target },
+    .{ "MigrationHistoryLimit", .limit },
+    .{ "MigrationStepLimit", .limit },
     .{ "InvalidMigrationBasisPath", .migration },
     .{ "InvalidMigrationBasis", .migration },
     .{ "IncompatibleMigrationBasis", .migration },

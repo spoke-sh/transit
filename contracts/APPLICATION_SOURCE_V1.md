@@ -494,8 +494,11 @@ unchanged target emits zero steps and creates no empty version. Versions strictl
 increase lexicographically and use 1–64 ASCII alphanumeric, `.` or `_` bytes;
 synthesized names use 1–128 ASCII alphanumeric, `_` or `-` bytes. Existing explicit
 output directories reject, and cached artifacts must match every generated file.
-Runtime apply/recovery needs only immutable SQL or a saved ordinary migration
-plan; source, dependencies and basis sidecars are unnecessary.
+Build reports count newly synthesized steps; their `sql_digest` identifies
+`desired.sql`. Provenance also records the delta SQL digest, prior basis digest
+and successor basis digest. Runtime apply/recovery needs only immutable SQL or a
+saved ordinary migration plan; source, dependencies and basis sidecars are
+unnecessary.
 
 Synthesis preserves the 64-step/version, 256-version, 2 MiB/file and 1 MiB/statement
 limits. Basis JSON and aggregate historical SQL each have a separate 16 MiB bound;

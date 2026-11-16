@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("root.zig");
 const p = @import("transit_protocol");
 const d = c.CatalogDiff;
+const compiler = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 fn desired(a: std.mem.Allocator, basis: []const u8, version: []const u8, body: []const u8) !*c.Product {
     const source = try std.fmt.allocPrint(a, "CREATE MIGRATION TARGET default FROM {s} FOR DATABASE 'transit' SCHEMA 'public' VERSION '{s}' NAME 'schema' AS BEGIN {s} END;", .{ basis, version, body });
     defer a.free(source);
@@ -17,25 +18,25 @@ test "migration synthesis preserves history projects additions and emits zero un
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(std.testing.allocator, "EMPTY", "0001", initial);
     defer one.deinit();
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     try std.testing.expectEqual(1, first.steps);
     const two = try desired(std.testing.allocator, "'prior/basis.json'", "0002", additive);
     defer two.deinit();
-    const second = try d.build(a, two, first.basis, first.files, "compiler", &context);
+    const second = try d.build(a, two, first.basis, first.files, compiler, &context);
     try std.testing.expectEqual(2, second.steps);
     try std.testing.expectEqualStrings(first.files[0].sql, second.files[0].sql);
     try std.testing.expect(std.mem.indexOf(u8, second.sql, "ADD COLUMN") != null);
     try std.testing.expect(std.mem.indexOf(u8, second.sql, "'a,b'") != null);
     const same = try desired(std.testing.allocator, "'prior/basis.json'", "0003", additive);
     defer same.deinit();
-    const unchanged = try d.build(a, same, second.basis, second.files, "compiler", &context);
+    const unchanged = try d.build(a, same, second.basis, second.files, compiler, &context);
     try std.testing.expectEqual(0, unchanged.steps);
     try std.testing.expectEqual(2, unchanged.files.len);
     const fresh = try desired(std.testing.allocator, "EMPTY", "0001", additive);
     defer fresh.deinit();
-    const fresh_result = try d.build(a, fresh, null, &.{}, "compiler", &context);
+    const fresh_result = try d.build(a, fresh, null, &.{}, compiler, &context);
     try std.testing.expectEqualSlices(u8, &fresh_result.basis.tables[0].definition_digest, &second.basis.tables[0].definition_digest);
-    const repeated = try d.build(a, two, first.basis, first.files, "compiler", &context);
+    const repeated = try d.build(a, two, first.basis, first.files, compiler, &context);
     try std.testing.expectEqualStrings(second.sql, repeated.sql);
 }
 test "migration synthesis refuses destructive ambiguous and validation requiring changes" {
@@ -45,7 +46,7 @@ test "migration synthesis refuses destructive ambiguous and validation requiring
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(std.testing.allocator, "EMPTY", "0001", initial);
     defer one.deinit();
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     for ([_][]const u8{
         "CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY);",
         "CREATE PUBLIC TABLE renamed (id BIGINT PRIMARY KEY, note TEXT NOT NULL DEFAULT 'initial');",
@@ -56,7 +57,7 @@ test "migration synthesis refuses destructive ambiguous and validation requiring
     }) |body| {
         const next = try desired(std.testing.allocator, "'prior/basis.json'", "0002", body);
         defer next.deinit();
-        try std.testing.expectError(error.MigrationTransformRequired, d.build(a, next, first.basis, first.files, "compiler", &context));
+        try std.testing.expectError(error.MigrationTransformRequired, d.build(a, next, first.basis, first.files, compiler, &context));
         try std.testing.expectEqualStrings("t", context.name.?);
     }
 }
@@ -67,26 +68,26 @@ test "migration basis rejects changed history foreign definitions duplicates and
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(std.testing.allocator, "EMPTY", "0001", initial);
     defer one.deinit();
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     const next = try desired(std.testing.allocator, "'prior/basis.json'", "0002", additive);
     defer next.deinit();
     const changed: d.File = .{ .path = first.files[0].path, .sql = "CREATE TABLE t(id TEXT);" };
-    try std.testing.expectError(error.MigrationHistoryChanged, d.build(a, next, first.basis, &.{changed}, "compiler", &context));
+    try std.testing.expectError(error.MigrationHistoryChanged, d.build(a, next, first.basis, &.{changed}, compiler, &context));
     var basis = first.basis;
     basis.definition = "foreign";
-    try std.testing.expectError(error.IncompatibleMigrationBasis, d.build(a, next, basis, first.files, "compiler", &context));
+    try std.testing.expectError(error.IncompatibleMigrationBasis, d.build(a, next, basis, first.files, compiler, &context));
     basis = first.basis;
     basis.database = "other";
-    try std.testing.expectError(error.MigrationNamespaceMismatch, d.build(a, next, basis, first.files, "compiler", &context));
+    try std.testing.expectError(error.MigrationNamespaceMismatch, d.build(a, next, basis, first.files, compiler, &context));
     basis = first.basis;
     var table = basis.tables[0];
     table.definition_digest[0] ^= 1;
     basis.tables = &.{table};
-    try std.testing.expectError(error.MigrationBasisMismatch, d.build(a, next, basis, first.files, "compiler", &context));
+    try std.testing.expectError(error.MigrationBasisMismatch, d.build(a, next, basis, first.files, compiler, &context));
     const stale = try desired(std.testing.allocator, "'prior/basis.json'", "0001", initial);
     defer stale.deinit();
-    try std.testing.expectError(error.MigrationVersionOrder, d.build(a, stale, first.basis, first.files, "compiler", &context));
-    try std.testing.expectError(error.MissingMigrationBasis, d.build(a, next, null, &.{}, "compiler", &context));
+    try std.testing.expectError(error.MigrationVersionOrder, d.build(a, stale, first.basis, first.files, compiler, &context));
+    try std.testing.expectError(error.MissingMigrationBasis, d.build(a, next, null, &.{}, compiler, &context));
 }
 test "migration history cannot smuggle data transforms or source-only semantics" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
@@ -95,7 +96,7 @@ test "migration history cannot smuggle data transforms or source-only semantics"
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(std.testing.allocator, "EMPTY", "0001", initial ++ " INSERT INTO t VALUES (1, 'x');");
     defer one.deinit();
-    try std.testing.expectError(error.UnsupportedMigrationDefinition, d.build(a, one, null, &.{}, "compiler", &context));
+    try std.testing.expectError(error.UnsupportedMigrationDefinition, d.build(a, one, null, &.{}, compiler, &context));
 }
 test "migration synthesis preserves the existing 64 step version bound" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
@@ -104,7 +105,7 @@ test "migration synthesis preserves the existing 64 step version bound" {
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(std.testing.allocator, "EMPTY", "0001", "CREATE PUBLIC TABLE t(id BIGINT PRIMARY KEY);");
     defer one.deinit();
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     for ([_]usize{ 64, 65 }) |count| {
         var body: std.Io.Writer.Allocating = .init(a);
         try body.writer.writeAll("CREATE PUBLIC TABLE t(id BIGINT PRIMARY KEY");
@@ -113,9 +114,9 @@ test "migration synthesis preserves the existing 64 step version bound" {
         const next = try desired(std.testing.allocator, "'basis.json'", "0002", body.written());
         defer next.deinit();
         if (count == 64) {
-            const result = try d.build(a, next, first.basis, first.files, "compiler", &context);
+            const result = try d.build(a, next, first.basis, first.files, compiler, &context);
             try std.testing.expectEqual(64, result.steps);
-        } else try std.testing.expectError(error.MigrationStepLimit, d.build(a, next, first.basis, first.files, "compiler", &context));
+        } else try std.testing.expectError(error.MigrationStepLimit, d.build(a, next, first.basis, first.files, compiler, &context));
     }
 }
 test "migration synthesis refuses nominal identity changes with identical physical types" {
@@ -127,13 +128,13 @@ test "migration synthesis refuses nominal identity changes with identical physic
     const one = try c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = source }}, .{ .compiler_revision = "test" }, &diagnostic);
     defer one.deinit();
     var context: c.SourceDiagnostic.Context = .{};
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     var changed = try std.mem.replaceOwned(u8, a, source, "example.first", "example.second");
     changed = try std.mem.replaceOwned(u8, a, changed, "FROM EMPTY", "FROM 'basis.json'");
     changed = try std.mem.replaceOwned(u8, a, changed, "'0001'", "'0002'");
     const two = try c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = changed }}, .{ .compiler_revision = "test" }, &diagnostic);
     defer two.deinit();
-    try std.testing.expectError(error.MigrationTransformRequired, d.build(a, two, first.basis, first.files, "compiler", &context));
+    try std.testing.expectError(error.MigrationTransformRequired, d.build(a, two, first.basis, first.files, compiler, &context));
 }
 fn allocationFailures(parent: std.mem.Allocator) !void {
     var arena: std.heap.ArenaAllocator = .init(parent);
@@ -142,10 +143,10 @@ fn allocationFailures(parent: std.mem.Allocator) !void {
     var context: c.SourceDiagnostic.Context = .{};
     const one = try desired(parent, "EMPTY", "0001", initial);
     defer one.deinit();
-    const first = try d.build(a, one, null, &.{}, "compiler", &context);
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
     const two = try desired(parent, "'basis.json'", "0002", additive);
     defer two.deinit();
-    _ = try d.build(a, two, first.basis, first.files, "compiler", &context);
+    _ = try d.build(a, two, first.basis, first.files, compiler, &context);
 }
 test "migration allocation failures leave no partial result" {
     // Arena growth may reuse an in-place resize depending on allocator layout.

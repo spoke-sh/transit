@@ -5,6 +5,7 @@ const p = @import("transit_query").protocol;
 const Sources = @import("BuildSources.zig");
 const Options = @import("BuildOptions.zig");
 const Diagnostic = @import("Diagnostic.zig");
+const Migration = @import("BuildMigration.zig");
 const version = @import("build_version");
 const SourceIdentity = struct { package: []const u8, path: []const u8, digest: []const u8 };
 pub fn run(init: std.process.Init, options: Options, diagnostic: *Diagnostic) !void {
@@ -37,9 +38,18 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     const target = try std.ascii.allocLowerString(a, options.target);
     const product = try c.compile(init.gpa, sources.sources.items, .{ .entry = std.fs.path.basename(entry_path), .target = target, .compiler_revision = version.revision, .resolution_digest = identity.finalResult() }, &diagnostic.envelope);
     defer product.deinit();
-    const input_hex = std.fmt.bytesToHex(&product.input_digest, .lower);
+    const compiler_hex = std.fmt.bytesToHex(&executable, .lower);
+    var migration_context: c.SourceDiagnostic.Context = .{};
+    const migration: ?Migration.Prepared = if (product.migration != null) Migration.prepare(a, init.io, root, product, &compiler_hex, &migration_context) catch |err| {
+        diagnostic.envelope = c.SourceDiagnostic.input(err, product.migration.?.basis orelse options.entry, "synthesize Table migration", null);
+        migration_context.apply(&diagnostic.envelope.?);
+        return err;
+    } else null;
+    const input_digest = if (migration) |value| value.input_digest else product.input_digest;
+    const statement_count = if (migration) |value| value.result.steps else product.steps.len;
+    const input_hex = std.fmt.bytesToHex(&input_digest, .lower);
     const sql_hex = std.fmt.bytesToHex(&product.sql_digest, .lower);
-    if (options.check) return report(init.io, a, options.json, .{ .ok = true, .action = "check", .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = product.steps.len }, "Application checked; no artifact published.\n");
+    if (options.check) return report(init.io, a, options.json, .{ .ok = true, .action = "check", .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = statement_count }, "Application checked; no artifact published.\n");
     var source_ids: std.ArrayList(SourceIdentity) = .empty;
     for (sources.sources.items) |source| {
         var hash: [32]u8 = undefined;
@@ -52,15 +62,15 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
             return order == .lt or order == .eq and std.mem.lessThan(u8, left.path, right.path);
         }
     }.less);
-    const provenance = try p.Json.valueAlloc(a, .{ .format = c.Compiler.format, .definition = Sources.definition, .complete = true, .compiler_revision = version.revision, .compiler_digest = @as([]const u8, &std.fmt.bytesToHex(&executable, .lower)), .entry = std.fs.path.basename(entry_path), .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .limits = c.Compiler.Limits{}, .sources = source_ids.items, .dependencies = sources.resolutions.items, .steps = product.steps });
+    const provenance = try p.Json.valueAlloc(a, .{ .format = c.Compiler.format, .definition = Sources.definition, .complete = true, .compiler_revision = version.revision, .compiler_digest = @as([]const u8, &compiler_hex), .entry = std.fs.path.basename(entry_path), .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .limits = c.Compiler.Limits{}, .sources = source_ids.items, .dependencies = sources.resolutions.items, .steps = product.steps, .migration = if (migration) |value| .{ .basis_digest = c.CatalogDiff.hash(value.basis), .prior_digest = value.prior_digest, .database = value.result.basis.database, .schema = value.result.basis.schema, .steps = value.result.steps, .sql_digest = c.CatalogDiff.hash(value.result.sql) } else null });
     if (provenance.len > 64 * 1024 * 1024) return error.BuildProvenanceLimit;
     const out = if (options.out) |selected| try std.fs.path.resolve(a, &.{ cwd, selected }) else try std.fmt.allocPrint(a, "{s}/.transit/build/{s}/{s}", .{ root_path, target, input_hex });
-    const reused = publish(init.io, a, out, product.sql, provenance, options.out == null) catch |err| {
+    const reused = publish(init.io, a, out, product.sql, provenance, migration, options.out == null) catch |err| {
         diagnostic.envelope = c.SourceDiagnostic.output(err, out, "publish application SQL");
         return err;
     };
-    const status = try std.fmt.allocPrint(a, "Application SQL {s}: {s}/application.sql\n", .{ if (reused) "verified" else "published", out });
-    try report(init.io, a, options.json, .{ .ok = true, .action = "build", .target = target, .directory = out, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = product.steps.len, .reused = reused }, status);
+    const status = try std.fmt.allocPrint(a, "{s} {s}: {s}\n", .{ if (migration != null) "Migration artifacts" else "Application SQL", if (reused) "verified" else "published", out });
+    try report(init.io, a, options.json, .{ .ok = true, .action = "build", .target = target, .directory = out, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = statement_count, .reused = reused }, status);
 }
 fn report(io: std.Io, a: std.mem.Allocator, json: bool, value: anytype, human: []const u8) !void {
     if (!json) return std.Io.File.stderr().writeStreamingAll(io, human);
@@ -77,7 +87,7 @@ pub fn emitFailure(io: std.Io, diagnostic: *Diagnostic, err: anyerror) !void {
     try std.Io.File.stdout().writeStreamingAll(io, "\n");
     diagnostic.emitted = true;
 }
-fn publish(io: std.Io, a: std.mem.Allocator, output: []const u8, sql: []const u8, provenance: []const u8, allow_existing: bool) !bool {
+fn publish(io: std.Io, a: std.mem.Allocator, output: []const u8, sql: []const u8, provenance: []const u8, migration: ?Migration.Prepared, allow_existing: bool) !bool {
     const parent_path = std.fs.path.dirname(output) orelse return error.InvalidBuildOutput;
     // Create/open each component without following symlinks, including existing
     // .transit directories. Explicit absolute destinations are caller-selected.
@@ -96,16 +106,39 @@ fn publish(io: std.Io, a: std.mem.Allocator, output: []const u8, sql: []const u8
     defer parent.deleteTree(io, temporary) catch {};
     const directory = try parent.openDir(io, temporary, .{ .iterate = true });
     defer directory.close(io);
-    try Sources.writeFile(io, directory, "application.sql", sql);
+    const sql_name = if (migration != null) "desired.sql" else "application.sql";
+    try Sources.writeFile(io, directory, sql_name, sql);
+    if (migration) |value| {
+        try Sources.writeFile(io, directory, "basis.json", value.basis);
+        try directory.createDir(io, "migrations", .default_dir);
+        const versions = try directory.openDir(io, "migrations", .{ .iterate = true });
+        defer versions.close(io);
+        for (value.result.files) |file| try Sources.writeFile(io, versions, file.path, file.sql);
+        try Sources.syncDirectory(versions);
+    }
     try Sources.writeFile(io, directory, "provenance.json", provenance);
     try Sources.syncDirectory(directory);
     parent.renamePreserve(temporary, parent, name, io) catch |err| {
         if (err != error.PathAlreadyExists or !allow_existing) return err;
         const existing = try parent.openDir(io, name, .{ .follow_symlinks = false });
         defer existing.close(io);
-        const old_sql = try Sources.read(a, io, existing, "application.sql", sql.len);
+        const old_sql = try Sources.read(a, io, existing, sql_name, sql.len);
         const old_provenance = try Sources.read(a, io, existing, "provenance.json", provenance.len);
         if (!std.mem.eql(u8, old_sql, sql) or !std.mem.eql(u8, old_provenance, provenance)) return error.BuildArtifactMismatch;
+        if (migration) |value| {
+            const old_basis = try Sources.read(a, io, existing, "basis.json", value.basis.len);
+            if (!std.mem.eql(u8, old_basis, value.basis)) return error.BuildArtifactMismatch;
+            const versions = try existing.openDir(io, "migrations", .{ .iterate = true, .follow_symlinks = false });
+            defer versions.close(io);
+            for (value.result.files) |file| {
+                const old = try Sources.read(a, io, versions, file.path, file.sql.len);
+                if (!std.mem.eql(u8, old, file.sql)) return error.BuildArtifactMismatch;
+            }
+            var iterator = versions.iterate();
+            var count: usize = 0;
+            while (try iterator.next(io)) |_| count += 1;
+            if (count != value.result.files.len) return error.BuildArtifactMismatch;
+        }
         return true;
     };
     try Sources.syncDirectory(parent);

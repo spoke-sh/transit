@@ -818,14 +818,22 @@ fn buildPlanReport(
                                         if (try schemas.getLive(target_after_alter)) |live| {
                                             const observed_fp = try DM.logicalFingerprint(live);
                                             report.observed_schema_sha256 = observed_fp;
-                                            if (report.expected_schema_sha256) |expected_fp| {
-                                                if (!std.mem.eql(u8, &expected_fp, &observed_fp)) {
+                                            const desired = (try schemas.get(target_after_alter)).?;
+                                            switch (try DM.reconcileSchemas(live, desired)) {
+                                                .satisfied => {},
+                                                .drift => |detail| {
                                                     report.state = .already_diverged;
+                                                    report.drift = .{
+                                                        .aspect = @tagName(detail.aspect),
+                                                        .column = if (detail.column) |col| try allocator.dupe(u8, col) else null,
+                                                        .expected = if (detail.expected) |exp| try allocator.dupe(u8, exp) else null,
+                                                        .actual = if (detail.actual) |act| try allocator.dupe(u8, act) else null,
+                                                    };
                                                     report.diagnostic_code = "migration.schema_drift";
                                                     report.diagnostic_message = try std.fmt.allocPrint(
                                                         allocator,
-                                                        "Table '{s}' schema drifted from recorded post-step fingerprint in migration {s}",
-                                                        .{ target_after_alter, source.version_id },
+                                                        "Table '{s}' drifted from migration {s} on {s}",
+                                                        .{ target_after_alter, source.version_id, @tagName(detail.aspect) },
                                                     );
                                                     has_diverged = true;
                                                     if (top_code == null) {
@@ -833,7 +841,7 @@ fn buildPlanReport(
                                                         top_code = report.diagnostic_code;
                                                         top_message = report.diagnostic_message;
                                                     }
-                                                }
+                                                },
                                             }
                                         } else {
                                             report.state = .already_diverged;
@@ -1541,6 +1549,7 @@ fn applyMigrations(
 
             executeStepStatement(allocator, runtime, observer, table, context, step, deadline) catch |err| {
                 if (err == error.MigrationOutcomeUnknown or step.state == .uncertain) {
+                    if (step.diagnostic_message == null) step.diagnostic_message = try std.fmt.allocPrint(allocator, "Cannot observe the original migration statement: {s}; resume its original token", .{@errorName(err)});
                     version.state = .uncertain;
                     _ = saveReportVersion(allocator, table, context, version, expected_rev) catch {};
                     plan.outcome = .outcome_unknown;

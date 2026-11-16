@@ -17,8 +17,11 @@ inline atomic procedures, local test-host recovery fixes and the new
 This update supersedes the execution sequence and estimates in the November 13
 version of this supporting plan. It preserves M12's `D1`–`D6` decisions,
 `P0`–`P6` acceptance criteria and the source-specific qualification records.
-Milestone status remains In Progress; the proposed slices below require review
-and implementation.
+Milestone status remains In Progress. The user approved the three initial units
+C.1a, C.1b and B.2a on this branch; the remaining slices retain their planning
+status. The implementation adds offline Table migration targets and typed
+value-returning inline calls. Its final qualification evidence is recorded
+separately from the historical review basis below.
 
 The review should settle five choices:
 
@@ -438,7 +441,7 @@ own milestone even when a shared application exercises both.
 
 ## Immediate next implementation slices
 
-After reviewing this plan, use three initial review units:
+The approved implementation scope is these three initial review units:
 
 1. **C.1a — basis and Table diff contract/core.** Define migration-target inputs,
    neutral descriptors, unchanged/new/additive behavior, refusal diagnostics and
@@ -503,9 +506,8 @@ selected formal/native evidence.
 
 ## Validation required for review and implementation
 
-For this documentation-only plan, run the source link/fence and whitespace
-checks. Before opening or updating any PR, pass all baseline gates from the
-repository root:
+Before opening or updating any PR, pass all baseline gates from the repository
+root:
 
 ```sh
 nix develop --command just check fast
@@ -515,7 +517,7 @@ nix develop .#docs --command just transit-docs::check
 
 Implementation PRs add the affected checks below. Run commands in the pinned Nix
 shell, using `ci-experience` for experience gates. These are validation
-requirements for future slices, not results produced by this plan.
+requirements, not results established by listing them in this plan.
 
 | Changed boundary | Required checks and evidence |
 | --- | --- |

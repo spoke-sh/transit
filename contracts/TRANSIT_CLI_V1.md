@@ -13,7 +13,8 @@ explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input.
 applies, resumes and verifies ordered application schema and data migrations
 over the SQL session without reading `.transitrc` startup files.
 `transit build` compiles typed source modules offline and publishes independently
-executable SQL. Its options, frozen resolution and output/diagnostic streams are
+executable SQL. Migration targets additionally synthesize Table CREATE/ADD SQL from an explicit
+offline basis, preserving historical bytes. The source and artifact profile is
 defined by [Application source and build v1](APPLICATION_SOURCE_V1.md).
 `transit test` runs explicitly selected Table and public Queue-program tests through that same compiler
 and isolated local database owners; the source contract owns its bounds and reports.

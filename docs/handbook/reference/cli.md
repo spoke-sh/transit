@@ -87,6 +87,21 @@ changed bytes reject. Failed or interrupted publication cannot create a partial
 complete directory. SQL execution needs no source or provenance files and still
 checks current caller rights. Build output is not an installation receipt.
 
+`CREATE MIGRATION TARGET` selects an explicit-basis Table migration build.
+Instead of `application.sql`, it publishes `desired.sql`, `basis.json`,
+`provenance.json` and immutable version files in `migrations/`. A successor names
+the previous basis inside the package root; all historical SQL is verified and
+copied unchanged. New Tables and safe trailing column additions are supported;
+unchanged definitions produce zero new steps. Destructive or ambiguous changes
+refuse before publication. `--check` includes basis/history verification.
+
+Review the generated SQL, then use `transit migrate plan --dir OUTPUT/migrations
+--database DATABASE --schema SCHEMA --out plan.json` and apply that saved plan.
+Database/schema bindings in source describe the comparison; the explicit migrate
+assertions check the live destination. Source and sidecars are not needed for
+apply or recovery. See [Table migration targets](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+for syntax, exact bounds and unsupported transforms.
+
 Failures name the source path, target, dependency or output operation when known,
 with a correction for that failure family. Source errors show one-based line and
 byte-column coordinates, including related module call sites. Filesystem errors
@@ -100,9 +115,8 @@ The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 fi
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations
 and 8 MiB emitted SQL. The ordinary SQL owner retains its 1 MiB statement
 limit. The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
-additional tooling limits and syntax. Migration synthesis and the
-broader [source model](applications.md#planned-source-language-and-build-model)
-remain planned.
+additional tooling limits and syntax. The broader [source model](applications.md#planned-source-language-and-build-model)
+remains planned.
 
 ## Application Table tests
 

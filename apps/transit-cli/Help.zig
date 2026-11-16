@@ -77,7 +77,7 @@ pub const migrate =
 ;
 
 pub const build =
-    \\Compile typed application modules offline without applying SQL.
+    \\Compile typed modules or explicit-basis Table migrations offline without applying SQL.
     \\
     \\Usage: transit build [-f FILE] [--target NAME] [--out DIRECTORY] [--check] [--fetch] [--override NAME=DIRECTORY] [--format text|json] [--help]
     \\
