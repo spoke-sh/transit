@@ -1,6 +1,7 @@
 """Board's real API, embedded distribution, private access and recovery qualification."""
 from runner.paths import ROOT
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from http.client import HTTPConnection
 import json
 import os
@@ -17,9 +18,10 @@ from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 
 
-def run(node, cli, board, browser=False):
-    with ColdStore(tls=True) as cold, System(node, cli, clock_error_ms=10000, allow_history_trim=True,
-                                          object_storage=cold.native_config()) as s:
+def run(node, cli, board, browser=False, object_tier=False):
+    with (ColdStore(tls=True) if object_tier else nullcontext()) as cold, System(
+            node, cli, clock_error_ms=10000, allow_history_trim=True,
+            object_storage=cold.native_config() if cold else None) as s:
         pids = [s.command({"spawn": {"code": 101}}),
                 s.command({"spawn": {}}), s.command({"spawn": {}})]
         s.command({"send": {"pid": pids[2], "value": b"<script>window.pwned=true</script>".hex()}})
@@ -53,6 +55,10 @@ def run(node, cli, board, browser=False):
         config = s.root / "board.json"
         options = {"upstream": s.url, "realm": 72, "principal": 1, "seed_file": str(seed),
                    "public_origin": origin, "port": port, "profile": "native_v1"}
+        if cold:
+            # Cold history can fetch multiple immutable generations over TLS.
+            # The ordinary local profile retains its default 800 ms deadline.
+            options.update(upstream_timeout_ms=2000, request_timeout_ms=3000)
         config.write_text(json.dumps(options))
         isolated = s.root / "standalone"
         isolated.mkdir()
@@ -192,18 +198,23 @@ def run(node, cli, board, browser=False):
         journey = api(f"processes/{pids[0]}/journey")
         assert any(edge and edge["from"]["id"] == admission and edge["to"]["id"] == turn for edge in journey["edges"])
         storage = api("storage")
-        assert storage["backend"] == "local" and storage["object_tier"] is not None
-        tier = storage["object_tier"]
-        assert tier["cache_limit_bytes"] == 32 * 1024 * 1024
-        assert tier["cache_used_bytes"] <= tier["cache_limit_bytes"]
-        assert tier["staging_limit_bytes"] == 1024 * 1024 * 1024
-        assert tier["pending_object_limit"] == 65536 and not tier["recovery_required"]
-        encoded_storage = json.dumps(storage)
-        assert cold.secret not in encoded_storage and cold.url not in encoded_storage
-        assert "credentials_file" not in encoded_storage and "ca_file" not in encoded_storage
+        assert storage["backend"] == "local"
+        if cold:
+            tier = storage["object_tier"]
+            assert tier is not None
+            assert tier["cache_limit_bytes"] == 32 * 1024 * 1024
+            assert tier["cache_used_bytes"] <= tier["cache_limit_bytes"]
+            assert tier["staging_limit_bytes"] == 1024 * 1024 * 1024
+            assert tier["pending_object_limit"] == 65536 and not tier["recovery_required"]
+            encoded_storage = json.dumps(storage)
+            assert cold.secret not in encoded_storage and cold.url not in encoded_storage
+            assert "credentials_file" not in encoded_storage and "ca_file" not in encoded_storage
+        else:
+            assert storage["object_tier"] is None
         # Browser runtime tests open the real binary directly, without credentials.
         if browser:
             env = os.environ | {"BOARD_TEST_URL": origin,
+                                "BOARD_TEST_OBJECT_TIER": "1" if cold else "0",
                                 "BOARD_TEST_OUTPUT": str(output["id"]),
                                 "BOARD_TEST_TABLE_KEY": head_key.hex(),
                                 "BOARD_TEST_RESOURCE": str(resource), "BOARD_TEST_PID": str(pids[0]), "BOARD_TEST_SINK": str(pids[1]), "BOARD_TEST_MALFORMED": str(pids[2]),
@@ -325,4 +336,5 @@ def run(node, cli, board, browser=False):
 
 
 if __name__ == "__main__":
-    run(*[Path(p).resolve() for p in sys.argv[1:4]], browser="--browser" in sys.argv)
+    run(*[Path(p).resolve() for p in sys.argv[1:4]], browser="--browser" in sys.argv,
+        object_tier="--object-tier" in sys.argv)

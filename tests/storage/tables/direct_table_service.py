@@ -279,7 +279,9 @@ def run(node, caller, mode="tables", *artifacts):
             definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
             query = dict(version=1, definition=definition, realm=42, principal=0, kind=dict(storage={}))
             envelope = dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
-            until = time.monotonic() + 120
+            # This additional tier proof waits for every original immutable
+            # generation before killing the owner; it is not a latency gate.
+            until = time.monotonic() + 300
             while True:
                 with http.open(urllib.request.Request(url + '/v1/query', data=compact(envelope),
                                headers={'Content-Type': 'application/json'}), timeout=10) as response:

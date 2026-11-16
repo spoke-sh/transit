@@ -2326,6 +2326,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     board_tests.addArtifactArg(native_client_fixture);
     board_tests.addArtifactArg(board);
     if (b.option(bool, "transit-board-browser", "Include real browser qualification") orelse false) board_tests.addArg("--browser");
+    if (b.option(bool, "transit-board-object-tier", "Qualify the optional MinIO storage profile") orelse false) board_tests.addArg("--object-tier");
     board_tests.has_side_effects = true;
     board_tests.stdio = .inherit;
     b.step("test-transit-board", "Qualify Board against disk-backed Transit").dependOn(&board_tests.step);

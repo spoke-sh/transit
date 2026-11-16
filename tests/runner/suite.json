@@ -370,7 +370,8 @@
       "test::station-transaction-baseline",
       "test::local-native-collection",
       "test::tier-mixed-transaction",
-      "test::server-object-tier"
+      "test::server-object-tier",
+      "transit-board::tier-browser"
     ]
   },
   "nested_tasks": {

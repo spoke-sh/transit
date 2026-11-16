@@ -228,7 +228,8 @@ def run(fixture):
         assert startup['value'] == 'true' and not startup['pending_restart'], startup
         storage_active = storage_rows()
         storage_values(storage_active, 1, 1)
-        assert all(row['source_line'] is not None for row in storage_active.values())
+        for name, row in storage_active.items():
+            assert (row['source_line'] is not None) == (name in storage_expected), row
         installed_storage = node_storage()
         for name, (_, expected) in storage_expected.items():
             value = installed_storage
