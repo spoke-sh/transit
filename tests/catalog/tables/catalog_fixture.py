@@ -15,7 +15,10 @@ def run(retain=retain_recovery_fixture):
     try:
         objects = cold.root / cold.bucket
         for name in ('native-one/.transit/owner/xl.meta',
+                     'native-one/scope/nested/.transit/owner/xl.meta',
                      'native-one/objects/empty.bin',
+                     'native-one/scope/nested/objects/empty.bin',
+                     'foreign/objects/key/00000000/xl.meta',
                      'bucket-startup/xl.meta'):
             path = objects / name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -23,11 +26,13 @@ def run(retain=retain_recovery_fixture):
             else: path.write_bytes(b'metadata')
         assert cold.native_data_objects() == 0, 'Metadata or empty object directory counted as data'
         for count, name in enumerate(('native-one/objects/key-one/00000000/xl.meta',
-                                      'native-one/objects/key-one/00000001/xl.meta'), 1):
+                                      'native-one/objects/key-one/00000001/xl.meta',
+                                      'native-one/scope/objects/key-two/00000000/xl.meta',
+                                      'native-two/scope/nested/objects/key-three/00000000/xl.meta'), 1):
             path = objects / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'object metadata')
-            assert cold.native_data_objects() == count, 'Each native object generation must count'
+            assert cold.native_data_objects() == count, 'Each flat or nested native object generation must count'
     finally:
         cold.__exit__(None, None, None)
     with tempfile.TemporaryDirectory(prefix='transit-retention-control-') as parent:
