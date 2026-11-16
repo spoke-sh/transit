@@ -1,7 +1,7 @@
 # Milestone 13 implementation plan
 
 [Milestone 13: Declarative serving and reactive dataflows](13-declarative-serving-and-reactive-dataflows.md)
-· **Status: Planned** · 2026-11-15
+· **Status: In Progress** · 2026-11-15
 
 Deliver one application-defined API through `transit server`, consumed by a real
 HTML/TypeScript client and an interactive REPL, without Station packages or
@@ -11,10 +11,10 @@ Then migrate existing serving consumers and Board onto those same capabilities,
 retire the screen/theme interface language and remove the standalone
 `transit-board` executable and distribution package.
 
-This plan is proposed for review. Its source basis is `424cc32e8`, the merge of
+Implementation has started with the [first contract/dependency review](declarative-serving-cutover.md). Its source basis is `424cc32e8`, the merge of
 [PR #464](https://github.com/spoke-sh/transit/pull/464). The audit below inspected
 source and package manifests; it did not execute runtime proofs. Milestone 13
-remains Planned. All new interfaces and implementation names below are proposals
+is In Progress. All new interfaces and implementation names below are proposals
 until their owning contracts and executable checks land.
 
 ## First complete application and scope
