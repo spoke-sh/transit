@@ -69,6 +69,16 @@ cache loss, generation deletion/recreation, provider denial and namespace/digest
 refusal. It does not establish AWS, power-loss durability, shared-filesystem
 safety, replicated authority or complete server/deployment qualification.
 
+The same proof measures eight 1 KiB immutable objects. Staging, exact retry and
+immediate reads issue zero remote data requests. Background transfer issues
+8 PUTs, 8 HEADs and 16 GETs to publish and verify the originals. PUT bodies total
+12,544 bytes for 8,192 logical bytes (1.53125×), including each object's 512-byte
+envelope and 32-byte chunk digest. Eight cold reads followed by eight cache hits
+issue 8 HEADs and 16 GETs in total. These counts exclude namespace claims, HTTP
+headers, TLS, local WAL/metadata and physical disk writes. Objects are transferred
+individually; this profile does not qualify remote packing, cost targets or a
+latency/throughput SLO.
+
 Named temporary immutable files publish through the storage package's
 `FilePublication` helper: sync contents, create a nonreplacing hard link, remove
 the temporary name, then sync the parent before acknowledging success. Unnamed

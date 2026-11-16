@@ -57,6 +57,15 @@ these functional proofs are exploratory and do not qualify a performance SLO.
 
 ## Final evidence
 
+The provider proof's `minio_immutable_batch_cost` record reports eight 1 KiB
+objects: zero foreground data requests, 8 PUT / 8 HEAD / 16 GET for background
+publication and verification, and 12,544 PUT body bytes for 8,192 logical bytes.
+Eight cold reads plus eight verified cache hits issue 8 HEAD / 16 GET total.
+The [current operating profile](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier)
+states the exclusions; these counts are not a physical write-amplification or
+latency claim. The real MinIO provider, batch/restart, cache and TLS checks passed
+with this measurement at `9a1c6892d`.
+
 Pending: final-source baseline, contract/SDK, Board/browser, runtime, deployment,
 physical capacity, MinIO and clean-lane gates. Commands that only compile,
 install dependencies or list tasks are not executed durability evidence.
