@@ -19,7 +19,7 @@ def main():
     def batches(node, cli, library, install, label):
         # This is a host-lifetime proof, not a storage-capacity proof. Install
         # the consumer once, then verify independent bounded histories without
-        # raising Ursula's quota or deleting accepted work inside a history.
+        # raising native Transit's quota or deleting accepted work inside a history.
         with tempfile.TemporaryDirectory(prefix='transit-rust-lifetime-') as temporary:
             consumer = install(Path(temporary))
             completed = 0

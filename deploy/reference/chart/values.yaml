@@ -14,7 +14,7 @@ node:
   table: null
   # Optional frozen server Station manifest; seed references use existingSecret.
   station: null
-  # Required operator root seed (key: root), plus registrar when Table hosting
+  # Required operator root seed (key: root), optional object-credentials.json/object-ca.pem for the tier, and registrar when Table hosting
   # is declared. Service credentials remain private in the server installation.
   existingSecret: ""
   persistence:
@@ -22,21 +22,6 @@ node:
     size: 1Gi
     storageClass: null
   logging: {level: info, format: json}
-  resources:
-    requests: {cpu: 100m, memory: 128Mi}
-    limits: {cpu: "2", memory: 1Gi}
-
-ursula:
-  enabled: false
-  nameOverride: ""
-  # Optional Secret key ursula.toml; keeps cold-store credentials out of values.
-  existingConfigSecret: ""
-  image: ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba
-  persistence:
-    existingClaim: ""
-    size: 1Gi
-    # null selects the cluster default; "" explicitly selects no storage class.
-    storageClass: null
   resources:
     requests: {cpu: 100m, memory: 128Mi}
     limits: {cpu: "2", memory: 1Gi}

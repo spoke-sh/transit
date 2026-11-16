@@ -43,8 +43,8 @@ def run(binary):
         with tempfile.TemporaryDirectory(prefix="transit-plugin-chart-") as temp:
             values = Path(temp) / "values.json"
             values.write_text(json.dumps({
-                "node": {"image": image, "nameOverride": "authority-custom", "config": {"genesis": {"realm": 1}, "ursula_url": "http://unused:8080"}},
-                "ursula": {"enabled": False}, "networkPolicy": {"enabled": False},
+                "node": {"image": image, "nameOverride": "authority-custom", "existingSecret": "unused-fixture", "config": {"realm": 1, "external": {"listen": "0.0.0.0"}}},
+                "networkPolicy": {"enabled": False},
                 "board": {"enabled": True, "image": image, "nameOverride": "inspection-custom",
                           "existingSecret": "unused-fixture", "config": {"public_origin": origin}},
             }))

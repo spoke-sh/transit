@@ -14,10 +14,12 @@ import sys
 import time
 from interfaces.inspection.inspection import System
 from harness.services import free_port, wait_ready
+from storage.providers.cold_storage import ColdStore
 
 
 def run(node, cli, board, browser=False):
-    with System(node, cli, clock_error_ms=10000, allow_history_trim=True) as s:
+    with ColdStore(tls=True) as cold, System(node, cli, clock_error_ms=10000, allow_history_trim=True,
+                                          object_storage=cold.native_config()) as s:
         pids = [s.command({"spawn": {"code": 101}}),
                 s.command({"spawn": {}}), s.command({"spawn": {}})]
         s.command({"send": {"pid": pids[2], "value": b"<script>window.pwned=true</script>".hex()}})
@@ -189,6 +191,16 @@ def run(node, cli, board, browser=False):
         assert [item["kind"] for item in effect_diagnostic["actions"] if item] == ["inspect_status"]
         journey = api(f"processes/{pids[0]}/journey")
         assert any(edge and edge["from"]["id"] == admission and edge["to"]["id"] == turn for edge in journey["edges"])
+        storage = api("storage")
+        assert storage["backend"] == "local" and storage["object_tier"] is not None
+        tier = storage["object_tier"]
+        assert tier["cache_limit_bytes"] == 32 * 1024 * 1024
+        assert tier["cache_used_bytes"] <= tier["cache_limit_bytes"]
+        assert tier["staging_limit_bytes"] == 1024 * 1024 * 1024
+        assert tier["pending_object_limit"] == 65536 and not tier["recovery_required"]
+        encoded_storage = json.dumps(storage)
+        assert cold.secret not in encoded_storage and cold.url not in encoded_storage
+        assert "credentials_file" not in encoded_storage and "ca_file" not in encoded_storage
         # Browser runtime tests open the real binary directly, without credentials.
         if browser:
             env = os.environ | {"BOARD_TEST_URL": origin,

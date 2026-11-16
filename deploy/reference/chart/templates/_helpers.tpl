@@ -19,9 +19,8 @@ app: {{ include "transit.name" . | quote }}
 {{- $_ := set $config "logging" .Values.node.logging -}}
 {{- $_ := set $config.external "listen" "0.0.0.0" -}}
 {{- $_ := set $config.external "root_seed_file" "/secrets/root" -}}
-{{- if .Values.ursula.enabled -}}
-{{- $_ := required "node.config.external.ursula is required when Ursula is enabled" $config.external.ursula -}}
-{{- $_ := set $config.external.ursula "url" (printf "http://%s:8080" (include "transit.name" (dict "root" . "component" "ursula"))) -}}
+{{- if hasKey $config.external "ursula" -}}
+{{- fail "external.ursula is unsupported; preserve the old installation and initialize a separate native deployment" -}}
 {{- end -}}
 {{- toJson $config -}}
 {{- end -}}
@@ -52,21 +51,5 @@ app: {{ include "transit.name" . | quote }}
 {{- $_ := set $config.provider "token_file" "/provider/token" -}}
 {{- $_ := set $config.provider "egress_policy_file" "/config/egress.json" -}}
 {{- toJson $config -}}
-{{- else -}}
-[server]
-listen = "0.0.0.0:8080"
-admin_listen = "0.0.0.0:8081"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "/data/wal"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
 {{- end -}}
 {{- end -}}

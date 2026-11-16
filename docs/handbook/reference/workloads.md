@@ -63,7 +63,7 @@ blocks and snapshot reads provide the current boundary for data publication and
 acquisition. Replacing nested B-tree page streaming (`PackedPageStore`) with the
 [four-tier storage hierarchy](../internals/storage-runtime.md#four-tier-storage-architecture-tseg-segments-and-multi-writer-occ)
 (`Tier 0` RAM Memtables and verified buffer pool, `Tier 1` `TransitLog` binary
-WAL and live delta bus over `LocalWal`/Ursula/Kafka/Pulsar, `Tier 2` local NVMe
+WAL and live delta bus over `LocalWal`/Kafka/Pulsar, `Tier 2` local NVMe
 read-through segment cache, and `Tier 3` `TransitObjectStore` immutable `.tseg`
 segments, `.tdel` deletion vectors and versioned Manifests) eliminates per-turn
 write amplification while preserving single-authority recovery and `policy_epoch`

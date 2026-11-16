@@ -10,10 +10,9 @@ import yaml
 
 CHART = ROOT / "deploy/reference/chart"
 VALUES = {
-    "ursula": {"enabled": True},
     "node": {"image": "example.invalid/transit:proof", "existingSecret": "node-credentials", "config": {
         "realm": 49, "applications": None, "sql": {"native": {"local": False}},
-        "external": {"ursula": {"url": "http://store:8080", "bucket": "proof", "journal": "authority"}}}},
+        "external": {"listen": "0.0.0.0"}}},
     "board": {"enabled": True, "image": "example.invalid/transit-board:proof", "existingSecret": "board-credentials",
               "config": {"realm": 49, "principal": 4, "public_origin": "https://board.example.invalid:8443"}},
 }
@@ -40,17 +39,21 @@ def run():
 
         manifests = render(VALUES)
         cold = copy.deepcopy(VALUES)
-        cold["ursula"] = {"enabled": True, "existingConfigSecret": "private-store-config"}
+        tier = dict(endpoint='https://objects.example.invalid', region='us-east-1', bucket='proof',
+                    prefix='installation', credentials_file='/secrets/object-credentials.json',
+                    ca_file='/secrets/object-ca.pem')
+        cold['node']['config']['storage'] = dict(object_storage=tier)
         configured = render(cold)
-        assert ("ConfigMap", "test-runtime-ursula") not in configured
-        store = configured["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]
-        assert store["volumes"][0] == {"name": "config", "secret": {"secretName": "private-store-config", "defaultMode": 288}}
-        assert store["containers"][0]["args"] == ["server", "--config", "/config/ursula.toml"]
+        config = json.loads(configured['ConfigMap', 'test-runtime-node']['data']['config.json'])
+        assert config['storage']['object_storage'] == tier
+        assert not any('ursula' in name for _, name in configured)
+        store = configured['Deployment', 'test-runtime-node']['spec']['template']['spec']
+        assert next(v for v in store['volumes'] if v['name'] == 'node-secrets')['secret'] == dict(secretName='node-credentials', defaultMode=288)
         assert not any(kind == "Secret" for kind, _ in configured)
         subprocess.run(["helm", "lint", "--strict", CHART, "-f", values_file], check=True)
         defaults = yaml.safe_load((CHART / "values.yaml").read_text())
         pins = json.loads((ROOT / "deploy/reference/versions.json").read_text())
-        assert defaults["ursula"]["image"] == pins["ursula"]
+        assert "ursula" not in defaults and "ursula" not in pins
         assert not any(kind in ("Secret", "Job", "RoleBinding", "ClusterRoleBinding") for kind, _ in manifests)
         station = copy.deepcopy(VALUES)
         station["controller"] = {"image": "example.invalid/runtime:proof"}
@@ -79,9 +82,9 @@ def run():
         station["running"] = False
         stopped = render(station)
         assert stopped["Deployment", "runtime-ledger"]["spec"]["replicas"] == 0
-        pvc = manifests["PersistentVolumeClaim", "test-runtime-ursula"]
+        pvc = manifests["PersistentVolumeClaim", "test-runtime-node"]
         assert pvc["metadata"]["annotations"]["helm.sh/resource-policy"] == "keep"
-        for component in ("node", "ursula", "board"):
+        for component in ("node", "board"):
             deployment = manifests["Deployment", "test-runtime-" + component]
             assert deployment["spec"]["replicas"] == 1 and deployment["spec"]["strategy"]["type"] == "Recreate"
             spec = deployment["spec"]["template"]["spec"]
@@ -96,7 +99,7 @@ def run():
         assert server["containers"][0]["args"] == ["server", "--no-ui", "--config", "/config/config.json"]
         config = json.loads(manifests["ConfigMap", "test-runtime-node"]["data"]["config.json"])
         assert config["external"]["root_seed_file"] == "/secrets/root"
-        assert config["external"]["ursula"]["url"] == "http://test-runtime-ursula:8080"
+        assert "ursula" not in config["external"]
         assert config["installation"] == "/data/installation"
         assert ("PersistentVolumeClaim", "test-runtime-node") in manifests
         assert not any(name.endswith(("-delivery", "-maintenance", "-initialize")) for _, name in manifests)
@@ -110,8 +113,6 @@ def run():
         egress = manifests["NetworkPolicy", "test-runtime-board"]["spec"]["egress"]
         assert egress[0]["to"][0]["podSelector"]["matchLabels"]["app"] == "test-runtime-node"
         assert all("ipBlock" not in to for rule in egress for to in rule["to"])
-        ingress = manifests["NetworkPolicy", "test-runtime-ursula"]["spec"]["ingress"]
-        assert {source["podSelector"]["matchLabels"]["app.kubernetes.io/component"] for source in ingress[0]["from"]} == {"node"}
 
         controlled = copy.deepcopy(VALUES)
         controlled["controller"] = {"enabled": True, "image": "example.invalid/controller:proof", "existingSecret": "controller-key",
@@ -131,7 +132,7 @@ def run():
         controlled["running"] = False
         rendered = render(controlled)
         assert all(d["spec"]["replicas"] == 0 for (kind, _), d in rendered.items() if kind == "Deployment")
-        assert ("PersistentVolumeClaim", "test-runtime-ursula") in rendered
+        assert ("PersistentVolumeClaim", "test-runtime-node") in rendered
 
         minimal = copy.deepcopy(VALUES)
         minimal["board"]["enabled"] = False
@@ -139,29 +140,23 @@ def run():
             old = copy.deepcopy(minimal)
             old[retired] = {"enabled": True}
             render(old, retired)
-        external = copy.deepcopy(minimal)
-        external["ursula"] = {"enabled": False}
-        external["node"]["config"]["external"]["ursula"]["url"] = "http://storage.example.invalid:8080"
-        rendered = render(external)
-        assert ("PersistentVolumeClaim", "test-runtime-node") in rendered
-        assert json.loads(rendered["ConfigMap", "test-runtime-node"]["data"]["config.json"])["external"]["ursula"]["url"] == "http://storage.example.invalid:8080"
+        obsolete = copy.deepcopy(minimal)
+        obsolete['ursula'] = dict(enabled=False)
+        render(obsolete, 'ursula')
+        obsolete = copy.deepcopy(minimal)
+        obsolete['node']['config']['external']['ursula'] = dict(url='http://old:8080')
+        render(obsolete, 'external.ursula is unsupported')
         local = copy.deepcopy(minimal)
-        local['ursula'] = dict(enabled=False)
         local['node']['config']['external'] = {'listen': '0.0.0.0'}
         local['node']['existingSecret'] = 'native-owner-credentials'
         rendered = render(local)
         assert ('PersistentVolumeClaim', 'test-runtime-node') in rendered
-        assert ('Deployment', 'test-runtime-ursula') not in rendered
+        assert not any('ursula' in name for _, name in rendered)
         pod = rendered['Deployment', 'test-runtime-node']['spec']['template']['spec']
         assert next(v for v in pod['volumes'] if v['name'] == 'node-secrets')['secret']['secretName'] == 'native-owner-credentials'
         local['node']['persistence'] = dict(existingClaim='retained-native')
         rendered = render(local)
         assert not any(kind == 'PersistentVolumeClaim' for kind, _ in rendered)
-        existing = copy.deepcopy(minimal)
-        existing["ursula"] = {"enabled": True, "persistence": {"existingClaim": "retained-data"}}
-        rendered = render(existing)
-        assert ("PersistentVolumeClaim", "test-runtime-ursula") not in rendered
-        assert rendered["Deployment", "test-runtime-ursula"]["spec"]["template"]["spec"]["volumes"][1]["persistentVolumeClaim"]["claimName"] == "retained-data"
         for component in ("node", "board"):
             invalid = copy.deepcopy(VALUES)
             invalid[component]["existingSecret"] = ""

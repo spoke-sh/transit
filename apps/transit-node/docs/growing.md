@@ -19,15 +19,15 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | --- | --- |
 | `profile` | Literal `native_v1`, also the default |
 | `genesis` | Exact expected v1 genesis |
-| `local_directory` | Local native storage directory; select this instead of the three Ursula fields |
-| `ursula_url`, `bucket`, `journal` | Private Ursula provider location when `local_directory` is absent |
+| `local_directory` | Required native storage directory |
+| `storage.object_storage` | Optional native immutable tier; retains local WAL, inventory and recovery identity |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
 | `storage` | Shared storage limits, maintenance settings and optional native `object_storage` tier |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
-| `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
+| `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the exclusive native node |
 | `table` | Optional local direct Table owner: fixed catalog/native bindings and registrar credential reference; see below |
 | `sql_control` | Optional local SQL lifecycle owner: private Unix `socket` and process-wide TLS `crypto_capacity` in bytes; installed `transit server` supplies both |
 
@@ -64,7 +64,7 @@ key reference grants nothing to the original Table caller; each registration
 step checks that caller again before native commitment. The signed `initialize`
 operation establishes the initial catalog under current native ownership.
 Configuration selects a service owner and storage placement, not application
-definitions or a second permission store. Ursula nodes do not provide this
+definitions or a second permission store. The removed provider composition did not provide this
 direct Table route.
 
 `table.queue_transfers` is optional and defaults to null. With local native
@@ -140,7 +140,7 @@ journals. Ordinary startup requires existing history. Both use the same
 [clock and diagnostic boundary](operations.md#time-and-deadlines) used by the service. Finite
 views require a configured trusted clock bound even for unlimited-lifetime state.
 The cache budget omits transport buffers, parsing and provider memory; consult
-the [storage measurements](../../../packages/zig/transit-backend-ursula/docs/growing.md).
+the [storage measurements](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/growing.md).
 
 ## Public surface and limits
 
@@ -270,7 +270,7 @@ share one conditional publication journal per realm.
 
 ## Background maintenance
 
-With Ursula, the server starts its private maintenance role as a separate trusted process. Its
+The server runs maintenance inside its exclusive native owner. Its
 `maintenance` configuration supplies a dedicated full-width `principal` and
 `seed_file`, with `interval_ms` (default 1000) and `operation_timeout_ms` (default
 5000), both 1–60000. Use a separate principal from application and administrative
@@ -334,7 +334,7 @@ maintenance principal cannot publish new transitions or start physical trimming;
 already authorized cleanup may finish after revocation. Diagnostics use the
 `transit-maintenance` service and bounded maintenance/storage events.
 
-`just test::growing-service` uses an independent Zig calling program, disk Ursula
+`just test::growing-service` uses an independent Zig calling program, native disk storage
 and the real node on one CPU. It writes 64 rows with bounded point/batch access,
 rejects malformed replies, preserves a signed uncertain turn across caller/node/
 provider restart, and checks current revocation on both reads and old receipts.
@@ -422,15 +422,13 @@ owns row/byte/age thresholds and the aggregate private workspace budget. Bare no
 configuration defaults Table work to disabled. Its configured maintenance interval
 and operation deadline also govern Table work. Enabling it requires both a Table
 host and a maintenance identity; startup rejects an incomplete owner configuration.
-The Ursula native profile rejects enabled Table flushing and archiving. Its
-compaction setting applies to native blocks/pages. Signed `storage` observations are
+Signed `storage` observations are
 read-only; explicit `flush` targets use current Table control authority and the
 same direct partition. Current rows, logical changes and retained history have
 separate frontiers.
 
-The following allocation ledger and physical collection details apply to
-Ursula. Local allocation accounting and retained-object limits are described in
-the [local backend](../../../packages/zig/transit-backend-local/README.md).
+Allocation accounting, retained-object limits, local staging and remote coverage
+are described in the [native backend](../../../packages/zig/transit-backend-local/README.md).
 
 The native configuration accepts `storage.limits.bytes` (default 8 GiB),
 `storage.limits.control_bytes` (64 MiB) and `storage.limits.candidate_bytes`
@@ -446,10 +444,10 @@ snapshots and filesystem headroom require separate budgets.
 records. The existing maintenance process performs bounded root traversal and
 resumable physical collection. `storage.maintenance.compact` defaults to false;
 when enabled it relocates current blocks/pages before collection. Unlimited
-history still owns old placement. The [backend guide](../../../packages/zig/transit-backend-ursula/docs/pages.md)
+history still owns old placement. The [backend guide](../../../packages/zig/transit-backend-local/docs/maintenance.md)
 defines the epoch, trusted-time grace, late-create fencing and quota contracts.
-The local server exposes these same YAML settings and starts its existing
-maintenance process; no additional CLI command is required.
+The local server exposes these same YAML settings and runs its existing
+maintenance task; no additional CLI command is required.
 
 
 Direct Table allocation limits can be lowered with restart settings

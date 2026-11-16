@@ -32,7 +32,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const telemetry = context.telemetry;
     const storage = context.storage;
     const local_backend = context.local_backend;
-    const adapter = context.adapter;
     const core = context.core;
     const protocol = context.protocol;
     const transit_board_api = context.transit_board_api;
@@ -336,7 +335,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     storage_benchmark_options.addOption(u32, "body_bytes", storage_body_bytes);
     storage_benchmark.root_module.addOptions("storage_benchmark_options", storage_benchmark_options);
     b.step("storage-benchmark", "Build paired disk-backed native and Table owner measurements").dependOn(&b.addInstallArtifact(storage_benchmark, .{}).step);
-    const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run compiled components, independent fixtures and local process faults");
     const components_step = b.step("test-components", "Run compiled component tests, including package-local filesystem checks");
     const ordered_documents = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{
@@ -467,13 +465,21 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-local-catalog", "Verify direct catalog lifecycle against current local native policy").dependOn(&local_catalog_tests.step);
     // The required storage-query lane owns test-local-catalog. Running it here
     // as well repeated the same physical catalog workload in the core lane.
-    const local_data_collection_tests = b.addRunArtifact(b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
+    const local_data_collection_artifact = b.addTest(.{ .filters = b.option([]const []const u8, "local-data-collection-filter", "Select local data collection tests during development") orelse &.{}, .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/direct_collection.zig"),
         .target = target,
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "transit_core", .module = b.dependency("transit_core", .{ .target = target, .optimize = optimize }).module("transit_core") } },
-    }) }));
+    }) });
+    const local_data_collection_tests = b.addRunArtifact(local_data_collection_artifact);
     b.step("test-local-data-collection", "Verify Table expiry and retained data across physical collection").dependOn(&local_data_collection_tests.step);
+    const tier_collection_tests = b.addSystemCommand(&.{ "python3", "-B" });
+    tier_collection_tests.addFileArg(b.path("tests/runner/launch.py"));
+    tier_collection_tests.addFileArg(b.path("tests/storage/providers/tier_collection.py"));
+    tier_collection_tests.addArtifactArg(local_data_collection_artifact);
+    tier_collection_tests.has_side_effects = true;
+    tier_collection_tests.stdio = .inherit;
+    b.step("test-tier-data-collection", "Verify retained native/direct graphs and collection over real MinIO").dependOn(&tier_collection_tests.step);
     components_step.dependOn(&local_data_collection_tests.step);
     components_step.dependOn(&local_native_tests.step);
     b.step("test-local-native", "Verify native authority over local disk storage").dependOn(&local_native_tests.step);
@@ -673,7 +679,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_bitmap", .{ .target = target, .optimize = optimize }).module("transit_bitmap") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = fuze.module("transit_fuze") })).step);
-    components_step.dependOn(&b.addRunArtifact(tests).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = telemetry.module("telemetry") })).step);
     const telemetry_proof = b.addExecutable(.{ .name = "telemetry-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/inspection/telemetry.zig"),
@@ -689,51 +694,11 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     telemetry_test.stdio = .inherit;
     b.step("test-telemetry", "Prove bounded telemetry under stalled and closed sinks").dependOn(&telemetry_test.step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = observations.module("transit_observability") })).step);
-    const page_proof = b.addExecutable(.{ .name = "transit-page-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/storage/providers/pages.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
-    }) });
-    const page_test = b.addSystemCommand(&.{ "python3", "-B" });
-    page_test.addFileArg(b.path("tests/runner/launch.py"));
-    page_test.addFileArg(b.path("tests/storage/providers/pages.py"));
-    page_test.addArtifactArg(page_proof);
-    page_test.addPassthruArgs();
-    page_test.has_side_effects = true;
-    page_test.stdio = .inherit;
-    b.step("test-pages", "Qualify immutable pages and bounded cache over disk Ursula").dependOn(&page_test.step);
-    const block_proof = b.addExecutable(.{ .name = "transit-block-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/storage/providers/block_storage.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
-    }) });
-    const block_test = b.addSystemCommand(&.{ "python3", "-B" });
-    block_test.addFileArg(b.path("tests/runner/launch.py"));
-    block_test.addFileArg(b.path("tests/storage/providers/block_storage.py"));
-    block_test.addArtifactArg(block_proof);
-    block_test.has_side_effects = true;
-    block_test.stdio = .inherit;
-    b.step("test-block-storage", "Qualify bounded immutable blocks and retained roots over disk Ursula").dependOn(&block_test.step);
-    const collection_proof = b.addExecutable(.{ .name = "transit-storage-collection-proof", .root_module = b.createModule(.{
-        .root_source_file = b.path("tests/storage/providers/storage_collection.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
-    }) });
-    const collection_test = b.addSystemCommand(&.{ "python3", "-B" });
-    collection_test.addFileArg(b.path("tests/runner/launch.py"));
-    collection_test.addFileArg(b.path("tests/storage/providers/storage_collection.py"));
-    collection_test.addArtifactArg(collection_proof);
-    collection_test.has_side_effects = true;
-    collection_test.stdio = .inherit;
-    b.step("test-storage-collection", "Qualify epoch-fenced physical reclamation and restart accounting").dependOn(&collection_test.step);
     const growth_proof = b.addExecutable(.{ .name = "transit-growth-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/providers/growing.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") } },
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
     }) });
     const growth_test = b.addSystemCommand(&.{ "python3", "-B" });
     growth_test.addFileArg(b.path("tests/runner/launch.py"));
@@ -742,7 +707,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     growth_test.addPassthruArgs();
     growth_test.has_side_effects = true;
     growth_test.stdio = .inherit;
-    b.step("test-growing", "Prove growing authority publication and recovery through disk Ursula").dependOn(&growth_test.step);
+    b.step("test-growing", "Prove growing authority publication and recovery through native disk storage").dependOn(&growth_test.step);
     const simulation_blocks = b.createModule(.{
         .root_source_file = b.path("tests/verification/simulation/storage/simulation_blocks.zig"),
         .target = target,
@@ -1535,7 +1500,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     }
     unified_query_test.has_side_effects = true;
     unified_query_test.stdio = .inherit;
-    b.step("test-unified-query", "Qualify unified query daemons over disk Ursula").dependOn(&unified_query_test.step);
+    b.step("test-unified-query", "Qualify unified query daemons over native disk storage").dependOn(&unified_query_test.step);
     const query_board_test = b.addSystemCommand(&.{ "python3", "-B" });
     query_board_test.addFileArg(b.path("tests/runner/launch.py"));
     query_board_test.addFileArg(b.path("tests/interfaces/board/board_query.py"));
@@ -1980,7 +1945,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     query_capture.addPassthruArgs();
     query_capture.has_side_effects = true;
     query_capture.stdio = .inherit;
-    b.step("test-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
+    b.step("test-query", "Prove bounded query capture and recovery through native disk storage").dependOn(&query_capture.step);
     const document_proof = b.addExecutable(.{ .name = "transit-document-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/runtime/document/document.zig"),
         .target = target,
@@ -2373,7 +2338,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     inspection.addArtifactArg(native_client_fixture);
     inspection.has_side_effects = true;
     inspection.stdio = .inherit;
-    b.step("test-inspection", "Prove scoped public inspection against disk Ursula").dependOn(&inspection.step);
+    b.step("test-inspection", "Prove scoped public inspection against native disk storage").dependOn(&inspection.step);
     const state_api = b.addSystemCommand(&.{ "python3", "-B" });
     state_api.addFileArg(b.path("tests/runner/launch.py"));
     state_api.addFileArg(b.path("tests/interfaces/native/state_api.py"));
@@ -2409,12 +2374,12 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     vortex.addPassthruArgs();
     vortex.has_side_effects = true;
     vortex.stdio = .inherit;
-    b.step("test-vortex", "Supervise server-owned delivery, real workers and disk Ursula through external faults").dependOn(&vortex.step);
+    b.step("test-vortex", "Supervise server-owned delivery, real workers and native disk storage through external faults").dependOn(&vortex.step);
     const capacity = b.addExecutable(.{ .name = "transit-capacity-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/retention/capacity.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") }, .{ .name = "fixture_growing_capacity", .module = test_modules.get(.growing_capacity) } },
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") }, .{ .name = "fixture_growing_capacity", .module = test_modules.get(.growing_capacity) } },
     }) });
     b.step("capacity-proof", "Install the physical storage pressure proof driver").dependOn(&b.addInstallArtifact(capacity, .{}).step);
     build_test_step.dependOn(&capacity.step);
@@ -2424,7 +2389,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .optimize = optimize,
         .imports = &.{
             .{ .name = "transit_core", .module = core.module("transit_core") },
-            .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+            .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
         },
     }) });
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
@@ -2435,7 +2400,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
         .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") },
         .{ .name = "cli_support", .module = cli_support },
-        .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_core", .module = core.module("transit_core") },
         .{ .name = "transit_query", .module = query.module("transit_query") },

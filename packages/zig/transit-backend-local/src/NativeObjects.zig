@@ -15,9 +15,9 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
     local.* = try Local.openDiskAt(allocator, io, parent, path);
     return .{ .allocator = allocator, .local = local };
 }
-pub fn configure(self: *Self, io: std.Io, directory: std.Io.Dir, options: ?Tier.Options, fresh: bool) !void {
+pub fn configure(self: *Self, io: std.Io, directory: std.Io.Dir, options: ?Tier.Options, fresh: bool, control_bytes: u64) !void {
     if (options) |configured| {
-        self.tier = try Tier.open(self.allocator, io, self.local, directory, configured, fresh);
+        self.tier = try Tier.open(self.allocator, io, self.local, directory, configured, fresh, control_bytes);
     } else {
         var marker: [160]u8 = undefined;
         if (try @import("LocalFiles.zig").read(io, directory, ".object-tier", &marker) != null or try @import("LocalFiles.zig").read(io, directory, ".object-tier-ready", &marker) != null) return error.TierConfigurationRequired;
@@ -32,6 +32,14 @@ pub fn deinit(self: *Self) void {
 pub fn objectStore(self: *Self) Objects.ObjectStore {
     if (self.tier == null) return self.local.objectStore();
     return .{ .context = self, .vtable = &.{ .putImmutable = put, .putImmutableBatch = batch, .putConditional = conditional, .getRange = read, .getObject = whole, .head = head, .delete = delete } };
+}
+/// Preserve the owning native/direct control classification through tier admission.
+pub fn putImmutableBatch(self: *Self, items: []const Objects.ImmutablePut, output: []Objects.ObjectMeta, control: bool) !void {
+    try Objects.validateBatch(items, output);
+    const tier = self.tier orelse return self.local.objectStore().putImmutableBatch(items, output);
+    var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+    for (items, completed[0..items.len]) |item, *meta| meta.* = try tier.putWithControl(item.key, item.bytes, item.sha256, control);
+    @memcpy(output, completed[0..items.len]);
 }
 pub fn reclaimImmutableObject(self: *Self, key: []const u8, expected: Objects.ObjectMeta) !u64 {
     return if (self.tier) |tier| tier.reclaim(key, expected) else self.local.reclaimImmutableObject(key, expected);

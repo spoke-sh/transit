@@ -181,7 +181,7 @@ not the identity or outcome of a recorded operation.
 
 The executable schedules are [public client onboarding](../../../tests/interfaces/installation/server_sql.py)
 and [interrupted enrollment](../../../tests/interfaces/installation/server_sql_faults.py). They check selected
-disconnect, restart, revocation and trust failures on disk-backed Ursula. The
+disconnect, restart, revocation and trust failures on the native disk owner. The
 [proof ledger](../../history/qualification/README.md) supplies reproduction commands and
 distinguishes executed results from this reasoning. These schedules do not cover every interruption point, sustained
 maximum-account load or arbitrary filesystem/storage corruption.
@@ -505,7 +505,7 @@ budget; it does not remove the cost of durable publication.
 
 Reproduce deterministic publication, quota and saved-step checks with
 the SQL wire contract suite in the pinned development shell. The native SQL
-session deployment fixture uses disk-backed Ursula, an independent Python
+session deployment fixture uses the native disk owner, an independent Python
 HTTPS/SCRAM client, PG readback, process replacement, source workers and actual
 console binaries. The local server deployment suite covers default local discovery
 and retained installation behavior. The console history suite is editor-only evidence with

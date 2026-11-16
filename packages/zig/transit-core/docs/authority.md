@@ -24,7 +24,7 @@ closure is irreversible: it rejects late results, even if the request originally
 started on time. A historical receipt can still be read under current permission;
 returning that receipt is not accepting a new result.
 
-Keep the upstream Ursula API unchanged. Transit must record the authorized work,
+Keep physical provider operations behind the storage boundary. Transit must record the authorized work,
 its finite settlement rights, and closure in the same authority ordering. A
 worker's prepared proposal or claimed timestamp is not a durable settlement
 grant. Closure and result acceptance race through conditional append: once

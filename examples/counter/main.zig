@@ -1,5 +1,5 @@
 //! Runnable counter example. Has a PID-scoped signing key and protocol access;
-//! never imports Ursula, dispatches effects, or acquires its own ownership.
+//! never imports storage providers, dispatches effects, or acquires its own ownership.
 const std = @import("std");
 const protocol = wire.protocol;
 const state = @import("state.zig");

@@ -85,7 +85,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | Command | What it does today |
 | --- | --- |
 | `just` | Lists available recipes |
-| `just doctor` | Prints tool versions, including Ursula and Kubernetes tooling, without contacting a cluster |
+| `just doctor` | Prints tool versions, including MinIO and Kubernetes tooling, without contacting a cluster |
 | `just check` | Lists the scopes in the [check module](check.just); this command executes no validation |
 | `just check fast` | Runs formatting, tooling, independent Python oracles, diagnostic inventory/mappings and documentation links without compiling the runtime or starting Transit services |
 | `just check contracts` | Compiles schema exporters once and runs the 18 existing drift, signing-fixture and binding checks with immutable artifact paths |
@@ -123,7 +123,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just build` | Lists Zig build profiles |
 | `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |
 | `just examples::build` | Installs `example-counter` and `example-byte-log` |
-| `just examples::run counter`, `just examples::run byte-log` | Provisions disposable disk Ursula and an authority, runs the real example, and verifies its committed state |
+| `just examples::run counter`, `just examples::run byte-log` | Provisions disposable the native disk owner and an authority, runs the real example, and verifies its committed state |
 | `just transit-board::install`, `just transit-board::demo` | Install locked frontend dependencies and inspect a disposable counter realm |
 | `just transit-board::build`, `just transit-board::run CONFIG` | Build the embedded binary and run a provisioned installation |
 | `just transit-board::generate`, `just transit-board::contract`, `just transit-board::check` | Generate/check OpenAPI and browser models, then validate frontend formatting/lint/types/tests |
@@ -135,7 +135,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just launchers::local::down`, `reset` | Stop while preserving data, or explicitly delete a stopped installation; Compose has the same tasks |
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
-| `just test::public-query` | Exercise the native query callers/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
+| `just test::public-query` | Exercise the native query callers/hosts, exact retry, fenced recovery and current authorization over the native disk owner |
 | `just test::named-relational` | Check independent named-query records, separate publication/authorization/activation and captured/maintained native recovery on disk |
 | `just test::direct-named-query` | Qualify named captured definitions over direct Tables, separate activation, worker replacement, original attribution and verified results |
 | `just test::direct-dependencies` | Qualify exact dependency registration/removal, redacted DROP RESTRICT and original receipt recovery across abrupt node replacement; traverse 139 retained edges beyond resident caches |
@@ -195,7 +195,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
 | `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
 | `just bindings::relational-node`, `just bindings::relational-python` | Build/install interactive relational callers outside the checkout; compare exact plans and rows with Zig across one/two-resource routes, repeated pages, current denial, host loss and ordered overflow |
-| `just transit-board::relational-browser` | Run the real relational Board API and browser against disk Ursula; prove explicit execution, a lost open response, browser reload without rerun, exact coverage and current denial |
+| `just transit-board::relational-browser` | Run the real relational Board API and browser against the native disk owner; prove explicit execution, a lost open response, browser reload without rerun, exact coverage and current denial |
 | `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
 | `just bindings::catalog-ruby` | Build/install Ruby gems outside the checkout; verify frozen values, saved catalog recovery, malformed-child uncertainty and joined cancellation |
 | `just bindings::catalog-c` | Build/install C11/C++17 packages; verify owned values, copied-owner rejection, exact saved catalog recovery and current denial |
@@ -215,7 +215,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
 | `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh, runtime and catalog contract schedules and qualify their assertions with real-code mutations |
-| `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
+| `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and the native disk owner; preserve histories and cleanup evidence |
 | `just test::vortex-profile sdk\|application\|query\|reactive\|discovery` | Qualify selected external hosts/lifecycles, or run the separate expanded discovery campaign with retained stage outcomes and finite limits |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
 | `just test::resource-simulation-mutations` | Detect omitted resource writes and input progress in isolated committed core mutants |
@@ -224,18 +224,14 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::simulation-mutations` | Checks committed-source delivery-order/provenance mutants in isolated clones |
 | `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
 | `just test::growing-capacity` | Uses ReleaseSafe binaries and an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
-| `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
-| `just test::pages-cold [--keys N --cache N]` | Linux x86_64: repeats the page proof with pinned native MinIO and measures both providers |
-| `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
+| `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against the native disk owner; service integration remains separate |
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
-| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
+| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with the native disk owner and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
 | `just test::local-catalog` | Checks the internal direct catalog against signed native registrations, ownership changes and resource retirement on local disk in ReleaseSafe, retaining runtime safety checks and the complete disk/fault workload. For focused development use `zig build test-local-catalog -Dlocal-catalog-filter="test name"`; direct Zig invocation uses the selected optimization profile, and the task runs the full target |
 | `just test::node-recovery` | Qualifies read-only retained startup through provider connection loss and unavailability, finite exhaustion, and denied/missing/genesis rejection |
 | `just test::node-concurrency` | Uses provider barriers to check overlapping signed reads/commits, revocation during a read and one receipt for concurrent exact retries |
-| `just test::block-storage` | Checks immutable block/index primitives through disk restart, failed staging and corrupt/missing bytes; native turn and SQL integration are separate |
 | `just test::native-blocks` | Atomic native bulk publication, retained bytes, exact retry and current authority through disk faults |
-| `just test::storage-collection` | Disk-backed segment ownership, quota refusal, resumable collection, late-create fencing, relocation and confirmed deletion while retained roots survive |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
@@ -258,7 +254,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just test::deployments` | Renders/lints the Transit Helm chart and checks bootstrap, credential, storage and network boundaries without a cluster; included in `ci` |
 | `just test::telemetry` | Checks bounded log emission and independent metrics with disabled, drained, stalled and closed sinks on one CPU |
 | `just test::observability` | Proves real Board/client/node correlation, privacy, receipt semantics and Transit progress with a blocked log pipe |
-| `just test::storage` | Launches isolated disk-backed Ursula, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
+| `just test::storage` | Launches isolated the native disk owner, tests conditional writes and bounded reads, then kills/restarts it and verifies recovery |
 | `just test::storage-segments` | Verifies segment range/selection budgets, all-codec cell ownership and direct Table cold/warm reads against a complete same-cut disk scan |
 | `just test::service` | Proves signed HTTP ingress, scoped/revoked reads, worker replacement and authority/storage restart on loopback |
 | `just test::callers` | Runs the actual counter and byte-log example binaries through the public client against the same node, including dropped commit responses, stale owners and restart recovery |
@@ -269,7 +265,7 @@ continues to use the selected Zig optimization profile for all artifacts.
 | `just launchers::local::build [SERVICE...]`, `update [SERVICE...]` | Build candidates or deploy compatible changes; Compose/reference expose the same interface |
 | `just test::runtime-upgrade` | Proves provider-switch fencing and recovery after a lost provider response |
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
-| `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
+| `nix flake check` | Evaluates outputs and runs Zig/TypeScript, MinIO, and Kubernetes CLI smoke checks without network access |
 
 The growing service and focused query recipes select ReleaseSafe explicitly,
 retaining runtime safety checks with the same fault schedules, deadlines and
@@ -378,7 +374,7 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 [toolchain guide](../nix/README.md), or [examples](../examples/README.md).
 
 `just test::inspection` exercises the signed, bounded public read surface against
-isolated disk-backed Ursula.
+isolated the native disk owner.
 
 For repeated installed Rust runner destruction, use
 `nix develop .#bindings --command just bindings::rust-lifetime 256`.

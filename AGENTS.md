@@ -293,9 +293,9 @@ nix develop --command just test::nightly-performance "$perf_run/selection.json" 
   not dispatch. Unknown remote outcomes require connector policy; closure cannot
   promise external cancellation or make retry safe. Keep secrets as references
   in transcripts and keep credentials/private datasets out of Git and logs.
-- Use the pinned `ursula`/`ursulactl` overlay tools and upstream `ursula-zig` only
-  inside the Ursula backend. Pin external Zig revisions/hashes in the consuming
-  package. Use disk-backed Ursula for durability tests.
+- Use the pinned MinIO fixture for immutable object-tier qualification. Keep local
+  native WAL/recovery evidence separate from remote object coverage; a bucket
+  alone is not an installation backup. Pin external revisions in their owner.
 - Keep Board's inspection capability read-only. Use public `transit-client` read surfaces;
   no raw storage/provider access, hidden mutations, or unqualified cached views.
   Interpret runtime/framework primitives with source evidence; keep application

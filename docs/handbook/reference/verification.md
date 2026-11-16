@@ -131,7 +131,7 @@ contract assertions. Seeded replay compares their event records; these stores
 establish logical publication boundaries, not disk or remote-effect durability.
 
 The external fault supervisor runs `transit server` with its owned native and
-courier roles plus the counter worker against disk-backed Ursula. It injects request/reply delay and loss, interrupts
+courier roles plus the counter worker against the native disk owner. It injects request/reply delay and loss, interrupts
 connections, pauses the courier, and kills/restarts processes against current
 history. Public reads check resource/input/output agreement, original delivery
 provenance, current permission, stale activation and bounded eligible progress.
@@ -144,7 +144,7 @@ The installed application fault suite also exercises the courier owned by
 or an ambient executable search path. It verifies exact retry after a lost
 delivery receipt, per-route order and original provenance, pending-output recovery
 after courier loss, and no duplicate admission after manager restart. External
-worker scenarios execute separately against local disk and disk-backed Ursula,
+worker scenarios execute separately against local disk and the native disk owner,
 including signed courier-read outages, readiness withdrawal and refusal to
 restore revoked rights on restart. These server scenarios do not establish
 Kubernetes/Substrate isolation or physical multi-host qualification.

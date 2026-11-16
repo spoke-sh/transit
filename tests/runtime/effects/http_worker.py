@@ -1,4 +1,4 @@
-"""Actual finite worker and disk Ursula: dropped receipts and killed executors."""
+"""Actual finite worker and disk native Transit: dropped receipts and killed executors."""
 import hashlib
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

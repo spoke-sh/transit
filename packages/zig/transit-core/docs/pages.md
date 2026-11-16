@@ -167,7 +167,7 @@ and ordered pagination, updates/deletions, independently retained snapshots,
 every staging-failure boundary, missing/corrupt pages, strict versioned encoding
 and allocation failure cleanup. Their store is a deterministic in-memory fault
 dependency, not a proof of bounded provider cache, disk persistence or production
-scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) additionally
+scale. The [native page proof](../../transit-backend-local/src/native_test.zig) additionally
 checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
 native authority and Station has separate executable schedules and recorded
 results in the [proof ledger](../../../../docs/history/qualification/README.md).

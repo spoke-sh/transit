@@ -7,7 +7,7 @@ qualification; this executable does not complete M15's public lifecycle, credent
 or deployment scope. All ten public SDKs qualify the finite request/call/replay
 profile through the [shared caller schedule](../../docs/history/qualification/runtime.md#m15-connector-work-in-progress).
 
-`just test::http-worker` qualifies the real binary with disk-backed Ursula and
+`just test::http-worker` qualifies the real binary with the native disk owner and
 the owned MinIO fixture (Docker required, 8 MiB hot storage bound),
 lost seal/dispatch/observation responses, node/store restart, current read
 revocation and worker SIGKILL after remote application. Recovery closes unknown

@@ -3,7 +3,7 @@
 Zig inspection CLI for Transit installations on Kubernetes. The Nix shell installs
 it on PATH, so kubectl discovers it as `kubectl transit`. It delegates Kubernetes
 authentication and transport to the pinned `kubectl`; no Transit credentials,
-raw Ursula access, or provider execution privileges are required or acquired.
+raw storage access, or provider execution privileges are required or acquired.
 The [Kubernetes tooling](README.md) covers future logical
 inspection and operator controls. Only its first phase is implemented.
 
@@ -60,7 +60,7 @@ json` / `-o json` returns Kubernetes' native list unchanged for `get` and `statu
 Empty discovery succeeds; an empty targeted status/view fails. Denied reads and
 connection failures preserve kubectl's diagnostic and exit status.
 
-`logs` supports `node`, `board`, `controller`, and `ursula`. The `node` component
+`logs` supports `node`, `board`, and `controller`. The `node` component
 runs `transit server`, which owns bootstrap, maintenance and delivery. Its
 [diagnostics](../../deploy/reference/README.md#service-diagnostics) describe the
 composed lifecycle; these internal roles have no separate Kubernetes log stream.

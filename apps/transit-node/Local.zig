@@ -251,15 +251,18 @@ fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintena
 /// check. Snapshot the small live owner record; never enumerate physical files.
 pub fn storageObservation(engine: *Engine) !core.protocol.Storage.Observation {
     const owner = engine.journal.backend;
-    try owner.mutex.lock(owner.io);
-    defer owner.mutex.unlock(owner.io);
     var result = core.protocol.Storage.Observation.unavailable;
-    result.backend = .local;
-    result.root = owner.resolved_root;
-    result.allocated_bytes = owner.allocated;
-    result.limits = owner.limits;
-    result.maintenance = owner.maintenance_activity;
-    result.settings = owner.maintenance_settings;
+    {
+        try owner.mutex.lock(owner.io);
+        defer owner.mutex.unlock(owner.io);
+        result.backend = .local;
+        result.root = owner.resolved_root;
+        result.allocated_bytes = owner.allocated;
+        result.limits = owner.limits;
+        result.maintenance = owner.maintenance_activity;
+        result.settings = owner.maintenance_settings;
+    }
+    if (owner.objects.tier) |tier| result.object_tier = try tier.observation();
     return result;
 }
 

@@ -9,7 +9,7 @@ The [deployment reference](../handbook/reference/deployment.md) and
 [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md) own present behavior.
 
 Placement serves declared data and computation. Because durable state lives in
-shared **`TransitLog`** partitions (Ursula, Kafka or Pulsar) and shared
+shared **`TransitLog`** partitions (future qualified Kafka or Pulsar providers) and shared
 **`TransitObjectStore`** segments (`.tseg`/`.tdel` and Manifests in S3/GCS/R2)
 with stateless local NVMe read-through caches on worker nodes, moving a table
 partition or Station process group between Kubernetes/Substrate pods requires
@@ -113,7 +113,7 @@ tail latency and recovery progress alongside aggregate throughput.
 Run single-node controls and inject faults at lease acquisition, `TransitLog`
 append, `.tseg` staging, conditional Manifest CAS publication, NVMe cache
 eviction/corruption, pin release, disclosure, retirement and garbage collection
-across Compose and Kubernetes/Substrate (`Ursula + S3 + Substrate`) profiles.
+across Compose and Kubernetes/Substrate (`native storage + qualified object tier + Substrate`) profiles.
 Require `writer_epoch` and `policy_epoch` fencing, current grants, recorded
 destinations, exact recovery and reserved control progress.
 

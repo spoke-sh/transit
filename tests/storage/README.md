@@ -27,12 +27,12 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Queue FIFO claims, uncertain replies, automatic retired-lease expiry and original payloads after restart | [Signed caller](tables/direct_queue.zig), [HTTP schedule](tables/direct_table_service.py); `just test direct-table-service queues` (also included in the default direct-service gate) |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |
 | Native semantic recovery and signed kernel assertions | [Disk storage driver](providers/storage.py), `just test::storage`; explicit completion then SIGKILL at each phase |
-| Ursula/provider-specific conformance | [pages](providers/pages.py), [blocks](providers/block_storage.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
+| Native tier/provider conformance | [MinIO operations and tier recovery](providers/s3.py), [native blocks](providers/block_native.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
 | Expiry, deletion, capacity and maintenance | [retention/](retention/), [real ENOSPC](retention/capacity.py) |
 
 Use [test recipes](../../tasks/test.just) for explicit binary and provider inputs.
 Repository Python drivers use the shared test launcher. Local WAL/Table and
-Ursula schedules preserve separate guarantees; a filename or common helper does
+MinIO tier schedules preserve separate guarantees; a filename or common helper does
 not establish the backend. Performance drivers and budgets live in
 [performance](../performance/README.md), and application actor execution in runtime.
 

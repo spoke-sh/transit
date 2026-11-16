@@ -26,7 +26,7 @@ from placement import Compose, Reference
 def run(profile, node, host, gateway, proof):
     node, host, gateway, proof = [str(Path(p).resolve()) for p in (node, host, gateway, proof)]
     started = time.monotonic()
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('OTEL_',))} | {'LOG_LEVEL': 'warn'}
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with tempfile.TemporaryDirectory(prefix='transit-flight-') as directory, ExitStack() as owned:
         work = Path(directory)
@@ -91,8 +91,7 @@ def run(profile, node, host, gateway, proof):
         try:
             placement = (Compose if profile == 'compose' else Reference)(work)
             if profile == 'compose':
-                (work / 'ursula.toml').touch()
-                placement.call('create', 'ursula')
+                placement.prepare_storage_network()
                 network = placement.project + '_storage'
             else:
                 network = 'kind'
@@ -101,13 +100,9 @@ def run(profile, node, host, gateway, proof):
             if bridge is None: raise RuntimeError('Flight placement needs a private IPv4 bridge gateway')
             cold = owned.enter_context(ColdStore(bind_address=bridge))
             placement.cold_address, placement.cold_port = bridge, cold.port
-            wal = '/data/wal' if profile == 'reference' else '/wal'
-            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config())
-            (work / 'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
-            node_config = dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), local_directory='/authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000)
+            node_config = dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), local_directory='/authority', storage=dict(object_storage=cold.placement_config(work)), port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000)
             write(work / 'operator/node.json', node_config)
-            storage = placement.start('ursula'); wait_ready(http, storage, placement.url('ursula') + '/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http, authority, url + '/health')
             subprocess.run([proof, url, 'catalog-bootstrap', str(work)], check=True, capture_output=True, timeout=300)
@@ -177,8 +172,6 @@ def run(profile, node, host, gateway, proof):
                 delivery.kill(); delivery.wait(timeout=10)
                 placement.stop_for_recovery('gateway-0', serving)
                 placement.stop_for_recovery('node', authority)
-                placement.stop_for_recovery('ursula', storage)
-                storage = placement.start('ursula'); wait_ready(http, storage, placement.url('ursula')+'/__ursula/ready')
                 authority = placement.start('node'); url = placement.url('node'); wait_ready(http, authority, url+'/health')
                 activate('source', True); activate('requester', True); delivery = courier()
                 serving = start_gateway()
@@ -192,7 +185,7 @@ def run(profile, node, host, gateway, proof):
             finally: client.close()
             verify(uri, edge.root/'certificate.pem', work, token, schema, expected, lambda: json.loads(admin('next-sequence')))
             if profile == 'reference': placement.check_hosts(workers.values())
-            print(f'Flight {profile}: TLS PyArrow/ADBC C/Python, physical gateway/worker/node/store recovery and exact retry passed in {time.monotonic()-started:.2f}s; {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
+            print(f'Flight {profile}: TLS PyArrow/ADBC C/Python, physical gateway/worker/node/store recovery and exact retry passed in {time.monotonic()-started:.2f}s; {cold.native_data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
         except BaseException:
             traceback.print_exc()
             if placement:

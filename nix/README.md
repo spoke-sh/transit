@@ -1,7 +1,7 @@
 # Development toolchain
 
 [flake.nix](../flake.nix) supplies `just`, Zig 0.17 master through `zig-overlay`,
-Ursula/`ursulactl` through `ursula-overlay`, Vite+ (`vp`), Node.js, pnpm, Python with PyYAML and PyArrow, Process Compose,
+Vite+ (`vp`), Node.js, pnpm, Python with PyYAML and PyArrow, Process Compose,
 OpenSSL for independent signed/TLS peers, the DuckDB, PostgreSQL (`psql`) and MySQL
 (`mysql`) CLIs, and Kubernetes tools. [flake.lock](../flake.lock) pins inputs; the Vite+ release
 and checksums live in [vite-plus.nix](vite-plus.nix). Linux and macOS on x86_64
@@ -27,22 +27,13 @@ The cached `kubectl-transit` package targets the architecture's baseline CPU,
 as the runtime packages do. Nix outputs can move between builders and runners;
 the builder's optional CPU instructions must not become package requirements.
 
-[ursula.nix](ursula.nix) derives the local provider from the locked Ursula 0.5.1
-overlay and applies [a bounded cold-flush correction](ursula-cold-flush.patch).
-After a small stream consumes part of a flush batch, the next stream can use the
-remaining bytes. The upstream planner could repeatedly discard that next chunk
-and reach hot-storage admission pressure. The derivation runs the upstream
-`ursula-stream` tests, including a sustained two-stream regression, and exports
-the corrected binary through `nix build .#ursula` and the development shells for
-provider-specific deployments and checks. The default local runtime uses its
-native storage backend. `flake.lock`, upstream source/Cargo hashes, the Rust toolchain
-and `ursulactl` remain deliberately unchanged. The patch asserts its reviewed
-upstream version; an overlay upgrade requires reviewing and removing or rebasing
-it. Official container images do not contain this local correction.
+Native durability uses the Transit-owned local backend. The pinned native MinIO
+fixture qualifies optional immutable tiering; no Ursula tool, overlay, image or
+client package is required. Historical provider measurements below retain their
+original source attribution and do not qualify the replacement profile.
 
 The M9 Arrow integration uses Zig `0.17.0-dev.2267+48abf1a34`, matching
-the selected zarrow fork. The Zig overlay update is deliberate; Ursula and
-general development-package pins remain unchanged.
+the selected zarrow fork. The Zig overlay update is deliberate; general development-package pins remain unchanged.
 
 The `transit` CLI uses this compiler's bundled LLVM/LLD for Debug ELF builds.
 This preserves debug information while packing sections within the unchanged
@@ -264,7 +255,7 @@ development comparator and is absent from Transit runtime dependencies.
 M11's Python packaging/type checks add `build`, setuptools, wheel, pip and mypy
 to the developer and bindings CI shells. The bindings shell also adds Ruby
 3.4.9 / RubyGems 3.7.2 for the new SDK target. These packages come from the
-existing `flake.lock` nixpkgs revision; no Zig, Ursula or lock revision changes
+existing `flake.lock` nixpkgs revision; no Zig or nixpkgs revision changes
 are needed. `just doctor`, Ruby JSON/full-width integer loading and Python tool
 imports are checked separately from SDK conformance. Pinning a runtime alone
 does not qualify its language adapter. The selected Python tools are build 1.4.4,
@@ -272,7 +263,7 @@ setuptools 80.10.1, wheel 0.46.1 and mypy 1.20.1.
 
 M16's independent RPC peers add grpcio 1.80.0, Python protobuf 7.34.1, h2 4.3.0
 and protoc 34.1 to the default and bindings shells. They use the existing locked
-nixpkgs revision; `flake.lock`, Zig and Ursula remain deliberately unchanged.
+nixpkgs revision; Zig and nixpkgs remain deliberately unchanged.
 `just doctor`, imports and descriptor generation pass locally. These foreign
 libraries are test peers and generators; the Transit RPC runtime remains Zig.
 
@@ -281,7 +272,7 @@ M22's `nix develop .#flight` adds the upstream ADBC Flight SQL driver and manage
 [flight-tools.nix](flight-tools.nix) pins exact wheel URLs/hashes and patches
 their native libraries for Linux x86_64/Python 3.13. Other platforms are not
 selected for this independent client profile. The existing nixpkgs lock, Zig and
-Ursula revisions remain unchanged. Importing these tools is preparation evidence;
+Other toolchain revisions remain unchanged. Importing these tools is preparation evidence;
 it does not qualify a Flight gateway or its C ABI interoperability.
 
 ## Vite+
@@ -312,7 +303,7 @@ which changes mutable installation state outside the pinned tool definition.
 The persistent [local launcher](../launchers/README.md) uses Process Compose
 1.110.0, selected by the existing nixpkgs lock, for OS process management and a
 terminal UI. `just doctor` and the toolchain smoke check verify its executable.
-Adding it does not update the Zig/Ursula pins. The Compose launcher separately
+Adding it does not update the Zig pin. The Compose launcher separately
 requires a user-managed Docker daemon and Compose v2 plugin.
 
 ## Kubernetes tools
@@ -329,7 +320,7 @@ revision plus `transit-upgrade-v1`. The versioned
 `UpdateActor` operation without changing the provider API. Its package tests
 cover stale UID/template/version and lost-response retries. These packages use the existing Nix
 Go 1.27 compiler; upstream runtime build scripts retain their own pinned toolchain.
-No Zig, Ursula, Substrate, or node image upgrade is implied.
+No Zig, Substrate, or node image upgrade is implied.
 
 ```sh
 nix develop --command kind version
@@ -356,8 +347,8 @@ The [reference runbook](../deploy/reference/README.md) owns cluster setup.
 Helm 3.20.2 and PyYAML come from the existing nixpkgs pin; the chart proof uses
 them to render, lint and inspect the [standalone chart](../charts/transit/README.md)
 and [reference chart](../deploy/reference/chart/README.md).
-[Backend notes](../packages/zig/transit-backend-ursula/README.md) own Ursula's disk
-configuration and the separately pinned Zig client dependency.
+[Backend notes](../packages/zig/transit-backend-local/README.md) own native disk
+configuration and optional MinIO immutable tiering.
 
 ## CI caching
 
@@ -434,7 +425,7 @@ in `suite.json`. Multi-lane clean qualification still prepares the full bindings
 and frontend environment. No compiler, model bounds or lockfile pins change.
 
 The installation-ui lane uses `nix develop .#ci-experience`, a shell with the native
-Ursula and MinIO fixtures but no Kubernetes/provider management tools. Its Python
+MinIO fixtures but no Kubernetes/provider management tools. Its Python
 environment includes PyYAML and `jsonschema` for
 the Board query contract checks, and PyArrow for the Station launcher's independent
 typed-result inspection. The gRPC browser's independent peer uses `grpcio` and
@@ -452,8 +443,7 @@ before collection, and a miss saves only the live closure. Small changes to the
 packaged inspection plugin or environment helper can rebuild without uploading
 the store. Exact cache hits do not upload again. Cache keys deliberately change
 for heavy toolchain/pin updates; the first new-key run pays that upload cost.
-New lane caches can fall back to the previous shared cache for their first run,
-so the split itself does not force rebuilding Ursula from Rust source.
+New lane caches can fall back to the previous shared cache for their first run.
 
 The SDK lanes use `nix develop .#ci-bindings`: the native tools, PyArrow and
 foreign SDKs and pinned native MinIO, without Kubernetes/provider management tools.
@@ -551,9 +541,6 @@ compatibility. `nix build .#kind .#kubectl-ate` builds the packaged tools direct
 ```sh
 # Update the Zig overlay intentionally, then inspect the lockfile diff.
 nix flake update zig-overlay
-
-# Update the Ursula server and operations CLI together.
-nix flake update ursula-overlay
 
 # Update general development packages, including Kubernetes tools, separately.
 nix flake update nixpkgs

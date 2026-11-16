@@ -27,14 +27,6 @@ class Reference(BaseReference):
     def __init__(self, work, protocol="document"):
         super().__init__(work, protocol)
 
-    def deploy(self):
-        # Keep storage credentials out of values, ConfigMaps and Helm history.
-        name = self.protocol + "-store-config"
-        self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name},
-                    "data": {"ursula.toml": base64.b64encode((self.work / "ursula.toml").read_bytes()).decode()}})
-        self.values["ursula"]["existingConfigSecret"] = name
-        return super().deploy()
-
     def stop_for_recovery(self, service, process):
         # Hold replacements until the durable store has recovered. Deleting a
         # Deployment pod alone immediately creates another running executor.
@@ -81,7 +73,7 @@ ip6tables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
-        targets = [self.address("ursula")+":8080", self.cold_address+":"+str(self.cold_port), "1.1.1.1:443"]
+        targets = [self.cold_address+":"+str(self.cold_port), "1.1.1.1:443"]
         for namespace, target in (("default", "kubernetes"), ("ate-system", "api")):
             address = json.loads(self.kube("get", "service", target, "-n", namespace, "-o", "json"))["spec"]["clusterIP"]
             targets.append(address+":443")

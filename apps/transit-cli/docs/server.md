@@ -636,10 +636,6 @@ applications: null
 external:
   listen: 0.0.0.0
   root_seed_file: /run/secrets/transit-root
-  ursula:
-    url: http://ursula:8080
-    bucket: transit
-    journal: authority
 ```
 
 Run this configuration with `transit server --no-ui --config transit.yaml` inside
@@ -649,20 +645,20 @@ The signed native listener accepts loopback or wildcard binding. Network
 admission and remote transport protection belong to the deployment boundary.
 Optional Board uses its normal read-only upstream grant without local SQL.
 
-Omit `external.ursula` for local disk. Local storage supports an explicit
+Native local disk is the default. Configure `storage.object_storage` for an
+optional immutable tier; its local WAL and recovery directory remain required.
+Native storage supports an explicit
 `external.table_file` containing the node's typed Table configuration, after its
 catalog and registrar are provisioned through public operations. The first
 accepted configuration is retained by identity; changing or removing it rejects.
-Ursula retains native history separately and does not supply direct Table/SQL
-hosting. Native history trimming requires explicit
+Native history trimming requires explicit
 `external.allow_history_trim: true` at initialization; unlimited retention remains
 the default. Provider selection and genesis policy cannot change on restart.
 
 `root_seed_file` optionally supplies the initial operator root seed. The server
 copies it privately and verifies the same public identity on each restart.
 Omission generates a private root. This input never adopts an existing component
-installation. Preserve the complete server installation alongside the Ursula
-volume: it holds recovery identities, frozen provisioning requests, service
+installation. Preserve the complete server installation and native data volume: it holds recovery identities, frozen provisioning requests, service
 credentials and receipts. Never recreate it to recover missing history.
 A fresh installation accepts only genesis-only native history. Existing accepted
 work requires its original installation record, even when a supplied root key

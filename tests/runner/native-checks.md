@@ -52,6 +52,6 @@ build file and instructions before selecting a narrower test filter.
 The [package-root and contract audit](package-checks.md) lists all 34 package
 owners, roots missing from the explicit aggregate and retained validator overlap.
 
-Real Ursula, installed SDKs, browser sessions, reference deployments, capacity
+Real MinIO, installed SDKs, browser sessions, reference deployments, capacity
 faults, formal models and deterministic simulation keep their existing owners in
 the [suite inventory](suite.json). These native scopes do not replace them.

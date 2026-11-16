@@ -21,7 +21,10 @@ Configure `endpoint`, `region`, `bucket`, a dedicated `prefix`, and
 `secret_access_key` and optionally `session_token`; it is reopened for each
 provider request so credentials can rotate without changing installation
 identity. Use HTTPS. `allow_loopback_http: true` permits only explicit loopback
-HTTP for local MinIO testing. Do not put credentials in deployment JSON.
+HTTP for local MinIO testing. Optional `ca_file` names a PEM bundle for a private
+provider; omission uses system roots. The bundle loads when the owner opens, so
+CA changes require restart. Hostname and certificate validity checks remain
+required. Do not put credential values in deployment JSON.
 
 The tier must be selected before the first native or direct allocation. The
 persisted namespace binding rejects changes to endpoint, region, bucket or
@@ -49,13 +52,14 @@ missing required inventory refuses recovery. No quota, upload failure, cache
 pressure or remote listing grants deletion authority.
 
 `staging_bytes` defaults to 1 GiB (minimum 32 MiB) and `pending_objects` to 65,536
-(maximum 1,048,576). Upload admission uses both; deletion has a separate 4,096-item
-control reserve. Exhaustion refuses additional staging without expiring data.
+(maximum 1,048,576). Upload admission uses both; control uploads and deletion share a separate 4,096-item
+reserve. Control uploads may additionally use the native `control_bytes` budget. Exhaustion refuses additional staging without expiring data.
 Metadata and content also consume the native allocation budget. `cache_bytes`
 defaults to 256 MiB (32 MiB–4 GiB); it bounds a separate disposable disk cache.
 The cache has at most 4,096 resident descriptors, starts cold on reopen, and
-checks every hit against the original local digest. Two reusable 32 MiB tier
-workspaces and the S3 adapter's bounded transfer workspace are separate from
+checks every hit against the original local digest. Two reusable 32 MiB read
+slots, one 32 MiB upload workspace and the S3 adapter's approximately 32 MiB PUT
+workspace are separate from
 request and page-cache budgets. `request_timeout_ms` defaults to 10,000 and
 bounds each joined provider request; the adapter does not silently retry it.
 

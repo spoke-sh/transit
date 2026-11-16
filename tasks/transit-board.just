@@ -124,7 +124,7 @@ demo: build
     zig build apps examples
     python3 -B examples/local.py counter --board
 
-# Qualify the optional growing query API against real hosts and disk Ursula.
+# Qualify the optional growing query API against real hosts and the native disk owner.
 query-test:
     zig build test-board-query
 

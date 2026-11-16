@@ -22,26 +22,12 @@ pub const Options = struct {
     /// JSON file reopened for each request, including after credential rotation.
     /// Only its path is installation configuration; secret values are ephemeral.
     credentials_file: []const u8,
+    ca_file: ?[]const u8 = null,
     request_timeout_ms: u32 = 10000,
     allow_loopback_http: bool = false,
 
     pub fn validate(self: Options) !void {
-        const uri = std.Uri.parse(self.endpoint) catch return error.InvalidObjectEndpoint;
-        if (uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return error.InvalidObjectEndpoint;
-        if (uri.host.?.percent_encoded.len == 0 or uri.port == 0) return error.InvalidObjectEndpoint;
-        for (uri.host.?.percent_encoded) |c| if (!(std.ascii.isAlphanumeric(c) or std.mem.indexOfScalar(u8, "-.:[]", c) != null)) return error.InvalidObjectEndpoint;
-        if (uri.path.percent_encoded.len != 0 and !std.mem.eql(u8, uri.path.percent_encoded, "/")) return error.InvalidObjectEndpoint;
-        if (!std.mem.eql(u8, uri.scheme, "https")) {
-            if (!std.mem.eql(u8, uri.scheme, "http") or !self.allow_loopback_http) return error.InsecureObjectEndpoint;
-            const host = uri.host.?.percent_encoded;
-            if (!std.mem.eql(u8, host, "127.0.0.1") and !std.mem.eql(u8, host, "localhost") and !std.mem.eql(u8, host, "[::1]")) return error.InsecureObjectEndpoint;
-        }
-        if (self.bucket.len < 3 or self.bucket.len > 63 or !std.ascii.isAlphanumeric(self.bucket[0]) or !std.ascii.isAlphanumeric(self.bucket[self.bucket.len - 1])) return error.InvalidObjectBucket;
-        for (self.bucket) |c| if (!(std.ascii.isLower(c) or std.ascii.isDigit(c) or c == '-' or c == '.')) return error.InvalidObjectBucket;
-        if (self.region.len == 0 or self.region.len > 64) return error.InvalidObjectRegion;
-        for (self.region) |c| if (!(std.ascii.isLower(c) or std.ascii.isDigit(c) or c == '-')) return error.InvalidObjectRegion;
-        try object.validateKey(self.prefix);
-        if (self.credentials_file.len == 0 or self.request_timeout_ms == 0 or self.request_timeout_ms > 120000) return error.InvalidObjectConfiguration;
+        try (protocol.Storage.ObjectStorage{ .endpoint = self.endpoint, .region = self.region, .bucket = self.bucket, .prefix = self.prefix, .credentials_file = self.credentials_file, .ca_file = self.ca_file, .request_timeout_ms = self.request_timeout_ms, .allow_loopback_http = self.allow_loopback_http }).validate();
     }
 };
 
@@ -129,8 +115,27 @@ pub const S3ObjectStore = struct {
     /// One reusable bounded transfer slab; retained data never grows residency.
     transfer: []u8,
     pub fn init(allocator: std.mem.Allocator, io: std.Io, options: Options) !S3ObjectStore {
+        return initWithAccess(allocator, io, options, false);
+    }
+    /// Bounded read clients own their HTTP/TLS state but need no PUT slab.
+    pub fn initReadOnly(allocator: std.mem.Allocator, io: std.Io, options: Options) !S3ObjectStore {
+        return initWithAccess(allocator, io, options, true);
+    }
+    fn initWithAccess(allocator: std.mem.Allocator, io: std.Io, options: Options, read_only: bool) !S3ObjectStore {
         try options.validate();
-        return .{ .allocator = allocator, .io = io, .options = options, .http = .{ .allocator = allocator, .io = io }, .transfer = try allocator.alloc(u8, max_envelope) };
+        var http: std.http.Client = .{ .allocator = allocator, .io = io };
+        errdefer http.deinit();
+        if (options.ca_file) |path| {
+            const file = try std.Io.Dir.cwd().openFile(io, path, .{});
+            defer file.close(io);
+            if (try file.length(io) > 1024 * 1024) return error.CertificateAuthorityBundleTooBig;
+            var reader = file.reader(io, &.{});
+            const now = std.Io.Clock.real.now(io);
+            try http.ca_bundle.addCertsFromFile(allocator, &reader, now.toSeconds());
+            if (http.ca_bundle.map.count() == 0) return error.EmptyCertificateAuthorityBundle;
+            http.now = now;
+        }
+        return .{ .allocator = allocator, .io = io, .options = options, .http = http, .transfer = try allocator.alloc(u8, if (read_only) 0 else max_envelope) };
     }
     pub fn deinit(self: *S3ObjectStore) void {
         self.http.deinit();
@@ -167,13 +172,22 @@ pub const S3ObjectStore = struct {
         const Secrets = struct { access_key_id: []const u8, secret_access_key: []const u8, session_token: ?[]const u8 = null };
         const secrets = try std.json.parseFromSlice(Secrets, self.allocator, raw, .{ .allocate = .alloc_if_needed });
         defer secrets.deinit();
+        defer {
+            // Escaped JSON strings may live in the parser arena, independently
+            // of raw. Wipe them before freeing either allocation owner.
+            std.crypto.secureZero(u8, @constCast(secrets.value.secret_access_key));
+            std.crypto.secureZero(u8, @constCast(secrets.value.access_key_id));
+            if (secrets.value.session_token) |token| std.crypto.secureZero(u8, @constCast(token));
+        }
         if (secrets.value.access_key_id.len == 0 or secrets.value.access_key_id.len > 128 or secrets.value.secret_access_key.len == 0 or secrets.value.secret_access_key.len > 100) return error.InvalidCredentials;
         for (secrets.value.access_key_id) |c| if (!std.ascii.isAlphanumeric(c) and c != '-') return error.InvalidCredentials;
         var key_buffer: [768]u8 = undefined;
         const remote_key = try std.fmt.bufPrint(&key_buffer, "{s}/{s}", .{ self.options.prefix, key });
         const endpoint = std.mem.trimEnd(u8, self.options.endpoint, "/");
         const host = endpoint[(std.mem.indexOf(u8, endpoint, "://") orelse return error.InvalidObjectEndpoint) + 3 ..];
-        const timestamp = std.Io.Clock.real.now(self.io).toSeconds();
+        const clock = std.Io.Clock.real.now(self.io);
+        if (self.http.now != null) self.http.now = clock;
+        const timestamp = clock.toSeconds();
         if (timestamp < 0) return error.InvalidObjectClock;
         const epoch: std.time.epoch.EpochSeconds = .{ .secs = @intCast(timestamp) };
         const yd = epoch.getEpochDay().calculateYearDay();
@@ -277,6 +291,7 @@ pub const S3ObjectStore = struct {
     }
     fn putImmutable(ctx: *anyopaque, key: []const u8, bytes: []const u8, expected: [32]u8) !object.ObjectMeta {
         const self: *S3ObjectStore = @ptrCast(@alignCast(ctx));
+        if (self.transfer.len == 0) return error.ReadOnlyObjectStore;
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         const encoded = encode(key, .immutable, bytes, self.transfer);
@@ -294,13 +309,20 @@ pub const S3ObjectStore = struct {
     }
     fn putConditional(ctx: *anyopaque, key: []const u8, condition: object.Condition, bytes: []const u8) !bool {
         const self: *S3ObjectStore = @ptrCast(@alignCast(ctx));
+        if (self.transfer.len == 0) return error.ReadOnlyObjectStore;
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         var existing: Descriptor = undefined;
         const provider: signing.Condition = switch (condition) {
             .if_none_match => .if_none_match,
             .if_match => |hash| blk: {
-                existing = (try self.descriptor(key)) orelse return false;
+                existing = (self.descriptor(key) catch |err| switch (err) {
+                    // A competing writer changed the ETag between HEAD and
+                    // descriptor GET. The requested original comparison lost;
+                    // no mutation was sent and no transport failure is hidden.
+                    error.ObjectChanged => return false,
+                    else => return err,
+                }) orelse return false;
                 if (existing.kind != .conditional) return error.ImmutableObjectConflict;
                 if (!std.mem.eql(u8, &existing.meta.sha256, &hash)) return false;
                 break :blk .{ .if_match = existing.tag() };
@@ -310,7 +332,10 @@ pub const S3ObjectStore = struct {
         var response_bytes: [4096]u8 = undefined;
         const response = try self.request(.PUT, key, provider, null, encoded, &response_bytes);
         if (response.status == .precondition_failed) {
-            if (try self.descriptor(key)) |found| if (found.kind == .immutable) return error.ImmutableObjectConflict;
+            if (self.descriptor(key) catch |err| switch (err) {
+                error.ObjectChanged => return false,
+                else => return err,
+            }) |found| if (found.kind == .immutable) return error.ImmutableObjectConflict;
             return false;
         }
         try require(response.status);
@@ -365,6 +390,7 @@ pub const S3ObjectStore = struct {
     }
     fn delete(ctx: *anyopaque, key: []const u8) !void {
         const self: *S3ObjectStore = @ptrCast(@alignCast(ctx));
+        if (self.transfer.len == 0) return error.ReadOnlyObjectStore;
         try self.mutex.lock(self.io);
         defer self.mutex.unlock(self.io);
         var bytes: [4096]u8 = undefined;

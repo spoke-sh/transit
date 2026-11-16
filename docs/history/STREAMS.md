@@ -10,7 +10,7 @@ recorded destinations. This page explains admission, delivery and replay; the
 
 Status: Ursula and the unbounded mailbox are established choices. This document
 owns durable transport requirements; [Transit](TRANSIT.md) owns execution rules.
-The [backend](../../packages/zig/transit-backend-ursula/README.md) implements the M1
+The [backend](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/README.md) implements the M1
 realm-journal mapping, and [tests](../../tests/README.md) record recovery/outbox proof.
 Broader stream topologies and cross-realm delivery remain planned.
 

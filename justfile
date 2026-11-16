@@ -48,8 +48,6 @@ doctor:
     node --version
     pnpm --version
     vp toolchain --global
-    ursula --help > /dev/null
-    ursulactl --version
     kubectl version --client
     helm version --short
     k9s version --short

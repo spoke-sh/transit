@@ -37,8 +37,8 @@ def run(profile="local", bootstrap=False, protocol="http"):
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
                 ("transit-client-host", "transit", caller_binary, connector_binary)}
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
-    env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", LOG_LEVEL="warn")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("OTEL_",))}
+    env.update(LOG_LEVEL="warn")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with tempfile.TemporaryDirectory(prefix=f"transit-{protocol}-example-") as directory:
         work = Path(directory)
@@ -105,32 +105,13 @@ def run(profile="local", bootstrap=False, protocol="http"):
                 placement = Compose(work, protocol)
             (work / "wal").mkdir()
             (work / "activations").mkdir()
-        store_config = work / "ursula.toml"
-        store_config.write_text(f'''[server]
-listen = "{'0.0.0.0:8080' if placement else f'127.0.0.1:{store_port}'}"
-admin_listen = "127.0.0.1:0"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "{'/wal' if placement else work / 'wal'}"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
-''')
         node_config = write("operator/node.json", server_configuration(realm,
             '/operator/seed.key' if placement else keys['operator'],
             # Keep the server's sibling lock and publication staging directory
             # inside the writable mount as well as the retained installation.
             installation='/authority/installation' if placement else work / 'authority',
             port=8080 if placement else node_port,
-            listen='0.0.0.0' if placement else '127.0.0.1',
-            ursula=dict(url='http://ursula:8080' if placement else store_url,
-                        bucket=protocol+'-example', journal='authority')))
+            listen='0.0.0.0' if placement else '127.0.0.1'))
         principals = {"operator": 0, "caller": 1, "connector": 2, "delivery": 3}
         sequences = dict.fromkeys(principals, 0)
 
@@ -153,9 +134,6 @@ backend = "inline"
 
         peer = None
         try:
-            storage = start("ursula", ["ursula", "server", "--config", store_config])
-            if placement: store_url = placement.url("ursula")
-            ready(storage, store_url + "/__ursula/ready")
             if placement:
                 placement.initialize()
             authority = start("node", [binaries["transit"], "server", "--no-ui", "--config", node_config])
@@ -227,8 +205,8 @@ backend = "inline"
                 peer = placement.start("peer")
                 children.append(peer)
                 peer_address, peer_port = placement.address("peer", "effect"), 8443
-                denied = [peer_address + ":8443", placement.address("ursula", "storage") + ":8080", "1.1.1.1:443"]
-                assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == {"authority": "reachable", "denied": 3}
+                denied = [peer_address + ":8443", "1.1.1.1:443"]
+                assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == {"authority": "reachable", "denied": len(denied)}
             else:
                 peer = start_peer(peer_config, requests=requests)
                 peer_address, peer_port = "127.0.0.1", peer.server_port
@@ -328,7 +306,6 @@ backend = "inline"
             assert outcome["phase"] == "observed" and outcome["status"] == (0 if rpc else 200)
             # Recovery after node/store loss and with credentials unavailable.
             authority.kill(); authority.wait(timeout=10)
-            storage.kill(); storage.wait(timeout=10)
             credential.unlink()
             if placement:
                 requests = placement.peer_requests()
@@ -336,9 +313,6 @@ backend = "inline"
             else:
                 peer.shutdown(); peer.server_close()
             peer = None
-            storage = start("ursula-recovered", ["ursula", "server", "--config", store_config])
-            if placement: store_url = placement.url("ursula")
-            ready(storage, store_url + "/__ursula/ready")
             authority = start("node-recovered", [binaries["transit"], "server", "--no-ui", "--config", node_config])
             if placement: url = placement.url("node")
             ready(authority, url + "/health")

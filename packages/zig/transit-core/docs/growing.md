@@ -42,13 +42,13 @@ including a genesis fingerprint. Opening/refreshing reads the latest published
 head and materializes records on demand. It relies on the trusted journal's
 conditional append/record-coordinate contract; page identity checks protect
 referenced content. Recovery never stages pages or runs application code.
-The [Ursula integration](../../transit-backend-ursula/docs/growing.md) supplies
+The [native integration](../../transit-backend-local/README.md) supplies
 real conditional journal/page persistence. Each published record is a complete
 root checkpoint. `allow_history_trim` in genesis is explicit application/realm
 opt-in, defaulting to false. An administrative `checkpoint` records a monotonic
 floor that retains its own complete publication. Maintenance verifies that intent
 and a separately published root snapshot before trimming the earlier journal.
-It never trims the page journal. All mailbox entries, receipts, views, outputs
+Immutable page reclamation remains a separate retained-graph operation. All mailbox entries, receipts, views, outputs
 and application values remain in the catalog, including old captured roots.
 This is protocol-history compaction, not permission to expire or reclaim values.
 Recovery reads the latest retained complete head and uses its genesis fingerprint;

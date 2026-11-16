@@ -554,8 +554,8 @@ published visibility. Sparse segment payload rewriting remains separate; the
 current pass preserves original batch bytes and receipts.
 
 The default local launcher selects the
-[local native backend](../transit-backend-local/README.md). Ursula remains an
-explicit node backend. This package's
+[native backend](../transit-backend-local/README.md), optionally configured with
+a MinIO immutable tier. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
 automatic archive scheduling or multi-process Table commits. Physical Table-object
 collection is composed by the [local backend](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)

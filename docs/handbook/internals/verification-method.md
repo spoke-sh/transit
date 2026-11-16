@@ -164,7 +164,7 @@ Public observations after each bounded round check the independent cumulative
 counter, one original output per input and one destination admission per output.
 Pagination fixes one authority position; rows cannot mix successive cuts.
 
-The supervisor uses owned processes and the existing disk Ursula fixture. It
+The supervisor uses owned processes and the existing the native disk owner fixture. It
 records requested signals separately from observed stops/exits, joins its proxy
 and children, and retains history, logs, binary identities and incomplete status.
 Its four-round ordinary workload always exercises all four network fault classes;

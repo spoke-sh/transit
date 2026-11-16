@@ -330,7 +330,7 @@ explicit gap, not a complete history whose first record happens to be later.
 
 Recovery uses a validated checkpoint plus the required retained tail, including
 pending inputs, outputs, ownership, dependencies and deduplication evidence.
-Physical Ursula offsets are storage coordinates, not PIDs, domain sequence
+Physical storage offsets are storage coordinates, not PIDs, domain sequence
 numbers or permission tokens. A checkpoint cannot omit unfinished accepted work.
 
 Application stream contracts may permit resynchronization from a current

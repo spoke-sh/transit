@@ -1,4 +1,4 @@
-"""Kill actual Station workers at publication boundaries over owned disk Ursula."""
+"""Kill actual Station workers at publication boundaries over owned disk native Transit."""
 from runner.paths import ROOT
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

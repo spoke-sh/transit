@@ -113,7 +113,7 @@ unrelated turn. [`Delivery.tla`](../tests/verification/models/Delivery.tla)
 checks this abstractly (`WindowBound`, `CreditSound`, `NoPrematureAck`); the
 implementation is tested in-memory (`query_growing_test.zig`, including a
 forged-peer rejection and an exact count of one grant per sealed segment) and
-against real disk Ursula/node restart (`test::query`'s `publish`/
+against real the native disk owner/node restart (`test::query`'s `publish`/
 `deliver` phases, which now exercise the gate under real asynchronous delay).
 
 Credit is scoped per result, not pooled across a destination's concurrently

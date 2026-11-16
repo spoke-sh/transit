@@ -51,6 +51,13 @@ test("inspection-only deployment lands in Operations and explains missing connec
   await expect(page.getByRole("region", { name: "Relational worksheet" })).toHaveCount(0);
   const capacity = page.getByRole("region", { name: "Capacity and allocation", exact: true });
   await expect(capacity).toContainText("authority position");
+  const tier = page.getByRole("region", { name: "Object storage tier", exact: true });
+  await expect(tier).toBeVisible();
+  await expect(tier).toContainText("Pending upload bytes");
+  await expect(tier).toContainText("Disk cache");
+  await tier.getByRole("button", { name: "Pending upload bytes", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "Inspector" })).toContainText("durable");
+  await page.keyboard.press("Escape");
   await capacity
     .getByRole("table")
     .getByRole("button", { name: "Direct request allocation", exact: true })

@@ -1,4 +1,4 @@
-"""External fault supervisor for real Transit binaries and an owned disk Ursula.
+"""External fault supervisor for real Transit binaries and an owned disk native Transit.
 
 A seed reproduces workload/fault intent, not OS scheduling. Only public signed
 operations observe authority. No storage files or private checkpoints are edited.

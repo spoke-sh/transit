@@ -131,7 +131,7 @@ for every future protocol version.
 ## Verification
 
 `just test::client-abi` exercises the generated C header, independent Python and
-standalone port against the node and disk-backed Ursula. Its schedules cover
+standalone port against the node and the native disk owner. Its schedules cover
 canonical signatures, saved-request recovery without a seed, lost receipts,
 current revocation and competing handles sharing one principal. The
 [proof ledger](../../../../docs/history/qualification/README.md) distinguishes executed outcomes from

@@ -1,4 +1,4 @@
-"""Private administration caller, C ABI and host recovery on disk-backed Ursula."""
+"""Private administration caller, C ABI and host recovery on disk-backed native Transit."""
 from runner.paths import ROOT
 import argparse
 import ctypes

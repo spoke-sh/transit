@@ -271,7 +271,6 @@ class Reference:
         else:
             values = {"running": True,
                 "node": {"enabled": True, "nameOverride": "transit"},
-                "ursula": {"enabled": False},
                 "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
                 "controller": {"enabled": False, "nameOverride": "controller", "existingSecret": "controller-credentials"}}
         self.service_values(values, selection, images)

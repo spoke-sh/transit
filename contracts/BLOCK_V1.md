@@ -109,16 +109,16 @@ This logical operation alone does not erase physical storage.
 
 ## Backend framing and evidence
 
-The Ursula adapter encodes a block record as `TBK1` followed by its raw bytes,
-then wraps it in a canonical base64 JSON string for record-coordinate transport.
-Page frames and block frames are distinct. Reads verify the exact coordinate,
-complete record framing, byte count, content digest and canonical envelope.
-Staging reads the record back before returning its reference. A lost append
-reply is not silently retried or treated as a usable locator.
+The native adapter stores a definition-bound immutable envelope with the
+original block bytes and digest. Page and block identities remain distinct.
+Local staging and its upload intent are durable before the owning WAL accepts
+a reference. With optional MinIO tiering, verified remote coverage precedes
+local eviction; the original retained descriptor validates every later read.
+Exact accepted retries resolve the original receipt without restaging bytes.
 
 Protocol units use the independent vector and malformed/over-budget inputs.
 Core schedules check old roots, missing/corrupt bytes, byte-stage failure and
-page acknowledgement loss. `just test::block-storage` runs the real disk
-adapter with a full-size batch and one resident metadata page, provider kill and
-restart, missing replies and corrupted readback. Executed results and their
+page acknowledgement loss. `just test::native-blocks` exercises full-size block
+batches, lost acceptance replies, native owner restart, remote corruption and
+missing bytes, and revocation while a MinIO read is held. Executed results and their
 limits belong in [the proof ledger](../docs/history/qualification/README.md).

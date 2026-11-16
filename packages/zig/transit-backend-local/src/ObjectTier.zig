@@ -11,6 +11,7 @@ const Self = @This();
 pub const Options = p.Storage.ObjectStorage;
 const Phase = enum(u8) { pending = 1, uploaded = 2, deleting = 3 };
 const State = struct { position: u64, generation: u64, phase: Phase, meta: Objects.ObjectMeta };
+const Reader = struct { remote: storage.S3ObjectStore.S3ObjectStore, bytes: []u8, busy: bool = false };
 allocator: std.mem.Allocator,
 io: std.Io,
 local: *Local,
@@ -21,13 +22,19 @@ queue: Queue,
 remote: storage.S3ObjectStore.S3ObjectStore,
 cache: storage.NvmeCache.DiskCache,
 options: Options,
-/// Separate bounded workspaces: reads and background transfer never retain one
-/// another's borrowed memory. Adapter serialization has its own request deadline.
-read_buffer: []u8,
+control_bytes: u64,
+/// Two bounded read slots keep a held payload read independent of another
+/// reader or authorization-page fetch. Background transfer owns a third client.
+/// Cache serialization covers disk I/O only, never a provider request.
+readers: [2]Reader,
 upload_buffer: []u8,
 reads: std.Io.Mutex = .init,
+read_available: std.Io.Condition = .init,
+cache_mutex: std.Io.Mutex = .init,
 worker: std.Io.Mutex = .init,
 poisoned: std.atomic.Value(bool) = .init(false),
+status_mutex: std.Io.Mutex = .init,
+status: struct { cache_used: u64 = 0, cache_hits: u64 = 0, cache_misses: u64 = 0, uploads: u64 = 0, deletes: u64 = 0, failures: u64 = 0, failure: ?p.Storage.Failure = null } = .{},
 
 fn hash(bytes: []const u8) [32]u8 {
     var result: [32]u8 = undefined;
@@ -40,7 +47,7 @@ fn name(key: []const u8) [64]u8 {
 fn remoteKey(key: []const u8, generation: u64, out: *[96]u8) []const u8 {
     return std.fmt.bufPrint(out, "objects/{s}/{x:0>16}", .{ name(key), generation }) catch unreachable;
 }
-pub fn open(allocator: std.mem.Allocator, io: std.Io, local: *Local, parent: std.Io.Dir, options: Options, fresh: bool) !*Self {
+pub fn open(allocator: std.mem.Allocator, io: std.Io, local: *Local, parent: std.Io.Dir, options: Options, fresh: bool, control_bytes: u64) !*Self {
     if (options.staging_bytes < Objects.max_object_bytes or options.staging_bytes > p.max_counter or options.pending_objects == 0 or options.pending_objects > 1024 * 1024) return error.InvalidTierBudget;
     var remote = try storage.S3ObjectStore.S3ObjectStore.init(allocator, io, .{
         .endpoint = options.endpoint,
@@ -48,6 +55,7 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, local: *Local, parent: std
         .bucket = options.bucket,
         .prefix = options.prefix,
         .credentials_file = options.credentials_file,
+        .ca_file = options.ca_file,
         .request_timeout_ms = options.request_timeout_ms,
         .allow_loopback_http = options.allow_loopback_http,
     });
@@ -116,13 +124,23 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, local: *Local, parent: std
     errdefer queue.deinit();
     var cache = try storage.NvmeCache.DiskCache.open(allocator, io, parent, "cache", options.cache_bytes);
     errdefer cache.deinit();
-    const read_buffer = try allocator.alloc(u8, Objects.max_object_bytes);
-    errdefer allocator.free(read_buffer);
+    var readers: [2]Reader = undefined;
+    var initialized_readers: usize = 0;
+    errdefer for (readers[0..initialized_readers]) |*reader| {
+        reader.remote.deinit();
+        allocator.free(reader.bytes);
+    };
+    for (&readers) |*reader| {
+        var client = try storage.S3ObjectStore.S3ObjectStore.initReadOnly(allocator, io, remote.options);
+        errdefer client.deinit();
+        reader.* = .{ .remote = client, .bytes = try allocator.alloc(u8, Objects.max_object_bytes) };
+        initialized_readers += 1;
+    }
     const upload_buffer = try allocator.alloc(u8, Objects.max_object_bytes);
     errdefer allocator.free(upload_buffer);
     const self = try allocator.create(Self);
     errdefer allocator.destroy(self);
-    self.* = .{ .allocator = allocator, .io = io, .local = local, .directory = directory, .states = states, .locks = locks, .queue = queue, .remote = remote, .cache = cache, .options = options, .read_buffer = read_buffer, .upload_buffer = upload_buffer };
+    self.* = .{ .allocator = allocator, .io = io, .local = local, .directory = directory, .states = states, .locks = locks, .queue = queue, .remote = remote, .cache = cache, .options = options, .control_bytes = control_bytes, .readers = readers, .upload_buffer = upload_buffer };
     // Recover intents whose state publication was interrupted before admitting
     // any request. This scan is paged, with one fixed-size record resident.
     try self.queue.reconcile(self);
@@ -132,7 +150,10 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, local: *Local, parent: std
 pub fn deinit(self: *Self) void {
     const allocator = self.allocator;
     allocator.free(self.upload_buffer);
-    allocator.free(self.read_buffer);
+    for (&self.readers) |*reader| {
+        reader.remote.deinit();
+        allocator.free(reader.bytes);
+    }
     self.cache.deinit();
     self.remote.deinit();
     self.queue.deinit();
@@ -140,6 +161,19 @@ pub fn deinit(self: *Self) void {
     self.states.close(self.io);
     self.directory.close(self.io);
     allocator.destroy(self);
+}
+pub fn observation(self: *Self) !p.Storage.ObjectTierObservation {
+    const head = try self.queue.current();
+    try self.status_mutex.lock(self.io);
+    defer self.status_mutex.unlock(self.io);
+    return .{ .pending_upload_bytes = head.pending_bytes, .pending_objects = head.pending_objects, .staging_limit_bytes = self.options.staging_bytes, .pending_object_limit = self.options.pending_objects, .cache_limit_bytes = self.options.cache_bytes, .cache_used_bytes = self.status.cache_used, .cache_hits = self.status.cache_hits, .cache_misses = self.status.cache_misses, .uploads_completed = self.status.uploads, .deletes_completed = self.status.deletes, .failed_steps = self.status.failures, .last_failure = self.status.failure, .recovery_required = self.poisoned.load(.acquire) or self.queue.wal.requiresRecovery() };
+}
+fn observeCache(self: *Self) void {
+    self.status_mutex.lockUncancelable(self.io);
+    defer self.status_mutex.unlock(self.io);
+    self.status.cache_used = self.cache.used;
+    self.status.cache_hits = @min(p.max_counter, self.cache.hits);
+    self.status.cache_misses = @min(p.max_counter, self.cache.misses);
 }
 pub fn check(self: *Self) !void {
     if (self.poisoned.load(.acquire) or self.queue.wal.requiresRecovery()) return error.TierRecoveryRequired;
@@ -193,6 +227,9 @@ pub fn restore(self: *Self, record: Queue.Record) !void {
 }
 /// The foreground performs only local durable I/O. No provider request runs here.
 pub fn put(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8) !Objects.ObjectMeta {
+    return self.putWithControl(key, bytes, digest, false);
+}
+pub fn putWithControl(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8, control: bool) !Objects.ObjectMeta {
     const held = try self.lock(key);
     defer held.close(self.io);
     const expected: Objects.ObjectMeta = .{ .size = bytes.len, .sha256 = digest };
@@ -200,7 +237,11 @@ pub fn put(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8) !Obj
     if (previous) |state| {
         if (state.phase != .deleting) {
             if (!std.meta.eql(state.meta, expected)) return error.ImmutableObjectConflict;
-            if (state.phase == .uploaded) return expected;
+            if (state.phase == .uploaded) {
+                const original = (try self.local.headObject(key)) orelse return error.MissingTierDescriptor;
+                if (!std.meta.eql(original, expected)) return error.ImmutableObjectConflict;
+                return expected;
+            }
             return self.local.putImmutableObject(key, bytes, digest);
         }
         // A collector durably authorized deletion of the old generation. Clear
@@ -210,7 +251,9 @@ pub fn put(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8) !Obj
     // Intent precedes staging, so quota refusal cannot create unaccounted bytes.
     // A crash before content publication leaves unaccepted work visible to the
     // original allocation collector; only that owner may supersede the intent.
-    const position = self.queue.enqueue(.{ .key = try Queue.Key.init(key), .meta = expected, .action = .upload }, self.options.staging_bytes, self.options.pending_objects) catch |err| {
+    const byte_limit = @min(p.max_counter, self.options.staging_bytes +| (if (control) self.control_bytes else 0));
+    const object_limit = self.options.pending_objects + @as(u64, if (control) 4096 else 0);
+    const position = self.queue.enqueue(.{ .key = try Queue.Key.init(key), .meta = expected, .action = .upload }, byte_limit, object_limit) catch |err| {
         if (err != error.UploadStagingQuota) self.poisoned.store(true, .release);
         return err;
     };
@@ -262,21 +305,63 @@ pub fn read(self: *Self, key: []const u8, offset: u64, length: u32, out: []u8) !
     }
     // Uploaded bytes are disposable. Their absence/corruption cannot authorize
     // replacing the retained identity with an untrusted remote descriptor.
-    try self.reads.lock(self.io);
-    defer self.reads.unlock(self.io);
-    if (!try self.cache.get(key, expected, self.read_buffer)) {
+    const reader = try self.acquireReader();
+    defer self.releaseReader(reader);
+    if (!try self.cached(key, expected, reader.bytes)) {
         var remote_name: [96]u8 = undefined;
-        const got = (try self.remote.objectStore().getObject(remoteKey(key, state.generation, &remote_name), self.read_buffer)) orelse return error.RemoteObjectMissing;
+        const got = (try reader.remote.objectStore().getObject(remoteKey(key, state.generation, &remote_name), reader.bytes)) orelse return error.RemoteObjectMissing;
         if (!std.meta.eql(got, expected)) return error.ObjectDigestMismatch;
-        try self.cache.put(key, expected, self.read_buffer[0..@intCast(expected.size)]);
+        try self.cache_mutex.lock(self.io);
+        defer self.cache_mutex.unlock(self.io);
+        defer self.observeCache();
+        try self.cache.put(key, expected, reader.bytes[0..@intCast(expected.size)]);
     }
     const count: usize = @intCast(@min(length, expected.size - offset));
-    @memcpy(out[0..count], self.read_buffer[@intCast(offset)..][0..count]);
+    @memcpy(out[0..count], reader.bytes[@intCast(offset)..][0..count]);
     return out[0..count];
+}
+fn acquireReader(self: *Self) !*Reader {
+    try self.reads.lock(self.io);
+    defer self.reads.unlock(self.io);
+    while (true) {
+        for (&self.readers) |*reader| if (!reader.busy) {
+            reader.busy = true;
+            return reader;
+        };
+        try self.read_available.wait(self.io, &self.reads);
+    }
+}
+fn releaseReader(self: *Self, reader: *Reader) void {
+    self.reads.lockUncancelable(self.io);
+    defer self.reads.unlock(self.io);
+    reader.busy = false;
+    self.read_available.signal(self.io);
+}
+fn cached(self: *Self, key: []const u8, expected: Objects.ObjectMeta, bytes: []u8) !bool {
+    try self.cache_mutex.lock(self.io);
+    defer self.cache_mutex.unlock(self.io);
+    defer self.observeCache();
+    return self.cache.get(key, expected, bytes);
 }
 /// One bounded background step. Errors retain original work, with no implicit
 /// provider retry. The host owns scheduling, cancellation and joined shutdown.
 pub fn step(self: *Self) !u64 {
+    return self.stepImpl() catch |err| {
+        if (err == error.Canceled) return err;
+        self.status_mutex.lockUncancelable(self.io);
+        defer self.status_mutex.unlock(self.io);
+        self.status.failures = @min(p.max_counter, self.status.failures +| 1);
+        self.status.failure = switch (err) {
+            error.ObjectAccessDenied => .denied,
+            error.ObjectRequestTimeout => .timeout,
+            error.TierRecoveryRequired => .recovery,
+            error.StorageQuota, error.UploadStagingQuota => .capacity,
+            else => .storage,
+        };
+        return err;
+    };
+}
+fn stepImpl(self: *Self) !u64 {
     try self.worker.lock(self.io);
     defer self.worker.unlock(self.io);
     try self.check();
@@ -318,5 +403,9 @@ pub fn step(self: *Self) !u64 {
     }
     errdefer self.poisoned.store(true, .release);
     try self.queue.consume(record);
+    self.status_mutex.lockUncancelable(self.io);
+    defer self.status_mutex.unlock(self.io);
+    if (record.item.action == .upload and state.position == record.position) self.status.uploads = @min(p.max_counter, self.status.uploads +| 1);
+    if (record.item.action == .delete) self.status.deletes = @min(p.max_counter, self.status.deletes +| 1);
     return removed;
 }

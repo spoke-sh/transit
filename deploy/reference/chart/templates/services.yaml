@@ -1,4 +1,4 @@
-{{- range $component := list "node" "ursula" "board" }}
+{{- range $component := list "node" "board" }}
 {{- if (index $.Values $component).enabled }}
 {{- $ctx := dict "root" $ "component" $component }}
 ---

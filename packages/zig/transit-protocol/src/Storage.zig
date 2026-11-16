@@ -73,11 +73,39 @@ pub const ObjectStorage = struct {
     bucket: []const u8,
     prefix: []const u8,
     credentials_file: []const u8,
+    /// Optional PEM trust roots for a private provider; null uses system roots.
+    ca_file: ?[]const u8 = null,
     allow_loopback_http: bool = false,
     request_timeout_ms: u32 = 10000,
     staging_bytes: u64 = 1024 * 1024 * 1024,
     pending_objects: u64 = 65536,
     cache_bytes: u64 = 256 * 1024 * 1024,
+
+    pub fn validate(self: ObjectStorage) !void {
+        const uri = std.Uri.parse(self.endpoint) catch return error.InvalidObjectEndpoint;
+        if (uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return error.InvalidObjectEndpoint;
+        if (uri.host.?.percent_encoded.len == 0 or uri.port == 0) return error.InvalidObjectEndpoint;
+        for (uri.host.?.percent_encoded) |c| if (!(std.ascii.isAlphanumeric(c) or std.mem.indexOfScalar(u8, "-.:[]", c) != null)) return error.InvalidObjectEndpoint;
+        if (uri.path.percent_encoded.len != 0 and !std.mem.eql(u8, uri.path.percent_encoded, "/")) return error.InvalidObjectEndpoint;
+        if (!std.mem.eql(u8, uri.scheme, "https")) {
+            if (!std.mem.eql(u8, uri.scheme, "http") or !self.allow_loopback_http) return error.InsecureObjectEndpoint;
+            const host = uri.host.?.percent_encoded;
+            if (!std.mem.eql(u8, host, "127.0.0.1") and !std.mem.eql(u8, host, "localhost") and !std.mem.eql(u8, host, "[::1]")) return error.InsecureObjectEndpoint;
+        }
+        if (self.bucket.len < 3 or self.bucket.len > 63 or !std.ascii.isAlphanumeric(self.bucket[0]) or !std.ascii.isAlphanumeric(self.bucket[self.bucket.len - 1])) return error.InvalidObjectBucket;
+        for (self.bucket) |c| if (!(std.ascii.isLower(c) or std.ascii.isDigit(c) or c == '-' or c == '.')) return error.InvalidObjectBucket;
+        if (self.region.len == 0 or self.region.len > 64) return error.InvalidObjectRegion;
+        for (self.region) |c| if (!(std.ascii.isLower(c) or std.ascii.isDigit(c) or c == '-')) return error.InvalidObjectRegion;
+        if (self.prefix.len == 0 or self.prefix.len > 256 or self.prefix[0] == '/' or self.prefix[self.prefix.len - 1] == '/' or
+            std.mem.indexOf(u8, self.prefix, "..") != null or std.mem.indexOf(u8, self.prefix, "//") != null) return error.InvalidObjectPrefix;
+        var components = std.mem.splitScalar(u8, self.prefix, '/');
+        while (components.next()) |part| if (std.mem.eql(u8, part, ".")) return error.InvalidObjectPrefix;
+        for (self.prefix) |c| if (!(std.ascii.isAlphanumeric(c) or std.mem.indexOfScalar(u8, "-._/", c) != null)) return error.InvalidObjectPrefix;
+        if (self.staging_bytes < 32 * 1024 * 1024 or self.staging_bytes > p.max_counter or self.pending_objects == 0 or
+            self.pending_objects > 1024 * 1024 or self.cache_bytes < 32 * 1024 * 1024 or self.cache_bytes > 4 * 1024 * 1024 * 1024) return error.InvalidTierBudget;
+        if (self.ca_file) |path| if (path.len == 0) return error.InvalidObjectConfiguration;
+        if (self.credentials_file.len == 0 or self.request_timeout_ms == 0 or self.request_timeout_ms > 120000) return error.InvalidObjectConfiguration;
+    }
 };
 pub const Settings = struct { object_storage: ?ObjectStorage = null, limits: Limits = .{}, maintenance: Maintenance = .{}, requests: Requests = .{}, admission: Admission = .{} };
 
@@ -157,10 +185,36 @@ pub const Activity = struct {
     interval_ms: u32,
     operation_timeout_ms: u32,
 };
+/// The backlog is durable private work, not an accepted-state snapshot. Transfer
+/// and cache counters reset on exclusive owner reopen; no provider names escape.
+pub const ObjectTierObservation = struct {
+    pending_upload_bytes: u64,
+    pending_objects: u64,
+    staging_limit_bytes: u64,
+    pending_object_limit: u64,
+    cache_limit_bytes: u64,
+    cache_used_bytes: u64,
+    cache_hits: u64,
+    cache_misses: u64,
+    uploads_completed: u64,
+    deletes_completed: u64,
+    failed_steps: u64,
+    last_failure: ?Failure,
+    recovery_required: bool,
+    pub fn validate(self: ObjectTierObservation) !void {
+        inline for (@typeInfo(ObjectTierObservation).@"struct".field_names) |name| {
+            if (@FieldType(ObjectTierObservation, name) == u64 and @field(self, name) > p.max_counter) return error.InvalidStorageObservation;
+        }
+        if (self.staging_limit_bytes < 32 * 1024 * 1024 or self.pending_object_limit == 0 or self.pending_object_limit > 1024 * 1024 or
+            self.cache_limit_bytes < 32 * 1024 * 1024 or self.cache_limit_bytes > 4 * 1024 * 1024 * 1024 or self.cache_used_bytes > self.cache_limit_bytes or
+            (self.failed_steps == 0) != (self.last_failure == null)) return error.InvalidStorageObservation;
+    }
+};
 /// Live, independently sampled owner counters. They are neither a durable
 /// snapshot nor per-Table attribution; null means unavailable, never zero.
 pub const Observation = struct {
-    backend: enum { unavailable, local, ursula },
+    backend: enum { unavailable, local },
+    object_tier: ?ObjectTierObservation,
     root: ?Path,
     allocated_bytes: ?u64,
     limits: ?Limits,
@@ -171,10 +225,14 @@ pub const Observation = struct {
     settings: ?Maintenance,
     admission: ?AdmissionObservation,
 
-    pub const unavailable: Observation = .{ .backend = .unavailable, .root = null, .allocated_bytes = null, .limits = null, .data_requests = null, .control_requests = null, .request_limit_bytes = null, .maintenance = null, .settings = null, .admission = null };
+    pub const unavailable: Observation = .{ .backend = .unavailable, .object_tier = null, .root = null, .allocated_bytes = null, .limits = null, .data_requests = null, .control_requests = null, .request_limit_bytes = null, .maintenance = null, .settings = null, .admission = null };
     pub fn validate(self: Observation) !void {
         if (self.backend == .unavailable and !std.meta.eql(self, unavailable)) return error.InvalidStorageObservation;
         if (self.allocated_bytes) |value| if (value > p.max_counter) return error.InvalidStorageObservation;
+        if (self.object_tier) |tier| {
+            if (self.backend != .local) return error.InvalidStorageObservation;
+            try tier.validate();
+        }
         if (self.root) |path| try path.validate();
         if (self.limits) |limits| try limits.validate();
         if (self.data_requests) |value| try value.validate();

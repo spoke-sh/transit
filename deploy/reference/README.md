@@ -1,7 +1,6 @@
 # Kubernetes and Substrate reference deployment
 
-Owned local M1 recovery/isolation harness, using the versions and official Ursula
-image digest in [versions.json](versions.json). The
+Owned local M1 recovery/isolation harness, using the pinned infrastructure versions in [versions.json](versions.json). The
 [deployment design](../../docs/handbook/reference/deployment.md) explains authority boundaries;
 this runbook explains how to operate the proof. It is not a production installer.
 
@@ -54,11 +53,11 @@ kubectl transit board -n demo --release transit
 ```
 
 The recovery test installs [deploy/reference/chart](chart/README.md) in an
-isolated namespace, with explicit bootstrap and disk-backed Ursula storage. It
+isolated namespace, with explicit bootstrap and native disk storage with an optional MinIO immutable tier. It
 interrupts the controller after Actor creation, replaces a real worker pod, and
-restarts Ursula. It checks PID/Actor continuity, fresh worker identity and
+restarts the native authority. It checks PID/Actor continuity, fresh worker identity and
 ownership generation, ordered state recovery, background expiry, authority
-restart, and permanent termination. A separate gVisor probe checks raw Ursula
+restart, and permanent termination. A separate gVisor probe checks raw MinIO
 read/write/admin access, IP/Host spoofing, CONNECT tunnelling, provider APIs,
 and absence of control/credential mounts, with a positive Transit reachability
 check first. The probe image is test-only.
@@ -77,7 +76,7 @@ keep cluster checks and their prerequisites explicit. AX is not a dependency.
 
 ## Component configuration
 
-The harness wires Board, a server owning authority, delivery and maintenance, disk Ursula,
+The harness wires Board, a server owning authority, delivery and maintenance, MinIO immutable storage,
 Substrate, a runtime controller, and the counter example. Configuration belongs
 to each executable:
 
@@ -98,8 +97,9 @@ Substrate infrastructure is installed separately.
 [tests/interfaces/deployment/reference.py](../../tests/interfaces/deployment/reference.py) owns infrastructure setup;
 [reference_workload.py](../../tests/interfaces/deployment/reference_workload.py) owns provisioning and
 fault injection. Keep version changes deliberate and rerun the recovery/isolation
-proof. Ursula uses the official upstream image with explicit disk configuration,
-not a separately compiled Nix image. Local Ursula binaries come from the overlay.
+proof. The tier fixture runs the pinned native MinIO binary with private TLS,
+server-only credentials and an exclusive prefix. The server PVC retains local
+acceptance and recovery evidence throughout replacement.
 
 ## Service diagnostics
 
@@ -142,7 +142,7 @@ changes remain visible independently of the durable protocol history.
 
 The reference images include the standalone `transit-board` binary. The workload proof
 starts it in a separate pod, observes same-PID/fresh-activation worker recovery,
-and verifies expiry/state/retained boundaries after Ursula and authority restart.
+and verifies expiry/state/retained boundaries after native authority restart.
 Only Board's dedicated inspection seed and ingress access key are mounted; no
 service-account token or storage/provider credentials are supplied.
 
@@ -151,7 +151,7 @@ namespace from an init container with
 NET_ADMIN, then runs Board and its test-only probe without that capability.
 Allowed destinations are the Transit service, cluster DNS and local Board for
 port-forwarding. A positive Transit check precedes explicit transport-denial
-probes against raw Ursula and ready Substrate/Kubernetes endpoints. This proves
+probes against raw MinIO and ready Substrate/Kubernetes endpoints. This proves
 the declared fixture, not all CNIs; a deployment needs equivalent enforced policy.
 See [the harness](../../tests/interfaces/deployment/reference_board.py) and
 [recorded evidence](../../docs/history/qualification/interfaces.md#board-qualification).

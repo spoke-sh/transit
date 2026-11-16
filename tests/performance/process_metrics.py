@@ -29,5 +29,3 @@ def sample_process(pid, peak):
         match = re.search(rf'^{field}:\s+(\d+)', counters, re.M)
         if match:
             peak[field] = max(peak[field] or 0, int(match[1]))
-
-

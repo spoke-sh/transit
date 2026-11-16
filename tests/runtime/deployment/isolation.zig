@@ -65,6 +65,9 @@ pub fn main(init: std.process.Init) !void {
         "/root/.kube/config",
         "/secrets/seed",
         "/config/node.json",
+        "/secrets/object-credentials.json",
+        "/operator/object-credentials.json",
+        "/data/installation/installation.json",
     }) |path| {
         if (std.Io.Dir.cwd().openFile(init.io, path, .{})) |file| {
             file.close(init.io);

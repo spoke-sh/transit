@@ -1123,23 +1123,37 @@
     },
     {
       "source": "tests/block_storage.py",
-      "destination": "tests/storage/providers/block_storage.py",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/block_storage.py",
+        "sha256": "81792d78169780c701959bfe556e62d9a1f0d4dd15995526902d32f85163afdd"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/block_storage.zig",
-      "destination": "tests/storage/providers/block_storage.zig",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/block_storage.zig",
+        "sha256": "ba849b95cfaa303c33ee011c21366d1e4375dea920b3544795353b3816cbd309"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/board.py",
@@ -4195,14 +4209,21 @@
     },
     {
       "source": "tests/growing_maintenance.py",
-      "destination": "tests/storage/providers/growing_maintenance.py",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "helper",
       "reference_consumers": [
         "tests/growing_service.py",
         "tests/runner/layout.json",
         "tests/verification/invariants.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/growing_maintenance.py",
+        "sha256": "a649aa60d529d0b2234f7041e3692978c541952465400b7f43ffd202c7eeb998"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/growing_query.py",
@@ -4565,8 +4586,8 @@
     },
     {
       "source": "tests/harness/ursula.py",
-      "destination": "tests/harness/ursula.py",
-      "owner": "harness",
+      "destination": null,
+      "owner": "evidence",
       "role": "helper",
       "reference_consumers": [
         "examples/station-document/run.py",
@@ -4605,7 +4626,14 @@
         "tests/unified_expiry.py",
         "tests/unified_query.py",
         "tests/verification/vortex.py"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/harness/ursula.py",
+        "sha256": "781444869cf36bb64c35b4733f4851c9b52aa8e69e9dfe85cd48a1e7002de548"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/http_board.py",
@@ -7380,13 +7408,20 @@
     },
     {
       "source": "tests/page_batch_faults.py",
-      "destination": "tests/storage/local/page_batch_faults.py",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "helper",
       "reference_consumers": [
         "tests/pages.py",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/page_batch_faults.py",
+        "sha256": "33a64c1d3ea870255620a08f340c2bc99a7151b789b5203c2e0100f754565f71"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/page_layout.py",
@@ -7410,8 +7445,8 @@
     },
     {
       "source": "tests/pages.py",
-      "destination": "tests/storage/providers/pages.py",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
@@ -7419,12 +7454,19 @@
         "tests/growing_load.py",
         "tests/mutation_latency.py",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/pages.py",
+        "sha256": "2dc027c556bdbed1b759ce73636b11b41de9f16f2834bdb492fc15f32505f665"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/pages.zig",
-      "destination": "tests/storage/providers/pages.zig",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
@@ -7440,7 +7482,14 @@
         "tests/runner/layout.json",
         "tests/verification/invariants.json",
         "tests/verification/limits.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/pages.zig",
+        "sha256": "c69b0661fe1fecd03d4b4fe56963afa9f728032c915e65d883e4c025740bee2a"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/public_query.py",
@@ -9630,23 +9679,37 @@
     },
     {
       "source": "tests/storage_collection.py",
-      "destination": "tests/storage/providers/storage_collection.py",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/storage_collection.py",
+        "sha256": "e0236a05607f3ca6b338fd66e91c325dc11e5cf4d85beaa981bb85eee49edf60"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/storage_collection.zig",
-      "destination": "tests/storage/providers/storage_collection.zig",
-      "owner": "storage",
+      "destination": null,
+      "owner": "evidence",
       "role": "executable",
       "reference_consumers": [
         "build.zig",
         "tests/runner/layout.json"
-      ]
+      ],
+      "disposition": "archive",
+      "archive": {
+        "revision": "a610ecd5dcff22f2d0177b61b905a8e985252c13",
+        "path": "tests/storage_collection.zig",
+        "sha256": "c0ff71de0ef89ba138240d919f88257076912e199ce33cb250a9c5aea5ddc17e"
+      },
+      "retirement": "Native storage cutover; semantic replacements are mapped in docs/history/qualification/native-storage-cutover.md."
     },
     {
       "source": "tests/storage_growth.py",

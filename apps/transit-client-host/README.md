@@ -34,7 +34,7 @@ bound its own frames, one outstanding request, diagnostics and lifecycle. Stdout
 is reserved for protocol responses; stderr must be drained or inherited. EOF joins
 the current native operation before releasing handles. A killed port can leave a
 mutation uncertain; retry saved bytes or reconcile under fresh ownership.
-`just test::client-abi` exercises this executable against disk-backed Ursula,
+`just test::client-abi` exercises this executable against the native disk owner,
 including fresh-process recovery without the original seed file.
 
 `shutdown` is an explicit local lifecycle request. After the preceding operation

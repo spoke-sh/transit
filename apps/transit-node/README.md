@@ -2,7 +2,7 @@
 
 The internal Transit authority module composes [transit-core](../../packages/zig/transit-core/README.md),
 the configured [local](../../packages/zig/transit-backend-local/README.md) or
-[Ursula](../../packages/zig/transit-backend-ursula/README.md) storage backend, signed
+[native](../../packages/zig/transit-backend-local/README.md) storage backend, signed
 HTTP ingress and a trusted clock. It validates and commits protocol operations;
 application handlers run in callers.
 
@@ -100,8 +100,7 @@ caller without an implicit retry. Hosts use `Client.contended` to distinguish an
 from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 
-With Ursula storage, the server owns a separate maintenance role for authorized
-lifetime, collection and checkpoint work. With local storage, the `maintenance` setting
+The `maintenance` setting
 runs lifecycle scans, accepted-floor trimming and configured automatic Table, Stream and Queue
 flushing and archiving/checkpointing, Table/Stream compaction and Queue lease expiry inside the node's exclusive owner;
 a separate `--maintain` process rejects. Native/direct immutable-object collection
@@ -111,7 +110,7 @@ use the separate direct Table owner; native process, KV and Document state retai
 their paged native commit boundary. The
 [server-owned courier](../transit-cli/docs/server.md#external-worker-composition) delivers committed outputs via
 the public client. The [runtime controller](../transit-runtime-controller/README.md)
-reconciles physical placement through Substrate. Workers need neither Ursula
+reconciles physical placement through Substrate. Workers need neither object-store
 credentials nor provider access.
 
 `LocalCatalogPolicy` connects the internal direct catalog component to the same
@@ -247,6 +246,5 @@ When composed by `transit server`, the internal `readiness_file` setting gates
 `/health` on the parent's required-service checks. Signed native operations remain
 available during provisioning. The marker grants no authority; the server removes
 it before recovery and on readiness loss. Standalone node configurations without
-this setting retain native-only health semantics. Ursula maintenance runs as a
-separately authorized process owned by the server; local maintenance shares the
-node's exclusive storage owner.
+this setting retain native-only health semantics. Maintenance shares the node's
+exclusive storage owner.

@@ -155,7 +155,7 @@ def inside(mount, node, proof):
 def run(node, proof):
     assert sys.platform == 'linux'
     repo = ROOT
-    image = json.loads((repo / 'deploy/reference/versions.json').read_text())['ursula']
+    image = json.loads((repo / 'deploy/reference/versions.json').read_text())['registry']
     selected = {name: str(Path(shutil.which(name) or 'missing').resolve(strict=True))
                 for name in ('bash', 'mount', 'umount', 'setpriv', 'mkfs.ext4', 'patchelf')}
     python = str(Path(sys.executable).resolve(strict=True))

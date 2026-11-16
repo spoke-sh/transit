@@ -1,5 +1,4 @@
 {
-  "ursula": "ghcr.io/tonbo-io/ursula:0.5.1@sha256:cff4c6669e0f8ce32da9857b21c050a627fe91e32e91a5c5e2d0f08b198081ba",
   "substrate": "d277088bc1d081ef716d81dd7986d05d0a36ad3a",
   "go": "go1.27.0",
   "kind": "0.33.0",

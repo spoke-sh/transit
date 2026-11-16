@@ -33,8 +33,7 @@ def run(name, board=False):
         if not binary.is_file():
             raise RuntimeError("Build first with: nix develop --command zig build apps examples")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
-    env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("OTEL_",))}
     with tempfile.TemporaryDirectory(prefix=f"transit-example-{name}-") as directory:
         work = Path(directory)
         children, logs = [], []
@@ -76,34 +75,12 @@ def run(name, board=False):
             return path
 
         try:
-            storage_port = free_port()
-            ursula_url = f"http://127.0.0.1:{storage_port}"
-            config = work / "ursula.toml"
-            config.write_text(f'''[server]
-listen = "127.0.0.1:{storage_port}"
-admin_listen = "127.0.0.1:0"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "{work / 'wal'}"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
-''')
-            storage = start(["ursula", "server", "--config", config])
-            ready(storage, ursula_url + "/__ursula/ready")
             root_key, root_public = key("root")
             worker_key, worker_public = key("caller")
             port = free_port()
             url = f"http://127.0.0.1:{port}"
             node = write("node", server_configuration(71, root_key,
-                installation=work / 'installation', port=port, listen='127.0.0.1',
-                ursula=dict(url=ursula_url, bucket=f'example-{name}', journal='authority')))
+                installation=work / 'installation', port=port, listen='127.0.0.1'))
             authority = start([binaries["transit"], "server", "--no-ui", "--config", node])
             ready(authority, url + "/health")
             sequence = Client(binaries["transit-client-host"], url).query(root_key,

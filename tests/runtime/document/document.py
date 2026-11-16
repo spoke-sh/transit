@@ -202,7 +202,7 @@ def run(node, caller, backend="s3"):
 
 
 if __name__ == "__main__":
-    # Nix's default temporary directory can be tmpfs. Both the Ursula WAL
+    # Nix's default temporary directory can be tmpfs. Both the native Transit WAL
     # and its owned cold store must use the physical-disk fixture parent too.
     tempfile.tempdir = "/var/tmp"
     if hasattr(os, "sched_getaffinity"):

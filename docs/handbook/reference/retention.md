@@ -171,7 +171,7 @@ all queued application work can drain: a new data read may remain blocked while
 control operations still progress. Provision and measure actual storage headroom.
 
 See the [authority capacity guide](../../../packages/zig/transit-core/docs/authority.md),
-[storage maintenance](../../../packages/zig/transit-backend-ursula/docs/storage.md),
+[storage maintenance](../../../packages/zig/transit-backend-local/docs/maintenance.md),
 [catalog contract](../../../contracts/CATALOG_V1.md) and [Document service](../../../packages/zig/transit-station-document/docs/service.md).
 Per-key TTL, generic dependency deletion and distributed compaction are unsupported.
 

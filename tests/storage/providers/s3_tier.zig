@@ -18,7 +18,7 @@ fn complete(io: std.Io) !void {
 }
 pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args: []const []const u8) !void {
     if (args.len != 4) return error.ExpectedNativeDirectory;
-    const options: backend.Backend.ObjectStorage = .{ .endpoint = settings.endpoint, .region = settings.region, .bucket = settings.bucket, .prefix = settings.prefix, .credentials_file = settings.credentials_file, .allow_loopback_http = settings.allow_loopback_http, .request_timeout_ms = settings.request_timeout_ms, .cache_bytes = 32 * 1024 * 1024 };
+    const options: backend.Backend.ObjectStorage = .{ .endpoint = settings.endpoint, .region = settings.region, .bucket = settings.bucket, .prefix = settings.prefix, .credentials_file = settings.credentials_file, .ca_file = settings.ca_file, .allow_loopback_http = settings.allow_loopback_http, .request_timeout_ms = settings.request_timeout_ms, .cache_bytes = 32 * 1024 * 1024, .pending_objects = if (std.mem.eql(u8, args[2], "tier-outage")) 1 else 65536 };
     if (std.mem.eql(u8, args[2], "tier-disabled")) {
         try t.expectError(error.TierConfigurationRequired, backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), args[3], .{}));
         return complete(init.io);
@@ -61,11 +61,18 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
         // Credentials are deliberately unavailable: foreground durable staging
         // remains local while remote work fails with its original intent intact.
         try owner.put("table/offline.tseg", "offline accepted bytes", false);
+        try t.expectError(error.UploadStagingQuota, owner.put("table/refused.tseg", "ordinary refused", false));
+        try t.expect((try store.head("table/refused.tseg")) == null);
+        // A pending-upload ceiling does not consume the native control reserve.
+        // This path must stay local while provider credentials are unavailable.
+        try owner.put("table/control.tseg", "control remains durable", true);
         const before = try tier.queue.current();
+        try t.expectEqual(@as(u64, 2), before.pending_objects);
         if (owner.tierStep()) |_| return error.ExpectedProviderFailure else |_| {}
         try t.expectEqualDeep(before, try tier.queue.current());
         var bytes: [128]u8 = undefined;
         try t.expectEqualStrings("offline accepted bytes", try store.getRange("table/offline.tseg", 0, 22, &bytes));
+        try t.expectEqualStrings("control remains durable", try store.getRange("table/control.tseg", 0, 23, &bytes));
     } else return error.InvalidTierMode;
     try complete(init.io);
 }

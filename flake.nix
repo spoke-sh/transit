@@ -7,10 +7,6 @@
       url = "github:mitchellh/zig-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    ursula-overlay = {
-      url = "github:rupurt/ursula-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -18,7 +14,6 @@
       self,
       nixpkgs,
       zig-overlay,
-      ursula-overlay,
       ...
     }:
     let
@@ -44,7 +39,6 @@
             sourceRevision = self.rev or self.dirtyRev or "unknown";
           };
           minio = pkgs.callPackage ./nix/minio.nix { };
-          ursula = import ./nix/ursula.nix { upstream = ursula-overlay.packages.${system}.ursula; };
           reference = pkgs.callPackage ./nix/reference-tools.nix {
             pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
           };
@@ -53,8 +47,6 @@
           inherit pkgs;
           sql-tools = pkgs.callPackage ./nix/sql-tools.nix { };
           inherit (reference) kind kubectl-ate;
-          inherit (ursula-overlay.packages.${system}) ursulactl;
-          inherit ursula;
           inherit zig kubectl-transit;
           inherit transit minio;
           transit-release = transit.override {
@@ -81,7 +73,6 @@
             transit
             transit-sql-gateway
             transit-serving-client
-            ursula
             ;
         }
         // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
@@ -99,8 +90,6 @@
             pkgs
             zig
             vite-plus
-            ursula
-            ursulactl
             kind
             kubectl-ate
             kubectl-transit
@@ -166,7 +155,6 @@
               pkgs
               zig
               vite-plus
-              ursula
               ;
           };
           default =
@@ -193,8 +181,6 @@
                 pkgs.protobuf
                 zig
                 vite-plus
-                ursula
-                ursulactl
                 pkgs.nodejs_24
                 pkgs.pnpm
                 pkgs.nixfmt
@@ -255,8 +241,6 @@
             pkgs
             zig
             vite-plus
-            ursula
-            ursulactl
             kind
             kubectl-ate
             kubectl-transit
@@ -267,8 +251,6 @@
             inherit
               zig
               vite-plus
-              ursula
-              ursulactl
               kind
               kubectl-ate
               kubectl-transit

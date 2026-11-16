@@ -175,6 +175,8 @@ const Fixture = struct {
     table: P = undefined,
     now: u64 = 100,
     denied: bool = false,
+    tier_config: ?std.json.Parsed(p.Storage.ObjectStorage) = null,
+    tier_prefix: [256]u8 = undefined,
 
     fn keyPair() !p.Ed25519.KeyPair {
         return p.Ed25519.KeyPair.generateDeterministic(@splat(17));
@@ -189,7 +191,25 @@ const Fixture = struct {
         self.collection.parent = &self.aggregate;
         self.foreground = .{ .parent = t.allocator, .quota = &self.aggregate, .limit = 1024 * 1024 };
         self.held = try self.foreground.allocator().alloc(u8, self.foreground.limit);
-        self.owner = try local.Backend.open(t.allocator, t.io, directory, "native", .{});
+        const configuration = t.environ.getAlloc(t.allocator, "TRANSIT_TEST_OBJECT_STORAGE") catch |err| switch (err) {
+            error.EnvironmentVariableMissing => null,
+            else => return err,
+        };
+        defer if (configuration) |path| t.allocator.free(path);
+        var tier: ?p.Storage.ObjectStorage = null;
+        if (configuration) |path| {
+            const raw = try std.Io.Dir.cwd().readFileAlloc(t.io, path, t.allocator, .limited(16384));
+            defer t.allocator.free(raw);
+            self.tier_config = try std.json.parseFromSlice(p.Storage.ObjectStorage, t.allocator, raw, .{ .allocate = .alloc_always });
+            var options = self.tier_config.?.value;
+            var directory_path: [4096]u8 = undefined;
+            const length = try directory.realPath(t.io, &directory_path);
+            var identity: [32]u8 = undefined;
+            std.crypto.hash.sha2.Sha256.hash(directory_path[0..length], &identity, .{});
+            options.prefix = try std.fmt.bufPrint(&self.tier_prefix, "{s}/{s}", .{ options.prefix, std.fmt.bytesToHex(identity, .lower) });
+            tier = options;
+        }
+        self.owner = try local.Backend.openWithObjectStorage(t.allocator, t.io, directory, "native", .{}, tier);
         self.owner.collection_quota = &self.collection;
         self.pages = try local.PageStore.init(&self.owner, 1);
         self.journal = .{ .backend = &self.owner };
@@ -200,10 +220,22 @@ const Fixture = struct {
         self.table = try P.init(t.allocator, 17, .{ .object = object, .revision = 1, .schema = schema, .properties = "" }, self.data.log(), self.data.objects(), .{ .resident_pages = 1 });
         try self.table.recover();
     }
+    fn drainTier(self: *Fixture) !void {
+        const tier = self.owner.objects.tier orelse return;
+        var steps: usize = 0;
+        while ((try tier.queue.current()).pending_objects != 0) : (steps += 1) {
+            if (steps == 200_000) return error.FixtureBudget;
+            try self.owner.tierStep();
+        }
+        try t.expectEqual(@as(u64, 0), (try tier.observation()).pending_upload_bytes);
+    }
     fn close(self: *Fixture) void {
+        self.drainTier() catch |err| std.debug.panic("Tier collection drain failed: {s}", .{@errorName(err)});
         self.table.deinit();
         self.pages.deinit();
         self.owner.deinit();
+        if (self.tier_config) |parsed| parsed.deinit();
+        self.tier_config = null;
         self.foreground.allocator().free(self.held);
         std.debug.assert(self.aggregate.used.load(.acquire) == 0);
     }
@@ -222,6 +254,8 @@ const Fixture = struct {
         return .{ .context = self, .acquire = acquire, .release = release };
     }
     fn collect(self: *Fixture) !Collection.State {
+        // The same retained graph now traverses evicted provider objects.
+        try self.drainTier();
         var collector: Collection = .{ .backend = &self.owner };
         try collector.start(&self.engine, try self.fence());
         const before_pressure = (try collector.current()).?;
@@ -245,6 +279,8 @@ const Fixture = struct {
         try t.expectEqual(self.foreground.used, self.aggregate.used.load(.acquire));
         try t.expect(!state.aborted and state.reclaimed_objects > 0);
         std.debug.print("direct Table collection: {d} steps, {d} allocations reclaimed\n", .{ steps, state.reclaimed_objects });
+        try self.drainTier();
+        if (self.owner.objects.tier) |tier| try t.expect((try tier.observation()).deletes_completed > 0);
         return state;
     }
     fn expire(self: *Fixture, through: ?u64) !void {

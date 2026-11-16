@@ -335,7 +335,7 @@ owns quotas, lifetime, cancellation and incomplete-result semantics;
 The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
-`just test::unified-query` exercises these actual daemons over disk Ursula.
+`just test::unified-query` exercises these actual daemons over the native disk owner.
 The local server initializes the direct catalog and requester, installs query delegation,
 and creates its default Table through an explicit recoverable catalog operation.
 Restart preserves recorded configuration and current policy, including revocation.

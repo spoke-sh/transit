@@ -111,7 +111,7 @@ const specs = [_]Spec{
     .{ .id = .direct_unified_boundaries, .path = "tests/query/execution/direct_unified_boundaries.zig", .fixtures = &.{.direct_captured_query}, .packages = &.{"transit_query"} },
     .{ .id = .direct_worker_handoff, .path = "tests/query/execution/direct_worker_handoff.zig", .fixtures = &.{ .direct_captured_query, .native_proof_files }, .packages = &.{"transit_query"} },
     .{ .id = .fixtures_grpc_methods, .path = "tests/fixtures/grpc/methods.zig", .packages = &.{"transit_station_grpc"} },
-    .{ .id = .growing_capacity, .path = "tests/storage/providers/growing_capacity.zig", .packages = &.{ "transit_backend_ursula", "transit_core" } },
+    .{ .id = .growing_capacity, .path = "tests/storage/providers/growing_capacity.zig", .packages = &.{ "transit_backend_local", "transit_core" } },
     .{ .id = .growing_support, .path = "tests/runtime/station/growing_support.zig", .packages = &.{"transit_station"} },
     .{ .id = .growing_views, .path = "tests/runtime/application/growing_views.zig", .fixtures = &.{.growing_support}, .packages = &.{"transit_station"} },
     .{ .id = .http_caller, .path = "tests/runtime/effects/http_caller.zig", .fixtures = &.{.growing_support}, .packages = &.{ "transit_station", "transit_station_http" } },

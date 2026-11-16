@@ -25,7 +25,7 @@ def run(profile,node,catalog,database,gateway):
     node,catalog,database,gateway = [str(Path(p).resolve()) for p in (node,catalog,database,gateway)]
     started = time.monotonic()
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    env = {k:v for k,v in os.environ.items() if not k.startswith(('URSULA_','OTEL_'))} | {'LOG_LEVEL':'warn'}
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('OTEL_',))} | {'LOG_LEVEL':'warn'}
     with tempfile.TemporaryDirectory(prefix='transit-sql-placement-') as temporary, ExitStack() as owned:
         work = Path(temporary)
         for name in ('operator','authority','gateway-0','gateway-0-data','gateway-spill','wal'):
@@ -86,8 +86,7 @@ def run(profile,node,catalog,database,gateway):
         try:
             placement = (Compose if profile == 'compose' else Reference)(work)
             if profile == 'compose':
-                (work/'ursula.toml').touch()
-                placement.call('create','ursula')
+                placement.prepare_storage_network()
                 network = placement.project+'_storage'
             else:
                 network = 'kind'
@@ -96,13 +95,9 @@ def run(profile,node,catalog,database,gateway):
             cold = owned.enter_context(ColdStore(bind_address=bridge))
             placement.cold_address = bridge
             placement.cold_port = cold.port
-            wal = '/data/wal' if profile == 'reference' else '/wal'
-            (work/'ursula.toml').write_text('[server]\nlisten="0.0.0.0:8080"\nadmin_listen="127.0.0.1:0"\n[runtime]\ncore_count=2\n[raft]\nnode_id=1\ngroup_count=1\n[raft.wal]\nbackend="disk"\npath="'+wal+'"\n'+cold.config())
-            (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([catalog,'public'],timeout=10))
-            node_config = dict(profile='native_v1',genesis=dict(realm=46,root_key=public,max_clock_error_ms=10000),local_directory='/authority',port=8080,listen='0.0.0.0',resident_pages=8,request_timeout_ms=10000)
+            node_config = dict(profile='native_v1',genesis=dict(realm=46,root_key=public,max_clock_error_ms=10000),local_directory='/authority', storage=dict(object_storage=cold.placement_config(work)),port=8080,listen='0.0.0.0',resident_pages=8,request_timeout_ms=10000)
             write(work/'operator/node.json', node_config)
-            storage = placement.start('ursula'); wait_ready(http,storage,placement.url('ursula')+'/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http,authority,url+'/health')
             call(catalog,'provision')
@@ -120,9 +115,8 @@ def run(profile,node,catalog,database,gateway):
             (work/'key.pem').chmod(0o600)
             configure_gateway(); server,ports = start_gateway(); clients(ports)
             print(f'SQL {profile}: verified TLS, six types and direct Table counts passed; replacing gateway and node.',flush=True)
-            for name,process in (('gateway-0',server),('node',authority),('ursula',storage)):
+            for name,process in (('gateway-0',server),('node',authority)):
                 placement.stop_for_recovery(name,process)
-            storage = placement.start('ursula'); wait_ready(http,storage,placement.url('ursula')+'/__ursula/ready')
             authority = placement.start('node'); url = placement.url('node'); wait_ready(http,authority,url+'/health')
             call(database,'fence'); configure_gateway(); server,ports = start_gateway(); clients(ports,True)
             print(json.dumps(dict(profile='sql_wire_'+profile,types=6,verified_tls=True,physical_recovery=True,fresh_native_generation=True,direct_tables=True,raw_resource_denied=True,seconds=round(time.monotonic()-started,3))),flush=True)

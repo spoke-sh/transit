@@ -26,7 +26,7 @@ from interfaces.http.serving_tls import TLSProxy
 
 def run(profile):
     started = time.monotonic()
-    env = {k:v for k,v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL':'warn'}
+    env = {k:v for k,v in os.environ.items() if not k.startswith(('OTEL_',))} | {'LOG_LEVEL':'warn'}
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     proof = ROOT/'zig-out/bin/transit-work-items-browser-proof'
     host = ROOT/'zig-out/bin/transit-query-host'
@@ -106,8 +106,7 @@ def run(profile):
             built=time.monotonic()-started
             web_port=free_port();private_port=free_port();origin=f'https://127.0.0.1:{web_port}'
             if profile=='compose':
-                (work/'ursula.toml').touch()
-                owned.call('create','ursula')
+                owned.prepare_storage_network()
                 network=owned.project+'_storage'
             else:
                 network='kind'
@@ -117,16 +116,13 @@ def run(profile):
             cold=resources.enter_context(ColdStore(bind_address=bridge))
             owned.cold_address=bridge
             owned.cold_port=cold.port
-            config='[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile=='reference' else '/wal')+'"\n'+cold.config()
-            (work/'ursula.toml').write_text(config);(work/'ursula.toml').chmod(0o600)
             public=json.loads(subprocess.check_output([proof,'public']))
-            node_config = dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),local_directory='/authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000)
+            node_config = dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),local_directory='/authority',storage=dict(object_storage=cold.placement_config(work)),listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000)
             write('operator/node.json', node_config)
-            storage=owned.start('ursula');ready(storage,owned.url('ursula')+'/__ursula/ready')
             owned.initialize()
             authority=owned.start('node');url=owned.url('node');ready(authority,url+'/health')
-            denied=[owned.address('ursula','storage')+':8080',owned.cold_address+':'+str(owned.cold_port),'1.1.1.1:443']
-            assert owned.invoke('caller-probe','probe',owned.authority,*denied)==dict(authority='reachable',denied=3)
+            denied=[owned.cold_address+':'+str(owned.cold_port),'1.1.1.1:443']
+            assert owned.invoke('caller-probe','probe',owned.authority,*denied)==dict(authority='reachable',denied=len(denied))
             invoke('setup')
             owned.stop_for_recovery('node', authority)
             table = json.loads((work/'data-catalog.json').read_text())
@@ -164,8 +160,6 @@ def run(profile):
             courier.kill();courier.wait(timeout=10)
             owned.stop_for_recovery('gateway-0',gateway)
             owned.stop_for_recovery('node',authority)
-            owned.stop_for_recovery('ursula',storage)
-            storage=owned.start('ursula');ready(storage,owned.url('ursula')+'/__ursula/ready')
             authority=owned.start('node');url=owned.url('node');ready(authority,url+'/health')
             workers={role:activate(role,True) for role in workers}
             courier=delivery();invoke('migrate')

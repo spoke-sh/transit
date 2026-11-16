@@ -164,7 +164,7 @@ pub fn validateHeader(bytes: []const u8) !void {
     if (!std.mem.allEqual(u8, bytes[96..header_bytes], 0)) return error.InvalidWalHeader;
 }
 
-/// Pluggable `TransitLog` backend interface (`LocalWal`, `UrsulaWal`, `KafkaWal`, `PulsarWal`).
+/// Pluggable `TransitLog` backend interface (`LocalWal`, `KafkaWal`, `PulsarWal`).
 pub const Log = struct {
     context: *anyopaque,
     vtable: *const VTable,

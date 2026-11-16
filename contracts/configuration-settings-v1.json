@@ -1,5 +1,5 @@
 {
-  "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+  "definition": "0664703391ceb74fb1b025d11e5fe80c40c97e12060e6b131c27e390a3e4833c",
   "settings": [
     {
       "name": "version",
@@ -215,6 +215,198 @@
       "sensitive": false,
       "minimum": 0,
       "maximum": 65536,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage",
+      "description": "Optional native immutable object tier; local WAL and identity remain required",
+      "owner": "node",
+      "kind": "object",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.endpoint",
+      "description": "HTTPS object endpoint; loopback HTTP requires explicit opt-in",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.region",
+      "description": "Signing region",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.bucket",
+      "description": "Dedicated object bucket",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.prefix",
+      "description": "Installation-owned immutable namespace",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.credentials_file",
+      "description": "Reloadable JSON credential file reference",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": null,
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.ca_file",
+      "description": "Optional PEM trust roots for a private provider; null uses system roots",
+      "owner": "node",
+      "kind": "string",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "null",
+      "session_mutable": false,
+      "nullable": true,
+      "sensitive": true,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.request_timeout_ms",
+      "description": "Joined provider request deadline",
+      "owner": "node",
+      "kind": "duration",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "10000",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 120000,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.staging_bytes",
+      "description": "Maximum bytes in pending immutable uploads",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "1073741824",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 33554432,
+      "maximum": 9007199254740991,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.pending_objects",
+      "description": "Upload queue admission limit; deletion has a separate control reserve",
+      "owner": "node",
+      "kind": "unsigned",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "65536",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 1,
+      "maximum": 1048576,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.cache_bytes",
+      "description": "Disposable verified disk cache budget",
+      "owner": "node",
+      "kind": "bytes",
+      "scope": "component",
+      "change": "restart",
+      "default_json": "268435456",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 33554432,
+      "maximum": 4294967296,
+      "values": [],
+      "items_schema": null
+    },
+    {
+      "name": "storage.object_storage.allow_loopback_http",
+      "description": "Permit HTTP only to loopback MinIO for local testing",
+      "owner": "node",
+      "kind": "boolean",
+      "scope": "component",
+      "change": "initialization",
+      "default_json": "false",
+      "session_mutable": false,
+      "nullable": false,
+      "sensitive": false,
+      "minimum": 0,
+      "maximum": 18446744073709551615,
       "values": [],
       "items_schema": null
     },
@@ -747,70 +939,6 @@
         "127.0.0.1",
         "0.0.0.0"
       ],
-      "items_schema": null
-    },
-    {
-      "name": "external.ursula",
-      "description": "Explicit Ursula native authority provider; null selects local disk",
-      "owner": "node",
-      "kind": "object",
-      "scope": "component",
-      "change": "initialization",
-      "default_json": "null",
-      "session_mutable": false,
-      "nullable": true,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "external.ursula.url",
-      "description": "Private Ursula HTTP endpoint without embedded credentials",
-      "owner": "node",
-      "kind": "string",
-      "scope": "component",
-      "change": "initialization",
-      "default_json": null,
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "external.ursula.bucket",
-      "description": "Retained Ursula bucket",
-      "owner": "node",
-      "kind": "string",
-      "scope": "component",
-      "change": "initialization",
-      "default_json": null,
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "external.ursula.journal",
-      "description": "Retained native authority journal",
-      "owner": "node",
-      "kind": "string",
-      "scope": "component",
-      "change": "initialization",
-      "default_json": null,
-      "session_mutable": false,
-      "nullable": false,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
-      "values": [],
       "items_schema": null
     },
     {
@@ -2097,6 +2225,124 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "object_storage": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "description": "HTTPS object endpoint; loopback HTTP requires explicit opt-in",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "region": {
+                "type": "string",
+                "description": "Signing region",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "bucket": {
+                "type": "string",
+                "description": "Dedicated object bucket",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "prefix": {
+                "type": "string",
+                "description": "Installation-owned immutable namespace",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization"
+              },
+              "credentials_file": {
+                "type": "string",
+                "description": "Reloadable JSON credential file reference",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart"
+              },
+              "ca_file": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional PEM trust roots for a private provider; null uses system roots",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart"
+              },
+              "request_timeout_ms": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 120000
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(ms|s|min|h)$"
+                  }
+                ],
+                "description": "Joined provider request deadline",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 10000
+              },
+              "staging_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 33554432,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Maximum bytes in pending immutable uploads",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 1073741824
+              },
+              "pending_objects": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1048576,
+                "description": "Upload queue admission limit; deletion has a separate control reserve",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 65536
+              },
+              "cache_bytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 33554432,
+                    "maximum": 4294967296
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^[0-9]+(B|KiB|MiB|GiB|kB|MB|GB)$"
+                  }
+                ],
+                "description": "Disposable verified disk cache budget",
+                "x-transit-owner": "node",
+                "x-transit-change": "restart",
+                "default": 268435456
+              },
+              "allow_loopback_http": {
+                "type": "boolean",
+                "description": "Permit HTTP only to loopback MinIO for local testing",
+                "x-transit-owner": "node",
+                "x-transit-change": "initialization",
+                "default": false
+              }
+            },
+            "description": "Optional native immutable object tier; local WAL and identity remain required",
+            "x-transit-owner": "node",
+            "x-transit-change": "initialization"
+          },
           "limits": {
             "type": "object",
             "additionalProperties": false,
@@ -2573,37 +2819,6 @@
             "x-transit-owner": "node",
             "x-transit-change": "initialization",
             "default": "127.0.0.1"
-          },
-          "ursula": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "url": {
-                "type": "string",
-                "description": "Private Ursula HTTP endpoint without embedded credentials",
-                "x-transit-owner": "node",
-                "x-transit-change": "initialization"
-              },
-              "bucket": {
-                "type": "string",
-                "description": "Retained Ursula bucket",
-                "x-transit-owner": "node",
-                "x-transit-change": "initialization"
-              },
-              "journal": {
-                "type": "string",
-                "description": "Retained native authority journal",
-                "x-transit-owner": "node",
-                "x-transit-change": "initialization"
-              }
-            },
-            "description": "Explicit Ursula native authority provider; null selects local disk",
-            "x-transit-owner": "node",
-            "x-transit-change": "initialization",
-            "default": null
           },
           "table_file": {
             "type": [

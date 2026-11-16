@@ -54,7 +54,6 @@ class StationReference(Reference):
         images = self.images(selection)
         values = self.values() if (self.path / "chart-values.json").exists() else {
             "running": True, "node": {"enabled": True, "nameOverride": "transit"},
-            "ursula": {"enabled": False},
             "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
             "controller": {"enabled": False}, "runtimeControllers": []}
         self.service_values(values, selection, images)

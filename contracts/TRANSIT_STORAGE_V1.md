@@ -1015,7 +1015,8 @@ profile. Installed native tiering must separately establish durable staging,
 namespace ownership, upload coverage, retention and safe eviction.
 
 The initial path-style profile requires endpoint, region, bucket, nonempty
-prefix, a credential-file reference and a request deadline. HTTPS is required;
+prefix, a credential-file reference and a request deadline. Optional `ca_file`
+loads a private PEM trust bundle on open; omission uses system roots. HTTPS is required;
 explicit loopback HTTP supports the pinned integration provider. The adapter
 reopens the JSON credential file (`access_key_id`, `secret_access_key`, optional
 `session_token`) on every request. It follows no redirects, retries no request
@@ -1055,6 +1056,74 @@ signing/envelope oracle, competing clients, corrupt bytes, live credential
 rotation, lost accepted replies and joined timeout cleanup. Installed tiering
 requires separate evidence. AWS S3 remains unqualified and is outside the initial
 MinIO qualification selected for this implementation.
+
+## Native immutable tier ownership
+
+`storage.object_storage` composes the native owner with the real S3 adapter and
+bounded disk cache. The single exclusive local owner retains the WAL, original
+allocation inventories, trusted immutable descriptors and upload/deletion
+progress. A bucket alone cannot recover acknowledged operations. Initial
+provider qualification is MinIO; no shared-filesystem, cross-host concurrent
+writer, automatic failover or AWS qualification follows from this composition.
+
+A fresh owner writes `.object-tier` before provider access. Its 160-byte identity
+contains `TTIER001` at `0..8`, the shared definition at `8..40`, a random
+installation token at `40..72`, a SHA-256 namespace binding at `72..104`, zero
+reserved bytes at `104..128`, and SHA-256 of `0..128` at `128..160`. The binding
+hashes endpoint, region, bucket and prefix in order, each preceded by its
+little-endian `u64` byte length. Immutable conditional publication of this exact
+identity at `.transit/owner` claims the namespace; `tier/claimed` records success.
+`.object-tier-ready` retains the identity hash after inventory initialization.
+A retained owner requires these markers, the upload cursor, queue definition and
+state/lock directories. Missing or foreign evidence rejects without rebuilding
+empty inventories. Namespace claims detect collisions, not distributed fencing;
+cloning the authority directory onto concurrent hosts is unsupported.
+
+For each immutable publication, the owner durably enqueues its original key and
+content identity, records its generation, and syncs local bytes before the owning
+native/direct WAL can accept a reference. Foreground publication sends no remote
+PUT. Each joined background unit uploads one original generation, reads it back
+and verifies it, persists coverage, evicts only local payload/checksum bytes, then
+advances the queue cursor. The original local descriptor remains the trust root.
+A lost response retries the same immutable generation and bytes. Missing staged
+bytes cannot be invented or replaced with remote content of a new identity.
+
+`tier/states/<key-sha256>` is a fixed 512-byte `TTCOVER1` record: shared definition
+at `8..40`; queue position and generation at `40..48` and `48..56`; phase at `56`
+(`1` pending, `2` uploaded, `3` deleting); key length at `64..66`; logical size at
+`72..80`; content SHA-256 at `80..112`; key at `112`; zero reserved/padding bytes;
+and SHA-256 of `0..480` at `480..512`. Integers are little-endian. The remote key
+is `objects/<key-sha256>/<16-digit-hex-generation>` under the configured prefix.
+The durable FIFO and checksummed cursor retain the acknowledged tail floor,
+original cumulative byte counts and consumed progress. Reopen reconciles pending
+intents one record at a time; the latest position determines each key's state.
+Uncertain queue/state persistence poisons the owner until exclusive recovery.
+
+Collection still requires its existing complete retained graph, epoch and reader
+fences. It enqueues a deletion intent before local reclamation. The remote DELETE
+always names the original generation, so a delayed delete cannot remove a
+recreated key. Coverage removal precedes consuming its deletion intent. Provider
+failure retains that intent; listing a bucket never grants deletion authority.
+
+Uploaded reads may use local bytes, a verified disk-cache hit or the provider.
+Every path compares content against the retained original descriptor. The disk
+cache starts cold on reopen and contains at most 4,096 descriptors; its loss does
+not remove staging or acceptance evidence. Two fixed 32 MiB read slots have
+independent clients, one 32 MiB workspace serves uploads, and the writing adapter
+owns one bounded envelope slab. Cache locking never spans provider I/O. Slots,
+request deadlines and the existing server admission bounds limit active work;
+none limits retained cardinality. This bounded concurrency is not distributed
+writer qualification.
+
+Staging and pending-object budgets refuse new upload work before exhaustion.
+Control uploads and deletion share a separate 4,096-item control reserve;
+control uploads additionally use the native `control_bytes` budget. Native allocation accounting
+also reserves tier metadata. Pressure does not expire data, drop queued work or
+evict unuploaded bytes. Signed storage observation includes a required nullable
+`object_tier` value: null for local-only/unavailable storage, otherwise durable
+pending bytes/objects, configured limits, disposable-cache usage, reopen-local
+transfer/cache/failure counters and the recovery blocker. Observation does not
+perform transfers, grant rights or prove that every accepted object is remote.
 
 ## Native authority on local storage
 

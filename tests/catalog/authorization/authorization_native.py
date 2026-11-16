@@ -1,4 +1,4 @@
-"""Signed declarative policy publication and recovery against disk-backed Ursula."""
+"""Signed declarative policy publication and recovery against disk-backed native Transit."""
 from runner.paths import ROOT
 import argparse
 import hashlib

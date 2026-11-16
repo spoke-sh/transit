@@ -89,7 +89,7 @@ def inside(mount, cli, node, host):
 def run(cli, node, host, *application):
     assert sys.platform == "linux"
     repo = ROOT
-    image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
+    image = json.loads((repo / "deploy/reference/versions.json").read_text())["registry"]
     tools = {name: str(Path(shutil.which(name) or "missing").resolve(strict=True))
              for name in ("bash", "mount", "umount", "setpriv", "mkfs.ext4", "patchelf") + (("openssl",) if application else ())}
     python = str(Path(sys.executable).resolve(strict=True))

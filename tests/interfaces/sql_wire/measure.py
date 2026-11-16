@@ -63,7 +63,7 @@ def foundation(postgres, mysql_options, executables):
                   read_order='Unordered selection; the oracle sorts rows after timing.',
                   samples=[], errors=[], executables={},
                   limits='Sequential local disk/TLS observations after builds finish. Retained connections; one excluded warmup per read case/path. Read p95 has 20 samples; mutation medians have three, no tail claim. Synthetic scalar profile; no nested SQL wire support or production SLO is implied.')
-    for name, binary in (executables | {name: shutil.which(name) for name in ('ursula', 'minio')}).items():
+    for name, binary in (executables | {name: shutil.which(name) for name in ('minio',)}).items():
         report['executables'][name] = hashlib.sha256(Path(binary).read_bytes()).hexdigest() if binary else None
     try:
         with psycopg.connect(**postgres) as pg, mysql.connector.connect(**mysql_options) as my:

@@ -60,6 +60,7 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
 pub const ObjectStorage = @import("ObjectTier.zig").Options;
 pub fn openWithObjectStorage(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8, limits: core.protocol.Storage.Limits, object_storage: ?ObjectStorage) !Self {
     try limits.validate();
+    if (object_storage) |options| try options.validate();
     // The object root's mandatory marker guards the entire native layout. A
     // separate lifetime lock covers the WAL and object owner together.
     var objects = try @import("NativeObjects.zig").open(allocator, io, parent, path);
@@ -76,7 +77,7 @@ pub fn openWithObjectStorage(allocator: std.mem.Allocator, io: std.Io, parent: s
     errdefer allocations.deinit();
     var data_allocations = try DataAllocations.open(allocator, io, directory);
     errdefer data_allocations.deinit();
-    try objects.configure(io, directory, object_storage, try wal.log().tail(0) == 0 and try allocations.queue.log().tail(0) == 0 and try data_allocations.queue.log().tail(0) == 0);
+    try objects.configure(io, directory, object_storage, try wal.log().tail(0) == 0 and try allocations.queue.log().tail(0) == 0 and try data_allocations.queue.log().tail(0) == 0, limits.control_bytes);
     var allocated = try countFiles(io, directory);
     // Known depth only; file/object cardinality does not determine resident size.
     for ([_][]const u8{ "keys", "locks", "objects", "wal", "native-allocations", "native-allocations/queue", "data-allocations", "data-allocations/queue" }) |relative| {
@@ -205,7 +206,7 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
     const item: storage.TransitObjectStore.ImmutablePut = .{ .key = key, .bytes = bytes, .sha256 = digest };
     const allocation = (try self.prepareDataPut(item, control, source)) orelse return;
     var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
-    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
+    try self.objects.putImmutableBatch((&item)[0..1], &completed, control);
     try self.confirmDataPuts(&.{allocation});
 }
 
@@ -219,7 +220,7 @@ pub fn putBatch(self: *Self, batch: []const storage.TransitObjectStore.Immutable
     var allocations: [Objects.max_put_batch]DataAllocations.Allocation = undefined;
     const count = try self.prepareDataBatch(batch, &pending, &allocations, control, source);
     var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
-    if (count != 0) try self.objects.objectStore().putImmutableBatch(pending[0..count], completed[0..count]);
+    if (count != 0) try self.objects.putImmutableBatch(pending[0..count], completed[0..count], control);
     // Partial batch failure remembers no new durable publication. Exact retry
     // must re-establish the inventory and object barriers for every such item.
     if (count != 0) try self.confirmDataPuts(allocations[0..count]);
@@ -365,7 +366,7 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
     var key: [96]u8 = undefined;
     const item: storage.TransitObjectStore.ImmutablePut = .{ .key = try allocation.key(&key), .bytes = bytes, .sha256 = digest };
     var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
-    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
+    try self.objects.putImmutableBatch((&item)[0..1], &completed, control);
 }
 
 pub const NativePut = struct { address: [32]u8, bytes: []const u8 };
@@ -387,7 +388,7 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
     try self.native_creators.lockShared(self.io);
     defer self.native_creators.unlockShared(self.io);
     try self.prepareNativeBatch(allocations[0..batch.len], control, source);
-    try self.objects.objectStore().putImmutableBatch(items[0..batch.len], output[0..batch.len]);
+    try self.objects.putImmutableBatch(items[0..batch.len], output[0..batch.len], control);
 }
 
 fn prepareNativeBatch(self: *Self, allocations: []const Allocations.Allocation, control: bool, source: bool) !void {

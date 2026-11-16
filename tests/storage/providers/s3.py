@@ -234,6 +234,21 @@ def run(binary):
         print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation and provider-denied backlog passed.', flush=True)
         print('Native S3: real MinIO PUT/CAS/HEAD/range/DELETE, independent envelope oracle, competing clients, live credential rotation, lost accepted reply, corrupt payload and joined deadline passed.', flush=True)
 
+    with ColdStore(tls=True) as cold:
+        root = Path(cold.directory.name)
+        values = cold.native_config()
+        options = {name: values[name] for name in ('endpoint', 'region', 'bucket', 'prefix',
+                   'credentials_file', 'ca_file', 'allow_loopback_http')}
+        config = root / 'tls.json'
+        config.write_text(json.dumps(options))
+        for mode in ('write', 'read'):
+            subprocess.run([binary, str(config), mode], check=True, timeout=90)
+        for changed in (dict(ca_file=None), dict(endpoint=options['endpoint'].replace('127.0.0.1', 'localhost'))):
+            config.write_text(json.dumps(options | changed))
+            attempt = subprocess.run([binary, str(config), 'read'], capture_output=True, timeout=30)
+            assert attempt.returncode != 0, 'Untrusted or incorrectly named provider certificate accepted'
+        print('Native S3 TLS: private PEM trust, verified requests, unknown CA and hostname mismatch rejection passed.', flush=True)
+
 
 if __name__ == '__main__':
     run(sys.argv[1])

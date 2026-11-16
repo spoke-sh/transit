@@ -6,20 +6,16 @@ import time
 import interfaces.deployment.reference as ref
 
 
-def run(s, directory, namespace, authority_host, images, template):
-    ursula = json.loads(ref.kube(s, ["-n", namespace, "get", "pods", "-l", "app=ursula", "-o", "json"], capture=True))["items"][0]
-    ursula_ip = ursula["status"]["podIP"]
-    dns = f"ursula.{namespace}.svc.cluster.local"
-    raw_path = "/transit-reference/authority?record=0&max_records=1"
+def run(s, directory, namespace, authority_host, images, template, object_url):
+    # Use HTTP probes to the real TLS provider port: a policy bypass would
+    # return the TLS listener's HTTP error, never the required proxy denial.
+    raw = object_url.replace('https://', 'http://')
     checks = [
-        {"label": "raw-read", "url": f"http://{dns}:8080{raw_path}"},
-        # A separate nonexistent stream tests the write route without corrupting
-        # the control journal if the isolation proof fails.
-        {"label": "raw-write", "url": f"http://{dns}:8080/isolation-probe/denied", "method": "POST"},
-        {"label": "raw-admin", "url": f"http://{ursula_ip}:8081/metrics"},
-        {"label": "raw-ip", "url": f"http://{ursula_ip}:8080{raw_path}"},
-        {"label": "spoof-host", "url": f"http://{ursula_ip}:8080{raw_path}", "host": authority_host + ":8080"},
-        {"label": "connect-tunnel", "url": f"http://{dns}:8080", "method": "CONNECT", "host": authority_host + ":8080"},
+        {"label": "raw-read", "url": raw + "/transit-proof/"},
+        {"label": "raw-write", "url": raw + "/transit-proof/denied", "method": "POST"},
+        {"label": "raw-health", "url": raw + "/minio/health/ready"},
+        {"label": "spoof-host", "url": raw + "/transit-proof/", "host": authority_host + ":8080"},
+        {"label": "connect-tunnel", "url": raw, "method": "CONNECT", "host": authority_host + ":8080"},
         {"label": "substrate-api", "url": "http://api.ate-system.svc.cluster.local:443/"},
         {"label": "kubernetes-api", "url": "http://kubernetes.default.svc.cluster.local:443/"},
     ]

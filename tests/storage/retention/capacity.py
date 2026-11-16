@@ -1,71 +1,46 @@
-"""Owned ext4 disk, real ENOSPC, and a preallocated control reserve. Linux/Docker.
+"""Owned ext4 disk, actual ENOSPC and reserved native control progress.
 
-Only a new regular image file is formatted. Mounts and loop-device allocation
-live inside one owned privileged container; no host mount or block device is
-selected. Ursula runs as nobody against that filesystem using its official image.
+Only a new regular image is formatted. Loop devices and mounts stay inside one
+owned privileged container. The measured binary is the supplied native Transit
+proof; the pinned registry image supplies only a container filesystem.
 """
 from runner.paths import ROOT
-import json
 import hashlib
-from http.client import HTTPConnection
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
 import os
 from pathlib import Path
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
-import threading
 import time
-import urllib.error
-import urllib.request
 import uuid
 
 
 def run(binary):
-    assert sys.platform == "linux", "Physical capacity proof requires Linux"
-    repo = ROOT
-    image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
-    tools = {}
-    for tool in ("bash", "mount", "umount", "setpriv", "mkfs.ext4"):
-        tools[tool] = str(Path(shutil.which(tool) or "missing").resolve(strict=True))
-        assert tools[tool].startswith("/nix/store/"), "Run via just test::capacity for pinned mount tools"
+    assert sys.platform == 'linux', 'Physical capacity proof requires Linux'
+    image = json.loads((ROOT / 'deploy/reference/versions.json').read_text())['registry']
+    tools = {name: str(Path(shutil.which(name) or 'missing').resolve(strict=True))
+             for name in ('bash', 'mount', 'umount', 'setpriv', 'mkfs.ext4')}
     python = str(Path(sys.executable).resolve(strict=True))
-    assert python.startswith("/nix/store/")
-    http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    name = "transit-capacity-" + uuid.uuid4().hex[:12]
-    with tempfile.TemporaryDirectory(prefix="transit-capacity-") as directory:
-        root = Path(directory)
-        disk = root / "disk.img"
-        with disk.open("xb") as file:
+    assert all(path.startswith('/nix/store/') for path in [python, *tools.values()])
+    name = 'transit-capacity-' + uuid.uuid4().hex[:12]
+    root = Path(tempfile.mkdtemp(prefix='transit-capacity-', dir='/var/tmp'))
+    container = None
+    passed = False
+    try:
+        root.chmod(0o755)
+        shutil.copy2(binary, root / 'proof')
+        with (root / 'disk.img').open('xb') as file:
             file.truncate(2 * 1024**3)
-        subprocess.run([tools["mkfs.ext4"], "-q", "-F", "-m", "0", str(disk)], check=True, timeout=30)
-        (root / "mount").mkdir()
-        (root / "ursula.toml").write_text('''[server]
-listen = "0.0.0.0:8080"
-admin_listen = "127.0.0.1:8081"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "/proof/mount/wal"
-min_available_size = "16MiB"
-resume_available_size = "32MiB"
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
-''')
+        subprocess.run([tools['mkfs.ext4'], '-q', '-F', '-m', '0', str(root / 'disk.img')], check=True, timeout=30)
+        (root / 'mount').mkdir()
         initialize = '''import os
 from pathlib import Path
 p = Path('/proof/mount')
-(p/'wal').mkdir()
-os.chown(p/'wal', 65532, 65532)
+(p/'native').mkdir()
+os.chown(p/'native', 65532, 65532)
 fd = os.open(p/'reserve', os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
 os.posix_fallocate(fd, 0, 1024**3)
 os.fsync(fd)
@@ -75,196 +50,133 @@ os.sync()
 '''
         script = f'''set -euo pipefail
 {shlex.quote(tools['mount'])} -o loop /proof/disk.img /proof/mount
-pid=
 cleanup() {{
   trap - EXIT TERM INT
-  if test -n "$pid"; then kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; fi
   {shlex.quote(tools['umount'])} /proof/mount
 }}
 trap cleanup EXIT
 trap 'exit 0' TERM INT
 {shlex.quote(python)} -c {shlex.quote(initialize)}
-while true; do
-  {shlex.quote(tools['setpriv'])} --reuid=65532 --regid=65532 --clear-groups /usr/local/bin/ursula server --config /proof/ursula.toml &
-  pid=$!
-  printf '%s' "$pid" > /proof/server.pid
-  wait "$pid" || true
-done
+{shlex.quote(python)} -c 'from pathlib import Path; Path("/proof/ready").touch(); import time; time.sleep(3600)' &
+wait $!
 '''
-        (root / "start.sh").write_text(script)
-        root.chmod(0o755)  # The unprivileged server reads only its public config.
-        container = subprocess.check_output(["docker", "create", "--name", name, "--privileged", "--user", "0:0",
-            "--publish", "127.0.0.1::8080", "--mount", f"type=bind,src={root},dst=/proof",
-            "--mount", "type=bind,src=/nix/store,dst=/nix/store,readonly",
-            "--env", "RUST_LOG=warn", "--env", "TOKIO_WORKER_THREADS=2", "--entrypoint", tools["bash"],
-            image, "/proof/start.sh"], text=True, timeout=60).strip()
-        requests = []
-        phases = []
+        (root / 'start.sh').write_text(script)
+        container = subprocess.check_output(['docker', 'create', '--name', name, '--privileged', '--user', '0:0',
+            '--mount', f'type=bind,src={root},dst=/proof',
+            '--mount', 'type=bind,src=/nix/store,dst=/nix/store,readonly',
+            '--entrypoint', tools['bash'], image, '/proof/start.sh'], text=True, timeout=60).strip()
+        subprocess.run(['docker', 'start', container], check=True, stdout=subprocess.DEVNULL, timeout=20)
+        until = time.monotonic() + 30
+        while not (root / 'ready').exists():
+            assert time.monotonic() < until, 'Owned capacity filesystem was not mounted'
+            time.sleep(.05)
 
-        class ObserveAdapter(BaseHTTPRequestHandler):
-            def setup(self):
-                super().setup()
-                # This observer must not add a delayed-ACK round trip between
-                # separately flushed HTTP headers and the response body.
-                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            def forward(self):
-                size = int(self.headers.get("Content-Length", "0"))
-                assert size <= 2*1024**2
-                body = self.rfile.read(size) if size else None
-                requests.append(self.command)
-                connection = HTTPConnection(address, timeout=10)
-                try:
-                    connection.request(self.command, self.path, body, dict(self.headers))
-                    response = connection.getresponse()
-                    body = response.read(2*1024**2 + 1)
-                    assert len(body) <= 2*1024**2
-                    self.send_response(response.status)
-                    for name, value in response.getheaders():
-                        if name.lower() not in ("connection", "transfer-encoding", "content-length"):
-                            self.send_header(name, value)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    if self.command != "HEAD":
-                        self.wfile.write(body)
-                finally:
-                    connection.close()
-
-            do_GET = do_HEAD = do_PUT = do_POST = do_DELETE = forward
-
-            def log_message(self, *_):
-                pass
-
-        proxy = ThreadingHTTPServer(("127.0.0.1", 0), ObserveAdapter)
-        proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
-        proxy_thread.start()
-
-        def inside(source):
-            return subprocess.check_output(["docker", "exec", container, python, "-c", source], text=True, timeout=60).strip()
+        def inside(source, timeout=60):
+            return subprocess.check_output(['docker', 'exec', container, python, '-c', source], text=True, timeout=timeout).strip()
 
         def stats():
             return json.loads(inside('''import json, os
 from pathlib import Path
 p = Path('/proof/mount')
 s = os.statvfs(p)
-files = [f for f in (p/'wal').rglob('*') if f.is_file()]
-print(json.dumps({'available': s.f_bavail*s.f_frsize, 'wal_bytes': sum(f.stat().st_size for f in files),
-  'wal_allocated': sum(f.stat().st_blocks*512 for f in files)}))
+files = [f for f in (p/'native/wal').rglob('*') if f.is_file()]
+print(json.dumps(dict(available=s.f_bavail*s.f_frsize,
+  wal_bytes=sum(f.stat().st_size for f in files),
+  wal_allocated=sum(f.stat().st_blocks*512 for f in files))))
 '''))
 
-        def await_status(status):
-            limit = time.monotonic() + 40
-            while True:
-                try:
-                    with http.open(url + "/__ursula/ready", timeout=1) as response:
-                        if response.status == status:
-                            return
-                except urllib.error.HTTPError as error:
-                    if error.code == status:
-                        return
-                except (urllib.error.URLError, TimeoutError, ConnectionError):
-                    pass
-                assert time.monotonic() < limit, "Ursula disk gate did not reach expected state"
-                time.sleep(0.1)
+        phases = []
 
         def proof(phase):
+            # A child inside the mount owns its real disk and is killed after
+            # flushing its result, before graceful storage teardown can run.
+            command = [tools['setpriv'], '--reuid=65532', '--regid=65532', '--clear-groups',
+                       '/proof/proof', '/proof/mount/native', phase]
+            source = f'''import json, subprocess, time
+from pathlib import Path
+with Path('/proof/{phase}.json').open('w+') as out, Path('/proof/{phase}.log').open('w+') as err:
+    child = subprocess.Popen({command!r}, stdout=out, stderr=err)
+    try:
+        until = time.monotonic() + 180
+        while child.poll() is None:
+            out.seek(0)
+            if out.read().endswith('\\n'):
+                child.kill()
+                break
+            assert time.monotonic() < until, 'Capacity phase timed out'
+            time.sleep(.02)
+        child.wait(timeout=10)
+        err.seek(0)
+        assert child.returncode == -9, err.read()[-12000:]
+        out.seek(0)
+        print(out.read())
+    finally:
+        if child.poll() is None: child.kill()
+        child.wait(timeout=10)
+'''
             started = time.monotonic()
-            result = subprocess.run([str(binary), f"http://127.0.0.1:{proxy.server_port}", phase],
-                check=False, timeout=120, capture_output=True, text=True)
-            if result.returncode:
-                raise RuntimeError(f"Native capacity {phase}: {result.stderr[-12000:]}")
-            value = json.loads(result.stdout)
-            value["seconds"] = round(time.monotonic() - started, 3)
+            value = json.loads(inside(source, timeout=200))
+            value['seconds'] = round(time.monotonic() - started, 3)
             phases.append(value)
-            print(f"Native capacity: {json.dumps(value)}", flush=True)
+            print('Native capacity: ' + json.dumps(value), flush=True)
 
-        try:
-            subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL, timeout=20)
-            address = subprocess.check_output(["docker", "port", container, "8080/tcp"], text=True).strip()
-            url = "http://" + address
-            await_status(200)
-            proof("write")
-            before_pressure = stats()
-            # Fill only this bounded filesystem. Confirm actual allocation fails
-            # with ENOSPC rather than treating a mock quota error as disk pressure.
-            inside('''import errno, os
+        proof('write')
+        before = stats()
+        inside('''import errno, os
 p = '/proof/mount'
-s = os.statvfs(p)
-available = s.f_bavail*s.f_frsize
-fd = os.open(p+'/filler', os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-os.posix_fallocate(fd, 0, available - 4*1024**2)
-os.fsync(fd)
-os.close(fd)
-fd = os.open(p+'/enospc-probe', os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+fd = os.open(p+'/filler', os.O_CREAT | os.O_EXCL | os.O_RDWR, 0o600)
 try:
-    os.posix_fallocate(fd, 0, 32*1024**2)
-except OSError as error:
-    assert error.errno == errno.ENOSPC
-else:
-    raise AssertionError('Expected physical ENOSPC')
-finally:
-    os.close(fd)
-    os.unlink(p+'/enospc-probe')
+    offset = 0
+    for size in (1024**2, 4096):
+        while True:
+            try: os.posix_fallocate(fd, offset, size)
+            except OSError as error:
+                assert error.errno == errno.ENOSPC
+                break
+            offset += size
+    os.fsync(fd)
+finally: os.close(fd)
 os.sync()
+assert os.statvfs(p).f_bavail == 0
 ''')
-            await_status(503)
-            pressured = stats()
-            assert pressured["available"] < 16*1024**2
-            request = urllib.request.Request(url + "/transit-capacity/pressure-probe", b"{}",
-                {"Content-Type": "application/json"}, method="POST")
-            try:
-                http.open(request, timeout=5)
-            except urllib.error.HTTPError as error:
-                assert error.code == 503 and b"WalDiskPressure" in error.read()
-            else:
-                raise AssertionError("Storage accepted a write under disk pressure")
-            proof("pressure")
-            # Admissions are already durably closed. Releasing only the reserve
-            # cannot reopen them; the filler stays allocated throughout recovery.
-            inside("import os; os.unlink('/proof/mount/reserve'); os.sync()")
-            await_status(200)
-            released = stats()
-            assert released["available"] - pressured["available"] >= 1024**3
-            proof("control")
-            after_control = stats()
-            assert after_control["available"] > 32*1024**2
-            assert after_control["wal_allocated"] - before_pressure["wal_allocated"] < 128*1024**2
-            # Actual SIGKILL of Ursula, while the owned mount and filler persist.
-            old_pid = inside("from pathlib import Path; print(Path('/proof/server.pid').read_text())")
-            inside("import os, signal; from pathlib import Path; os.kill(int(Path('/proof/server.pid').read_text()), signal.SIGKILL)")
-            limit = time.monotonic() + 10
-            while inside("from pathlib import Path; print(Path('/proof/server.pid').read_text())") == old_pid:
-                assert time.monotonic() < limit
-                time.sleep(0.05)
-            await_status(200)
-            before_reconcile = stats()
-            requests.clear()
-            proof("recover")
-            after_reconcile = stats()
-            assert requests and set(requests) <= {"GET", "HEAD"}, "Completed maintenance issued a mutation"
-            evidence = {"version": 1, "status": "passed", "image": image, "profile": "native_v1",
-                "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
-                "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=repo)),
-                "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
-                "admission_ceiling": 96, "control_record_bound": 96,
-                "reserve_bytes": 1024**3, "before_pressure": before_pressure, "pressured": pressured,
-                "released": released, "after_control": after_control, "before_recovery": before_reconcile,
-                "after_recovery": after_reconcile, "recovery_methods": sorted(set(requests)), "phases": phases}
-            output = repo / ".cache/growing-capacity-evidence.json"
-            output.parent.mkdir(exist_ok=True)
-            output.write_text(json.dumps(evidence, indent=2) + "\n")
-            print("Physical ENOSPC, reserved control progress, checkpoint/trim and disk restart passed.")
-        except BaseException:
-            subprocess.run(["docker", "logs", "--tail", "80", container], check=False)
-            raise
-        finally:
-            proxy.shutdown()
-            proxy.server_close()
-            proxy_thread.join(timeout=5)
-            subprocess.run(["docker", "stop", "--time", "10", container], check=False, stdout=subprocess.DEVNULL, timeout=20)
-            subprocess.run(["docker", "rm", "--force", container], check=True, stdout=subprocess.DEVNULL, timeout=20)
+        pressured = stats()
+        assert pressured['available'] == 0
+        proof('pressure')
+        # Only the reserve is released. Durable ordinary admission stays closed.
+        inside("import os; os.unlink('/proof/mount/reserve'); os.sync()")
+        released = stats()
+        assert released['available'] - pressured['available'] >= 1024**3
+        proof('control')
+        after_control = stats()
+        assert after_control['wal_allocated'] - before['wal_allocated'] < 128*1024**2
+        proof('recover')
+        after_recovery = stats()
+        assert after_recovery['wal_bytes'] == after_control['wal_bytes'], 'Completed recovery appended authority'
+        evidence = dict(version=1, status='passed', container_filesystem=image, profile='native_v1',
+            revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+            dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
+            binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
+            admission_ceiling=96, control_record_bound=96, reserve_bytes=1024**3,
+            before_pressure=before, pressured=pressured, released=released,
+            after_control=after_control, after_recovery=after_recovery, phases=phases)
+        output = ROOT / '.cache/growing-capacity-evidence.json'
+        output.parent.mkdir(exist_ok=True)
+        output.write_text(json.dumps(evidence, indent=2) + '\n')
+        passed = True
+        print('Physical native ENOSPC, reserved control progress, checkpoint/trim and SIGKILL recovery passed.')
+    except BaseException:
+        if container:
+            subprocess.run(['docker', 'logs', '--tail', '80', container], check=False)
+        print(f'Retained capacity proof: {root}', file=sys.stderr)
+        raise
+    finally:
+        if container:
+            subprocess.run(['docker', 'stop', '--time', '10', container], check=False, stdout=subprocess.DEVNULL, timeout=20)
+            subprocess.run(['docker', 'rm', '--force', container], check=True, stdout=subprocess.DEVNULL, timeout=20)
+        if passed:
+            shutil.rmtree(root)
 
 
-if __name__ == "__main__":
-    assert len(sys.argv) == 2, "Expected binary"
+if __name__ == '__main__':
+    assert len(sys.argv) == 2, 'Expected binary'
     run(Path(sys.argv[1]).resolve(strict=True))

@@ -168,9 +168,6 @@ def images(s):
         if len(current) != 1:
             raise RuntimeError(f"Expected one digest in the owned registry for {name}")
         result[name] = current[0]
-    # Ursula publishes its own multi-platform image. Keep its release aligned
-    # with the dev-shell overlay and pin the upstream manifest, without repacking.
-    result["ursula"] = PINS["ursula"]
     result["ateom"] = go(["hack/run-tool.sh", "ko", "build", "--bare", "./cmd/ateom-gvisor"],
                          {"KO_DOCKER_REPO": host + "/ateom", "KO_DEFAULTPLATFORMS": "linux/amd64"}, capture=True)
     (CACHE / "images.json").write_text(json.dumps(result, indent=2))

@@ -47,7 +47,7 @@ does not make independent snapshots atomic or establish real-time ordering.
    Distinguish a synchronously protected commit from asynchronous remote copying;
    report their different availability and potential data-loss boundaries. State
    which guarantees the provider supplies and which Transit must enforce. Do not
-   assume Ursula, Kafka/Pulsar or object-store providers are interchangeable, or
+   assume native WAL, Kafka/Pulsar or object-store providers are interchangeable, or
    require a second consensus engine where a qualified provider owns that role.
 2. **Specify one replicated commit and recovery boundary.** Bind durable log
    positions, policy/ownership epochs, catalog/checkpoint roots and all required
