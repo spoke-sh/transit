@@ -86,21 +86,34 @@ pub fn next(self: *Self) !?Record {
     return if (head.cursor == head.tail) null else try self.atLocked(head.cursor);
 }
 pub fn enqueue(self: *Self, item: Item, staging_budget: u64, object_budget: u64) !u64 {
+    return self.enqueueBatch(&.{item}, staging_budget, object_budget);
+}
+/// Preserve individual intent positions while sharing the WAL and cursor barriers.
+pub fn enqueueBatch(self: *Self, items: []const Item, staging_budget: u64, object_budget: u64) !u64 {
+    if (items.len == 0 or items.len > storage.TransitObjectStore.max_put_batch) return error.InvalidObjectBatch;
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     const head = try self.currentLocked();
-    const bytes = if (item.action == .upload) item.meta.size else 0;
-    if ((item.action == .upload and (head.pending_bytes > staging_budget or bytes > staging_budget - head.pending_bytes or head.pending_objects >= object_budget)) or
-        head.pending_objects >= object_budget + 4096) return error.UploadStagingQuota;
-    const total = try std.math.add(u64, (try self.cursor()).bytes + head.pending_bytes, bytes);
-    if (total > p.max_counter) return error.UploadStagingQuota;
-    const record: Record = .{ .definition = p.Growth.current_definition, .position = head.tail, .total_bytes = total, .item = item };
-    var buffer: [record_limit]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&buffer);
-    try std.json.Stringify.value(record, .{}, &writer);
-    _ = try self.wal.log().append(0, record.position, 1, 1, .process_turn, writer.buffered());
+    var pending = head.pending_bytes;
+    var total = (try self.cursor()).bytes + pending;
+    var buffers: [storage.TransitObjectStore.max_put_batch][record_limit]u8 = undefined;
+    var payloads: [storage.TransitObjectStore.max_put_batch][]const u8 = undefined;
+    for (items, buffers[0..items.len], payloads[0..items.len], 0..) |item, *buffer, *payload, i| {
+        const bytes = if (item.action == .upload) item.meta.size else 0;
+        const objects = head.pending_objects + i;
+        if ((item.action == .upload and (pending > staging_budget or bytes > staging_budget - pending or objects >= object_budget)) or
+            objects >= object_budget + 4096) return error.UploadStagingQuota;
+        total = try std.math.add(u64, total, bytes);
+        if (total > p.max_counter) return error.UploadStagingQuota;
+        pending += bytes;
+        const record: Record = .{ .definition = p.Growth.current_definition, .position = head.tail + i, .total_bytes = total, .item = item };
+        var writer: std.Io.Writer = .fixed(buffer);
+        try std.json.Stringify.value(record, .{}, &writer);
+        payload.* = writer.buffered();
+    }
+    _ = try self.wal.appendFrames(0, head.tail, 1, 1, .process_turn, payloads[0..items.len]);
     var progress = try self.cursor();
-    progress.tail_floor = head.tail + 1;
+    progress.tail_floor = head.tail + items.len;
     try self.saveCursor(progress);
     return head.tail;
 }
@@ -158,4 +171,34 @@ test "upload FIFO retains exact work across reopen and never consumes a later ge
     // Missing persisted progress cannot reset an established upload history.
     try temporary.dir.deleteFile(t.io, "cursor");
     try t.expectError(error.MissingUploadProgress, open(t.allocator, t.io, temporary.dir));
+}
+
+test "upload batch checks its whole quota before append and retains each original position" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{ .iterate = true });
+    defer temporary.cleanup();
+    const a: Item = .{ .key = try Key.init("native/p/a"), .meta = .{ .size = 40, .sha256 = @splat(7) }, .action = .upload };
+    const b: Item = .{ .key = try Key.init("native/p/b"), .meta = .{ .size = 60, .sha256 = @splat(9) }, .action = .upload };
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        try t.expectError(error.UploadStagingQuota, queue.enqueueBatch(&.{ a, b }, 99, 2));
+        try t.expectError(error.UploadStagingQuota, queue.enqueueBatch(&.{ a, b }, 100, 1));
+        try t.expectEqual(@as(u64, 0), (try queue.current()).tail);
+        try t.expectEqual(@as(u64, 0), try queue.enqueueBatch(&.{ a, b }, 100, 2));
+        try t.expectEqual(@as(u64, 100), (try queue.current()).pending_bytes);
+        const first = (try queue.next()).?;
+        try t.expectEqualDeep(a, first.item);
+        try queue.consume(first);
+    }
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        const second = (try queue.next()).?;
+        try t.expectEqual(@as(u64, 1), second.position);
+        try t.expectEqualDeep(b, second.item);
+        try t.expectEqual(@as(u64, 60), (try queue.current()).pending_bytes);
+        try queue.consume(second);
+        try t.expect((try queue.next()) == null);
+    }
 }

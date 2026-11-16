@@ -52,12 +52,22 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
         try t.expectEqualStrings(content[3..12], try store.getRange(key, 3, 9, &bytes));
         try t.expect(tier.cache.hits > 0);
     } else if (std.mem.eql(u8, mode, "tier-cache-fill")) {
-        const large = try init.gpa.alloc(u8, 17 * 1024 * 1024);
+        const half = 17 * 1024 * 1024;
+        const large = try init.gpa.alloc(u8, 2 * half);
         defer init.gpa.free(large);
-        @memset(large, 37);
-        try owner.put("table/cache-a.tseg", large, false);
-        @memset(large, 83);
-        try owner.put("table/cache-b.tseg", large, false);
+        @memset(large[0..half], 37);
+        @memset(large[half..], 83);
+        const batch = [_]storage.TransitObjectStore.ImmutablePut{
+            .{ .key = "table/cache-a.tseg", .bytes = large[0..half], .sha256 = hash(large[0..half]) },
+            .{ .key = "table/cache-b.tseg", .bytes = large[half..], .sha256 = hash(large[half..]) },
+        };
+        var completed: [2]storage.TransitObjectStore.ObjectMeta = undefined;
+        try owner.putBatch(&batch, &completed, false, true);
+        const original = try tier.queue.current();
+        try t.expectEqual(@as(u64, 2), original.pending_objects);
+        try t.expectEqual(@as(u64, 2 * half), original.pending_bytes);
+        try owner.putBatch(&batch, &completed, false, true);
+        try t.expectEqualDeep(original, try tier.queue.current());
     } else if (std.mem.eql(u8, mode, "tier-cache-read")) {
         const large = try init.gpa.alloc(u8, 17 * 1024 * 1024);
         defer init.gpa.free(large);

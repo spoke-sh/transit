@@ -221,4 +221,7 @@ class ColdStore:
             finally:
                 if self.process is not None and self.process.poll() is None:
                     raise RuntimeError(f'Cold-store cleanup did not join PID {self.pid}; retained {self.directory.name}')
-                self.directory.cleanup()
+                if exc_type:
+                    print(f'Failed MinIO state and private credentials retained at {self.directory.name}', file=sys.stderr)
+                else:
+                    self.directory.cleanup()

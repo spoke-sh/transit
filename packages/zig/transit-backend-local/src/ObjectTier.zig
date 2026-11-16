@@ -199,6 +199,10 @@ fn readState(self: *Self, key: []const u8) !?State {
     return result;
 }
 fn saveState(self: *Self, key: []const u8, state: State) !void {
+    const raw = encodeState(key, state);
+    try Files.save(self.io, self.states, &name(key), &raw, true);
+}
+fn encodeState(key: []const u8, state: State) [512]u8 {
     var raw: [512]u8 = @splat(0);
     raw[0..8].* = "TTCOVER1".*;
     raw[8..40].* = p.Growth.definition_bytes;
@@ -210,7 +214,7 @@ fn saveState(self: *Self, key: []const u8, state: State) !void {
     raw[80..112].* = state.meta.sha256;
     @memcpy(raw[112..][0..key.len], key);
     raw[480..512].* = hash(raw[0..480]);
-    try Files.save(self.io, self.states, &name(key), &raw, true);
+    return raw;
 }
 pub fn restore(self: *Self, record: Queue.Record) !void {
     const key = record.item.key.slice();
@@ -230,38 +234,90 @@ pub fn put(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8) !Obj
     return self.putWithControl(key, bytes, digest, false);
 }
 pub fn putWithControl(self: *Self, key: []const u8, bytes: []const u8, digest: [32]u8, control: bool) !Objects.ObjectMeta {
-    const held = try self.lock(key);
-    defer held.close(self.io);
-    const expected: Objects.ObjectMeta = .{ .size = bytes.len, .sha256 = digest };
-    const previous = try self.readState(key);
-    if (previous) |state| {
-        if (state.phase != .deleting) {
-            if (!std.meta.eql(state.meta, expected)) return error.ImmutableObjectConflict;
-            if (state.phase == .uploaded) {
-                const original = (try self.local.headObject(key)) orelse return error.MissingTierDescriptor;
-                if (!std.meta.eql(original, expected)) return error.ImmutableObjectConflict;
-                return expected;
-            }
-            return self.local.putImmutableObject(key, bytes, digest);
+    var output: [1]Objects.ObjectMeta = undefined;
+    try self.putBatch(&.{.{ .key = key, .bytes = bytes, .sha256 = digest }}, &output, control);
+    return output[0];
+}
+/// Keep the native page batch intact. All intents and states precede synced
+/// local bytes; only the owning native/direct WAL can accept the candidate.
+pub fn putBatch(self: *Self, items: []const Objects.ImmutablePut, output: []Objects.ObjectMeta, control: bool) !void {
+    try Objects.validateBatch(items, output);
+    const Ordered = struct {
+        index: usize,
+        key: [64]u8,
+        fn less(_: void, a: @This(), b: @This()) bool {
+            return std.mem.order(u8, &a.key, &b.key) == .lt;
         }
-        // A collector durably authorized deletion of the old generation. Clear
-        // any interrupted local removal before creating a distinct generation.
-        _ = try self.local.reclaimImmutableObject(key, state.meta);
+    };
+    var order: [Objects.max_put_batch]Ordered = undefined;
+    for (items, order[0..items.len], 0..) |item, *entry, i| entry.* = .{ .index = i, .key = name(item.key) };
+    std.mem.sort(Ordered, order[0..items.len], {}, Ordered.less);
+    for (1..items.len) |i| if (std.mem.eql(u8, &order[i - 1].key, &order[i].key)) return error.ObjectKeyConflict;
+    var locks: [Objects.max_put_batch]std.Io.File = undefined;
+    var locked: usize = 0;
+    defer for (locks[0..locked]) |held| held.close(self.io);
+    for (order[0..items.len]) |entry| {
+        locks[locked] = try self.lock(items[entry.index].key);
+        locked += 1;
     }
-    // Intent precedes staging, so quota refusal cannot create unaccounted bytes.
-    // A crash before content publication leaves unaccepted work visible to the
-    // original allocation collector; only that owner may supersede the intent.
-    const byte_limit = @min(p.max_counter, self.options.staging_bytes +| (if (control) self.control_bytes else 0));
-    const object_limit = self.options.pending_objects + @as(u64, if (control) 4096 else 0);
-    const position = self.queue.enqueue(.{ .key = try Queue.Key.init(key), .meta = expected, .action = .upload }, byte_limit, object_limit) catch |err| {
-        if (err != error.UploadStagingQuota) self.poisoned.store(true, .release);
-        return err;
-    };
-    self.saveState(key, .{ .position = position, .generation = position, .meta = expected, .phase = .pending }) catch |err| {
-        self.poisoned.store(true, .release);
-        return err;
-    };
-    return self.local.putImmutableObject(key, bytes, digest);
+    var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+    var staging: [Objects.max_put_batch]Objects.ImmutablePut = undefined;
+    var staging_count: usize = 0;
+    var intents: [Objects.max_put_batch]Queue.Item = undefined;
+    var intent_count: usize = 0;
+    for (items, completed[0..items.len]) |item, *meta| {
+        const expected: Objects.ObjectMeta = .{ .size = item.bytes.len, .sha256 = item.sha256 };
+        meta.* = expected;
+        const previous = try self.readState(item.key);
+        if (previous) |state| {
+            if (state.phase != .deleting) {
+                if (!std.meta.eql(state.meta, expected)) return error.ImmutableObjectConflict;
+                if (state.phase == .uploaded) {
+                    const original = (try self.local.headObject(item.key)) orelse return error.MissingTierDescriptor;
+                    if (!std.meta.eql(original, expected)) return error.ImmutableObjectConflict;
+                    continue;
+                }
+            } else {
+                // Only a recorded collector decision permits old removal.
+                _ = try self.local.reclaimImmutableObject(item.key, state.meta);
+            }
+        }
+        staging[staging_count] = item;
+        staging_count += 1;
+        if (previous == null or previous.?.phase == .deleting) {
+            intents[intent_count] = .{ .key = try Queue.Key.init(item.key), .meta = expected, .action = .upload };
+            intent_count += 1;
+        }
+    }
+    if (intent_count != 0) {
+        const byte_limit = @min(p.max_counter, self.options.staging_bytes +| (if (control) self.control_bytes else 0));
+        const object_limit = self.options.pending_objects + @as(u64, if (control) 4096 else 0);
+        const position = self.queue.enqueueBatch(intents[0..intent_count], byte_limit, object_limit) catch |err| {
+            if (err != error.UploadStagingQuota) self.poisoned.store(true, .release);
+            return err;
+        };
+        // An uncertain state publication requires exclusive reopen/reconcile.
+        errdefer self.poisoned.store(true, .release);
+        var staged: [Objects.max_put_batch]std.Io.File.Atomic = undefined;
+        var files: [Objects.max_put_batch]std.Io.File = undefined;
+        var count: usize = 0;
+        defer for (staged[0..count]) |*file| file.deinit(self.io);
+        for (intents[0..intent_count], 0..) |intent, i| {
+            const key = intent.key.slice();
+            const raw = encodeState(key, .{ .position = position + i, .generation = position + i, .meta = intent.meta, .phase = .pending });
+            staged[count] = try Files.stage(self.io, self.states, &name(key), &raw, true);
+            files[count] = staged[count].file;
+            count += 1;
+        }
+        try storage.SyncBatch.sync(self.io, files[0..count]);
+        for (staged[0..count]) |*file| try file.replace(self.io);
+        try Files.sync(self.io, self.states);
+    }
+    if (staging_count != 0) {
+        var staged_meta: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
+        try self.local.objectStore().putImmutableBatch(staging[0..staging_count], staged_meta[0..staging_count]);
+    }
+    @memcpy(output, completed[0..items.len]);
 }
 /// Called only after the retained-root collector has fenced readers/recreation.
 pub fn reclaim(self: *Self, key: []const u8, expected: Objects.ObjectMeta) !u64 {

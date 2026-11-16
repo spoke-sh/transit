@@ -3218,7 +3218,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 12,
+        "try": 9,
         "catch": 0
       },
       "imports": [
@@ -3242,6 +3242,7 @@
         "MissingTierInventory": 4,
         "ObjectAccessDenied": 1,
         "ObjectDigestMismatch": 4,
+        "ObjectKeyConflict": 1,
         "ObjectNotFound": 3,
         "ObjectRequestTimeout": 1,
         "RangeOutOfBounds": 1,
@@ -3270,6 +3271,7 @@
         "observation()": "<inferred>",
         "open()": "<inferred>",
         "put()": "<inferred>",
+        "putBatch()": "<inferred>",
         "putWithControl()": "<inferred>",
         "read()": "<inferred>",
         "readState()": "<inferred>",
@@ -3281,8 +3283,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 69,
-        "catch": 10
+        "try": 76,
+        "catch": 9
       },
       "imports": [
         "LocalFiles.zig",
@@ -3481,6 +3483,7 @@
     "packages/zig/transit-backend-local/src/UploadQueue.zig": {
       "errors": {
         "IncompatibleDefinition": 1,
+        "InvalidObjectBatch": 1,
         "InvalidUploadProgress": 3,
         "InvalidUploadQueue": 3,
         "MissingUploadProgress": 2,
@@ -3501,6 +3504,7 @@
         "currentLocked()": "<inferred>",
         "cursor()": "<inferred>",
         "enqueue()": "<inferred>",
+        "enqueueBatch()": "<inferred>",
         "next()": "<inferred>",
         "open()": "<inferred>",
         "reconcile()": "<inferred>",

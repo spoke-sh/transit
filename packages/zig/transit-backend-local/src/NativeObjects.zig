@@ -37,9 +37,7 @@ pub fn objectStore(self: *Self) Objects.ObjectStore {
 pub fn putImmutableBatch(self: *Self, items: []const Objects.ImmutablePut, output: []Objects.ObjectMeta, control: bool) !void {
     try Objects.validateBatch(items, output);
     const tier = self.tier orelse return self.local.objectStore().putImmutableBatch(items, output);
-    var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
-    for (items, completed[0..items.len]) |item, *meta| meta.* = try tier.putWithControl(item.key, item.bytes, item.sha256, control);
-    @memcpy(output, completed[0..items.len]);
+    return tier.putBatch(items, output, control);
 }
 pub fn reclaimImmutableObject(self: *Self, key: []const u8, expected: Objects.ObjectMeta) !u64 {
     return if (self.tier) |tier| tier.reclaim(key, expected) else self.local.reclaimImmutableObject(key, expected);
@@ -65,10 +63,7 @@ fn put(raw: *anyopaque, key: []const u8, bytes: []const u8, digest: [32]u8) !Obj
     return cast(raw).tier.?.put(key, bytes, digest);
 }
 fn batch(raw: *anyopaque, items: []const Objects.ImmutablePut, output: []Objects.ObjectMeta) !void {
-    try Objects.validateBatch(items, output);
-    var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
-    for (items, completed[0..items.len]) |item, *meta| meta.* = try put(raw, item.key, item.bytes, item.sha256);
-    @memcpy(output, completed[0..items.len]);
+    return cast(raw).tier.?.putBatch(items, output, false);
 }
 fn conditional(_: *anyopaque, _: []const u8, _: Objects.Condition, _: []const u8) !bool {
     return error.MutableDataObjectUnavailable;

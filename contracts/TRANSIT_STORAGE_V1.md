@@ -1088,6 +1088,14 @@ advances the queue cursor. The original local descriptor remains the trust root.
 A lost response retries the same immutable generation and bytes. Missing staged
 bytes cannot be invented or replaced with remote content of a new identity.
 
+Native immutable batches retain their bounded grouping through tier staging.
+The owner checks the whole batch's upload quota before appending its individual
+intent records with one WAL barrier and publishing the tail floor. It then syncs
+and publishes the generation states as a group before using the native local
+object batch barriers. Per-key locks use a common order; every started file sync
+joins before return. Partial failure grants no native/direct acceptance, and
+exclusive recovery reconstructs the same intent positions and generations.
+
 `tier/states/<key-sha256>` is a fixed 512-byte `TTCOVER1` record: shared definition
 at `8..40`; queue position and generation at `40..48` and `48..56`; phase at `56`
 (`1` pending, `2` uploaded, `3` deleting); key length at `64..66`; logical size at
