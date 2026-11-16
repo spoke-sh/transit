@@ -131,6 +131,28 @@ class LocalInstallation:
         for log in self.logs:
             log.close()
 
+    def kill_role(self, match):
+        import signal
+        self.signal_role(match, signal.SIGKILL)
+
+    def signal_role(self, match, signum):
+        os.kill(self.role_pid(match), signum)
+
+    def role_pid(self, match, timeout=30):
+        """Bind a fault to one owned role after its command line is observable."""
+        import time
+        from harness.processes import command
+        deadline = time.monotonic() + timeout
+        while True:
+            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()
+            owned = [pid for pid in children(self.process.pid) if match in command(pid)]
+            assert len(owned) <= 1, owned
+            if owned:
+                return owned[0]
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f'Owned role {match} not observed at {self.root}')
+            time.sleep(.05)
+
 
 class ExternalInstallation(LocalInstallation):
     """The native product profile with provider-placed application workers."""
@@ -174,25 +196,3 @@ class ExternalInstallation(LocalInstallation):
         wrapper.chmod(0o700)
         self.config['executables']['query_host'] = str(wrapper)
         self.path.write_text(json.dumps(self.config))
-
-    def kill_role(self, match):
-        import signal
-        self.signal_role(match, signal.SIGKILL)
-
-    def signal_role(self, match, signum):
-        os.kill(self.role_pid(match), signum)
-
-    def role_pid(self, match, timeout=30):
-        """Bind a fault to one owned role after its command line is observable."""
-        import time
-        from harness.processes import command
-        deadline = time.monotonic() + timeout
-        while True:
-            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()
-            owned = [pid for pid in children(self.process.pid) if match in command(pid)]
-            assert len(owned) <= 1, owned
-            if owned:
-                return owned[0]
-            if time.monotonic() >= deadline:
-                raise TimeoutError(f'Owned role {match} not observed at {self.root}')
-            time.sleep(.05)

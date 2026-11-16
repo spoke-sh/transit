@@ -24,6 +24,11 @@ class InstalledServer(System):
         self.server.stop(kill=True)
 
     def __exit__(self, *exc):
-        if self.server and self.server.process and self.server.process.poll() is None and self.manual_delivery:
-            self.delivery_signal(signal.SIGCONT)
-        super().__exit__(*exc)
+        try:
+            if self.server and self.server.process and self.server.process.poll() is None and self.manual_delivery:
+                self.delivery_signal(signal.SIGCONT)
+        except BaseException:
+            if exc[0] is None:
+                raise
+        finally:
+            super().__exit__(*exc)
