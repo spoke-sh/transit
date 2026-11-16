@@ -63,6 +63,11 @@ reconciliation prepare the consumer position before admission. Startup still
 validates retained WAL history, and these in-memory caches grant no recovery or
 deletion authority. A tier step handles at most one intent. The node waits
 100 ms between steps; backend callers own their scheduling.
+Every consumed position is synced before completion. The logical cleanup floor
+advances every eight consumed records or when the queue empties, always retaining
+the final cumulative record. Physical cleanup uses bounded units and continues
+during idle worker steps, including after reopen; delayed cleanup never replays
+consumed work or skips pending intents.
 
 `staging_bytes` defaults to 1 GiB (minimum 32 MiB) and `pending_objects` to 65,536
 (maximum 1,048,576). Upload admission uses both; control uploads and deletion share a separate 4,096-item

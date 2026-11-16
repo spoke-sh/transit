@@ -10,6 +10,7 @@ pub const Item = struct { key: Key, meta: storage.TransitObjectStore.ObjectMeta,
 pub const Head = struct { tail: u64, cursor: u64, pending_bytes: u64, pending_objects: u64 };
 pub const Record = struct { definition: p.Growth.Definition, position: u64, total_bytes: u64, item: Item };
 pub const record_limit = 4096;
+const cleanup_records = 8;
 const Cursor = struct { position: u64 = 0, bytes: u64 = 0, tail_floor: u64 = 0 };
 allocator: std.mem.Allocator,
 io: std.Io,
@@ -95,7 +96,13 @@ pub fn next(self: *Self) !?Record {
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
     const head = try self.currentLocked();
-    return if (head.cursor == head.tail) null else try self.atLocked(head.cursor);
+    if (head.cursor == head.tail) {
+        // Cleanup can outlive the last intent or lose its volatile iterator on
+        // reopen. Idle worker steps reconstruct it from the durable cursor.
+        if (head.tail != 0) _ = try self.wal.trimUnit(0, head.tail - 1);
+        return null;
+    }
+    return try self.atLocked(head.cursor);
 }
 pub fn enqueue(self: *Self, item: Item, staging_budget: u64, object_budget: u64) !u64 {
     return self.enqueueBatch(&.{item}, staging_budget, object_budget);
@@ -146,13 +153,21 @@ pub fn consume(self: *Self, expected: Record) !void {
     const head = try self.currentLocked();
     if (head.cursor > expected.position) return;
     if (head.cursor != expected.position or !std.meta.eql(try self.atLocked(expected.position), expected)) return error.UploadQueueConflict;
+    const successor = expected.position + 1;
+    const advance_cleanup = successor % cleanup_records == 0 or successor == head.tail;
     // A verified frame at the next floor survives trimming. An EOF
     // continuation may name a removed segment and cannot serve as that hint.
     // Preserve the next actual frame before moving the durable trim floor.
-    if (expected.position + 1 < head.tail) _ = try self.atLocked(expected.position + 1);
-    try self.saveCursor(.{ .position = expected.position + 1, .bytes = expected.total_bytes, .tail_floor = head.tail });
+    if (advance_cleanup and successor < head.tail) _ = try self.atLocked(successor);
+    try self.saveCursor(.{ .position = successor, .bytes = expected.total_bytes, .tail_floor = head.tail });
+    // Every consumed position is already durable. Amortize only cleanup-floor
+    // publication; intervening steps still advance its bounded physical work.
     // Retain the last cumulative total even when all work has been consumed.
-    _ = try self.wal.trimUnit(0, @min(expected.position + 1, head.tail - 1));
+    if (advance_cleanup) {
+        _ = try self.wal.trimUnit(0, @min(successor, head.tail - 1));
+    } else {
+        _ = try self.wal.resumeTrim();
+    }
 }
 
 test "upload FIFO retains exact work across reopen and never consumes a later generation" {
@@ -360,4 +375,53 @@ test "upload FIFO bounds cleanup syncs while each consumed position remains dura
     try t.expectEqual(@as(u64, count), head.cursor);
     try t.expectEqual(head.cursor, head.tail);
     try t.expectEqual(@as(u64, 0), head.pending_bytes);
+}
+
+test "upload FIFO finishes interrupted segment cleanup while idle after reopen" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{ .iterate = true });
+    defer temporary.cleanup();
+    const item: Item = .{ .key = try Key.init("native/p/cleanup-reopen"), .meta = .{ .size = 1, .sha256 = @splat(7) }, .action = .upload };
+    const count = 33;
+    const Inventory = struct {
+        fn segments(parent: std.Io.Dir) !usize {
+            const directory = try parent.openDir(t.io, "queue", .{ .iterate = true });
+            defer directory.close(t.io);
+            var entries = directory.iterate();
+            var result: usize = 0;
+            while (try entries.next(t.io)) |entry| {
+                if (std.mem.endsWith(u8, entry.name, ".twal")) result += 1;
+            }
+            return result;
+        }
+    };
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        // One original record per segment, enough to exceed one directory page.
+        queue.wal.disk.?.options.segment_bytes = storage.TransitLog.alignedFrameSize(1);
+        for (0..count) |_| _ = try queue.enqueue(item, count, count);
+        try t.expectEqual(@as(usize, count), try Inventory.segments(temporary.dir));
+        for (0..count) |position| {
+            const record = (try queue.next()).?;
+            try t.expectEqual(@as(u64, position), record.position);
+            try queue.consume(record);
+        }
+        // Close before the bounded physical cleanup can finish.
+        try t.expect(try Inventory.segments(temporary.dir) > 1);
+    }
+    var queue = try open(t.allocator, t.io, temporary.dir);
+    defer queue.deinit();
+    try t.expectEqual(@as(u64, count), (try queue.current()).cursor);
+    for (0..256) |_| {
+        try t.expect((try queue.next()) == null);
+        if (try Inventory.segments(temporary.dir) == 1) break;
+    }
+    const retained = try Inventory.segments(temporary.dir);
+    std.debug.print("upload FIFO idle recovery: {d} retained segments for the final cumulative record\n", .{retained});
+    try t.expectEqual(@as(usize, 1), retained);
+    try t.expectError(error.WalHistoryTrimmed, queue.wal.log().read(t.allocator, 0, 0, 1));
+    const last = try queue.atLocked(count - 1);
+    try t.expectEqual(@as(u64, count), last.total_bytes);
+    try t.expectEqualDeep(item, last.item);
 }
