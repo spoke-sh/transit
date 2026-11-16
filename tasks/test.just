@@ -151,9 +151,9 @@ local-payload-service:
 local-catalog:
     zig build test-local-catalog -Doptimize=ReleaseSafe
 
-# Installed SQL, configurable tier limits, eviction and native recovery with real MinIO.
+# Local and Compose SQL, configurable tier limits, eviction and MinIO recovery (Linux/Docker).
 server-object-tier:
-    zig build test-server-object-tier -Doptimize=ReleaseSafe
+    zig build test-server-object-tier -Doptimize=ReleaseSafe -Dtarget=$(uname -m)-linux-musl
 
 # Real Table/KV/Stream/Queue transaction recovery after MinIO eviction.
 tier-mixed-transaction:

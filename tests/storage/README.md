@@ -40,6 +40,13 @@ Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
 
+`just test::server-object-tier` exercises the same installed SQL, settings,
+upload/eviction and cold-restart assertions on Local and Docker Compose with
+real MinIO TLS. It requires Linux, Docker Compose and the pinned shell. The
+Compose profile uses one static Transit executable, host networking and a
+private installation/credential bind mount; it does not qualify container network
+isolation. Application worker isolation remains a reference-deployment proof.
+
 The historical collection schedules lose replies after local service execution,
 then inspect the same saved acquisition or closure. They run the native collector
 with an orphan witness and reopen the complete local owner with a one-page cache.

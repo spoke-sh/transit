@@ -1,8 +1,13 @@
 """Installed SQL and settings use the native immutable tier through MinIO TLS."""
 import json
+import os
 from pathlib import Path
+import secrets
+import shutil
+import subprocess
 import sys
 import time
+import urllib.error
 
 from interfaces.installation.server import Fixture
 from interfaces.installation.server_direct_tables import storage
@@ -11,11 +16,87 @@ from interfaces.cli.table_console import records
 from storage.providers.cold_storage import ColdStore
 
 
-def run(cli):
+class ComposeFixture(Fixture):
+    """One Linux host-network server, with only its owned installation mounted."""
+    def __init__(self, cli):
+        super().__init__(cli)
+        self.project = 'transit-tier-' + secrets.token_hex(6)
+        self.image = self.project + ':proof'
+        self.compose = self.root / 'compose.json'
+        self.config.pop('executables')  # Exercise the installed executable's embedded roles.
+        context = self.root / 'image'
+        context.mkdir()
+        shutil.copy2(self.cli, context / 'transit')
+        (context / 'Dockerfile').write_text('FROM scratch\nCOPY transit /bin/transit\nENTRYPOINT ["/bin/transit"]\n')
+        subprocess.run(['docker', 'build', '--quiet', '--tag', self.image, str(context)],
+                       check=True, timeout=300)
+        mounts = [{'type': 'bind', 'source': str(self.root), 'target': str(self.root)}]
+        for path in (self.path, self.root / 'object-credentials_file', self.root / 'object-ca_file'):
+            mounts.append({'type': 'bind', 'source': str(path), 'target': str(path),
+                           'read_only': True, 'bind': {'create_host_path': False}})
+        self.compose.write_text(json.dumps({'services': {'server': {
+            'image': self.image, 'user': f'{os.getuid()}:{os.getgid()}',
+            'read_only': True, 'cap_drop': ['ALL'],
+            'security_opt': ['no-new-privileges:true'], 'network_mode': 'host',
+            'command': ['server', '--no-ui', '--config', str(self.path)],
+            'volumes': mounts,
+            'logging': {'driver': 'json-file', 'options': {'max-size': '5m', 'max-file': '2'}},
+        }}}))
+
+    def command(self, *args):
+        return ['docker', 'compose', '--project-name', self.project, '--file', str(self.compose), *args]
+
+    def start(self):
+        assert self.process is None
+        log = (self.root / f'compose-{len(self.logs)}.log').open('wb')
+        self.logs.append(log)
+        self.process = subprocess.Popen(self.command('up', '--no-color', '--no-log-prefix', '--abort-on-container-exit'),
+            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT)
+
+    def ready(self, timeout=180):
+        deadline = time.monotonic() + timeout
+        while True:
+            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()[-4000:]
+            try:
+                with self.http.open(self.url + '/health', timeout=1) as response:
+                    if response.status == 200:
+                        self.ready_sql(deadline)
+                        return
+            except (urllib.error.URLError, TimeoutError, ConnectionError):
+                pass
+            assert time.monotonic() < deadline, 'Compose installation did not become ready'
+            time.sleep(.1)
+
+    def stop(self, kill=False):
+        if self.process is None:
+            return
+        running = self.process.poll() is None
+        action = ['kill', '--signal', 'SIGKILL'] if kill else ['stop', '--timeout', '10']
+        subprocess.run(self.command(*action), check=True, timeout=30, capture_output=True)
+        self.process.wait(timeout=20)
+        subprocess.run(self.command('down', '--timeout', '10'), check=True, timeout=30, capture_output=True)
+        if running and not kill:
+            assert self.process.returncode == 0, Path(self.logs[-1].name).read_text()[-4000:]
+        self.process = None
+
+    def cleanup(self):
+        super().cleanup()
+        subprocess.run(['docker', 'image', 'rm', self.image], check=True, timeout=30, capture_output=True)
+
+
+def exercise(cli, compose):
     with ColdStore(tls=True) as cold:
-        fixture = Fixture(cli)
+        fixture = ComposeFixture(cli) if compose else Fixture(cli)
         try:
             options = cold.native_config()
+            if compose:
+                # Compose receives file references through the server's private
+                # mount. No provider credentials enter an image or command line.
+                for field in ('credentials_file', 'ca_file'):
+                    destination = fixture.root / ('object-' + field)
+                    shutil.copy2(options[field], destination)
+                    destination.chmod(0o600)
+                    options[field] = str(destination)
             fixture.config['storage'] = dict(object_storage=options,
                 maintenance=dict(flush=dict(enabled=True, rows=1, work_rows=2)))
             fixture.path.write_text(json.dumps(fixture.config))
@@ -74,7 +155,13 @@ def run(cli):
             raise
         else:
             fixture.cleanup()
-    print('Installed native MinIO: SQL writes/flush, verified remote coverage, mutable cache settings, original installation identity and cold restart reads passed.', flush=True)
+    placement = 'Compose host-network' if compose else 'Local'
+    print(f'Installed native MinIO ({placement}): SQL writes/flush, verified remote coverage, mutable cache settings, original installation identity and cold restart reads passed.', flush=True)
+
+
+def run(cli):
+    exercise(cli, False)
+    exercise(cli, True)
 
 
 if __name__ == '__main__':
