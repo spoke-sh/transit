@@ -189,6 +189,13 @@ def run(binary):
         assert raw.endswith(b'original accepted immutable segment')
         tier('tier-read')
         tier('tier-disabled')
+        original_descriptor = native / 'keys' / hashlib.sha256(b'table/tier-proof.tseg').hexdigest()
+        saved_descriptor = original_descriptor.read_bytes()
+        original_descriptor.unlink()
+        attempt = subprocess.run([binary, str(config), 'tier-write', str(native)], capture_output=True, timeout=30)
+        assert attempt.returncode != 0 and b'MissingTierDescriptor' in attempt.stderr
+        assert not original_descriptor.exists(), 'Republication manufactured lost original identity'
+        original_descriptor.write_bytes(saved_descriptor)
         # Losing required queue inventory cannot silently replace pending work.
         queue = native / 'tier' / 'queue'
         retained_queue = native / 'tier' / 'retained-queue'
@@ -231,7 +238,11 @@ def run(binary):
         credentials.write_text(json.dumps(secret))
         tier('tier-drain')
         tier('tier-read')
-        print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation and provider-denied backlog passed.', flush=True)
+        tier('tier-cache-fill')
+        tier('tier-drain')
+        tier('tier-cache-read')
+        print('Native tier cache: 34 MiB exceeds the 32 MiB disk budget; cold A/B/A reads, eviction and original byte verification passed.', flush=True)
+        print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation, missing original descriptor refusal, provider-denied backlog and control reserve passed.', flush=True)
         print('Native S3: real MinIO PUT/CAS/HEAD/range/DELETE, independent envelope oracle, competing clients, live credential rotation, lost accepted reply, corrupt payload and joined deadline passed.', flush=True)
 
     with ColdStore(tls=True) as cold:

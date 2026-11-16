@@ -62,7 +62,10 @@ pub fn counterTurn(e: *Engine, key: core.Ed25519.KeyPair, worker: u64, pid: u64,
 pub fn assertCheckpointPublished(store: *adapter.Store) !void {
     const tail = try store.tail();
     const saved = (try store.read(tail - 1)) orelse return error.MissingFixtureHead;
-    const head = switch (saved) { .genesis => |value| value.head, .operation => |value| value.next };
+    const head = switch (saved) {
+        .genesis => |value| value.head,
+        .operation => |value| value.next,
+    };
     if (head.history_floor == 0 or head.position != tail) return error.MissingCheckpoint;
 }
 pub fn open(init: std.process.Init, directory: []const u8, name: []const u8) !adapter.Backend {

@@ -1594,7 +1594,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 51,
+        "try": 53,
         "catch": 20
       },
       "imports": [
@@ -1735,7 +1735,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 7,
         "catch": 0
       },
       "imports": [
@@ -2053,7 +2053,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 132,
+        "try": 129,
         "catch": 18
       },
       "imports": [
@@ -2802,7 +2802,8 @@
         "RecoverySource": [
           "main_wal",
           "native_inventory",
-          "data_inventory"
+          "data_inventory",
+          "tier_inventory"
         ]
       },
       "error_sets": {},
@@ -2812,6 +2813,7 @@
         "countFiles()": "<inferred>",
         "dataKey()": "<inferred>",
         "open()": "<inferred>",
+        "openWithObjectStorage()": "<inferred>",
         "prepareDataBatch()": "<inferred>",
         "prepareDataPut()": "<inferred>",
         "prepareNativeBatch()": "<inferred>",
@@ -2825,17 +2827,20 @@
         "read()": "<inferred>",
         "recoverySource()": "<inferred>",
         "requiresRecovery()": "<inferred>",
-        "reserve()": "<inferred>"
+        "reserve()": "<inferred>",
+        "tierStep()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 95,
+        "try": 105,
         "catch": 5
       },
       "imports": [
         "DataAllocations.zig",
         "LocalFiles.zig",
         "NativeAllocations.zig",
+        "NativeObjects.zig",
+        "ObjectTier.zig",
         "Store.zig",
         "std",
         "transit_core",
@@ -3186,6 +3191,107 @@
         "transit_storage"
       ]
     },
+    "packages/zig/transit-backend-local/src/NativeObjects.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "MutableDataObjectUnavailable": 1,
+        "TierConfigurationRequired": 1,
+        "TierDeletionRequiresCollector": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "batch()": "<inferred>",
+        "conditional()": "<inferred>",
+        "configure()": "<inferred>",
+        "confirmImmutableObject()": "<inferred>",
+        "delete()": "<inferred>",
+        "deleteObject()": "<inferred>",
+        "head()": "<inferred>",
+        "headObject()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "putImmutableBatch()": "<inferred>",
+        "read()": "<inferred>",
+        "reclaimImmutableObject()": "<inferred>",
+        "whole()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 0
+      },
+      "imports": [
+        "LocalFiles.zig",
+        "ObjectTier.zig",
+        "std",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/ObjectTier.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "Canceled": 1,
+        "FileNotFound": 1,
+        "ImmutableObjectConflict": 6,
+        "InvalidTierBudget": 1,
+        "InvalidTierCoverage": 5,
+        "InvalidTierIdentity": 3,
+        "MissingTierCoverage": 3,
+        "MissingTierDescriptor": 1,
+        "MissingTierInventory": 4,
+        "ObjectAccessDenied": 1,
+        "ObjectDigestMismatch": 4,
+        "ObjectNotFound": 3,
+        "ObjectRequestTimeout": 1,
+        "RangeOutOfBounds": 1,
+        "RemoteObjectMissing": 2,
+        "StorageQuota": 1,
+        "TierNamespaceChanged": 1,
+        "TierNamespaceInUse": 1,
+        "TierRecoveryRequired": 2,
+        "TierRequiresFreshInstallation": 1,
+        "UploadStagingQuota": 3
+      },
+      "outcomes": {
+        "Phase": [
+          "pending",
+          "uploaded",
+          "deleting"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "acquireReader()": "<inferred>",
+        "cached()": "<inferred>",
+        "check()": "<inferred>",
+        "confirm()": "<inferred>",
+        "lock()": "<inferred>",
+        "observation()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "putWithControl()": "<inferred>",
+        "read()": "<inferred>",
+        "readState()": "<inferred>",
+        "reclaim()": "<inferred>",
+        "restore()": "<inferred>",
+        "saveState()": "<inferred>",
+        "step()": "<inferred>",
+        "stepImpl()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 69,
+        "catch": 10
+      },
+      "imports": [
+        "LocalFiles.zig",
+        "UploadQueue.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
     "packages/zig/transit-backend-local/src/PageStore.zig": {
       "errors": {
         "ActiveStorageCandidate": 1,
@@ -3367,6 +3473,46 @@
       "imports": [
         "Backend.zig",
         "Diagnostics.zig",
+        "std",
+        "transit_core",
+        "transit_storage"
+      ]
+    },
+    "packages/zig/transit-backend-local/src/UploadQueue.zig": {
+      "errors": {
+        "IncompatibleDefinition": 1,
+        "InvalidUploadProgress": 3,
+        "InvalidUploadQueue": 3,
+        "MissingUploadProgress": 2,
+        "UploadQueueConflict": 1,
+        "UploadStagingQuota": 2
+      },
+      "outcomes": {
+        "Item.action": [
+          "upload",
+          "delete"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "atLocked()": "<inferred>",
+        "consume()": "<inferred>",
+        "current()": "<inferred>",
+        "currentLocked()": "<inferred>",
+        "cursor()": "<inferred>",
+        "enqueue()": "<inferred>",
+        "next()": "<inferred>",
+        "open()": "<inferred>",
+        "reconcile()": "<inferred>",
+        "saveCursor()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 34,
+        "catch": 0
+      },
+      "imports": [
+        "LocalFiles.zig",
         "std",
         "transit_core",
         "transit_storage"
@@ -27331,7 +27477,7 @@
           "deadline"
         ],
         "Definition": [
-          "0664703391ceb74fb1b025d11e5fe80c40c97e12060e6b131c27e390a3e4833c"
+          "@\"0664703391ceb74fb1b025d11e5fe80c40c97e12060e6b131c27e390a3e4833c\""
         ],
         "Effect.phase": [
           "pending",
@@ -28294,8 +28440,15 @@
     },
     "packages/zig/transit-protocol/src/Storage.zig": {
       "errors": {
+        "InsecureObjectEndpoint": 2,
+        "InvalidObjectBucket": 2,
+        "InvalidObjectConfiguration": 2,
+        "InvalidObjectEndpoint": 5,
+        "InvalidObjectPrefix": 3,
+        "InvalidObjectRegion": 2,
         "InvalidStorageBudget": 6,
-        "InvalidStorageObservation": 11,
+        "InvalidStorageObservation": 14,
+        "InvalidTierBudget": 1,
         "UnexpectedToken": 3,
         "WriteFailed": 1
       },
@@ -28317,8 +28470,7 @@
         ],
         "Observation.backend": [
           "unavailable",
-          "local",
-          "ursula"
+          "local"
         ]
       },
       "error_sets": {},
@@ -28331,6 +28483,8 @@
         "Limits.validate()": "<inferred>",
         "Maintenance.validate()": "<inferred>",
         "Memory.validate()": "<inferred>",
+        "ObjectStorage.validate()": "<inferred>",
+        "ObjectTierObservation.validate()": "<inferred>",
         "Observation.validate()": "<inferred>",
         "Path.init()": "<inferred>",
         "Path.jsonParse()": "<inferred>",
@@ -28342,8 +28496,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 14,
-        "catch": 3
+        "try": 15,
+        "catch": 4
       },
       "imports": [
         "root.zig",
@@ -44621,16 +44775,44 @@
         "std"
       ]
     },
+    "packages/zig/transit-storage/src/DiskCache.zig": {
+      "errors": {
+        "BufferTooSmall": 1,
+        "FileNotFound": 3,
+        "IncompatibleCache": 1,
+        "InvalidCacheBudget": 2,
+        "ObjectDigestMismatch": 1,
+        "UnownedCache": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "get()": "<inferred>",
+        "open()": "<inferred>",
+        "put()": "<inferred>",
+        "remove()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 15,
+        "catch": 5
+      },
+      "imports": [
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
     "packages/zig/transit-storage/src/DiskObjects.zig": {
       "errors": {
         "BufferTooSmall": 2,
         "CorruptObjectDescriptor": 5,
         "FileNotFound": 4,
-        "ImmutableObjectConflict": 5,
+        "ImmutableObjectConflict": 6,
         "IncompatibleDefinition": 3,
         "ObjectDigestMismatch": 9,
         "ObjectKeyConflict": 2,
-        "ObjectNotFound": 2,
+        "ObjectNotFound": 3,
         "ObjectTooLarge": 4,
         "PathAlreadyExists": 1,
         "RangeOutOfBounds": 1
@@ -44645,6 +44827,7 @@
       "error_returns": {
         "confirmImmutable()": "<inferred>",
         "delete()": "<inferred>",
+        "evictImmutable()": "<inferred>",
         "getObject()": "<inferred>",
         "head()": "<inferred>",
         "linkContentFile()": "<inferred>",
@@ -44675,7 +44858,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 115,
+        "try": 121,
         "catch": 10
       },
       "imports": [
@@ -46555,6 +46738,7 @@
         "catch": 0
       },
       "imports": [
+        "DiskCache.zig",
         "TransitObjectStore.zig",
         "std"
       ]
@@ -47256,26 +47440,100 @@
     },
     "packages/zig/transit-storage/src/S3ObjectStore.zig": {
       "errors": {
-        "InvalidObjectKey": 1
+        "BufferTooSmall": 1,
+        "CertificateAuthorityBundleTooBig": 1,
+        "CorruptObjectDescriptor": 5,
+        "EmptyCertificateAuthorityBundle": 1,
+        "EndOfStream": 1,
+        "ImmutableObjectConflict": 3,
+        "IncompatibleDefinition": 1,
+        "InvalidCredentials": 2,
+        "InvalidObjectClock": 1,
+        "InvalidObjectEndpoint": 1,
+        "InvalidObjectRange": 4,
+        "InvalidObjectResponse": 6,
+        "InvalidProviderETag": 1,
+        "ObjectAccessDenied": 1,
+        "ObjectChanged": 4,
+        "ObjectConditionalConflict": 1,
+        "ObjectDigestMismatch": 4,
+        "ObjectKeyConflict": 1,
+        "ObjectNotFound": 2,
+        "ObjectProviderFailure": 1,
+        "ObjectRequestTimeout": 1,
+        "ObjectResponseTooLarge": 1,
+        "ObjectSizeMismatch": 2,
+        "ObjectThrottled": 1,
+        "ObjectTooLarge": 1,
+        "RangeOutOfBounds": 1,
+        "ReadFailed": 2,
+        "ReadOnlyObjectStore": 3
       },
-      "outcomes": {},
+      "outcomes": {
+        "Kind": [
+          "immutable",
+          "conditional"
+        ],
+        "S3ObjectStore.request().Result": [
+          "response",
+          "timeout"
+        ]
+      },
       "error_sets": {},
       "error_returns": {
-        "S3ObjectStore.deleteImpl()": "anyerror",
-        "S3ObjectStore.getRangeImpl()": "anyerror",
-        "S3ObjectStore.headImpl()": "anyerror",
-        "S3ObjectStore.putConditionalImpl()": "anyerror",
-        "S3ObjectStore.putImmutableImpl()": "anyerror",
+        "Options.validate()": "<inferred>",
+        "S3ObjectStore.delete()": "<inferred>",
+        "S3ObjectStore.descriptor()": "<inferred>",
+        "S3ObjectStore.exchange()": "<inferred>",
+        "S3ObjectStore.getObject()": "<inferred>",
+        "S3ObjectStore.getRange()": "<inferred>",
+        "S3ObjectStore.head()": "<inferred>",
+        "S3ObjectStore.init()": "<inferred>",
+        "S3ObjectStore.initReadOnly()": "<inferred>",
+        "S3ObjectStore.initWithAccess()": "<inferred>",
+        "S3ObjectStore.putConditional()": "<inferred>",
+        "S3ObjectStore.putImmutable()": "<inferred>",
+        "S3ObjectStore.readPayload()": "<inferred>",
+        "S3ObjectStore.readRange()": "<inferred>",
+        "S3ObjectStore.request()": "<inferred>",
+        "S3ObjectStore.require()": "<inferred>",
+        "S3ObjectStore.sleep()": "<inferred>",
+        "decode()": "<inferred>"
+      },
+      "open_error_set_uses": 2,
+      "propagation": {
+        "try": 53,
+        "catch": 4
+      },
+      "imports": [
+        "S3Signing.zig",
+        "TransitObjectStore.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "packages/zig/transit-storage/src/S3Signing.zig": {
+      "errors": {
+        "InvalidCredentials": 2,
+        "InvalidObjectKey": 3,
+        "InvalidProviderETag": 2
+      },
+      "outcomes": {
+        "Condition": [
+          "if_none_match",
+          "if_match"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
         "signAwsV4Request()": "<inferred>"
       },
-      "open_error_set_uses": 5,
+      "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 19,
         "catch": 0
       },
       "imports": [
-        "LocalSegmentStore.zig",
-        "TransitObjectStore.zig",
         "std"
       ]
     },

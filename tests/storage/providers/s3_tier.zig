@@ -51,6 +51,23 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
         try t.expectEqualStrings(content, bytes[0..content.len]);
         try t.expectEqualStrings(content[3..12], try store.getRange(key, 3, 9, &bytes));
         try t.expect(tier.cache.hits > 0);
+    } else if (std.mem.eql(u8, mode, "tier-cache-fill")) {
+        const large = try init.gpa.alloc(u8, 17 * 1024 * 1024);
+        defer init.gpa.free(large);
+        @memset(large, 37);
+        try owner.put("table/cache-a.tseg", large, false);
+        @memset(large, 83);
+        try owner.put("table/cache-b.tseg", large, false);
+    } else if (std.mem.eql(u8, mode, "tier-cache-read")) {
+        const large = try init.gpa.alloc(u8, 17 * 1024 * 1024);
+        defer init.gpa.free(large);
+        for ([_][]const u8{ "table/cache-a.tseg", "table/cache-b.tseg", "table/cache-a.tseg" }, [_]u8{ 37, 83, 37 }) |name, byte| {
+            const meta = (try store.getObject(name, large)).?;
+            try t.expectEqual(large.len, meta.size);
+            try t.expect(std.mem.allEqual(u8, large, byte));
+            try t.expect(tier.cache.used <= tier.options.cache_bytes);
+        }
+        try t.expect(tier.cache.evictions >= 2 and tier.cache.misses >= 3);
     } else if (std.mem.eql(u8, mode, "tier-recreate")) {
         _ = try owner.objects.reclaimImmutableObject(key, expected);
         // The delayed DELETE names the old generation even when its content is
