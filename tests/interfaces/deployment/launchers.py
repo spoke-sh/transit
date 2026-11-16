@@ -348,6 +348,7 @@ def foreground_proof(profile):
     installation = Installation(profile, "foreground-" + secrets.token_hex(3), ports())
     launcher = Local(installation) if profile == "local" else Compose(installation)
     env = {k: v for k, v in os.environ.items() if not k.startswith("TRANSIT_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+    env["TRANSIT_LOG_FORMAT"] = "json"
     command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), profile]
     selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
     output = ROOT / ".cache" / (installation.name + ".log")
@@ -439,8 +440,19 @@ def foreground_proof(profile):
             assert child.wait(timeout=600 if profile == "compose" else 60) != 0
         failure = "node failed" if profile == "local" else "node exited"
         transcript = output.read_text()
-        service_failures = [line for line in transcript.splitlines() if "server.role.failed" in line]
-        assert any('error_type="InvalidHistory"' in line for line in service_failures), transcript[-5000:]
+        service_failures = []
+        for line in transcript.splitlines():
+            # Foreground managers may prefix JSON records with a service name.
+            _, marker, payload = line.partition("{")
+            try:
+                record = json.loads(marker + payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(record, dict) and record.get("schema_version") == 1:
+                event = record.get("event", {})
+                if event.get("name") == "server.role.failed" and event.get("role") == "node":
+                    service_failures.append(event)
+        assert any(event.get("error_type") == "InvalidHistory" for event in service_failures), transcript[-5000:]
         assert failure in transcript, transcript[-5000:]
         assert not launcher.services()
         shutil.rmtree(wal)
