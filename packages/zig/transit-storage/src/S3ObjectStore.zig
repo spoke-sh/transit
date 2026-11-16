@@ -111,7 +111,9 @@ pub const S3ObjectStore = struct {
     allocator: std.mem.Allocator,
     io: std.Io,
     options: Options,
-    http: std.http.Client,
+    /// Pooled connections point back to this client. Keep its address stable
+    /// when a quiescent adapter moves into the retained tier owner.
+    http: *std.http.Client,
     mutex: std.Io.Mutex = .init,
     /// One reusable bounded transfer slab; retained data never grows residency.
     transfer: []u8,
@@ -124,7 +126,9 @@ pub const S3ObjectStore = struct {
     }
     fn initWithAccess(allocator: std.mem.Allocator, io: std.Io, options: Options, read_only: bool) !S3ObjectStore {
         try options.validate();
-        var http: std.http.Client = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } };
+        const http = try allocator.create(std.http.Client);
+        errdefer allocator.destroy(http);
+        http.* = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } };
         errdefer http.deinit();
         if (options.ca_file) |path| {
             const file = try std.Io.Dir.cwd().openFile(io, path, .{});
@@ -140,6 +144,7 @@ pub const S3ObjectStore = struct {
     }
     pub fn deinit(self: *S3ObjectStore) void {
         self.http.deinit();
+        self.allocator.destroy(self.http);
         self.allocator.free(self.transfer);
         self.* = undefined;
     }

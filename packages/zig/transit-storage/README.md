@@ -634,6 +634,8 @@ and the catalog's retained dependency graph.
   Each serialized adapter retains at most one idle HTTP/TLS connection. Only
   fully consumed successful HTTP responses permit reuse; failed, incomplete or
   cancelled exchanges close without draining untrusted error bodies.
+  The adapter owns a stable HTTP client allocation, so moving an idle adapter
+  into its retained owner preserves pooled TLS state.
   The remote envelope binds definition, logical key, size, content and chunk
   digests. Digest-shaped conditions are checked against that descriptor and
   converted to the actual provider ETag for atomic publication. See the
