@@ -1310,9 +1310,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{.{ .name = "serving_http", .module = serving_http.module("transit_serving_http") }},
     });
     const browser_fault_module = b.createModule(.{ .root_source_file = b.path("apps/transit-node/main.zig"), .target = target, .optimize = optimize, .link_libc = true });
-    // Keep Debug fixture DWARF outside the installation's executable-byte cap.
-    // Runtime assertions and the selected optimization mode remain unchanged.
-    browser_fault_module.strip = true;
     var browser_imports = context.node_module.import_table.iterator();
     while (browser_imports.next()) |entry| browser_fault_module.addImport(entry.key_ptr.*, if (std.mem.eql(u8, entry.key_ptr.*, "transit_serving_http")) browser_fault_host else entry.value_ptr.*);
     const browser_fault_role = b.createModule(.{

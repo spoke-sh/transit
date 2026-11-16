@@ -798,9 +798,32 @@ diagnostic-grammar:
     nix shell .#sql-tools --command python3 -B tests/runner/launch.py tests/interfaces/cli/diagnostic_grammar.py zig-out/bin/transit-diagnostic-grammar
 
 # Measure local empty or seeded finite results with consistently optimized executables.
+[positional-arguments]
 console-latency *args:
-    zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    prefix=.cache/transit-latency/release
+    binary="$prefix/bin/transit"
+    has_remote=false
+    has_instrument=false
+    fault=false
+    for arg in "$@"; do
+        case "$arg" in
+            --resident-pages|--resident-pages=*|--local-trace) fault=true ;;
+            --remote-sql) has_remote=true ;;
+            --instrument) has_instrument=true ;;
+        esac
+    done
+    if [ "$has_remote" = true ] && [ "$has_instrument" = true ]; then
+        fault=true
+    fi
+    if [ "$fault" = true ]; then
+        zig build test-server-fault-fixture -Doptimize=ReleaseSafe --prefix "$prefix"
+        binary="$prefix/tests/transit-server-fault-fixture"
+    else
+        zig build transit -Doptimize=ReleaseSafe --prefix "$prefix"
+    fi
+    python3 -B tests/runner/launch.py tests/performance/console/console_latency.py "$binary" "$binary" "$binary" "$@"
 
 # Enforce startup, statement and resource regression budgets for the local console.
 [positional-arguments]
@@ -823,8 +846,21 @@ sdk-import-cost packages *args:
 # Finite installed managed-work and wire pressure with verified outcomes.
 [positional-arguments]
 installed-performance profile *args:
-    nix develop .#sql-wire --command zig build transit -Doptimize=ReleaseSafe --prefix .cache/transit-installed-performance/release 1>&2
-    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/performance/load/installed.py --cli .cache/transit-installed-performance/release/bin/transit --node .cache/transit-installed-performance/release/bin/transit --host .cache/transit-installed-performance/release/bin/transit --binary-revision "$(git rev-parse HEAD)" --profile {{quote(profile)}} "${@:2}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    prefix=.cache/transit-installed-performance/release
+    binary="$prefix/bin/transit"
+    for arg in "${@:2}"; do
+        if [ "$arg" = "--attribution" ]; then
+            nix develop .#sql-wire --command zig build test-server-fault-fixture -Doptimize=ReleaseSafe --prefix "$prefix" 1>&2
+            binary="$prefix/tests/transit-server-fault-fixture"
+            break
+        fi
+    done
+    if [ "$binary" = "$prefix/bin/transit" ]; then
+        nix develop .#sql-wire --command zig build transit -Doptimize=ReleaseSafe --prefix "$prefix" 1>&2
+    fi
+    nix develop .#sql-wire --command python3 -B tests/runner/launch.py tests/performance/load/installed.py --cli "$binary" --node "$binary" --host "$binary" --binary-revision "$(git rev-parse HEAD)" --profile {{quote(profile)}} "${@:2}"
 
 # Frozen published nightly image; this task never builds a server from the checkout.
 [positional-arguments]
@@ -837,9 +873,25 @@ console-latency-tls repeat="5" *args:
     nix develop .#sql-wire --command zig build test-sql-wire-gateway -Doptimize=ReleaseSafe -- console-statements "$@"
 
 # Owned durable writes; requires --output, supports independent history/row controls.
+[positional-arguments]
 mutation-latency *args:
-    zig build transit mutation-latency-client -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
-    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit {{args}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    prefix=.cache/transit-latency/release
+    binary="$prefix/bin/transit"
+    fault=false
+    for arg in "$@"; do
+        case "$arg" in
+            --resident-pages|--resident-pages=*|--instrument) fault=true ;;
+        esac
+    done
+    if [ "$fault" = true ]; then
+        zig build test-server-fault-fixture mutation-latency-client -Doptimize=ReleaseSafe --prefix "$prefix"
+        binary="$prefix/tests/transit-server-fault-fixture"
+    else
+        zig build transit mutation-latency-client -Doptimize=ReleaseSafe --prefix "$prefix"
+    fi
+    python3 -B tests/runner/launch.py tests/performance/mutations/mutation_latency.py "$binary" "$binary" "$binary" "$@"
 
 # Native-session snapshot execution, typed values and retained source basis.
 interactive-query:

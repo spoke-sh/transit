@@ -16,7 +16,8 @@ import time
 
 from performance.console.console_latency import digest, override
 from harness import http_probe
-from harness.processes import children
+from harness.local_installation import freeze_executables
+from harness.processes import children, command
 from interfaces.installation.server import Fixture
 from performance.process_metrics import metrics, sample_process
 from interfaces.cli.table_console import results as table_results, atom
@@ -278,10 +279,7 @@ def main():
     probes, shells, threads, reader_errors = {}, [], [], []
     stop = threading.Event()
     try:
-        for role in ('node', 'query_host'):
-            frozen = fixture.root / role
-            shutil.copy2(fixture.config['executables'][role], frozen)
-            fixture.config['executables'][role] = str(frozen)
+        freeze_executables(fixture)
         report['executables'] = {role: digest(path) for role, path in {'cli': fixture.cli, **fixture.config['executables']}.items()}
         memory_targets = {str(Path(path).resolve()): role for role, path in fixture.config['executables'].items()}
         def observe_memory():
@@ -289,10 +287,14 @@ def main():
             # not an allocator bound or the sum of simultaneous process RSS.
             observed = {}
             for pid in children(fixture.process.pid):
-                try:
-                    role = memory_targets.get(str(Path(f'/proc/{pid}/exe').resolve(strict=True)))
-                except (FileNotFoundError, ProcessLookupError):
-                    continue
+                cmdline = command(pid)
+                if '__transit_role_v1 node ' in cmdline and '--maintain' not in cmdline:
+                    role = 'node'
+                else:
+                    try:
+                        role = memory_targets.get(str(Path(f'/proc/{pid}/exe').resolve(strict=True)))
+                    except (FileNotFoundError, ProcessLookupError):
+                        continue
                 if role:
                     sample_process(pid, observed.setdefault(role, metrics()))
             return observed

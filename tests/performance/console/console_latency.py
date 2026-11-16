@@ -63,7 +63,16 @@ def override(fixture, role, fields, probe_gate=None, stderr_path=None):
     fields = {key: value for key, value in fields.items() if value is not None}
     if not fields and stderr_path is None:
         return
-    executable = fixture.config['executables'][role]
+    if role == 'node':
+        probe = subprocess.run(
+            [fixture.cli, '__transit_role_v1', 'node', '__test_native_node'],
+            cwd=fixture.root, capture_output=True, text=True, timeout=10,
+            env={'PATH': '/unavailable'})
+        if 'ExpectedConfigAndMode' not in probe.stderr:
+            raise ValueError('node configuration overrides require transit-server-fault-fixture')
+        invocation = [fixture.cli, '__transit_role_v1', 'node', '__test_native_node']
+    else:
+        invocation = [fixture.config['executables'][role]]
     wrapper = fixture.root / (role + '-control')
     wrapper.write_text(f'''#!{sys.executable}
 import json, os, sys, time
@@ -86,10 +95,13 @@ diagnostic_path = {str(stderr_path) if stderr_path else None!r}
 if diagnostic_path:
     with open(diagnostic_path, 'ab', buffering=0) as diagnostic:
         os.dup2(diagnostic.fileno(), 2)
-os.execv({executable!r}, [{executable!r}] + sys.argv[1:])
+os.execv({invocation[0]!r}, {invocation!r} + sys.argv[1:])
 ''')
     wrapper.chmod(0o700)
-    fixture.config['executables'][role] = str(wrapper)
+    if role == 'node':
+        (fixture.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
+    else:
+        fixture.config['executables'][role] = str(wrapper)
 
 
 def local_trace(path):
@@ -252,7 +264,6 @@ def main():
         # Freeze all selected executables for the measurement and retained identity.
         freeze_executables(fixture)
         binaries = {'cli': fixture.cli, **fixture.config['executables']}
-        node = binaries['node']
         node_fields = {'resident_pages': args.resident_pages}
         if args.instrument and args.remote_sql:
             # Proxy only SQL's upstream requests. Interposing the node's public
@@ -319,7 +330,7 @@ def main():
             assert invalid.returncode == 1 and not invalid.stdout, invalid
             assert 'Time: ' in invalid.stderr and 'error: ' in invalid.stderr, invalid.stderr
         authority = [pid for pid in children(fixture.process.pid)
-                     if command(pid).startswith(node + ' ') and '--maintain' not in command(pid)]
+                     if '__transit_role_v1 node ' in command(pid) and '--maintain' not in command(pid)]
         assert len(authority) == 1, authority
 
         def cpu():

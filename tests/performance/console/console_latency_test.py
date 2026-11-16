@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import pyarrow as pa
-from performance.console.console_latency import representation_sample, local_trace
+from performance.console.console_latency import override, representation_sample, local_trace
 from performance.console import gate, resources
 from performance.mutations.mutation_latency import distribution
 from performance.console.startup import timings as startup_timings, run as startup_run
@@ -506,6 +506,27 @@ class ConsoleLatencyGate(unittest.TestCase):
                 st_records[3]['process_count'] = 6
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 gate.assess(s_records, self.series(st_records, budgets), budgets)
+
+    def test_embedded_node_override_requires_fault_fixture_only_when_configured(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cli = root / 'transit'
+            cli.write_text('#!' + gate.sys.executable + '\nimport sys\n'
+                           'print("FileNotFound", file=sys.stderr)\nsys.exit(1)\n')
+            cli.chmod(0o700)
+            fixture = type('Fixture', (), {'root': root, 'cli': str(cli), 'config': {'executables': {'query_host': '/bin/host'}}})()
+            override(fixture, 'node', {'resident_pages': None})
+            self.assertFalse((root / 'node-proxy.json').exists())
+            with self.assertRaisesRegex(ValueError, 'transit-server-fault-fixture'):
+                override(fixture, 'node', {'resident_pages': 64})
+            cli.write_text('#!' + gate.sys.executable + '\nimport sys\n'
+                           'print("ExpectedConfigAndMode", file=sys.stderr)\nsys.exit(1)\n')
+            cli.chmod(0o700)
+            override(fixture, 'node', {'resident_pages': 64})
+            proxy = json.loads((root / 'node-proxy.json').read_text())
+            self.assertEqual(proxy, [str(root / 'node-control')])
+            self.assertIn('__test_native_node', (root / 'node-control').read_text())
+            self.assertEqual(fixture.config['executables'], {'query_host': '/bin/host'})
 
 
 if __name__ == '__main__':

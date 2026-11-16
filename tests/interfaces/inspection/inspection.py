@@ -57,36 +57,40 @@ class System:
     def __enter__(self):
         self.store.__enter__()
         self.root = self.store.root
-        if self.server_binary:
-            from harness.local_installation import ExternalInstallation
-            self.server = ExternalInstallation(self.server_binary, object_storage=self.object_storage)
-            self.server.config['realm'] = 72
-            self.server.config['external']['request_timeout_ms'] = self.request_timeout_ms
-            if self.allow_history_trim:
-                self.server.config['external']['allow_history_trim'] = True
-            if self.server_setup:
-                self.server_setup(self.server)
-            self.server.path.write_text(json.dumps(self.server.config))
-            self.restart_authority()
-            self.seed = self.server.installation / 'root.seed'
-            self.url = self.server.url
-            self.port = self.server.config['ports']['node']
-            self.config = self.server.installation / 'node.json'
-            self.sequence = self.native_query({'capabilities': {}})['principal_sequence']
+        try:
+            if self.server_binary:
+                from harness.local_installation import ExternalInstallation
+                self.server = ExternalInstallation(self.server_binary, object_storage=self.object_storage)
+                self.server.config['realm'] = 72
+                self.server.config['external']['request_timeout_ms'] = self.request_timeout_ms
+                if self.allow_history_trim:
+                    self.server.config['external']['allow_history_trim'] = True
+                if self.server_setup:
+                    self.server_setup(self.server)
+                self.server.path.write_text(json.dumps(self.server.config))
+                self.restart_authority()
+                self.seed = self.server.installation / 'root.seed'
+                self.url = self.server.url
+                self.port = self.server.config['ports']['node']
+                self.config = self.server.installation / 'node.json'
+                self.sequence = self.native_query({'capabilities': {}})['principal_sequence']
+                return self
+            self.seed, public = self.key("root")
+            self.port = free_port()
+            self.url = f"http://127.0.0.1:{self.port}"
+            self.config = self.root / "node.json"
+            settings = {"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
+                        "port": self.port, "request_timeout_ms": self.request_timeout_ms}
+            settings['local_directory'] = str(self.store.native_directory)
+            if self.object_storage is not None:
+                settings['storage'] = dict(object_storage=self.object_storage)
+            self.config.write_text(json.dumps(settings))
+            self.authority = self.start(self.node, self.config, "--bootstrap")
+            wait_ready(self.store.http, self.authority, self.url + "/health")
             return self
-        self.seed, public = self.key("root")
-        self.port = free_port()
-        self.url = f"http://127.0.0.1:{self.port}"
-        self.config = self.root / "node.json"
-        settings = {"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
-                    "port": self.port, "request_timeout_ms": self.request_timeout_ms}
-        settings['local_directory'] = str(self.store.native_directory)
-        if self.object_storage is not None:
-            settings['storage'] = dict(object_storage=self.object_storage)
-        self.config.write_text(json.dumps(settings))
-        self.authority = self.start(self.node, self.config, "--bootstrap")
-        wait_ready(self.store.http, self.authority, self.url + "/health")
-        return self
+        except BaseException:
+            self.__exit__(*sys.exc_info())
+            raise
 
     @phase("teardown", "inspection-authority")
     def __exit__(self, *exc):
@@ -135,11 +139,23 @@ class System:
             self.restart_authority()
 
     def delivery_signal(self, signum):
-        from harness.processes import children, command
+        import signal
         assert self.server is not None
-        couriers = [pid for pid in children(self.server.process.pid) if '/courier.json' in command(pid)]
-        assert len(couriers) == 1, couriers
-        os.kill(couriers[0], signum)
+        pid = self.server.role_pid('/courier.json')
+        os.kill(pid, signum)
+        if signum == signal.SIGSTOP:
+            deadline = time.monotonic() + 5
+            while True:
+                statuses = []
+                for path in Path(f'/proc/{pid}/task').glob('*/status'):
+                    try:
+                        statuses.append(path.read_text())
+                    except FileNotFoundError:
+                        pass
+                if statuses and all('\nState:\tT' in text for text in statuses):
+                    return
+                assert time.monotonic() < deadline, f'Courier {pid} did not stop'
+                time.sleep(.01)
 
     def start(self, binary, *args, **kwargs):
         log = (self.root / f"child-{len(self.logs)}.log").open("w+")
