@@ -239,3 +239,38 @@ test "Table manifests require the shared definition even with valid integrity" {
     std.crypto.hash.sha2.Sha256.hash(bytes[0 .. encoded.len - 32], bytes[encoded.len - 32 ..][0..32], .{});
     try t.expectError(error.IncompatibleDefinition, TableManifest.decode(t.allocator, encoded));
 }
+
+test "disk object cache bounds bytes, rejects corrupt hits and reopens cold" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    const payload = try t.allocator.alloc(u8, 1024 * 1024);
+    defer t.allocator.free(payload);
+    @memset(payload, 37);
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(payload, &digest, .{});
+    const meta: TransitObjectStore.ObjectMeta = .{ .size = payload.len, .sha256 = digest };
+    {
+        var cache = try NvmeCache.DiskCache.open(t.allocator, t.io, temporary.dir, "cache", 32 * 1024 * 1024);
+        defer cache.deinit();
+        for (0..33) |index| {
+            var key: [32]u8 = undefined;
+            try cache.put(try std.fmt.bufPrint(&key, "objects/{d}", .{index}), meta, payload);
+            try t.expect(cache.used <= cache.capacity);
+        }
+        try t.expect(cache.evictions > 0);
+        try t.expect(!try cache.get("objects/0", meta, payload));
+        try t.expect(try cache.get("objects/32", meta, payload));
+        // The last write reused slot zero after exhausting the byte budget.
+        const file = try cache.directory.openFile(t.io, "00000000.cache", .{ .mode = .read_write });
+        try file.writePositionalAll(t.io, "broken", 0);
+        file.close(t.io);
+        try t.expect(!try cache.get("objects/32", meta, payload));
+        try t.expectEqual(@as(u64, 1), cache.corruptions);
+        // Reopening cache must not make its stale metadata an authority.
+    }
+    var cache = try NvmeCache.DiskCache.open(t.allocator, t.io, temporary.dir, "cache", 32 * 1024 * 1024);
+    defer cache.deinit();
+    try t.expectEqual(@as(u64, 0), cache.used);
+    try t.expect(!try cache.get("objects/1", meta, payload));
+}

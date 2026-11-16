@@ -15,6 +15,7 @@ pub fn main(init: std.process.Init) !void {
     defer init.gpa.free(raw);
     const parsed = try std.json.parseFromSlice(s3.Options, init.gpa, raw, .{});
     defer parsed.deinit();
+    if (std.mem.startsWith(u8, args[2], "tier-")) return @import("s3_tier.zig").run(init, parsed.value, args);
     var provider = try s3.S3ObjectStore.init(init.gpa, init.io, parsed.value);
     defer provider.deinit();
     const store = provider.objectStore();

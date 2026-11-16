@@ -65,7 +65,21 @@ pub const Admission = struct {
             self.control_bytes < 1024 * 1024 or self.control_bytes > 128 * 1024 * 1024) return error.InvalidStorageBudget;
     }
 };
-pub const Settings = struct { limits: Limits = .{}, maintenance: Maintenance = .{}, requests: Requests = .{}, admission: Admission = .{} };
+/// Optional immutable tier. The local native WAL and installation remain
+/// required. Credentials are a reloadable file reference, never inline secrets.
+pub const ObjectStorage = struct {
+    endpoint: []const u8,
+    region: []const u8,
+    bucket: []const u8,
+    prefix: []const u8,
+    credentials_file: []const u8,
+    allow_loopback_http: bool = false,
+    request_timeout_ms: u32 = 10000,
+    staging_bytes: u64 = 1024 * 1024 * 1024,
+    pending_objects: u64 = 65536,
+    cache_bytes: u64 = 256 * 1024 * 1024,
+};
+pub const Settings = struct { object_storage: ?ObjectStorage = null, limits: Limits = .{}, maintenance: Maintenance = .{}, requests: Requests = .{}, admission: Admission = .{} };
 
 /// Owned native response text. No borrowed filesystem buffer crosses a read.
 pub const Path = struct {

@@ -2,6 +2,8 @@
 //! scan-resistant W-TinyLFU / Clock eviction (protecting hot index/footer chunks
 //! from sequential bulk-scan pollution).
 const std = @import("std");
+/// Disk caching consumes caller-retained identities and remains disposable.
+pub const DiskCache = @import("DiskCache.zig");
 const TransitObjectStore = @import("TransitObjectStore.zig");
 
 pub const default_chunk_bytes: usize = 64 * 1024; // 64 KiB range alignment

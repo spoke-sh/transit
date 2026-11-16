@@ -170,11 +170,11 @@ test "local payload creation sync uncertainty resolves by verification without r
         try reopened.open(tmp.dir, false);
         defer reopened.close();
         var store: local.PayloadStore = .{ .engine = &reopened.engine };
-        const puts = reopened.owner.objects.puts;
+        const puts = reopened.owner.objects.local.puts;
         if (failure == 0 or failure == schedules) {
             try store.verifyPayload(value);
         } else try t.expectError(error.PayloadUnavailable, store.verifyPayload(value));
-        try t.expectEqual(puts, reopened.owner.objects.puts);
+        try t.expectEqual(puts, reopened.owner.objects.local.puts);
         try t.expectEqualDeep(value, try current(&reopened, value.id));
     }
 }
@@ -313,7 +313,7 @@ test "local payload verification propagates every recovery barrier without publi
     const value = try current(&f, id);
     try store.createPayloadOnce(value, "payload");
     const head = f.engine.head;
-    const puts = f.owner.objects.puts;
+    const puts = f.owner.objects.local.puts;
     Fault.calls = 0;
     try store.verifyPayload(value);
     try t.expectEqual(@as(usize, 6), Fault.calls);
@@ -326,5 +326,5 @@ test "local payload verification propagates every recovery barrier without publi
         try t.expectEqualDeep(value, try current(&f, id));
     }
     try store.verifyPayload(value);
-    try t.expectEqual(puts, f.owner.objects.puts);
+    try t.expectEqual(puts, f.owner.objects.local.puts);
 }

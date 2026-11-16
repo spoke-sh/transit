@@ -1,0 +1,71 @@
+//! Installed native storage boundary over an actual MinIO namespace. The driver
+//! kills writers before their defers, then reopens the same durable owner.
+const std = @import("std");
+const storage = @import("transit_storage");
+const backend = @import("transit_backend_local");
+const t = std.testing;
+const key = "table/tier-proof.tseg";
+const content = "original accepted immutable segment";
+fn hash(bytes: []const u8) [32]u8 {
+    var result: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &result, .{});
+    return result;
+}
+fn complete(io: std.Io) !void {
+    try std.Io.File.stdout().writeStreamingAll(io, "tier-proof-complete\n");
+    try io.sleep(.fromSeconds(30), .awake);
+    return error.ExpectedProcessDeath;
+}
+pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args: []const []const u8) !void {
+    if (args.len != 4) return error.ExpectedNativeDirectory;
+    const options: backend.Backend.ObjectStorage = .{ .endpoint = settings.endpoint, .region = settings.region, .bucket = settings.bucket, .prefix = settings.prefix, .credentials_file = settings.credentials_file, .allow_loopback_http = settings.allow_loopback_http, .request_timeout_ms = settings.request_timeout_ms, .cache_bytes = 32 * 1024 * 1024 };
+    if (std.mem.eql(u8, args[2], "tier-disabled")) {
+        try t.expectError(error.TierConfigurationRequired, backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), args[3], .{}));
+        return complete(init.io);
+    }
+    var owner = try backend.Backend.openWithObjectStorage(init.gpa, init.io, std.Io.Dir.cwd(), args[3], .{}, options);
+    defer owner.deinit();
+    const tier = owner.objects.tier.?;
+    const store = owner.objects.objectStore();
+    const mode = args[2];
+    const expected: storage.TransitObjectStore.ObjectMeta = .{ .size = content.len, .sha256 = hash(content) };
+    if (std.mem.eql(u8, mode, "tier-write")) {
+        try owner.put(key, content, false);
+        try t.expectEqual(@as(u64, 1), (try tier.queue.current()).pending_objects);
+        try t.expectEqual(@as(u64, content.len), (try tier.queue.current()).pending_bytes);
+        // Disabling or changing a retained tier never creates another authority.
+        try t.expectError(error.NativeStorageInUse, backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), args[3], .{}));
+    } else if (std.mem.eql(u8, mode, "tier-drain")) {
+        var iterations: usize = 0;
+        while ((try tier.queue.current()).pending_objects > 0) : (iterations += 1) {
+            if (iterations > 16) return error.UnboundedTierWork;
+            try owner.tierStep();
+        }
+        try t.expectEqual(@as(u64, 0), (try tier.queue.current()).pending_bytes);
+        try t.expectError(error.FileNotFound, owner.objects.local.objectStore().getObject(key, tier.upload_buffer));
+        // Descriptor and trusted original identity survive eviction.
+        try t.expectEqualDeep(expected, (try store.head(key)).?);
+    } else if (std.mem.eql(u8, mode, "tier-read")) {
+        var bytes: [128]u8 = undefined;
+        try t.expectEqualDeep(expected, (try store.getObject(key, &bytes)).?);
+        try t.expectEqualStrings(content, bytes[0..content.len]);
+        try t.expectEqualStrings(content[3..12], try store.getRange(key, 3, 9, &bytes));
+        try t.expect(tier.cache.hits > 0);
+    } else if (std.mem.eql(u8, mode, "tier-recreate")) {
+        _ = try owner.objects.reclaimImmutableObject(key, expected);
+        // The delayed DELETE names the old generation even when its content is
+        // recreated exactly before the background worker reaches it.
+        try owner.put(key, content, false);
+        try t.expectEqual(@as(u64, 2), (try tier.queue.current()).pending_objects);
+    } else if (std.mem.eql(u8, mode, "tier-outage")) {
+        // Credentials are deliberately unavailable: foreground durable staging
+        // remains local while remote work fails with its original intent intact.
+        try owner.put("table/offline.tseg", "offline accepted bytes", false);
+        const before = try tier.queue.current();
+        if (owner.tierStep()) |_| return error.ExpectedProviderFailure else |_| {}
+        try t.expectEqualDeep(before, try tier.queue.current());
+        var bytes: [128]u8 = undefined;
+        try t.expectEqualStrings("offline accepted bytes", try store.getRange("table/offline.tseg", 0, 22, &bytes));
+    } else return error.InvalidTierMode;
+    try complete(init.io);
+}

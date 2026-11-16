@@ -24,7 +24,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots per execution lane, default 512, configurable 0–4096; ten lanes plus the bootstrap/maintenance context synchronize verified cache entries at lane boundaries; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
-| `storage` | Shared storage candidate/allocation limits and maintenance settings; does not select a provider |
+| `storage` | Shared storage limits, maintenance settings and optional native `object_storage` tier |
 | `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Dedicated maintenance identity and scan budgets; runs inside the local node, or in Ursula's separate `--maintain` process |
@@ -398,6 +398,14 @@ replacement after borrowers have joined.
 
 
 ## Physical storage budgets and maintenance
+
+`storage.object_storage` enables the native immutable S3 tier from a fresh
+installation. Its configuration, namespace binding, local recovery requirements,
+queue/cache budgets and MinIO evidence are owned by the
+[native backend](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier).
+The node starts and joins its transfer task independently of signed maintenance;
+only previously authorized collection intents can remove remote generations.
+
 
 With local storage and a configured `table` host, the existing maintenance
 executor schedules enabled point-row flushing, history archives, recovery

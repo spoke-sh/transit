@@ -5,6 +5,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
 import hmac
 import json
+import select
+import signal
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -153,6 +156,82 @@ def run(binary):
             assert not thread.is_alive()
             config.write_text(json.dumps(options))
         invoke('delete')
+        native = root / 'native'
+
+        def tier(mode):
+            with (root / f'{mode}.log').open('w+') as log:
+                child = subprocess.Popen([binary, str(config), mode, str(native)], stdout=subprocess.PIPE, stderr=log)
+                try:
+                    ready, _, _ = select.select([child.stdout], [], [], 90)
+                    line = child.stdout.readline() if ready else b''
+                    if line != b'tier-proof-complete\n':
+                        log.flush()
+                        log.seek(0)
+                        raise AssertionError((mode, child.poll(), line, log.read()[-6000:].replace(cold.secret, '<redacted>')))
+                    child.kill()
+                    assert child.wait(timeout=10) == -signal.SIGKILL
+                finally:
+                    if child.poll() is None: child.kill()
+                    child.wait(timeout=10)
+                    child.stdout.close()
+
+        def remote_object(generation):
+            return f'objects/{hashlib.sha256(b"table/tier-proof.tseg").hexdigest()}/{generation:016x}'
+
+        tier('tier-write')
+        try:
+            request(cold, 'GET', remote_object(0))
+            raise AssertionError('Foreground staging unexpectedly uploaded the object')
+        except urllib.error.HTTPError as error:
+            assert error.code == 404
+        tier('tier-drain')
+        raw, _ = request(cold, 'GET', remote_object(0))
+        assert raw.endswith(b'original accepted immutable segment')
+        tier('tier-read')
+        tier('tier-disabled')
+        # Losing required queue inventory cannot silently replace pending work.
+        queue = native / 'tier' / 'queue'
+        retained_queue = native / 'tier' / 'retained-queue'
+        queue.rename(retained_queue)
+        attempt = subprocess.run([binary, str(config), 'tier-read', str(native)], capture_output=True, timeout=30)
+        assert attempt.returncode != 0 and b'MissingTierInventory' in attempt.stderr
+        assert not queue.exists(), 'Refused recovery manufactured a new upload queue'
+        retained_queue.rename(queue)
+        # A self-consistent foreign payload still fails the original local digest.
+        forged = bytearray(raw)
+        forged[-1] ^= 1
+        forged[56:88] = hashlib.sha256(forged[544:]).digest()
+        forged[512:544] = forged[56:88]
+        forged[88:120] = hashlib.sha256(forged[512:544]).digest()
+        forged[480:512] = hashlib.sha256(forged[:480]).digest()
+        request(cold, 'PUT', remote_object(0), bytes(forged))
+        attempt = subprocess.run([binary, str(config), 'tier-read', str(native)], capture_output=True, timeout=30)
+        assert attempt.returncode != 0 and b'ObjectDigestMismatch' in attempt.stderr
+        request(cold, 'PUT', remote_object(0), raw)
+        config.write_text(json.dumps(options | dict(prefix='foreign-namespace')))
+        attempt = subprocess.run([binary, str(config), 'tier-read', str(native)], capture_output=True, timeout=30)
+        assert attempt.returncode != 0 and b'TierNamespaceChanged' in attempt.stderr
+        config.write_text(json.dumps(options))
+        attempt = subprocess.run([binary, str(config), 'tier-write', str(root / 'foreign-native')], capture_output=True, timeout=30)
+        assert attempt.returncode != 0 and b'TierNamespaceInUse' in attempt.stderr
+        shutil.rmtree(native / 'cache')
+        tier('tier-read')
+        tier('tier-recreate')
+        tier('tier-drain')
+        try:
+            request(cold, 'GET', remote_object(0))
+            raise AssertionError('The old remote generation survived its deletion intent')
+        except urllib.error.HTTPError as error:
+            assert error.code == 404
+        raw, _ = request(cold, 'GET', remote_object(2))
+        assert raw.endswith(b'original accepted immutable segment')
+        tier('tier-read')
+        credentials.write_text(json.dumps(secret | {'secret_access_key': 'wrong-secret'}))
+        tier('tier-outage')
+        credentials.write_text(json.dumps(secret))
+        tier('tier-drain')
+        tier('tier-read')
+        print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation and provider-denied backlog passed.', flush=True)
         print('Native S3: real MinIO PUT/CAS/HEAD/range/DELETE, independent envelope oracle, competing clients, live credential rotation, lost accepted reply, corrupt payload and joined deadline passed.', flush=True)
 
 

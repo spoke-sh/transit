@@ -7,6 +7,64 @@ directory; request-owned `Store` and `PageStore` instances borrow it.
 See the [internal node configuration](../../../apps/transit-node/docs/growing.md)
 for supported operations and current maintenance/diagnostic limits.
 
+## Optional immutable object tier
+
+`storage.object_storage` configures the native owner's S3-compatible immutable
+object tier. The initial real-provider evidence uses the pinned MinIO server;
+AWS S3 remains unqualified. The native WAL, installation identity, allocation
+inventories and per-object descriptors remain required on durable local disk.
+The bucket alone cannot recover acknowledged operations. A single exclusive
+local owner is supported; the remote namespace marker is not distributed fencing.
+
+Configure `endpoint`, `region`, `bucket`, a dedicated `prefix`, and
+`credentials_file`. The credential file contains `access_key_id`,
+`secret_access_key` and optionally `session_token`; it is reopened for each
+provider request so credentials can rotate without changing installation
+identity. Use HTTPS. `allow_loopback_http: true` permits only explicit loopback
+HTTP for local MinIO testing. Do not put credentials in deployment JSON.
+
+The tier must be selected before the first native or direct allocation. The
+persisted namespace binding rejects changes to endpoint, region, bucket or
+prefix, and a retained tier cannot be opened as local-only storage. A random
+installation token claims `.transit/owner` conditionally; another installation
+cannot reuse that namespace. A restarted owner uses its retained claim and may
+stage locally while the provider is unavailable, subject to the configured
+budgets. Deleting local identity is not a way to adopt a remote namespace.
+
+Foreground immutable publication first records a bounded durable upload intent,
+then its per-key generation and synced local bytes; all must complete before
+native/direct WAL acceptance. It performs no remote upload. The node owns a
+joined background transfer task. Each step reads one persisted intent, uploads
+its original content, reads it back through the verified S3 adapter, records
+coverage durably, then releases only local content bytes. The original local
+key/content descriptor remains. Incomplete staging after process death remains
+visible to the original allocation collector or exact publication retry; the
+uploader never invents missing bytes or discards accepted work.
+
+Remote keys bind the logical key hash and upload generation. Collection first
+records a deletion intent under the same per-key lock. Remote deletion uses the
+old generation even if a new generation reuses exactly the same logical key and
+content. Queue progress and coverage have checksums and the shared definition;
+missing required inventory refuses recovery. No quota, upload failure, cache
+pressure or remote listing grants deletion authority.
+
+`staging_bytes` defaults to 1 GiB (minimum 32 MiB) and `pending_objects` to 65,536
+(maximum 1,048,576). Upload admission uses both; deletion has a separate 4,096-item
+control reserve. Exhaustion refuses additional staging without expiring data.
+Metadata and content also consume the native allocation budget. `cache_bytes`
+defaults to 256 MiB (32 MiB–4 GiB); it bounds a separate disposable disk cache.
+The cache has at most 4,096 resident descriptors, starts cold on reopen, and
+checks every hit against the original local digest. Two reusable 32 MiB tier
+workspaces and the S3 adapter's bounded transfer workspace are separate from
+request and page-cache budgets. `request_timeout_ms` defaults to 10,000 and
+bounds each joined provider request; the adapter does not silently retry it.
+
+The [provider proof](../../../tests/storage/providers/s3.py) executes real MinIO
+operations and forced process-death reopen at this backend boundary, including
+cache loss, generation deletion/recreation, provider denial and namespace/digest
+refusal. It does not establish AWS, power-loss durability, shared-filesystem
+safety, replicated authority or complete server/deployment qualification.
+
 Named temporary immutable files publish through the storage package's
 `FilePublication` helper: sync contents, create a nonreplacing hard link, remove
 the temporary name, then sync the parent before acknowledging success. Unnamed
@@ -22,7 +80,8 @@ and blocks are staged as verified immutable objects. A single conditional WAL
 append publishes the next catalog and policy roots. A lost reply remains
 uncertain; reopening and resubmitting the same signed operation recovers its
 existing receipt without repeating staging. Recovery does not execute effects.
-`requiresRecovery` observes uncertainty in all three owned WALs under their
+`requiresRecovery` observes uncertainty in the native/data inventories, main WAL
+and optional object-tier inventory under their
 serialization locks. It does not clear the condition: the service must join
 borrowers, close the owner and validate the original directory on reopen.
 The [node lifecycle](../../../apps/transit-node/docs/operations.md) defines the

@@ -518,7 +518,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("tests/storage/providers/s3.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+        .imports = &.{ .{ .name = "transit_storage", .module = storage.module("transit_storage") }, .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") } },
     }) });
     const s3_test = b.addSystemCommand(&.{ "python3", "-B" });
     s3_test.addFileArg(b.path("tests/runner/launch.py"));
