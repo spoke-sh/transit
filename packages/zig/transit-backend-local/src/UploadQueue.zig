@@ -202,3 +202,53 @@ test "upload batch checks its whole quota before append and retains each origina
         try t.expect((try queue.next()) == null);
     }
 }
+
+test "upload FIFO drains retained work without rereading growing WAL prefixes" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{ .iterate = true });
+    defer temporary.cleanup();
+    const full_key: [storage.TransitObjectStore.max_key_bytes]u8 = @splat('a');
+    const item: Item = .{ .key = try Key.init(&full_key), .meta = .{ .size = 1, .sha256 = @splat(7) }, .action = .upload };
+    const items: [storage.TransitObjectStore.max_put_batch]Item = @splat(item);
+    const count = 128;
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        for (0..count / items.len) |_| _ = try queue.enqueueBatch(&items, count, count);
+        const before = queue.wal.disk.?.read_frames;
+        for (0..count) |position| {
+            const record = (try queue.next()).?;
+            try t.expectEqual(position, record.position);
+            try t.expectEqual(position + 1, record.total_bytes);
+            try t.expectEqualDeep(item, record.item);
+            try t.expectEqual(count - position, (try queue.current()).pending_objects);
+            try queue.consume(record);
+        }
+        try t.expect((try queue.next()) == null);
+        const reads = queue.wal.disk.?.read_frames - before;
+        std.debug.print("upload FIFO backlog: {d} verified frame reads for {d} original records\n", .{ reads, count });
+        try t.expect(reads <= 8 * count);
+    }
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        const before = queue.wal.disk.?.read_frames;
+        for (0..count / items.len) |batch| {
+            const first = count + batch * items.len;
+            try t.expectEqual(first, try queue.enqueueBatch(&items, count, count));
+            for (0..items.len) |offset| {
+                const record = (try queue.next()).?;
+                try t.expectEqual(first + offset, record.position);
+                try t.expectEqual(first + offset + 1, record.total_bytes);
+                try t.expectEqualDeep(item, record.item);
+                try queue.consume(record);
+            }
+            const head = try queue.current();
+            try t.expectEqual(head.tail, head.cursor);
+            try t.expectEqual(@as(u64, 0), head.pending_bytes);
+        }
+        const reads = queue.wal.disk.?.read_frames - before;
+        std.debug.print("upload FIFO interleaved append/drain: {d} verified frame reads for {d} original records\n", .{ reads, count });
+        try t.expect(reads <= 8 * count);
+    }
+}
