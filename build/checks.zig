@@ -1631,7 +1631,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const local_service = b.addSystemCommand(&.{ "python3", "-B" });
     local_service.addFileArg(b.path("tests/runner/launch.py"));
     local_service.addFileArg(b.path("tests/interfaces/native/growing_service.py"));
-    local_service.addArg("--local");
     local_service.addArtifactArg(authority_fixture);
     local_service.addArtifactArg(growing_client);
     local_service.has_side_effects = true;

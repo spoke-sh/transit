@@ -136,6 +136,20 @@ class ColdStore:
                 retries += 1
             time.sleep(min(0.05, max(0, deadline-time.monotonic())))
 
+    def native_config(self):
+        """Explicit native tier configuration with an owned credential reference."""
+        import json
+        credentials = Path(self.directory.name) / 'native-credentials.json'
+        credentials.write_text(json.dumps(dict(access_key_id=self.access, secret_access_key=self.secret)))
+        credentials.chmod(0o600)
+        return dict(endpoint=self.url, region='us-east-1', bucket=self.bucket,
+                    prefix='native-' + secrets.token_hex(16), credentials_file=str(credentials),
+                    allow_loopback_http=True, cache_bytes=32 * 1024 * 1024)
+
+    def native_data_objects(self):
+        # MinIO's actual per-generation object metadata; exclude owner markers.
+        return sum(1 for path in (self.root / self.bucket).glob('native-*/objects/*/*/xl.meta') if path.is_file())
+
     def config(self):
         return f'''[storage.cold]
 backend = "s3"

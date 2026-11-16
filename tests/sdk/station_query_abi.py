@@ -25,7 +25,7 @@ def run(node, cli, library, raw_library, host):
 
 
 def _run(node, cli, library, raw_library, host, cold):
-    fixture = GrowingSystem(node, cli, storage_config=cold.config())
+    fixture = GrowingSystem(node, cli, object_storage=cold.native_config())
     fixture.resident_pages = 64  # Match the bounded native query qualification.
     with fixture as system:
         libraries = system.root / 'libraries'
@@ -253,8 +253,6 @@ def _run(node, cli, library, raw_library, host, cold):
                     service = requester = None
                     system.authority.kill()
                     system.authority.wait(timeout=10)
-                    system.store.stop()
-                    system.store.start()
                     system.authority = system.start(system.node, system.config)
                     wait_ready(system.store.http, system.authority, system.url + '/health')
                     for config in (service_config, requester_config):
@@ -321,8 +319,8 @@ def _run(node, cli, library, raw_library, host, cold):
                 'port_bytes_equal': bytes.fromhex(first['ipc']) == segments[0],
                 'stale_scope_status': 13, 'revoked_result_status': 4,
             })
-            assert cold.data_objects() > 0
-            print(f'Growing query ABI storage: {cold.data_objects()} cold objects, 8 MiB hot memory, {fixture.resident_pages} authority pages, {setup_inputs} setup callbacks.')
+            assert cold.native_data_objects() > 0
+            print(f'Growing query ABI storage: {cold.native_data_objects()} cold objects, 32 MiB native disk cache, {fixture.resident_pages} authority pages, {setup_inputs} setup callbacks.')
             print('Growing query ABI: three typed columns, six bounded IPC segments, typed metadata, opt-in, exact retry, worker/store restart, stale scope, revocation and independent Arrow decoding passed.')
         finally:
             if port:

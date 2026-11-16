@@ -7,21 +7,21 @@ import subprocess
 import sys
 import threading
 import time
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 
 
 def run(node, caller, *, resident_pages=64):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
-    with ColdStore() as cold, Fixture(storage_config=cold.config()) as fixture:
+    with ColdStore() as cold, Fixture() as fixture:
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
         config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 43, "root_key": public, "max_clock_error_ms": 10000},
-            "ursula_url": fixture.url, "bucket": "growing-station", "journal": "authority",
+            "local_directory": str(fixture.native_directory), "storage": {"object_storage": cold.native_config()},
             "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
         manifest = fixture.root / "pending.json"
         fault = {"read": False, "pending": None, "receipt": None, "retried": False,
@@ -146,8 +146,6 @@ def run(node, caller, *, resident_pages=64):
             authority.kill()
             authority.wait(timeout=10)
             authority = None
-            fixture.stop()
-            fixture.start()
             # Keep the full recovery/fencing/read path at the smallest cache.
             # The repeated exchange uses a bounded 64-page test cache. Default
             # node configuration is unchanged; recovery still exceeds its cache.
@@ -164,8 +162,6 @@ def run(node, caller, *, resident_pages=64):
             authority.kill()
             authority.wait(timeout=10)
             authority = None
-            fixture.stop()
-            fixture.start()
             authority = start()
             call("resume", manifest, 240)
             assert fault["version_steps"] == 6, "Retained continuation must resume without rescanning committed pages"
@@ -174,7 +170,7 @@ def run(node, caller, *, resident_pages=64):
                 "write_seconds": write_seconds,
                 "recover_seconds": round(time.monotonic() - started, 3),
                 "namespace_checks": fault['namespace_checks'], "history_head_reads": fault['history_head_reads'],
-                "retained_steps": fault["version_steps"], "cold_objects": cold.data_objects()}), flush=True)
+                "retained_steps": fault["version_steps"], "cold_objects": cold.native_data_objects()}), flush=True)
         except BaseException:
             log.flush()
             log.seek(0)

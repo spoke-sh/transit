@@ -41,8 +41,6 @@ def run(node, cli, report=None):
         def restart():
             system.authority.kill()
             system.authority.wait(timeout=10)
-            system.store.stop()
-            system.store.start()
             system.authority = system.start(node, system.config)
             wait_ready(system.store.http, system.authority, system.url + '/health')
 

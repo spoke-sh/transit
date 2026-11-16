@@ -5,7 +5,7 @@ import time
 
 def retain_recovery_fixture(fixture, cold_store, destination, recovery):
     """Retain private failed state after joining each owned native process."""
-    fixture.stop()
+    # The scenario has joined its native authority before handing over paths.
     retained = destination.parent / 'recovery-failures' / str(time.time_ns())
     retained.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     recovery['original_fixture'] = str(fixture.root)

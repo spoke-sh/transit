@@ -13,15 +13,14 @@ import pyarrow.flight as flight
 from google.protobuf.any_pb2 import Any
 from interfaces.http.serving_tls import TLSProxy
 from interfaces.flight.flight_faults import NativeBoundary
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
-from storage.providers.cold_storage import ColdStore
 
 
 def run(node, host, gateway, proof, mode=None, board=None):
     faults = mode == 'faults'
     node, host, gateway, proof = [str(Path(p).resolve()) for p in (node, host, gateway, proof)]
-    with ColdStore() as cold, Fixture(cold.config()) as fixture, ExitStack() as owned:
+    with Fixture() as fixture, ExitStack() as owned:
         proto = ROOT / 'packages/zig/transit-flight/proto'
         subprocess.run(['protoc', '-I', str(proto), '--python_out=' + str(fixture.root), str(proto / 'FlightSql.proto'), str(proto / 'Flight.proto')], check=True)
         sys.path.insert(0, str(fixture.root))

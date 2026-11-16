@@ -241,7 +241,7 @@ def main():
     report = dict(completed=False, profile='direct-table/native-local', observations=None)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(report, indent=2) + '\n')
-    with System(args.node, args.admin, clock_error_ms=10000, request_timeout_ms=30000, local=True) as system:
+    with System(args.node, args.admin, clock_error_ms=10000, request_timeout_ms=30000) as system:
         definition = system.native_query({'capabilities': {}})['definition']
 
         def query(kind, principal=0, seed=None):

@@ -1,5 +1,6 @@
 """Background expiry and reclamation while an independent authority stays live."""
 import json
+import hashlib
 from interfaces.native.wire_values import encode_command
 import os
 from pathlib import Path
@@ -10,7 +11,7 @@ import time
 import urllib.error
 import urllib.request
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -34,8 +35,7 @@ def run(node, cli):
         if sys.platform == "linux":
             # A synchronized host can report >1s near the end of its NTP poll interval.
             genesis["max_clock_error_ms"] = 2000
-        config.write_text(json.dumps({"genesis": genesis, "ursula_url": store.url,
-            "bucket": "transit-maintenance", "journal": "authority", "port": port,
+        config.write_text(json.dumps({"genesis": genesis, "local_directory": str(store.native_directory), "port": port,
             "maintenance": {"principal": 1, "seed_file": str(maint_key), "interval_ms": 50,
                             "operation_timeout_ms": 2000, "checkpoint_every_records": 4}}))
 
@@ -78,15 +78,10 @@ def run(node, cli):
             raise TimeoutError(f"Maintenance proof authority/clock unavailable: {value}")
 
         def retained():
-            # Read the genesis record through the same record coordinate API.
-            endpoint = store.url + "/transit-maintenance/authority?record=0&max_records=1"
-            try:
-                with store.http.open(endpoint, timeout=2) as response:
-                    return response.status != 410
-            except urllib.error.HTTPError as error:
-                if error.code == 410:
-                    return False
-                raise
+            data = (store.native_directory / 'wal/part-0.meta').read_bytes()
+            assert len(data) == 128 and data[:8] == b'LWMT\x01\x00\x00\x00'
+            assert hashlib.sha256(data[:96]).digest() == data[96:]
+            return int.from_bytes(data[64:72], 'little') == 0
 
         try:
             authority = start("--bootstrap")
@@ -98,7 +93,7 @@ def run(node, cli):
                 policy.update(work_before_ms=deadline, settle_before_ms=deadline + 1000)
             pid = request({"spawn": policy})["position"]
             request({"send": {"pid": pid, "value": 7}})
-            maintenance = start("--maintain")
+            maintenance = authority
             if sys.platform != "linux":
                 request({"terminate": pid})
             limit = time.monotonic() + 25
@@ -110,27 +105,15 @@ def run(node, cli):
                 assert maintenance.poll() is None
                 time.sleep(0.1)
             assert view["process"]["cancelled"] == 1
-            # The HTTP authority never restarted during another process's trim.
+            # The HTTP authority stays live while its maintenance task trims.
             assert authority.poll() is None
-            # A stalled storage peer must not trap maintenance inside a scan.
-            # Observe two deadlines to prove the bounded loop resumes afterward.
-            maintenance_log = Path(logs[-1].name)
-            timeouts = maintenance_log.read_text().count('"error_type":"MaintenanceTimeout"')
-            store.server.send_signal(signal.SIGSTOP)
-            try:
-                limit = time.monotonic() + 8
-                while maintenance_log.read_text().count('"error_type":"MaintenanceTimeout"') < timeouts + 2:
-                    assert maintenance.poll() is None
-                    assert time.monotonic() < limit, maintenance_log.read_text()
-                    time.sleep(0.05)
-            finally:
-                store.server.send_signal(signal.SIGCONT)
+            # The native authority owns maintenance in-process. Provider HTTP
+            # suspension is retired; native I/O faults and S3 request deadlines
+            # have separate owner-specific schedules.
             assert request({"process": pid}, read=True)["process"] == view["process"]
-            for child in (authority, maintenance):
+            for child in (authority,):
                 child.kill()
                 child.wait(timeout=10)
-            store.stop()
-            store.start()
             authority = start()
             wait_ready(store.http, authority, url + "/health")
             restored = request({"process": pid}, read=True)

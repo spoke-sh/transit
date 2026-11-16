@@ -11,10 +11,10 @@ import urllib.request
 
 
 class Fixture:
-    def __init__(self, *, retain_on_failure=False):
+    def __init__(self, *, retain_on_failure=False, parent='/var/tmp'):
         self.retain_on_failure = retain_on_failure
         self.directory = tempfile.TemporaryDirectory(
-            prefix='transit-native-', dir='/var/tmp', delete=not retain_on_failure)
+            prefix='transit-native-', dir=parent, delete=not retain_on_failure)
         self.root = Path(self.directory.name)
         self.native_directory = self.root / 'native'
         self.env = {k: v for k, v in os.environ.items() if not k.startswith('OTEL_')}

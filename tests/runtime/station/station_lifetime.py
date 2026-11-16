@@ -10,7 +10,7 @@ from runtime.station.station_ledger import audit_total, provision
 
 
 def run(server, cli, worker):
-    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, server=server) as s:
         deadline = int(time.time() * 1000) + 120000
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
         resource = s.command({"create_resource": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}})
@@ -67,7 +67,6 @@ def run(server, cli, worker):
         applied(3, 7)
         captured = query("entries")
         s.authority.kill(); s.authority.wait(timeout=10)
-        s.store.stop(); s.store.start()
         s.restart_authority()
         assert query("entries") == captured
         rejection({"suspend": {"pid": pid, "expected_generation": 3,

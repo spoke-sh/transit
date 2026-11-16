@@ -8,15 +8,14 @@ import sys
 import threading
 import time
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
-from storage.providers.cold_storage import ColdStore
 from query.unified.unified_shell import Shell
 
 
 def run(node, host, cli, proof):
     node, host, cli, proof = (str(Path(path).resolve()) for path in (node, host, cli, proof))
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with Fixture() as fixture:
         public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"

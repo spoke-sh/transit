@@ -224,8 +224,6 @@ def run(node, cli, board, browser=False):
         s.authority.wait(timeout=10)
         assert api("deployment") == deployment  # Discovery survives upstream loss.
         failure("processes", 503, "inspection.authority_unavailable", "retry_read")
-        s.store.stop()
-        s.store.start()
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         assert api(f"processes/{pids[0]}")["observation"]["processes"][0]["revision"] == turn

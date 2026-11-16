@@ -10,7 +10,7 @@ import time
 import threading
 import urllib.error
 import urllib.request
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from interfaces.http.serving import Key
 
@@ -55,7 +55,7 @@ def run(node, proof, board):
         proxy_url = f'http://127.0.0.1:{proxy.server_port}'
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         node_config = fixture.root / 'node.json'
-        node_config.write_text(json.dumps({'profile': 'native_v1', 'genesis': {'realm': 49, 'root_key': public, 'max_clock_error_ms': 10000}, 'ursula_url': fixture.url, 'bucket': 'application-browser', 'journal': 'authority', 'port': port, 'resident_pages': 64, 'request_timeout_ms': 10000}))
+        node_config.write_text(json.dumps({'profile': 'native_v1', 'genesis': {'realm': 49, 'root_key': public, 'max_clock_error_ms': 10000}, 'local_directory': str(fixture.native_directory), 'port': port, 'resident_pages': 64, 'request_timeout_ms': 10000}))
         manifest = fixture.root / 'application.json'
         def request(path, value=None, status=200, origin_header=origin):
             time.sleep(.15)

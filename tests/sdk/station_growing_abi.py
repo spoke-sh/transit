@@ -98,7 +98,7 @@ def run(node, cli, library, raw_library, host):
 
 
 def _run(node, cli, library, raw_library, host, cold):
-    fixture = GrowingSystem(node, cli, storage_config=cold.config())
+    fixture = GrowingSystem(node, cli, object_storage=cold.native_config())
     fixture.resident_pages = 64
     with fixture as system:
         libraries = system.root / 'libraries'
@@ -280,8 +280,6 @@ def _run(node, cli, library, raw_library, host, cold):
             server = None
             system.authority.kill()
             system.authority.wait(timeout=10)
-            system.store.stop()
-            system.store.start()
             system.authority = system.start(node, system.config)
             wait_ready(system.store.http, system.authority, system.url + '/health')
             receipt = json.loads(subprocess.check_output([sys.executable, '-B', str(ROOT / 'tests/runner/launch.py'),

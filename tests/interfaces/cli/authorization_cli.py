@@ -53,8 +53,6 @@ def run(node, signer, transit, library, host, report):
         assert artifact.read_bytes() == retained
         system.authority.kill()
         system.authority.wait(timeout=10)
-        system.store.stop()
-        system.store.start()
         system.authority = system.start(node, system.config)
         wait_ready(system.store.http, system.authority, system.url + '/health')
         assert invoke('submit', artifact)['receipt'] == receipt
@@ -161,8 +159,6 @@ def run(node, signer, transit, library, host, report):
         assert set_saved.read_bytes() == retained
         system.authority.kill()
         system.authority.wait(timeout=10)
-        system.store.stop()
-        system.store.start()
         system.authority = system.start(node, system.config)
         wait_ready(system.store.http, system.authority, system.url + '/health')
         assert invoke('submit', set_saved)['changeset']['receipt'] == receipt

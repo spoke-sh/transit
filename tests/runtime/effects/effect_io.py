@@ -1,6 +1,7 @@
 """Actual remote sends, paused authorization, bounded closure and no replay I/O."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import hashlib
 from interfaces.native.wire_values import encode_command
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ import time
 import urllib.error
 import urllib.request
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -64,8 +65,7 @@ def run(node, executor, cli):
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
         config.write_text(json.dumps({"genesis": {"realm": 52, "root_key": public,
-            "allow_history_trim": True}, "ursula_url": store.url,
-            "bucket": "transit-effect-io", "journal": "authority", "port": port,
+            "allow_history_trim": True}, "local_directory": str(store.native_directory), "port": port,
             "maintenance": {"principal": 2, "seed_file": str(maintenance_key),
                 "interval_ms": 50, "checkpoint_every_records": 4}}))
         sequence = 0
@@ -122,12 +122,10 @@ def run(node, executor, cli):
             return next(effect for effect in request({"effects": {"pid": pid}}, read=True)["entries"] if effect)
 
         def retained():
-            try:
-                with store.http.open(store.url + "/transit-effect-io/authority?record=0&max_records=1", timeout=2):
-                    return True
-            except urllib.error.HTTPError as error:
-                assert error.code == 410
-                return False
+            data = (store.native_directory / 'wal/part-0.meta').read_bytes()
+            assert len(data) == 128 and data[:8] == b'LWMT\x01\x00\x00\x00'
+            assert hashlib.sha256(data[:96]).digest() == data[96:]
+            return int.from_bytes(data[64:72], 'little') == 0
 
         try:
             authority, _ = start(node, config, "--bootstrap")
@@ -187,16 +185,13 @@ def run(node, executor, cli):
                 command({"terminate": pid})
                 cases.append((pid, options, effect_view(pid)))
 
-            maintenance, _ = start(node, config, "--maintain")
+            maintenance = authority
             limit = time.monotonic() + 15
             while retained():
                 assert maintenance.poll() is None
                 assert time.monotonic() < limit
                 time.sleep(0.05)
-            stop(maintenance)
             stop(authority)
-            store.stop()
-            store.start()
             authority, _ = start(node, config)
             wait_ready(store.http, authority, url + "/health")
             for pid, options, expected in cases:

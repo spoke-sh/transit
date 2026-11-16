@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -37,7 +37,7 @@ def run(node, caller):
         configuration = {"profile": "native_v1", "genesis": {
             "realm": 46, "root_key": public, "max_clock_error_ms": 10000,
             "allow_history_trim": True},
-            "ursula_url": fixture.url, "bucket": "publication", "journal": "authority",
+            "local_directory": str(fixture.native_directory),
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}
         config.write_text(json.dumps(configuration))
         manifest = fixture.root / "publication.json"
@@ -153,8 +153,6 @@ def run(node, caller):
                     authority.kill()
                     authority.wait(timeout=10)
                     authority = None
-                    fixture.stop()
-                    fixture.start()
                     configuration["resident_pages"] = 1 if phase in ("stage", "publish") else 64
                     config.write_text(json.dumps(configuration))
                     authority = start()

@@ -12,7 +12,7 @@ import time
 import urllib.error
 import urllib.request
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from interfaces.inspection.inspection import available_post
 
@@ -39,6 +39,15 @@ def run(node, worker, cli):
                 child.kill()
             child.wait(timeout=10)
 
+        def set_request_deadline(milliseconds):
+            nonlocal authority
+            stop(authority)
+            value = json.loads(config.read_text())
+            value["request_timeout_ms"] = milliseconds
+            config.write_text(json.dumps(value))
+            authority = start(node, config)
+            wait_ready(store.http, authority, url + "/health")
+
         def invoke(*args):
             return json.loads(subprocess.check_output([str(cli), "native", *map(str, args)], timeout=10))
 
@@ -55,8 +64,8 @@ def run(node, worker, cli):
         url = f"http://127.0.0.1:{port}"
         config = root / "node.json"
         config.write_text(json.dumps({"genesis": {"realm": 47, "root_key": root_public, "max_clock_error_ms": 10000},
-                                      "ursula_url": store.url, "bucket": "transit-service", "journal": "authority",
-                                      "port": port, "request_timeout_ms": 800}))
+                                      "local_directory": str(store.native_directory),
+                                      "port": port, "request_timeout_ms": 10000}))
         seq = 0
 
         def signed(command, sequence=0, principal=0, seed=root_key, realm=47):
@@ -169,6 +178,7 @@ def run(node, worker, cli):
             stop(second)
             # Incomplete headers and bodies must release the sequential server
             # at its deadline, including with no spare async worker threads.
+            set_request_deadline(800)
             for partial in (
                 b"POST /v1/command HTTP/1.1\r\nHost:",
                 b"POST /v1/command HTTP/1.1\r\nHost: local\r\nContent-Length: 100\r\n\r\n{",
@@ -177,6 +187,7 @@ def run(node, worker, cli):
                     slow.sendall(partial)
                     time.sleep(1)
                     assert state(pid) == 307
+            set_request_deadline(10000)
             # A connected authority that never responds must also release the
             # protocol client at its own deadline, not the harness timeout.
             read_path = root / "timeout-read.json"
@@ -230,8 +241,6 @@ def run(node, worker, cli):
             stop(boot)
             before = view(pid)
             stop(authority)
-            store.stop()
-            store.start()
             authority = start(node, config)
             wait_ready(store.http, authority, url + "/health")
             assert view(pid) == before
@@ -274,18 +283,18 @@ def run(node, worker, cli):
             remote_config = root / "remote-node.json"
             remote_port = free_port()
             remote_config.write_text(json.dumps(dict(json.loads(config.read_text()), port=remote_port)))
-            remote = start(node, remote_config)
-            remote_url = f"http://127.0.0.1:{remote_port}"
-            wait_ready(store.http, remote, remote_url + "/health")
-            def remote_command(value):
+            competitor = start(node, remote_config)
+            assert competitor.wait(timeout=10) != 0
+            assert "NativeStorageInUse" in Path(logs[-1].name).read_text()
+            # Independent clients share one exclusive native authority. A second
+            # owner must refuse before serving or touching accepted history.
+            def prepare_command(value):
                 nonlocal seq
                 seq += 1
-                request = urllib.request.Request(remote_url + '/v1/command', json.dumps(signed(value, seq)).encode(),
-                                                 {'Content-Type': 'application/json'})
-                with store.http.open(request, timeout=5) as response:
-                    return json.load(response)['position']
-            wait_proof(post, sign_query, query, command, malformed_pid, worker_key, worker_public, url, remote_command)
-            stop(remote)
+                envelope = signed(value, seq)
+                return lambda: available_post(post, '/v1/command', envelope)['position']
+            wait_proof(post, sign_query, query, command, malformed_pid, worker_key,
+                       worker_public, url, prepare_command, set_request_deadline)
             print("Signed service ingress, scoped/revoked reads, bounded requests, worker fencing and disk recovery passed.")
         except BaseException:
             for log in logs:

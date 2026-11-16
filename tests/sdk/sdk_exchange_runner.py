@@ -233,7 +233,6 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 executing.kill(); executing.communicate(timeout=10); boundary.close(); children.remove(executing)
                 close(child)
                 system.crash_authority()
-                system.store.stop(); system.store.start()
                 system.restart_authority()
                 own(service); worker_config['generation'] = service['generation']
                 if rpc: worker_config['credentials'] = [{'binding': 'api', 'version': 7, 'metadata': 'authorization', 'file': str(credential)}]
@@ -303,7 +302,6 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 assert len(pending) == 1 and pending[0]['phase'] == 'pending'
                 assert pending[0]['destination'] == caller['pid']
                 system.crash_authority()
-                system.store.stop(); system.store.start()
                 system.restart_authority()
                 own(service); worker_config['generation'] = service['generation']
                 assert invoke()['phase'] == 'complete'

@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 
@@ -22,12 +22,12 @@ def run(node, provision, worker, library, board=None, browser=False):
     node, provision, worker, library = map(lambda value: str(Path(value).resolve()), (node, provision, worker, library))
     if board is not None: board = str(Path(board).resolve())
     payload = bytes((i * 29 + 5) % 256 for i in range(1027))
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with ColdStore() as cold, Fixture() as fixture:
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "http-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "local_directory": str(fixture.native_directory), "storage": {"object_storage": cold.native_config()}, "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         requests = []
         applied = set()
         cancelled = set()
@@ -265,7 +265,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             release_preparation.set()
             assert requests == []
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             configure(saved, "/complete", "prepare")
@@ -321,7 +320,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert requests == ["/complete"]
             # Stop the remote peer from influencing replay and recover disk authority.
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             credential.unlink()
             result = admin("replay")
@@ -347,7 +345,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             refused = subprocess.run([provision, url, "replay", str(state)], capture_output=True, timeout=30)
             assert refused.returncode != 0 and b"ExchangeUnavailable" in refused.stderr, refused
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             configure(saved, "/complete", "release")
@@ -367,7 +364,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             child.kill(); child.wait(timeout=10); child = None
             release.set()
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             configure(saved, "/kill", "execute")
@@ -453,14 +449,12 @@ def run(node, provision, worker, library, board=None, browser=False):
             release_failure.set()
             assert admin("inspect")["effect"] == "observed"
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             admission(saved, "/public", "execute")
             assert invoke()["phase"] == "complete"
             # The correlated output has committed, but delivery has not run.
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             received = admin("receive")
             result = received["outcome"]
@@ -531,7 +525,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert disposed == {"resource": saved["resource"], "exchange": 1}
             assert "caller_release" in recovered
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("release-call")
             saved = admin("own")
@@ -579,7 +572,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             child.kill(); child.wait(timeout=10); child = None
             release.set()
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             admission(saved, "/public-retry", "execute")
@@ -643,7 +635,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
             assert refused.returncode != 0 and b"ExchangeHasDependents" in refused.stderr, refused
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             admission(saved, "/public-retry", "release")
@@ -737,7 +728,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             release.set()
             saved = admin("terminate-caller")
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("check-caller-name")
             saved = admin("own")
@@ -765,7 +755,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             refused = subprocess.run([provision, url, "replay", str(state)], capture_output=True, timeout=30)
             assert refused.returncode and b"IncompleteExchange" in refused.stderr, refused
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             configure(saved, "/capture-kill", "execute")
@@ -795,7 +784,6 @@ def run(node, provision, worker, library, board=None, browser=False):
             release_failure.set()
             assert admin("inspect")["phase"] == "capturing"
             authority.kill(); authority.wait(timeout=10); authority = None
-            fixture.stop(); fixture.start()
             authority = start_node()
             saved = admin("own")
             configure(saved, "/failure-send", "execute")
@@ -831,9 +819,9 @@ def run(node, provision, worker, library, board=None, browser=False):
             read_original_evidence(retired)
             assert requests.count("/failure-send") == 1
             assert len(requests) == 17 and len(applied) == 9
-            assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"
+            assert cold.native_data_objects() > 0, "Exchange history never spilled to durable cold storage"
             print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal, caller termination, name rebinding and partial-capture loss passed; failure-input receipt loss, original cause recovery and retirement; seventeen sends, nine applications, two cancellation requests.")
-            print(f"HTTP capture storage: 8 MiB hot limit, {cold.data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
+            print(f"HTTP capture storage: 32 MiB native disk cache, {cold.native_data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()

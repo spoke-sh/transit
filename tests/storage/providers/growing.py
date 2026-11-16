@@ -11,7 +11,7 @@ import resource
 import subprocess
 import time
 import tempfile
-from storage.providers.pages import metrics, sample_process
+from performance.process_metrics import metrics, sample_process
 from harness.ursula import Fixture
 
 

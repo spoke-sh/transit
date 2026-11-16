@@ -19,7 +19,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 from sdk.installed_server import InstalledServer
 from storage.providers.cold_storage import ColdStore
 from runtime.document.document_contract import encode
-from harness.ursula import Fixture
 from harness.services import wait_ready
 
 
@@ -40,7 +39,7 @@ def run(*, board=False, browser=False):
     started = time.monotonic()
     with ColdStore() as cold:
         fixture = DocumentSystem(binaries["transit"], binaries["transit-client-host"])
-        fixture.store = Fixture(cold.config())
+        fixture.object_storage = cold.native_config()
         with fixture as system:
             env = system.store.env | {"LOG_LEVEL": "warn"}
             def write(name, value):
@@ -229,8 +228,6 @@ def run(*, board=False, browser=False):
                 assert child.wait(timeout=10) == -9
                 release.set()
                 system.crash_authority()
-                system.store.stop()
-                system.store.start()
                 system.restart_authority()
                 # Revocation blocks a reconstructed candidate without permanently
                 # poisoning the mailbox. Fresh ownership plus restored policy resumes.
@@ -264,7 +261,7 @@ def run(*, board=False, browser=False):
                 print("Document example evidence:", json.dumps({"profile": "local", "seconds": round(time.monotonic()-started, 2),
                     "killed_workers": 1, "node_store_restarts": 1, "exact_acceptance_retry": fault["retried"],
                     "writer_turn_attempts": fault["turns"], "max_mutations": fault["max_mutations"],
-                    "hot_bytes": 8*1024*1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes()}, sort_keys=True), flush=True)
+                    "disk_cache_bytes": 32*1024*1024, "cold_objects": cold.native_data_objects(), "cold_bytes": cold.file_bytes()}, sort_keys=True), flush=True)
             finally:
                 if inspection: inspection.close()
                 release.set()

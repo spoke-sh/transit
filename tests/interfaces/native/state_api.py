@@ -65,8 +65,6 @@ def run(node, cli, counter):
         before = entries(resource, first['resource']['revision'])
         s.authority.kill()
         s.authority.wait(timeout=10)
-        s.store.stop()
-        s.store.start()
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + '/health')
         assert entries(resource) == before

@@ -580,10 +580,11 @@ def external_delivery(cli):
     from contextlib import nullcontext
     import shutil
     from harness.local_installation import ExternalInstallation
-    from harness.ursula import Fixture as Ursula
-    for backend in ('local', 'ursula'):
-        with Ursula(retain_on_failure=True) if backend == 'ursula' else nullcontext() as provider:
-            fixture = ExternalInstallation(cli, ursula=provider.url if provider else None)
+    from storage.providers.cold_storage import ColdStore
+    for backend in ('local', 's3'):
+        with ColdStore() if backend == 's3' else nullcontext() as provider:
+            object_storage = provider.native_config() if provider else None
+            fixture = ExternalInstallation(cli, object_storage=object_storage)
             install_peer(fixture)
             success = False
             print(f'External {backend} server proof: {fixture.root}', flush=True)
@@ -637,18 +638,18 @@ def external_delivery(cli):
                     # retained installation journal. A fresh directory must
                     # neither adopt accepted history nor restore revoked rights.
                     fixture.stop()
-                    foreign = ExternalInstallation(cli, ursula=provider.url)
+                    foreign = ExternalInstallation(cli, object_storage=object_storage)
                     foreign.config['realm'] = realm
                     foreign.config['external']['root_seed_file'] = str(fixture.installation / 'root.seed')
                     foreign.path.write_text(json.dumps(foreign.config))
                     refused = False
                     try:
                         foreign.start()
-                        assert foreign.process.wait(timeout=45) != 0, 'Fresh installation adopted retained Ursula history'
+                        assert foreign.process.wait(timeout=45) != 0, 'Fresh installation adopted retained remote namespace'
                         record = foreign.record()
                         assert not record['genesis_observed'] and record['position'] == 0
                         assert record['provision'][10] is None
-                        assert 'StorageIdentityMismatch' in Path(foreign.logs[-1].name).read_text()
+                        assert 'TierNamespaceInUse' in Path(foreign.logs[-1].name).read_text()
                         refused = True
                     finally:
                         foreign.cleanup()

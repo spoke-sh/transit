@@ -28,7 +28,8 @@ class GrowingSystem(System):
             self.config = self.root / "node.json"
             self.config.write_text(json.dumps({
                 "profile": "native_v1", "genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": 10000},
-                "ursula_url": self.store.url, "bucket": "growing-abi", "journal": "authority",
+                "local_directory": str(self.store.native_directory),
+                "storage": {"object_storage": self.object_storage},
                 "port": self.port, "resident_pages": self.resident_pages, "request_timeout_ms": 5000,
             }))
             initialized = self.start(self.node, self.config, "--initialize")
@@ -165,8 +166,6 @@ def run(native, library, node, cli):
 
             system.authority.kill()
             system.authority.wait(timeout=10)
-            system.store.stop()
-            system.store.start()
             system.authority = system.start(node, system.config)
             wait_ready(system.store.http, system.authority, system.url + "/health")
             # Fresh process, no seed or native handles: only persisted retry bytes.

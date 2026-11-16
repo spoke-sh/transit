@@ -7,27 +7,27 @@ import tempfile
 
 from harness.recovery_fixture import retain_recovery_fixture
 from storage.providers.cold_storage import ColdStore
-from harness.ursula import Fixture
+from harness.native import Fixture
 
 
 def run(retain=retain_recovery_fixture):
     cold = ColdStore()
     try:
         objects = cold.root / cold.bucket
-        for name in ('pages/bucket/stream/snapshots/one/xl.meta',
-                     'pages/bucket/_packs/00000000/empty.bin',
+        for name in ('native-one/.transit/owner/xl.meta',
+                     'native-one/objects/empty.bin',
                      'bucket-startup/xl.meta'):
             path = objects / name
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.name == 'empty.bin': path.mkdir()
             else: path.write_bytes(b'metadata')
-        assert cold.data_objects() == 0, 'Metadata or empty object directory counted as data'
-        for count, name in enumerate(('pages/bucket/stream/chunks/one.bin/xl.meta',
-                                      'pages/bucket/_packs/00000000/two.bin/xl.meta'), 1):
+        assert cold.native_data_objects() == 0, 'Metadata or empty object directory counted as data'
+        for count, name in enumerate(('native-one/objects/key-one/00000000/xl.meta',
+                                      'native-one/objects/key-one/00000001/xl.meta'), 1):
             path = objects / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b'object metadata')
-            assert cold.data_objects() == count, 'Cold chunks and shared packs must both count'
+            assert cold.native_data_objects() == count, 'Each native object generation must count'
     finally:
         cold.__exit__(None, None, None)
     with tempfile.TemporaryDirectory(prefix='transit-retention-control-') as parent:
@@ -91,7 +91,7 @@ def run(retain=retain_recovery_fixture):
             cold.process = None  # The injected object never created a child.
             cold.__exit__(None, None, None)
             fixture.__exit__(None, None, None)
-    print('Catalog fixture: cold chunks/packs counted; native child joined before retention; unjoined state remains private and retained.', flush=True)
+    print('Catalog fixture: native object generations counted; native child joined before retention; unjoined state remains private and retained.', flush=True)
 
 
 if __name__ == '__main__':
