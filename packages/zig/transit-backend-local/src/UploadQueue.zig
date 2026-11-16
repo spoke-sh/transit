@@ -318,3 +318,46 @@ test "upload FIFO resumes bounded reads after cold open and reconciliation" {
     std.debug.print("upload FIFO reconciled drain: {d} verified frame reads for two original records\n", .{reads});
     try t.expect(reads <= 16);
 }
+
+test "upload FIFO bounds cleanup syncs while each consumed position remains durable" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{ .iterate = true });
+    defer temporary.cleanup();
+    const item: Item = .{ .key = try Key.init("native/p/cleanup"), .meta = .{ .size = 1, .sha256 = @splat(7) }, .action = .upload };
+    const items: [storage.TransitObjectStore.max_put_batch]Item = @splat(item);
+    const count = 128;
+    var syncs: u64 = 0;
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        for (0..count / items.len) |_| _ = try queue.enqueueBatch(&items, count, count);
+        const before = queue.wal.disk.?.syncs;
+        // Reopen inside a cleanup group: the cursor must already be durable.
+        for (0..3) |_| try queue.consume((try queue.next()).?);
+        syncs += queue.wal.disk.?.syncs - before;
+    }
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        const before = queue.wal.disk.?.syncs;
+        for (3..count) |position| {
+            const record = (try queue.next()).?;
+            try t.expectEqual(@as(u64, position), record.position);
+            try t.expectEqual(@as(u64, position + 1), record.total_bytes);
+            try t.expectEqualDeep(item, record.item);
+            try queue.consume(record);
+        }
+        try t.expect((try queue.next()) == null);
+        syncs += queue.wal.disk.?.syncs - before;
+    }
+    // Count actual WAL file/directory syncs, excluding the required per-record
+    // cursor barrier, append and reopen. Cleanup must amortize its own barriers.
+    std.debug.print("upload FIFO cleanup: {d} WAL syncs for {d} consumed records\n", .{ syncs, count });
+    try t.expect(syncs <= count);
+    var queue = try open(t.allocator, t.io, temporary.dir);
+    defer queue.deinit();
+    const head = try queue.current();
+    try t.expectEqual(@as(u64, count), head.cursor);
+    try t.expectEqual(head.cursor, head.tail);
+    try t.expectEqual(@as(u64, 0), head.pending_bytes);
+}
