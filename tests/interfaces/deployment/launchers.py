@@ -213,6 +213,9 @@ def proof(profile):
             invoke("update", "--no-build", success=False)
             assert installation.manifest.read_bytes() == rejected_manifest
             assert (installation.path / "transit.json").read_bytes() == config_before
+            # Compose inspection also validates the manifest. Restore the exact
+            # fixture bytes only after proving rejection left them untouched.
+            installation.manifest.write_bytes(saved_manifest)
             assert not launcher.services()
         for definition in (None, "00" * 32):
             changed = dict(manifest)
