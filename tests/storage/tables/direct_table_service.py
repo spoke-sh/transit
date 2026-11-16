@@ -239,6 +239,10 @@ def run(node, caller, mode="tables", *artifacts):
             "local_directory": str(root / "native"),
             "port": port, "resident_pages": 1, "request_timeout_ms": 60000,
         }
+        tier_config = os.environ.get("TRANSIT_TEST_MIXED_OBJECT_STORAGE")
+        if tier_config:
+            assert mode == "mixed-transaction", 'The explicit tier profile owns only the mixed transaction proof'
+            settings["storage"] = {"object_storage": json.loads(Path(tier_config).read_text())}
         request_memory = direct_table_maintenance.RequestMemory() if mode == "maintenance" else None
         if request_memory is not None or mode in ("tables", "state-transaction", "mixed-transaction", "queue-transfer", "automatic-queue-transfer", "log-token", "workload-token", "workload-result"):
             settings["request_metrics"] = True
@@ -265,6 +269,27 @@ def run(node, caller, mode="tables", *artifacts):
                 child.wait(timeout=15)
                 raise
             return child
+
+        def drain_tier():
+            if not tier_config:
+                return
+            from interfaces.http.serving import Key, compact
+            key = Key(root, 'tier-inspector', 17)
+            assert key.public == settings['genesis']['root_key']
+            definition = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+            query = dict(version=1, definition=definition, realm=42, principal=0, kind=dict(storage={}))
+            envelope = dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
+            until = time.monotonic() + 120
+            while True:
+                with http.open(urllib.request.Request(url + '/v1/query', data=compact(envelope),
+                               headers={'Content-Type': 'application/json'}), timeout=10) as response:
+                    tier = json.load(response)['body']['storage']['object_tier']
+                assert tier is not None and not tier['recovery_required'], tier
+                if tier['pending_objects'] == 0:
+                    assert tier['pending_upload_bytes'] == 0
+                    return
+                assert time.monotonic() < until, tier
+                time.sleep(.05)
 
         def stop(child):
             child.terminate()
@@ -918,12 +943,14 @@ def run(node, caller, mode="tables", *artifacts):
                 saved_path = Path(str(profile) + "." + mode)
                 saved = saved_path.read_bytes()
                 assert state_transaction_faults == {lost_statement}
+                drain_tier()
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()
                 subprocess.run([transaction_caller, endpoint, mode + "-recover", str(profile)], check=True, timeout=180)
                 assert state_transaction_faults == {lost_statement, decision}
                 assert saved_path.read_bytes() == saved
+                drain_tier()
                 authority.kill()
                 authority.wait(timeout=15)
                 authority = start()

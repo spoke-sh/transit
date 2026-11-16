@@ -367,7 +367,10 @@
       "test::sdk-import-cost",
       "test::log-runtime-baseline",
       "test::station-turn-baseline",
-      "test::station-transaction-baseline"
+      "test::station-transaction-baseline",
+      "test::local-native-collection",
+      "test::tier-mixed-transaction",
+      "test::server-object-tier"
     ]
   },
   "nested_tasks": {
@@ -394,6 +397,9 @@
     ],
     "test::sql-transactions": [
       "test::sql-wire-encoding"
+    ],
+    "test::tier-mixed-transaction": [
+      "test::direct-mixed-transaction"
     ]
   },
   "environments": {

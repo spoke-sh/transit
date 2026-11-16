@@ -151,6 +151,14 @@ local-payload-service:
 local-catalog:
     zig build test-local-catalog -Doptimize=ReleaseSafe
 
+# Installed SQL, configurable tier limits, eviction and native recovery with real MinIO.
+server-object-tier:
+    zig build test-server-object-tier -Doptimize=ReleaseSafe
+
+# Real Table/KV/Stream/Queue transaction recovery after MinIO eviction.
+tier-mixed-transaction:
+    python3 -B tests/runner/launch.py tests/storage/providers/tier_mixed_transaction.py
+
 # Real MinIO retained-graph traversal, collection, cold reopen and original outcomes.
 tier-data-collection:
     zig build test-tier-data-collection -Doptimize=ReleaseSafe

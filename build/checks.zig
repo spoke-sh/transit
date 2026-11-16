@@ -1165,6 +1165,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
+    const tier_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    tier_server_test.addFileArg(b.path("tests/runner/launch.py"));
+    tier_server_test.addFileArg(b.path("tests/interfaces/installation/server_object_tier.py"));
+    tier_server_test.addArtifactArg(transit_cli);
+    tier_server_test.has_side_effects = true;
+    tier_server_test.stdio = .inherit;
+    b.step("test-server-object-tier", "Prove installed SQL and retained native MinIO storage").dependOn(&tier_server_test.step);
     const direct_server_test = b.addSystemCommand(&.{ "python3", "-B" });
     direct_server_test.addFileArg(b.path("tests/runner/launch.py"));
     direct_server_test.addFileArg(b.path("tests/interfaces/installation/server_direct_tables.py"));

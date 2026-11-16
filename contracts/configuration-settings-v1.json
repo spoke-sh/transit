@@ -224,7 +224,7 @@
       "owner": "node",
       "kind": "object",
       "scope": "component",
-      "change": "initialization",
+      "change": "restart",
       "default_json": "null",
       "session_mutable": false,
       "nullable": true,
@@ -364,7 +364,7 @@
     },
     {
       "name": "storage.object_storage.pending_objects",
-      "description": "Upload queue admission limit; deletion has a separate control reserve",
+      "description": "Ordinary upload admission limit; control uploads and deletion share a reserve",
       "owner": "node",
       "kind": "unsigned",
       "scope": "component",
@@ -2309,7 +2309,7 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 1048576,
-                "description": "Upload queue admission limit; deletion has a separate control reserve",
+                "description": "Ordinary upload admission limit; control uploads and deletion share a reserve",
                 "x-transit-owner": "node",
                 "x-transit-change": "restart",
                 "default": 65536
@@ -2341,7 +2341,7 @@
             },
             "description": "Optional native immutable object tier; local WAL and identity remain required",
             "x-transit-owner": "node",
-            "x-transit-change": "initialization"
+            "x-transit-change": "restart"
           },
           "limits": {
             "type": "object",
