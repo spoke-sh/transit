@@ -74,6 +74,16 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
             try t.expectEqualDeep(storage.TransitObjectStore.ObjectMeta{ .size = item.bytes.len, .sha256 = item.sha256 }, (try store.getObject(item.key, &out)).?);
             try t.expectEqualSlices(u8, item.bytes, &out);
         }
+        if (std.mem.eql(u8, mode, "tier-batch-read")) {
+            try t.expectEqual(@as(u64, 8), tier.cache.misses);
+            const hits = tier.cache.hits;
+            for (batch) |item| {
+                _ = (try store.getObject(item.key, &out)).?;
+                try t.expectEqualSlices(u8, item.bytes, &out);
+            }
+            try t.expectEqual(@as(u64, 8), tier.cache.misses);
+            try t.expectEqual(hits + 8, tier.cache.hits);
+        }
     } else if (std.mem.eql(u8, mode, "tier-cache-fill")) {
         const half = 17 * 1024 * 1024;
         const large = try init.gpa.alloc(u8, 2 * half);

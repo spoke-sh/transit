@@ -18,6 +18,61 @@ import urllib.request
 from storage.providers.cold_storage import ColdStore
 
 
+class CountedTransport:
+    """Count immutable data requests without retaining keys, headers or payloads."""
+    def __init__(self, upstream_port):
+        self.lock = threading.Lock()
+        self.counts = {}
+        self.put_bytes = 0
+        measurement = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def exchange(self):
+                size = int(self.headers.get('Content-Length', '0'))
+                assert 0 <= size <= 40 * 1024 * 1024
+                body = self.rfile.read(size)
+                if '/objects/' in self.path:
+                    with measurement.lock:
+                        measurement.counts[self.command] = measurement.counts.get(self.command, 0) + 1
+                        if self.command == 'PUT': measurement.put_bytes += size
+                upstream = HTTPConnection('127.0.0.1', upstream_port, timeout=10)
+                try:
+                    upstream.request(self.command, self.path, body, dict(self.headers))
+                    response = upstream.getresponse()
+                    data = response.read(40 * 1024 * 1024 + 1)
+                    assert len(data) <= 40 * 1024 * 1024
+                    self.send_response(response.status)
+                    for name, value in response.getheaders():
+                        if name.lower() not in ('connection', 'transfer-encoding'):
+                            self.send_header(name, value)
+                    self.end_headers()
+                    if self.command != 'HEAD': self.wfile.write(data)
+                finally:
+                    upstream.close()
+            do_PUT = do_GET = do_HEAD = do_DELETE = exchange
+
+        self.peer = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        self.thread = threading.Thread(target=self.peer.serve_forever)
+        self.url = f'http://127.0.0.1:{self.peer.server_port}'
+
+    def __enter__(self):
+        self.thread.start()
+        return self
+
+    def __exit__(self, *_):
+        self.peer.shutdown()
+        self.peer.server_close()
+        self.thread.join(timeout=5)
+        assert not self.thread.is_alive()
+
+    def take(self):
+        with self.lock:
+            result = dict(requests=self.counts, put_body_bytes=self.put_bytes)
+            self.counts, self.put_bytes = {}, 0
+            return result
+
+
 def request(cold, method, key, payload=b''):
     """Independent Python SigV4 client; no Transit storage code in this oracle."""
     now = datetime.now(timezone.utc)
@@ -42,13 +97,13 @@ def request(cold, method, key, payload=b''):
 
 def run(binary):
     binary = str(Path(binary).resolve(strict=True))
-    with ColdStore() as cold:
+    with ColdStore() as cold, CountedTransport(cold.port) as transport:
         root = Path(cold.directory.name)
         credentials = root / 'credentials.json'
         secret = dict(access_key_id=cold.access, secret_access_key=cold.secret)
         credentials.write_text(json.dumps(secret))
         credentials.chmod(0o600)
-        options = dict(endpoint=cold.url, region='us-east-1', bucket=cold.bucket,
+        options = dict(endpoint=transport.url, region='us-east-1', bucket=cold.bucket,
                        prefix='native-conformance', credentials_file=str(credentials),
                        allow_loopback_http=True, request_timeout_ms=5000)
         config = root / 's3.json'
@@ -241,9 +296,24 @@ def run(binary):
         tier('tier-cache-fill')
         tier('tier-drain')
         tier('tier-cache-read')
+        transport.take()
         tier('tier-batch-write')
+        foreground = transport.take()
+        assert foreground == dict(requests={}, put_body_bytes=0), foreground
         tier('tier-drain')
+        upload = transport.take()
+        assert upload['requests'].get('PUT') == 8, upload
+        # Independent TS3O envelope oracle: 512-byte header and one 32-byte
+        # chunk digest per 1024-byte object. Excludes headers/TLS/local I/O.
+        assert upload['put_body_bytes'] == 8 * (1024 + 512 + 32), upload
         tier('tier-batch-read')
+        reads = transport.take()
+        assert reads['requests'].get('GET', 0) >= 8 and reads['put_body_bytes'] == 0, reads
+        print(json.dumps(dict(profile='minio_immutable_batch_cost', objects=8,
+              logical_bytes=8 * 1024, foreground=foreground, background_upload=upload,
+              reads=dict(cold_objects=8, warm_objects=8, **reads),
+              put_body_amplification=upload['put_body_bytes'] / (8 * 1024),
+              excludes=['namespace claim', 'HTTP headers', 'TLS', 'local WAL and metadata', 'physical disk writes'])), flush=True)
         print('Native tier batch: eight distinct original generations, exact retry, immediate reads, process-death reopen and verified cold provider reads passed.', flush=True)
         print('Native tier cache: 34 MiB exceeds the 32 MiB disk budget; cold A/B/A reads, eviction and original byte verification passed.', flush=True)
         print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation, missing original descriptor refusal, provider-denied backlog and control reserve passed.', flush=True)
