@@ -22,7 +22,8 @@ ordered `GUARD` composition and atomic `PROCEDURE` inlining:
 - Public `settle_order` binds a local `summary` without colliding with the
   caller's `summary` binding, inserts into `ledger`, and calls private
   `publish_outputs` to append to both `events` (Stream) and `followup` (Queue)
-  inside the caller's single atomic block. A second Dataflow (`modular_dispatch_*`)
+  inside the caller's single atomic block, returning the nominal `OrderId` for a
+  caller-side equality check before the post-call rollback guard. A second Dataflow (`modular_dispatch_*`)
   consumes `followup` into `dispatched`.
 
 In pipeline `a`, order `101` commits across `ledger`, `events` and `followup`,
