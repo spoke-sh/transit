@@ -631,6 +631,9 @@ and the catalog's retained dependency graph.
   HEAD, verified byte ranges and DELETE. Each request has a joined deadline;
   redirects and automatic transport retries are disabled. A file reference supplies access,
   secret and optional session credentials on every request, including rotation.
+  Each serialized adapter retains at most one idle HTTP/TLS connection. Only
+  fully consumed successful HTTP responses permit reuse; failed, incomplete or
+  cancelled exchanges close without draining untrusted error bodies.
   The remote envelope binds definition, logical key, size, content and chunk
   digests. Digest-shaped conditions are checked against that descriptor and
   converted to the actual provider ETag for atomic publication. See the

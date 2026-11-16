@@ -37,6 +37,13 @@ class CountedTransport:
 
         class Handler(BaseHTTPRequestHandler):
             protocol_version = 'HTTP/1.1'
+            def handle(self):
+                try:
+                    super().handle()
+                except ConnectionResetError:
+                    # Failed requests close without draining error bodies.
+                    # Caller outcomes and provider bytes are checked separately.
+                    self.close_connection = True
             def setup(self):
                 super().setup()
                 with measurement.lock:
@@ -90,6 +97,7 @@ class CountedTransport:
             do_PUT = do_GET = do_HEAD = do_DELETE = exchange
 
         self.peer = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        self.peer.daemon_threads = False
         self.thread = threading.Thread(target=self.peer.serve_forever)
         self.url = f'http://127.0.0.1:{self.peer.server_port}'
 
@@ -240,6 +248,52 @@ def run(binary):
             peer.server_close()
             thread.join(timeout=5)
             assert not thread.is_alive()
+            config.write_text(json.dumps(options))
+
+        redirected, release_redirect = threading.Event(), threading.Event()
+
+        class RedirectTarget(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def refused(self):
+                redirected.set()
+                self.send_response(400)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+            do_GET = do_HEAD = do_PUT = refused
+
+        class Redirect(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+            def log_message(self, *_): pass
+            def do_PUT(self):
+                size = int(self.headers.get('Content-Length', '0'))
+                assert 0 <= size <= 40 * 1024 * 1024
+                self.rfile.read(size)
+                self.send_response(307)
+                self.send_header('Location', f'http://127.0.0.1:{target.server_port}/redirected')
+                self.send_header('Content-Length', '1048576')
+                self.end_headers()
+                assert release_redirect.wait(timeout=10)
+                self.close_connection = True
+
+        target = ThreadingHTTPServer(('127.0.0.1', 0), RedirectTarget)
+        peer = ThreadingHTTPServer(('127.0.0.1', 0), Redirect)
+        target.daemon_threads = peer.daemon_threads = False
+        threads = [threading.Thread(target=server.serve_forever) for server in (target, peer)]
+        for thread in threads: thread.start()
+        try:
+            config.write_text(json.dumps(options | dict(endpoint=f'http://127.0.0.1:{peer.server_port}')))
+            attempt = subprocess.run([binary, str(config), 'put'], capture_output=True, timeout=10)
+            assert attempt.returncode != 0 and b'ObjectProviderFailure' in attempt.stderr, attempt.stderr
+            assert not redirected.is_set(), 'The adapter forwarded a signed request through a redirect'
+            print('Native S3 redirect: refused without forwarding or draining the withheld body.', flush=True)
+        finally:
+            release_redirect.set()
+            for server in (peer, target):
+                server.shutdown()
+                server.server_close()
+            for thread in threads:
+                thread.join(timeout=5)
+                assert not thread.is_alive()
             config.write_text(json.dumps(options))
 
         class Stalled(BaseHTTPRequestHandler):

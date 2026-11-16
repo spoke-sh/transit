@@ -68,6 +68,8 @@ slots, one 32 MiB upload workspace and the S3 adapter's approximately 32 MiB PUT
 workspace are separate from
 request and page-cache budgets. `request_timeout_ms` defaults to 10,000 and
 bounds each joined provider request; the adapter does not silently retry it.
+Each serialized adapter retains at most one idle HTTP/TLS connection; failed or
+incomplete exchanges close it, preserving the original request's uncertainty.
 
 The [provider proof](../../../tests/storage/providers/s3.py) executes real MinIO
 operations and forced process-death reopen at this backend boundary, including
@@ -80,7 +82,8 @@ immediate reads issue zero remote data requests. Background transfer issues
 8 PUTs, 8 HEADs and 16 GETs to publish and verify the originals. PUT bodies total
 12,544 bytes for 8,192 logical bytes (1.53125×), including each object's 512-byte
 envelope and 32-byte chunk digest. Eight cold reads followed by eight cache hits
-issue 8 HEADs and 16 GETs in total. These counts exclude namespace claims, HTTP
+issue 8 HEADs and 16 GETs in total. One connection carries each batch's data
+requests in the counting proxy proof. These counts exclude namespace claims, HTTP
 headers, TLS, local WAL/metadata and physical disk writes. Objects are transferred
 individually; this profile does not qualify remote packing, cost targets or a
 latency/throughput SLO.

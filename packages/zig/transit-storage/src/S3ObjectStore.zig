@@ -124,7 +124,7 @@ pub const S3ObjectStore = struct {
     }
     fn initWithAccess(allocator: std.mem.Allocator, io: std.Io, options: Options, read_only: bool) !S3ObjectStore {
         try options.validate();
-        var http: std.http.Client = .{ .allocator = allocator, .io = io };
+        var http: std.http.Client = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } };
         errdefer http.deinit();
         if (options.ca_file) |path| {
             const file = try std.Io.Dir.cwd().openFile(io, path, .{});
@@ -251,8 +251,19 @@ pub const S3ObjectStore = struct {
         }
         var url_buffer: [2048]u8 = undefined;
         const url = try std.fmt.bufPrint(&url_buffer, "{s}/{s}/{s}", .{ endpoint, self.options.bucket, remote_key });
-        var req = try self.http.request(method, try std.Uri.parse(url), .{ .extra_headers = headers[0..count], .redirect_behavior = .not_allowed, .keep_alive = false, .headers = .{ .accept_encoding = .{ .override = "identity" } } });
-        defer req.deinit();
+        // Return redirects to this adapter for refusal. The HTTP library's
+        // not_allowed path drains redirect bodies before returning an error.
+        var req = try self.http.request(method, try std.Uri.parse(url), .{ .extra_headers = headers[0..count], .redirect_behavior = .unhandled, .keep_alive = true, .headers = .{ .accept_encoding = .{ .override = "identity" } } });
+        var reusable = false;
+        defer {
+            // Never drain an untrusted error body or retain an uncertain
+            // exchange. Successful, fully consumed responses can reuse this
+            // adapter's single connection without replaying a request.
+            if (!reusable) {
+                if (req.connection) |connection| connection.closing = true;
+            }
+            req.deinit();
+        }
         if (method == .PUT) {
             req.transfer_encoding = .{ .content_length = payload.len };
             var body = try req.sendBodyUnflushed(&.{});
@@ -278,6 +289,15 @@ pub const S3ObjectStore = struct {
         }
         if (method == .HEAD) {
             if (response.head.content_length == null) return error.InvalidObjectResponse;
+            reusable = true;
+            return result;
+        }
+        if (result.status == .no_content) {
+            if (response.head.transfer_encoding != .none or result.length != 0) return error.InvalidObjectResponse;
+            // A 204 ends at its headers even without Content-Length. Do not
+            // wait for EOF on the reusable connection.
+            _ = req.reader.bodyReader(&.{}, .none, 0);
+            reusable = true;
             return result;
         }
         if (result.length > out.len) return error.ObjectResponseTooLarge;
@@ -289,6 +309,7 @@ pub const S3ObjectStore = struct {
         if (req.reader.state != .ready and req.reader.state != .body_none) return error.EndOfStream;
         result.read = writer.buffered().len;
         if (response.head.content_length != null and result.read != result.length) return error.ObjectSizeMismatch;
+        reusable = true;
         return result;
     }
     fn require(status: std.http.Status) !void {

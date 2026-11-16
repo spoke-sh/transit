@@ -1023,6 +1023,10 @@ reopens the JSON credential file (`access_key_id`, `secret_access_key`, optional
 failure implicitly and logs no credentials or provider response bodies. Deadline
 cancellation joins the request before releasing borrowed buffers. A failed or
 lost PUT/DELETE response preserves uncertainty for the caller to reconcile.
+Each adapter serializes its requests and retains at most one idle HTTP/TLS
+connection. Fully consumed successful HTTP responses permit reuse. Unsuccessful,
+incomplete or cancelled exchanges close the connection without draining an
+untrusted error body; connection reuse never replays a request.
 
 Each provider key contains a single envelope: a 512-byte descriptor, one SHA-256
 per 64 KiB logical payload chunk, then the unmodified payload. Descriptor fields

@@ -47456,7 +47456,7 @@
         "InvalidObjectClock": 1,
         "InvalidObjectEndpoint": 1,
         "InvalidObjectRange": 4,
-        "InvalidObjectResponse": 7,
+        "InvalidObjectResponse": 8,
         "InvalidProviderETag": 1,
         "ObjectAccessDenied": 1,
         "ObjectChanged": 6,
