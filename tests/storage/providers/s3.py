@@ -24,6 +24,8 @@ class CountedTransport:
         self.lock = threading.Lock()
         self.counts = {}
         self.put_bytes = 0
+        self.next_connection = 0
+        self.data_connections = set()
         self.delay_path = None
         self.held = threading.Event()
         self.release = threading.Event()
@@ -34,6 +36,12 @@ class CountedTransport:
         measurement = self
 
         class Handler(BaseHTTPRequestHandler):
+            protocol_version = 'HTTP/1.1'
+            def setup(self):
+                super().setup()
+                with measurement.lock:
+                    self.connection_id = measurement.next_connection
+                    measurement.next_connection += 1
             def log_message(self, *_): pass
             def exchange(self):
                 size = int(self.headers.get('Content-Length', '0'))
@@ -46,6 +54,7 @@ class CountedTransport:
                         delay = True
                 if '/objects/' in self.path:
                     with measurement.lock:
+                        measurement.data_connections.add(self.connection_id)
                         measurement.counts[self.command] = measurement.counts.get(self.command, 0) + 1
                         if self.command == 'PUT': measurement.put_bytes += size
                 if delay:
@@ -97,8 +106,10 @@ class CountedTransport:
 
     def take(self):
         with self.lock:
-            result = dict(requests=self.counts, put_body_bytes=self.put_bytes)
+            result = dict(requests=self.counts, put_body_bytes=self.put_bytes,
+                          connections=len(self.data_connections))
             self.counts, self.put_bytes = {}, 0
+            self.data_connections = set()
             return result
 
 
@@ -334,16 +345,18 @@ def run(binary):
         transport.take()
         tier('tier-batch-write')
         foreground = transport.take()
-        assert foreground == dict(requests={}, put_body_bytes=0), foreground
+        assert foreground == dict(requests={}, put_body_bytes=0, connections=0), foreground
         tier('tier-drain')
         upload = transport.take()
         assert upload['requests'].get('PUT') == 8, upload
         # Independent TS3O envelope oracle: 512-byte header and one 32-byte
         # chunk digest per 1024-byte object. Excludes headers/TLS/local I/O.
         assert upload['put_body_bytes'] == 8 * (1024 + 512 + 32), upload
+        assert upload['connections'] == 1, upload
         tier('tier-batch-read')
         reads = transport.take()
         assert reads['requests'].get('GET', 0) >= 8 and reads['put_body_bytes'] == 0, reads
+        assert reads['connections'] == 1, reads
         print(json.dumps(dict(profile='minio_immutable_batch_cost', objects=8,
               logical_bytes=8 * 1024, foreground=foreground, background_upload=upload,
               reads=dict(cold_objects=8, warm_objects=8, **reads),
