@@ -6,6 +6,7 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | Owner | Responsibility |
 | --- | --- |
 | [services.py](services.py) | Loopback port selection and bounded HTTP readiness while observing the owned process |
+| [native.py](native.py) | Explicit native authority directory and private failure retention; scenarios own and join their node processes |
 | [ursula.py](ursula.py) | Isolated disk-backed Ursula configuration, startup, SIGKILL/restart and joined cleanup |
 | [test_services.py](test_services.py) | Real HTTP readiness/retry, early process exit and deadline controls |
 | [test_ursula.py](test_ursula.py) | Provider listener collision and restart controls using owned child processes; no storage qualification |

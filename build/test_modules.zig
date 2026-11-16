@@ -116,7 +116,7 @@ const specs = [_]Spec{
     .{ .id = .growing_views, .path = "tests/runtime/application/growing_views.zig", .fixtures = &.{.growing_support}, .packages = &.{"transit_station"} },
     .{ .id = .http_caller, .path = "tests/runtime/effects/http_caller.zig", .fixtures = &.{.growing_support}, .packages = &.{ "transit_station", "transit_station_http" } },
     .{ .id = .http_registry, .path = "tests/runtime/effects/http_registry.zig", .fixtures = &.{.growing_support}, .packages = &.{"transit_station"} },
-    .{ .id = .native_disk, .path = "tests/storage/providers/native_disk.zig", .packages = &.{ "transit_backend_ursula", "transit_core" } },
+    .{ .id = .native_disk, .path = "tests/storage/providers/native_disk.zig", .packages = &.{ "transit_backend_local", "transit_core" } },
     .{ .id = .native_proof_files, .path = "tests/runtime/delivery/native_proof_files.zig", .packages = &.{"transit_station"} },
     .{ .id = .operations_app_options, .path = "tests/runtime/application/operations/AppOptions.zig", .packages = &.{"cli_support"} },
     .{ .id = .operations_application, .path = "tests/runtime/application/operations/Application.zig", .fixtures = &.{.operations_app_options}, .packages = &.{ "cli_support", "transit_query" } },

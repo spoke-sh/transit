@@ -2324,7 +2324,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "transit_core", .module = core.module("transit_core") },
-                .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+                .{ .name = "transit_storage", .module = storage.module("transit_storage") },
+                .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
+                .{ .name = "fixture_native_disk", .module = test_modules.get(.native_disk) },
             },
         }),
     });
@@ -2335,7 +2337,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "transit_core", .module = core.module("transit_core") },
-                .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+                .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
                 .{ .name = "fixture_native_disk", .module = test_modules.get(.native_disk) },
             },
         }));
@@ -2345,7 +2347,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     services.addArtifactArg(disk_proof);
     integration.has_side_effects = true;
     integration.stdio = .inherit;
-    b.step("test-storage", "Prove conditional writes and disk recovery against Ursula").dependOn(&integration.step);
+    b.step("test-storage", "Prove native semantic recovery across process death").dependOn(&integration.step);
     const board_tests = b.addSystemCommand(&.{ "python3", "-B" });
     board_tests.addFileArg(b.path("tests/runner/launch.py"));
     board_tests.addFileArg(b.path("tests/interfaces/board/board.py"));
@@ -2429,6 +2431,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("growing-capacity-proof", "Install the growing physical pressure proof driver").dependOn(&b.addInstallArtifact(growing_capacity, .{}).step);
     build_test_step.dependOn(&growing_capacity.step);
     test_modules.wire(&.{
+        .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
         .{ .name = "station_transaction_internal", .module = station.module("station_transaction_internal") },
         .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
         .{ .name = "transit_data_client", .module = b.dependency("transit_data_client", .{ .target = target, .optimize = optimize }).module("transit_data_client") },

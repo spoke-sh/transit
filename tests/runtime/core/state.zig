@@ -1,7 +1,7 @@
-//! Real Ursula proof: conditional KV visibility, lost receipts and disk recovery.
+//! Real native WAL proof: conditional KV visibility, lost receipts and disk recovery.
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 const p = core.protocol;
 const s = p.State;
 const t = std.testing;
@@ -39,22 +39,18 @@ fn turn(e: *Engine, view_id: u64, value: ?p.Value) !p.Command {
 pub fn main(init: std.process.Init) !void {
     const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
     const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
     const root = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const worker = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
     const genesis: core.Genesis = .{ .realm = 49, .root_key = root.public_key.toBytes(), .allow_history_trim = true, .max_clock_error_ms = 0 };
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
-    defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-state", .name = "authority" } } };
-    var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 8);
+    var owner = try disk.open(init, args[1], "state");
+    defer owner.deinit();
+    var store: adapter.Store = .{ .backend = &owner };
+    var pages = try adapter.PageStore.init(&owner, 8);
     defer pages.deinit();
     const e = try init.gpa.create(Engine);
     defer init.gpa.destroy(e);
     const write = std.mem.eql(u8, args[2], "write");
-    if (write) {
-        try store.journal.create();
-        try pages.create();
-    }
     e.* = if (write) try Engine.bootstrap(&store, &pages, genesis) else try Engine.open(&store, &pages, genesis);
     var clock: Clock = .{};
     e.clock = .{ .context = &clock, .read = Clock.read };
@@ -69,7 +65,7 @@ pub fn main(init: std.process.Init) !void {
         const request = try signed(e, worker, 1, try turn(e, view, p.Value.integer(12)));
         const candidate = try e.prepare(request);
         try t.expect(try disk.entry(e, 3, "count") == null);
-        var second_store: adapter.Store = .{ .journal = store.journal };
+        var second_store: adapter.Store = .{ .backend = &owner };
         const competing = try init.gpa.create(Engine);
         defer init.gpa.destroy(competing);
         competing.* = try Engine.open(&second_store, &pages, genesis);
@@ -87,12 +83,12 @@ pub fn main(init: std.process.Init) !void {
         // The final accepted operation opened a view; the private candidate
         // containing 999 never became an authority root.
         const snapshot = try disk.record(e, core.growing.StoredView, .view, e.head.position - 1);
-        var captured = try core.catalog.Catalog(adapter.PackedPageStore).open(&pages, snapshot.snapshot);
+        var captured = try core.catalog.Catalog(adapter.PageStore).open(&pages, snapshot.snapshot);
         const captured_entry = (try captured.get(g.Entry, try core.catalog.key(.entry, 3, 0, "count"))).?;
         try t.expectEqual(12, try captured_entry.value.asInteger());
         _ = try submit(e, worker, 1, try turn(e, snapshot.meta.id, p.Value.integer(13)));
         _ = try submit(e, root, 0, .{ .checkpoint = {} });
-        try disk.publish(&store);
+        try disk.assertCheckpointPublished(&store);
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         try t.expectEqual(13, try count(e));
         // More entries than either the public read page or adapter replay window.
@@ -161,4 +157,5 @@ pub fn main(init: std.process.Init) !void {
     } else return error.UnknownPhase;
     std.debug.print("state {s}: passed\n", .{args[2]});
     if (std.mem.eql(u8, args[2], "checkpoint")) std.debug.print("state bounds: authority={d} bytes, resident pages={d}; 32 live keys, read page=8\n", .{ @sizeOf(Engine), pages.residentBytes() });
+    if (!std.mem.startsWith(u8, args[2], "service_")) try disk.completed(init.io);
 }
