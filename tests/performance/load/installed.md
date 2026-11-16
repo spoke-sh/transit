@@ -34,7 +34,9 @@ throughput. Do not interpret startup or a single restart as a distribution.
 
 The manifest includes CPU affinity, inherited cgroup-v2 CPU/memory limits when
 available, CPU model and filesystem type. `--attribution` enables the existing
-node `request_metrics` option through a fixture-owned executable wrapper. Binary
+node `request_metrics` option through the test-only `transit-server-fault-fixture`
+and its `node-proxy.json` wrapper (`just test::installed-performance` selects
+that fixture automatically when `--attribution` is passed). Binary
 hashes still identify the copied executables, and the wrapper's source and choice
 are attributed separately. These diagnostic runs cannot compare against timing
 controls with counters disabled. Provider/header instrumentation is enabled by
