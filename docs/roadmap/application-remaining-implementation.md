@@ -102,10 +102,10 @@ this plan's baseline.
 | [Source contract](../../contracts/APPLICATION_SOURCE_V1.md), [grammar](../../contracts/application-source/README.md), `transit-compiler` | Syntax, stages, typed bindings, deterministic evaluation, diagnostics, SQL equivalence and source-only rejection at runtime entry points |
 | [Fuze](../../packages/zig/transit-fuze/README.md), [application programs](../../contracts/APPLICATION_PROGRAM_V1.md) | Pure typed expressions, resource descriptors, ordered instructions, cardinality and runtime refusals; factor pure APIs without reversing Fuze/Catalog dependencies |
 | [Catalog definitions](../../contracts/CATALOG_DEFINITIONS_V1.md), [catalog](../../contracts/DECLARATIVE_CATALOG_V1.md), M5–M7/M10 | Stable definitions, current policy, exact dependencies and native transactions; qualify each Document profile explicitly rather than assuming all Document work is complete |
-| [M13 SQL/dataflow work](dataflow-sql-implementation.md), [SOURCE/SINK](../../contracts/SOURCE_V1.md) | Installed publication/control, program migration binding, protected host composition and observable progress; M12 must not duplicate service discovery or invocation recovery |
+| [M14 SQL/dataflow work](dataflow-sql-implementation.md), [SOURCE/SINK](../../contracts/SOURCE_V1.md) | Installed publication/control, program migration binding, protected host composition and observable progress; M12 must not duplicate service discovery or invocation recovery |
 | [Migration](../../contracts/MIGRATION_V1.md), M11 | Saved basis, conditional application, immutable receipts and drift rejection; physical rewrites remain with the online rewrite owner |
 | [Test host](../../apps/transit-cli/TestHost.zig), M8/M9 | Real isolated database composition, signed identities, inherited deadlines, original-operation settlement and joined cleanup |
-| [Verification owners](../../tests/verification/models/README.md), M23 | Selected temporal models, Lean laws and native trace projections delivered with language features; no general proof inferred from shared generation |
+| [Verification owners](../../tests/verification/models/README.md), M24 | Selected temporal models, Lean laws and native trace projections delivered with language features; no general proof inferred from shared generation |
 
 Do not wait for every adjacent milestone to complete before using an admitted
 operation. For each source form, record its source checker, executable SQL owner,
@@ -255,7 +255,7 @@ versions cannot share one stateful instance silently.
 
 Extend the source and ordinary runtime contracts together for the admitted
 COMMAND, SOURCE, SINK and PUBLICATION profiles. Reuse the installed host work
-from M13 and its adjacent ingress/serving owners. Component parsing, declared
+from M14 and its adjacent ingress/serving owners. Component parsing, declared
 sinks and physical HTTP helpers do not establish a deployed workflow.
 
 Add typed PROFILE defaults and explicit override validation without reading
@@ -308,7 +308,7 @@ Compare actual old-to-new migration execution with a fresh desired installation
 for supported cases; preserve historical identity separately from that comparison.
 
 Broaden the staged graph to each admitted resource/definition kind. Queue program
-migrations require M13's original dependency/receipt adapter; ordinary Queue SQL
+migrations require M14's original dependency/receipt adapter; ordinary Queue SQL
 execution alone is insufficient. Grants/activation remain explicit requested
 steps. Coordinate any file/step-limit increase across client, protocol, ledger
 and service, with bounded page/scratch behavior and current-v1 cutover evidence;

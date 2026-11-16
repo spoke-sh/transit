@@ -6,7 +6,7 @@ Replace the current B-tree-over-HTTP-stream-pages storage bottleneck with a
 four-tier storage hierarchy over two pluggable primitives (**`TransitLog`** and
 **`TransitObjectStore`**), a pure-Zig hybrid OLTP/OLAP segment format (**`.tseg`**)
 with composable physical codecs and collations, bounded native persistence and
-correct local conditional publication. [Provider/concurrent-writer qualification](24-storage-providers-and-concurrency.md)
+correct local conditional publication. [Provider/concurrent-writer qualification](25-storage-providers-and-concurrency.md)
 receives distributed-provider and partitioned-writer integration explicitly;
 its contracts are still designed with this foundation before dependent formats.
 The [performance reference](../handbook/reference/performance.md) records current
@@ -25,7 +25,7 @@ The delivered scope is the local durable foundation and selected segment/query
 profiles. The existing installed lifecycle/SQL obligations remain in milestone
 3, transaction composition in milestone 5, broader indexes in milestone 8,
 concurrent group-commit evaluation in milestone 10 and distributed providers/
-concurrent writers in milestone 15. This review transfers no new unfinished
+concurrent writers in milestone 16. This review transfers no new unfinished
 foundation criterion. #109 and #124 retain their broader combined obligations.
 
 | Acceptance area | Delivered behavior and executed evidence |
@@ -118,7 +118,7 @@ open.
 Resolve commit authority before wiring storage, establish the correct bounded
 local slice, then complete the [installed cutover](03-live-storage-and-sql-cutover.md).
 The sequencing review transfers #117/#121 implementation and distributed runtime
-qualification to [milestone 23](24-storage-providers-and-concurrency.md).
+qualification to [milestone 25](25-storage-providers-and-concurrency.md).
 #109 remains the umbrella for its original outstanding local and provider scope;
 this milestone remained In Progress at that assessment. Local cross-process CAS, fencing at its
 supported authority boundary and all local recovery obligations remain here.
@@ -156,7 +156,7 @@ pending full-suite qualification; this assessment does not mark that work passed
 | Codecs and collations (#118/#128) | `TableSchema`, `PhysicalCodecs` and `Collation` admit explicit profiles; ICU rejects, CP037 uses a full table, HFP admission is exact, and the symbol-table format does not claim FSST interchange. SQL rejects non-binary text comparison. | Independent encoded/decoded and pruned/unpruned query oracles, encoded operators, five-state provenance, compatible borrowing and complete comparison/hash/order propagation. Explicit rejection is not delivery of the remaining selected profiles. |
 | Bounded execution (#116/#128) | Direct sources return owned bounded rows; Fuze has separate compute budgets and relational disk-backed group state. | Audit sort/hash/spill, decoded expansion and cancellation across the shared reader, including data larger than caches and many small segments. |
 | Evidence and public claims (#123/#124/#76) | Public storage/Table owners distinguish installed acceptance from separate helpers. Earlier performance measurements and failures remain recorded. | Matched disk-backed owner and installed SQL controls, byte/range/allocation/RSS attribution, focused recovery proofs, repository checks and committed-HEAD clean lanes. No latency target is inferred. |
-| Providers/concurrent writers (#117/#121) | Local exclusive ownership and process-locked object publication are implemented. OCC/cache/provider helpers do not establish installed concurrent writers. | Milestone 15 retains distributed providers, disk cache and integrated concurrent-writer obligations; local safety and fencing remain here. |
+| Providers/concurrent writers (#117/#121) | Local exclusive ownership and process-locked object publication are implemented. OCC/cache/provider helpers do not establish installed concurrent writers. | Milestone 16 retains distributed providers, disk cache and integrated concurrent-writer obligations; local safety and fencing remain here. |
 
 Implementation order: first build and qualify the shared bounded segment range
 reader and integrate it into live Table reads; then complete ordered access and
@@ -567,7 +567,7 @@ The current exclusive owner also serializes validation, publication and receipt
 observation. Delaying its sync alone cannot safely create overlapping accepted
 operations or remove immutable staging costs.
 
-[Milestone 14's existing runtime optimization work](14-data-structures-and-performance.md)
+[Milestone 15's existing runtime optimization work](15-data-structures-and-performance.md)
 owns evaluation of batching/group commit under measured concurrent load, with
 explicit queue bounds, acknowledgement timing, per-operation uncertainty and
 control reserve. This decision does not claim that group commit lacks a benefit
@@ -586,7 +586,7 @@ in the same review and the public performance owner.
 The architecture below includes future backend choices to keep the shared
 interfaces coherent. This milestone qualifies the native local profile and
 codec/query foundation; the named distributed backends, disk range cache and
-partitioned concurrent-writer delivery belong to milestone 15. Existing helper
+partitioned concurrent-writer delivery belong to milestone 16. Existing helper
 implementations retain only their recorded component evidence.
 
 ### Two pluggable storage primitives
@@ -708,7 +708,7 @@ Vortex and Apache Arrow), paired with multi-format foreign/exchange support:
 Design control/policy, independent data/process partitions, writer epochs and
 conditional publication with #117/#125/#111 before freezing local log formats.
 Do not require every unrelated write to advance one global catalog CAS.
-[Milestone 24](24-storage-providers-and-concurrency.md) delivers enforceable
+[Milestone 25](25-storage-providers-and-concurrency.md) delivers enforceable
 provider leases, scoped credentials and integrated multi-writer OCC, including
 read/predicate validation required by the selected isolation contract. Local
 atomic publication must already be safe across independent processes; it cannot
@@ -726,7 +726,7 @@ authorized public reads; Board receives no raw provider access.
 
 Provider acknowledgement, durable-copy locations, disk/host loss and network
 partition profiles remain in [#121](https://github.com/spoke-sh/transit/issues/121)
-and [milestone 23](24-storage-providers-and-concurrency.md). This owner proves
+and [milestone 25](25-storage-providers-and-concurrency.md). This owner proves
 the declared local sync/restart profile and explicitly excludes losing the only
 durable disk. Distributed providers, cache qualification and concurrent writer
 integration have moved; local safety, native recovery, codecs and bounded
@@ -737,7 +737,7 @@ automatic placement each retain their later acceptance owners.
 
 Resolve #125/#111, #126/#127 and #128/#118 contracts before their dependent
 formats and code. Qualify the local component foundation here and the actual
-installed caller paths in milestone 3 before milestone 15 extends distributed
+installed caller paths in milestone 3 before milestone 16 extends distributed
 providers and concurrent writers. Contract collaboration can proceed early;
 each milestone closes only against its own explicit evidence.
 
@@ -765,13 +765,13 @@ each milestone closes only against its own explicit evidence.
    Measure disk-backed owner paths, attributing ingestion, WAL commit,
    Memtable/segment scans, vector execution and manifest publication separately.
    Preserve the end-to-end SQL, PostgreSQL/MySQL, Flight and SDK matched controls
-   as installed acceptance in milestone 3 and provider acceptance in milestone 15;
+   as installed acceptance in milestone 3 and provider acceptance in milestone 16;
    their observations must not be replaced by library-only measurements.
 
 ## Completion evidence
 
 The [indexing](11-indexing-and-access-paths.md) and
-[data structures/performance](14-data-structures-and-performance.md) milestones
+[data structures/performance](15-data-structures-and-performance.md) milestones
 extend this foundation. Bounded memtables/manifests, paged primary-key access,
 range reads and sound pruning remain requirements here. Measure candidate
 segments, index/data pages and bytes fetched; whole-segment reads cannot stand

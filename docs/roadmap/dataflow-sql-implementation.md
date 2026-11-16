@@ -1,10 +1,10 @@
-# Milestone 13: lowered DATAFLOW SQL implementation
+# Milestone 14: lowered DATAFLOW SQL implementation
 
-[Milestone 13](13-sql-and-dataflows.md) · [Roadmap](README.md) · **Status:** In Progress
+[Milestone 14](14-sql-and-dataflows.md) · [Roadmap](README.md) · **Status:** In Progress
 
 **Plan basis:** local `main` at
 `5df71dc890d24d1587f1d3e8df3688d931a04c81`, 2026-11-10. This is an implementation
-proposal, not executed runtime evidence or a change to M13's **In Progress**
+proposal, not executed runtime evidence or a change to M14's **In Progress**
 status. Other worktrees and unmerged changes are not prerequisites satisfied by
 this baseline.
 
@@ -12,7 +12,7 @@ Implement the executable, lowered SQL form of `DATAFLOW`: an application submits
 SQL through the ordinary service, publishes an immutable computation, explicitly
 authorizes and activates it, and inspects its original work and outcomes after
 disconnect or replacement. M12 owns `.transit` composition, static language
-semantics and SQL emission. M13 owns admission and execution of that emitted SQL.
+semantics and SQL emission. M14 owns admission and execution of that emitted SQL.
 The installed runtime must work with the source packages and compiler absent.
 
 The next delivery is **ordered Queue DATAFLOW SQL over the existing typed
@@ -22,8 +22,8 @@ execution. Do not make a new compiler, a new workflow engine or completion of
 DBSP a prerequisite for executing the already defined ordered SQL body.
 
 This plan supplies the current lowered-SQL delivery order. The milestone's
-[R0–R10 packages](13-sql-and-dataflows.md#work-packages-and-dependencies),
-[SOURCE plan](13-sql-and-dataflows.md#create-source-implementation-plan--2026-11-05)
+[R0–R10 packages](14-sql-and-dataflows.md#work-packages-and-dependencies),
+[SOURCE plan](14-sql-and-dataflows.md#create-source-implementation-plan--2026-11-05)
 and [downstream application plan](downstream-application-language.md) retain their
 broader acceptance obligations and earlier evidence. Historical references to
 M12 as the dataflow owner predate the insertion of the source-language milestone;
@@ -50,7 +50,7 @@ mixed-participant and cancellation proofs remain with
 Registration of these cases is not an executed pass; qualification results belong
 in the PR and proof ledger after the gates finish.
 
-This slice does not close units 1–4 or M13. Migration dependency evidence,
+This slice does not close units 1–4 or M14. Migration dependency evidence,
 independent-reader inspection, broader capability/denial schedules, protected
 host composition, emitter correspondence and retained-history/incremental
 execution keep their gates below. Unsupported installed host features reject
@@ -60,7 +60,7 @@ before SQL admission rather than publishing an unexecutable program.
 
 Two SQL profiles already have different owning semantics:
 
-| Lowered SQL | Current boundary | M13 responsibility |
+| Lowered SQL | Current boundary | M14 responsibility |
 | --- | --- | --- |
 | `CREATE DATAFLOW name INTO output AS SELECT ...` | Installed native cohosted SQL; one ordinary Table source, finite recomputation and retained completed revisions | Preserve its lifecycle and readers; qualify combined faults/resources, then add admitted history and incremental profiles |
 | `CREATE DATAFLOW name FROM QUEUE input AS item ... AS BEGIN ... END` | Fuze parser, typed declarations, native invocation/transaction owners and bounded service discovery exist; SQL installation and deployed host composition remain incomplete | Connect ordinary SQL admission, migration planning, lifecycle controls, inspection and the configured host to those owners |
@@ -93,7 +93,7 @@ journey has additional ingress/publication gates owned by the downstream plan.
 
 | Delivered foundation or source finding | Reuse and remaining integration gate |
 | --- | --- |
-| [M12](12-application-modules-compilation-and-testing.md), #437/#438/#441: recursive Table builds, isolated Table tests and independent source grammar checks | Generated SQL executes through ordinary owners. Current `transit build` rejects Queue/effect programs; do not claim it already emits the broader DATAFLOW profile. M13 can qualify handwritten canonical SQL first, then M12 adds emission and emitter/runtime correspondence for that same profile. |
+| [M12](12-application-modules-compilation-and-testing.md), #437/#438/#441: recursive Table builds, isolated Table tests and independent source grammar checks | Generated SQL executes through ordinary owners. Current `transit build` rejects Queue/effect programs; do not claim it already emits the broader DATAFLOW profile. M14 can qualify handwritten canonical SQL first, then M12 adds emission and emitter/runtime correspondence for that same profile. |
 | [Application foundation](downstream-application-language.md), #435 | `ApplicationProgram` parses, binds and encodes ordered instructions; `ManagedApplication`, `ApplicationInvocation`, `ApplicationExecution` and `ApplicationRecovery` retain and execute original work. `DatabaseRuntime.applicationStep` already discovers it. Extend service composition; do not implement another invocation scheduler or instruction interpreter. |
 | [`ManagedSql`](../../packages/zig/transit-sql/src/ManagedSql.zig) and [`ManagedOperations`](../../packages/zig/transit-sql-service/src/ManagedOperations.zig) | SQL CREATE currently requires `INTO ... AS SELECT`; controls have no executor-role operand. Saved `DFS1` requests contain `ManagedTable.Declaration`. Add ordered-program variants and role binding before admitting Queue SQL. |
 | [`MigrationRunner`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig) and [`MigrationDataflow`](../../packages/zig/transit-sql-service/src/MigrationDataflow.zig), #404/#435 | Finite DATAFLOW migrations and compound framing exist. A Queue body is framed as one step but is not installed by that fact. Extend exact dependency evidence beyond source/output Tables; preserve original step receipts and reviewed-plan drift checks. |
@@ -115,7 +115,7 @@ Tables](../history/qualification/query.md#managed-finite-table-lifecycle--2026-1
 and [isolated Table tests](../history/qualification/interfaces.md#isolated-application-table-tests--2026-11-10).
 Merged implementations and those source-specific passes do not establish a
 combined pass at this plan's baseline. The earlier failed managed-performance
-campaigns remain part of the [measurement baseline](13-sql-and-dataflows.md#qualification-and-measurement-baseline).
+campaigns remain part of the [measurement baseline](14-sql-and-dataflows.md#qualification-and-measurement-baseline).
 
 ## Contracts to settle before exposing SQL
 
@@ -160,7 +160,7 @@ campaigns remain part of the [measurement baseline](13-sql-and-dataflows.md#qual
    permission to reconstruct credentials or resend. Response handoff needs native
    commit evidence, current disclosure rights and one live response owner.
 8. **Definition replacement.** M12 owns source-level replacement/migration
-   synthesis; M13 supplies runtime fencing/draining and original continuation
+   synthesis; M14 supplies runtime fencing/draining and original continuation
    semantics for any admitted lowered replacement. Keep replacement unsupported
    until that joint contract lands. A changed SQL body cannot overwrite accepted
    instructions, and resume never recompiles an original with the latest compiler.
@@ -176,7 +176,7 @@ incompatible accepted work. Add no fallback decoder or automatic data reset.
 
 ## Reviewable implementation sequence
 
-These are review units within M13, with mappings to the existing R packages.
+These are review units within M14, with mappings to the existing R packages.
 Contract, implementation, negative admission cases, callers and public documentation
 travel together. Every unit adds real SQL evidence; helper tests alone cannot
 close it. R9 caller migration and R10 correspondence accompany every unit.
@@ -319,7 +319,7 @@ Source-only imports, build declarations and test directives must reject at runti
 M12 extends `transit test` with its own subject/clock/effect facilities; until those
 exist, use real service and fault fixtures. Do not add fake passing workflow tests
 to the delivered Table-only runner. Extend its independent source grammar and
-lowering correspondence with each admitted language construct, while M13 owns
+lowering correspondence with each admitted language construct, while M14 owns
 runtime transition replay. Generated expectations from the same compiler are
 insufficient as the only oracle.
 
@@ -331,7 +331,7 @@ with the downstream plan and its qualified deployment artifacts.
 ### 7. Complete relational WAL activation and incremental state — R2/R3/R4
 
 This track preserves the other executable DATAFLOW profile. Finish the
-[finite fault/resource gate](13-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification)
+[finite fault/resource gate](14-sql-and-dataflows.md#next-implementation-slice-owned-staging-and-finite-qualification)
 without rebuilding delivered SOR1/CPR1/TXR1 ownership. Add bounded finite executor
 continuations so large evaluations yield while retaining their exact source cut.
 Do not claim a new batching gain without matched complete-successor measurements.
@@ -355,8 +355,8 @@ current-v1 `.tseg` cutover with native signed `@weight: i64` multiplicities.
 Preserve DFR1's logical attribution, result ordering/coverage and current disclosure
 guards; migrate all readers and reachable roots together. Stage durable arrangement
 and result roots before the common output/checkpoint decision. Scratch spill is
-disposable; checkpoint arrangements remain retained recovery state. M14 supplies
-shared compaction improvements, while M13 must deliver a bounded usable baseline.
+disposable; checkpoint arrangements remain retained recovery state. M15 supplies
+shared compaction improvements, while M14 must deliver a bounded usable baseline.
 
 Start incremental filter/projection and admitted bag union, then join cross terms,
 outer/semi/anti match counts, distinct and groups. Qualify against independent
@@ -378,7 +378,7 @@ lowered SQL and typed owners rather than helper-only coverage:
 
 | Review boundary | Required implementation and exit |
 | --- | --- |
-| Analytical plans | Production typed plan DAG, multi-way/non-equi/semi/anti/LATERAL joins and dependent-join unnesting; independent scalar-cardinality, NULL, multiplicity and error-order oracles. Constant IN/NOT IN can land independently through M15's shared owned predicates. |
+| Analytical plans | Production typed plan DAG, multi-way/non-equi/semi/anti/LATERAL joins and dependent-join unnesting; independent scalar-cardinality, NULL, multiplicity and error-order oracles. Constant IN/NOT IN can land independently through M16's shared owned predicates. |
 | CTEs, sets, windows and aggregates | Bounded recursive CTEs, set/bag operations, ROWS/RANGE/GROUPS frames, QUALIFY and rich aggregates through the real parser/executor. Real sort/join/group/window spill and explicit exact/approximate semantics; no spill-counter substitute. |
 | Historical and temporal SQL | `CHANGES` over retained complete intervals, composition of delivered `STREAM_SLICE`, application-time periods and knowledge-cut AS OF joins using M10 definitions. Qualify late corrections, ties, endpoints and unavailable history; SQL MERGE uses one original transaction and remains distinct from branch merge. |
 | Functions | Immutable function/body/schema bindings, hygienic SQL macros and an explicitly admitted real Wasm binary/validation/runtime profile with fuel, memory and vector ownership. No ambient effects or Station mailbox dispatch for query UDFs. |
@@ -386,21 +386,21 @@ lowered SQL and typed owners rather than helper-only coverage:
 | Governed relational sinks | Bind output/checkpoint and a stable effect intent to one common decision, then dispatch under current connector authority. Ordered/net trigger semantics are explicit; retracting a relation cannot retract an HTTP request. |
 
 These units can proceed when their specific contracts are ready. They do not block
-Units 1–4's public-data program, and finishing that program does not complete M13.
+Units 1–4's public-data program, and finishing that program does not complete M14.
 Retain the milestone's interval-depth/state-book workload, temporal propagation,
 larger-than-RAM and caller-migration obligations in the linked R packages.
 
 ## Handoffs to upcoming milestones
 
-| Owner | M13 supplies | Owner retains |
+| Owner | M14 supplies | Owner retains |
 | --- | --- | --- |
-| [M14 performance](14-data-structures-and-performance.md) | Charged work units, bounded retained/spill state, correctness oracle and measured complete-operation/foreground-interference baseline | Physical structure selection, shared LSM compaction, statistics and integrated regression budgets; no deferred M13 correctness or memory gate |
-| [M15 strings/search](15-vectorized-strings-and-search.md), [M16 compilation](16-data-centric-compilation-and-specialization.md) | Exact typed plans, owned string/key lifetimes, failure order and checkpoint/continuation semantics | Shared collation/membership/search primitives and optional fused/AOT implementations; M16 reuses M12's build graph and cannot change SQL meaning |
-| [M17 profiles](17-document-profiles-and-gateway-exchange-lifecycle.md), [M18 spatial](18-geospatial-and-spatio-temporal-computing.md), [M19 foreign relations](19-multi-model-and-foreign-relations.md), [M20 assets](20-game-asset-pipelines-and-simulation-streaming.md) | Definition-bound adapters, operator traits, replay/retraction versus bounded-rebuild contracts and atomic complete publication | Actual profile decoding, spatial/asset semantics and foreign import/CDC qualification. A codec or pure helper is not an admitted SQL source. |
-| [M21 branches](21-branches-merges-and-restore.md) | Branch-qualified source/definition/result identity and retained roots | Writable histories, merge/restore and shared arrangement roots; copying a definition never activates it or recreates effect rights |
-| [M22 coverage](22-service-and-sdk-coverage.md), [M23 correspondence](23-formal-semantics-and-correspondence.md) | Shared SQL/native operations, representative installed evidence and production transition/operator traces | Broader language/platform matrix and systematic proof composition. M13 still migrates affected callers and supplies its own negative controls. |
-| [M24–M27 distributed operations](24-storage-providers-and-concurrency.md) | Local original-decision recovery and explicit lease/cut assumptions | Provider, replication, disaster-recovery and placement qualification; multiple local workers are not distributed authority evidence |
-| [M28 policy](28-control-and-policy-plane.md), [M29 publication](29-published-resources-and-investigations.md), [M31 Board](31-board-reimplementation.md), [M33 activation](33-reactive-context-and-agent-activation.md) | Current native policy checks, exact outcomes, read-only inspection and deliberate trigger/effect boundaries | Broader secret/identity/publication/workbench/agent behavior. M13 supplies generic execution, not hardcoded authentication or agent policy. |
+| [M15 performance](15-data-structures-and-performance.md) | Charged work units, bounded retained/spill state, correctness oracle and measured complete-operation/foreground-interference baseline | Physical structure selection, shared LSM compaction, statistics and integrated regression budgets; no deferred M14 correctness or memory gate |
+| [M16 strings/search](16-vectorized-strings-and-search.md), [M17 compilation](17-data-centric-compilation-and-specialization.md) | Exact typed plans, owned string/key lifetimes, failure order and checkpoint/continuation semantics | Shared collation/membership/search primitives and optional fused/AOT implementations; M17 reuses M12's build graph and cannot change SQL meaning |
+| [M18 profiles](18-document-profiles-and-gateway-exchange-lifecycle.md), [M19 spatial](19-geospatial-and-spatio-temporal-computing.md), [M20 foreign relations](20-multi-model-and-foreign-relations.md), [M21 assets](21-game-asset-pipelines-and-simulation-streaming.md) | Definition-bound adapters, operator traits, replay/retraction versus bounded-rebuild contracts and atomic complete publication | Actual profile decoding, spatial/asset semantics and foreign import/CDC qualification. A codec or pure helper is not an admitted SQL source. |
+| [M22 branches](22-branches-merges-and-restore.md) | Branch-qualified source/definition/result identity and retained roots | Writable histories, merge/restore and shared arrangement roots; copying a definition never activates it or recreates effect rights |
+| [M23 coverage](23-service-and-sdk-coverage.md), [M24 correspondence](24-formal-semantics-and-correspondence.md) | Shared SQL/native operations, representative installed evidence and production transition/operator traces | Broader language/platform matrix and systematic proof composition. M14 still migrates affected callers and supplies its own negative controls. |
+| [M25–M25 distributed operations](25-storage-providers-and-concurrency.md) | Local original-decision recovery and explicit lease/cut assumptions | Provider, replication, disaster-recovery and placement qualification; multiple local workers are not distributed authority evidence |
+| [M29 policy](29-control-and-policy-plane.md), [M30 publication](30-published-resources-and-investigations.md), [M32 Board](32-board-reimplementation.md), [M34 activation](34-reactive-context-and-agent-activation.md) | Current native policy checks, exact outcomes, read-only inspection and deliberate trigger/effect boundaries | Broader secret/identity/publication/workbench/agent behavior. M14 supplies generic execution, not hardcoded authentication or agent policy. |
 
 ## Verification and completion gates
 
@@ -457,7 +457,7 @@ Develop T8 lifecycle/DDL and T5 history-handoff correspondence with the owning
 reducers; add A3 incremental equivalence as operators land. Reuse the existing
 model/trace harness and independent fixtures. Negative controls must expose a
 removed fence, early checkpoint or unauthorized dispatch. M12's selected lowering
-proofs and M23's wider models cannot substitute for installed behavior.
+proofs and M24's wider models cannot substitute for installed behavior.
 
 Measure invocation-to-verified-outcome and source-acceptance-to-complete-revision
 latency separately from HTTP response/notification latency. Record backlog,
@@ -470,6 +470,6 @@ Units 1–4 complete the first lowered Queue DATAFLOW SQL slice only when its
 installed publication-to-outcome journey and faults pass. Units 5–6 establish the
 admitted effect/response and source-emission handoffs with their adjacent owners.
 Units 7–8 and the existing R0–R10 acceptance obligations remain necessary for full
-M13 completion. Promote supported semantics and limits to the query/application,
+M14 completion. Promote supported semantics and limits to the query/application,
 SQL, caller and storage owners as code lands; record executed evidence in
 qualification history and update milestone status only when its full gates pass.

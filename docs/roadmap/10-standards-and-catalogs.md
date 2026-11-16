@@ -107,8 +107,8 @@ over those contracts, rather than introducing a second snapshot representation.
      inclusivity for continuous domains, Allen's interval predicates (`&&`
      overlaps, `@>` contains, `-|-` adjacent), and sorted non-overlapping
      `MULTIRANGE` interval runs (serving as the 1D base case of
-     [Milestone 13's](13-sql-and-dataflows.md) `PERIOD FOR valid_time` and
-     [Milestone 18's](18-geospatial-and-spatio-temporal-computing.md) `BBOX` /
+     [Milestone 14's](14-sql-and-dataflows.md) `PERIOD FOR valid_time` and
+     [Milestone 19's](19-geospatial-and-spatio-temporal-computing.md) `BBOX` /
      `S2` cell coverings).
    - **Unboxed Dense Numeric Vectors (`VECTOR(dim, elem_type)`):** distinguish
      fixed-dimension `FLOAT32`, `FLOAT16`, `BFLOAT16`, `INT8` and `BINARY`
@@ -130,7 +130,7 @@ over those contracts, rather than introducing a second snapshot representation.
      `GEODESIC` manifold, 2D/3D snap-rounding grid scale $\delta_{\text{grid}}$,
      Shewchuk exact `orient2d`/`orient3d`/`incircle`/`insphere` predicates, and
      `S2_HILBERT` / `H3` / `HILBERT_3D` space-filling curve order) consumed by
-     [Milestone 18](18-geospatial-and-spatio-temporal-computing.md).
+     [Milestone 19](19-geospatial-and-spatio-temporal-computing.md).
 7. **Expose historical inspection and explicit projections through shared operations:**
    distinguish metadata permission from row/segment access and report exact
    manifest provenance, constraint dependencies and per-segment schema projection
@@ -150,7 +150,7 @@ universal UCA, type, direction or five-state support.
 
 Target selected SQL:2023, SQL/JSON, SQL/PGQ and SQL/MED features explicitly.
 GQL, Cypher and PGQL need separate frontend/compatibility evidence; the later
-[SQL grammar, standards comparison and dialect ergonomics milestone](44-sql-grammar-and-dialect-ergonomics.md)
+[SQL grammar, standards comparison and dialect ergonomics milestone](45-sql-grammar-and-dialect-ergonomics.md)
 audits the complete pre-release SQL grammar against industry dialects (PostgreSQL,
 DuckDB, Snowflake, ClickHouse, GoogleSQL and Materialize/Flink) and qualifies
 compile-time ergonomic desugarings (`FROM`-first queries, `GROUP BY ALL`,
@@ -210,7 +210,7 @@ and [caller semantics](../handbook/reference/callers.md).
 | Original package | Implemented at the source basis | Remaining completion obligation |
 | --- | --- | --- |
 | P0 — Standards/effects | [Ledger](../../contracts/sql/standards-ledger.json), generated capabilities and production `OperatorTraits`; resolved CHECK/DML/projection traits and metadata-only EXPLAIN | Reconcile feature/stage/surface claims with the integrated entry points and independently executed cases. Preserve explicit unverified standards references; generation consistency alone is not conformance. |
-| P1 — Types/interpretation | Stored RANGE/MULTIRANGE, aligned dense VECTOR, exact decimal programs/SUM, pinned TZif operations, CP037 PAD SPACE and CP1047 NO PAD; persisted `transit-spatial.Reference` metadata | Repeat storage/query/Arrow/neutral correspondence across the combined definition and M14 paths. Verify each narrower wire/SDK refusal and every changed-format rejection. UCA/locale execution remains refused. |
+| P1 — Types/interpretation | Stored RANGE/MULTIRANGE, aligned dense VECTOR, exact decimal programs/SUM, pinned TZif operations, CP037 PAD SPACE and CP1047 NO PAD; persisted `transit-spatial.Reference` metadata | Repeat storage/query/Arrow/neutral correspondence across the combined definition and M15 paths. Verify each narrower wire/SDK refusal and every changed-format rejection. UCA/locale execution remains refused. |
 | P2 — Integrity | Persisted bounded CHECK and explicitly staged FK descriptors, owner-enforced writes, validation and recoverable dependency finalization | Prove all actual write/admission paths and interruption points at the integrated source. FK dependency protection is not parent/child enforcement; M11 owns enforcement and referential actions. |
 | P3 — Evolution/projection | Accepted definition and ADD-origin directories; lazy evolution, validation/rewrite classification, signed/SQL explicit targets and paged physical interpretation | Qualify mixed segment/WAL generations, retained defaults, stable-column identity and current-policy disclosure through installed consumers. Directory coverage must not claim payload verification. |
 | P4 — Historical retention | [`DirectHistory`](../../packages/zig/transit-catalog/src/DirectHistory.zig), paged directories, original-token acquisition/release, independent/common cuts and exact pin copies | Complete integrated fault/collection/growth evidence, including current mixed-transaction and Document roots. No partial cut or cleanup prefix may become a completed result. |
@@ -235,19 +235,19 @@ completion without waiting for their entire delivery.
 
 | Milestone and status at this source | Progress or dependency to use | M10 boundary and handoff |
 | --- | --- | --- |
-| [M1–M2](02-storage-and-query-performance.md), Completed; [M3](03-live-storage-and-sql-cutover.md), In Progress | Stable identities, direct declarations, native WAL/object storage, retained roots and lazy Table interpretation | Extend these owners; preserve M3's unfinished installed lifecycle gates. No new catalog authority or Station-mediated database history. |
+| [M2–M2](02-storage-and-query-performance.md), Completed; [M3](03-live-storage-and-sql-cutover.md), In Progress | Stable identities, direct declarations, native WAL/object storage, retained roots and lazy Table interpretation | Extend these owners; preserve M3's unfinished installed lifecycle gates. No new catalog authority or Station-mediated database history. |
 | [M4](04-statement-results-and-consumption.md) and [M5](05-transactions-and-atomic-composition.md), Completed | Logical results, verified terminal counts, local serializable Table transactions and retained common cuts | Historical retention outlives a transaction independently. An independent source vector never becomes a common cut merely because its sources were acquired together. |
 | [M6](06-streams-queues-and-durable-runtime.md), In Progress | Direct KV/Stream/Queue, mixed transactions, automatic DLQ recovery, declaration and partial workload SQL have landed | Preserve complete participant decisions and root retention during historical transfer/GC. Remaining workload SQL and Station replacement are not prerequisites for Table history and are not delivered by it. |
 | [M7](07-document-storage-and-station-decoupling.md), In Progress | First causal map-tree storage slice, fenced WAL acceptance and authenticated paging are integrated | Regress current Document roots and descriptor compatibility. Historical Document selection waits for its own retained interpretation, transaction and caller contracts; do not treat the first slice as the complete BP/shredded Document lifecycle. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md) / [M9](09-client-foundation-and-language-apis.md), In Progress | Co-hosted direct execution, recovery/startup continuations; Station-free Catalog/SQL context, frozen submissions and local recovery storage | Reuse shared operations and disclose through the current guards. Core-bounded scheduling, coarse remote SQL, broad managed handles and language composition retain their own gates. |
 | [M11](11-indexing-and-access-paths.md), Planned | Neutral index lifecycle contracts exist; installed secondary indexes and online builds do not | Hand off exact source/column/constraint/comparison identities, historical coverage and rewrite classification. Index-backed FK enforcement and phased physical rewrites stay here; no synchronous scan fallback or circular dependency for M10 CHECK/history. |
-| [M13](13-sql-and-dataflows.md), In Progress | Service-owned finite managed Table recomputation, immutable completion revisions and transaction-owned staging have landed | Preserve retained definition/source attribution and independent inspection. WAL-complete incremental execution, temporal joins and valid-time periods remain M12 work; RANGE or snapshot syntax does not implement them. |
-| [M14](14-data-structures-and-performance.md) / [M15](15-vectorized-strings-and-search.md), In Progress; [M16](16-data-centric-compilation-and-specialization.md), Planned | Resource accounting, compact Batch strings, shared lookup and encoded predicates are present | Qualify collation equivalence through the actual optimized paths and scalar controls. Retained operator keys, search-index lifecycle, broader metering and compilation remain separate. |
-| [M17](17-document-profiles-and-gateway-exchange-lifecycle.md) / [M18](18-geospatial-and-spatio-temporal-computing.md), In Progress; [M19](19-multi-model-and-foreign-relations.md), Planned | Offline JSON/XML construction and compound commitments; canonical `SPR1` reference and exact spatial predicates | Preserve exact decoder/artifact/reference identities. These are no longer merely planned helpers, but do not supply installed profile retention, spatial SQL or general foreign/graph execution. M19 and later scientific workloads consume these same descriptors. |
-| [M21](21-branches-merges-and-restore.md), In Progress | Immutable single-Table branches retain definitions and WAL-only data through the catalog pin owner | Preserve branch-owned retention and exact historical meaning. Writable branches, branch/tag SQL convenience, whole-catalog ancestry, diff/merge and restore remain M20 work. |
-| [M23](23-formal-semantics-and-correspondence.md), In Progress | Scoped collation/DDL/result/storage models and concrete correspondence checks | Reuse A1/A2/A5 and T1/T2/T4/T8 only with their stated assumptions and implementation mappings; abstract proofs do not qualify every codec or frontend. |
-| [M28](28-control-and-policy-plane.md) / [M29](29-published-resources-and-investigations.md) / [M31](31-board-reimplementation.md), In Progress | Policy/investigation foundations; merged readable storage and independent-reader computation inspection | Use current grants and public reads. Board's newer selected passes inform the remaining matrix; they do not grant historical access or close full installation/browser qualification. M29 reviewed publication stays separate. |
-| [M22](22-service-and-sdk-coverage.md), In Progress; [M44](44-sql-grammar-and-dialect-ergonomics.md) / [M45](45-qualification-and-benchmarks.md), Planned | Existing consumer profiles, future full grammar comparison and combined workload qualification | M10 owns its changed-consumer regression and common-source gates. Broad new surfaces, dialect ergonomics and release-scale benchmarking retain their owners. |
+| [M14](14-sql-and-dataflows.md), In Progress | Service-owned finite managed Table recomputation, immutable completion revisions and transaction-owned staging have landed | Preserve retained definition/source attribution and independent inspection. WAL-complete incremental execution, temporal joins and valid-time periods remain M12 work; RANGE or snapshot syntax does not implement them. |
+| [M15](15-data-structures-and-performance.md) / [M16](16-vectorized-strings-and-search.md), In Progress; [M17](17-data-centric-compilation-and-specialization.md), Planned | Resource accounting, compact Batch strings, shared lookup and encoded predicates are present | Qualify collation equivalence through the actual optimized paths and scalar controls. Retained operator keys, search-index lifecycle, broader metering and compilation remain separate. |
+| [M18](18-document-profiles-and-gateway-exchange-lifecycle.md) / [M19](19-geospatial-and-spatio-temporal-computing.md), In Progress; [M20](20-multi-model-and-foreign-relations.md), Planned | Offline JSON/XML construction and compound commitments; canonical `SPR1` reference and exact spatial predicates | Preserve exact decoder/artifact/reference identities. These are no longer merely planned helpers, but do not supply installed profile retention, spatial SQL or general foreign/graph execution. M20 and later scientific workloads consume these same descriptors. |
+| [M22](22-branches-merges-and-restore.md), In Progress | Immutable single-Table branches retain definitions and WAL-only data through the catalog pin owner | Preserve branch-owned retention and exact historical meaning. Writable branches, branch/tag SQL convenience, whole-catalog ancestry, diff/merge and restore remain M21 work. |
+| [M24](24-formal-semantics-and-correspondence.md), In Progress | Scoped collation/DDL/result/storage models and concrete correspondence checks | Reuse A1/A2/A5 and T1/T2/T4/T8 only with their stated assumptions and implementation mappings; abstract proofs do not qualify every codec or frontend. |
+| [M29](29-control-and-policy-plane.md) / [M30](30-published-resources-and-investigations.md) / [M32](32-board-reimplementation.md), In Progress | Policy/investigation foundations; merged readable storage and independent-reader computation inspection | Use current grants and public reads. Board's newer selected passes inform the remaining matrix; they do not grant historical access or close full installation/browser qualification. M30 reviewed publication stays separate. |
+| [M23](23-service-and-sdk-coverage.md), In Progress; [M45](45-sql-grammar-and-dialect-ergonomics.md) / [M46](46-qualification-and-benchmarks.md), Planned | Existing consumer profiles, future full grammar comparison and combined workload qualification | M10 owns its changed-consumer regression and common-source gates. Broad new surfaces, dialect ergonomics and release-scale benchmarking retain their owners. |
 
 ### Decisions that constrain the remaining implementation
 
@@ -468,7 +468,7 @@ do not establish native permission enforcement.
 #### R4 — Establish bounded work and implementation correspondence
 
 **Maps to P1–P8. Owners:** existing storage/query/catalog tests,
-`transit-memory` measurement seams and M22's scoped proof/replay owners.
+`transit-memory` measurement seams and M23's scoped proof/replay owners.
 
 Grow objects, definitions, source selections, pins, dependencies and physical
 schemas beyond resident caches. Measure cold/warm lookup, acquisition/publication,
@@ -493,8 +493,8 @@ or a mutant that cannot compile is not passing evidence.
 
 **Exit:** each admitted hot path has its stated allocation/resource evidence,
 collection/recovery grows without a total-cardinality memory array, and formal
-claims name exact assumptions and implementation coverage. Broader M13 performance
-and M44 release benchmarking remain separate.
+claims name exact assumptions and implementation coverage. Broader M14 performance
+and M45 release benchmarking remain separate.
 
 #### R5 — Close at one committed revision
 

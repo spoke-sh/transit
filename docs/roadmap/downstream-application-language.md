@@ -400,15 +400,22 @@ still qualify the complete changes against committed HEAD.
 
 ## Roadmap and tracking boundaries
 
+The [Phase I serving milestone](13-declarative-serving-and-reactive-dataflows.md)
+now owns the general API/publication/subscription contracts behind P4/P5. This
+supporting plan retains the protected sign-in/application journey and its existing
+evidence; it consumes the shared Station-independent owners rather than defining
+a separate browser API authority.
+
 | Owner | Contribution to this plan |
 | --- | --- |
 | [M5 transactions](05-transactions-and-atomic-composition.md) / [M6 streams, queues and runtime](06-streams-queues-and-durable-runtime.md) | Common decision, lease settlement and continuation recovery; reuse delivered mixed participant work |
 | [M7 Documents](07-document-storage-and-station-decoupling.md) | Exact policy revision/read-guard integration; no requirement to finish every Document format |
 | [M8 gateway](08-gateway-architecture-and-protocol-ingress.md) / [M9 clients](09-client-foundation-and-language-apis.md) | Cohosted ingress, shared operation/results and public caller surfaces |
-| [M13 managed computations](13-sql-and-dataflows.md) | Primary coordination for installed programs, sources/sinks, lifecycle and migration integration |
-| [M28 control and policy](28-control-and-policy-plane.md) | Protected credentials, canonical identity/session policy and separate execution/dispatch rights |
-| [M29 publication](29-published-resources-and-investigations.md) | SQL projection publication and current-authority snapshot/watch disclosure |
-| [M35 programming model](35-programming-model.md) / [M44 grammar](44-sql-grammar-and-dialect-ergonomics.md) | Shared typed language semantics and later host-language composition; broad SDK expansion is not an initial prerequisite |
+| [M13 serving](13-declarative-serving-and-reactive-dataflows.md) | API publication, declared transport bindings, subscription lifecycle and installed browser/REPL consumption without Station |
+| [M14 managed computations](14-sql-and-dataflows.md) | Primary coordination for installed programs, sources/sinks, lifecycle and migration integration |
+| [M29 control and policy](29-control-and-policy-plane.md) | Protected credentials, canonical identity/session policy and separate execution/dispatch rights |
+| [M30 publication](30-published-resources-and-investigations.md) | Enriched resource/disclosure models and retained investigations; basic SQL publication and snapshot/watch serving use M13 |
+| [M36 programming model](36-programming-model.md) / [M45 grammar](45-sql-grammar-and-dialect-ergonomics.md) | Shared typed language semantics and later host-language composition; broad SDK expansion is not an initial prerequisite |
 
 [Platform #120](https://github.com/spoke-sh/platform/issues/120) owns downstream
 delivery and adoption. [Transit #284](https://github.com/spoke-sh/transit/issues/284)
