@@ -12,6 +12,10 @@ Reusable Zig HTTP, fetch-SSE and WebSocket host for
 The neutral [HTTP server](../transit-http-server/README.md)
 owns listener admission, deadlines and WebSocket framing; this package owns
 signed dispatch, challenge consumption and joined streaming tasks.
+Browser/provider and application-effect HTTP calls use the neutral
+[transit-http](../transit-http/README.md) request/transport package directly.
+The signed serving/reactive path still depends on Station through `transit-serving`;
+this extraction does not replace its service identity or durable admission.
 
 Compose `Context` with a validated `Gateway`, upstream URL, gateway reader key
 and diagnostics, then pass it to `transit-http-server.serve`. The host maps only

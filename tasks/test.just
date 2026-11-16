@@ -450,6 +450,7 @@ packages:
     cd packages/zig/transit-flight && zig build test
     cd packages/zig/transit-station-flight && zig build test
     cd packages/zig/transit-serving-http && zig build test
+    cd packages/zig/transit-http && zig build test
     cd packages/zig/transit-http-server && zig build test
     cd packages/zig/transit-station-app && zig build test
     cd packages/zig/transit-serving && zig build test

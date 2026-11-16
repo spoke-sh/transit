@@ -3,12 +3,16 @@
 const std = @import("std");
 const http = @import("root.zig");
 const Self = @This();
-const Rejection = http.Service.Rejection;
-const Scalar = http.exchange.AdmissionRejection.Scalar;
-fn fail(context: ?*?Rejection, check: http.exchange.AdmissionRejection.Check, field: []const u8, expected: Scalar, actual: Scalar, cause: anyerror) anyerror {
-    if (context) |slot| if (slot.* == null) {
-        slot.* = Rejection.detail(.invalid_request, check, field, expected, actual, cause);
-    };
+/// Synchronous, borrowed validation evidence. The consumer must copy anything
+/// retained after record returns; no authority or durable admission lives here.
+pub const Diagnostic = struct {
+    pub const Check = enum { decode, maximum, different, policy };
+    pub const Scalar = union(enum) { unrecorded, redacted, unsigned: u64, text: []const u8 };
+    context: *anyopaque,
+    record: *const fn (*anyopaque, Check, []const u8, Scalar, Scalar, anyerror) void,
+};
+fn fail(context: ?Diagnostic, check: Diagnostic.Check, field: []const u8, expected: Diagnostic.Scalar, actual: Diagnostic.Scalar, cause: anyerror) anyerror {
+    if (context) |sink| sink.record(sink.context, check, field, expected, actual, cause);
     return cause;
 }
 pub const Secret = struct { binding: []const u8, version: u64 };
@@ -37,7 +41,7 @@ fn reserved(name: []const u8) bool {
     for ([_][]const u8{ "host", "content-length", "transfer-encoding", "connection", "proxy-authorization", "proxy-connection", "upgrade", "expect", "accept-encoding", "trailer", "te" }) |field| if (std.ascii.eqlIgnoreCase(name, field)) return true;
     return false;
 }
-fn parts(out: *std.Io.Writer, pieces: []const Piece, target: bool, resolver: ?Resolver, template: bool, context: ?*?Rejection, prefix: []const u8) !void {
+fn parts(out: *std.Io.Writer, pieces: []const Piece, target: bool, resolver: ?Resolver, template: bool, context: ?Diagnostic, prefix: []const u8) !void {
     if (pieces.len > maximum_pieces) return fail(context, .maximum, prefix, .{ .unsigned = maximum_pieces }, .{ .unsigned = pieces.len }, error.HttpRequestTooLarge);
     for (pieces, 0..) |piece, index| {
         var path_bytes: [80]u8 = undefined;
@@ -74,7 +78,7 @@ fn parts(out: *std.Io.Writer, pieces: []const Piece, target: bool, resolver: ?Re
 pub fn render(self: Self, host: []const u8, port: u16, buffer: []u8, resolver: ?Resolver, template: bool) ![]const u8 {
     return self.renderDiagnostic(host, port, buffer, resolver, template, null);
 }
-pub fn renderDiagnostic(self: Self, host: []const u8, port: u16, buffer: []u8, resolver: ?Resolver, template: bool, context: ?*?Rejection) ![]const u8 {
+pub fn renderDiagnostic(self: Self, host: []const u8, port: u16, buffer: []u8, resolver: ?Resolver, template: bool, context: ?Diagnostic) ![]const u8 {
     if (buffer.len > maximum_head_bytes) return fail(context, .maximum, "request.head.buffer_bytes", .{ .unsigned = maximum_head_bytes }, .{ .unsigned = buffer.len }, error.HttpRequestTooLarge);
     if (self.headers.len > maximum_headers) return fail(context, .maximum, "request.headers", .{ .unsigned = maximum_headers }, .{ .unsigned = self.headers.len }, error.HttpRequestTooLarge);
     if (port == 0) return fail(context, .different, "endpoint.port", .{ .unsigned = 0 }, .{ .unsigned = 0 }, error.HttpRequestTooLarge);

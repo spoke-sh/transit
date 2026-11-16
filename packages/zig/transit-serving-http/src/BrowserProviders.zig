@@ -4,7 +4,7 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const b = c.BrowserDeclarations;
-const connector = @import("transit_station_http");
+const connector = @import("transit_http");
 const transport = connector.Transport;
 
 pub fn encode(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
@@ -27,7 +27,7 @@ pub fn authorize(allocator: std.mem.Allocator, provider: b.Provider, origin: []c
 }
 const Capture = struct {
     out: std.Io.Writer.Allocating,
-    fn segment(raw: *anyopaque, kind: connector.Kind, bytes: []const u8) !void {
+    fn segment(raw: *anyopaque, kind: connector.Transport.Kind, bytes: []const u8) !void {
         const self: *Capture = @ptrCast(@alignCast(raw));
         if (kind != .response_body) return;
         if (self.out.written().len + bytes.len > 65536) return error.ProviderResponseTooLarge;

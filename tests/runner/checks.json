@@ -684,6 +684,15 @@
           "tests/query/application_source/types.py",
           "--check-inventory"
         ]
+      },
+      {
+        "id": "serving-dependency-boundary",
+        "phase": "static",
+        "command": [
+          "python3",
+          "-B",
+          "tests/runner/serving_dependencies.py"
+        ]
       }
     ],
     "contracts": [

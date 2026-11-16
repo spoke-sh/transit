@@ -159,6 +159,8 @@ def run(binary):
                     assert truncated["error"] == ("TlsConnectionTruncated" if tls else "IncompleteHttpBody"), truncated
                     assert invoke("/small")["error"] == "HttpResponseTooLarge"
                     assert invoke("/capture-failure")["error"] == "CaptureUnavailable"
+                    terminal = invoke("/terminal-capture-failure")
+                    assert terminal == dict(error="CaptureUnavailable", captured=len(payload), completed=False), terminal
                     dropped = invoke("/dropped")
                     assert dropped["error"] == ("TlsConnectionTruncated" if tls else "HttpResponseMissing"), dropped
                     assert invoke("/timeout")["error"] == "HttpOutcomeUnknown"

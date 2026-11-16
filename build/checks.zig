@@ -643,15 +643,21 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     grpc_server_test.has_side_effects = true;
     grpc_server_test.stdio = .inherit;
     b.step("test-grpc-server", "Qualify bounded inbound RPCs against independent clients").dependOn(&grpc_server_test.step);
-    const http_transport_proof = b.addExecutable(.{ .name = "transit-http-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/interfaces/http/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
-    build_test_step.dependOn(&http_transport_proof.step);
-    const http_transport_test = b.addSystemCommand(&.{ "python3", "-B" });
-    http_transport_test.addFileArg(b.path("tests/runner/launch.py"));
-    http_transport_test.addFileArg(b.path("tests/interfaces/http/http_transport.py"));
-    http_transport_test.addArtifactArg(http_transport_proof);
-    http_transport_test.has_side_effects = true;
-    http_transport_test.stdio = .inherit;
-    b.step("test-http-transport", "Qualify single-send HTTP/TLS against independent peers").dependOn(&http_transport_test.step);
+    const http_transport_step = b.step("test-http-transport", "Qualify neutral and Station single-send HTTP/TLS against independent peers");
+    for ([_]struct { name: []const u8, module: *std.Build.Module }{
+        .{ .name = "transit-http-transport-proof", .module = b.dependency("transit_http", .{ .target = target, .optimize = optimize }).module("transit_http") },
+        .{ .name = "transit-http-capture-proof", .module = station_http.module("transit_station_http") },
+    }) |owner| {
+        const proof = b.addExecutable(.{ .name = owner.name, .root_module = b.createModule(.{ .root_source_file = b.path("tests/interfaces/http/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transport_under_test", .module = owner.module }} }) });
+        build_test_step.dependOn(&proof.step);
+        const peer = b.addSystemCommand(&.{ "python3", "-B" });
+        peer.addFileArg(b.path("tests/runner/launch.py"));
+        peer.addFileArg(b.path("tests/interfaces/http/http_transport.py"));
+        peer.addArtifactArg(proof);
+        peer.has_side_effects = true;
+        peer.stdio = .inherit;
+        http_transport_step.dependOn(&peer.step);
+    }
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("transit_station") })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station.module("station_transaction_internal"), .filters = &.{"private transactional"} })).step);
     components_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_bindings.module("station_abi") })).step);

@@ -1,11 +1,17 @@
 # transit-station-http
 
 The first HTTP connector, under implementation in [HTTP effects](../../../docs/handbook/reference/connectors.md).
-This package owns HTTP-specific request construction, framing and capture kinds;
+This package owns HTTP-specific durable admission, capture kinds and replay;
 [transit-exchange](../transit-exchange/README.md) owns durable capture and coverage.
 The pure API does not dispatch effects. `Transport.execute` performs one finite
 HTTP/1.1 exchange when called by a trusted, freshly authorized executor; it never
 retries or follows a redirect. Durable worker/deployment qualification remains open.
+
+`Request` is shared with [transit-http](../transit-http/README.md), which owns
+request construction, framing and single-attempt HTTP/TLS transport. Station
+`Transport` adapts response callbacks into the existing durable capture records;
+`renderDiagnostic(request, ...)` projects borrowed validation evidence into the
+owned admission rejection. It preserves the first failure and its original fields.
 
 `Request` builds HTTP/1.1 heads from typed literal/variable/secret pieces. Target
 variables are percent-encoded; header fields reject control-byte injection.

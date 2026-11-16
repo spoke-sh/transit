@@ -75,7 +75,7 @@ pub fn followup(gpa: std.mem.Allocator, reason: Reason, parent: Prepared, next: 
 }
 pub fn followupDiagnostic(gpa: std.mem.Allocator, reason: Reason, parent: Prepared, next: Prepared, status: ?u16, location: ?[]const u8, context: ?*?Rejection) !Reference {
     var head: [http.Request.maximum_head_bytes]u8 = undefined;
-    _ = try next.request.renderDiagnostic(next.host, next.port, &head, null, false, context);
+    _ = try http.renderDiagnostic(next.request, next.host, next.port, &head, null, false, context);
     const selected = try parent.selectedDiagnostic(reason, context);
     var expected = parent;
     switch (reason) {

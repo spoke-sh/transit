@@ -1,6 +1,6 @@
 //! Independent-peer transport proof; dispatch authority is qualified separately.
 const std = @import("std");
-const http = @import("transit_station_http");
+const http = @import("transport_under_test");
 const t = std.testing;
 const Gate = struct {
     io: std.Io,
@@ -20,10 +20,11 @@ const Collector = struct {
     bytes: usize = 0,
     calls: usize = 0,
     fail: bool = false,
+    fail_terminal: bool = false,
     completed: bool = false,
     fn capture(raw: *anyopaque, kind: http.Kind, bytes: []const u8) !void {
         const self: *Collector = @ptrCast(@alignCast(raw));
-        if (self.fail) return error.CaptureUnavailable;
+        if (self.fail or (self.fail_terminal and std.mem.eql(u8, @tagName(kind), "completion"))) return error.CaptureUnavailable;
         try t.expect(bytes.len <= http.Transport.segment_bytes);
         try t.expect(std.mem.indexOf(u8, bytes, "fixture-secret") == null);
         if (kind == .response_body) {
@@ -31,7 +32,7 @@ const Collector = struct {
             self.bytes += bytes.len;
         }
         self.calls += 1;
-        if (kind == .completion) self.completed = true;
+        if (std.mem.eql(u8, @tagName(kind), "completion")) self.completed = true;
     }
 };
 pub fn main(init: std.process.Init) !void {
@@ -45,10 +46,25 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, args[2], "/small")) endpoint.response_bytes = 8;
     var body: std.Io.Reader = .fixed("request-body");
     const request: http.Request = .{ .method = .POST, .target = &.{.{ .literal = args[2] }}, .body_bytes = 12, .headers = &.{ .{ .name = "X-Order", .value = &.{.{ .literal = "first" }} }, .{ .name = "X-Order", .value = &.{.{ .literal = "second" }} } } };
-    var collector: Collector = .{ .fail = std.mem.eql(u8, args[2], "/capture-failure") };
+    var collector: Collector = .{ .fail = std.mem.eql(u8, args[2], "/capture-failure"), .fail_terminal = std.mem.eql(u8, args[2], "/terminal-capture-failure") };
     var gate: Gate = .{ .io = init.io, .path = args[2] };
     const gated = std.mem.startsWith(u8, args[2], "/gate-");
-    const result = http.Transport.execute(init.gpa, init.io, endpoint, request, &body, null, .{ .context = &collector, .segment = Collector.capture }, if (gated) .{ .context = &gate, .check = Gate.check } else null);
+    var capture: http.Transport.Capture = .{ .context = &collector, .segment = Collector.capture };
+    if (@hasField(http.Transport.Capture, "complete")) {
+        const Callback = struct {
+            fn complete(raw: *anyopaque, report: http.Transport.Report) !void {
+                const collected: *Collector = @ptrCast(@alignCast(raw));
+                if (collected.fail or collected.fail_terminal) return error.CaptureUnavailable;
+                try t.expectEqual(collected.bytes, report.completion.response_bytes);
+                try t.expectEqual(@as(u64, 12), report.completion.request_bytes);
+                try t.expect(report.completion.heads > 0);
+                try t.expect(report.timing.started_ms > 0);
+                collected.completed = true;
+            }
+        };
+        capture.complete = Callback.complete;
+    }
+    const result = http.Transport.execute(init.gpa, init.io, endpoint, request, &body, null, capture, if (gated) .{ .context = &gate, .check = Gate.check } else null);
     var output_buffer: [4096]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     if (result) |r| {

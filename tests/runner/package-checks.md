@@ -57,6 +57,7 @@ imports, options and extra compilation dependencies.
 | `transit-flight` | `src/root.zig` | Same module | Flight framing and finite gateway contracts; real TLS/ADBC peers run separately |
 | `transit-fuze` | `src/root.zig`, pinned compute module | Own module | Logical values, physical codecs, collations, execution and Arrow; `test::compute` executes the upstream compute root separately |
 | `transit-grpc` | `src/root.zig` | Same module | Framing, bounded RPC and flow-control contracts |
+| `transit-http` | `src/root.zig` | Imported by Station HTTP; standalone `test::packages` execution | Request/framing and typed terminal reports; no Station/Exchange dependency; independent peers execute both compositions |
 | `transit-http-server` | `src/root.zig` | Same module | HTTP lifecycle, socket scheduling and timer behavior |
 | `transit-mysql` | `src/root.zig` | — | MySQL frames, scalar admission and session state |
 | `transit-observability` | `src/root.zig` | Same module | Stable instrumentation and bounded diagnostic projections |
