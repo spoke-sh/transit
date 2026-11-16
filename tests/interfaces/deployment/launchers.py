@@ -437,7 +437,7 @@ def foreground_proof(profile):
         failure = "node failed" if profile == "local" else "node exited"
         transcript = output.read_text()
         service_failures = [line for line in transcript.splitlines() if "server.role.failed" in line]
-        assert any("error_type" in line and "NotFound" in line for line in service_failures), transcript[-5000:]
+        assert any('error_type="InvalidHistory"' in line for line in service_failures), transcript[-5000:]
         assert failure in transcript, transcript[-5000:]
         assert not launcher.services()
         shutil.rmtree(wal)
