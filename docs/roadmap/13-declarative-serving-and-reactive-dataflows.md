@@ -1,6 +1,6 @@
 # 13. Declarative serving and reactive dataflows
 
-[Roadmap](README.md) · **Status:** Planned
+[Roadmap](README.md) · **Status:** Planned ([implementation plan](declarative-serving-implementation.md))
 
 Let an application declare typed inputs, data dependencies, computations,
 authorized operations and publications, then consume their results through a web
