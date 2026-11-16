@@ -3513,7 +3513,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 34,
+        "try": 37,
         "catch": 0
       },
       "imports": [

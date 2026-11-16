@@ -16,6 +16,9 @@ io: std.Io,
 directory: std.Io.Dir,
 wal: storage.LocalWal.LocalWal,
 mutex: std.Io.Mutex = .init,
+/// Derived only from verified or durably appended records, never recovery authority.
+total: ?struct { tail: u64, bytes: u64 } = null,
+decode_scratch: [record_limit * 8]u8 = undefined,
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir) !Self {
     var wal = try storage.LocalWal.LocalWal.openDiskWithOptions(allocator, io, parent, "queue", .{});
@@ -26,7 +29,8 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir) !Self 
         if (try self.wal.log().tail(0) != 0) return error.MissingUploadProgress;
         try self.saveCursor(.{});
     }
-    _ = try self.current();
+    const head = try self.current();
+    if (head.cursor < head.tail) _ = try self.atLocked(head.cursor);
     return self;
 }
 pub fn deinit(self: *Self) void {
@@ -54,10 +58,13 @@ fn saveCursor(self: *Self, value: Cursor) !void {
     try Files.save(self.io, self.directory, "cursor", &bytes, true);
 }
 fn atLocked(self: *Self, position: u64) !Record {
-    var batch = try self.wal.log().read(self.allocator, 0, position, 1);
+    // The returned Record owns its fixed arrays; no borrowed scratch escapes.
+    var scratch = std.heap.FixedBufferAllocator.init(&self.decode_scratch);
+    const allocator = scratch.allocator();
+    var batch = try self.wal.log().read(allocator, 0, position, 1);
     defer batch.deinit();
     if (batch.frames.len != 1 or batch.frames[0].header.lsn != position or batch.frames[0].payload.len > record_limit) return error.InvalidUploadQueue;
-    const parsed = try std.json.parseFromSlice(Record, self.allocator, batch.frames[0].payload, .{});
+    const parsed = try std.json.parseFromSlice(Record, allocator, batch.frames[0].payload, .{});
     defer parsed.deinit();
     const value = parsed.value;
     if (value.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
@@ -70,7 +77,12 @@ fn atLocked(self: *Self, position: u64) !Record {
 fn currentLocked(self: *Self) !Head {
     const tail = try self.wal.log().tail(0);
     const consumed = try self.cursor();
-    const total = if (tail == 0) 0 else (try self.atLocked(tail - 1)).total_bytes;
+    const total = if (tail == 0) 0 else blk: {
+        if (self.total) |cached| if (cached.tail == tail) break :blk cached.bytes;
+        const bytes = (try self.atLocked(tail - 1)).total_bytes;
+        self.total = .{ .tail = tail, .bytes = bytes };
+        break :blk bytes;
+    };
     if (consumed.tail_floor > tail or consumed.position > consumed.tail_floor or consumed.bytes > total) return error.InvalidUploadProgress;
     return .{ .tail = tail, .cursor = consumed.position, .pending_bytes = total - consumed.bytes, .pending_objects = tail - consumed.position };
 }
@@ -115,6 +127,7 @@ pub fn enqueueBatch(self: *Self, items: []const Item, staging_budget: u64, objec
     var progress = try self.cursor();
     progress.tail_floor = head.tail + items.len;
     try self.saveCursor(progress);
+    self.total = .{ .tail = progress.tail_floor, .bytes = total };
     return head.tail;
 }
 /// Startup reconciliation visits persisted work with constant resident memory.
@@ -123,6 +136,9 @@ pub fn reconcile(self: *Self, context: anytype) !void {
     const head = try self.current();
     var position = head.cursor;
     while (position < head.tail) : (position += 1) try context.restore(try self.atLocked(position));
+    // Startup may walk the whole retained suffix, but its final seek must
+    // prepare the first consumer step rather than point at the distant tail.
+    if (head.cursor < head.tail) _ = try self.atLocked(head.cursor);
 }
 pub fn consume(self: *Self, expected: Record) !void {
     try self.mutex.lock(self.io);
@@ -130,6 +146,10 @@ pub fn consume(self: *Self, expected: Record) !void {
     const head = try self.currentLocked();
     if (head.cursor > expected.position) return;
     if (head.cursor != expected.position or !std.meta.eql(try self.atLocked(expected.position), expected)) return error.UploadQueueConflict;
+    // A verified frame at the next floor survives trimming. An EOF
+    // continuation may name a removed segment and cannot serve as that hint.
+    // Preserve the next actual frame before moving the durable trim floor.
+    if (expected.position + 1 < head.tail) _ = try self.atLocked(expected.position + 1);
     try self.saveCursor(.{ .position = expected.position + 1, .bytes = expected.total_bytes, .tail_floor = head.tail });
     // Retain the last cumulative total even when all work has been consumed.
     _ = try self.wal.trimUnit(0, @min(expected.position + 1, head.tail - 1));
@@ -251,4 +271,50 @@ test "upload FIFO drains retained work without rereading growing WAL prefixes" {
         std.debug.print("upload FIFO interleaved append/drain: {d} verified frame reads for {d} original records\n", .{ reads, count });
         try t.expect(reads <= 8 * count);
     }
+}
+
+test "upload FIFO resumes bounded reads after cold open and reconciliation" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{ .iterate = true });
+    defer temporary.cleanup();
+    const item: Item = .{ .key = try Key.init("native/p/reopen"), .meta = .{ .size = 1, .sha256 = @splat(7) }, .action = .upload };
+    const items: [storage.TransitObjectStore.max_put_batch]Item = @splat(item);
+    const count = 128;
+    {
+        var queue = try open(t.allocator, t.io, temporary.dir);
+        defer queue.deinit();
+        for (0..count / items.len) |_| _ = try queue.enqueueBatch(&items, count, count);
+        for (0..count - 2) |_| try queue.consume((try queue.next()).?);
+    }
+    var queue = try open(t.allocator, t.io, temporary.dir);
+    defer queue.deinit();
+    const first_reads = queue.wal.disk.?.read_frames;
+    try t.expectEqual(@as(u64, count - 2), (try queue.next()).?.position);
+    const cold_reads = queue.wal.disk.?.read_frames - first_reads;
+    std.debug.print("upload FIFO first read after cold open: {d} verified frame reads\n", .{cold_reads});
+    try t.expect(cold_reads <= 8);
+    const Restore = struct {
+        next_position: u64 = count - 2,
+        expected: Item,
+        pub fn restore(self: *@This(), record: Record) !void {
+            try t.expectEqual(self.next_position, record.position);
+            try t.expectEqual(record.position + 1, record.total_bytes);
+            try t.expectEqualDeep(self.expected, record.item);
+            self.next_position += 1;
+        }
+    };
+    var restored: Restore = .{ .expected = item };
+    try queue.reconcile(&restored);
+    try t.expectEqual(@as(u64, count), restored.next_position);
+    const before = queue.wal.disk.?.read_frames;
+    for (count - 2..count) |position| {
+        const record = (try queue.next()).?;
+        try t.expectEqual(@as(u64, position), record.position);
+        try t.expectEqualDeep(item, record.item);
+        try queue.consume(record);
+    }
+    try t.expect((try queue.next()) == null);
+    const reads = queue.wal.disk.?.read_frames - before;
+    std.debug.print("upload FIFO reconciled drain: {d} verified frame reads for two original records\n", .{reads});
+    try t.expect(reads <= 16);
 }

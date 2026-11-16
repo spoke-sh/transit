@@ -57,6 +57,13 @@ Queue progress and coverage have checksums and the shared definition;
 missing required inventory refuses recovery. No quota, upload failure, cache
 pressure or remote listing grants deletion authority.
 
+The queue uses one 32 KiB decode scratch slab and a derived cumulative-tail
+cache. Verified forward seeks survive trimming; cold open and startup
+reconciliation prepare the consumer position before admission. Startup still
+validates retained WAL history, and these in-memory caches grant no recovery or
+deletion authority. A tier step handles at most one intent. The node waits
+100 ms between steps; backend callers own their scheduling.
+
 `staging_bytes` defaults to 1 GiB (minimum 32 MiB) and `pending_objects` to 65,536
 (maximum 1,048,576). Upload admission uses both; control uploads and deletion share a separate 4,096-item
 reserve. Control uploads may additionally use the native `control_bytes` budget. Exhaustion refuses additional staging without expiring data.
