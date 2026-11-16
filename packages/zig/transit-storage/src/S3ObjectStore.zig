@@ -281,6 +281,13 @@ pub const S3ObjectStore = struct {
             req.deinit();
             self.reusable_since = if (reusable) std.Io.Clock.boot.now(self.io) else null;
         }
+        // Keep short HTTP/TLS writes from waiting for TCP aggregation.
+        if (@import("builtin").os.tag != .windows) {
+            const option: u32 = 1;
+            const option_bytes = std.mem.asBytes(&option);
+            const result = std.posix.system.setsockopt(req.connection.?.stream_reader.stream.socket.handle, std.posix.IPPROTO.TCP, std.posix.TCP.NODELAY, option_bytes.ptr, @intCast(option_bytes.len));
+            if (std.posix.errno(result) != .SUCCESS) return error.ObjectProviderFailure;
+        }
         if (method == .PUT) {
             req.transfer_encoding = .{ .content_length = payload.len };
             var body = try req.sendBodyUnflushed(&.{});

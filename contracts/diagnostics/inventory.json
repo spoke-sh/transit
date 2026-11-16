@@ -47464,7 +47464,7 @@
         "ObjectDigestMismatch": 4,
         "ObjectKeyConflict": 1,
         "ObjectNotFound": 4,
-        "ObjectProviderFailure": 1,
+        "ObjectProviderFailure": 2,
         "ObjectRequestTimeout": 1,
         "ObjectResponseTooLarge": 1,
         "ObjectSizeMismatch": 2,
@@ -47515,6 +47515,7 @@
       "imports": [
         "S3Signing.zig",
         "TransitObjectStore.zig",
+        "builtin",
         "std",
         "transit_protocol"
       ]

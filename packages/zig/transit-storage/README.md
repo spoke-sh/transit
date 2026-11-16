@@ -637,6 +637,7 @@ and the catalog's retained dependency graph.
   cancelled exchanges close without draining untrusted error bodies.
   The adapter owns a stable HTTP client allocation, so moving an idle adapter
   into its retained owner preserves pooled TLS state.
+  POSIX sockets enable `TCP_NODELAY` before sending HTTP request bytes.
   The remote envelope binds definition, logical key, size, content and chunk
   digests. Digest-shaped conditions are checked against that descriptor and
   converted to the actual provider ETag for atomic publication. See the
