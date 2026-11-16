@@ -24,6 +24,11 @@ class CountedTransport:
         self.lock = threading.Lock()
         self.counts = {}
         self.put_bytes = 0
+        self.delay_path = None
+        self.held = threading.Event()
+        self.release = threading.Event()
+        self.finished = threading.Event()
+        self.delayed_status = None
         measurement = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -32,22 +37,37 @@ class CountedTransport:
                 size = int(self.headers.get('Content-Length', '0'))
                 assert 0 <= size <= 40 * 1024 * 1024
                 body = self.rfile.read(size)
+                delay = False
+                with measurement.lock:
+                    if self.command == 'PUT' and self.path == measurement.delay_path:
+                        measurement.delay_path = None
+                        delay = True
                 if '/objects/' in self.path:
                     with measurement.lock:
                         measurement.counts[self.command] = measurement.counts.get(self.command, 0) + 1
                         if self.command == 'PUT': measurement.put_bytes += size
+                if delay:
+                    measurement.held.set()
+                    assert measurement.release.wait(timeout=30), 'Delayed PUT was not released'
                 upstream = HTTPConnection('127.0.0.1', upstream_port, timeout=10)
                 try:
                     upstream.request(self.command, self.path, body, dict(self.headers))
                     response = upstream.getresponse()
                     data = response.read(40 * 1024 * 1024 + 1)
                     assert len(data) <= 40 * 1024 * 1024
+                    if delay:
+                        measurement.delayed_status = response.status
+                        measurement.finished.set()
                     self.send_response(response.status)
                     for name, value in response.getheaders():
                         if name.lower() not in ('connection', 'transfer-encoding'):
                             self.send_header(name, value)
                     self.end_headers()
-                    if self.command != 'HEAD': self.wfile.write(data)
+                    if self.command != 'HEAD':
+                        try:
+                            self.wfile.write(data)
+                        except (BrokenPipeError, ConnectionResetError):
+                            if not delay: raise
                 finally:
                     upstream.close()
             do_PUT = do_GET = do_HEAD = do_DELETE = exchange
@@ -61,6 +81,7 @@ class CountedTransport:
         return self
 
     def __exit__(self, *_):
+        self.release.set()
         self.peer.shutdown()
         self.peer.server_close()
         self.thread.join(timeout=5)
@@ -73,12 +94,12 @@ class CountedTransport:
             return result
 
 
-def request(cold, method, key, payload=b''):
+def request(cold, method, key, payload=b'', *, prefix='native-conformance'):
     """Independent Python SigV4 client; no Transit storage code in this oracle."""
     now = datetime.now(timezone.utc)
     day, stamp = now.strftime('%Y%m%d'), now.strftime('%Y%m%dT%H%M%SZ')
     host = cold.url.split('://', 1)[1]
-    path = f'/{cold.bucket}/native-conformance/{key}'
+    path = f'/{cold.bucket}/{prefix}/{key}'
     hashed = hashlib.sha256(payload).hexdigest()
     names = 'host;x-amz-content-sha256;x-amz-date'
     canonical = f'{method}\n{path}\n\nhost:{host}\nx-amz-content-sha256:{hashed}\nx-amz-date:{stamp}\n\n{names}\n{hashed}'
@@ -213,9 +234,9 @@ def run(binary):
         invoke('delete')
         native = root / 'native'
 
-        def tier(mode):
+        def tier(mode, directory=None):
             with (root / f'{mode}.log').open('w+') as log:
-                child = subprocess.Popen([binary, str(config), mode, str(native)], stdout=subprocess.PIPE, stderr=log)
+                child = subprocess.Popen([binary, str(config), mode, str(directory or native)], stdout=subprocess.PIPE, stderr=log)
                 try:
                     ready, _, _ = select.select([child.stdout], [], [], 90)
                     line = child.stdout.readline() if ready else b''
@@ -314,6 +335,35 @@ def run(binary):
               reads=dict(cold_objects=8, warm_objects=8, **reads),
               put_body_amplification=upload['put_body_bytes'] / (8 * 1024),
               excludes=['namespace claim', 'HTTP headers', 'TLS', 'local WAL and metadata', 'physical disk writes'])), flush=True)
+
+        # A timed-out request can still execute remotely after the client joins.
+        # Keep its create-only PUT blocked while collection and recreation run.
+        late_prefix = 'native-conformance-late'
+        late_native = root / 'native-late'
+        config.write_text(json.dumps(options | dict(prefix=late_prefix)))
+        try:
+            tier('tier-write', late_native)
+            transport.delay_path = f'/{cold.bucket}/{late_prefix}/{remote_object(0)}'
+            attempt = subprocess.run([binary, str(config), 'tier-drain', str(late_native)],
+                                     capture_output=True, timeout=20)
+            assert transport.held.is_set() and attempt.returncode != 0
+            assert b'ObjectRequestTimeout' in attempt.stderr, attempt.stderr[-1000:]
+            tier('tier-recreate', late_native)
+            tier('tier-drain', late_native)
+            transport.release.set()
+            assert transport.finished.wait(timeout=10), 'Delayed provider request did not finish'
+            assert transport.delayed_status == 412, 'Late PUT recreated a retired remote generation'
+            retired, _ = request(cold, 'GET', remote_object(0), prefix=late_prefix)
+            assert len(retired) == 512 and retired[40] == 3
+            assert int.from_bytes(retired[48:56], 'little') == 0
+            assert retired[56:88] == hashlib.sha256(b'').digest()
+            assert retired[480:512] == hashlib.sha256(retired[:480]).digest()
+            current, _ = request(cold, 'GET', remote_object(2), prefix=late_prefix)
+            assert current.endswith(b'original accepted immutable segment')
+            tier('tier-read', late_native)
+        finally:
+            transport.release.set()
+            config.write_text(json.dumps(options))
         print('Native tier batch: eight distinct original generations, exact retry, immediate reads, process-death reopen and verified cold provider reads passed.', flush=True)
         print('Native tier cache: 34 MiB exceeds the 32 MiB disk budget; cold A/B/A reads, eviction and original byte verification passed.', flush=True)
         print('Native tier: local staging, persisted upload intent, verified eviction, process-death reopen, cache loss, old-generation DELETE, recreation, missing original descriptor refusal, provider-denied backlog and control reserve passed.', flush=True)

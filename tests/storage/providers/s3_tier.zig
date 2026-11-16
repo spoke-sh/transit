@@ -112,11 +112,12 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
         }
         try t.expect(tier.cache.evictions >= 2 and tier.cache.misses >= 3);
     } else if (std.mem.eql(u8, mode, "tier-recreate")) {
+        const pending = (try tier.queue.current()).pending_objects;
         _ = try owner.objects.reclaimImmutableObject(key, expected);
         // The delayed DELETE names the old generation even when its content is
         // recreated exactly before the background worker reaches it.
         try owner.put(key, content, false);
-        try t.expectEqual(@as(u64, 2), (try tier.queue.current()).pending_objects);
+        try t.expectEqual(pending + 2, (try tier.queue.current()).pending_objects);
     } else if (std.mem.eql(u8, mode, "tier-outage")) {
         // Credentials are deliberately unavailable: foreground durable staging
         // remains local while remote work fails with its original intent intact.
