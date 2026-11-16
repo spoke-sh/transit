@@ -81,10 +81,10 @@ export function objectTierFacts(tier: NonNullable<StorageResponse["object_tier"]
     },
     {
       key: "deletes",
-      label: "Completed deletions",
+      label: "Retired generations",
       value: tier.deletes_completed.toLocaleString(),
       explanation:
-        "Recorded generation-specific deletion steps completed since startup. Logical expiry remains separately authorized.",
+        "Remote payloads retired since startup. Each generation retains a permanent 512-byte marker to fence delayed uploads. Logical expiry remains separately authorized.",
     },
     {
       key: "failures",

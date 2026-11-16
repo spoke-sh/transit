@@ -246,6 +246,14 @@ through that same owner. Local WAL, installation, staging and recovery metadata
 remain required. See the [tier operating profile](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier)
 for publication, recovery, bounds and provider limits.
 
+Collecting a remote generation removes its payload and retains a permanent
+512-byte marker at that generation's key. The marker prevents a delayed upload
+from recreating deleted content; bucket lifecycle rules must preserve it. This
+control storage is separate from the local staging and cache budgets. Board's
+retired-generation counter records confirmed retirements since owner startup.
+Provider versions and backups have separate lifetimes; the qualified MinIO
+profile uses an unversioned bucket.
+
 | Layer | Components and current integration |
 | --- | --- |
 | Active working state | Native page/block caches and the direct Table's bounded operation work, paged data indexes and verified segment caches. Retained Table cardinality is independent of cache capacity. |

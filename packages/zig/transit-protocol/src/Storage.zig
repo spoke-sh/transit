@@ -197,6 +197,7 @@ pub const ObjectTierObservation = struct {
     cache_hits: u64,
     cache_misses: u64,
     uploads_completed: u64,
+    /// Confirmed generation retirements; empty provider fences remain.
     deletes_completed: u64,
     failed_steps: u64,
     last_failure: ?Failure,
