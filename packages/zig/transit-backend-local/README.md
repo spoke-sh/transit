@@ -70,6 +70,7 @@ request and page-cache budgets. `request_timeout_ms` defaults to 10,000 and
 bounds each joined provider request; the adapter does not silently retry it.
 Each serialized adapter retains at most one idle HTTP/TLS connection; failed or
 incomplete exchanges close it, preserving the original request's uncertainty.
+Connections idle for at least five seconds close before the next request.
 
 The [provider proof](../../../tests/storage/providers/s3.py) executes real MinIO
 operations and forced process-death reopen at this backend boundary, including

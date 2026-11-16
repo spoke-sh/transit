@@ -114,6 +114,7 @@ pub const S3ObjectStore = struct {
     /// Pooled connections point back to this client. Keep its address stable
     /// when a quiescent adapter moves into the retained tier owner.
     http: *std.http.Client,
+    reusable_since: ?std.Io.Timestamp = null,
     mutex: std.Io.Mutex = .init,
     /// One reusable bounded transfer slab; retained data never grows residency.
     transfer: []u8,
@@ -256,6 +257,16 @@ pub const S3ObjectStore = struct {
         }
         var url_buffer: [2048]u8 = undefined;
         const url = try std.fmt.bufPrint(&url_buffer, "{s}/{s}/{s}", .{ endpoint, self.options.bucket, remote_key });
+        if (self.reusable_since) |last| {
+            // The provider can close idle sockets. Expire our cached socket
+            // before dispatch rather than retrying a possibly accepted request.
+            // Boot time includes host suspension on the qualified Linux host.
+            if (last.durationTo(std.Io.Clock.boot.now(self.io)).nanoseconds >= 5 * std.time.ns_per_s) {
+                try self.http.connection_pool.resize(self.io, 0);
+                try self.http.connection_pool.resize(self.io, 1);
+                self.reusable_since = null;
+            }
+        }
         // Return redirects to this adapter for refusal. The HTTP library's
         // not_allowed path drains redirect bodies before returning an error.
         var req = try self.http.request(method, try std.Uri.parse(url), .{ .extra_headers = headers[0..count], .redirect_behavior = .unhandled, .keep_alive = true, .headers = .{ .accept_encoding = .{ .override = "identity" } } });
@@ -268,6 +279,7 @@ pub const S3ObjectStore = struct {
                 if (req.connection) |connection| connection.closing = true;
             }
             req.deinit();
+            self.reusable_since = if (reusable) std.Io.Clock.boot.now(self.io) else null;
         }
         if (method == .PUT) {
             req.transfer_encoding = .{ .content_length = payload.len };

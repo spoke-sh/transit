@@ -631,7 +631,8 @@ and the catalog's retained dependency graph.
   HEAD, verified byte ranges and DELETE. Each request has a joined deadline;
   redirects and automatic transport retries are disabled. A file reference supplies access,
   secret and optional session credentials on every request, including rotation.
-  Each serialized adapter retains at most one idle HTTP/TLS connection. Only
+  Each serialized adapter retains at most one idle HTTP/TLS connection and
+  closes it before dispatch after at least five seconds of inactivity. Only
   fully consumed successful HTTP responses permit reuse; failed, incomplete or
   cancelled exchanges close without draining untrusted error bodies.
   The adapter owns a stable HTTP client allocation, so moving an idle adapter
