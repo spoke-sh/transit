@@ -15,6 +15,10 @@ storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table segment ranges" --summary all
 
+# Signed object operations and transport faults against the pinned real MinIO.
+s3:
+    zig build test-s3 -Doptimize=ReleaseSafe
+
 # Real process death at WAL append/fence/trim and object publication boundaries.
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe

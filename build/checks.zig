@@ -514,6 +514,19 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     local_objects_test.stdio = .inherit;
     faults_step.dependOn(&local_objects_test.step);
     b.step("test-local-objects", "Qualify local object CAS and immutable publication across processes").dependOn(&local_objects_test.step);
+    const s3_conformance = b.addExecutable(.{ .name = "transit-s3-conformance", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/storage/providers/s3.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_storage", .module = storage.module("transit_storage") }},
+    }) });
+    const s3_test = b.addSystemCommand(&.{ "python3", "-B" });
+    s3_test.addFileArg(b.path("tests/runner/launch.py"));
+    s3_test.addFileArg(b.path("tests/storage/providers/s3.py"));
+    s3_test.addArtifactArg(s3_conformance);
+    s3_test.has_side_effects = true;
+    s3_test.stdio = .inherit;
+    b.step("test-s3", "Qualify signed native object operations against real MinIO").dependOn(&s3_test.step);
     const local_faults = b.addExecutable(.{ .name = "transit-local-storage-faults", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/storage/local/local_storage_faults.zig"),
         .target = target,

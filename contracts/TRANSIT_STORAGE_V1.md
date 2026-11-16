@@ -1007,6 +1007,54 @@ cover bounded allocation, verified ranges, stale observations, definition reject
 and five sync failure points. They do not qualify filesystem rollback, distributed
 locks, durable snapshot pins or installed catalog transactions.
 
+## S3 object operations
+
+`S3ObjectStore` implements the object interface over signed HTTP/TLS requests.
+It is a provider primitive, not a native WAL authority or a bucket-only recovery
+profile. Installed native tiering must separately establish durable staging,
+namespace ownership, upload coverage, retention and safe eviction.
+
+The initial path-style profile requires endpoint, region, bucket, nonempty
+prefix, a credential-file reference and a request deadline. HTTPS is required;
+explicit loopback HTTP supports the pinned integration provider. The adapter
+reopens the JSON credential file (`access_key_id`, `secret_access_key`, optional
+`session_token`) on every request. It follows no redirects, retries no request
+implicitly and logs no credentials or provider response bodies. Deadline
+cancellation joins the request before releasing borrowed buffers. A failed or
+lost PUT/DELETE response preserves uncertainty for the caller to reconcile.
+
+Each provider key contains a single envelope: a 512-byte descriptor, one SHA-256
+per 64 KiB logical payload chunk, then the unmodified payload. Descriptor fields
+match the local descriptor offsets above, except magic `TS3O` followed by bytes
+`01 00 00 00`; the checks digest covers the complete inline chunk-hash vector,
+including its empty representation. Every payload size has an inline vector.
+Physical HTTP lengths include the envelope; interface lengths describe only the
+logical payload. The maximum logical object remains 32 MiB. The adapter retains
+one bounded transfer slab, independent of bucket cardinality.
+
+HEAD obtains the provider length and opaque ETag. A conditional range GET reads
+and verifies the descriptor and chunk vector against that same ETag. Subsequent
+ranges require exact status 206, Content-Range, byte count and ETag; touched chunks
+must match the descriptor. Whole-object reads also verify the logical digest.
+Trusted native recovery evidence must still bind the expected descriptor/content;
+a self-consistent remote envelope alone does not establish original acceptance.
+Missing, truncated, foreign-definition and corrupt objects fail explicitly.
+
+Immutable PUT uses `If-None-Match: *`; a precondition failure succeeds only after
+verifying the existing immutable identity and bytes. Conflicting content rejects.
+Conditional publication compares the caller's expected **content digest** with
+the observed descriptor, then sends that object's actual ETag as `If-Match`.
+The digest is never used as a provider ETag. A provider precondition failure is
+false; conflicting concurrent requests, throttling and access failures remain
+distinct errors. DELETE requires the caller's collection authority; it cannot
+infer that retained readers released an object. Provider CAS tests establish
+primitive conditions, not concurrent Transit writer safety.
+
+`tests/storage/providers/s3.py` exercises actual pinned MinIO with an independent
+signing/envelope oracle, competing clients, corrupt bytes, live credential
+rotation, lost accepted replies and joined timeout cleanup. AWS S3 qualification
+and installed tiering are separate required evidence.
+
 ## Native authority on local storage
 
 The local native adapter owns one object directory and a `wal/` subdirectory.

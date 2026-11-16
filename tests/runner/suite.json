@@ -270,6 +270,7 @@
       "test::domain-simulation-mutations"
     ],
     "focused": [
+      "test::s3",
       "test::local-storage-faults",
       "test::table-archives",
       "test::table-compaction",
