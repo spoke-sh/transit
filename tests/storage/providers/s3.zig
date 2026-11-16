@@ -8,6 +8,19 @@ fn hash(bytes: []const u8) [32]u8 {
     std.crypto.hash.sha2.Sha256.hash(bytes, &out, .{});
     return out;
 }
+fn moveConnectedStore(init: std.process.Init, options: s3.Options) !s3.S3ObjectStore {
+    const original = try init.gpa.create(s3.S3ObjectStore);
+    defer init.gpa.destroy(original);
+    original.* = try s3.S3ObjectStore.init(init.gpa, init.io, options);
+    errdefer original.deinit();
+    _ = try original.objectStore().putImmutable("proof/moved", "original connected owner", hash("original connected owner"));
+    const moved = original.*;
+    // Tier initialization moves its adapter after the namespace claim. Poison
+    // the former address so pooled connection back-pointers cannot survive by
+    // accident in unused stack memory. All requests have joined before moving.
+    @memset(std.mem.asBytes(original), 0);
+    return moved;
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len < 3) return error.ExpectedConfigurationAndMode;
@@ -16,6 +29,14 @@ pub fn main(init: std.process.Init) !void {
     const parsed = try std.json.parseFromSlice(s3.Options, init.gpa, raw, .{});
     defer parsed.deinit();
     if (std.mem.startsWith(u8, args[2], "tier-")) return @import("s3_tier.zig").run(init, parsed.value, args);
+    if (std.mem.eql(u8, args[2], "move")) {
+        var moved = try moveConnectedStore(init, parsed.value);
+        defer moved.deinit();
+        var out: [64]u8 = undefined;
+        const meta = (try moved.objectStore().getObject("proof/moved", &out)).?;
+        try check.expectEqualStrings("original connected owner", out[0..@intCast(meta.size)]);
+        return;
+    }
     var provider = try s3.S3ObjectStore.init(init.gpa, init.io, parsed.value);
     defer provider.deinit();
     const store = provider.objectStore();
