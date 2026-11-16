@@ -204,10 +204,6 @@ class Fixture(LocalInstallation):
                 return
             assert status['status'] == 'preparing' and time.monotonic() < deadline, status
             command(dict(advance=change))
-    def kill_role(self, match):
-        candidates = [pid for pid in children(self.process.pid) if match in command(pid)]
-        assert len(candidates) == 1, [(pid, command(pid)) for pid in children(self.process.pid)]
-        os.kill(candidates[0], signal.SIGKILL)
 
 
 def run(cli, node, host):

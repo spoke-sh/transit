@@ -12,6 +12,7 @@ import urllib.error
 from unittest.mock import Mock, patch
 
 from harness.local_installation import ExternalInstallation, LocalInstallation, freeze_executables
+from interfaces.inspection.inspection import System
 from interfaces.installation.server import Fixture
 from interfaces.installation.server_board import Board
 from interfaces.cli.console_terminal import Terminal
@@ -63,6 +64,35 @@ class Installations(unittest.TestCase):
                     fixture.signal_role('/courier.json', signal.SIGKILL)
                 discover.assert_not_called()
                 kill.assert_not_called()
+
+    def test_delivery_signal_waits_for_courier_cmdline_and_stopped_tasks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = Path(directory)
+            status_path = proc / '22/status'
+            status_path.parent.mkdir(parents=True)
+            status_path.write_text('Name:\ttransit\nState:\tR (running)\n')
+            server = ExternalInstallation.__new__(ExternalInstallation)
+            server.process = Mock(pid=123)
+            server.process.poll.return_value = None
+            server.root = Path('/private-installation')
+            system = System.__new__(System)
+            system.server = server
+            def advance(_):
+                if sleep.call_count == 2:
+                    status_path.write_text('Name:\ttransit\nState:\tT (stopped)\n')
+            with patch('harness.local_installation.children', side_effect=[{22}, {22}]), \
+                    patch('harness.processes.command', side_effect=['/courier.launch.json', '/courier.json']), \
+                    patch('interfaces.inspection.inspection.Path', side_effect=lambda p: proc if p == '/proc/22/task' else Path(p)), \
+                    patch('time.sleep', side_effect=advance) as sleep, \
+                    patch('interfaces.inspection.inspection.os.kill') as kill:
+                system.delivery_signal(signal.SIGSTOP)
+                kill.assert_called_once_with(22, signal.SIGSTOP)
+                self.assertEqual(sleep.call_count, 2)
+            with patch.object(server, 'role_pid', return_value=22) as role_pid, \
+                    patch('interfaces.inspection.inspection.os.kill') as kill:
+                system.delivery_signal(signal.SIGCONT)
+                role_pid.assert_called_once_with('/courier.json')
+                kill.assert_called_once_with(22, signal.SIGCONT)
 
     def test_board_readiness_counts_retryable_responses_without_extending_deadline(self):
         fixture = Fixture.__new__(Fixture)
