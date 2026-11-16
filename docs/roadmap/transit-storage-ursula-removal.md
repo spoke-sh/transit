@@ -30,10 +30,11 @@ qualification gaps against the implementation base before editing runtime code.
    owner, durable local staging and asynchronous upload. Require the local WAL,
    installation identity and recovery metadata after restart. A bucket alone
    cannot recover every acknowledged operation.
-4. **Initial provider qualification is bounded.** Qualify AWS S3 and a pinned
-   S3-compatible server used by integration tests separately. Publish their exact
-   tested profiles; other compatible services need their own evidence. Shared
-   POSIX/NFS, distributed writers, replication, failover, bucket-only restore,
+4. **Initial provider qualification is bounded.** Qualify the pinned MinIO
+   server used by integration tests. The user selected MinIO on 2026-11-15
+   because no AWS test account/bucket is available. AWS S3 and other compatible
+   services remain unqualified until their own real-provider evidence exists.
+   Shared POSIX/NFS, distributed writers, replication, failover, bucket-only restore,
    additional cloud providers and KMS/BYOK remain with their existing milestones.
 5. **No automatic Ursula data conversion.** Initially support fresh native
    deployments and explicitly compatible native restarts. Reject an existing
@@ -201,7 +202,7 @@ credential rotation, throttling and bounded retries without changing content or
 inventing successful publication. Never forward credentials through an unchecked
 redirect. Move the existing memory loopback into explicit test fixtures.
 
-Run conformance against the pinned test server and an isolated AWS S3 namespace,
+Run conformance against the pinned MinIO server and an isolated test namespace,
 including independent competing clients for provider conditional operations.
 Those tests establish provider primitives, not concurrent Transit writers.
 
@@ -261,7 +262,7 @@ preserving historical records. Mark only the delivered slices complete.
 
 **Exit:** both local and S3 profiles have executable installation/recovery
 evidence, complete removal inventory and public operating instructions. Any
-missing real-provider or reference proof leaves the corresponding gate open.
+missing MinIO or reference proof leaves the corresponding gate open.
 
 Units 1–3 form the first delivery checkpoint. Unit 4 can follow the contract
 freeze independently of deployment migration; unit 5 depends on units 1 and 4,

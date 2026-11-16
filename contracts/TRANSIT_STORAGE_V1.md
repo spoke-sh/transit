@@ -1052,8 +1052,9 @@ primitive conditions, not concurrent Transit writer safety.
 
 `tests/storage/providers/s3.py` exercises actual pinned MinIO with an independent
 signing/envelope oracle, competing clients, corrupt bytes, live credential
-rotation, lost accepted replies and joined timeout cleanup. AWS S3 qualification
-and installed tiering are separate required evidence.
+rotation, lost accepted replies and joined timeout cleanup. Installed tiering
+requires separate evidence. AWS S3 remains unqualified and is outside the initial
+MinIO qualification selected for this implementation.
 
 ## Native authority on local storage
 
