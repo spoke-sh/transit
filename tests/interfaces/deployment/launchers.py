@@ -306,13 +306,13 @@ def proof(profile):
         # An established installation with missing WAL must fail recovery.
         # It must not take the initial --initialize path or allocate new PIDs.
         saved_wal = installation.path / "saved-wal"
-        (installation.path / "wal").rename(saved_wal)
-        (installation.path / "wal").mkdir(mode=0o700)
+        (installation.path / "server-data/installation/data/native/wal").rename(saved_wal)
+        (installation.path / "server-data/installation/data/native/wal").mkdir(mode=0o700)
         invoke("up", success=False)
         assert (installation.path / "initialized.json").exists()
         invoke("down")
-        shutil.rmtree(installation.path / "wal")
-        saved_wal.rename(installation.path / "wal")
+        shutil.rmtree(installation.path / "server-data/installation/data/native/wal")
+        saved_wal.rename(installation.path / "server-data/installation/data/native/wal")
         invoke("up")
         assert observe(25)["pid"] == first["pid"]
         installation.command("retire-counter", {"terminate": first["pid"]})
@@ -400,7 +400,7 @@ def foreground_proof(profile):
             child.send_signal(signal.SIGINT)
             assert child.wait(timeout=30) == 0
             assert not launcher.services()
-            assert installation.manifest.exists() and (installation.path / "wal").exists()
+            assert installation.manifest.exists() and (installation.path / "server-data/installation/data/native/wal").exists()
 
         if profile == "compose":
             # Recover the same PID/state, then pause the old foreground owner
