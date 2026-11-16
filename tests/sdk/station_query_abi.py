@@ -113,12 +113,20 @@ def _run(node, cli, library, raw_library, host, cold):
             path = system.root / 'pending.json'
             path.write_bytes(frozen)
             path.chmod(0o600)
-            try:
-                event = server.dispatch()
-            except TransitError as error:
-                assert error.status == 6
+            # A canceled native WAL append requires the exclusive owner to
+            # join/reopen before it can resolve this exact saved operation.
+            # Keep each request's original timeout and never prepare new work.
+            until = time.monotonic() + 15
+            while True:
                 assert server.pending() == frozen
-                event = server.dispatch()
+                try:
+                    event = server.dispatch()
+                    break
+                except TransitError as error:
+                    assert error.status == 6
+                    assert server.pending() == frozen
+                    assert system.authority.poll() is None and time.monotonic() < until, error
+                    time.sleep(.05)
             assert event['confirmation']['receipt']['position'] > 0
             return event
 
