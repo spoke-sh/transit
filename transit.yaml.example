@@ -54,9 +54,6 @@
 # Core services bind 127.0.0.1. All configured listener ports must be distinct
 # and in 1024..65535. Port changes require a server restart.
 # ports:
-#   cold: 19101          # MinIO cold storage
-#   cold_console: 19102  # Reserved even though the MinIO browser is disabled
-#   store: 19103         # Ursula storage
 #   node: 19104          # Native authority
 #   gateway: 19105       # Native HTTP gateway, not a PostgreSQL/MySQL endpoint
 
