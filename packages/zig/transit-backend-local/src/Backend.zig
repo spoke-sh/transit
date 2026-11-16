@@ -369,9 +369,9 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
     try self.objects.putImmutableBatch((&item)[0..1], &completed, control);
 }
 
-pub const NativePut = struct { address: [32]u8, bytes: []const u8 };
+pub const NativePut = struct { kind: @FieldType(Allocations.Allocation, "kind") = .page, address: [32]u8, bytes: []const u8 };
 
-pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control: bool, source: bool) !void {
+pub fn putNativeBatch(self: *Self, epoch: u64, batch: []const NativePut, control: bool, source: bool) !void {
     const Objects = storage.TransitObjectStore;
     if (batch.len == 0 or batch.len > Objects.max_put_batch) return error.InvalidObjectBatch;
     var keys: [Objects.max_put_batch][96]u8 = undefined;
@@ -380,7 +380,7 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
     for (batch, allocations[0..batch.len], items[0..batch.len], keys[0..batch.len]) |item, *allocation, *entry, *key| {
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(item.bytes, &digest, .{});
-        allocation.* = .{ .epoch = epoch, .kind = .page, .address = item.address, .meta = .{ .size = item.bytes.len, .sha256 = digest } };
+        allocation.* = .{ .epoch = epoch, .kind = item.kind, .address = item.address, .meta = .{ .size = item.bytes.len, .sha256 = digest } };
         entry.* = .{ .key = try allocation.key(key), .bytes = item.bytes, .sha256 = digest };
     }
     var output: [Objects.max_put_batch]Objects.ObjectMeta = undefined;

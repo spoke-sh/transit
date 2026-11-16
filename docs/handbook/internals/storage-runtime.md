@@ -217,14 +217,15 @@ batched records. Existing sync-failure schedules separately exercise storage
 errors.
 Bounded stack buffers hold encoded pages. The native
 [`PageStore`](../../../packages/zig/transit-backend-local/src/PageStore.zig)
-preallocates an additional eight-page private buffer per owner and coalesces
-successive tree/path stages across one candidate. Its own reads resolve buffered
+preallocates private buffers for eight pages and eight blocks per owner and
+coalesces successive stages across one candidate. Its own reads resolve buffered
 children independently of read-cache capacity. It flushes when full and in
 `finish`, which native preparation calls before returning a publishable candidate.
-No timer or later command completes this work. Discard may drop unflushed pages;
+No timer or later command completes this work. Discard may drop unflushed pages
+and blocks;
 flushed private objects remain inventoried until ordinary reclamation. A sync,
 quota or encoding failure prevents preparation from returning a candidate for
-WAL acceptance. The buffer does not grow with retained history and its memory is
+WAL acceptance. These buffers do not grow with retained history and their memory is
 included in the owner's resident accounting.
 The finite model checks one- and two-object groups; disk tests
 cover the eight-object bound, overlapping groups, partial failures and restart.

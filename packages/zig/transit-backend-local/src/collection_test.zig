@@ -77,7 +77,9 @@ pub const Fixture = struct {
     fn orphan(self: *Fixture, bytes: []const u8) !core.blocks.Reference {
         try self.pages.begin(self.engine.head.storage_epoch, false);
         defer self.pages.discard();
-        return self.pages.stageBlock(try core.protocol.Blocks.Spec.of(bytes), bytes);
+        const reference = try self.pages.stageBlock(try core.protocol.Blocks.Spec.of(bytes), bytes);
+        try self.pages.finish();
+        return reference;
     }
 };
 
@@ -284,7 +286,11 @@ test "native collection retains history, fences delayed writers and resumes pend
     const cut = try f.submit(.{ .storage_fence = {} });
     try f.collector.start(&f.engine, cut);
     try t.expectError(error.ActiveStorageCollection, f.collector.start(&f.engine, cut));
-    try t.expectError(error.StaleStorageEpoch, stale.stageBlock(try core.protocol.Blocks.Spec.of("late"), "late"));
+    const late = try stale.stageBlock(try core.protocol.Blocks.Spec.of("late"), "late");
+    try t.expectError(error.StaleStorageEpoch, stale.finish());
+    stale.discard();
+    var absent: [16]u8 = undefined;
+    try t.expectError(error.MissingStorageObject, stale.loadBlock(late, &absent));
     stale.deinit();
     const concurrent = try f.submit(.{ .spawn = .{} });
     try f.until(.wait);

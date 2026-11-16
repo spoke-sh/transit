@@ -1,5 +1,5 @@
 //! Bounded page cache and operation staging over immutable local objects.
-//! Private pages are buffered in bounded groups; finish seals all dependencies
+//! Private pages and blocks are buffered in bounded groups; finish seals all dependencies
 //! durably before the native WAL can publish their candidate root.
 const std = @import("std");
 const core = @import("transit_core");
@@ -11,12 +11,15 @@ const envelope_bytes = 40;
 pub const max_resident_pages = 4096;
 pub const Cached = struct { reference: pages.Reference, page: pages.Page, used: u64 };
 const Staged = struct { reference: pages.Reference, page: pages.Page };
+const StagedBlock = struct { reference: core.blocks.Reference, bytes: [envelope_bytes + p.Blocks.max_block_bytes]u8 };
 
 backend: *Backend,
 observe: @import("Diagnostics.zig") = .{},
 cache: []?Cached,
 pending: []Staged,
 pending_count: usize = 0,
+pending_blocks: []StagedBlock,
+pending_block_count: usize = 0,
 access: u64 = 0,
 hits: u64 = 0,
 misses: u64 = 0,
@@ -34,12 +37,15 @@ pub fn init(backend: *Backend, resident_pages: usize) !Self {
     const cache = try backend.allocator.alloc(?Cached, resident_pages);
     errdefer backend.allocator.free(cache);
     @memset(cache, null);
-    return .{ .backend = backend, .cache = cache, .pending = try backend.allocator.alloc(Staged, pages.mutation_batch) };
+    const pending = try backend.allocator.alloc(Staged, pages.mutation_batch);
+    errdefer backend.allocator.free(pending);
+    return .{ .backend = backend, .cache = cache, .pending = pending, .pending_blocks = try backend.allocator.alloc(StagedBlock, pages.mutation_batch) };
 }
 
 pub fn deinit(self: *Self) void {
     self.backend.allocator.free(self.cache);
     self.backend.allocator.free(self.pending);
+    self.backend.allocator.free(self.pending_blocks);
     self.* = undefined;
 }
 
@@ -54,13 +60,15 @@ pub fn begin(self: *Self, epoch: u64, control: bool) !void {
 
 pub fn discard(self: *Self) void {
     self.pending_count = 0;
+    self.pending_block_count = 0;
     self.candidate = null;
 }
 
 pub fn finish(self: *Self) !void {
     if (self.candidate == null) return error.NoStorageCandidate;
     // Preparing a root may read its own unflushed children. No candidate may
-    // escape preparation until every buffered page has crossed all barriers.
+    // escape preparation until every buffered page and block has crossed all barriers.
+    try self.flushBlocks();
     try self.flush();
     self.discard();
 }
@@ -141,7 +149,7 @@ noinline fn flush(self: *Self) !void {
         self.observe.metrics.request_payload_bytes +|= encoded.len;
         put.* = .{ .address = staged.reference.location, .bytes = encoded };
     }
-    try self.observe.run(self.backend.io, "page.stage_batch", Backend.putNativePages, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
+    try self.observe.run(self.backend.io, "page.stage_batch", Backend.putNativeBatch, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
     for (batch) |*staged| {
         self.created +|= 1;
         self.remember(staged.reference, staged.page);
@@ -182,16 +190,29 @@ pub fn stageBlock(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.bloc
 
 fn stageBlockImpl(self: *Self, spec: p.Blocks.Spec, body: []const u8) !core.blocks.Reference {
     try spec.verify(body);
-    var bytes: [envelope_bytes + p.Blocks.max_block_bytes]u8 = undefined;
-    envelope('b', &bytes);
-    @memcpy(bytes[envelope_bytes..][0..body.len], body);
-    const encoded = bytes[0 .. envelope_bytes + body.len];
-    const address = try self.location('b', spec.digest, encoded.len);
-    self.block_payload_bytes_attempted +|= encoded.len;
-    self.observe.metrics.request_payload_bytes +|= encoded.len;
-    try self.backend.putNativeTracked(self.candidate.?.epoch, .block, address, encoded, self.control, self.track_activity);
-    self.blocks_created +|= 1;
-    return .{ .value = spec, .location = address };
+    if (self.pending_block_count == self.pending_blocks.len) try self.flushBlocks();
+    const address = try self.location('b', spec.digest, envelope_bytes + body.len);
+    const staged = &self.pending_blocks[self.pending_block_count];
+    staged.reference = .{ .value = spec, .location = address };
+    envelope('b', &staged.bytes);
+    @memcpy(staged.bytes[envelope_bytes..][0..body.len], body);
+    self.pending_block_count += 1;
+    return staged.reference;
+}
+
+fn flushBlocks(self: *Self) !void {
+    const batch = self.pending_blocks[0..self.pending_block_count];
+    if (batch.len == 0) return;
+    var puts: [pages.mutation_batch]Backend.NativePut = undefined;
+    for (batch, puts[0..batch.len]) |*staged, *put| {
+        const encoded = staged.bytes[0 .. envelope_bytes + staged.reference.value.bytes];
+        self.block_payload_bytes_attempted +|= encoded.len;
+        self.observe.metrics.request_payload_bytes +|= encoded.len;
+        put.* = .{ .kind = .block, .address = staged.reference.location, .bytes = encoded };
+    }
+    try self.observe.run(self.backend.io, "block.stage_batch", Backend.putNativeBatch, .{ self.backend, self.candidate.?.epoch, puts[0..batch.len], self.control, self.track_activity });
+    self.blocks_created +|= batch.len;
+    self.pending_block_count = 0;
 }
 
 pub fn loadBlock(self: *Self, reference: core.blocks.Reference, output: []u8) ![]const u8 {
@@ -201,6 +222,12 @@ pub fn loadBlock(self: *Self, reference: core.blocks.Reference, output: []u8) ![
 fn loadBlockImpl(self: *Self, reference: core.blocks.Reference, output: []u8) ![]const u8 {
     try reference.value.validate();
     if (output.len < reference.value.bytes) return error.BlockBufferTooSmall;
+    for (self.pending_blocks[0..self.pending_block_count]) |*staged| if (std.meta.eql(staged.reference, reference)) {
+        const body = staged.bytes[envelope_bytes..][0..reference.value.bytes];
+        try reference.value.verify(body);
+        @memcpy(output[0..body.len], body);
+        return output[0..body.len];
+    };
     var name: [96]u8 = undefined;
     var bytes: [envelope_bytes + p.Blocks.max_block_bytes]u8 = undefined;
     const encoded = try self.backend.read(try key('b', reference.location, &name), &bytes);
@@ -216,7 +243,7 @@ pub fn clearCache(self: *Self) void {
 }
 
 pub fn residentBytes(self: *const Self) usize {
-    return self.cache.len * @sizeOf(?Cached) + self.pending.len * @sizeOf(Staged);
+    return self.cache.len * @sizeOf(?Cached) + self.pending.len * @sizeOf(Staged) + self.pending_blocks.len * @sizeOf(StagedBlock);
 }
 
 fn touch(self: *Self) u64 {

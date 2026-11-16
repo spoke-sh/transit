@@ -1088,6 +1088,12 @@ advances the queue cursor. The original local descriptor remains the trust root.
 A lost response retries the same immutable generation and bytes. Missing staged
 bytes cannot be invented or replaced with remote content of a new identity.
 
+A native candidate owns fixed staging buffers for at most eight private pages
+and eight blocks, separate from its read cache. It may read its own staged bytes;
+other readers cannot use unflushed objects. Preparation seals all remaining
+groups before WAL acceptance. Discarding a candidate drops unflushed bytes only;
+already published private objects retain normal allocation and collection evidence.
+
 Native immutable batches retain their bounded grouping through tier staging.
 The owner checks the whole batch's upload quota before appending its individual
 intent records with one WAL barrier and publishing the tail floor. It then syncs

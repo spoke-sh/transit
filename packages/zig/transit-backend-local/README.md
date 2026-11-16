@@ -149,12 +149,13 @@ and ordinary collection. Page encoders use at most eight 24 KiB buffers plus
 envelopes in a separate batch stack frame; single-page staging keeps its own
 frame. No stored format, acceptance decision, timeout or cache capacity changes.
 The native page owner also buffers up to eight private pages across tree/path
-mutations in one candidate. This fixed buffer is allocated with the owner,
-separately from the configurable read cache, and is included in `residentBytes`.
+mutations and eight immutable blocks in one candidate. These fixed buffers are
+allocated with the owner,
+separately from the configurable read cache, and are included in `residentBytes`.
 Reads in that candidate can resolve its buffered children even with a zero-page
 cache. A full buffer flushes through the same allocation/object publication path;
 `finish` flushes the remainder before preparation returns and before any native
-WAL acceptance. Discard drops only unflushed private pages. Already published
+WAL acceptance. Discard drops only unflushed private pages and blocks. Already published
 private objects retain their allocation evidence and ordinary collection rules.
 File barriers within a group use at most eight concurrent tasks, joined before
 name/directory publication continues, including after a sync failure. Inline
