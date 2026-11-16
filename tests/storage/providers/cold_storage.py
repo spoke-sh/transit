@@ -33,8 +33,9 @@ class ColdStore:
         if not address.is_private or address.is_unspecified or address.is_multicast:
             raise ValueError('Cold-store fixture needs a selected private interface')
         self.bind_address = str(address)
-        # Cleanup is explicit so an unjoined child retains its owned disk state.
-        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", delete=False)
+        # Failure evidence must survive Nix's disposable TMPDIR as well as an
+        # unjoined child. Only successful joined runs remove their own state.
+        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", dir='/var/tmp', delete=False)
         self.root = Path(self.directory.name) / 'data'
         self.root.mkdir(mode=0o700)
         self.access = "transit-proof"
