@@ -299,13 +299,17 @@ pub fn putBatch(self: *Self, items: []const Objects.ImmutablePut, output: []Obje
         // An uncertain state publication requires exclusive reopen/reconcile.
         errdefer self.poisoned.store(true, .release);
         var staged: [Objects.max_put_batch]std.Io.File.Atomic = undefined;
+        // Atomic retains its destination slice until replace; each batch
+        // member needs a distinct name that outlives the staging loop.
+        var names: [Objects.max_put_batch][64]u8 = undefined;
         var files: [Objects.max_put_batch]std.Io.File = undefined;
         var count: usize = 0;
         defer for (staged[0..count]) |*file| file.deinit(self.io);
         for (intents[0..intent_count], 0..) |intent, i| {
             const key = intent.key.slice();
             const raw = encodeState(key, .{ .position = position + i, .generation = position + i, .meta = intent.meta, .phase = .pending });
-            staged[count] = try Files.stage(self.io, self.states, &name(key), &raw, true);
+            names[count] = name(key);
+            staged[count] = try Files.stage(self.io, self.states, &names[count], &raw, true);
             files[count] = staged[count].file;
             count += 1;
         }

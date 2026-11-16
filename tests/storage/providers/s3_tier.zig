@@ -51,6 +51,29 @@ pub fn run(init: std.process.Init, settings: storage.S3ObjectStore.Options, args
         try t.expectEqualStrings(content, bytes[0..content.len]);
         try t.expectEqualStrings(content[3..12], try store.getRange(key, 3, 9, &bytes));
         try t.expect(tier.cache.hits > 0);
+    } else if (std.mem.eql(u8, mode, "tier-batch-write") or std.mem.eql(u8, mode, "tier-batch-read")) {
+        var keys: [8][64]u8 = undefined;
+        var values: [8][1024]u8 = undefined;
+        var batch: [8]storage.TransitObjectStore.ImmutablePut = undefined;
+        for (&keys, &values, &batch, 0..) |*name_buffer, *value, *item, i| {
+            @memset(value, @intCast(i + 17));
+            item.* = .{ .key = try std.fmt.bufPrint(name_buffer, "table/batch-{d}.tseg", .{i}), .bytes = value, .sha256 = hash(value) };
+        }
+        if (std.mem.eql(u8, mode, "tier-batch-write")) {
+            var completed: [8]storage.TransitObjectStore.ObjectMeta = undefined;
+            try owner.putBatch(&batch, &completed, false, true);
+            const queued = try tier.queue.current();
+            try t.expectEqual(@as(u64, 8), queued.pending_objects);
+            try owner.putBatch(&batch, &completed, false, true);
+            try t.expectEqualDeep(queued, try tier.queue.current());
+        }
+        // Check every staged generation before reopen can reconcile missing
+        // metadata, then repeat from cold provider bytes in the next process.
+        var out: [1024]u8 = undefined;
+        for (batch) |item| {
+            try t.expectEqualDeep(storage.TransitObjectStore.ObjectMeta{ .size = item.bytes.len, .sha256 = item.sha256 }, (try store.getObject(item.key, &out)).?);
+            try t.expectEqualSlices(u8, item.bytes, &out);
+        }
     } else if (std.mem.eql(u8, mode, "tier-cache-fill")) {
         const half = 17 * 1024 * 1024;
         const large = try init.gpa.alloc(u8, 2 * half);
