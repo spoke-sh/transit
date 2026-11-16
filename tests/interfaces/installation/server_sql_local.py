@@ -245,14 +245,16 @@ if __name__ == '__main__':
     placement = parser.add_mutually_exclusive_group()
     placement.add_argument('--bundle', type=Path)
     placement.add_argument('--source-install', type=Path)
+    parser.add_argument('--fault-server', required=True, type=Path)
     parser.add_argument('binaries', nargs='*')
     args = parser.parse_args()
+    fault_server = args.fault_server.resolve(strict=True)
+    assert fault_server.is_file()
     if args.bundle or args.source_install:
         root = (args.bundle or args.source_install).resolve()
         binaries = [root / 'bin/transit'] * 5
         run(*binaries, bundle=root, source_install=args.source_install is not None)
-        bootstrap_fault(*binaries, embedded=True)
     else:
         assert len(args.binaries) == 5
         run(*args.binaries)
-        bootstrap_fault(*args.binaries)
+    bootstrap_fault(*([fault_server] * 5), embedded=True)

@@ -10,7 +10,7 @@ from compose import Compose as BaseCompose
 spec = importlib.util.spec_from_file_location('query_placement', Path(__file__).resolve().parents[1] / 'state-query/placement.py')
 query = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(query)
-BINARIES = dict(NODE='transit-node', CALLER='transit-serving-example', CONNECTOR='transit-query-host')
+BINARIES = dict(NODE='native-authority-fixture', CALLER='transit-serving-example', CONNECTOR='transit-query-host')
 
 
 class Compose(BaseCompose):

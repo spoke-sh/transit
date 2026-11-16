@@ -104,11 +104,10 @@ def run(cli, node, host, *application):
     binaries = root / 'bin'
     binaries.mkdir()
     cli_path = Path(cli).resolve()
-    node_path = Path(node).resolve()
+    assert Path(node).resolve() == cli_path
     host_path = Path(host).resolve()
     pairs = [
         ('transit', cli_path),
-        (node_path.name if node_path != cli_path else 'transit-node', node_path),
         (host_path.name if host_path != cli_path else 'transit-query-host', host_path),
     ]
     for name in ('transit-board', 'transit-sql-gateway'):

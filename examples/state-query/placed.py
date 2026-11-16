@@ -1,6 +1,8 @@
 """Owned placement/recovery of the real query hosts and finite Zig SQL caller."""
 import json
+import ipaddress
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -28,7 +30,7 @@ def run(profile, kind):
             (work/role).mkdir(mode=0o700)
             (work/(role+'-data')).mkdir(mode=0o700)
         (work/'wal').mkdir()
-        placement, cold, cold_network = None, None, None
+        placement, cold = None, None
         local, logs = [], []
         url = ''
 
@@ -61,6 +63,8 @@ def run(profile, kind):
 
         def activate(role, recovering=False):
             config = json.loads((work/(role+'.json')).read_text())
+            if config.get('tables'):
+                config['tables']['url'] = placement.authority
             if profile == 'reference':
                 config.pop('seed_file')
                 config.update(url=placement.authority, activation_directory='/runtime-data',
@@ -103,31 +107,46 @@ def run(profile, kind):
             return result.stdout
 
         try:
-            placement = Reference(work) if profile == 'reference' else Compose(work)
-            cold = ColdStore().__enter__()
-            if profile == 'reference':
-                cold_network = 'kind'
-                subprocess.run(['docker', 'network', 'connect', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
-                endpoint = 'http://'+placement.cold_address+':9000'
-            else: endpoint = 'http://query-cold:9000'
-            config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config().replace(cold.url, endpoint)
+            reference = Reference
+            if kind == 'table':
+                from table_placement import Reference as TableReference
+                reference = TableReference
+            placement = reference(work) if profile == 'reference' else Compose(work)
+            if profile == 'compose':
+                (work/'ursula.toml').touch()
+                placement.call('create', 'ursula')
+                network = placement.project+'_storage'
+            else:
+                network = 'kind'
+            addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', network]))[0]['IPAM']['Config']
+            bridge = next((item['Gateway'] for item in addresses if 'Gateway' in item and ipaddress.ip_address(item['Gateway']).version == 4), None)
+            if bridge is None: raise RuntimeError('Query placement needs a private IPv4 bridge gateway')
+            cold = ColdStore(bind_address=bridge).__enter__()
+            placement.cold_address, placement.cold_port = bridge, cold.port
+            config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config()
             (work/'ursula.toml').write_text(config); (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public']))
-            write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
-                ursula_url='http://ursula:8080', bucket='query-example', journal='authority', port=8080, listen='0.0.0.0',
-                resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000))
-            if profile == 'compose':
-                placement.call('create', 'ursula')
-                cold_network = placement.project+'_storage'
-                subprocess.run(['docker', 'network', 'connect', '--alias', 'query-cold', cold_network, cold.name], check=True, capture_output=True)
-                record = json.loads(subprocess.check_output(['docker', 'inspect', cold.name]))[0]
-                placement.cold_address = record['NetworkSettings']['Networks'][cold_network]['IPAddress']
+            node_config = dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
+                port=8080, listen='0.0.0.0', resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000)
+            if kind == 'table':
+                node_config['local_directory'] = '/authority'
+            else:
+                node_config.update(ursula_url='http://ursula:8080', bucket='query-example', journal='authority')
+            write('operator/node.json', node_config)
             storage = placement.start('ursula'); ready(storage, placement.url('ursula')+'/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
-            denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':9000', '1.1.1.1:443']
+            if kind == 'table':
+                invoke('catalog-bootstrap', timeout=300)
+                placement.stop_for_recovery('node', authority)
+                table = json.loads((work/'catalog-node.json').read_text())
+                table['registrar']['seed_file'] = '/operator/registrar.seed'
+                shutil.copyfile(work/'registrar.seed', work/'operator/registrar.seed')
+                (work/'operator/registrar.seed').chmod(0o600)
+                node_config['table'] = table
+                write('operator/node.json', node_config)
+                authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
+            denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':'+str(cold.port), '1.1.1.1:443']
             assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
             invoke('provision', kind, timeout=1800)
             requester, source = activate('requester'), activate('source')
@@ -171,17 +190,19 @@ def run(profile, kind):
                 time.sleep(.2)
             pages = [json.loads(line) for line in caller('read').splitlines()]
             assert sum(len(page['cells']) for page in pages) == (12 if kind == 'document' else 41)
-            assert all(page['manifest']['basis']['kind'] == kind for page in pages)
+            assert all(page['manifest']['basis']['cut']['kind'] == kind for page in pages)
             assert all(page['complete_coverage'] == (i+1 == len(pages)) for i, page in enumerate(pages))
             versions = invoke('versions')
             assert all(v['released_at'] is not None for v in versions['entries'] if v)
+            if kind == 'table':
+                assert invoke('released-pins')['released'] > 0
             invoke('retire-source')
             try:
                 caller('read')
                 raise AssertionError('retired source disclosed results')
             except RuntimeError as error:
                 assert any(name in str(error) for name in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied')), str(error)
-            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; 8 MiB hot store, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
+            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; native backend={"local_directory" if kind == "table" else "ursula"}, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
         except BaseException:
             if placement:
                 print(placement.call('ps'), file=sys.stderr)
@@ -194,7 +215,7 @@ def run(profile, kind):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)
             for log in logs: log.close()
-            if cold and cold_network:
-                subprocess.run(['docker', 'network', 'disconnect', cold_network, cold.name], capture_output=True, timeout=15)
-            if placement: placement.close()
-            if cold: cold.__exit__(None, None, None)
+            try:
+                if placement: placement.close()
+            finally:
+                if cold: cold.__exit__(None, None, None)

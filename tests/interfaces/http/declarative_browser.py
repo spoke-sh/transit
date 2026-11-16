@@ -382,22 +382,22 @@ class Fixture:
         self.peers.close()
 
 
-def run(binary, publisher, fault_node=None):
-    f = Fixture(binary, publisher)
-    if fault_node:
+def run(binary, publisher, fault_server=None):
+    f = Fixture(fault_server or binary, publisher)
+    if fault_server:
         boundary = f.root / 'browser-boundary'
         boundary.mkdir()
         # Keep native refusal diagnostics private and available after the
         # supervisor joins its child. Its bounded in-memory log is otherwise
         # intentionally not forwarded into the CLI's machine output.
-        real_node = str(Path(fault_node).resolve())
+        real_node = str(f.binary)
         wrapper = f.root / 'browser-node'
         wrapper.write_text(f'#!{sys.executable}\nimport os, sys\n'
                            f'fd = os.open({str(f.root / "node.stderr")!r}, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)\n'
                            'os.dup2(fd, 2)\nos.close(fd)\n'
-                           f'os.execv({real_node!r}, [{real_node!r}, *sys.argv[1:]])\n')
+                           f'os.execv({real_node!r}, [{real_node!r}, \"__transit_role_v1\", \"node\", \"__test_native_node\", *sys.argv[1:]])\n')
         wrapper.chmod(0o700)
-        f.env['TRANSIT_EXECUTABLES__NODE'] = str(wrapper)
+        (f.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
     print('Browser listener qualification:', f.root, flush=True)
     success = False
     try:
@@ -413,7 +413,7 @@ def run(binary, publisher, fault_node=None):
             status, _, body = f.http('GET', '/auth/session', cookie)
             assert status == 200 and json.loads(body)['authenticated'] and not json.loads(body)['bound'], (status, body)
         print('Real listener: public source and three provider modes passed', flush=True)
-        if fault_node:
+        if fault_server:
             before = f.login('github', 'claim-before-fence')
             (boundary / 'conflict-before').write_text('refuse one unpublished candidate')
             f.session_cookie(f.finish(before))
@@ -638,7 +638,7 @@ def run(binary, publisher, fault_node=None):
         f.configure(session_ttl_ms=3600000)
         assert f.http('GET', '/auth/session', expiring)[0] == 403
         print('Durable restriction and expiry during active watches passed', flush=True)
-        if fault_node:
+        if fault_server:
             f.stop()
             boundary = f.root / 'browser-boundary'
             boundary.mkdir(exist_ok=True)

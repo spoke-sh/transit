@@ -1,5 +1,5 @@
 {
-  "definition": "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb",
+  "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
   "settings": [
     {
       "name": "version",
@@ -583,22 +583,6 @@
       "sensitive": false,
       "minimum": 1024,
       "maximum": 65535,
-      "values": [],
-      "items_schema": null
-    },
-    {
-      "name": "executables.node",
-      "description": "Explicit standalone role executable; null uses the role built into transit",
-      "owner": "node",
-      "kind": "string",
-      "scope": "component",
-      "change": "restart",
-      "default_json": "null",
-      "session_mutable": false,
-      "nullable": true,
-      "sensitive": false,
-      "minimum": 0,
-      "maximum": 18446744073709551615,
       "values": [],
       "items_schema": null
     },
@@ -2472,16 +2456,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "node": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Explicit standalone role executable; null uses the role built into transit",
-            "x-transit-owner": "node",
-            "x-transit-change": "restart",
-            "default": null
-          },
           "query_host": {
             "type": [
               "string",

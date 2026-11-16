@@ -308,7 +308,7 @@ def run(cli, node, host, worker, operator, *, embedded=False):
         recovered = domain(connections['writer'], 'put', 'invalid-state', 99, 99, expect='InvalidWorkItemState')
         assert json.loads(recovered.stdout) == rejected, 'original input rejection changed after activation'
         domain(connections['writer'], 'put', 'released-put', 1, 10)
-        for physical in ('__transit_role_v1 node ' if embedded else '/transit-node ', '"unified_requester":'):
+        for physical in ('__transit_role_v1 node ', '"unified_requester":'):
             prior = fixture.status()['roles'][0]['generation']
             fixture.kill_role(physical)
             fixture.ready()

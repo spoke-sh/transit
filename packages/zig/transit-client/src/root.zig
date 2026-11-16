@@ -553,6 +553,7 @@ test "a full metadata view fits the bounded HTTP response" {
 }
 
 test {
+    _ = bootstrap;
     _ = @import("AuthorizationClient.zig");
     _ = AuthorizationChange;
     _ = AuthorizationSet;

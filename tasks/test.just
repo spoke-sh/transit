@@ -438,8 +438,8 @@ client-abi:
 # the SDK query profile without changing the finite progress deadlines.
 station:
     zig build test-native-client-fixture test-operation-fixture example-station-ledger
-    zig build transit -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/tests/operation-fixture
+    zig build transit test-server-fault-fixture -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/runtime/station/station.py zig-out/bin/transit zig-out/tests/native-client-fixture zig-out/bin/example-station-ledger zig-out/tests/operation-fixture zig-out/tests/transit-server-fault-fixture
 
 # Check each library using its own declared dependencies.
 packages:
@@ -511,13 +511,13 @@ service:
 
 # Signed policy staging, current checks and restart against disk-backed Ursula.
 authorization:
-    zig build transit-node test-native-client-fixture
-    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/bin/transit-node zig-out/tests/native-client-fixture --report .cache/verification/authorization-native.json
+    zig build test-native-authority-fixture test-native-client-fixture
+    python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/tests/native-authority-fixture zig-out/tests/native-client-fixture --report .cache/verification/authorization-native.json
 
 # Public administration CLI and neutral C/host lifecycle, with disk restart.
 authorization-cli:
-    zig build test-operation-fixture transit-node test-native-client-fixture transit client-abi transit-client-host
-    python3 -B tests/runner/launch.py tests/interfaces/cli/authorization_cli.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
+    zig build test-operation-fixture test-native-authority-fixture test-native-client-fixture transit client-abi transit-client-host
+    python3 -B tests/runner/launch.py tests/interfaces/cli/authorization_cli.py zig-out/tests/native-authority-fixture zig-out/tests/native-client-fixture zig-out/bin/transit zig-out/lib/libtransit_client.so zig-out/bin/transit-client-host --report .cache/verification/authorization-cli.json
 
 # Current Table roles, SQL defaults, filtered metadata and retained-cut denial.
 authorization-tables:
@@ -525,8 +525,8 @@ authorization-tables:
 
 # Restricted serving snapshots and exact control recovery under current roles.
 authorization-serving:
-    zig build transit-node test-native-client-fixture transit-station-host serving-example -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/http/authorization_serving.py zig-out/bin/transit-node zig-out/tests/native-client-fixture zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
+    zig build test-native-authority-fixture test-native-client-fixture transit-station-host serving-example -Doptimize=ReleaseSafe
+    python3 -B tests/runner/launch.py tests/interfaces/http/authorization_serving.py zig-out/tests/native-authority-fixture zig-out/tests/native-client-fixture zig-out/bin/transit-station-host zig-out/bin/transit-serving-example --report .cache/verification/authorization-serving.json
 
 # Exercise independent Zig callers against the same generic authority.
 callers:
@@ -698,7 +698,7 @@ relational-exchanges:
 # Real ext4 ENOSPC during captured checkpoints and accepted exchange work.
 relational-capacity:
     zig build relational-capacity-proof -Doptimize=ReleaseSafe
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/runner/launch.py tests/query/execution/relational_capacity.py zig-out/bin/transit-node zig-out/bin/transit-direct-table-proof
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash nixpkgs#patchelf --command python3 -B tests/runner/launch.py tests/query/execution/relational_capacity.py zig-out/tests/native-authority-fixture zig-out/bin/transit-direct-table-proof
 
 # Immutable named definitions, explicit activation and revision recovery on disk.
 named-relational:
@@ -1031,9 +1031,9 @@ server-filesystem:
 
 # Lost native and migration replies, current revocation and management admission.
 server-application-faults:
-    zig build test-operation-fixture transit -Doptimize=ReleaseSafe
+    zig build test-operation-fixture test-server-fault-fixture -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_application_faults.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_application_faults.py zig-out/tests/transit-server-fault-fixture zig-out/tests/transit-server-fault-fixture zig-out/tests/transit-server-fault-fixture examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
 
 # Accepted application input across real ENOSPC in an owned ext4 image.
 server-application-capacity:
@@ -1043,9 +1043,9 @@ server-application-capacity:
 
 # Default embedded Board, retained inspection grants and local UI recovery.
 server-board:
-    zig build transit -Doptimize=ReleaseSafe
+    zig build transit test-operation-fixture test-server-fault-fixture -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
-    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+    python3 -B tests/runner/launch.py tests/interfaces/installation/server_board.py zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit zig-out/bin/transit examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items --fault-server zig-out/tests/transit-server-fault-fixture
 
 # Ordinary server/console and Board from one copied executable with unavailable PATH.
 server-single-executable:

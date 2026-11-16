@@ -54,7 +54,7 @@ board:
   resources:
     requests: {cpu: 100m, memory: 64Mi}
     limits: {cpu: "1", memory: 256Mi}
-  # Reference-only network isolation/probes on Kind's non-enforcing CNI.
+  # Reference-only pod-namespace isolation and transport-denial probes.
   # Empty in normal deployments; these can expand the pod's trust boundary.
   extraInitContainers: []
   extraContainers: []

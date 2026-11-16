@@ -19,7 +19,6 @@ pub fn arguments(allocator: std.mem.Allocator, executable: []const u8, external:
 
 pub fn fromExecutableName(path: []const u8) ?Role {
     const invoked = std.fs.path.basename(path);
-    if (std.mem.eql(u8, invoked, "transit-node")) return .node;
     if (std.mem.eql(u8, invoked, "transit-query-host")) return .query_host;
     if (std.mem.eql(u8, invoked, "transit-sql-gateway")) return .sql_gateway;
     if (std.mem.eql(u8, invoked, "transit-board")) return .board;

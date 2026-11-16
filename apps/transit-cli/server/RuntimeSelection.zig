@@ -26,7 +26,7 @@ pub fn validate(config: Config, record: Installation.Record, proposed: Config.Id
         if (!std.mem.eql(u8, &from, &current.cli) or std.mem.eql(u8, &from, &to)) return error.InstallationIdentityMismatch;
         // A role override is not replaceable through an aggregate binary pin.
         // Verify that the old selection also consisted of embedded roles.
-        inline for (@typeInfo(Config.Executables).@"struct".field_names) |name| {
+        inline for (Config.artifact_roles) |name| {
             var hash = std.crypto.hash.sha2.Sha256.init(.{});
             hash.update("transit.local.role.v1\x00");
             hash.update(&@import("transit_query").protocol.Growth.definition_bytes);

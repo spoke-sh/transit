@@ -1,6 +1,6 @@
 # transit-node
 
-The Transit authority executable composes [transit-core](../../packages/zig/transit-core/README.md),
+The internal Transit authority module composes [transit-core](../../packages/zig/transit-core/README.md),
 the configured [local](../../packages/zig/transit-backend-local/README.md) or
 [Ursula](../../packages/zig/transit-backend-ursula/README.md) storage backend, signed
 HTTP ingress and a trusted clock. It validates and commits protocol operations;
@@ -23,20 +23,24 @@ signature checks and policy fences as node service ingress. The embedding caller
 must close all sessions, owned responses and concurrent users before `close`;
 an endpoint is a borrowed dispatch handle, never an authority grant.
 
-## Build and run
+## Server composition
 
-From the repository root in `nix develop`:
-
-```sh
-just build::debug apps
-zig-out/bin/transit-node CONFIG.json
-```
+Run [transit server](../transit-cli/docs/server.md) for the local database or
+external-worker profile. The server owns node initialization, retained recovery,
+maintenance and delivery. The node remains a separate supervised process inside
+that executable; there is no standalone node package or `executables.node`
+override.
 
 Use the [persistent launchers](../../launchers/README.md), [examples](../../examples/README.md)
 or [Kubernetes runbook](../../deploy/reference/README.md) for a complete setup.
-The [configuration guide](docs/growing.md) owns fields, operation budgets and
-maintenance. [Operations](docs/operations.md) explains bootstrap, clocks and
-diagnostics. `profile` is `native_v1`, including when omitted.
+The [internal configuration reference](docs/growing.md) describes generated node
+inputs and operation budgets. [Operations](docs/operations.md) explains the
+internal bootstrap, clock and recovery boundaries. These inputs are not a public
+replacement for the server configuration.
+
+The check graph composes the same module into an explicit
+`tests/native-authority-fixture` for isolated bootstrap, tight-cache and failure
+schedules. It is excluded from production builds and release packages.
 
 ## Service boundaries
 
@@ -96,8 +100,8 @@ caller without an implicit retry. Hosts use `Client.contended` to distinguish an
 from expiry, fencing or a conflicting request identity, while retaining exact
 pending commands through their own bounded scheduling policy.
 
-With Ursula storage, run `--maintain` separately for authorized lifetime,
-collection and checkpoint work. With local storage, the `maintenance` setting
+With Ursula storage, the server owns a separate maintenance role for authorized
+lifetime, collection and checkpoint work. With local storage, the `maintenance` setting
 runs lifecycle scans, accepted-floor trimming and configured automatic Table, Stream and Queue
 flushing and archiving/checkpointing, Table/Stream compaction and Queue lease expiry inside the node's exclusive owner;
 a separate `--maintain` process rejects. Native/direct immutable-object collection

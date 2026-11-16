@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARIES = ('transit', 'transit-node', 'transit-query-host',
+BINARIES = ('transit', 'transit-query-host',
             'transit-board')
 
 

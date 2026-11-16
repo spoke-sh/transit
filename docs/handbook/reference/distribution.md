@@ -11,11 +11,11 @@ existing installation.
 The [release workflow](../../../.github/workflows/release.yml) builds static
 Linux x86_64 and ARM64 bundles using the pinned Zig compiler, musl and OpenSSL 3.6.4. Its
 executables do not require Nix or host shared libraries. The archive includes
-`transit` with embedded Board assets, `transit-node`,
+`transit` with embedded node and Board assets,
 `transit-query-host` and `transit-board`, plus dependency notices and build metadata.
 
 `transit server` supervises its required delivery work and declared Station services internally. New releases
-do not include separate `transit-delivery` or `transit-station-controller` executables or containers. The
+do not include separate `transit-node`, `transit-delivery` or `transit-station-controller` executables or containers. The
 installer removes their obsolete managed command links after a successful install;
 original versioned bundles remain available for retained installations.
 
@@ -24,7 +24,7 @@ original versioned bundles remain available for retained installations.
 | Executables | GitHub Release asset `transit-<version>-linux-x86_64.tar.gz` and `transit-<version>-linux-aarch64.tar.gz` |
 | Integrity and identity | `SHA256SUMS` and `release-manifest.json` on the same GitHub Release |
 | Local server container | `ghcr.io/spoke-sh/transit:<version>` |
-| Standalone component containers | `ghcr.io/spoke-sh/transit-node:<version>`, with the same naming rule for the other bundled executables |
+| Standalone component containers | `ghcr.io/spoke-sh/transit-query-host:<version>` and `ghcr.io/spoke-sh/transit-board:<version>` |
 | Helm chart | `oci://ghcr.io/spoke-sh/transit/charts/transit`, chart version `<version>` |
 
 macOS and Windows executables are not produced. The local supervisor requires

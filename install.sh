@@ -108,7 +108,7 @@ for binary in "$destination"/bin/*; do
 done
 # Retire only this installer's obsolete entry points. Preserve versioned bundles
 # for existing installations and leave unrelated files/symlinks untouched.
-for name in transit-admin transit-delivery transit-station-controller; do
+for name in transit-admin transit-delivery transit-station-controller transit-node; do
   if [ ! -e "$destination/bin/$name" ] && [ -L "$prefix/bin/$name" ]; then
     case "$(readlink "$prefix/bin/$name")" in
       "$prefix/lib/transit/"*/bin/"$name") rm "$prefix/bin/$name" ;;

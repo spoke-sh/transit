@@ -35,7 +35,7 @@ pub const Context = struct {
     sql_protocol: *std.Build.Dependency,
     board: *std.Build.Step.Compile,
     runtime: *std.Build.Dependency,
-    node_artifact: *std.Build.Step.Compile,
+    node_module: *std.Build.Module,
     controller_artifact: *std.Build.Step.Compile,
     kubectl_transit: *std.Build.Step.Compile,
     station_host: *std.Build.Step.Compile,
@@ -69,7 +69,9 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const web_dependencies = b.addSystemCommand(&.{ "vp", "install", "--frozen-lockfile" });
     web_dependencies.setCwd(b.path("."));
     web_dependencies.has_side_effects = true;
-    web_dependencies.stdio = .inherit;
+    // Keep package-manager chatter out of machine-readable build targets such
+    // as fixture-authority. Zig retains the captured output for diagnostics.
+    _ = web_dependencies.captureStdOut(.{});
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
     const station_flight = b.dependency("transit_station_flight", .{ .target = target, .optimize = optimize });
@@ -124,7 +126,29 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const install_board = b.addInstallArtifact(board, .{});
     b.step("transit-board", "Build the standalone Board API and embedded UI").dependOn(&install_board.step);
     const runtime = b.dependency("transit_runtime_substrate", .{ .target = target, .optimize = optimize });
-    var node_artifact: *std.Build.Step.Compile = undefined;
+    const node_module = b.createModule(.{
+        .root_source_file = b.path("apps/transit-node/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .imports = &.{
+            .{ .name = "transit_client", .module = client.module("transit_client") },
+            .{ .name = "transit_observability", .module = observations.module("transit_observability") },
+            .{ .name = "transit_core", .module = core.module("transit_core") },
+            .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
+            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
+            .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") },
+            .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
+            .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
+            .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
+            .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
+            .{ .name = "transit_sql_host", .module = sql_host.module("transit_sql_host") },
+        },
+    });
+    if (target.result.os.tag == .linux) {
+        const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
+        node_module.addImport("clock_c", clock_c.createModule());
+    }
     var controller_artifact: *std.Build.Step.Compile = undefined;
     const apps_step = b.step("apps", "Install platform executables");
     apps_step.dependOn(&install_board.step);
@@ -139,7 +163,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     var station_host: *std.Build.Step.Compile = undefined;
     var client_host: *std.Build.Step.Compile = undefined;
     var serving_client: *std.Build.Step.Compile = undefined;
-    for ([_][]const u8{ "transit-node", "transit-runtime-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
+    for ([_][]const u8{ "transit-runtime-controller", "transit-station-host", "transit-client-host", "transit-serving-client" }) |name| {
         const app = b.addExecutable(.{ .name = name, .root_module = b.addModule(name, .{
             .root_source_file = b.path(b.fmt("apps/{s}/main.zig", .{name})),
             .target = target,
@@ -150,16 +174,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
                 .{ .name = "transit_observability", .module = observations.module("transit_observability") },
             },
         }) });
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_core", core.module("transit_core"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_memory", b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_ursula", adapter.module("transit_backend_ursula"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_backend_local", local_backend.module("transit_backend_local"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_serving_http", serving_http.module("transit_serving_http"));
-        if (std.mem.eql(u8, name, "transit-node")) app.root_module.addImport("transit_sql_host", sql_host.module("transit_sql_host"));
-        if (std.mem.eql(u8, name, "transit-node")) node_artifact = app;
         if (std.mem.eql(u8, name, "transit-runtime-controller")) controller_artifact = app;
         const install = b.addInstallArtifact(app, .{});
         apps_step.dependOn(&install.step);
@@ -178,10 +192,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         if (std.mem.eql(u8, name, "transit-serving-client")) {
             serving_client = app;
             app.root_module.addImport("transit_serving", serving.module("transit_serving"));
-        }
-        if (std.mem.eql(u8, name, "transit-node") and target.result.os.tag == .linux) {
-            const clock_c = b.addTranslateC(.{ .root_source_file = b.path("apps/transit-node/clock.h"), .target = target, .optimize = optimize });
-            app.root_module.addImport("clock_c", clock_c.createModule());
         }
     }
     var query_host: *std.Build.Step.Compile = undefined;
@@ -238,10 +248,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
 
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
-    // One implementation module per role is shared by the standalone artifact
-    // and the local executable. Process isolation and acceptance owners stay
+    // The node module belongs to the server. Other component modules are shared
+    // with their standalone artifacts. Process isolation and acceptance owners stay
     // unchanged; `transit` dispatches only the selected private role at startup.
-    transit_cli.root_module.addImport("transit_node_role", node_artifact.root_module);
+    transit_cli.root_module.addImport("transit_node_role", node_module);
     transit_cli.root_module.addImport("transit_io", b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io"));
     transit_cli.root_module.addImport("transit_query_host_role", query_host.root_module);
     transit_cli.root_module.addImport("transit_board_role", board.root_module);
@@ -287,7 +297,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .sql_protocol = sql_protocol,
         .board = board,
         .runtime = runtime,
-        .node_artifact = node_artifact,
+        .node_module = node_module,
         .controller_artifact = controller_artifact,
         .kubectl_transit = kubectl_transit,
         .station_host = station_host,

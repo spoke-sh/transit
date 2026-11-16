@@ -13,7 +13,7 @@ spec = importlib.util.spec_from_file_location('document_placement', Path(__file_
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
-BINARIES = dict(NODE='transit-node', CALLER='transit-query-host', CONNECTOR='example-state-query')
+BINARIES = dict(NODE='native-authority-fixture', CALLER='transit-query-host', CONNECTOR='example-state-query')
 
 
 class Compose(BaseCompose):
@@ -21,6 +21,9 @@ class Compose(BaseCompose):
     def __init__(self, work):
         super().__init__(work, 'query')
         self.command[-1] = str(Path(__file__).with_name('docker-compose.yaml'))
+
+    def initialize(self):
+        self.call('run', '--rm', '--no-deps', '-T', 'node', '/operator/node.json', '--initialize')
 
     def stop_for_recovery(self, service, process):
         process.kill(); process.wait(timeout=10)

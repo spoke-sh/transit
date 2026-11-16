@@ -18,7 +18,7 @@ def freeze_executables(fixture):
     directory = fixture.root / 'bin'
     directory.mkdir(mode=0o700)
     cli_path = Path(fixture.cli)
-    for key, name in [('node', 'transit-node'), ('query_host', 'transit-query-host'),
+    for key, name in [('query_host', 'transit-query-host'),
                       ('board', 'transit-board'), ('sql_gateway', 'transit-sql-gateway')]:
         source = Path(fixture.config['executables'][key])
         destination = directory / name
@@ -36,7 +36,8 @@ class LocalInstallation:
         self.cli = str(self.root / "transit")
         cli_resolved = Path(cli).resolve()
         shutil.copy2(cli_resolved, self.cli)
-        node_resolved = cli_resolved if node is None else Path(node).resolve()
+        if node is not None and Path(node).resolve() != cli_resolved:
+            raise ValueError("Installed proofs must use the server's embedded node")
         host_resolved = cli_resolved if host is None else Path(host).resolve()
         default_gateway = cli_resolved.parent / "transit-sql-gateway"
         default_board = cli_resolved.parent / "transit-board"
@@ -46,7 +47,6 @@ class LocalInstallation:
             str(default_board if default_board.exists() or host_resolved != cli_resolved else cli_resolved))).resolve()
         executables = {}
         for key, name, resolved in (
-            ("node", "transit-node", node_resolved),
             ("query_host", "transit-query-host", host_resolved),
             ("sql_gateway", "transit-sql-gateway", gateway_resolved),
             ("board", "transit-board", board_resolved),
@@ -140,7 +140,7 @@ class ExternalInstallation(LocalInstallation):
         super().__init__(cli, parent=parent)
         self.config.update(executables={}, external={}, applications=None, sql={'native': {'local': False}},
             storage={'maintenance': {'compact': False, 'archive': {'enabled': False}, 'flush': {'enabled': False}}})
-        for name in ('transit-node', 'transit-query-host', 'transit-sql-gateway', 'transit-board'):
+        for name in ('transit-query-host', 'transit-sql-gateway', 'transit-board'):
             (self.root / name).unlink(missing_ok=True)
         if ursula is not None:
             self.config['external']['ursula'] = dict(url=ursula, bucket='server', journal='authority')

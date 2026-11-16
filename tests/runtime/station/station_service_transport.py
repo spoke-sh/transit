@@ -22,7 +22,7 @@ def configure(installation):
         'from runtime.station.station_service_transport import run\n'
         'run(' + repr(installation.cli) + ',' + str(port) + ',' + repr(str(records)) + ',sys.argv[1:])\n')
     wrapper.chmod(0o700)
-    installation.config['executables']['node'] = str(wrapper)
+    (installation.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
 
 
 def run(binary, port, record_path, args):
@@ -39,7 +39,7 @@ def run(binary, port, record_path, args):
         assert ctypes.CDLL(None).prctl(1, signal.SIGKILL, 0, 0, 0) == 0
         if os.getppid() != parent: os._exit(1)
 
-    node = subprocess.Popen([binary, '__transit_role_v1', 'node', str(target), *args[1:]], preexec_fn=owned_child)
+    node = subprocess.Popen([binary, '__transit_role_v1', 'node', '__test_native_node', str(target), *args[1:]], preexec_fn=owned_child)
     records = Path(record_path)
     pressure = records.with_name('station-pressure.json')
     pressure_observed = records.with_name('station-pressure-observed.json')

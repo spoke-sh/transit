@@ -17,12 +17,12 @@ run name:
 
 # Two independent Document editors, atomic replies and worker/store recovery.
 document:
-    zig build transit-node transit-client-host transit-station-document-worker example-station-document
+    zig build transit transit-client-host transit-station-document-worker example-station-document
     python3 -B examples/station-document/run.py
 
 # Finite HTTP call, separate connector, captured replay and worker/store recovery.
 http:
-    zig build transit-node transit-client-host example-station-http transit-station-http-worker
+    zig build transit transit-client-host example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py
 
 # The finite HTTP example with separate client, storage and effect networks.
@@ -32,7 +32,7 @@ http-compose:
 
 # Fresh public caller registration and generation-pinned operator activation.
 http-bootstrap:
-    zig build transit-node transit-client-host example-station-http transit-station-http-worker
+    zig build transit transit-client-host example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py --bootstrap
 
 # Isolated Substrate caller and egress-confined effect pod in owned reference infra.
@@ -42,11 +42,11 @@ http-reference:
 
 # Finite binary RPC caller, independent TLS peer and durable recovery/replay.
 grpc:
-    zig build transit-node transit-client-host example-station-grpc transit-station-grpc-worker
+    zig build transit transit-client-host example-station-grpc transit-station-grpc-worker
     python3 -B examples/station-grpc/run.py
 
 grpc-bootstrap:
-    zig build transit-node transit-client-host example-station-grpc transit-station-grpc-worker
+    zig build transit transit-client-host example-station-grpc transit-station-grpc-worker
     python3 -B examples/station-grpc/run.py --bootstrap
 
 # RPC effect isolation in separate Compose networks.

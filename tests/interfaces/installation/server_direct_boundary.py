@@ -30,14 +30,12 @@ class Boundary:
         self.upstream = fixture.reserve_port()
         wrapper = fixture.root / 'direct-node'
         module = str(TESTS)
-        configured = fixture.config.setdefault('executables', {}).get('node')
-        binary = [configured] if configured else [fixture.cli, '__transit_role_v1', 'node']
+        binary = [fixture.cli, '__transit_role_v1', 'node', '__test_native_node']
         wrapper.write_text(f'#!{sys.executable}\nimport sys\nsys.path.insert(0, {module!r})\n'
                            f'from interfaces.installation.server_direct_boundary import run_node\n'
                            f'run_node({binary!r}, {str(self.directory)!r}, {self.upstream})\n')
         wrapper.chmod(0o700)
-        fixture.config['executables']['node'] = str(wrapper)
-        fixture.path.write_text(json.dumps(fixture.config))
+        (fixture.root / 'node-proxy.json').write_text(json.dumps([str(wrapper)]))
 
     def pause(self):
         self.observed.unlink(missing_ok=True)

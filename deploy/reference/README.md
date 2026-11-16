@@ -146,8 +146,8 @@ and verifies expiry/state/retained boundaries after Ursula and authority restart
 Only Board's dedicated inspection seed and ingress access key are mounted; no
 service-account token or storage/provider credentials are supplied.
 
-Kind's default CNI does not enforce NetworkPolicy. The owned fixture installs
-IPv4/IPv6 egress rules in the Board pod namespace from an init container with
+The owned fixture additionally installs IPv4/IPv6 egress rules in the Board pod
+namespace from an init container with
 NET_ADMIN, then runs Board and its test-only probe without that capability.
 Allowed destinations are the Transit service, cluster DNS and local Board for
 port-forwarding. A positive Transit check precedes explicit transport-denial

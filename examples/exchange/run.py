@@ -17,6 +17,8 @@ import urllib.request
 from peer import start as start_peer
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / 'examples'))
+from server_config import configuration as server_configuration, ServerProcess, wait_started, wait_delivered
 sys.path.insert(0, str(ROOT / "launchers"))
 from native_client import Client, ClientError, public_key
 
@@ -34,7 +36,7 @@ def run(profile="local", bootstrap=False, protocol="http"):
     connector_binary = f"transit-station-{protocol}-worker"
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
-                ("transit-client-host", "transit-node", caller_binary, connector_binary)}
+                ("transit-client-host", "transit", caller_binary, connector_binary)}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
     env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", LOG_LEVEL="warn")
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -64,8 +66,11 @@ def run(profile="local", bootstrap=False, protocol="http"):
                 return child
             log = (work / f"{label}.log").open("w+")
             logs.append(log)
-            child = subprocess.Popen(list(map(str, argv)), env=env, stdout=log, stderr=subprocess.STDOUT)
+            process_type = ServerProcess if label.split("-")[0] == "node" else subprocess.Popen
+            child = process_type(list(map(str, argv)), env=env, stdout=log, stderr=subprocess.STDOUT)
             children.append(child)
+            if label.split("-")[0] == "node":
+                wait_started(child, lambda: Path(log.name).read_text())
             return child
 
         def ready(child, url):
@@ -92,11 +97,11 @@ def run(profile="local", bootstrap=False, protocol="http"):
         store_url = f"http://127.0.0.1:{store_port}"
         if profile != "local":
             if profile == "reference":
-                from reference import Reference
+                from exchange.reference import Reference
                 placement = Reference(work, protocol)
                 bootstrap = True
             else:
-                from compose import Compose
+                from exchange.compose import Compose
                 placement = Compose(work, protocol)
             (work / "wal").mkdir()
             (work / "activations").mkdir()
@@ -117,11 +122,15 @@ backend = "none"
 [storage.snapshot]
 backend = "inline"
 ''')
-        node_config = write("operator/node.json", {"profile": "native_v1", "genesis": {
-            "realm": realm, "root_key": public["operator"], "max_clock_error_ms": 10000},
-            "ursula_url": "http://ursula:8080" if placement else store_url, "bucket": protocol+"-example", "journal": "authority", "port": 8080 if placement else node_port,
-            "listen": "0.0.0.0" if placement else "127.0.0.1",
-            "resident_pages": 64, "request_timeout_ms": 10000})
+        node_config = write("operator/node.json", server_configuration(realm,
+            '/operator/seed.key' if placement else keys['operator'],
+            # Keep the server's sibling lock and publication staging directory
+            # inside the writable mount as well as the retained installation.
+            installation='/authority/installation' if placement else work / 'authority',
+            port=8080 if placement else node_port,
+            listen='0.0.0.0' if placement else '127.0.0.1',
+            ursula=dict(url='http://ursula:8080' if placement else store_url,
+                        bucket=protocol+'-example', journal='authority')))
         principals = {"operator": 0, "caller": 1, "connector": 2, "delivery": 3}
         sequences = dict.fromkeys(principals, 0)
 
@@ -149,10 +158,7 @@ backend = "inline"
             ready(storage, store_url + "/__ursula/ready")
             if placement:
                 placement.initialize()
-            else:
-                subprocess.run([binaries["transit-node"], node_config, "--initialize"], env=env,
-                               check=True, stdout=subprocess.DEVNULL, timeout=30)
-            authority = start("node", [binaries["transit-node"], node_config])
+            authority = start("node", [binaries["transit"], "server", "--no-ui", "--config", node_config])
             if placement: url = placement.url("node")
             ready(authority, url + "/health")
             records = {}
@@ -298,16 +304,7 @@ backend = "inline"
                 return invoke([binaries[name], path])
 
             def deliver():
-                after = None
-                while True:
-                    position = query({"capabilities": {}}, "delivery")["position"]
-                    page = query({"outputs": {"after": after, "position": position}}, "delivery")["body"]["outputs"]
-                    for entry in page["entries"]:
-                        if entry and entry["phase"] == "pending":
-                            command({"deliver": entry["id"]}, "delivery")
-                    after = page["next"]
-                    if after is None:
-                        return
+                wait_delivered(query)
 
             called = activate("caller", caller_config, "publish")
             assert called["phase"] == "called"
@@ -342,7 +339,7 @@ backend = "inline"
             storage = start("ursula-recovered", ["ursula", "server", "--config", store_config])
             if placement: store_url = placement.url("ursula")
             ready(storage, store_url + "/__ursula/ready")
-            authority = start("node-recovered", [binaries["transit-node"], node_config])
+            authority = start("node-recovered", [binaries["transit"], "server", "--no-ui", "--config", node_config])
             if placement: url = placement.url("node")
             ready(authority, url + "/health")
             replay = activate("caller", caller_config, "replay")

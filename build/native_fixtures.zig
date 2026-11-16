@@ -3,7 +3,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Runtime = @import("runtime.zig").Context;
 
-pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, runtime: Runtime, native_client_fixture: *std.Build.Step.Compile) void {
+pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, runtime: Runtime, native_client_fixture: *std.Build.Step.Compile, authority_fixture: *std.Build.Step.Compile) void {
     const runtime_library_path = b.option([]const u8, "fixture-rpath", "Pinned runtime library directory for portable CI fixtures");
     const Artifact = struct { path: []const u8, compile: *std.Build.Step.Compile };
     const clients = [_]Artifact{
@@ -15,7 +15,10 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .path = "bin/transit-station-http-worker", .compile = runtime.http_worker },
         .{ .path = "bin/transit-station-grpc-worker", .compile = runtime.grpc_worker },
     };
-    const authority = [_]Artifact{.{ .path = "bin/transit-node", .compile = runtime.node_artifact }};
+    const authority = [_]Artifact{
+        .{ .path = "tests/native-authority-fixture", .compile = authority_fixture },
+        .{ .path = "bin/transit", .compile = runtime.transit_cli },
+    };
     inline for (.{ .{ "clients", &clients }, .{ "authority", &authority } }) |set| {
         const files = b.addWriteFiles();
         var names: std.array_list.Managed([]const u8) = .init(b.allocator);

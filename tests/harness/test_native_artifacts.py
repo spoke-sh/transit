@@ -58,7 +58,7 @@ class Artifacts(unittest.TestCase):
     def test_export_inspects_linkage_and_keeps_static_files(self):
         for family, static, machine in [('clients', 'tests/native-client-fixture', 62),
                                         ('clients', 'bin/transit-client-host', 183),
-                                        ('authority', 'bin/transit-node', 62),
+                                        ('authority', 'tests/native-authority-fixture', 62),
                                         ('c-sdk', 'bin/transit-c-counter', 183)]:
             with self.subTest(family=family, static=static), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -82,7 +82,7 @@ class Artifacts(unittest.TestCase):
                 root = Path(directory)
                 body = 'sys.exit(23)\n' if failure == 'exit' else 'import os, signal\nos.kill(os.getpid(), signal.SIGTERM)\n'
                 prefix, record, loader = self.export_fixture(root, 'authority', loader_body=body)
-                binary = prefix / 'bin/transit-node'
+                binary = prefix / 'bin/transit'
                 if failure == 'non-elf':
                     binary.write_text('invalid ELF')
                 elif failure == 'no-load':
@@ -182,7 +182,7 @@ class Artifacts(unittest.TestCase):
                                     ({'definition': 'cd' * 32}, 'contract definition')]:
                 with self.subTest(changes=changes), self.assertRaisesRegex(AssertionError, reason):
                     validate(record, **(arguments | changes))
-            executable = prefix / 'bin/transit-node'
+            executable = prefix / 'tests/native-authority-fixture'
             original = executable.read_bytes()
             executable.write_bytes(b'replaced binary')
             with self.assertRaisesRegex(AssertionError, 'artifacts changed'):
@@ -234,7 +234,7 @@ class Artifacts(unittest.TestCase):
                 with self.assertRaisesRegex(AssertionError, 'loader'):
                     prepare('authority', 'Debug', root)
                 (prefix / 'record.json').write_text(json.dumps(record))
-                (prefix / 'bin/transit-node').write_text('corrupt binary')
+                (prefix / 'tests/native-authority-fixture').write_text('corrupt binary')
                 with self.assertRaisesRegex(AssertionError, 'artifacts changed'):
                     prepare('authority', 'Debug', root)
                 with self.assertRaises(FileNotFoundError):
@@ -279,7 +279,7 @@ class Artifacts(unittest.TestCase):
                 "import os, signal\nos.kill(os.getpid(), signal.SIGTERM)\n",
                 # A build that prints plausible output without its complete
                 # files still cannot qualify. stdout alone is not publication.
-                f"from pathlib import Path\nPath({str(prefix / 'bin/transit-node')!r}).unlink()\nprint({json.dumps(record)!r})\n",
+                f"from pathlib import Path\nPath({str(prefix / 'tests/native-authority-fixture')!r}).unlink()\nprint({json.dumps(record)!r})\n",
             ]
             with patch.dict(os.environ, {'PATH': str(root) + os.pathsep + os.environ['PATH']}):
                 failures = (subprocess.CalledProcessError, subprocess.CalledProcessError, FileNotFoundError)

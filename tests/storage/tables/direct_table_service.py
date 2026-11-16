@@ -1104,19 +1104,32 @@ def run(node, caller, mode="tables", *artifacts):
                 subprocess.run([caller, endpoint, "queue-release-recover", str(profile)], check=True, timeout=180)
                 assert Path(str(profile) + ".queue.release").read_bytes() == release_saved
                 subprocess.run([caller, endpoint, "queue-terminal-prepare", str(profile)], check=True, timeout=180)
+                terminal_unavailable = 0
                 def terminal_observation():
+                    nonlocal terminal_unavailable
                     result = subprocess.run([caller, endpoint, "queue-terminal-observe", str(profile)],
                                             timeout=30, capture_output=True, text=True)
+                    # This command only reads the original saved operations.
+                    # Automatic WAL recovery may temporarily refuse a read;
+                    # that is missing evidence, never a terminal Queue outcome.
+                    unavailable = result.returncode != 0 and result.stderr.strip() == "error: AuthorityUnavailable"
+                    with (root / "queue-terminal-observations.jsonl").open("a") as output:
+                        output.write(json.dumps(dict(returncode=result.returncode,
+                                                     stdout=result.stdout, stderr=result.stderr,
+                                                     unavailable=unavailable)) + "\n")
+                    if unavailable:
+                        terminal_unavailable += 1
+                        return None
                     assert result.returncode == 0, result.stderr[-12000:]
                     return json.loads(result.stdout)["ready"]
                 deadline = time.monotonic() + 30
-                while not terminal_observation():
+                while terminal_observation() is not True:
                     assert time.monotonic() < deadline, "Trusted retention age was not observed"
                     time.sleep(.1)
                 subprocess.run([caller, endpoint, "queue-terminal-ack", str(profile)], check=True, timeout=180)
                 terminal_saved = Path(str(profile) + ".terminal").read_bytes()
                 deadline = time.monotonic() + 60
-                while not terminal_observation():
+                while terminal_observation() is not True:
                     assert time.monotonic() < deadline, "Terminal Queue retention did not converge"
                     time.sleep(.1)
                 authority.kill()
@@ -1129,6 +1142,7 @@ def run(node, caller, mode="tables", *artifacts):
                 print(json.dumps(dict(profile="queue_original_recovery", source=provenance(ROOT),
                                       binaries=[identity(Path(path)) for path in (node, caller)],
                                       requests=fault["requests"], lost_replies=sorted(queue_faults), expiry_probes=probes,
+                                      terminal_unavailable=terminal_unavailable,
                                       passed=True)), flush=True)
                 print("Direct Queue HTTP: FIFO heads, wait admission/timeout, original empty claims, four lost replies including wait acceptance, ACK, automatic retired-lease expiry, retained payloads through tiering, explicit read closure and terminal retention across node SIGKILL/restarts passed.", flush=True)
                 return

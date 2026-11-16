@@ -20,12 +20,11 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
     from interfaces.grpc.grpc_faults import Boundary
     boundary = Boundary()
     from sdk.client_abi import Native
-    from sdk.client_abi_growing import GrowingSystem
+    from sdk.installed_server import InstalledServer
     from runtime.station.station import frame
     started = time.monotonic()
     worker = str(Path(worker).resolve())
-    fixture = GrowingSystem(node, cli)
-    fixture.resident_pages = 64
+    fixture = InstalledServer(node, cli, manual_delivery=True)
     body = bytes((i * 17 + 3) % 256 for i in range(513))
     response_body = bytes((i * 29 + 5) % 256 for i in range(1027))
     if rpc:
@@ -38,7 +37,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
         native = Native(raw_library)
         admin = native.client(system.url, timeout_ms=10000)
         private = bytes.fromhex(system.seed.read_text().strip())
-        sequence = 0
+        sequence = system.sequence
         children, requests, failures = [], [], []
         def command(value):
             nonlocal sequence
@@ -153,7 +152,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
             command({'own': {'pid': cfg['pid'], 'worker': cfg['principal'], 'expected_generation': cfg['generation']}})
             cfg['generation'] += 1
         after = None
-        def deliver():
+        def deliver(terminal='delivered'):
             nonlocal after
             position = read({'capabilities': {}})['position']
             outputs = []
@@ -161,8 +160,12 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 page = read({'outputs': {'after': after, 'position': position}})['body']['outputs']
                 for item in page['entries']:
                     if item:
-                        assert item['phase'] == 'pending'
-                        command({'deliver': item['id']})
+                        assert item['phase'] in ('pending', terminal)
+                        if item['phase'] == 'pending':
+                            command({'deliver': item['id']})
+                        settled = read({'outputs': {'after': item['id']-1,
+                            'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
+                        assert settled['id'] == item['id'] and settled['phase'] == terminal, settled
                         outputs.append(item)
                         after = item['id']
                 if page['next'] is None: return outputs
@@ -229,11 +232,9 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 assert boundary.reached.wait(timeout=90), executing.poll()
                 executing.kill(); executing.communicate(timeout=10); boundary.close(); children.remove(executing)
                 close(child)
-                system.authority.kill(); system.authority.wait(timeout=10)
+                system.crash_authority()
                 system.store.stop(); system.store.start()
-                system.authority = system.start(system.node, system.config)
-                from harness.services import wait_ready
-                wait_ready(system.store.http, system.authority, system.url + '/health')
+                system.restart_authority()
                 own(service); worker_config['generation'] = service['generation']
                 if rpc: worker_config['credentials'] = [{'binding': 'api', 'version': 7, 'metadata': 'authorization', 'file': str(credential)}]
                 else: worker_config['endpoint'].pop('request_bytes')
@@ -297,17 +298,25 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 children.remove(executing)
                 # Restart the authority and its disk store after committed output,
                 # before any delivery to the saved destination.
-                system.authority.kill(); system.authority.wait(timeout=10)
+                pending = [item for item in read({'outputs': {'after': after,
+                    'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'] if item]
+                assert len(pending) == 1 and pending[0]['phase'] == 'pending'
+                assert pending[0]['destination'] == caller['pid']
+                system.crash_authority()
                 system.store.stop(); system.store.start()
-                system.authority = system.start(system.node, system.config)
-                from harness.services import wait_ready
-                wait_ready(system.store.http, system.authority, system.url + '/health')
+                system.restart_authority()
                 own(service); worker_config['generation'] = service['generation']
                 assert invoke()['phase'] == 'complete'
             else:
                 assert invoke()['phase'] == 'complete'
-            outputs = deliver()
+            outputs = deliver('retired' if fault == 'retirement' else 'delivered')
             assert len(outputs) == 1 and outputs[0]['destination'] == caller['pid']
+            if fault:
+                # The server courier may settle this retained output during
+                # readiness, before the test pauses the new courier process.
+                # Recovery must preserve the exact pre-crash identity and value.
+                for field in ('id', 'destination', 'value'):
+                    assert outputs[0][field] == pending[0][field]
             if fault == 'retirement':
                 item = read({'outputs': {'after': outputs[0]['id']-1, 'position': read({'capabilities': {}})['position']}})['body']['outputs']['entries'][0]
                 assert item['id'] == outputs[0]['id'] and item['phase'] == 'retired'

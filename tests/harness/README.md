@@ -108,3 +108,22 @@ at `/table/v1`. Unknown action tags share one bounded category. Its
 [controls](test_http_probe.py) check actual connection reuse, completion accounting
 and payload exclusion. Instrumented timing is a distinct
 profile; the proxy keeps credentials and payloads out of retained events.
+
+
+The immutable `authority` artifact set contains `bin/transit` for installed SDK
+consumers and `tests/native-authority-fixture` for isolated component schedules.
+Both carry the same verified source, optimization, target and current-definition
+identity. Missing either input fails preparation. Production builds do not
+register the fixture target or include its sources.
+
+The fixture retains independent bootstrap/reopen, one-page and small-cache
+pressure, manually sequenced delivery, direct Table attachment and transport
+fault controls. Product consumers use the installed server; SDK schedules that
+need a precise delivery boundary pause and resume its actual courier through the
+owned-process harness. SQL/browser/Station fault tests explicitly compose a
+server variant with a test transport descriptor. That descriptor and dispatch
+hook are absent from the production executable.
+
+Board interruption and local SQL owner-bootstrap drivers require an explicit
+`--fault-server` input. Their ordinary lifecycle schedules use the production
+artifact; fault schedules create separate installations from the test variant.

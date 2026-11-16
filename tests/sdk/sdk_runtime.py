@@ -32,9 +32,10 @@ result = subprocess.check_output(['nix', 'build', '--no-link', '--print-out-path
 packages = [Path(line) for line in result.splitlines()]
 runtime = next(package for package in packages if (package / 'bin/transit').is_file())
 gateway = next(package for package in packages if (package / 'bin/transit-sql-gateway').is_file())
-for name in ('transit', 'transit-node', 'transit-query-host', 'transit-board'):
+for name in ('transit', 'transit-query-host', 'transit-board'):
     assert (runtime / 'bin' / name).is_file(), name
-# The node/query host take a configuration filename, not a --help switch.
+assert not (runtime / 'bin/transit-node').exists()
+# The query host takes a configuration filename, not a --help switch.
 for executable in (runtime / 'bin/transit', gateway / 'bin/transit-sql-gateway'):
     subprocess.run([str(executable), '--help'], cwd=source, check=True, stdout=subprocess.DEVNULL)
 with tempfile.TemporaryDirectory(prefix='transit-runtime-build-boundary-') as directory:

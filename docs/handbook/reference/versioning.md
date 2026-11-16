@@ -108,10 +108,12 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb`.
+`bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba`.
 
-This definition binds server-owned Station service declarations, signed
-installation fields, bootstrap principal bindings and service status. Earlier
+This definition binds the server-owned node, with no standalone node override
+or basename dispatch, alongside server-owned Station declarations, signed
+installation fields, bootstrap principal bindings and service status. Node
+artifact hashes still bind the role, embedded mode and executable bytes. Earlier
 installations and saved requests require their matching build; this cutover does
 not convert retained histories or reassign accepted observer identities.
 

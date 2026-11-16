@@ -182,16 +182,11 @@
 #   byte_quota: 1GiB
 #   pending_quota: 16
 
-# Omitted executable keys are found beside the physical transit executable,
-# then on PATH. Leave this section commented for the installed local bundle.
-# Optional examples below override discovery for selected executables. Paths
-# resolve relative to this file and must match the installation's recorded
-# artifact hashes; executable replacement is not a configuration upgrade.
-# Board and SQL gateway artifacts are required even with their listeners off.
+# The server embeds its node and uses embedded roles by default. Explicit
+# overrides for the remaining components resolve relative to this file and
+# must match the installation's recorded artifact hashes. Replacing executable
+# bytes is not a configuration upgrade. There is no node override.
 # executables:
-#   minio: /absolute/path/to/minio
-#   ursula: /absolute/path/to/ursula
-#   node: /absolute/path/to/transit-node
 #   query_host: /absolute/path/to/transit-query-host
 #   board: /absolute/path/to/transit-board
 #   sql_gateway: /absolute/path/to/transit-sql-gateway

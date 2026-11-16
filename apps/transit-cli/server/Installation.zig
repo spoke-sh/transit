@@ -456,7 +456,7 @@ test "startup creates only absent directories and preserves recorded identities"
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
         .ports = .{ .node = 19104, .gateway = 19105 },
-        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .executables = .{ .query_host = "unused", .sql_gateway = "unused" },
     };
     const identity = std.mem.zeroes(Config.Identity);
     config.startup.require_existing = true;
@@ -510,7 +510,7 @@ test "initialization refuses links files and contents appearing before publicati
         .realm = 1,
         .installation = try std.fs.path.join(a, &.{ directory, "installation" }),
         .ports = .{ .node = 19104, .gateway = 19105 },
-        .executables = .{ .node = "unused", .query_host = "unused", .sql_gateway = "unused" },
+        .executables = .{ .query_host = "unused", .sql_gateway = "unused" },
     };
     const marker = try std.fs.path.join(a, &.{ config.installation, "unrecognized" });
     try Files.write(t.io, marker, "preserve");

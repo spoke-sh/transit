@@ -1,5 +1,6 @@
 x-runtime: &runtime
   user: '${EXCHANGE_UID:?}:${EXCHANGE_GID:?}'
+  init: true
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
@@ -23,9 +24,11 @@ services:
   node:
     <<: *runtime
     image: '${EXCHANGE_NODE_IMAGE:?}'
-    command: [/node.json]
+    command: [server, --no-ui, --config, /operator/node.json]
     environment: {LOG_LEVEL: warn}
-    volumes: ['${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro']
+    volumes:
+      - '${EXCHANGE_WORK:?}/operator:/operator:ro'
+      - '${EXCHANGE_WORK:?}/authority:/authority'
     networks: [storage, client]
   left:
     <<: *runtime

@@ -24,7 +24,11 @@ defaults.
 
 The gateway image carries the pinned Nix OpenSSL runtime closure. It runs as a
 non-root process with a read-only root, bounded CPU/memory, dropped capabilities
-and no storage credentials. Its configuration mounts only the selected account
+and no storage credentials. Total connection admission matches the single
+account's eight-connection limit. With health inspection, the gateway reserves
+116 I/O workers inside the Compose profile's 256-PID limit; the TLS, statement,
+session and recovery deadlines keep their configured defaults. This deployment
+proof does not qualify a larger connection pool. Its configuration mounts only the selected account
 keys, verifier and TLS certificate/key. The operator key remains outside the
 service. Compose isolates storage on a separate internal network. The reference
 gateway has no service-account token; an init container constrains egress to the

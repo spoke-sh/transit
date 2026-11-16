@@ -7,7 +7,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "exchange"))
 from compose import Compose as BaseCompose
-from interfaces.deployment.reference import Reference as BaseReference
+from reference import Reference as BaseReference
 
 
 class Compose(BaseCompose):
@@ -81,7 +81,7 @@ ip6tables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
-        targets = [self.address("ursula")+":8080", self.cold_address+":9000", "1.1.1.1:443"]
+        targets = [self.address("ursula")+":8080", self.cold_address+":"+str(self.cold_port), "1.1.1.1:443"]
         for namespace, target in (("default", "kubernetes"), ("ate-system", "api")):
             address = json.loads(self.kube("get", "service", target, "-n", namespace, "-o", "json"))["spec"]["clusterIP"]
             targets.append(address+":443")

@@ -205,7 +205,7 @@ class Fixture(LocalInstallation):
             assert status['status'] == 'preparing' and time.monotonic() < deadline, status
             command(dict(advance=change))
     def kill_role(self, match):
-        candidates = [pid for pid in children(self.process.pid) if match in command(pid) and (match != "/transit-node " or "--maintain" not in command(pid))]
+        candidates = [pid for pid in children(self.process.pid) if match in command(pid)]
         assert len(candidates) == 1, [(pid, command(pid)) for pid in children(self.process.pid)]
         os.kill(candidates[0], signal.SIGKILL)
 
@@ -331,7 +331,7 @@ def run(cli, node, host):
         record_path = fixture.installation / "installation.json"
         saved = record_path.read_bytes()
         try:
-            for incompatible in (None, "previous-v1-definition", "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
+            for incompatible in (None, "previous-v1-definition", "8c9d76eb76a63bc1415e8554f64cfd67ee34402107dfe34950f43756329d49eb", "a836b4860f5817b78c936b1ff8ee2e13c973b7e9f73dfc5003a0820ef8194262", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
                 record = json.loads(saved)
                 if incompatible is None:
                     del record['definition']
