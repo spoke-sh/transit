@@ -16,7 +16,8 @@ CREATE PUBLIC MODULE Workflow(
       CHECK GUARD helpers.verify_account($accounts, order_item.account_id, order_item.amount);
       LET summary = 'caller-local-shadow-sentinel';
       REQUIRE helpers.same_token(RANDOM_TOKEN(16)) ELSE 'ImpureTokenMismatch';
-      CALL helpers.settle_order($ledger, $events, $followup, order_item.id, order_item.account_id, order_item.amount, order_item.note);
+      LET settled = CALL helpers.settle_order($ledger, $events, $followup, order_item.id, order_item.account_id, order_item.amount, order_item.note);
+      REQUIRE settled = order_item.id ELSE 'WrongReturnedOrder';
       REQUIRE summary = 'caller-local-shadow-sentinel' AND order_item.note <> 'rollback_after_call' ELSE 'PostCallRejected';
     END;
   END;

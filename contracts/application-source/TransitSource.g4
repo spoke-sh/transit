@@ -12,8 +12,9 @@ definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
     | INTERFACE sourceName parameters
     | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
     | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
-    | PROCEDURE sourceName parameters AS BEGIN ATOMIC? programBlock END
+    | PROCEDURE sourceName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
     | TEST? TARGET sourceName AS BEGIN body END) SEMI;
+procedureBody: programBlock (RETURN programExpression SEMI)?;
 functionBody: RETURN programExpression SEMI | programInstruction+;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 parameter: sourceName parameterKind;
@@ -83,7 +84,7 @@ sourceProgramControl: AUTHORIZE DATAFLOW programResourceName AS ROLE CURRENT_ROL
     | (ACTIVATE | SUSPEND | RESUME | RETIRE) DATAFLOW programResourceName;
 programBlock: programInstruction*;
 programInstruction
-    : LET programName EQ (programSelect | programExpression) SEMI
+    : LET programName EQ (CALL helperName programArguments | programSelect | programExpression) SEMI
     | REQUIRE programExpression ELSE sourceString SEMI
     | CHECK GUARD helperName programArguments SEMI
     | CALL helperName programArguments SEMI

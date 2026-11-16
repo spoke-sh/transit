@@ -37,7 +37,7 @@ Ordered public Queue programs and explicit lifecycle controls use the same graph
 `ProgramLowering` validates pure `FUNCTION`, ordered `GUARD` and inline atomic
 `PROCEDURE` declarations across a non-recursive call DAG, checks function purity
 through Fuze's `ScalarProgram`, hoists multi-use impure call arguments once,
-expands `CHECK GUARD` and `CALL` with hygienic `"__t$<n>_<name>"` bindings into
+expands `CHECK GUARD`, `CALL` and typed `LET result = CALL` with hygienic `"__t$<n>_<name>"` bindings into
 canonical program SQL, and preserves both definition-site and call-site source
 locations. `ProgramCheck` collects proposed dependencies and uses Fuze's program
 schema, type and capability owners before comparing the emitted instruction tree

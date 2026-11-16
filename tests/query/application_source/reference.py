@@ -55,7 +55,9 @@ def parse(source):
                 if not node.ATOMIC():
                     following = tokens.tokens[node.BEGIN().symbol.tokenIndex + 1]
                     raise Refusal(offsets[following.start], 'procedure requires BEGIN ATOMIC')
-                bounds(node.programBlock(), True, 'procedure')
+                if bool(node.RETURNS()) != bool(node.procedureBody().RETURN()):
+                    raise Refusal(span(node.procedureBody())['end'], 'procedure return coverage')
+                bounds(node.procedureBody(), True, 'procedure')
             elif node.GUARD():
                 if node.ATOMIC():
                     raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic guard')
@@ -291,12 +293,12 @@ def parse(source):
             if len(constructors) > 64 or len(set(names)) != len(names):
                 raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
         return_type = None
-        if definition.FUNCTION():
+        if definition.sourceType():
             raw_ret = definition.sourceType()
             return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
         program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
                    template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
-                   template(definition.programBlock(), helper='procedure_body') if definition.PROCEDURE() else None)
+                   template(definition.procedureBody(), helper='procedure_body') if definition.PROCEDURE() else None)
         definitions.append({'name': definition.sourceName().getText().lower(), 'public': bool(definition.PUBLIC()),
                             'kind': ('domain' if domain else 'variant' if constructors else
                                      'function' if definition.FUNCTION() else 'guard' if definition.GUARD() else

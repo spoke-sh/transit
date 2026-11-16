@@ -79,14 +79,16 @@ append metadata and RETURNING remain outside this source profile.
 
 Public Queue programs compose those resources through `CREATE PUBLIC DATAFLOW`
 and separate AUTHORIZE/ACTIVATE controls. LET, REQUIRE, `CHECK GUARD`, IF, Table
-inserts, log appends and statement-form `CALL` use the installed ordered-program
+inserts, log appends, `CALL` and `LET result = CALL` use the installed ordered-program
 binder; mutations and procedure calls require an atomic block. Pure
 `CREATE [PUBLIC] FUNCTION` helpers validate through Fuze's deterministic
 `ScalarProgram` owner, ordered `CREATE [PUBLIC] GUARD` declarations expand in
 lexical refusal order while registering referenced Table reads, and inline
 `CREATE [PUBLIC] PROCEDURE ... AS BEGIN ATOMIC ... END` declarations flatten
 hygienically renamed bindings and writes into the caller's single atomic
-transaction decision. Building emits SQL and never activates it. The
+transaction decision. A `RETURNS type` procedure ends with one top-level
+`RETURN expression;`; returned values retain their nominal types and remain
+scoped to the caller's atomic block. Arguments and returns evaluate once. Building emits SQL and never activates it. The
 [program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
 defines exact supported instructions, helper restrictions, schemas and limits.
 Nominal Queue, Stream and Table fields retain their source types through LET,

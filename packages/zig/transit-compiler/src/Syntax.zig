@@ -109,7 +109,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
             } else return error.UnsupportedSourceDeclaration;
             const name = try self.identifier();
             const parameters = if (kind == .module or kind == .interface or kind == .function or kind == .guard or kind == .procedure) try self.parseParameters() else &.{};
-            const return_type: ?TypeRef = if (kind == .function) blk: {
+            const return_type: ?TypeRef = if (kind == .function or (kind == .procedure and self.is("RETURNS"))) blk: {
                 try self.require("RETURNS");
                 break :blk try self.typeRef();
             } else null;
@@ -153,7 +153,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
                     .guard => .guard,
                     .procedure => .procedure,
                     else => unreachable,
-                }, self.location);
+                }, return_type != null, self.location);
             }
             const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant or kind == .function or kind == .guard or kind == .procedure) &.{} else blk: {
                 try self.require("AS");

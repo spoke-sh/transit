@@ -110,8 +110,9 @@ CREATE PUBLIC PROCEDURE settle_order(
   account_id ids.AccountId,
   amount BIGINT,
   note TEXT
-) AS BEGIN ATOMIC
+) RETURNS ids.OrderId AS BEGIN ATOMIC
   LET summary = format_summary(amount, note);
   INSERT INTO ledger VALUES (preserve_order(order_id), preserve_account(account_id), amount, summary) ON CONFLICT (id) DO ASSERT SAME ROW;
   CALL publish_outputs(events, followup, preserve_order(order_id), preserve_account(account_id), summary);
+  RETURN preserve_order(order_id);
 END;

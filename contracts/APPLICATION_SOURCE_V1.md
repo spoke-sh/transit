@@ -166,7 +166,7 @@ program binder.
 Source helpers compose into public Queue programs without adding stored runtime
 procedures, functions or sidecars:
 
-- `CREATE [PUBLIC] FUNCTION name(params) RETURNS type AS BEGIN [LET ...;] RETURN expr; END;`
+- `CREATE [PUBLIC] FUNCTION name(params) RETURNS type AS BEGIN RETURN expr; END;`
   accepts `BIGINT`, `TEXT`, `BOOLEAN` and nominal domain parameters and return
   types. Bodies are validated through Fuze's deterministic `ScalarProgram` owner
   and preserve five-state evaluation, checked arithmetic and nominal domains;
@@ -181,12 +181,18 @@ procedures, functions or sidecars:
   exact lexical sequence, registering every referenced Table in the program's
   dependency set. Mutations and procedure calls inside guards reject
   (`MutationInsideGuard`).
-- `CREATE [PUBLIC] PROCEDURE name(params) AS BEGIN ATOMIC ... END;` accepts
+- `CREATE [PUBLIC] PROCEDURE name(params) [RETURNS type] AS BEGIN ATOMIC ... END;` accepts
   scalar, nominal domain and exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
   parameters. Statement-form `CALL [alias.]name(args);` is valid only inside an
-  enclosing `BEGIN ATOMIC` block (`ProcedureOutsideAtomic`); value-returning
-  `LET res = CALL ...`, nested explicit `BEGIN ATOMIC` blocks and external
-  effects reject. Lowering assigns fresh hygienic `"__t$<n>_<name>"` bindings so
+  enclosing `BEGIN ATOMIC` block (`ProcedureOutsideAtomic`). A procedure with
+  `RETURNS BIGINT|TEXT|BOOLEAN|domain` must end with one top-level `RETURN expr;`;
+  early or branch returns reject. Every successful path reaches that expression.
+  `LET res = CALL [alias.]name(args);` binds its result inside the caller's atomic
+  block. A void procedure cannot supply a value. Arguments and the return
+  expression evaluate once, in lexical order; statement-form calls may discard
+  the result. Return types preserve nominal identity and the existing nullable
+  scalar rules. Refusal stops evaluation and later refusal rolls back all writes.
+  Nested explicit `BEGIN ATOMIC` blocks and external effects reject. Lowering assigns fresh hygienic `"__t$<n>_<name>"` bindings so
   caller and callee locals never collide, flattening nested procedure writes and
   guards into the caller's single atomic transaction decision.
 

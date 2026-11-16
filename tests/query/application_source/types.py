@@ -25,6 +25,7 @@ THEOREMS = {
     'guard_sequence_refusal',
     'guard_reorder_non_equivalent',
     'procedure_inline_atomic',
+    'procedure_return_substitution',
 }
 DOMAINS = {'machine': 'example.machine-id', 'site': 'example.site-id'}
 
