@@ -50,6 +50,15 @@ preserve domains. Other nominal operations reject. Symbolic program declarations
 and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
 expectations extend the local test product without adding a source interpreter.
 
+`CatalogDiff` synthesizes explicit-basis Table migrations without a live catalog.
+It replays verified immutable CREATE/ADD history, compares full schema and nominal
+identities, asks `TableEvolution.canProject` about additions, emits ordinary SQL
+using shared parser column spans, and independently verifies the final schema.
+Its caller supplies a bounded arena and immutable basis/history buffers. Unsupported
+or destructive changes fail before output; unchanged targets add no SQL version.
+The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+owns basis fields, namespace bindings, artifact identity and bounds.
+
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
 Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log
 target kinds until ordinary log preparation. Log declarations use the shared

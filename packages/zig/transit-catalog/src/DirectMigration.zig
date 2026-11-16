@@ -26,6 +26,8 @@ pub const DriftAspect = enum {
     encoding,
     collation,
     primary_key,
+    semantics,
+    integrity,
 };
 
 pub const DriftDetail = struct {
@@ -114,51 +116,7 @@ pub const Directory = struct {
     }
 };
 
-/// Canonical SHA-256 fingerprint of a Table's logical and physical column and
-/// key shape, independent of catalog object ID, revision or internal ColumnId.
-pub fn logicalFingerprint(schema: f.TableSchema.Schema) ![32]u8 {
-    if (schema.columns.len == 0 or schema.columns.len > f.TableSchema.max_columns) return error.InvalidColumnCount;
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.migration.logical-schema.v1\x00");
-    var count_bytes: [2]u8 = undefined;
-    std.mem.writeInt(u16, &count_bytes, @intCast(schema.columns.len), .little);
-    hash.update(&count_bytes);
-    var descriptor: [f.Types.max_encoding_bytes]u8 = undefined;
-    var default_bytes: [f.TableSchema.max_bytes]u8 = undefined;
-    for (schema.columns) |column| {
-        hash.update(&.{@intCast(column.name.len)});
-        hash.update(column.name);
-        const type_bytes = try column.type.encode(&descriptor);
-        std.mem.writeInt(u16, &count_bytes, @intCast(type_bytes.len), .little);
-        hash.update(&count_bytes);
-        hash.update(type_bytes);
-        var max_chars: [4]u8 = undefined;
-        std.mem.writeInt(u32, &max_chars, column.max_characters orelse 0, .little);
-        hash.update(&max_chars);
-        hash.update(&.{
-            @intFromBool(column.nullable),
-            @backingInt(column.encoding),
-            @backingInt(column.collation),
-            @intFromBool(column.default != null),
-        });
-        if (column.default) |cell| {
-            const encoded = try f.Types.Codec.encode(cell, column.field(), &default_bytes);
-            var len_bytes: [4]u8 = undefined;
-            std.mem.writeInt(u32, &len_bytes, @intCast(encoded.len), .little);
-            hash.update(&len_bytes);
-            hash.update(encoded);
-        }
-    }
-    std.mem.writeInt(u16, &count_bytes, @intCast(schema.primary_key.len), .little);
-    hash.update(&count_bytes);
-    for (schema.primary_key) |pk_id| {
-        const col_index = try schema.index(pk_id);
-        const pk_name = schema.columns[col_index].name;
-        hash.update(&.{@intCast(pk_name.len)});
-        hash.update(pk_name);
-    }
-    return hash.finalResult();
-}
+pub const logicalFingerprint = f.TableDefinition.logicalFingerprint;
 
 /// Reconciles a live TableSchema against a desired CREATE TABLE declaration.
 /// IF NOT EXISTS never masks column, type, nullability, default, encoding,
@@ -232,6 +190,7 @@ pub fn reconcileCreate(existing: f.TableSchema.Schema, desired: f.TableDdl.Creat
                 .actual = @tagName(actual.encoding),
             } };
         }
+        if (!actual.semantics.eql(expected.semantics)) return .{ .drift = .{ .aspect = .semantics, .column = expected.name } };
         if (actual.collation != expected.collation) {
             return .{ .drift = .{
                 .aspect = .collation,
@@ -274,6 +233,11 @@ pub fn reconcileCreate(existing: f.TableSchema.Schema, desired: f.TableDdl.Creat
             } };
         }
     }
+    var expected_schema = existing;
+    expected_schema.columns = desired.columns;
+    expected_schema.primary_key = desired.primary_key;
+    expected_schema.integrity = desired.integrity;
+    if (!std.mem.eql(u8, &try f.TableDefinition.integrityFingerprint(existing), &try f.TableDefinition.integrityFingerprint(expected_schema))) return .{ .drift = .{ .aspect = .integrity } };
     return .satisfied;
 }
 
@@ -283,6 +247,7 @@ pub fn reconcileSchemas(existing: f.TableSchema.Schema, desired: f.TableSchema.S
         .if_not_exists = true,
         .columns = desired.columns,
         .primary_key = desired.primary_key,
+        .integrity = desired.integrity,
     });
 }
 
@@ -640,4 +605,21 @@ test "migration ledger rejects missing and previous definitions" {
     try t.expectError(error.MissingField, p.Json.parseFromSlice(Directory, t.allocator, "{\"namespace\":1,\"versions\":[]}"));
     const previous: Directory = .{ .definition = "transit.direct.migration.v1.2026-10-30", .namespace = 1, .versions = &.{} };
     try t.expectError(error.IncompatibleDefinition, previous.validate());
+}
+
+test "migration reconciliation checks interpretation and integrity beyond legacy receipt digest" {
+    const a = std.testing.allocator;
+    var before = try f.TableDdl.compile(a, "CREATE TABLE t(id BIGINT PRIMARY KEY, amount DECIMAL(10,2) ROUNDING HALF_EVEN, CHECK(id > 0))", null, null);
+    defer before.deinit();
+    const schema = try before.statement.create.bind(7);
+    try std.testing.expectEqual(.satisfied, try reconcileSchemas(schema, schema));
+    var changed = try f.TableDdl.compile(a, "CREATE TABLE t(id BIGINT PRIMARY KEY, amount DECIMAL(10,2) ROUNDING HALF_EVEN, CHECK(id > 1))", null, null);
+    defer changed.deinit();
+    try std.testing.expectEqual(.integrity, (try reconcileCreate(schema, changed.statement.create)).drift.aspect);
+    var without = try f.TableDdl.compile(a, "CREATE TABLE t(id BIGINT PRIMARY KEY, amount DECIMAL(10,2), CHECK(id > 0))", null, null);
+    defer without.deinit();
+    try std.testing.expectEqual(.semantics, (try reconcileCreate(schema, without.statement.create)).drift.aspect);
+    // Existing ledger fingerprint bytes stay stable; live verification carries
+    // these additional checks independently of that persisted receipt format.
+    try std.testing.expectEqualSlices(u8, &try logicalFingerprint(schema), &try logicalFingerprint(try changed.statement.create.bind(7)));
 }

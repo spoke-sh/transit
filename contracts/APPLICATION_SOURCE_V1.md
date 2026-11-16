@@ -433,6 +433,79 @@ local source. Record its content digest and override status in provenance and
 cache identity; never rewrite a repository lock entry to pretend it was fetched.
 Missing locks, missing cached content, undeclared imports and changed bytes reject.
 
+## Table migration targets
+
+A migration target uses the same module graph and explicit Table names as a
+normal build. Its body describes the complete desired set of public Tables:
+
+```sql
+CREATE MIGRATION TARGET default
+FROM EMPTY FOR DATABASE 'transit' SCHEMA 'public'
+VERSION '0001' NAME 'initial'
+AS BEGIN
+  CREATE PUBLIC TABLE accounts (id BIGINT PRIMARY KEY, note TEXT);
+END;
+```
+
+For a successor, replace `EMPTY` with a quoted path to the previous artifact's
+`basis.json`, relative to the build entry's directory. The path must remain
+inside that directory, with no empty, `.` or `..` components, symlinks or special
+files. Explicit basis reads may enter `.transit`; source discovery still skips
+that directory. Database/schema names are required comparison bindings. They do
+not select a connection or authorize a live destination. Review the build, then
+use `transit migrate plan --dir OUTPUT/migrations --database transit --schema public`
+and apply the resulting saved plan through the ordinary migration owner.
+
+`CatalogDiff` accepts new Tables, unchanged Tables and trailing column additions
+admitted by `TableEvolution.canProject`. It compares complete schema descriptors,
+including keys, defaults, codecs, collations, interpretation rules, CHECK
+constraints and source nominal identities. It never guesses renames from source
+paths or similar names. Drops, reordering, type/nominal changes, rewrites, changed
+constraints and additions requiring validation or a data transform refuse with
+the affected object. Foreign keys and other resource/statement kinds reject.
+Explicit data transforms remain reviewed ordinary SQL migrations; this first
+synthesis profile cannot reconstruct a history containing such transforms.
+
+The versioned offline basis has required `format = transit_table_basis_v1`,
+current native `definition`, compiler executable digest (`compiler`), `database`,
+`schema`, `tables` and `history` fields. Each Table records its canonical CREATE
+SQL, explicit name, column names/nominal identities, full normalized definition
+digest and the existing migration logical fingerprint. The full digest uses the
+shared Table schema codec with object/revision fixed to 1; column and constraint
+identities remain significant. It is not an equivalence rule for arbitrary
+rewrite histories. Each history entry records version, name, leaf path and SHA-256
+of the exact corresponding SQL bytes in the sibling `migrations/` directory.
+Missing/foreign definitions, mismatched descriptors, duplicate bindings, unlisted
+files and modified historical bytes reject. The basis is an explicit input, not
+a signed claim about a live catalog.
+
+Before comparison, the compiler replays the complete history from empty using
+ordinary Table DDL and evolution owners and verifies every declared prior
+schema. Historical CREATE and safe ADD COLUMN are the only admitted steps.
+Generated SQL is independently reparsed and replayed; final full definitions
+must equal a fresh build of the desired Tables. SQL column spans come from the
+shared DDL parser, including nested types and defaults. No SQL comma splitting,
+row simulation, source interpreter or second migration ledger is involved.
+
+Output is one atomically published directory containing `desired.sql`,
+`provenance.json`, `basis.json` and `migrations/`. Historical SQL is copied exactly;
+the proposed version adds one new file only when the diff contains steps. An
+unchanged target emits zero steps and creates no empty version. Versions strictly
+increase lexicographically and use 1–64 ASCII alphanumeric, `.` or `_` bytes;
+synthesized names use 1–128 ASCII alphanumeric, `_` or `-` bytes. Existing explicit
+output directories reject, and cached artifacts must match every generated file.
+Runtime apply/recovery needs only immutable SQL or a saved ordinary migration
+plan; source, dependencies and basis sidecars are unnecessary.
+
+Synthesis preserves the 64-step/version, 256-version, 2 MiB/file and 1 MiB/statement
+limits. Basis JSON and aggregate historical SQL each have a separate 16 MiB bound;
+comparison/loading allocations count against the CLI's 256 MiB tooling budget.
+Pure `CatalogDiff` callers supply a bounded arena retaining input and output for
+the call. Provenance/cache identity includes the prior basis bytes, verified
+history, desired definitions, source/lock graph and compiler identity. `--check`
+performs these same checks without publishing. Build never opens a SQL session,
+applies a migration or activates runtime work.
+
 ## Bounds, ownership and artifacts
 
 Default maximums are 1 MiB per file, 16 MiB aggregate source, 256 source files,

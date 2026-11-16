@@ -51,7 +51,8 @@ pub const Statement = struct { span: Span, value: union(enum) {
     assertion: Assertion,
     workflow: Workflow,
 } };
-pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, test_target, domain, variant, function, guard, procedure }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{}, return_type: ?TypeRef = null, program: ?Template.Syntax = null };
+pub const Migration = struct { basis: ?[]const u8, database: []const u8, schema: []const u8, version: []const u8, name: []const u8 };
+pub const Definition = struct { name: []const u8, public: bool, kind: enum { module, interface, target, migration_target, test_target, domain, variant, function, guard, procedure }, parameters: []const Parameter, body: []const Statement, span: Span, domain: ?Domain = null, constructors: []const Constructor = &.{}, return_type: ?TypeRef = null, program: ?Template.Syntax = null, migration: ?Migration = null };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
 pub const Dependency = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, span: Span };
 pub const File = struct { definitions: []const Definition, imports: []const Import, dependencies: []const Dependency };
@@ -103,7 +104,10 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         } else {
             try self.require("CREATE");
             const public = self.take("PUBLIC");
-            const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("FUNCTION")) .function else if (self.take("GUARD")) .guard else if (self.take("PROCEDURE")) .procedure else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
+            const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("FUNCTION")) .function else if (self.take("GUARD")) .guard else if (self.take("PROCEDURE")) .procedure else if (self.take("MIGRATION")) blk: {
+                try self.require("TARGET");
+                break :blk .migration_target;
+            } else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
                 try self.require("TARGET");
                 break :blk .test_target;
             } else return error.UnsupportedSourceDeclaration;
@@ -112,6 +116,19 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
             const return_type: ?TypeRef = if (kind == .function or (kind == .procedure and self.is("RETURNS"))) blk: {
                 try self.require("RETURNS");
                 break :blk try self.typeRef();
+            } else null;
+            const migration: ?Migration = if (kind == .migration_target) blk: {
+                try self.require("FROM");
+                const basis = if (self.take("EMPTY")) null else try self.string();
+                try self.require("FOR");
+                try self.require("DATABASE");
+                const database = try self.string();
+                try self.require("SCHEMA");
+                const schema = try self.string();
+                try self.require("VERSION");
+                const version = try self.string();
+                try self.require("NAME");
+                break :blk .{ .basis = basis, .database = database, .schema = schema, .version = version, .name = try self.string() };
             } else null;
             var domain: ?Domain = null;
             var constructors: std.ArrayList(Constructor) = .empty;
@@ -163,7 +180,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
                 break :blk result;
             };
             try self.require(";");
-            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(a), .return_type = return_type, .program = program });
+            try definitions.append(a, .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(a), .return_type = return_type, .program = program, .migration = migration });
         }
     }
     return .{ .definitions = try definitions.toOwnedSlice(a), .imports = try imports.toOwnedSlice(a), .dependencies = try dependencies.toOwnedSlice(a) };

@@ -101,7 +101,14 @@ for existence. Ordinary SQL still receives scalar columns and values.
 
 This profile rejects runtime-private storage, stored runtime or privileged
 procedures, option profiles, runtime variant dispatch, protected effects,
-COMMAND programs and unsupported Table/query forms. Migration synthesis and full Platform compilation remain planned. The existing
+COMMAND programs and unsupported Table/query forms. Table migration targets synthesize new Tables and safe trailing column
+additions against an explicit offline basis. `CREATE MIGRATION TARGET` names the
+prior basis (or `EMPTY`), database/schema bindings and proposed version/name.
+Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
+and publish a reviewable `migrations/` directory without applying it. The
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+defines the syntax and limits. Broader migration kinds and full Platform
+compilation remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 
 ## Isolated application Table tests

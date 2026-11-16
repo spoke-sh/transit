@@ -17,6 +17,14 @@ and `DatabaseRuntime`). They never route admission, token deduplication,
 schema inspection or recovery through `Station` actor turns (`GenServer`,
 `AccountRuntime`, `Ledger`) or `STATE_V1` 256-byte KV records.
 
+Source `CREATE MIGRATION TARGET` builds can synthesize new Tables and safe
+trailing column additions from an explicit offline basis. The
+[source contract](APPLICATION_SOURCE_V1.md#table-migration-targets) owns this
+bounded profile. Builds publish ordinary immutable SQL; this ledger remains the
+only apply/resume authority. Live reconciliation checks CHECK descriptors and
+column interpretation rules in addition to the legacy logical fingerprint.
+Stored fingerprint bytes and original accepted operation identities are unchanged.
+
 ## Source ordering, naming and immutability
 
 Migration sources are ordered UTF-8 SQL files named `<version_id>-<name>.sql`
