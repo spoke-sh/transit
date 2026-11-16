@@ -20,6 +20,9 @@ class ComposeFixture(Fixture):
     """One Linux host-network server, with only its owned installation mounted."""
     def __init__(self, cli):
         super().__init__(cli)
+        self.use_private_runtime()
+        assert 'INTERP' not in subprocess.check_output(['readelf', '-l', self.cli], text=True), 'Compose runtime requires a host loader'
+        assert '(NEEDED)' not in subprocess.check_output(['readelf', '-d', self.cli], text=True), 'Compose runtime requires host libraries'
         self.project = 'transit-tier-' + secrets.token_hex(6)
         self.image = self.project + ':proof'
         self.compose = self.root / 'compose.json'
@@ -38,6 +41,7 @@ class ComposeFixture(Fixture):
             'image': self.image, 'user': f'{os.getuid()}:{os.getgid()}',
             'read_only': True, 'cap_drop': ['ALL'],
             'security_opt': ['no-new-privileges:true'], 'network_mode': 'host',
+            'environment': self.environment,
             'command': ['server', '--no-ui', '--config', str(self.path)],
             'volumes': mounts,
             'logging': {'driver': 'json-file', 'options': {'max-size': '5m', 'max-file': '2'}},
@@ -55,17 +59,38 @@ class ComposeFixture(Fixture):
 
     def ready(self, timeout=180):
         deadline = time.monotonic() + timeout
-        while True:
-            assert self.process.poll() is None, Path(self.logs[-1].name).read_text()[-4000:]
-            try:
-                with self.http.open(self.url + '/health', timeout=1) as response:
-                    if response.status == 200:
-                        self.ready_sql(deadline)
-                        return
-            except (urllib.error.URLError, TimeoutError, ConnectionError):
-                pass
-            assert time.monotonic() < deadline, 'Compose installation did not become ready'
-            time.sleep(.1)
+        report = None
+        # A gateway can answer while this startup is still activating SQL, and
+        # retained status files can describe the previous process. First require
+        # this invocation's ready record, as the ordinary Local fixture does.
+        with Path(self.logs[-1].name).open() as output:
+            while True:
+                assert self.process.poll() is None, Path(self.logs[-1].name).read_text()[-4000:]
+                while report is None:
+                    position = output.tell()
+                    line = output.readline()
+                    if not line.endswith('\n'):
+                        output.seek(position)
+                        break
+                    try:
+                        value = json.loads(line)
+                    except ValueError:
+                        continue
+                    if isinstance(value, dict) and value.get('ready') is True:
+                        assert value['profile'] == 'local_applications_v1'
+                        assert value['installation'] == str(self.installation)
+                        assert value['gateway_url'] == self.url and value['ui'] == 'disabled'
+                        report = value
+                if report is not None:
+                    self.ready_sql(deadline)
+                    try:
+                        with self.http.open(self.url + '/health', timeout=1) as response:
+                            if response.status == 200:
+                                return report
+                    except (urllib.error.URLError, TimeoutError, ConnectionError):
+                        pass
+                assert time.monotonic() < deadline, 'Compose installation did not become ready'
+                time.sleep(.1)
 
     def stop(self, kill=False):
         if self.process is None:

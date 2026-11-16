@@ -42,7 +42,9 @@ results do not qualify current source.
 
 `just test::server-object-tier` exercises the same installed SQL, settings,
 upload/eviction and cold-restart assertions on Local and Docker Compose with
-real MinIO TLS. It requires Linux, Docker Compose and the pinned shell. The
+real MinIO TLS. It requires Linux, Docker Compose and the pinned shell. The task
+builds with the static OpenSSL inputs from the `release-checks` shell and rejects
+a runtime with a dynamic loader or shared-library dependency. The
 Compose profile uses one static Transit executable, host networking and a
 private installation/credential bind mount; it does not qualify container network
 isolation. Application worker isolation remains a reference-deployment proof.
