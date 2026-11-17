@@ -20,10 +20,9 @@ and B.2a's typed value-returning inline calls. The rebased implementation is
 original implementation patches; the roadmap resolution preserves M13's
 upstream status. This basis includes the native-storage cutover and current v1
 definition `06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`.
-Fresh native-storage runtime qualification is pending at this source. The fast
-check (70 checks), contract check (20 checks), and full handbook check passed on
-the identical tree before commit-date normalization. Final qualification and
-roadmap edits are documentation only; their baseline checks are recorded in the PR.
+All five affected clean lanes and the final measured binary are qualified at
+`3f9de42eeb07766c613d2500a11650840b03612a`, which adds documentation to the implementation
+source above. Final qualification edits are documentation only.
 
 Earlier implementation ended at `5e9a5e6b119f`, based on `424cc32e8`.
 Upstream integrations at `9425373bc8b9` and `81e59708fb68` supplied embedded-role
@@ -76,7 +75,13 @@ Run metadata retains execution times; each row identifies its exact source revis
 | Earlier integrated clean core | Passed 28 tasks at `81e59708fb68`, including the shared HTTP package and dependent native packages. |
 | Earlier integrated clean connectors | Passed 13 tasks at `81e59708fb68`, including independent HTTP/TLS peers, the durable adapter and real examples. |
 | Earlier integrated clean installation/UI | Passed 26 tasks at `81e59708fb68`, including generated Table migration recovery, returned-value Queue execution, installed SQL and browser consumers. |
-| Rebased runtime qualification | Pending: the five affected clean lanes, console latency and paired installed SQL types have not completed at the native-storage definition. Earlier results above do not substitute for these gates. |
+| Rebased clean core (`just ci clean --lane core`) | Passed all 28 tasks at `3f9de42eeb07`, including the native-storage current-v1 contracts, package builds and dependent native packages. |
+| Rebased clean formal (`just ci clean --lane formal`) | Passed all 16 tasks at `3f9de42eeb07`, including the 11 scoped Lean laws, finite comparisons and negative controls. |
+| Rebased clean storage/query (`just ci clean --lane storage-query`) | Passed all 34 tasks at `3f9de42eeb07`, including compiler/source correspondence, native Table/Queue transactions, recovery and retained-catalog checks. |
+| Rebased clean connectors (`just ci clean --lane interfaces-connectors`) | Passed all 13 tasks at `3f9de42eeb07`, including independent HTTP/TLS peers, durable adapters and real connector examples. |
+| Rebased clean installation/UI (`just ci clean --lane installation-ui --work-root /tmp`) | Passed all 26 tasks at `3f9de42eeb07` in the pinned `ci-experience` shell, including generated/fresh SQL comparisons, Table migration recovery, returned-value Queue execution, installed SQL and browser consumers. |
+| Console latency (`just test console-latency-gate`) | Passed the checked-in workload and budgets at `3f9de42eeb07` in the pinned `ci-experience` shell after the competing pipeline exited; complete raw samples and no violations. |
+| Installed SQL types (`just test server-sql-types`) | Passed within the rebased installation/UI lane at `3f9de42eeb07`; the installed driver also passed immediately after latency using the same measured binary. |
 
 | Local record | SHA-256 |
 | --- | --- |
@@ -105,6 +110,21 @@ Run metadata retains execution times; each row identifies its exact source revis
 | `.cache/m12/rebase-stopped-idle-orchestration.json` | `a5a3e47e93d97206b3b65b5337cc37f4ca16aadec6bbf14e1c9d9473f20ba3c4` |
 | `.cache/m12/rebase-date-normalization.json` | `969d1be6a0f8884fe62d3d3b8ffeb96895570664da3e37b8a5505ca33e7f8b2e` |
 | `.cache/m12/rebase-date-orchestration-stop.json` | `356c11900e8c1662e6a932fc7e4d4894ca41238687937d39417cfb5c219594c5` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/core.json` | `a875da516d472f79332fe1e63ead8b655e00a20a41efff3e80f82c09507a89df` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/core.meta.json` | `eced613884ac72d2cbd90af4f9a70abdfc9b7e3092b0c65b5eb20f05e74bac48` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/preparation.json` | `86585407b2fcc5c60fe1153f97f5df4a7baa55755b90413ff4896ed6c167a6ae` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/formal.json` | `2f164f29b2b17a587e1b9d1851b15085dc2fbac9bea9774febf3f55617099050` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/formal.meta.json` | `c0a9ba89d9461cd470fc9fa6baa4d97676c7f08c8f3688cd1d80ae84cc64db1c` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/preparation.json` | `dbe3e6db0d6b5d0862ac8e5fc693fe7ce263c40d7d1ca940c709f34f7b264a56` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/storage-query.json` | `3f3342a1748c46cc697d95ad2c0a2f18a3cb67c274a32ddcbb9f541474b32fa7` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/storage-query.meta.json` | `ec99a0ee0fdfd88817a8d839e0903d69118dcd6f59303180713eea8d030eeae0` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/preparation.json` | `429a57535d6702c6baa996a5255b1c0cd511ba9c48e4dec7966ba69cef477606` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/interfaces-connectors.json` | `605baa48be86e85bd27377ef1d9f96483e9e1b5cab792b1117aa5625f6f6493f` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/interfaces-connectors.meta.json` | `e27a3d53be2d0724668f6f4785f532ca3bb0c0ee46edde7da40648d9ab190ff1` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/preparation.json` | `4d11d39edbaeb56674095973a0b0b91cd53770c868a19de21b870ee61bd12542` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/installation-ui.json` | `c109c65022e3164e78f71485459e78fa902f4aa4a9577c48fdd6c393c36c4bdd` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/installation-ui.meta.json` | `7e3e5228895220202c9d2dd2e4d0f91745a38ced612223cc311fd6daeb07b9e1` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/preparation.json` | `d1981c63e523ab4b3fb7511d03f4381fca7555bddbdd445015051390d413ab2b` |
 | `.cache/transit-latency/m12-7d21db5c718c-w7y5mot7/report.json` | `6f3f73fedb980558efac1cd903c684a40ded4e5248151874a73085995c7c2ff4` |
 | `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9/report.json` | `bef5b7bc08db7ee44a7d6dd7629366ce5cf3b180987264dfa8a090892551b431` |
 | `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9/contention.json` | `e14555c4826c54922164fc690da2e2d659e380ec704baf80298af795a75a74d6` |
@@ -128,7 +148,17 @@ Run metadata retains execution times; each row identifies its exact source revis
 | `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-3.jsonl` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
 | `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-4.jsonl` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
 | `.cache/m12/installation-retry-overlap.json` | `1216d8dd611a40168d79a8eca94f9443ef61b58e03437523124a6116707e1281` |
-| `.cache/m12/pipeline-wait.json` | `fabade6246c0a16fb0dafaee8544ca24ea6bf4869763da28de5d939c0af65782` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/pipeline-wait.json` | `fabade6246c0a16fb0dafaee8544ca24ea6bf4869763da28de5d939c0af65782` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/report.json` | `0b1eb16ec3132cefae800cb7d361f0a40cc65d77adb1c1d5432718f2df053a3b` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/ambient.json` | `9781e19ae9b49fd4893ca03e6dd240a0dc714a14414eacee7c3cb97bb9b0a064` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/gates.json` | `171de04cbc54586649ec92c2f9edb6589edbcfbbc1038a37ab5b7bcca867443c` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/sql-types.json` | `85a17df3d3cbf2bac6887caf155968472f1eb1070d46968a6a0e6fa318d400f5` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/startup.jsonl` | `4c01a920c30d55766444766e2c670d411ea6969a7e797673fa4db29601c806ac` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-0.jsonl` | `aaca8e44b786f9482421d91b9b60a1216330b9cdd148df59ace985a19cba9133` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-1.jsonl` | `0dd633abdbad3f88ae7c69981207b051e7940f77380a8172308b08a953a5945e` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-2.jsonl` | `064baa4e3038ba2f813b39e33715b85d747ec1a2a33732732194d4db93429b14` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-3.jsonl` | `409e9342a9501fb6c4d33765a00069f919b3075f1aee4c30ef36fdb8e9b20220` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-4.jsonl` | `87bdc184e07a1e1054c7e7f8475c01372d87b7479fcc7d7c06efa77a2ff4cd37` |
 
 ### Retained failures and qualification limits
 
@@ -300,13 +330,14 @@ Run metadata retains execution times; each row identifies its exact source revis
   It builds the new native-storage binary with the original workload and budgets;
   earlier installations and raw records retain their original definition.
 
-The rebased implementation has not yet completed the five affected clean lanes,
-console latency or paired installed SQL-type qualification. The queued checks
-wait for the separate pipeline to finish. Earlier failed aggregate-wait,
+The rebased gates use fresh installations at the native-storage definition and
+the declared per-outcome observation allowances. Earlier failed aggregate-wait,
 managed-Queue and latency campaigns remain failed or incomplete at their recorded
 source bases. No earlier installation is converted or reopened under the new
-contract. These records do not establish full repository, distributed-provider,
-nightly container performance or remaining M12 qualification.
+contract. Clean installation checkout/build scratch uses `/tmp`, while installed
+fixtures retain data under `/var/tmp`. The five completed lanes share one rebased
+source; they do not constitute the full repository suite, distributed-provider
+qualification, nightly container performance or evidence for remaining M12 features.
 
 ## Pure functions, ordered guards and inline atomic procedures — 2026-11-15
 
