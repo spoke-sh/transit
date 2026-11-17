@@ -97,7 +97,7 @@ Result retrieval verifies the retained source commitment and current source
 rights without reopening the released pin.
 
 `just test::unified-query` runs actual requester/source daemons and a courier over
-disk Ursula. Its schedule persists a frozen command before a lost response,
+the native disk owner. Its schedule persists a frozen command before a lost response,
 retries identical signed bytes, kills source work during segment staging, restarts
 the node/store, requires fresh worker generations, and revokes access after an
 actual returned prefix. The [test ledger](../../../../docs/history/qualification/runtime.md#m18-qualification)

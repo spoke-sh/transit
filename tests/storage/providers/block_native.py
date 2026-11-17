@@ -1,4 +1,4 @@
-"""Native bulk publication, exact retry and qualified reads over owned disk Ursula."""
+"""Native bulk publication, exact retry and qualified reads over native disk and the MinIO immutable tier."""
 from runner.paths import ROOT
 import base64
 from concurrent.futures import ThreadPoolExecutor
@@ -14,7 +14,8 @@ import threading
 import time
 
 from interfaces.http.serving import Key, compact
-from harness.ursula import Fixture
+from harness.native import Fixture
+from storage.providers.cold_storage import ColdStore
 from harness.services import free_port, wait_ready
 
 DEFINITION = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
@@ -27,10 +28,10 @@ def spec(value):
 
 def run(node):
     node = str(Path(node).resolve())
-    with Fixture() as store:
+    with Fixture() as store, ColdStore() as cold:
         key = Key(store.root, 'root', 71)
         port = free_port()
-        fault = dict(stage=False, reply=False, block=False, block_fault=None, definition_fault=None, writes=0, stage_hits=0, reply_hits=0)
+        fault = dict(reply=False, block=False, block_fault=None, writes=0, reply_hits=0, corrupt_hits=0, missing_hits=0, barrier_timed_out=False)
         entered, released = threading.Event(), threading.Event()
 
         class Peer(BaseHTTPRequestHandler):
@@ -46,7 +47,7 @@ def run(node):
             def do_DELETE(self): self.forward()
             def forward(self):
                 body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
-                upstream = store.port if self.server.provider else port
+                upstream = cold.port if self.server.provider else port
                 connection = HTTPConnection('127.0.0.1', upstream, timeout=15)
                 try:
                     connection.request(self.command, self.path, body, dict(self.headers))
@@ -56,29 +57,18 @@ def run(node):
                     if self.server.provider:
                         if self.command in ('POST', 'PUT', 'DELETE'):
                             fault['writes'] += 1
-                        if self.command == 'GET' and '/authority' in self.path and fault['definition_fault']:
-                            if fault['definition_fault'] == 'foreign':
-                                data = data.replace(DEFINITION.encode(), b'0' * 64)
-                            else:
-                                data = data.replace(b'"definition":"' + DEFINITION.encode() + b'",', b'')
-                        if self.command == 'PUT' and fault['stage'] and '/s-' in self.path:
-                            assert 200 <= status < 300, (status, data)
-                            fault['stage'] = False
-                            fault['stage_hits'] += 1
-                            self.close_connection = True
-                            return
-                        raw = next((frame for frame in data.splitlines() if frame.startswith(b'"VEJL')), b'')
-                        decoded = None
-                        if self.command == 'GET' and raw.startswith(b'"') and raw.endswith(b'"'):
-                            decoded = base64.b64decode(raw[1:-1], validate=True)
-                        if decoded is not None and decoded.startswith(b'TBK1'):
+                        if self.command == 'GET' and data.startswith(b'TNAT\x01b'):
                             if fault['block']:
                                 fault['block'] = False
                                 entered.set()
-                                assert released.wait(8), 'block read barrier timed out'
+                                if not released.wait(8):
+                                    fault['barrier_timed_out'] = True
+                                    raise AssertionError('block read barrier timed out')
                             if fault['block_fault'] == 'corrupt':
-                                data = data.replace(raw + b'\n', b'"' + base64.b64encode(decoded[:-1] + bytes([decoded[-1] ^ 1])) + b'"\n', 1)
+                                fault['corrupt_hits'] += 1
+                                data = data[:-1] + bytes([data[-1] ^ 1])
                             elif fault['block_fault'] == 'missing':
+                                fault['missing_hits'] += 1
                                 status, data = 404, b''
                     elif fault['reply'] and self.path == '/v1/command' and status == 200:
                         command = json.loads(body)['request']['command']
@@ -91,7 +81,7 @@ def run(node):
                     for name, value in response.getheaders():
                         if name.lower() not in ('connection', 'content-length', 'transfer-encoding'):
                             self.send_header(name, value)
-                    self.send_header('Content-Length', str(len(data)))
+                    self.send_header('Content-Length', response.getheader('Content-Length') if self.command == 'HEAD' else str(len(data)))
                     self.end_headers()
                     if data: self.wfile.write(data)
                 except (RemoteDisconnected, BrokenPipeError, ConnectionResetError):
@@ -107,7 +97,9 @@ def run(node):
             thread.start()
             peers.append((peer, thread))
         config = store.root / 'node.json'
-        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=42, root_key=key.public, max_clock_error_ms=10000), ursula_url=f'http://127.0.0.1:{peers[0][0].server_port}', bucket='native-blocks', journal='authority', port=port, resident_pages=1, request_timeout_ms=10000)))
+        options = cold.native_config()
+        options['endpoint'] = f'http://127.0.0.1:{peers[0][0].server_port}'
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=42, root_key=key.public, max_clock_error_ms=10000), local_directory=str(store.native_directory), storage=dict(object_storage=options), port=port, resident_pages=1, request_timeout_ms=10000)))
         log = (store.root / 'node.log').open('w+')
         authority = None
         sequence = 0
@@ -156,19 +148,31 @@ def run(node):
             wait_ready(store.http, child, f'http://127.0.0.1:{port}/health')
             return child
 
+        def drain():
+            until = time.monotonic() + 120
+            while True:
+                value = dict(version=1, definition=DEFINITION, realm=42, principal=0, kind=dict(storage={}))
+                signed_read = dict(query=value, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(value)).digest()))
+                status, observation = request(signed_read, '/v1/query')
+                assert status == 200, observation
+                tier = observation['body']['storage']['object_tier']
+                if tier['pending_objects'] == 0:
+                    assert tier['pending_upload_bytes'] == 0 and not tier['recovery_required']
+                    return
+                assert time.monotonic() < until, tier
+                time.sleep(.05)
+
+        def cold_restart():
+            nonlocal authority
+            drain()
+            authority.kill(); authority.wait(timeout=10); authority = None
+            authority = start()  # DiskCache reopen deliberately purges disposable bytes.
+
         def turn(input_id, view, revision, mutations):
             return dict(pid=pid, generation=2, input=input_id, expected_revision=revision, permit=None, views=[view, None, None, None], current_views=[None]*4, write_view=view, mutations=[dict(key=b'head'.hex(), value=b'published'.hex())]+[None]*3, blocks=mutations, outputs=[dict(pid=pid, value=b'output'.hex())]+[None]*3, effect=None, failed=False, authorization=None)
 
         try:
             subprocess.run([node, str(config), '--initialize'], check=True, timeout=30, stdout=log, stderr=log)
-            for incompatible in ('foreign', 'missing'):
-                fault['definition_fault'] = incompatible
-                for mode in ([], ['--initialize']):
-                    before = fault['writes']
-                    rejected = subprocess.run([node, str(config), *mode], capture_output=True, timeout=30)
-                    assert rejected.returncode != 0, 'Incompatible installation admitted'
-                    assert fault['writes'] == before, 'Incompatible installation changed provider state'
-            fault['definition_fault'] = None
             authority = start()
             pid = command(dict(spawn=dict(allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None)))
             resource = command(dict(create_resource=dict(writer=pid, owned=False, deadline_ms=None, history_ms=None)))
@@ -181,16 +185,13 @@ def run(node):
             mutations = [dict(key=b'a'.hex(), value=spec(first)), dict(key=b'b'.hex(), value=spec(second))] + [dict(key=bytes([i]).hex(), value=spec(b'')) for i in range(1, 15)]
             pending = signed(dict(turn=turn(input_id, view, 0, mutations)))
             pending['blocks'] = base64.b64encode(first+second).decode()
-            writes = fault['writes']
+            inventory = sorted((store.native_directory / 'keys').iterdir())
             corrupt = dict(pending, blocks=base64.b64encode(b'\xff'+first[1:]+second).decode())
             rejected = request(corrupt)
             assert rejected[0] == 422 and rejected[1]['err'] == 'InvalidBlockBody', rejected
             missing = request({name: value for name, value in pending.items() if name != 'blocks'})
             assert missing[0] == 422 and missing[1]['err'] == 'InvalidBlockBody', missing
-            assert fault['writes'] == writes, 'invalid bytes reached storage'
-            fault['stage'] = True
-            assert request(pending)[0] != 200
-            assert fault['stage_hits'] == 1
+            assert sorted((store.native_directory / 'keys').iterdir()) == inventory, 'invalid bytes reached native storage'
             fault['reply'] = True
             try:
                 request(pending)
@@ -199,13 +200,12 @@ def run(node):
                 pass
             assert fault['reply_hits'] == 1
             authority.kill(); authority.wait(timeout=10); authority = None
-            store.stop(); store.start()
             authority = start()
-            writes = fault['writes']
+            inventory = sorted((store.native_directory / 'keys').iterdir())
             identity = {name: value for name, value in pending.items() if name != 'blocks'}
             status, receipt = request(identity)
             assert status == 200 and receipt['position'] == 8, (status, receipt)
-            assert fault['writes'] == writes, 'exact retry restaged data'
+            assert sorted((store.native_directory / 'keys').iterdir()) == inventory, 'exact retry restaged data'
             read(query(dict(resource=dict(id=resource, revision=8))), [first, second])
             input_id = command(dict(send=dict(pid=pid, value='', role=None)))
             view = command(dict(open_view=dict(pid=pid, generation=2, input=input_id, expected_revision=8, resource=resource, revision=8, deadline_ms=int(time.time()*1000)+30000)))
@@ -218,9 +218,13 @@ def run(node):
             retained = query(dict(version=dict(id=dict(pid=pid, input=input_id, index=0), generation=2)))
             read(retained, [first, second])
             for mode in ('corrupt', 'missing'):
+                cold_restart()
                 fault['block_fault'] = mode
                 status, result = request(retained)
                 assert status != 200 and 'blocks' not in result, (status, result)
+                assert fault[mode + '_hits'] > 0, fault
+                fault['block_fault'] = None
+            cold_restart()
             fault['block_fault'] = None
             fault['block'] = True
             with ThreadPoolExecutor(max_workers=1) as pool:
@@ -228,14 +232,15 @@ def run(node):
                 try:
                     assert entered.wait(5), 'read did not reach immutable bytes'
                     command(dict(grant_resource=dict(resource=resource, subject=0, permissions=0)))
+                    assert not fault['barrier_timed_out'] and not blocked.done(), 'revoke did not complete while provider read was held'
                 finally:
                     released.set()
                 status, result = blocked.result(timeout=12)
-                assert status != 200 and 'blocks' not in result, (status, result)
+                assert status == 403 and 'blocks' not in result, (status, result)
+                assert not fault['barrier_timed_out'], 'provider timeout cannot prove revocation'
             assert request(identity)[0] != 200, 'receipt bypassed current rights'
             command(dict(grant_resource=dict(resource=resource, subject=0, permissions=7)))
             authority.kill(); authority.wait(timeout=10); authority = None
-            store.stop(); store.start()
             authority = start()
             read(retained, [first, second])
         except BaseException:
@@ -249,7 +254,7 @@ def run(node):
             for peer, thread in peers:
                 peer.shutdown(); peer.server_close(); thread.join(timeout=5)
             log.close()
-    print('Native blocks: incompatible initialization rejects before writes, 16 records/128 KiB, lost stage/commit replies, exact retry without restaging, retained bytes, corruption/missing rejection and revocation during I/O passed across disk/node restart.')
+    print('Native blocks: 16 records/128 KiB, lost accepted reply, exact retry without restaging, verified tier eviction, retained bytes, corrupt/missing MinIO reads and revocation during I/O passed across native owner restart.')
 
 
 if __name__ == '__main__':

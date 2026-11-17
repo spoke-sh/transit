@@ -9,7 +9,7 @@ peer/correlation and received outcome survive worker replacement.
 nix develop --command just examples::http
 ```
 
-The local task owns a disposable disk-backed Ursula store, growing Transit node,
+The local task owns a disposable the native disk owner store, growing Transit node,
 random keys and an independent TLS peer. The separate operator provisions two
 PIDs/resources and scoped caller/connector identities; a delivery-only identity
 delivers their outputs. The peer accepts one synthetic POST. The example restarts

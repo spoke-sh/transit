@@ -135,7 +135,7 @@ These probes do not add desktop targets to the supported distribution matrix.
 
 1. Inventory executables, libraries, SDKs, contracts, embedded assets and deployment
    packages with owners, dependencies, notices and supported OS/architecture.
-   External Ursula/Substrate artifacts retain their identities.
+   External MinIO/Substrate artifacts retain their identities.
 2. Build archives, checksums, provenance and manifests for GitHub Releases. Pin
    exact contract/ABI identifiers; shared v1 labels do not prove compatibility.
 3. Publish version-pinned Nix outputs, a verified HTTPS installer, Homebrew,

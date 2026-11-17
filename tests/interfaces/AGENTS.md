@@ -19,7 +19,7 @@ conditions and runtime policy clocks.
 
 Each installed fixture owns its mutable state, ports and child processes. Keep
 failed installations private when needed for diagnosis; never publish credentials.
-Use explicit matching binaries and preserve actual local/Ursula backend selection.
+Use explicit matching binaries and preserve actual local and MinIO tier selection.
 Run the affected real interface and fault schedules after contract/static checks.
 Browser, packaged installation and reference deployment checks remain distinct;
 missing infrastructure cannot count as a pass.

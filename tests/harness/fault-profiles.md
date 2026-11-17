@@ -1,6 +1,6 @@
 # External fault testing
 
-`just test::vortex` owns a disposable node, counter worker, courier and disk Ursula.
+`just test::vortex` owns a disposable node, counter worker, courier and the native disk owner.
 Four rounds cover request loss/delay and response loss/delay, dropped connections,
 worker/node/provider SIGKILL, courier stop/continue and restart against current
 history. `--seed 19 --rounds 12` changes workload intent; rounds are bounded to

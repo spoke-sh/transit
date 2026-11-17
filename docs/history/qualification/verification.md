@@ -1538,7 +1538,7 @@ results. Extending them to general behaviors, connectors or another storage/
 runtime profile requires preserving these contracts and adding its own evidence.
 A failed proof requires revising the owning design, not relabeling a weaker
 implementation as conformant. The client cursor-model bug and separate upstream
-documentation mismatch are recorded in the [backend README](../../../packages/zig/transit-backend-ursula/docs/upstream.md#client-integration-surface). The corrected
+documentation mismatch are recorded in the [backend README](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/upstream.md#client-integration-surface). The corrected
 client proof verifies offset-plus-cursor and record-plus-cursor continuation;
 Transit's journal reads use record positions.
 
@@ -1729,7 +1729,7 @@ cold bounded caches, old roots, unpublished staging and root-only checkpoint/tri
 `just test::pages-cold` separately exercises the pinned S3-compatible cold tier
 with owned Docker MinIO and measures both provider processes. The ordinary WAL
 fixture disables that tier; it cannot establish bounded provider memory.
-The [adapter guide](../../../packages/zig/transit-backend-ursula/docs/pages.md) describes
+The [adapter guide](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/pages.md) describes
 measurement fields and their limits. The launcher-default v2 authority retains
 bounded catalogs; the explicit v3 authority uses these paged roots. Unit checks also compare randomly ordered updates
 and deletion against an independent map and preserve old roots after lost staging
@@ -1773,7 +1773,7 @@ before append and response loss after real acceptance, and verifies retained
 views/receipts/progress/outboxes across SIGKILL. Opted-in root checkpoint/trim
 retains all that state and rejects an uncommitted retention intent. It finally
 removes page storage in its disposable fixture to prove recovery fails closed.
-The [adapter guide](../../../packages/zig/transit-backend-ursula/docs/growing.md) owns
+The [adapter guide](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/growing.md) owns
 measurement details and compatibility limits. This is authority/provider
 qualification, not node/client/Station support or a scale SLO.
 

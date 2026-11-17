@@ -13,7 +13,7 @@ import time
 
 import pyarrow as pa
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -26,7 +26,7 @@ def run(node, caller, *, finish_pages=64):
         config = fixture.root / "node.json"
         config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 44, "root_key": public, "max_clock_error_ms": 10000},
-            "ursula_url": fixture.url, "bucket": "query", "journal": "authority",
+            "local_directory": str(fixture.native_directory),
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         manifest = fixture.root / "query.json"
         fault = {"stage": None, "seal": None, "publish": None, "receive": None,
@@ -128,14 +128,11 @@ def run(node, caller, *, finish_pages=64):
                         counts = {key: value - before[key] for key, value in attempts.items()}
                     print("Growing query phase:", json.dumps({"phase": phase, "complete": complete,
                           "seconds": timings[phase], "native_attempts": counts}), flush=True)
-                if phase == "recover":
                     captured_queries = fault["queries"]
                 if phase in ("write", "seal", "publish"):
                     authority.kill()
                     authority.wait(timeout=10)
                     authority = None
-                    fixture.stop()
-                    fixture.start()
                     recovered = json.loads(config.read_text())
                     recovered["resident_pages"] = 1 if phase == "write" else finish_pages if phase == "seal" else 64
                     config.write_text(json.dumps(recovered))

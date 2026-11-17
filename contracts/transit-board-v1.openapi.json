@@ -5100,7 +5100,7 @@
                     "definition": {
                       "type": "string",
                       "enum": [
-                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                       ]
                     },
                     "code": {
@@ -7181,7 +7181,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                      "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                     ]
                   },
                   "code": {
@@ -16229,7 +16229,7 @@
           "T61": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T62": {
@@ -21585,7 +21585,7 @@
           "T5": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T6": {
@@ -21985,7 +21985,7 @@
           "T25": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T26": {
@@ -22401,7 +22401,7 @@
               "consistency"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
               "sources": 2,
               "active_queries": 1,
               "page_rows": 1,
@@ -22414,7 +22414,7 @@
           "T3": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T4": {
@@ -22895,7 +22895,7 @@
               "executed"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
               "executed": false
             }
           },
@@ -22971,7 +22971,7 @@
           "T29": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T30": {
@@ -26066,7 +26066,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T2": {
@@ -27408,7 +27408,7 @@
             ],
             "x-transit-defaults": {
               "version": 1,
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
               "max_columns": 128,
               "max_rows": 1024,
               "max_sql_bytes": 1048576,
@@ -27428,7 +27428,7 @@
           "T4": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T5": {
@@ -31815,7 +31815,7 @@
           "T159": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T160": {
@@ -33172,7 +33172,7 @@
           "T216": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T217": {
@@ -34525,7 +34525,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T2": {
@@ -34691,7 +34691,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T2": {
@@ -35232,7 +35232,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T2": {
@@ -35456,7 +35456,7 @@
               "lifetime_ms"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
               "readers": 4,
               "window_rows": 100,
               "window_bytes": 2097152,
@@ -35466,7 +35466,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T3": {
@@ -35585,7 +35585,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             }
           },
           "T10": {
@@ -37330,7 +37330,7 @@
           "T1": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T2": {
@@ -37711,7 +37711,7 @@
               "namespace"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
               "cells": 4,
               "rows": 10000,
               "value_bytes": 16777216,
@@ -37723,7 +37723,7 @@
           "T2": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "T3": {
@@ -38108,7 +38108,7 @@
               "stopped"
             ],
             "x-transit-defaults": {
-              "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             }
           },
           "T23": {
@@ -39839,7 +39839,7 @@
           "definition": {
             "type": "string",
             "enum": [
-              "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+              "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
             ]
           },
           "profile": {
@@ -39904,7 +39904,7 @@
           "features"
         ],
         "x-transit-defaults": {
-          "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+          "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
           "profile": "native_v1"
         }
       },
@@ -39916,6 +39916,7 @@
           "position",
           "backend",
           "root",
+          "object_tier",
           "allocated_bytes",
           "limits",
           "data_requests",
@@ -39944,8 +39945,7 @@
             "type": "string",
             "enum": [
               "unavailable",
-              "local",
-              "ursula"
+              "local"
             ]
           },
           "root": {
@@ -39953,6 +39953,149 @@
               {
                 "type": "string",
                 "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "object_tier": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "pending_upload_bytes",
+                  "pending_objects",
+                  "staging_limit_bytes",
+                  "pending_object_limit",
+                  "cache_limit_bytes",
+                  "cache_used_bytes",
+                  "cache_hits",
+                  "cache_misses",
+                  "uploads_completed",
+                  "deletes_completed",
+                  "failed_steps",
+                  "last_failure",
+                  "recovery_required"
+                ],
+                "properties": {
+                  "pending_upload_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "pending_objects": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "staging_limit_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "pending_object_limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "cache_limit_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "cache_used_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "cache_hits": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "cache_misses": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "uploads_completed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "deletes_completed": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "failed_steps": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "last_failure": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "capacity",
+                          "denied",
+                          "clock",
+                          "timeout",
+                          "recovery",
+                          "storage",
+                          "other"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "recovery_required": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "pending_upload_bytes",
+                  "pending_objects",
+                  "staging_limit_bytes",
+                  "pending_object_limit",
+                  "cache_limit_bytes",
+                  "cache_used_bytes",
+                  "cache_hits",
+                  "cache_misses",
+                  "uploads_completed",
+                  "deletes_completed",
+                  "failed_steps",
+                  "last_failure",
+                  "recovery_required"
+                ],
+                "x-transit-defaults": {}
               },
               {
                 "type": "null"
@@ -40707,6 +40850,7 @@
           "position",
           "backend",
           "root",
+          "object_tier",
           "allocated_bytes",
           "limits",
           "data_requests",

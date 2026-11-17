@@ -108,9 +108,15 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba`.
+`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`.
 
-This definition binds the server-owned node, with no standalone node override
+This definition binds the native storage owner, optional immutable object tier,
+required nullable tier observations and removal of Ursula configuration. Retired
+remote generations retain permanent empty envelopes that fence delayed PUTs.
+Retained
+WAL, allocation inventories, upload progress and namespace identities remain
+mandatory; a bucket alone cannot restore accepted work. This is a hard cutover
+without automatic data conversion. It also binds the server-owned node, with no standalone node override
 or basename dispatch, alongside server-owned Station declarations, signed
 installation fields, bootstrap principal bindings and service status. Node
 artifact hashes still bind the role, embedded mode and executable bytes. Earlier

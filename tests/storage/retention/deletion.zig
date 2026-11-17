@@ -1,7 +1,7 @@
 const std = @import("std");
 const t = std.testing;
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 
 const disk = @import("fixture_native_disk");
 const g = disk.g;
@@ -14,22 +14,18 @@ fn submit(e: *Engine, key: core.Ed25519.KeyPair, command: core.Command) !u64 {
 pub fn main(init: std.process.Init) !void {
     const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
     const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
     const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(21));
     const genesis: core.Genesis = .{ .realm = 54, .root_key = root.public_key.toBytes(), .allow_history_trim = true };
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
-    defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-deletion", .name = "authority" } } };
-    var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 8);
+    var owner = try disk.open(init, args[1], "deletion");
+    defer owner.deinit();
+    var store: adapter.Store = .{ .backend = &owner };
+    var pages = try adapter.PageStore.init(&owner, 8);
     defer pages.deinit();
     const service = std.mem.eql(u8, args[2], "service_seed");
     const write = service or std.mem.eql(u8, args[2], "write");
-    if (write) {
-        try store.journal.create();
-        try pages.create();
-    }
-    var payloads: adapter.PayloadStore = .{ .journal = &store.journal };
     var e = if (write) try Engine.bootstrap(&store, &pages, genesis) else try Engine.open(&store, &pages, genesis);
+    var payloads: adapter.PayloadStore = .{ .engine = &e };
     const remove: core.protocol.PayloadRef = .{ .pid = 1, .payload = 2 };
     const retain: core.protocol.PayloadRef = .{ .pid = 1, .payload = 3 };
     if (write) {
@@ -79,4 +75,5 @@ pub fn main(init: std.process.Init) !void {
         try payloads.verifyPayload((try disk.record(&e, g.Payload, .payload, retain.payload)));
     } else return error.UnknownPhase;
     std.debug.print("deletion {s}: passed\n", .{args[2]});
+    if (!std.mem.startsWith(u8, args[2], "service_")) try disk.completed(init.io);
 }

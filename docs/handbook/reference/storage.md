@@ -1,8 +1,8 @@
 # Storage and recovery boundary
 
-The local server stores native history and immutable objects through the
-[local backend](../../../packages/zig/transit-backend-local/README.md). Deployments
-configured with Ursula use its Zig backend adapter. Transit owns
+Every deployment stores native history and immutable objects through the
+[native backend](../../../packages/zig/transit-backend-local/README.md), optionally
+with a configured MinIO immutable tier. Transit owns
 logical process/resource identities, accepted transitions, retained boundaries
 and retirement. Physical streams, buckets and offsets are not an alternate
 authority for execution or permissions.
@@ -151,9 +151,8 @@ immutable authority metadata so data scans cannot evict it. Its key includes the
 complete catalog root; a root change invalidates the records. Native reads still
 refresh authority and execute all current permission/lifetime checks. This cache
 has a fixed 16-entry decoded-record capacity independent of the configured
-page-cache slots. Pages and blocks first enter private immutable storage: packed
-segments with Ursula, individual verified objects with the local backend.
-Each backend reserves storage and makes the bytes durable before the final
+page-cache slots. Pages and blocks first enter private immutable storage: individual verified
+objects staged by the native owner. The backend reserves storage and makes the bytes durable before the final
 authority commit. Failed staging cannot publish a partial turn. The current v1
 page encoding includes opaque storage locators.
 Application mutation quotas and durable payload publication bounds are unchanged.
@@ -173,8 +172,8 @@ before disclosure. Missing/corrupt data is a failure, never an absent value.
 
 Applications and Board use public clients, not backend journals or provider
 credentials. The node composes the core and backend; core remains deterministic
-and independent of Ursula/provider types. Pin the consuming backend's upstream
-dependency rather than embedding storage implementation details into callers.
+and independent of provider types. Provider configuration belongs to the storage
+owner, not to callers.
 
 ## Failure and maintenance
 
@@ -191,16 +190,15 @@ does not establish erasure from all backups or copied application data.
 
 Physical maintenance advances a durable storage epoch before traversing retained
 roots and current read pins. A paged mark index and durable deletion intent let
-it resume after interruption. Collection waits for the maximum volatile-read
-lifetime and request grace, then records that elapsed time in authority before
-deleting unreachable segments. Incomplete marking cannot authorize deletion.
-Late uncertain creates are fenced with permanent closed stream names; their data
-can be trimmed while the small fence remains accounted.
+it resume after interruption. Collection preserves current read lifetimes and the accepted epoch fence before
+deleting unreachable objects. Incomplete marking cannot authorize deletion.
+Recorded upload/delete intents retain uncertain remote work; immutable remote
+generations prevent an old deletion from removing recreated content.
 
 Optional compaction relocates bounded pieces of current data and indexes while
 preserving logical values and resource revisions. Old roots remain independent
 owners until their configured retention or pin release permits collection.
-Unlimited history retains them. The [segment guide](../../../packages/zig/transit-backend-ursula/docs/pages.md)
+Unlimited history retains them. The [backend guide](../../../packages/zig/transit-backend-local/README.md)
 explains allocation quotas, control reserve, configuration and provider limits.
 These quotas measure reserved encoded segment bytes; provider metadata, work
 ledgers, snapshots, WAL and filesystem headroom have separate costs.
@@ -222,8 +220,7 @@ native page/block collector has a separate graph from the
 [direct-data collector](../../../packages/zig/transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection).
 Direct collection retains catalog history, Table recovery, unexpired data history,
 live pins and original operation evidence. It can reclaim obsolete shared objects
-after complete marking and the same epoch/time fences. Ursula uses the stream
-closure fences described above. Provider budgets,
+after complete marking and the same epoch/time fences. Provider budgets,
 disk headroom and trusted clock assumptions are deployment responsibilities;
 an in-memory store test does not establish WAL or host power-loss behavior.
 The local backend also exposes explicit [standalone payload operations](../../../packages/zig/transit-backend-local/docs/payloads.md).
@@ -234,8 +231,8 @@ authenticated creation, original-attempt verification and ready-byte reads.
 Its maintenance principal reconciles opted-in deletion through the same owner.
 See [retention](retention.md) and [deployment](deployment.md).
 
-The [backend package](../../../packages/zig/transit-backend-ursula/README.md) and
-[storage mapping](../../../packages/zig/transit-backend-ursula/docs/storage.md) own
+The [backend package](../../../packages/zig/transit-backend-local/README.md) and
+[storage primitives](../../../packages/zig/transit-storage/README.md) own
 the journal/checkpoint layout, adapter operations, cold-store setup and recovery
 requirements. A replacement provider must satisfy those same requirements.
 
@@ -244,16 +241,25 @@ requirements. A replacement provider must satisfy those same requirements.
 The architecture distinguishes active working state, accepted history, local
 read caches and immutable objects. The installed local owner uses
 `LocalWal` and `LocalSegmentStore`; its direct Table path uses `TablePartition`.
-The [storage package](../../../packages/zig/transit-storage/README.md) also
-contains separate cache, provider and manifest-coordination components.
-Their presence does not enable an installed four-tier deployment automatically.
+Optional `storage.object_storage` integrates verified MinIO immutable storage
+through that same owner. Local WAL, installation, staging and recovery metadata
+remain required. See the [tier operating profile](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier)
+for publication, recovery, bounds and provider limits.
+
+Collecting a remote generation removes its payload and retains a permanent
+512-byte marker at that generation's key. The marker prevents a delayed upload
+from recreating deleted content; bucket lifecycle rules must preserve it. This
+control storage is separate from the local staging and cache budgets. Board's
+retired-generation counter records confirmed retirements since owner startup.
+Provider versions and backups have separate lifetimes; the qualified MinIO
+profile uses an unversioned bucket.
 
 | Layer | Components and current integration |
 | --- | --- |
 | Active working state | Native page/block caches and the direct Table's bounded operation work, paged data indexes and verified segment caches. Retained Table cardinality is independent of cache capacity. |
 | Accepted history | `TransitLog` supplies framed, fenced history. The local native backend and each direct Table preserve their own acceptance boundaries. Explicit history readers expose accepted changes; automatic activation of computations is separate. |
-| Local read cache | `NvmeCache` supplies verified range chunks as a component. The installed local owner does not configure a remote-object cache hierarchy. |
-| Immutable objects | `TransitObjectStore` supplies immutable and conditional object operations. Local bulk Table ingestion creates `.tseg` objects. The S3-compatible adapter is a separate provider component; the configured local Table service does not select it. |
+| Local read cache | The configured tier uses `NvmeCache.DiskCache`, a bounded disposable whole-object cache checked against retained local descriptors. |
+| Immutable objects | `TransitObjectStore` supplies object operations. The native owner durably stages immutable objects, then optionally uploads them to MinIO and records verified coverage before eviction. Direct Table ingestion uses the same boundary. |
 
 Exact WAL, segment, deletion-vector and manifest bytes belong to the
 [storage format contract](../../../contracts/TRANSIT_STORAGE_V1.md).

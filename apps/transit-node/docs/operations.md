@@ -37,8 +37,8 @@ snapshot handles acquire a fresh epoch; durable Table pins remain in their
 accepted owner history. Joining the old work precedes reopening the directory,
 so no request can retain a usable handle into the closed owner.
 
-`--maintain` uses a dedicated realm-wide principal with admin, effect and
-delivery grants. Its bounded scans suggest ordinary signed transitions; current
+Configured maintenance runs in a joined lane within the exclusive native owner,
+using a dedicated realm-wide principal with admin, effect and delivery grants. Its bounded scans suggest ordinary signed transitions; current
 authorization and lifecycle rules still decide acceptance. It materializes known
 expiry, closes due attempts, collects eligible records and reconciles checkpoint
 or payload deletion intents. It never dispatches an external effect. Opt-in
@@ -70,8 +70,9 @@ C headers supply ABI offsets; clock policy is Zig. Transit checks the configured
 error bound and durable time floor. Other platforms fail finite clock use closed.
 A trusted synchronization service and honest reported UTC error bound remain
 deployment assumptions; reading a clock does not prove them. Controlled-clock
-tests prove the deadline rules. The `--maintain` mode hosts background expiry,
-closure, checkpoint/trim and eligible payload deletion in a separate process.
+tests prove the deadline rules. The configured maintenance lane hosts background
+expiry, closure, checkpoint/trim and eligible payload deletion. A separate
+`--maintain` process rejects because it cannot share the native authority directory.
 
 Stream and Queue owners use a fixed interval around each trusted UTC sample:
 the configured `genesis.max_clock_error_ms` on each side. The kernel-reported

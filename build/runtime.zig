@@ -27,7 +27,6 @@ pub const Context = struct {
     telemetry: *std.Build.Dependency,
     storage: *std.Build.Dependency,
     local_backend: *std.Build.Dependency,
-    adapter: *std.Build.Dependency,
     core: *std.Build.Dependency,
     protocol: *std.Build.Dependency,
     transit_board_api: *std.Build.Dependency,
@@ -93,7 +92,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const storage = b.dependency("transit_storage", .{ .target = target, .optimize = optimize });
     const local_backend = b.dependency("transit_backend_local", .{ .target = target, .optimize = optimize });
-    const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const core = b.dependency("transit_core", .{ .target = target, .optimize = optimize });
     const protocol = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize });
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
@@ -138,7 +136,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
             .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
             .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
             .{ .name = "transit_io", .module = b.dependency("transit_io", .{ .target = target, .optimize = optimize }).module("transit_io") },
-            .{ .name = "transit_backend_ursula", .module = adapter.module("transit_backend_ursula") },
             .{ .name = "transit_backend_local", .module = local_backend.module("transit_backend_local") },
             .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
             .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
@@ -289,7 +286,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .telemetry = telemetry,
         .storage = storage,
         .local_backend = local_backend,
-        .adapter = adapter,
         .core = core,
         .protocol = protocol,
         .transit_board_api = transit_board_api,

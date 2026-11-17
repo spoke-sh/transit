@@ -33,9 +33,10 @@ handoff log. A listed task establishes no passing result at the current revision
 | Performance experiments | [Workloads, runners and active budgets](performance/README.md) |
 
 Use the owning recipes above to find exact binary inputs and environments.
-The [provider conformance driver](storage/providers/storage.py) runs Ursula,
-while [local fault schedules](storage/local/local_storage_faults.py) exercise
-local WAL/object storage. Actors belong to application execution; direct Table
+The [native recovery driver](storage/providers/storage.py) runs process-death
+schedules over the native disk owner. [Local fault schedules](storage/local/local_storage_faults.py)
+exercise WAL/object persistence boundaries; [S3 conformance](storage/providers/s3.py)
+uses real MinIO for remote operations and tier recovery. Actors belong to application execution; direct Table
 data has its own acceptance owner. Shared native modules have explicit
 [build imports](../build/test_modules.zig) across these domains.
 

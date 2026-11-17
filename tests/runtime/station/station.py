@@ -26,7 +26,7 @@ def frame(payload, kind=1, correlation=0):
 def run(server, cli, worker):
     # Capturing the current query format stages durable catalog pages. Use the
     # paged SDK fixture's request budget, independent of inspection deadlines.
-    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server) as s:
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, server=server) as s:
         def value(resource, key):
             revision = s.native_query({'resource': resource})['body']['resource']['revision']
             entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
@@ -234,7 +234,6 @@ def run(server, cli, worker):
             old.kill(); old.wait(timeout=10)
             release.set()
             s.authority.kill(); s.authority.wait(timeout=10)
-            s.store.stop(); s.store.start()
             s.restart_authority()
             s.command({'own': {'pid': ledger, 'worker': 1, 'expected_generation': 4}})
             current = {**ledger_config, 'generation': 5}

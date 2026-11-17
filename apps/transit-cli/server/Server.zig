@@ -423,11 +423,6 @@ fn externalCycle(self: *Self, allocator: std.mem.Allocator) !void {
     try self.provision(Installation.flush);
     self.startup.next(.provisioning);
     try self.provision(Installation.provisionExternal);
-    if (config.external.?.ursula != null) {
-        // Ursula permits its independently authorized background owner. Local
-        // storage runs this same work inside its exclusive native owner.
-        try self.start(allocator, .maintenance, try config.command(allocator, self.executable, .node, &.{ try installation.path("node.json"), "--maintain" }), &.{}, false);
-    }
     self.active_role = .courier;
     try self.provision(Installation.checkCourier);
     const courier_config = try installation.path("courier.json");

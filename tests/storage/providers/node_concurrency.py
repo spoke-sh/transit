@@ -1,15 +1,16 @@
-"""Disk-backed native concurrency; barriers establish overlap without latency SLOs."""
+"""Concurrent public requests against one exclusive native disk owner.
+
+Physical I/O barriers belong to transit-backend-local/native_test.zig. The
+MinIO block service proof separately holds remote bytes across revocation.
+"""
 from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import subprocess
-import socket
 import sys
-import threading
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -17,151 +18,55 @@ def run(node, signer):
     node, signer = str(Path(node).resolve()), str(Path(signer).resolve())
     signed = json.loads(subprocess.check_output([signer], timeout=10))
     with Fixture() as fixture:
-        gate_lock = threading.Lock()
-        entered, released = threading.Event(), threading.Event()
-        gate = {'method': None}
-        faults = []
-
-        class Peer(BaseHTTPRequestHandler):
-            protocol_version = 'HTTP/1.1'
-            def setup(self):
-                super().setup()
-                self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            def log_message(self, *_): pass
-            def do_HEAD(self): self.forward()
-            def do_GET(self): self.forward()
-            def do_POST(self): self.forward()
-            def do_PUT(self): self.forward()
-            def do_DELETE(self): self.forward()
-
-            def forward(self):
-                size = int(self.headers.get('Content-Length', '0'))
-                body = self.rfile.read(size)
-                with gate_lock:
-                    pause = gate['method'] == self.command
-                    if pause:
-                        gate['method'] = None
-                connection = HTTPConnection('127.0.0.1', fixture.port, timeout=10)
-                try:
-                    connection.request(self.command, self.path, body, dict(self.headers))
-                    response = connection.getresponse()
-                    data = response.read()
-                    if pause:
-                        entered.set()
-                        if not released.wait(8):
-                            faults.append('storage barrier timed out')
-                    self.send_response(response.status)
-                    for name, value in response.getheaders():
-                        if name.lower() not in ('connection', 'content-length', 'transfer-encoding'):
-                            self.send_header(name, value)
-                    self.send_header('Content-Length', str(len(data)))
-                    self.end_headers()
-                    if data:
-                        self.wfile.write(data)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass  # A cancelled transport may close after publication.
-                finally:
-                    connection.close()
-
-        peer = ThreadingHTTPServer(('127.0.0.1', 0), Peer)
-        thread = threading.Thread(target=peer.serve_forever, daemon=True)
-        thread.start()
         port = free_port()
         config = fixture.root / 'node.json'
-        config.write_text(json.dumps(dict(
-            profile='native_v1', genesis=dict(realm=42, root_key=signed['root_key'], max_clock_error_ms=10000),
-            ursula_url=f'http://127.0.0.1:{peer.server_port}', bucket='node-concurrency',
-            journal='authority', port=port, resident_pages=1, request_timeout_ms=10000)))
-        log = (fixture.root / 'node.log').open('w+')
+        config.write_text(json.dumps(dict(profile='native_v1',
+            genesis=dict(realm=42, root_key=signed['root_key'], max_clock_error_ms=10000),
+            local_directory=str(fixture.native_directory), port=port,
+            resident_pages=1, request_timeout_ms=10000)))
         authority = None
-
-        def request(name):
-            envelope = signed[name] if isinstance(name, str) else name
-            path = '/v1/command' if 'request' in envelope else '/v1/query'
-            connection = HTTPConnection('127.0.0.1', port, timeout=12)
+        with (fixture.root / 'node.log').open('w+') as log:
+            def request(name):
+                envelope = signed[name] if isinstance(name, str) else name
+                path = '/v1/command' if 'request' in envelope else '/v1/query'
+                connection = HTTPConnection('127.0.0.1', port, timeout=12)
+                try:
+                    connection.request('POST', path, json.dumps(envelope), {'Content-Type': 'application/json'})
+                    response = connection.getresponse()
+                    return response.status, json.loads(response.read())
+                finally:
+                    connection.close()
             try:
-                connection.request('POST', path, json.dumps(envelope), {'Content-Type': 'application/json'})
-                response = connection.getresponse()
-                return response.status, json.loads(response.read())
-            finally:
-                connection.close()
-
-        def arm(method):
-            entered.clear()
-            released.clear()
-            with gate_lock:
-                gate['method'] = method
-
-        try:
-            subprocess.run([node, str(config), '--initialize'], check=True, timeout=30, stdout=log, stderr=log)
-            authority = subprocess.Popen([node, str(config)], stdout=log, stderr=log)
-            wait_ready(fixture.http, authority, f'http://127.0.0.1:{port}/health')
-            for command in signed['setup']:
-                result = request(command)
-                assert result[0] == 200, result
-            with ThreadPoolExecutor(max_workers=3) as pool:
-                # The first request has received a provider response but cannot
-                # observe it. Independent signed reads and control must finish
-                # before that request is released, even on a single CPU.
-                arm('HEAD')
-                stalled = pool.submit(request, 'read')
-                try:
-                    assert entered.wait(5), 'read never reached provider barrier'
-                    independent = pool.submit(request, 'read').result(timeout=5)
-                    assert independent[0] == 200, independent
-                    written = pool.submit(request, 'write').result(timeout=5)
+                subprocess.run([node, str(config), '--initialize'], check=True, timeout=30, stdout=log, stderr=log)
+                authority = subprocess.Popen([node, str(config)], stdout=log, stderr=log)
+                wait_ready(fixture.http, authority, f'http://127.0.0.1:{port}/health')
+                for command in signed['setup']:
+                    result = request(command)
+                    assert result[0] == 200, result
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    reads = [pool.submit(request, 'read') for _ in range(2)]
+                    written = pool.submit(request, 'write').result(timeout=10)
                     assert written[0] == 200, written
-                    assert not stalled.done(), 'barrier did not retain slow request'
-                finally:
-                    released.set()
-                slow = stalled.result(timeout=5)
-                assert slow[0] == 200, slow
-                assert slow[1]['position'] > written[1]['position'], slow
-                assert request('write') == written, 'exact retry changed receipt'
-                conflicting = request('competing')
-                assert conflicting[0] != 200 and conflicting[1]['err'] == 'ConflictingRetry', conflicting
-
-                # Hold old provider evidence while a revocation completes. A
-                # snapshot opened through that evidence cannot disclose success.
-                arm('GET')
-                reading = pool.submit(request, 'snapshot')
-                try:
-                    assert entered.wait(5), 'snapshot never reached provider barrier'
-                    revoked = pool.submit(request, 'revoke').result(timeout=5)
-                    assert revoked[0] == 200, revoked
-                    assert not reading.done()
-                finally:
-                    released.set()
-                denied = reading.result(timeout=5)
-                assert denied[0] == 403, denied
-                assert request('snapshot')[0] == 403
-
-                # Two simultaneously prepared identical requests have one
-                # receipt. A bounded exact reprepare reconciles the losing CAS.
-                left = pool.submit(request, 'lost')
-                right = pool.submit(request, 'lost')
-                results = [left.result(timeout=5), right.result(timeout=5)]
-                assert all(status == 200 for status, _ in results), results
-                assert results[0] == results[1], results
-                receipt = next(body for status, body in results if status == 200)
-                assert request('lost') == (200, receipt)
-            assert not faults, faults
-            print('Native concurrency: blocked provider read overlaps signed read and commit; revocation rejects old evidence; concurrent exact retries preserve one receipt.')
-        except BaseException:
-            log.flush()
-            log.seek(0)
-            sys.stderr.write(log.read()[-12000:])
-            raise
-        finally:
-            released.set()
-            if authority is not None:
-                if authority.poll() is None:
-                    authority.kill()
-                authority.wait(timeout=10)
-            peer.shutdown()
-            peer.server_close()
-            thread.join(timeout=5)
-            log.close()
+                    assert all(read.result(timeout=10)[0] == 200 for read in reads)
+                    assert request('write') == written
+                    conflict = request('competing')
+                    assert conflict[0] != 200 and conflict[1]['err'] == 'ConflictingRetry', conflict
+                    assert request('snapshot')[0] == 200
+                    assert request('revoke')[0] == 200
+                    assert request('snapshot')[0] == 403
+                    left, right = pool.submit(request, 'lost'), pool.submit(request, 'lost')
+                    results = [left.result(timeout=10), right.result(timeout=10)]
+                    assert results[0] == results[1] and results[0][0] == 200, results
+                    assert request('lost') == results[0]
+                print('Native concurrency: independent signed requests, exact retry, conflicting retry and current revocation passed.')
+            except BaseException:
+                log.flush(); log.seek(0)
+                sys.stderr.write(log.read()[-12000:])
+                raise
+            finally:
+                if authority is not None:
+                    if authority.poll() is None: authority.kill()
+                    authority.wait(timeout=10)
 
 
 if __name__ == '__main__':

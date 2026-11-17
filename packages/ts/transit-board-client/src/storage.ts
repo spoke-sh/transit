@@ -56,6 +56,19 @@ export function validateStorage(value: unknown): value is StorageResponse {
       maintenance.operation_timeout_ms > 60000)
   )
     return false;
+  const tier = observed.object_tier;
+  if (
+    tier &&
+    (backend !== "local" ||
+      tier.staging_limit_bytes < 33554432 ||
+      tier.pending_object_limit === 0 ||
+      tier.pending_object_limit > 1048576 ||
+      tier.cache_limit_bytes < 33554432 ||
+      tier.cache_limit_bytes > 4294967296 ||
+      tier.cache_used_bytes > tier.cache_limit_bytes ||
+      (tier.failed_steps === 0) !== (tier.last_failure === null))
+  )
+    return false;
   const limits = observed.limits;
   if (
     limits &&

@@ -13,8 +13,6 @@
   mysql84,
   zig,
   vite-plus,
-  ursula,
-  ursulactl,
   nodejs_24,
   pnpm,
   kubectl,
@@ -38,8 +36,6 @@ runCommand "transit-toolchain-check"
       mysql84
       zig
       vite-plus
-      ursula
-      ursulactl
       nodejs_24
       pnpm
       kubectl
@@ -72,8 +68,6 @@ runCommand "transit-toolchain-check"
     zig version > "$out/zig-version"
     node --version > "$out/node-version"
     pnpm --version > "$out/pnpm-version"
-    ursula --help > "$out/ursula-help"
-    ursulactl --version > "$out/ursulactl-version"
     kubectl version --client > "$out/kubectl-version"
     helm version --short > "$out/helm-version"
     k9s version --short > "$out/k9s-version"

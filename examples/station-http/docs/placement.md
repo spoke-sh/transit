@@ -9,7 +9,7 @@ The RPC placement measurements are in [tests](../../../tests/README.md).
 
 `just examples::http` runs native processes with random scoped protocol keys.
 `just examples::http-compose` builds static ReleaseSafe Zig images and runs the
-same finite application in an owned Docker Compose project. Both use disk Ursula,
+same finite application in an owned Docker Compose project. Both use the native disk owner,
 explicit fresh ownership, a distinct delivery identity and the same signed CLI
 provisioning. Neither touches a running launcher installation.
 
@@ -20,21 +20,20 @@ networks and separate mounts:
 | --- | --- | --- |
 | Caller | Transit client network | Its own seed, immutable body and configuration, read-only |
 | Connector | Client and synthetic effect networks | Its scoped seed, versioned credential, CA/configuration read-only; separate activation markers writable |
-| Node | Client and storage networks | Node configuration containing public genesis identity only |
-| Ursula | Storage network | Store configuration and writable owned WAL |
+| Node | Client and storage networks | Public node configuration and its retained native authority directory |
 | Synthetic peer | Effect network | Its own TLS key, fixture secret, configuration and request-count evidence |
 | Operator/delivery | Host to private bridge addresses | Separate administrative and delivery seeds |
 
 Containers drop all capabilities, disallow privilege escalation, use read-only
 root filesystems and have explicit 2-CPU, 512 MiB and 256-PID limits. The peer is an
 independent Python fixture packaged from the pinned Nix closure; the caller and
-connector contain only their Zig binaries. Ursula uses the existing pinned image.
+connector contain only their Zig binaries.
 No package installation, ambient proxy, or internet access is needed at runtime.
 
 The caller-network probe can reach Transit but cannot open TCP connections to
-the peer, Ursula or an external numeric address. The actual connector completes
+the peer or an external numeric address. The actual connector completes
 the TLS request. Callers cannot spawn processes through their scoped protocol
-identity. Application containers receive no operator seed, Ursula configuration,
+identity. Application containers receive no operator seed, object-storage credentials,
 provider credentials or Docker socket. No ports are published: the host operator
 uses private bridge addresses, including on Docker versions that disable port
 publication for internal-only networks. This profile is qualified on Linux with
@@ -43,10 +42,10 @@ qualified.
 
 Each finite invocation gets fresh recorded ownership. The schedule replaces the
 caller after submission and proves it returns the same saved call, then restarts
-node and store and replays the response after stopping the peer and deleting the
-connector credential. The Compose schedule passes in **19.40 seconds** with cached
+the native owner and replays the response after stopping the peer and deleting the
+connector credential. Historical pre-cutover measurements recorded **19.40 seconds** for Compose with cached
 image preparation; initial compilation/image construction costs are additional.
-The native debug schedule passes in **26.81 seconds** excluding compilation.
+That native debug schedule recorded **26.81 seconds** excluding compilation.
 These measurements are local and do not qualify hosted CI costs.
 
 The task removes only its generated Compose project, temporary state and keys on
@@ -62,7 +61,7 @@ image. The task checks that the saved runtime revision and registry identity
 match that infrastructure. It never updates the default installation. The
 current profile requires Linux x86_64 and a local Docker daemon.
 
-The existing Transit Helm chart creates a disposable namespace with disk Ursula,
+The existing Transit Helm chart creates a disposable namespace with the native disk owner,
 a growing node and a two-worker Substrate pool. A Zig caller runs inside gVisor
 with an egress policy allowing only that namespace's Transit authority. It has no
 mounted key: each cold start emits a fresh public registration and waits for the
@@ -78,7 +77,7 @@ has a read-only root, no service account token and a 1-CPU/512-MiB limit. These
 explicit rules are needed because the reference Kind CNI does not enforce
 NetworkPolicy. They are a local proof topology, not a general deployment policy.
 
-The real gVisor caller probe reaches Transit and cannot reach the peer, raw Ursula,
+The real gVisor caller probe reaches Transit and cannot reach the peer, raw MinIO,
 Kubernetes/Substrate APIs or an external numeric address. The connector's network
 probe reaches Transit and rejects raw storage, both APIs and external egress;
 the actual worker subsequently completes TLS to the pinned peer. No caller or

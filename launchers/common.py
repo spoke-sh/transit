@@ -24,7 +24,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
-SERVICES = ("ursula", "node", "counter", "board")
+SERVICES = ("node", "counter", "board")
 
 
 def read_json(response, limit=256 * 1024):
@@ -114,7 +114,7 @@ class Installation:
             raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
         if value.get("protocol") != "native_v1":
             raise RuntimeError("Incompatible launcher protocol; preserve this installation and use its matching build")
-        if value.get("runtime") != "server_external_v1":
+        if value.get("runtime") != "server_native_v1":
             raise RuntimeError("Incompatible component installation; preserve its original binaries and data and use its matching launcher")
         if value.get("definition") != DEFINITION:
             raise RuntimeError("Incompatible launcher definition; preserve this installation and use its matching build")
@@ -185,9 +185,8 @@ class Installation:
         self.key('operator/root.key')
         self.key("board/seed.key")
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
-        (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
-              "protocol": "native_v1", "definition": DEFINITION, "runtime": "server_external_v1",
+              "protocol": "native_v1", "definition": DEFINITION, "runtime": "server_native_v1",
               "project": "transit-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base})
         self.configs()
@@ -196,7 +195,6 @@ class Installation:
         config = self.load()
         container = self.profile == "compose"
         base = config["base_port"]
-        storage = "http://ursula:8080" if container else f"http://127.0.0.1:{base}"
         self.upstream = "http://node:8080" if container else self.url
         placed = self.profile in ('compose', 'reference')
         (self.path / 'server-data').mkdir(exist_ok=True, mode=0o700)
@@ -205,8 +203,7 @@ class Installation:
             sql={'native': {'local': False}}, applications=None,
             storage={'maintenance': {'compact': False, 'archive': {'enabled': False}, 'flush': {'enabled': False}}}, logging=config.get('observability', {}).get('node', {}),
             external=dict(listen='0.0.0.0' if placed else '127.0.0.1',
-                root_seed_file='/secrets/root' if self.profile == 'reference' else '/operator/root.key' if placed else str(self.path / 'operator/root.key'),
-                ursula=dict(url=storage, bucket='development', journal='authority')))
+                root_seed_file='/secrets/root' if self.profile == 'reference' else '/operator/root.key' if placed else str(self.path / 'operator/root.key')))
         if config.get('runtime_replacement'):
             node['startup'] = dict(require_existing=True, replace_runtime=config['runtime_replacement'])
         write(self.path / 'transit.json', node)
@@ -217,24 +214,6 @@ class Installation:
               "public_origin": self.origin, "listen": "0.0.0.0" if container else self.board["host"],
               "port": 8080 if container else self.board["port"],
               "development_allow_insecure_http": self.board["allow_insecure_http"]})
-        address = "0.0.0.0:8080" if container else f"127.0.0.1:{base}"
-        wal = "/wal" if container else str(self.path / "wal")
-        write(self.path / "ursula.toml", f'''[server]
-listen = "{address}"
-admin_listen = "127.0.0.1:0"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = {json.dumps(wal)}
-[storage.cold]
-backend = "none"
-[storage.snapshot]
-backend = "inline"
-''')
 
     def initialize(self):
         # Bootstrap and retained-history refusal belong to transit server.

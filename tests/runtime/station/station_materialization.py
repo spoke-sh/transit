@@ -18,7 +18,7 @@ def run(node, cli, libraries):
 def _run(node, cli, libraries, cold):
     from sdk.station_growing_abi import Native
     from harness.abi_support import Client
-    with System(node, cli, clock_error_ms=10000, allow_history_trim=True, storage_config=cold.config()) as s:
+    with System(node, cli, clock_error_ms=10000, allow_history_trim=True, object_storage=cold.native_config()) as s:
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
         resource = s.command({"create_resource": {"writer": pid, "history_ms": 0}})
         seed, public = s.key("materializer")
@@ -128,7 +128,9 @@ def _run(node, cli, libraries, cold):
         maintenance_config = s.root / "maintenance.json"
         maintenance_config.write_text(json.dumps({**json.loads(s.config.read_text()), "maintenance": {
             "principal": 2, "seed_file": str(maintenance_seed), "interval_ms": 25, "checkpoint_every_records": 4}}))
-        maintenance = s.start(node, maintenance_config, "--maintain", env=os.environ | {"LOG_LEVEL": "info", "LOG_FORMAT": "json"})
+        s.authority.kill(); s.authority.wait(timeout=10)
+        maintenance = s.authority = s.start(node, maintenance_config, env=os.environ | {"LOG_LEVEL": "info", "LOG_FORMAT": "json"})
+        wait_ready(s.store.http, maintenance, s.url + "/health")
         until = time.monotonic() + 15
         while True:
             assert maintenance.poll() is None and time.monotonic() < until
@@ -147,11 +149,12 @@ def _run(node, cli, libraries, cold):
             assert maintenance.poll() is None and time.monotonic() < until
             time.sleep(.05)
         maintenance.terminate(); maintenance.wait(timeout=10)
+        s.authority = s.start(node, s.config)
+        wait_ready(s.store.http, s.authority, s.url + "/health")
         # This update/reinsertion is in the tail after the published checkpoint.
         assert update(1, 4)['counts'] == {'matched': '1', 'changed': '1'}
         assert insert((2, 3))['counts'] == {'matched': '1', 'changed': '1'}
         s.authority.kill(); s.authority.wait(timeout=10)
-        s.store.stop(); s.store.start()
         s.authority = s.start(node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         rows = read()
@@ -159,7 +162,7 @@ def _run(node, cli, libraries, cold):
             assert row['cells'] == [signed(key), signed(value), {'value': {'atom': {'utf8': 'materialized'}}}], row
         assert rows[0]['identity'] == initial[0]['identity']
         assert rows[1]['identity'] != initial[1]['identity'], 'Reinsert reused a retired row identity'
-        assert cold.data_objects() > 0
-        print(f'General Table materialization: {callbacks} fresh-host callbacks, {cold.data_objects()} cold objects.')
+        assert cold.native_data_objects() > 0
+        print(f'General Table materialization: {callbacks} fresh-host callbacks, {cold.native_data_objects()} cold objects.')
 
     print("Station materialization: duplicate admission/commit, update/delete/reinsert, checkpoint/tail recovery and current-row recovery passed")

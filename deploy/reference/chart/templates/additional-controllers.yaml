@@ -1,5 +1,5 @@
 {{- $names := dict }}
-{{- range $component := list "node" "ursula" "board" "controller" }}
+{{- range $component := list "node" "board" "controller" }}
 {{- $_ := set $names (include "transit.name" (dict "root" $ "component" $component)) true }}
 {{- end }}
 {{- range $settings := .Values.runtimeControllers }}

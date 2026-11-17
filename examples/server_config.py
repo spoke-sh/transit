@@ -29,15 +29,13 @@ class ServerProcess(subprocess.Popen):
 
 
 def configuration(realm, root_seed, *, installation='/authority/installation', port=8080,
-                  listen='0.0.0.0', ursula=None, request_timeout_ms=10000):
+                  listen='0.0.0.0', object_storage=None, request_timeout_ms=10000):
     external = dict(root_seed_file=str(root_seed), listen=listen,
                     request_timeout_ms=request_timeout_ms)
-    if ursula is not None:
-        external['ursula'] = ursula
     return dict(version=1, installation=str(installation), realm=realm,
                 ports=dict(node=port), sql=dict(native=dict(local=False)),
                 external=external, applications=None,
-                storage=dict(maintenance=dict(compact=False,
+                storage=dict(object_storage=object_storage, maintenance=dict(compact=False,
                     archive=dict(enabled=False), flush=dict(enabled=False))))
 
 

@@ -9,7 +9,6 @@ class Chart:
         self.values = {
             "node": {"nameOverride": "transit", "enabled": False,
                      "image": images["transit"], "config": node_config, "existingSecret": "node-root"},
-            "ursula": {"nameOverride": "ursula", "image": images["ursula"]},
             "board": {"nameOverride": "board", "image": images["transit-board"]},
             "workerPool": {"nameOverride": "counter"},
         }

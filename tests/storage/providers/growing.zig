@@ -1,7 +1,7 @@
 //! Real v1 journal/page persistence. No service or Station capability claim.
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 const g = core.protocol.Growth;
 const t = std.testing;
 const Journal = struct {
@@ -13,14 +13,14 @@ const Journal = struct {
     pub fn read(self: *@This(), at: u64) !?core.growing.Entry {
         return self.store.read(at);
     }
-    pub fn append(self: *@This(), at: u64, entry: core.growing.Entry) !bool {
+    pub fn appendControlled(self: *@This(), at: u64, entry: core.growing.Entry, control: bool) !bool {
         if (self.fault == .before) return error.InjectedStorageFailure;
-        const accepted = try self.store.append(at, entry);
+        const accepted = try self.store.appendControlled(at, entry, control);
         if (accepted and self.fault == .after) return error.InjectedLostAcknowledgement;
         return accepted;
     }
 };
-const Engine = core.growing.Engine(Journal, adapter.PackedPageStore);
+const Engine = core.growing.Engine(Journal, adapter.PageStore);
 const Expected = struct {
     pid: u64,
     reader: u64,
@@ -78,41 +78,40 @@ fn value(index: usize) core.Value {
     std.mem.writeInt(u64, bytes[0..8], index, .big);
     return core.Value.init(&bytes) catch unreachable;
 }
-fn incompatibleHistory(journal: *Journal, page_store: *adapter.PackedPageStore, genesis: core.growing.Genesis, writing: bool) !void {
-    const allocator = journal.store.journal.client.http.allocator;
+fn incompatibleHistory(journal: *Journal, page_store: *adapter.PageStore, genesis: core.growing.Genesis, writing: bool) !void {
+    const owner = journal.store.backend;
+    const allocator = owner.allocator;
     const position = try journal.tail();
     const writes = page_store.created;
-    const requests = page_store.requests;
+    const requests = page_store.misses;
     for ([_][]const u8{ "foreign-definition", "missing-definition" }, 0..) |name, index| {
-        var incompatible: Journal = .{ .store = .{ .journal = journal.store.journal } };
-        incompatible.store.journal.stream.name = name;
+        var invalid_owner = try adapter.Backend.open(allocator, owner.io, owner.directory, name, .{});
+        defer invalid_owner.deinit();
+        var incompatible: Journal = .{ .store = .{ .backend = &invalid_owner } };
         if (writing) {
             const encoded = try std.json.Stringify.valueAlloc(allocator, (try journal.store.read(0)).?, .{});
             defer allocator.free(encoded);
             var parsed = try std.json.parseFromSlice(std.json.Value, allocator, encoded, .{});
             defer parsed.deinit();
             const head = parsed.value.object.getPtr("genesis").?.object.getPtr("head").?;
-            if (index == 0) head.object.getPtr("definition").?.* = .{ .string = "previous-v1-definition" } else {
-                try t.expect(head.object.swapRemove("definition"));
-            }
+            if (index == 0) head.object.getPtr("definition").?.* = .{ .string = "0000000000000000000000000000000000000000000000000000000000000000" } else try t.expect(head.object.swapRemove("definition"));
             const bytes = try std.json.Stringify.valueAlloc(allocator, parsed.value, .{});
             defer allocator.free(bytes);
-            try incompatible.store.journal.create();
-            try t.expect(try incompatible.store.journal.append(0, bytes));
+            _ = try invalid_owner.wal.log().append(0, 0, 1, 1, .genesis, bytes);
         }
-        var before = try incompatible.store.journal.read(0);
+        var before = try invalid_owner.wal.log().read(allocator, 0, 0, 1);
         defer before.deinit();
         const expected_error = if (index == 0) error.InvalidEnumTag else error.MissingField;
         try t.expectError(expected_error, incompatible.store.read(0));
         try t.expectError(expected_error, Engine.open(&incompatible, page_store, genesis));
         try t.expectEqual(@as(u64, 1), try incompatible.tail());
-        var after = try incompatible.store.journal.read(0);
+        var after = try invalid_owner.wal.log().read(allocator, 0, 0, 1);
         defer after.deinit();
-        try t.expectEqualStrings(before.body, after.body);
+        try t.expectEqualStrings(before.frames[0].payload, after.frames[0].payload);
     }
     try t.expectEqual(position, try journal.tail());
     try t.expectEqual(writes, page_store.created);
-    try t.expectEqual(requests, page_store.requests);
+    try t.expectEqual(requests, page_store.misses);
 }
 fn verifyRows(caller: Caller, expected: Expected, mode: enum { current, view, retained }) !void {
     var after: ?core.Value = null;
@@ -269,13 +268,18 @@ pub fn main(init: std.process.Init) !void {
     if (args.len < 4 or args.len > 6) return error.ExpectedUrlPhaseRowsCacheViews;
     const rows = try std.fmt.parseInt(usize, args[3], 10);
     if (rows < 64 or rows > 4096 or rows % 8 != 0) return error.InvalidDataset;
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
-    defer client.deinit();
-    var journal: Journal = .{ .store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-growth-proof", .name = "authority" } } } };
+    const Config = struct { directory: []const u8, object_storage: ?adapter.Backend.ObjectStorage = null };
+    const raw = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(16384));
+    defer init.gpa.free(raw);
+    const configured = try std.json.parseFromSlice(Config, init.gpa, raw, .{});
+    defer configured.deinit();
+    var owner = try adapter.Backend.openWithObjectStorage(init.gpa, init.io, std.Io.Dir.cwd(), configured.value.directory, .{}, configured.value.object_storage);
+    defer owner.deinit();
+    var journal: Journal = .{ .store = .{ .backend = &owner } };
     const cache = if (args.len >= 5) try std.fmt.parseInt(usize, args[4], 10) else 1;
     const views = if (args.len == 6) try std.fmt.parseInt(usize, args[5], 10) else 1;
     if (views == 0 or views > 16) return error.InvalidViewDataset;
-    var page_store = try adapter.PackedPageStore.init(init.gpa, journal.store.journal, cache);
+    var page_store = try adapter.PageStore.init(&owner, cache);
     defer page_store.deinit();
     const root_key = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const genesis: core.growing.Genesis = .{ .realm = 42, .root_key = root_key.public_key.toBytes(), .max_clock_error_ms = 5, .allow_history_trim = true };
@@ -283,10 +287,6 @@ pub fn main(init: std.process.Init) !void {
     const checkpoint = std.mem.eql(u8, args[2], "checkpoint");
     const trimmed = std.mem.eql(u8, args[2], "trim_recover");
     if (!writing and !checkpoint and !trimmed and !std.mem.eql(u8, args[2], "recover")) return error.UnknownPhase;
-    if (writing) {
-        try journal.store.journal.create();
-        try page_store.create();
-    }
     var measurements: Measurements = .{ .io = init.io, .allocator = init.gpa };
     defer measurements.operations.deinit(init.gpa);
     defer measurements.turns.deinit(init.gpa);
@@ -296,20 +296,22 @@ pub fn main(init: std.process.Init) !void {
     var clock: u8 = 0;
     engine.clock = .{ .context = &clock, .read = Clock.read };
     const caller: Caller = .{ .engine = &engine, .key = root_key, .measurements = &measurements };
-    var oracle = journal.store.journal;
-    oracle.stream.name = "proof-expectations";
     const expected = if (writing) blk: {
         const result = try write(caller, rows, views);
-        // Test oracle only: production recovery never consults this stream.
-        try oracle.create();
+        // Separate test oracle: production recovery never consults this file.
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, result, .{});
         defer init.gpa.free(bytes);
-        try t.expect(try oracle.append(0, bytes));
+        const file = try owner.directory.createFile(init.io, ".proof-expectations", .{ .permissions = .fromMode(0o600) });
+        defer file.close(init.io);
+        try file.writeStreamingAll(init.io, bytes);
+        try file.sync(init.io);
+        const dir: std.Io.File = .{ .handle = owner.directory.handle, .flags = .{ .nonblocking = false } };
+        try dir.sync(init.io);
         break :blk result;
     } else blk: {
-        var response = try oracle.read(0);
-        defer response.deinit();
-        const parsed = try std.json.parseFromSlice(Expected, init.gpa, response.body, .{});
+        const bytes = try owner.directory.readFileAlloc(init.io, ".proof-expectations", init.gpa, .limited(65536));
+        defer init.gpa.free(bytes);
+        const parsed = try std.json.parseFromSlice(Expected, init.gpa, bytes, .{});
         defer parsed.deinit();
         try t.expectEqual(rows, parsed.value.rows);
         break :blk parsed.value;
@@ -325,8 +327,8 @@ pub fn main(init: std.process.Init) !void {
         _ = try engine.commit(candidate);
         try journal.store.maintain(engine.head);
         checkpoint_ns = measurements.elapsed(start);
-        const saved = (try journal.store.loadCheckpoint()).?;
-        try t.expect(std.meta.eql(engine.head, saved.entry.operation.next));
+        const saved = (try journal.store.read(engine.head.position - 1)).?;
+        try t.expect(std.meta.eql(engine.head, saved.operation.next));
         // Idempotent maintenance cannot advance authority or staged page state.
         const position = try journal.tail();
         const writes = page_store.created;
@@ -338,39 +340,38 @@ pub fn main(init: std.process.Init) !void {
     if (trimmed) {
         try t.expectError(error.HistoryReclaimed, journal.store.read(0));
         try t.expect(engine.head.history_floor > 0);
-        try t.expect(std.meta.eql(engine.head, (try journal.store.loadCheckpoint()).?.entry.operation.next));
+        try t.expect(std.meta.eql(engine.head, (try journal.store.read(engine.head.position - 1)).?.operation.next));
     }
     var wrong = genesis;
     wrong.realm += 1;
     try t.expectError(error.WrongProtocolRealm, Engine.open(&journal, &page_store, wrong));
     if (!checkpoint and !trimmed) {
-        var reopened: adapter.Store = .{ .journal = journal.store.journal };
+        var reopened: adapter.Store = .{ .backend = &owner };
         try t.expect(std.meta.eql((try reopened.read(0)).?, (try journal.store.read(0)).?));
     }
     try incompatibleHistory(&journal, &page_store, genesis, writing);
-    // Remove the current catalog root's segment only in the disposable fixture,
-    // after all restart assertions. Missing content must not become empty state.
+    // Drain exact recorded uploads before process death; retained references on
+    // the next open must fetch original objects with a fresh memory/disk cache.
+    if (owner.objects.tier) |tier| while ((try tier.queue.current()).pending_objects != 0) try owner.tierStep();
+    // Remove only the current descriptor in this disposable fault fixture.
+    // Missing trusted identity must not become an empty state or remote adoption.
     if (trimmed) {
-        var page_stream = journal.store.journal.stream;
-        const address = try adapter.Segment.Address.decode(engine.head.catalog.root.?.location);
-        const name = try address.identity.name(page_stream.bucket, page_stream.name);
-        page_stream.name = &name;
-        var deleted = try client.send(.{ .delete_stream = page_stream });
-        defer deleted.deinit();
-        try deleted.head.requireSuccess();
-        var missing = try client.send(.{ .head = .{ .stream = page_stream } });
-        defer missing.deinit();
-        try t.expectEqual(.not_found, missing.head.status);
+        var name: [96]u8 = undefined;
+        const object_key = try std.fmt.bufPrint(&name, "native/p/{x}", .{&engine.head.catalog.root.?.location});
+        try owner.objects.local.deleteObject(object_key);
+        try t.expectEqual(null, try owner.objects.local.headObject(object_key));
         const position = try journal.tail();
         const writes = page_store.created;
         page_store.clearCache();
-        try t.expectError(error.PageUnavailable, Engine.open(&journal, &page_store, genesis));
+        try t.expectError(error.MissingStorageObject, Engine.open(&journal, &page_store, genesis));
         try t.expectEqual(position, try journal.tail());
         try t.expectEqual(writes, page_store.created);
     }
     var bytes: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &bytes);
-    try std.json.Stringify.value(.{ .phase = args[2], .rows = rows, .retained_value_bytes = rows * 256, .position = engine.head.position, .catalog_records = engine.head.catalog.records, .cache_bytes = page_store.residentBytes(), .created_pages = page_store.created, .page_http_requests = page_store.requests, .page_payload_bytes = page_store.create_payload_bytes_attempted, .cache_hits = page_store.hits, .cache_misses = page_store.misses, .open_ns = open_ns, .checkpoint_ns = checkpoint_ns, .orphan_page_bytes = measurements.orphan_page_bytes, .operation_ns = measurements.operations.items, .turn_ns = measurements.turns.items }, .{}, &stdout.interface);
+    try std.json.Stringify.value(.{ .phase = args[2], .rows = rows, .retained_value_bytes = rows * 256, .position = engine.head.position, .catalog_records = engine.head.catalog.records, .cache_bytes = page_store.residentBytes(), .created_pages = page_store.created, .page_reads = page_store.misses, .page_payload_bytes = page_store.create_payload_bytes_attempted, .cache_hits = page_store.hits, .cache_misses = page_store.misses, .open_ns = open_ns, .checkpoint_ns = checkpoint_ns, .orphan_page_bytes = measurements.orphan_page_bytes, .operation_ns = measurements.operations.items, .turn_ns = measurements.turns.items }, .{}, &stdout.interface);
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
+    try init.io.sleep(.fromSeconds(30), .awake);
+    return error.ExpectedProcessDeath;
 }

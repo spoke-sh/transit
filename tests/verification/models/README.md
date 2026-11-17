@@ -18,7 +18,7 @@ An authorized external attempt may still run remotely after local closure.
 Validation happens during preparation. Advancing time alone does not cancel a
 prepared append; a competing durable closure invalidates its compared tail.
 This matches Transit's validation-at-tail contract rather than promising an
-atomic wall-clock check in Ursula. The effect submodel checks authorized result
+atomic wall-clock check in a storage provider. The effect submodel checks authorized result
 acceptance and terminal closure; it omits transport and remote-system behavior.
 
 The normal configuration bounds journal-changing actions at three. It exhausts

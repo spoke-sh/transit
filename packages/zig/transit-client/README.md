@@ -23,7 +23,7 @@ Its package dependencies are [transit-protocol](../transit-protocol/README.md),
 re-exported as `protocol`, and optional runtime instrumentation through
 [transit-observability](../transit-observability/README.md), re-exported as
 `observability`. It also uses [transit-memory](../transit-memory/README.md) for bounded local
-response materialization. It does not import the kernel, Ursula, or a provider.
+response materialization. It does not import the kernel or a provider.
 [Client](src/root.zig) owns bounded native v1 HTTP exchange;
 [Session](src/Session.zig) adds activation-aware receive/prepare/submit operations.
 The [native caller guide](docs/growing.md) describes bounded views and retained

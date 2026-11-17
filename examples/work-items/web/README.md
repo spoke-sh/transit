@@ -22,7 +22,7 @@ Web Locks do not coordinate callers on other origins or hosts.
 
 `vp check`, `vp exec tsc --noEmit` and `vp build` run here after the locked root
 install. `just test::work-items-browser` qualifies this actual frontend with separate
-native data/publication/requester workers and disk-backed Ursula. It exercises
+native data/publication/requester workers and the native disk owner. It exercises
 three verified pages, schema/publication migration, an original uncertain upload
 across browser/gateway restart, cancellation, a new query and current denial.
 Compose/reference placements remain outstanding. See the [composition guide](../docs/browser.md).

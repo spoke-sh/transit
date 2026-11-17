@@ -2,7 +2,6 @@
   pkgs,
   zig,
   vite-plus,
-  ursula,
   minio,
 }:
 # Board and native launchers need no Kubernetes/provider CLIs or Rust build tools.
@@ -29,7 +28,6 @@ pkgs.mkShell {
     pkgs.pkg-config
     zig
     vite-plus
-    ursula
     pkgs.nodejs_24
     pkgs.pnpm
   ]

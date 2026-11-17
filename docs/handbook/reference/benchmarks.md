@@ -1,5 +1,10 @@
 # Declarative benchmarks
 
+Measurements retain their recorded source and provider identity. Results naming
+Ursula describe the retired composition and do not qualify the current native
+MinIO tier. See the [storage cutover evidence](../../history/qualification/native-storage-cutover.md)
+for replacement proof scope.
+
 Transit measures small, deterministic components associated with **TPC-C,
 TPC-E, TPC-H and TPC-DS** through its shared Zig SQL compiler and Fuze/Station
 execution APIs. These measurements use Transit-authored synthetic fixtures.

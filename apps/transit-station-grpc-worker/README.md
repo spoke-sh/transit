@@ -4,7 +4,7 @@ The finite M16 Zig worker composes the [RPC adapter](../../packages/zig/transit-
 with the shared [Exchange worker/service helpers](../../packages/zig/transit-exchange/README.md).
 `just test::grpc-worker` qualifies all four shapes, partial-capture worker loss,
 node/store restart, explicit retry, current-policy reads and bounded cleanup over
-disk Ursula. Installed callers pass in every M11 language. The Zig
+the native disk owner. Installed callers pass in every M11 language. The Zig
 [caller example](../../examples/station-grpc/README.md) also qualifies local,
 Compose and isolated Kubernetes/Substrate recovery;
 [proof details](../../docs/history/qualification/runtime.md#m16-finite-connector-qualification) separate these limits.

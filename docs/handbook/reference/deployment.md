@@ -74,7 +74,7 @@ The selected profile requires one writer-owned application resource and no
 outstanding finite turn permit. Missing manager records or corrupt checkpoints
 stop recovery. Provider-bound PIDs retain the controller's separate lifecycle.
 
-Applications have no raw Ursula credentials. Board uses public read surfaces and
+Applications have no raw object-storage credentials. Board uses public read surfaces and
 a private viewer boundary. Connector workers hold only their scoped effect/secret
 capabilities. Local same-user processes are trusted code, not a sandbox.
 

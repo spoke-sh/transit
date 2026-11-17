@@ -312,6 +312,6 @@ test "SOURCE reader consumes independent signed continuation and rejects tamperi
     const encoded = try p.Json.valueAlloc(t.allocator, fixture.cursor);
     defer t.allocator.free(encoded);
     const at = std.mem.indexOf(u8, encoded, @tagName(p.Growth.current_definition)).?;
-    encoded[at] = '0';
+    encoded[at] = if (encoded[at] == '0') '1' else '0';
     try t.expectError(error.InvalidJsonShape, p.Json.parseFromSlice(Cursor, t.allocator, encoded));
 }

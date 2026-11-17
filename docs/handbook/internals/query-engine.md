@@ -1023,7 +1023,7 @@ checker. Rebatched finite cases preserve all 315 oracle answers and witnesses;
 the reference-store schedule exercises nine partition/batch combinations,
 duplicate acknowledgement, denied producer rereads, credit and quota pressure.
 The historical native exchange task ran producer and receiver hosts against
-disk Ursula with bounded hot/cache storage and a local cold store.
+the native disk owner with bounded hot/cache storage and a local cold store.
 It loses accepted staging/acceptance replies, reconstructs workers, restarts the
 node/store and publishes the maintained result for two partition/worker layouts.
 The four-row-per-source input establishes those recovery and semantic cases; it
@@ -1287,7 +1287,7 @@ capture options remain typed Transit/connector options.
 A foreign table is a relation with an external read binding. It does not imply
 ingestion, a continuous watcher, writable remote storage or external transactions.
 Use a source binding for captured ingestion and a sink binding for recorded
-output. An S3 table source is unrelated to Ursula's use of S3 as cold storage;
+output. An S3 table source is distinct from native immutable-object tiering;
 query adapters never receive backend authority.
 
 In the target storage and query architecture, native tables and foreign tables

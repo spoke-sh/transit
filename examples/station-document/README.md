@@ -5,7 +5,7 @@ to the [Document worker](../../apps/transit-station-document-worker/README.md).
 The synthetic shared note is a non-trading application. Changes use the public
 `Request`/`Caller` API; the example runs no alternate CRDT implementation.
 
-Run `just examples::document` from `nix develop`. It creates isolated disk Ursula,
+Run `just examples::document` from `nix develop`. It creates isolated the native disk owner,
 a growing Transit node, two caller resources and one Document resource, using
 ephemeral keys and explicit grants. The runner removes only its own temporary
 state after completion. The local schedule passes in 571.4 seconds with an 8 MiB

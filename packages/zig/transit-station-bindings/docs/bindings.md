@@ -203,7 +203,7 @@ Growing `cancel` actions now return whether a waiting call was closed; `false`
 means it was already closed, and neither outcome retracts work accepted by a peer.
 
 `tests/sdk/station_growing_abi.py`, included in the binding proof, uses one resident
-backend page and disk Ursula. It checks 41 Table rows in six pages, stale scopes
+backend page and the native disk owner. It checks 41 Table rows in six pages, stale scopes
 and cursors, retained schemas/point reads, remaining mutation budgets, repeated
 confirmation observation, full-width values/principals, private stop/read poisoning, control
 gates, accepted-response loss and exact recovery from a fresh process after

@@ -24,6 +24,7 @@ const unavailable: StorageResponse = {
   maintenance: null,
   settings: null,
   admission: null,
+  object_tier: null,
 };
 test("storage observations keep unavailable distinct from zero and bound memory facts", () => {
   expect(validateStorage(unavailable)).toBe(true);
@@ -69,4 +70,35 @@ test("aggregate storage admission preserves independent samples and rejects inva
     { ...pool, refusals: Number.MAX_SAFE_INTEGER + 1 },
   ])
     expect(validateStorage({ ...local, admission: { ...admission, data } })).toBe(false);
+});
+
+test("object tier observations reject obsolete backends, missing state and impossible cache usage", () => {
+  const object_tier = {
+    pending_upload_bytes: 16,
+    pending_objects: 2,
+    staging_limit_bytes: 33554432,
+    pending_object_limit: 64,
+    cache_limit_bytes: 33554432,
+    cache_used_bytes: 8,
+    cache_hits: 0,
+    cache_misses: 1,
+    uploads_completed: 1,
+    deletes_completed: 0,
+    failed_steps: 1,
+    last_failure: "denied",
+    recovery_required: false,
+  };
+  const local = { ...unavailable, backend: "local", object_tier };
+  expect(validateStorage(local)).toBe(true);
+  expect(validateStorage({ ...local, backend: "ursula" })).toBe(false);
+  expect(validateStorage({ ...local, object_tier: undefined })).toBe(false);
+  for (const change of [
+    { cache_used_bytes: 33554433 },
+    { cache_limit_bytes: 0 },
+    { pending_object_limit: 0 },
+    { staging_limit_bytes: 1 },
+    { failed_steps: 0 },
+    { pending_upload_bytes: -1 },
+  ])
+    expect(validateStorage({ ...local, object_tier: { ...object_tier, ...change } })).toBe(false);
 });

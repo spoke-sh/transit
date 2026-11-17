@@ -69,7 +69,7 @@ class Retry(unittest.TestCase):
     def test_failed_installations_are_kept_private(self):
         with patch.object(inspection, "Fixture") as fixture:
             inspection.System("node", "admin")
-        fixture.assert_called_once_with(None, retain_on_failure=True)
+        fixture.assert_called_once_with(retain_on_failure=True)
 
     @staticmethod
     def board_response(status, cause=None):

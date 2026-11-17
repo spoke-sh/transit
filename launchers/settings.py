@@ -52,7 +52,7 @@ def resolve(previous, overrides, base_port):
         raise ValueError("TRANSIT_BOARD_HOST must be an IPv4 listen address, e.g. 0.0.0.0") from error
     port = settings["port"]
     if type(port) is not int or not 1 <= port <= 65535 or port in (base_port, base_port + 1):
-        raise ValueError("Board port must be 1–65535 and distinct from Ursula/Transit ports")
+        raise ValueError("Board port must be 1–65535 and distinct from Transit ports")
     if "public_origin" not in overrides and previous["public_origin"] == f'http://127.0.0.1:{previous["port"]}':
         settings["public_origin"] = f"http://127.0.0.1:{port}"
     origin = settings["public_origin"]

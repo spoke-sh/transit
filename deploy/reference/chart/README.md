@@ -22,7 +22,6 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | Component | Resources and configuration |
 | --- | --- |
 | `node` | One Recreate Deployment running `transit server --no-ui`, private ClusterIP Service, public server ConfigMap and retained installation PVC. `existingSecret` supplies the operator `root` seed; optional direct catalog credentials remain in this Secret. The server owns native authority, maintenance and delivery. |
-| `ursula` | One Recreate Deployment, private Service, disk-WAL ConfigMap and retained PVC. Uses the official pinned image. Supply `persistence.existingClaim` to reuse storage; otherwise `size` and optional `storageClass` configure a new claim. |
 | `board` | Optional Deployment, private Service and ConfigMap. Supply `image`, `existingSecret` containing the Transit `seed`, and `config` with realm, inspection principal and public origin. |
 | `controller` | Optional one-PID Recreate Deployment with a PID-scoped Transit seed, projected provider/API tokens, public trust-bundle read permission and namespace-local worker-log access. Supply its packaged image and provider configuration. |
 | `runtimeControllers` | Up to 15 additional PID-scoped controllers using the same deployment and credential boundary. Each requires a unique `nameOverride`, `config`, and `existingSecret`; supply its image. |
@@ -32,8 +31,8 @@ and validated by their binaries; the chart does not duplicate those schemas.
 
 Names default to `<release>-<component>` and can be overridden per component.
 The server retains its generated service credentials and bootstrap receipts on the
-node PVC, including when native history is stored in Ursula. Both volumes are
-required for recovery. Native history trimming requires the explicit genesis
+node PVC together with the native WAL, staging and recovery metadata. This
+volume remains required when immutable objects are tiered to MinIO. Native history trimming requires the explicit genesis
 opt-in `node.config.external.allow_history_trim`; this does not enable application
 expiry. Old `initialize`, `maintenance` and `delivery` values reject.
 
@@ -42,40 +41,35 @@ Their `config` is public configuration: signing credentials come from the
 mounted Secret's `seed` key. Use separate recorded grants for each responsibility;
 creating a Deployment does not grant access to a PID or state resource.
 HTTP services listen on port 8080. The chart fixes listener/credential paths and
-internal service URLs. Configure `node.config.external.ursula` with bucket,
-journal and URL; with chart-managed Ursula its URL is supplied by the chart.
-Disable `ursula.enabled` to use an external Ursula provider, or omit
-`external.ursula` to use local disk. Set `sql.native.local: false` and
-`applications: null` for this external-worker composition. Board requires the
-chart's node. Config changes trigger replacement through a checksum; externally
-rotated Secrets require an explicit rollout.
+internal service URLs. Set `sql.native.local: false` and `applications: null`
+for this external-worker composition. Board requires the chart's node. Config
+changes trigger replacement through a checksum; externally rotated Secrets
+require an explicit rollout.
 
-For direct Table storage, select local disk and provide `node.table` plus
+For direct Table storage, provide `node.table` and
 `node.config.external.table_file: /config/table.json`. The server retains the
 first accepted Table configuration and refuses its disappearance or replacement.
-The registrar credential path is `/secrets/registrar`. The node PVC retains both
-the server installation and local native/Table history. Ursula does not implement
-this direct Table hosting profile. Application workers and their provider
-controllers retain their independent credentials and placement.
+The registrar credential path is `/secrets/registrar`.
 
-For bounded hot storage with an external cold tier, set
-`ursula.existingConfigSecret` to a separately created Secret containing
-`ursula.toml`. The chart mounts it read-only instead of generating the default
-no-cold-tier ConfigMap; it never reads or copies that Secret into Helm values or
-release history. Supply the complete upstream configuration, including listener
-`0.0.0.0:8080`, disk WAL at `/data/wal`, explicit hot/cache limits and snapshot/cold
-backend settings. Preserve these settings during recovery. The deployment keeps
-its PVC and readiness probe; credentials remain available only to Ursula.
-The default profile is still disk WAL with inline snapshots and no cold tier.
+The default storage owner is native Transit on the node PVC. Optional
+`node.config.storage.object_storage` names the HTTPS endpoint, region, bucket,
+prefix, `credentials_file`, optional `ca_file`, and bounded staging/cache settings.
+Put the credential JSON and optional private CA PEM in `node.existingSecret`,
+reference their `/secrets/<key>` paths, and grant access only to the server.
+Provision the MinIO endpoint separately. Private credential values never belong
+in Helm values, ConfigMaps or release history. See the
+[storage configuration](../../../docs/handbook/reference/configuration.md#immutable-storage)
+and [tier profile](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier).
 
+Old `ursula` values and `external.ursula` configuration reject. Preserve the old
+provider PVC and matching build for recovery; this chart performs no conversion.
 
 Supply immutable service images from a matching source or published release.
 The [distribution reference](../../../docs/handbook/reference/distribution.md) lists
 available component images. This reference chart is not published. The reference launcher
 continues to build its own images; the runtime controller additionally needs its
-pinned provider CLI. The chart uses the official Ursula image pinned
-in [versions.json](../../../deploy/reference/versions.json); the chart check guards
-against a different default pin.
+pinned provider CLI. Infrastructure versions are recorded in
+[versions.json](../../../deploy/reference/versions.json).
 
 ## Bootstrap and lifecycle
 
@@ -120,10 +114,10 @@ are read-only mounts from existing Secrets; never put private seeds in Helm valu
 ConfigMaps, extra-container arguments or release history. Server-owned maintenance
 and delivery identities and the external Board identity have distinct grants.
 
-Default NetworkPolicies restrict Ursula ingress to the server pod, and Board egress to Transit and cluster DNS. They require
-an enforcing CNI; rendered policy alone does not establish isolation. Review DNS
-selectors for your cluster and enforce equivalent restrictions around external
-Ursula. Node/controller services are trusted control infrastructure. Services
+Default NetworkPolicies restrict Board egress to Transit and cluster DNS.
+They require an enforcing CNI; rendered policy alone does not establish
+isolation. Review DNS selectors and restrict any external MinIO endpoint to the
+server's private boundary. Node/controller services are trusted control infrastructure. Services
 are ClusterIP-only. Board has no viewer key/session layer: every reachable
 caller shares its configured read scope. Network admission, any authenticated
 ingress, and TLS termination remain deployment responsibilities. No public ingress or telemetry collector is

@@ -88,51 +88,6 @@
         }
       }
     },
-    "ursula": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "nameOverride": {
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-        },
-        "image": {
-          "type": "string"
-        },
-        "resources": {
-          "type": "object"
-        },
-        "persistence": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "existingClaim": {
-              "type": "string",
-              "maxLength": 63,
-              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-            },
-            "size": {
-              "type": "string"
-            },
-            "storageClass": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        },
-        "existingConfigSecret": {
-          "type": "string",
-          "maxLength": 253,
-          "pattern": "^$|^[a-z0-9]([-.a-z0-9]*[a-z0-9])?$"
-        }
-      }
-    },
     "board": {
       "type": "object",
       "additionalProperties": false,

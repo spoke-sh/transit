@@ -87,16 +87,19 @@ def run(node, cli, board):
             assert "ignored-private-marker" not in data and seed.read_text().strip() not in data
             assert "private-state-marker" not in data and "private-state-marker".encode().hex() not in data
             assert "private-header-marker" not in data
-        # Composed servers retain private child log prefixes. Exercise the raw
-        # maintenance diagnostic boundary here, alongside native HTTP events,
-        # rather than requiring another product deployment for its log stream.
+        # The exclusive native owner runs maintenance in its own joined lane.
+        # Restart with the scoped principal and inspect the same diagnostic
+        # boundary alongside native HTTP events.
         maintenance_seed, maintenance_public = s.key("maintenance")
         s.command({"grant": {"subject": 3, "public_key": maintenance_public, "permissions": 161}})
         maintenance_config = s.root / "maintenance.json"
         maintenance_config.write_text(json.dumps({**config, "maintenance": {
             "principal": 3, "seed_file": str(maintenance_seed), "interval_ms": 25}}))
-        maintenance = s.start(node, maintenance_config, "--maintain", env=env)
+        s.authority.kill()
+        s.authority.wait(timeout=10)
+        maintenance = s.authority = s.start(node, maintenance_config, env=env)
         maintenance_log = Path(s.logs[-1].name)
+        wait_ready(s.store.http, maintenance, s.url + "/health")
         deadline = time.monotonic() + 5
         while True:
             events = [record["event"] for record in records(maintenance_log)
@@ -108,6 +111,8 @@ def run(node, cli, board):
         maintenance.kill()
         maintenance.wait(timeout=10)
         assert maintenance_seed.read_text().strip() not in maintenance_log.read_text()
+        s.authority = s.start(node, s.config, env=env)
+        wait_ready(s.store.http, s.authority, s.url + "/health")
         # The same one-CPU node must still serve and enforce its HTTP deadline
         # with an actually full, unread diagnostic pipe.
         if sys.platform == "linux":

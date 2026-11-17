@@ -5,8 +5,8 @@ from interfaces.inspection.inspection import System
 
 
 class InstalledServer(System):
-    def __init__(self, server, cli, *, storage_config=None, manual_delivery=False):
-        super().__init__(None, cli, storage_config=storage_config, server=server,
+    def __init__(self, server, cli, *, object_storage=None, manual_delivery=False):
+        super().__init__(None, cli, object_storage=object_storage, server=server,
                          request_timeout_ms=5000)
         self.manual_delivery = manual_delivery
 

@@ -113,11 +113,22 @@ class Reference(Compose):
         if self.server_owned:
             operator = self.work / 'operator'
             root_seed = operator / ('root.seed' if (operator / 'root.seed').exists() else 'seed.key')
-            self.apply(dict(apiVersion='v1', kind='Secret', metadata=dict(name='server-root'),
-                data=dict(root=base64.b64encode(root_seed.read_bytes()).decode())))
+            data = dict(root=base64.b64encode(root_seed.read_bytes()).decode())
+            for name in ('object-credentials.json', 'object-ca.pem'):
+                if (operator / name).exists():
+                    data[name] = base64.b64encode((operator / name).read_bytes()).decode()
+            self.apply(dict(apiVersion='v1', kind='Secret', metadata=dict(name='server-root'), data=data))
+        elif not hasattr(self, 'node_volumes'):
+            self.apply(dict(apiVersion='v1', kind='PersistentVolumeClaim', metadata=dict(name='native-authority'),
+                spec=dict(accessModes=['ReadWriteOnce'], resources=dict(requests=dict(storage='1Gi')))))
+        node_config = json.loads((self.work / 'operator/node.json').read_text())
+        if self.server_owned:
+            tier = node_config.get('storage', {}).get('object_storage')
+            if tier:
+                for field in ('credentials_file', 'ca_file'):
+                    if tier.get(field): tier[field] = '/secrets/' + Path(tier[field]).name
         self.values = {"node": {"nameOverride": "node", "enabled": False, "image": self.env["EXCHANGE_NODE_IMAGE"],
-                                  "config": json.loads((self.work / "operator/node.json").read_text()), "existingSecret": "server-root"},
-                       "ursula": {"nameOverride": "ursula", "image": self.env["EXCHANGE_URSULA_IMAGE"]},
+                                  "config": node_config, "existingSecret": "server-root"},
                        "workerPool": {"nameOverride": "caller", "enabled": True, "labels": {"transit.dev/exchange-example": self.namespace},
                            "spec": {"replicas": 2, "workerImage": self.runtime["image"], "template": {
                                "nodeSelector": {"ate.dev/substrate-version": self.pins["substrate"][:8]},
@@ -142,11 +153,11 @@ class Reference(Compose):
                 spec=dict(backoffLimit=0, activeDeadlineSeconds=120, template=dict(
                     metadata=dict(labels=self.native_fixture_labels()), spec=dict(
                     restartPolicy='Never', automountServiceAccountToken=False,
-                    securityContext=dict(runAsUser=65532, runAsGroup=65532, runAsNonRoot=True),
+                    securityContext=dict(runAsUser=65532, runAsGroup=65532, runAsNonRoot=True, fsGroup=65532),
                     containers=[dict(name='initialize', image=self.env['EXCHANGE_NODE_IMAGE'],
                         args=['/operator/node.json', '--initialize'],
-                        volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)])],
-                    volumes=[dict(name='files', secret=dict(secretName='native-fixture'))])))))
+                        volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True), dict(name='authority', mountPath='/authority')])],
+                    volumes=[dict(name='files', secret=dict(secretName='native-fixture')), dict(name='authority', persistentVolumeClaim=dict(claimName='native-authority'))])))))
             self.kube('wait', '--for=condition=complete', 'job/native-initialize', '--timeout=150s')
             # The completed initializer shares the chart's storage-access labels;
             # remove it before recovery waits select the authority deployment.
@@ -177,9 +188,9 @@ class Reference(Compose):
         if service == 'node' and not self.server_owned:
             self.secret('native-fixture', self.work / 'operator')
             self.pod_deployment('node', dict(name='node', image=self.env['EXCHANGE_NODE_IMAGE'],
-                args=['/operator/node.json'], volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True)],
+                args=['/operator/node.json'], volumeMounts=[dict(name='files', mountPath='/operator', readOnly=True), dict(name='authority', mountPath='/authority')],
                 readinessProbe=dict(httpGet=dict(path='/health', port=8080), periodSeconds=1)),
-                [dict(name='files', secret=dict(secretName='native-fixture'))],
+                [dict(name='files', secret=dict(secretName='native-fixture')), dict(name='authority', persistentVolumeClaim=dict(claimName='native-authority'))],
                 labels=self.native_fixture_labels())
             self.apply(dict(apiVersion='v1', kind='Service', metadata=dict(name='node'),
                 spec=dict(selector=self.native_fixture_labels(), ports=[dict(port=8080, targetPort=8080)])))
@@ -212,12 +223,11 @@ class Reference(Compose):
         return self.get("service", service)["spec"]["clusterIP"]
 
     def secret(self, name, directory):
-        data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("node.json", "seed.key", "credential", "ca.pem", "tls.key", "config.json")}
+        data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("node.json", "seed.key", "credential", "ca.pem", "tls.key", "config.json", "object-credentials.json", "object-ca.pem")}
         self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name}, "data": data})
 
     def native_fixture_labels(self):
-        # Match the chart's authority-only ingress to Ursula. Application pods
-        # and direct-Table denial targets do not receive these labels.
+        # Identify this fixture's authority independently of application pods.
         return {'app': 'node', 'app.kubernetes.io/name': 'transit',
                 'app.kubernetes.io/instance': 'exchange-example',
                 'app.kubernetes.io/component': 'node'}
@@ -390,7 +400,7 @@ ip6tables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
-        denied = [self.address("ursula") + ":8080", "1.1.1.1:443"]
+        denied = ["1.1.1.1:443"]
         for namespace, target in (("default", "kubernetes"), ("ate-system", "api")):
             address = json.loads(self.kube("get", "service", target, "-n", namespace, "-o", "json"))["spec"]["clusterIP"]
             denied.append(address + ":443")

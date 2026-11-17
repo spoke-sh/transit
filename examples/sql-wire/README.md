@@ -33,15 +33,14 @@ keys, verifier and TLS certificate/key. The operator key remains outside the
 service. Compose isolates storage on a separate internal network. The reference
 gateway has no service-account token; an init container constrains egress to the
 authority and cluster DNS, then an independent probe verifies denial of storage,
-Kubernetes, Substrate and public endpoints. The fixture starts separate Ursula
-and object-store endpoints as denied network targets. The node owns Table data
-and native control history on its private persistent volume. The database caller
+Kubernetes, Substrate and public endpoints. The fixture runs a private TLS MinIO endpoint for native immutable tiering;
+the gateway cannot reach it. The node retains Table and native control WAL,
+staging and recovery metadata on its private persistent volume. The database caller
 selects its explicit data role and cannot open the raw native catalog resource.
 
 Activation markers reside on a persistent private bind mount in Compose and a
 ReadWriteOnce PVC in Kubernetes. Spill is separate and disposable. After checking
-the initial rows, the runner stops the gateway and node and replaces the denied
-storage target. It recovers the same durable node storage, establishes fresh
+the initial rows, the runner stops and joins the gateway and native owner while retaining MinIO. It recovers the same durable node storage, establishes fresh
 native coordinator ownership and starts the replacement gateway. The clients verify the retained
 row before applying another mutation. A readiness probe, PVC or pod identity
 never grants native ownership.

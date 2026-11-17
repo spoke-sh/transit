@@ -554,8 +554,8 @@ published visibility. Sparse segment payload rewriting remains separate; the
 current pass preserves original batch bytes and receipts.
 
 The default local launcher selects the
-[local native backend](../transit-backend-local/README.md). Ursula remains an
-explicit node backend. This package's
+[native backend](../transit-backend-local/README.md), optionally configured with
+a MinIO immutable tier. This package's
 Table component tests do not establish installed SQL execution, automatic flushing,
 automatic archive scheduling or multi-process Table commits. Physical Table-object
 collection is composed by the [local backend](../transit-backend-local/docs/maintenance.md#direct-table-and-catalog-collection)
@@ -627,7 +627,29 @@ and the catalog's retained dependency graph.
   `TreeStore.stageMany` uses these batches with bounded stack scratch; no backing
   allocation or cross-command queue is introduced.
 - `S3ObjectStore.zig`: S3-compatible `TransitObjectStore` adapter with AWS Signature
-  Version 4 (`AWS4-HMAC-SHA256`), conditional CAS headers, and partial byte-range requests.
+  Version 4 (`AWS4-HMAC-SHA256`) over actual HTTP/TLS, conditional publication,
+  HEAD, verified byte ranges and DELETE. Each request has a joined deadline;
+  redirects and automatic transport retries are disabled. A file reference supplies access,
+  secret and optional session credentials on every request, including rotation.
+  Each serialized adapter retains at most one idle HTTP/TLS connection and
+  closes it before dispatch after at least five seconds of inactivity. Only
+  fully consumed successful HTTP responses permit reuse; failed, incomplete or
+  cancelled exchanges close without draining untrusted error bodies.
+  The adapter owns a stable HTTP client allocation, so moving an idle adapter
+  into its retained owner preserves pooled TLS state.
+  POSIX sockets enable `TCP_NODELAY` before sending HTTP request bytes.
+  The remote envelope binds definition, logical key, size, content and chunk
+  digests. Digest-shaped conditions are checked against that descriptor and
+  converted to the actual provider ETag for atomic publication. See the
+  [remote object contract](../../../contracts/TRANSIT_STORAGE_V1.md#s3-object-operations).
+  Separate `retireImmutable` lifecycle authority conditionally replaces a known
+  generation with a permanent empty 512-byte envelope. Ordinary reads treat it
+  as absent; delayed create-only PUTs cannot restore it. At most three conditional
+  races are re-observed, while transport uncertainty returns to the durable owner.
+  These control envelopes must not be deleted by bucket lifecycle rules.
+  `just test::s3` uses real pinned MinIO and an independent Python wire oracle.
+  This qualifies provider primitives; installed asynchronous tiering and AWS
+  qualification have separate gates.
 - `NvmeCache.zig`: Tier 2 `64 KiB` chunked range cache with SHA-256 integrity checks
   and scan-resistant W-TinyLFU / Clock eviction.
 - `TableManifest.zig`: Immutable versioned `"TMAN"` v1 table manifests referencing

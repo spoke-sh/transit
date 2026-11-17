@@ -27,7 +27,6 @@ class StationInstallation(Installation):
     def configs(self):
         super().configs()
         node = json.loads((self.path / 'transit.json').read_text())
-        node['external'].pop('ursula')
         placed = self.profile in ('compose', 'reference')
         (self.path / 'table').mkdir(exist_ok=True, mode=0o700)
         (self.path / 'station-services').mkdir(exist_ok=True, mode=0o700)

@@ -2,9 +2,9 @@
 //! transitions remain signed; raw reads below inspect committed recovery state.
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 pub const g = core.protocol.Growth;
-pub const Engine = core.Engine(adapter.Store, adapter.PackedPageStore);
+pub const Engine = core.Engine(adapter.Store, adapter.PageStore);
 pub const Clock = struct {
     now: u64 = 1000,
     pub fn read(context: *anyopaque) !core.Time.Sample {
@@ -57,16 +57,25 @@ pub fn counterTurn(e: *Engine, key: core.Ed25519.KeyPair, worker: u64, pid: u64,
     const view = try submit(e, key, worker, .{ .open_view = .{ .pid = pid, .generation = process.generation, .input = next.position, .expected_revision = process.revision, .resource = id, .revision = resource.revision, .deadline_ms = 2000 } });
     return .{ .turn = .{ .pid = pid, .generation = process.generation, .input = next.position, .expected_revision = process.revision, .views = .{ view, null, null, null }, .write_view = view, .mutations = .{ .{ .key = try core.Value.init("count"), .value = core.Value.integer(value) }, null, null, null } } };
 }
-/// Inject the actual publication/trim crash boundary. The production maintain
-/// operation performs both; this fixture publishes only, then kills the store.
-pub fn publish(store: *adapter.Store) !void {
+/// Native checkpoint publication is already in the accepted WAL entry. Verify
+/// that evidence without trimming, then the parent kills the proof process.
+pub fn assertCheckpointPublished(store: *adapter.Store) !void {
     const tail = try store.tail();
     const saved = (try store.read(tail - 1)) orelse return error.MissingFixtureHead;
-    var bytes: [adapter.max_record_bytes]u8 = undefined;
-    var writer: std.Io.Writer = .fixed(&bytes);
-    try std.json.Stringify.value(adapter.Store.Checkpoint{ .entry = saved }, .{}, &writer);
-    var response = try store.journal.client.send(.{ .publish_snapshot = .{ .stream = store.journal.stream, .at = .{ .record = tail }, .body = writer.buffered(), .content_type = "application/json" } });
-    defer response.deinit();
-    try response.head.requireSuccess();
-    _ = (try store.loadCheckpoint()) orelse return error.MissingCheckpoint;
+    const head = switch (saved) {
+        .genesis => |value| value.head,
+        .operation => |value| value.next,
+    };
+    if (head.history_floor == 0 or head.position != tail) return error.MissingCheckpoint;
+}
+pub fn open(init: std.process.Init, directory: []const u8, name: []const u8) !adapter.Backend {
+    const path = try std.fs.path.join(init.gpa, &.{ directory, name });
+    defer init.gpa.free(path);
+    return adapter.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), path, .{});
+}
+pub fn completed(io: std.Io) !void {
+    try std.Io.File.stdout().writeStreamingAll(io, "native-proof-complete\n");
+    // The external driver must observe completion and SIGKILL this live process.
+    try io.sleep(.fromSeconds(30), .awake);
+    return error.ExpectedParentKill;
 }

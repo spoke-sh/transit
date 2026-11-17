@@ -1,6 +1,6 @@
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 const t = std.testing;
 
 const disk = @import("fixture_native_disk");
@@ -21,19 +21,17 @@ fn submit(e: *Engine, key: core.Ed25519.KeyPair, principal: u8, command: core.Co
 pub fn main(init: std.process.Init) !void {
     const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
     const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
     const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const worker = try core.Ed25519.KeyPair.generateDeterministic(@splat(8));
     const genesis: core.Genesis = .{ .realm = 45, .root_key = root.public_key.toBytes(), .allow_history_trim = true, .max_clock_error_ms = 0 };
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
-    defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = "lifetime" } } };
-    var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 8);
+    var owner = try disk.open(init, args[1], "lifetime");
+    defer owner.deinit();
+    var store: adapter.Store = .{ .backend = &owner };
+    var pages = try adapter.PageStore.init(&owner, 8);
     defer pages.deinit();
     var clock: Clock = .{ .now = 10 };
     if (std.mem.eql(u8, args[2], "write")) {
-        try store.journal.create();
-        try pages.create();
         var e = try Engine.bootstrap(&store, &pages, genesis);
         e.clock = .{ .context = &clock, .read = Clock.read };
         const pid = try submit(&e, root, 0, .{ .spawn = .{ .work_before_ms = 100, .settle_before_ms = 200, .allow_collection = true } });
@@ -50,7 +48,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, 0, .{ .own = .{ .pid = 1, .worker = 1, .expected_generation = 1 } });
         _ = try submit(&e, worker, 1, .{ .turn = .{ .pid = 1, .generation = 2, .input = permit.input, .expected_revision = 0, .permit = permit.id } });
         _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-        try disk.publish(&store);
+        try disk.assertCheckpointPublished(&store);
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         var e = try Engine.open(&store, &pages, genesis);
         clock.now = 201;
@@ -75,4 +73,5 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.RetiredProcess, submit(&e, root, 0, .{ .own = .{ .pid = 1, .worker = 1, .expected_generation = 2 } }));
     } else return error.UnknownPhase;
     std.debug.print("lifetime {s}: passed\n", .{args[2]});
+    if (!std.mem.startsWith(u8, args[2], "service_")) try disk.completed(init.io);
 }

@@ -727,3 +727,45 @@ test "private candidate pages stay bounded and seal before cross-owner reads" {
     try t.expectError(error.MissingStorageObject, writer.load(discarded));
     try t.expectError(error.MissingStorageObject, reader.load(discarded));
 }
+
+test "private candidate blocks own bytes and seal bounded groups before cross-owner reads" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var references: [core.pages.mutation_batch + 1]core.blocks.Reference = undefined;
+    {
+        var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+        defer owner.deinit();
+        var writer = try backend.PageStore.init(&owner, 0);
+        defer writer.deinit();
+        var reader = try backend.PageStore.init(&owner, 0);
+        defer reader.deinit();
+        const resident = writer.residentBytes();
+        var output: [32]u8 = undefined;
+        try writer.begin(1, false);
+        defer writer.discard();
+        for (&references, 0..) |*reference, i| {
+            var borrowed = "private block".*;
+            reference.* = try writer.stageBlock(try core.protocol.Blocks.Spec.of(&borrowed), &borrowed);
+            @memset(&borrowed, 0);
+            try t.expectEqualStrings("private block", try writer.loadBlock(reference.*, &output));
+            try t.expectEqual(resident, writer.residentBytes());
+            try t.expect(writer.pending_block_count <= core.pages.mutation_batch);
+            if (i < core.pages.mutation_batch) try t.expectError(error.MissingStorageObject, reader.loadBlock(reference.*, &output));
+        }
+        try t.expectEqualStrings("private block", try reader.loadBlock(references[0], &output));
+        try t.expectError(error.MissingStorageObject, reader.loadBlock(references[references.len - 1], &output));
+        try writer.finish();
+        for (references) |reference| try t.expectEqualStrings("private block", try reader.loadBlock(reference, &output));
+        try writer.begin(1, false);
+        const discarded = try writer.stageBlock(try core.protocol.Blocks.Spec.of("discarded"), "discarded");
+        writer.discard();
+        try t.expectError(error.MissingStorageObject, writer.loadBlock(discarded, &output));
+        try t.expectError(error.MissingStorageObject, reader.loadBlock(discarded, &output));
+    }
+    var owner = try backend.Backend.open(t.allocator, t.io, tmp.dir, "native", .{});
+    defer owner.deinit();
+    var reader = try backend.PageStore.init(&owner, 0);
+    defer reader.deinit();
+    var output: [32]u8 = undefined;
+    for (references) |reference| try t.expectEqualStrings("private block", try reader.loadBlock(reference, &output));
+}

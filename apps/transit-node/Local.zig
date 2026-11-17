@@ -97,7 +97,7 @@ pub const Runtime = struct {
         self.* = .{ .init = init, .config = config, .admission = undefined, .owner = undefined, .pages = undefined, .journal = undefined, .engine = undefined };
         try self.admission.init(init.gpa, config.storage);
         errdefer self.admission.deinit();
-        self.owner = try backend.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits);
+        self.owner = try backend.Backend.openWithObjectStorage(init.gpa, init.io, std.Io.Dir.cwd(), config.local_directory, config.storage.limits, config.storage.object_storage);
         errdefer self.owner.deinit();
         self.owner.collection_quota = &self.admission.collection;
         self.owner.maintenance_settings = config.storage.maintenance;
@@ -204,6 +204,16 @@ fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintena
         fn serve(process: std.process.Init, context: *server.Host(Self).Context, settings: Config, diagnostics_: *telemetry.Runtime) anyerror!void {
             return server.Host(Self).serveContext(process, context, settings, diagnostics_);
         }
+        fn tier(io: std.Io, owner: *backend.Backend, runtime: *telemetry.Runtime) anyerror!void {
+            while (true) {
+                owner.tierStep() catch |err| switch (err) {
+                    error.Canceled => return error.Canceled,
+                    error.TierRecoveryRequired => return error.LocalWalReopenRequired,
+                    else => runtime.event(.{ .name = "storage.tier.failed", .level = .warn, .operation = "transfer", .error_type = @errorName(err) }),
+                };
+                try io.sleep(.fromMilliseconds(100), .awake);
+            }
+        }
         fn watch(io: std.Io, owner: *backend.Backend, runtime: *telemetry.Runtime) anyerror!void {
             while (true) {
                 if (try owner.recoverySource()) |source| {
@@ -214,8 +224,8 @@ fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintena
             }
         }
     };
-    const Result = union(enum) { server: anyerror!void, maintenance: anyerror!void, recovery: anyerror!void };
-    var results: [3]Result = undefined;
+    const Result = union(enum) { server: anyerror!void, maintenance: anyerror!void, recovery: anyerror!void, tier: anyerror!void };
+    var results: [4]Result = undefined;
     var select: std.Io.Select(Result) = .init(init.io, &results);
     // Cancellation joins the HTTP listener and all request lanes, maintenance
     // and the observer before runOwner releases any pages or physical storage.
@@ -226,12 +236,14 @@ fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintena
         const extension: ?Maintenance.Extension(Self) = if (table_maintenance) |*work| .{ .context = work, .step = Task.maintainTable } else null;
         try select.concurrent(.maintenance, Task.maintain, .{ init, owned, maintenance, diagnostics, extension });
     }
+    if (engine.journal.backend.objects.tier != null) try select.concurrent(.tier, Task.tier, .{ init.io, engine.journal.backend, diagnostics });
     try select.concurrent(.server, Task.serve, .{ init, local.context.?, config, diagnostics });
     try select.concurrent(.recovery, Task.watch, .{ init.io, engine.journal.backend, diagnostics });
     return switch (try select.await()) {
         .server => |result| result,
         .maintenance => |result| result,
         .recovery => |result| result,
+        .tier => |result| result,
     };
 }
 
@@ -239,15 +251,18 @@ fn runServices(init: std.process.Init, local: *Runtime, config: Config, maintena
 /// check. Snapshot the small live owner record; never enumerate physical files.
 pub fn storageObservation(engine: *Engine) !core.protocol.Storage.Observation {
     const owner = engine.journal.backend;
-    try owner.mutex.lock(owner.io);
-    defer owner.mutex.unlock(owner.io);
     var result = core.protocol.Storage.Observation.unavailable;
-    result.backend = .local;
-    result.root = owner.resolved_root;
-    result.allocated_bytes = owner.allocated;
-    result.limits = owner.limits;
-    result.maintenance = owner.maintenance_activity;
-    result.settings = owner.maintenance_settings;
+    {
+        try owner.mutex.lock(owner.io);
+        defer owner.mutex.unlock(owner.io);
+        result.backend = .local;
+        result.root = owner.resolved_root;
+        result.allocated_bytes = owner.allocated;
+        result.limits = owner.limits;
+        result.maintenance = owner.maintenance_activity;
+        result.settings = owner.maintenance_settings;
+    }
+    if (owner.objects.tier) |tier| result.object_tier = try tier.observation();
     return result;
 }
 

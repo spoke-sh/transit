@@ -7,13 +7,13 @@ import time
 import urllib.error
 import urllib.request
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
 def run(node, cli, proof):
     with Fixture() as store:
-        subprocess.run([str(proof), "deletion", store.url, "service_seed"], check=True, timeout=30)
+        subprocess.run([str(proof), "deletion", str(store.native_directory), "service_seed"], check=True, timeout=30)
         # Public test vector matching the isolated fixture's genesis, never a
         # deployment credential. Keep the same private-file transport as services.
         seed = store.root / "seed"
@@ -24,14 +24,14 @@ def run(node, cli, proof):
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
         config.write_text(json.dumps({"genesis": {"realm": 54, "root_key": public, "allow_history_trim": True},
-            "ursula_url": store.url, "bucket": "transit-deletion", "journal": "authority", "port": port,
+            "local_directory": str(store.native_directory / "deletion"), "port": port,
             "maintenance": {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "checkpoint_every_records": 4}}))
         request = store.root / "request.json"
         request.write_text(json.dumps({"realm": 54, "principal": 0, "kind": {"inspection": {"resource": "payloads", "pid": 1}}}))
         signed = subprocess.check_output([str(cli), "native", "sign-query", str(seed), str(request)], timeout=10)
         children, logs = [], []
         try:
-            for args in ([], ["--maintain"]):
+            for args in ([],):
                 log = (store.root / f"deletion-{len(logs)}.log").open("w+")
                 logs.append(log)
                 children.append(subprocess.Popen([str(node), str(config), *args], stdout=log, stderr=subprocess.STDOUT))
@@ -54,7 +54,9 @@ def run(node, cli, proof):
                 assert all(child.poll() is None for child in children)
                 assert time.monotonic() < limit, view
                 time.sleep(0.05)
-            subprocess.run([str(proof), "deletion", store.url, "service_verify"], check=True, timeout=30)
+            children[0].kill()
+            children[0].wait(timeout=10)
+            subprocess.run([str(proof), "deletion", str(store.native_directory), "service_verify"], check=True, timeout=30)
             print("Background payload retirement/deletion preserves tombstones and unlimited-retention bytes.")
         except BaseException:
             for log in logs:

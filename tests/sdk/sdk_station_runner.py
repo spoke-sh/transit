@@ -45,7 +45,7 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
     from runtime.station.station import frame
     from sdk.sdk_scenarios import check
     root = ROOT
-    fixture = InstalledServer(node, cli, storage_config=cold.config(), manual_delivery=True)
+    fixture = InstalledServer(node, cli, object_storage=cold.native_config(), manual_delivery=True)
     with tempfile.TemporaryDirectory(prefix='transit-station-consumer-') as temporary, fixture as system:
         target = Path(temporary)
         with phase("consumer-install", "sdk-station"):
@@ -389,7 +389,6 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
             accepted = fault['commands'][-1]
             service.kill(); service.wait(timeout=10); children.remove(service)
             system.crash_authority()
-            system.store.stop(); system.store.start()
             system.restart_authority()
             seed_path = Path(source['seed_file'])
             saved_seed = seed_path.read_bytes(); seed_path.unlink()
@@ -607,8 +606,8 @@ def _run(node, cli, raw_library, install, label, cold, *, decode_block_repetitio
                 'query_rows': manifest['rows'], 'query_segments': manifest['segments'],
                 'owned_ipc_after_close': not children, 'revoked_result_denied': denied['denied'],
             })
-            assert cold.data_objects() > 0, 'Retained history did not reach cold storage'
-            print(f'{label} storage: 8 MiB provider hot cache, installed server defaults, {cold.data_objects()} cold objects.', flush=True)
+            assert cold.native_data_objects() > 0, 'Retained history did not reach cold storage'
+            print(f'{label} storage: 32 MiB native disk cache, installed server defaults, {cold.native_data_objects()} cold objects.', flush=True)
             print(f'{label} Station: clean artifacts/examples, full-width codecs, gated mutations, callback failures, scope safety, stop/join, codec policy, poisoned reads, fencing/expiry, exact disk/host recovery, retained Tables and six owned IPC segments passed.')
             print(f'{label} Station recovery: {recovered_events} transient outcomes reconciled with unchanged signed attempts.')
             print(f'{label} Station reads: {repeated_reads} unavailable observations repeated within the same progress budget.')

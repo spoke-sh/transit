@@ -12,7 +12,7 @@ separates logical expiry, reconciliation closure and physical cleanup; see
 Status: application opt-in and lifetime guarantees are established requirements.
 M1 implements a bounded subset: finite execution/settlement, checkpoint/trim,
 immutable payload deletion, and finite admission with a physical reserve proof.
-[Core](../../packages/zig/transit-core/README.md), [backend](../../packages/zig/transit-backend-ursula/README.md),
+[Core](../../packages/zig/transit-core/README.md), [backend](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/README.md),
 and [maintenance](../../apps/transit-node/README.md) own the mechanisms;
 [tests](../../tests/README.md) own evidence. M7 implements bounded
 KV dependencies, resource expiry and keyed checkpoint compaction;
@@ -315,7 +315,7 @@ plus node/Station quota refusal and reserve exhaustion across restart. The node
 does not allocate physical headroom automatically; capacity beyond that declared
 workload still requires its own provisioning and measurements.
 
-The M1 [immutable payload profile](../../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
+The M1 [immutable payload profile](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 implements opted-in whole-stream deletion after permanent owner retirement,
 with tombstones in separate control history. General payload dependencies and
 distributed compaction remain future work; M7 implements bounded KV checkpoint
@@ -333,7 +333,7 @@ A logical stream may span physical segments. Adapter contracts must describe
 append/read, checkpoint publication, retained-boundary advancement, deletion,
 incarnation detection, and observable reclamation capabilities. Reject unsupported
 guarantees; do not silently substitute weaker expiry or durability semantics.
-Ursula is the first adapter, with concrete mappings in the [backend README](../../packages/zig/transit-backend-ursula/docs/storage.md#retention-adapter).
+Ursula is the first adapter, with concrete mappings in the [backend README](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/storage.md#retention-adapter).
 Its cursors and physical stream names do not define Transit's process identity
 or retention policy.
 

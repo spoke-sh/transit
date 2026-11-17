@@ -38,34 +38,18 @@ pub fn node(installation: *Installation, allocator: std.mem.Allocator, path: []c
         storage.maintenance.archive.enabled = false;
         storage.maintenance.compact = false;
     }
-    if (external.ursula) |provider| {
-        _ = try Files.jsonIfChanged(init.io, allocator, path, .{
-            .profile = "native_v1",
-            .genesis = genesis,
-            .ursula_url = provider.url,
-            .bucket = provider.bucket,
-            .journal = provider.journal,
-            .listen = external.listen,
-            .port = config.ports.node,
-            .resident_pages = 512,
-            .request_timeout_ms = external.request_timeout_ms,
-            .readiness_file = try installation.path("server-ready"),
-            .storage = storage,
-            .maintenance = maintenance,
-        });
-    } else {
-        _ = try Files.jsonIfChanged(init.io, allocator, path, .{
-            .profile = "native_v1",
-            .genesis = genesis,
-            .local_directory = try installation.path("data/native"),
-            .listen = external.listen,
-            .port = config.ports.node,
-            .resident_pages = 512,
-            .request_timeout_ms = external.request_timeout_ms,
-            .readiness_file = try installation.path("server-ready"),
-            .storage = storage,
-            .table = table,
-            .maintenance = maintenance,
-        });
-    }
+
+    _ = try Files.jsonIfChanged(init.io, allocator, path, .{
+        .profile = "native_v1",
+        .genesis = genesis,
+        .local_directory = try installation.path("data/native"),
+        .listen = external.listen,
+        .port = config.ports.node,
+        .resident_pages = 512,
+        .request_timeout_ms = external.request_timeout_ms,
+        .readiness_file = try installation.path("server-ready"),
+        .storage = storage,
+        .table = table,
+        .maintenance = maintenance,
+    });
 }

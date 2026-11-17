@@ -15,7 +15,7 @@ just examples::query-reference table
 ```
 
 Each task accepts `kv`, `table` or `document`. They create isolated disposable
-fixtures. KV and Document use disk Ursula and an 8 MiB hot-store budget; Table
+fixtures. KV and Document use the native disk owner with a 32 MiB disposable cache; Table
 uses the native local persistence owner and its direct catalog. Their provisioning keys
 are public test fixtures; use these tasks only for the fresh synthetic realm they
 create. The reference task uses existing owned infrastructure while creating its

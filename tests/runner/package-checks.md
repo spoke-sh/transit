@@ -47,7 +47,6 @@ imports, options and extra compilation dependencies.
 | --- | --- | --- | --- |
 | `telemetry` | `src/root.zig` | Same module | Bounded sinks, actual temporary output files and instrumentation failure |
 | `transit-backend-local` | `src/root.zig` | Separate local catalog and native test roots | Local disk, reopen, retained authority and injected storage failures |
-| `transit-backend-ursula` | `src/root.zig` | Same module | Provider adapter framing/cache/queue controls; real disk Ursula has separate process schedules |
 | `transit-board-api` | `src/root.zig` | Same module | Read projections, disclosure and independent value interpretation |
 | `transit-catalog` | `src/root.zig` | Same module | Definitions, policies, dependencies, local storage and recovery |
 | `transit-client` | `src/root.zig`, `src/Abi.zig` | Both modules | Saved identities, owned native handles, real loopback peers and finite waits |
@@ -93,7 +92,7 @@ not be described as equivalent. Package `check` targets can compile exporters as
 well as test roots; compilation never proves their runtime assertions.
 
 The process-fault, provider and installed-consumer owners remain in
-[suite.json](suite.json). Local SIGKILL schedules, real Ursula, TLS/SQL/Flight
+[suite.json](suite.json). Local SIGKILL schedules, real MinIO, TLS/SQL/Flight
 peers, Docker/Kubernetes profiles and browser sessions are separate qualification
 boundaries. A component's use of files or sockets does not establish those claims.
 

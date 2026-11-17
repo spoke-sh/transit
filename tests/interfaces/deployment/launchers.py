@@ -97,6 +97,8 @@ def proof(profile):
             assert not launcher.services()
         invoke("up", settings={"TRANSIT_LOG_FORMAT": "json", "TRANSIT_NODE_LOG_LEVEL": "debug"})
         first = observe(12)
+        assert "ursula" not in json.loads((installation.path / "transit.json").read_text())["external"]
+        assert not (installation.path / "ursula.toml").exists()
         assert installation.load()["observability"]["node"]["level"] == "debug"
         time.sleep(.1)
         visible = invoke("logs", "board")
@@ -125,7 +127,7 @@ def proof(profile):
         endpoints = json.loads(invoke("endpoints"))
         assert endpoints["board"] == installation.origin
         status = json.loads(invoke("status"))["services"]
-        assert {"ursula", "node", "counter", "board"} <= {row["name" if profile == "local" else "Service"] for row in status}, status
+        assert {"node", "counter", "board"} <= {row["name" if profile == "local" else "Service"] for row in status}, status
         invoke("reset", success=False)
         invoke("up", success=False)
         # Credentials must stay out of machine-readable output and service logs.
@@ -136,7 +138,7 @@ def proof(profile):
         for path in installation.path.rglob("*.key"):
             assert path.stat().st_mode & 0o077 == 0, path
             credentials.append(path.read_text())
-        for service in ("ursula", "node", "counter", "board"):
+        for service in ("node", "counter", "board"):
             output = invoke("logs", service)
             assert all(key not in output for key in credentials)
         admitted = json.loads(invoke("send", "9", "--request-id", "same-input"))
@@ -197,6 +199,24 @@ def proof(profile):
         installation.artifacts.select(selection)
         saved_manifest = installation.manifest.read_bytes()
         manifest = json.loads(saved_manifest)
+        # A retained Ursula launcher cannot be adopted as an empty native realm.
+        config_before = (installation.path / "transit.json").read_bytes()
+        for runtime in (None, "server_external_v1"):
+            changed = dict(manifest)
+            if runtime is None:
+                del changed["runtime"]
+            else:
+                changed["runtime"] = runtime
+            write(installation.manifest, changed)
+            rejected_manifest = installation.manifest.read_bytes()
+            invoke("up", success=False)
+            invoke("update", "--no-build", success=False)
+            assert installation.manifest.read_bytes() == rejected_manifest
+            assert (installation.path / "transit.json").read_bytes() == config_before
+            # Compose inspection also validates the manifest. Restore the exact
+            # fixture bytes only after proving rejection left them untouched.
+            installation.manifest.write_bytes(saved_manifest)
+            assert not launcher.services()
         for definition in (None, "00" * 32):
             changed = dict(manifest)
             if definition is None:
@@ -217,7 +237,7 @@ def proof(profile):
         assert recovered["consumed"] == recovered["admitted"] == 4
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         assert not (installation.path / "board/access.key").exists()
-        for service in ("ursula", "node", "board"):
+        for service in ("node", "board"):
             invoke("restart", service)
             assert observe(25)["pid"] == first["pid"]
         # Change the endpoint of an existing installation, without resetting its
@@ -253,7 +273,7 @@ def proof(profile):
         else:
             topology = json.loads(launcher.docker("config", "--format", "json", capture=True))
             assert topology["services"]["board"]["ports"][0]["host_ip"] == "0.0.0.0"
-            for service in ("node", "ursula"):
+            for service in ("node",):
                 assert topology["services"][service]["ports"][0]["host_ip"] == "127.0.0.1"
         authority = f"devbox.local:{board_port}"
         def remote_request(path, *, host=authority, origin=remote_origin, method="GET", timeout=5):
@@ -289,13 +309,13 @@ def proof(profile):
         # An established installation with missing WAL must fail recovery.
         # It must not take the initial --initialize path or allocate new PIDs.
         saved_wal = installation.path / "saved-wal"
-        (installation.path / "wal").rename(saved_wal)
-        (installation.path / "wal").mkdir(mode=0o700)
+        (installation.path / "server-data/installation/data/native/wal").rename(saved_wal)
+        (installation.path / "server-data/installation/data/native/wal").mkdir(mode=0o700)
         invoke("up", success=False)
         assert (installation.path / "initialized.json").exists()
         invoke("down")
-        shutil.rmtree(installation.path / "wal")
-        saved_wal.rename(installation.path / "wal")
+        shutil.rmtree(installation.path / "server-data/installation/data/native/wal")
+        saved_wal.rename(installation.path / "server-data/installation/data/native/wal")
         invoke("up")
         assert observe(25)["pid"] == first["pid"]
         installation.command("retire-counter", {"terminate": first["pid"]})
@@ -328,6 +348,7 @@ def foreground_proof(profile):
     installation = Installation(profile, "foreground-" + secrets.token_hex(3), ports())
     launcher = Local(installation) if profile == "local" else Compose(installation)
     env = {k: v for k, v in os.environ.items() if not k.startswith("TRANSIT_") and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+    env["TRANSIT_LOG_FORMAT"] = "json"
     command = [sys.executable, "-B", str(ROOT / "launchers/main.py"), profile]
     selection = ["--name", installation.name, "--base-port", str(installation.base_port)]
     output = ROOT / ".cache" / (installation.name + ".log")
@@ -383,7 +404,7 @@ def foreground_proof(profile):
             child.send_signal(signal.SIGINT)
             assert child.wait(timeout=30) == 0
             assert not launcher.services()
-            assert installation.manifest.exists() and (installation.path / "wal").exists()
+            assert installation.manifest.exists() and (installation.path / "server-data/installation/data/native/wal").exists()
 
         if profile == "compose":
             # Recover the same PID/state, then pause the old foreground owner
@@ -409,7 +430,7 @@ def foreground_proof(profile):
 
         # A startup failure must report the owned service's error, exit nonzero,
         # and clean up its own manager without deleting the saved installation.
-        wal = installation.path / "wal"
+        wal = installation.path / "server-data/installation/data/native/wal"
         saved_wal = installation.path / "saved-wal"
         wal.rename(saved_wal)
         wal.mkdir()
@@ -419,8 +440,19 @@ def foreground_proof(profile):
             assert child.wait(timeout=600 if profile == "compose" else 60) != 0
         failure = "node failed" if profile == "local" else "node exited"
         transcript = output.read_text()
-        service_failures = [line for line in transcript.splitlines() if "server.role.failed" in line]
-        assert any("error_type" in line and "NotFound" in line for line in service_failures), transcript[-5000:]
+        service_failures = []
+        for line in transcript.splitlines():
+            # Foreground managers may prefix JSON records with a service name.
+            _, marker, payload = line.partition("{")
+            try:
+                record = json.loads(marker + payload)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(record, dict) and record.get("schema_version") == 1:
+                event = record.get("event", {})
+                if event.get("name") == "server.role.failed" and event.get("role") == "node":
+                    service_failures.append(event)
+        assert any(event.get("error_type") == "InvalidHistory" for event in service_failures), transcript[-5000:]
         assert failure in transcript, transcript[-5000:]
         assert not launcher.services()
         shutil.rmtree(wal)
@@ -433,7 +465,7 @@ def foreground_proof(profile):
             if profile == "local":
                 wait_for(lambda: "Process Compose v" in output.read_text())
             else:
-                wait_for(lambda: any(row["Service"] == "ursula" for row in launcher.services()), seconds=600)
+                wait_for(lambda: any(row["Service"] == "node" for row in launcher.services()), seconds=600)
                 assert "Compose stack ready." not in output.read_text()
             child.send_signal(signal.SIGTERM)
             assert child.wait(timeout=30) == 0

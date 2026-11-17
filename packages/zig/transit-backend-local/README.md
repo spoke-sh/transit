@@ -7,6 +7,100 @@ directory; request-owned `Store` and `PageStore` instances borrow it.
 See the [internal node configuration](../../../apps/transit-node/docs/growing.md)
 for supported operations and current maintenance/diagnostic limits.
 
+## Optional immutable object tier
+
+`storage.object_storage` configures the native owner's S3-compatible immutable
+object tier. The initial real-provider evidence uses the pinned MinIO server;
+AWS S3 remains unqualified. The native WAL, installation identity, allocation
+inventories and per-object descriptors remain required on durable local disk.
+The bucket alone cannot recover acknowledged operations. A single exclusive
+local owner is supported; the remote namespace marker is not distributed fencing.
+
+Configure `endpoint`, `region`, `bucket`, a dedicated `prefix`, and
+`credentials_file`. The credential file contains `access_key_id`,
+`secret_access_key` and optionally `session_token`; it is reopened for each
+provider request so credentials can rotate without changing installation
+identity. Use HTTPS. `allow_loopback_http: true` permits only explicit loopback
+HTTP for local MinIO testing. Optional `ca_file` names a PEM bundle for a private
+provider; omission uses system roots. The bundle loads when the owner opens, so
+CA changes require restart. Hostname and certificate validity checks remain
+required. Do not put credential values in deployment JSON.
+
+The tier must be selected before the first native or direct allocation. The
+persisted namespace binding rejects changes to endpoint, region, bucket or
+prefix, and a retained tier cannot be opened as local-only storage. A random
+installation token claims `.transit/owner` conditionally; another installation
+cannot reuse that namespace. A restarted owner uses its retained claim and may
+stage locally while the provider is unavailable, subject to the configured
+budgets. Deleting local identity is not a way to adopt a remote namespace.
+
+Foreground immutable publication first records a bounded durable upload intent,
+then its per-key generation and synced local bytes; all must complete before
+native/direct WAL acceptance. It performs no remote upload. The node owns a
+joined background transfer task. Each step reads one persisted intent, uploads
+its original content, reads it back through the verified S3 adapter, records
+coverage durably, then releases only local content bytes. The original local
+key/content descriptor remains. Incomplete staging after process death remains
+visible to the original allocation collector or exact publication retry; the
+uploader never invents missing bytes or discards accepted work.
+
+Remote keys bind the logical key hash and upload generation. Collection first
+records a deletion intent under the same per-key lock. Remote reclamation replaces
+the old generation with a verified, permanent 512-byte retirement envelope. This
+removes its payload and fences a delayed create-only PUT, including one whose
+client timed out or died. A new generation uses a different key. Never delete
+these retirement envelopes or apply a bucket lifecycle rule that expires them:
+they are control records, not cache. They consume provider storage separately
+from local staging/cache budgets. The qualified MinIO bucket is unversioned;
+provider-managed versions and backups are outside this cleanup proof.
+Queue progress and coverage have checksums and the shared definition;
+missing required inventory refuses recovery. No quota, upload failure, cache
+pressure or remote listing grants deletion authority.
+
+The queue uses one 32 KiB decode scratch slab and a derived cumulative-tail
+cache. Verified forward seeks survive trimming; cold open and startup
+reconciliation prepare the consumer position before admission. Startup still
+validates retained WAL history, and these in-memory caches grant no recovery or
+deletion authority. A tier step handles at most one intent. The node waits
+100 ms between steps; backend callers own their scheduling.
+Every consumed position is synced before completion. The logical cleanup floor
+advances every eight consumed records or when the queue empties, always retaining
+the final cumulative record. Physical cleanup uses bounded units and continues
+during idle worker steps, including after reopen; delayed cleanup never replays
+consumed work or skips pending intents.
+
+`staging_bytes` defaults to 1 GiB (minimum 32 MiB) and `pending_objects` to 65,536
+(maximum 1,048,576). Upload admission uses both; control uploads and deletion share a separate 4,096-item
+reserve. Control uploads may additionally use the native `control_bytes` budget. Exhaustion refuses additional staging without expiring data.
+Metadata and content also consume the native allocation budget. `cache_bytes`
+defaults to 256 MiB (32 MiB–4 GiB); it bounds a separate disposable disk cache.
+The cache has at most 4,096 resident descriptors, starts cold on reopen, and
+checks every hit against the original local digest. Two reusable 32 MiB read
+slots, one 32 MiB upload workspace and the S3 adapter's approximately 32 MiB PUT
+workspace are separate from
+request and page-cache budgets. `request_timeout_ms` defaults to 10,000 and
+bounds each joined provider request; the adapter does not silently retry it.
+Each serialized adapter retains at most one idle HTTP/TLS connection; failed or
+incomplete exchanges close it, preserving the original request's uncertainty.
+Connections idle for at least five seconds close before the next request.
+
+The [provider proof](../../../tests/storage/providers/s3.py) executes real MinIO
+operations and forced process-death reopen at this backend boundary, including
+cache loss, generation deletion/recreation, provider denial and namespace/digest
+refusal. It does not establish AWS, power-loss durability, shared-filesystem
+safety, replicated authority or complete server/deployment qualification.
+
+The same proof measures eight 1 KiB immutable objects. Staging, exact retry and
+immediate reads issue zero remote data requests. Background transfer issues
+8 PUTs, 8 HEADs and 16 GETs to publish and verify the originals. PUT bodies total
+12,544 bytes for 8,192 logical bytes (1.53125×), including each object's 512-byte
+envelope and 32-byte chunk digest. Eight cold reads followed by eight cache hits
+issue 8 HEADs and 16 GETs in total. One connection carries each batch's data
+requests in the counting proxy proof. These counts exclude namespace claims, HTTP
+headers, TLS, local WAL/metadata and physical disk writes. Objects are transferred
+individually; this profile does not qualify remote packing, cost targets or a
+latency/throughput SLO.
+
 Named temporary immutable files publish through the storage package's
 `FilePublication` helper: sync contents, create a nonreplacing hard link, remove
 the temporary name, then sync the parent before acknowledging success. Unnamed
@@ -22,7 +116,8 @@ and blocks are staged as verified immutable objects. A single conditional WAL
 append publishes the next catalog and policy roots. A lost reply remains
 uncertain; reopening and resubmitting the same signed operation recovers its
 existing receipt without repeating staging. Recovery does not execute effects.
-`requiresRecovery` observes uncertainty in all three owned WALs under their
+`requiresRecovery` observes uncertainty in the native/data inventories, main WAL
+and optional object-tier inventory under their
 serialization locks. It does not clear the condition: the service must join
 borrowers, close the owner and validate the original directory on reopen.
 The [node lifecycle](../../../apps/transit-node/docs/operations.md) defines the
@@ -86,16 +181,18 @@ and ordinary collection. Page encoders use at most eight 24 KiB buffers plus
 envelopes in a separate batch stack frame; single-page staging keeps its own
 frame. No stored format, acceptance decision, timeout or cache capacity changes.
 The native page owner also buffers up to eight private pages across tree/path
-mutations in one candidate. This fixed buffer is allocated with the owner,
-separately from the configurable read cache, and is included in `residentBytes`.
+mutations and eight immutable blocks in one candidate. These fixed buffers are
+allocated with the owner,
+separately from the configurable read cache, and are included in `residentBytes`.
 Reads in that candidate can resolve its buffered children even with a zero-page
 cache. A full buffer flushes through the same allocation/object publication path;
 `finish` flushes the remainder before preparation returns and before any native
-WAL acceptance. Discard drops only unflushed private pages. Already published
+WAL acceptance. Discard drops only unflushed private pages and blocks. Already published
 private objects retain their allocation evidence and ordinary collection rules.
-File barriers within a group use at most eight concurrent tasks, joined before
-name/directory publication continues, including after a sync failure. Inline
-execution remains valid when the supplied I/O runtime cannot schedule tasks.
+File barriers use the storage helper’s bounded concurrent I/O group, even on
+one CPU, and join before name/directory publication continues, including after
+a sync failure. Inline execution remains valid when the supplied I/O runtime
+cannot schedule concurrent tasks.
 Native page/block creation likewise uses its own allocation-queue mutex and
 holds a shared creation/reclamation fence until immutable publication finishes.
 Only the accepted-epoch check and quota reservation take the journal mutex;

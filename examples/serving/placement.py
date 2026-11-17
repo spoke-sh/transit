@@ -73,7 +73,7 @@ ip6tables -w -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
-        targets = [self.address('ursula') + ':8080', self.cold_address + ':' + str(self.cold_port), '1.1.1.1:443']
+        targets = [self.cold_address + ':' + str(self.cold_port), '1.1.1.1:443']
         for namespace, service in (('default', 'kubernetes'), ('ate-system', 'api')):
             targets.append(json.loads(self.kube('get', 'service', service, '-n', namespace, '-o', 'json'))['spec']['clusterIP'] + ':443')
         init = [dict(name='egress', image=self.pins['kind_node'], command=['sh', '-ec', rules],
@@ -111,7 +111,7 @@ class DirectReference(Reference):
         directory = self.work / 'operator'
         self.apply(dict(apiVersion='v1', kind='Secret', metadata=dict(name='serving-authority'),
             data={name: base64.b64encode((directory / name).read_bytes()).decode()
-                  for name in ('node.json', 'registrar.seed') if (directory / name).exists()}))
+                  for name in ('node.json', 'registrar.seed', 'object-credentials.json', 'object-ca.pem') if (directory / name).exists()}))
 
     def node_container(self, initialize=False):
         return dict(name='node', image=self.env['EXCHANGE_NODE_IMAGE'],

@@ -15,6 +15,10 @@ storage-segments:
     cd packages/zig/transit-fuze && zig build test -Dtest-filter=TSeg -Dtest-filter="column" -Dtest-filter="bound borrowing" --summary all
     cd packages/zig/transit-storage && zig build test -Dtest-filter="Table segment ranges" --summary all
 
+# Signed object operations and transport faults against the pinned real MinIO.
+s3:
+    zig build test-s3 -Doptimize=ReleaseSafe
+
 # Real process death at WAL append/fence/trim and object publication boundaries.
 local-storage-faults:
     zig build test-local-storage-faults -Doptimize=ReleaseSafe
@@ -147,6 +151,18 @@ local-payload-service:
 local-catalog:
     zig build test-local-catalog -Doptimize=ReleaseSafe
 
+# Local and Compose SQL, configurable tier limits, eviction and MinIO recovery (Linux/Docker).
+server-object-tier:
+    nix develop .#release-checks --command zig build test-server-object-tier -Doptimize=ReleaseSafe -Dtarget=$(uname -m)-linux-musl
+
+# Real Table/KV/Stream/Queue transaction recovery after MinIO eviction.
+tier-mixed-transaction:
+    python3 -B tests/runner/launch.py tests/storage/providers/tier_mixed_transaction.py
+
+# Real MinIO retained-graph traversal, collection, cold reopen and original outcomes.
+tier-data-collection:
+    zig build test-tier-data-collection -Doptimize=ReleaseSafe
+
 # Explicit Table expiry, retained snapshots and original receipts after collection.
 local-data-collection:
     zig build test-local-data-collection
@@ -217,14 +233,6 @@ direct-follow-query:
 # Separate named publication, caller grants and explicit direct Table activation.
 direct-named-query:
     zig build test-direct-captured-query -Doptimize=ReleaseSafe -- --named-only
-
-# Primitive bytes/index proof; native authority and SQL integration are separate.
-block-storage:
-    zig build test-block-storage -Doptimize=ReleaseSafe
-
-# Epoch fencing, retained roots, relocation and physical deletion across restart.
-storage-collection:
-    zig build test-storage-collection -Doptimize=ReleaseSafe
 
 # Atomic native block roots, retained bytes and current authority through faults.
 native-blocks:
@@ -488,7 +496,6 @@ packages:
     cd packages/zig/transit-board-api && zig build test
     cd packages/zig/transit-protocol && zig build test
     cd packages/zig/transit-core && zig build test
-    cd packages/zig/transit-backend-ursula && zig build test
     cd packages/zig/transit-backend-local && zig build test
     cd packages/zig/transit-client && zig build test
     cd packages/zig/transit-runtime-substrate && zig build test
@@ -502,15 +509,15 @@ packages-build jobs="2":
 compute:
     cd packages/zig/transit-fuze && zig build test-compute
 
-# Run isolated persistent Ursula tests, including SIGKILL and restart.
+# Run isolated native disk recovery tests, including SIGKILL and restart.
 storage:
     zig build test-storage
 
-# Exercise signed HTTP ingress and worker recovery against isolated disk Ursula.
+# Exercise signed HTTP ingress and worker recovery against isolated the native disk owner.
 service:
     zig build test-service
 
-# Signed policy staging, current checks and restart against disk-backed Ursula.
+# Signed policy staging, current checks and restart against the native disk owner.
 authorization:
     zig build test-native-authority-fixture test-native-client-fixture
     python3 -B tests/runner/launch.py tests/catalog/authorization/authorization_native.py zig-out/tests/native-authority-fixture zig-out/tests/native-client-fixture --report .cache/verification/authorization-native.json
@@ -551,14 +558,6 @@ inspection:
 state:
     zig build test-state
 
-# Qualify the M10 immutable page primitive; not a new public state profile.
-pages *args:
-    zig build test-pages -- {{args}}
-
-# Linux/Docker: qualify packed pages with persistent S3-compatible cold storage.
-pages-cold *args:
-    zig build test-pages -- --cold-s3 {{args}}
-
 # Prove v1 authority publication with retained views/receipts and disk restart.
 growing *args:
     zig build test-growing -- {{args}}
@@ -589,7 +588,7 @@ growing-service-release:
 growing-station *args:
     zig build test-growing-station -- "$@"
 
-# Qualify Document jobs, checkpoint recovery and current-policy reads over disk Ursula.
+# Qualify Document jobs, checkpoint recovery and current-policy reads over the native disk owner.
 document:
     zig build test-document
 
@@ -609,7 +608,7 @@ application:
 work-items:
     zig build test-work-items -Doptimize=ReleaseSafe
 
-# Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
+# Qualify larger immutable records, current access and bounded cleanup over the native disk owner.
 publication:
     zig build test-publication
 
@@ -1133,7 +1132,7 @@ domain-simulation *args:
 domain-simulation-mutations:
     python3 -B tests/runner/launch.py tests/verification/mutations/mutations.py --domain
 
-# External OS/network faults over owned binaries and actual disk Ursula.
+# External OS/network faults over owned binaries and actual the native disk owner.
 vortex *args:
     python3 -B tests/runner/launch.py tests/runtime/delivery/vortex_proxy.py
     zig build test-vortex -- {{args}}

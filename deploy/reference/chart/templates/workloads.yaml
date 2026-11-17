@@ -58,38 +58,27 @@ spec:
           image: {{ required (printf "%s image is required" $component) $runtime.image | quote }}
           imagePullPolicy: IfNotPresent
           args:
-            {{- if eq $component "ursula" }}
-            - server
-            - --config
-            - /config/ursula.toml
-            {{- else }}
             {{- if eq $component "node" }}
             - server
             - --no-ui
             - --config
             {{- end }}
             - /config/config.json
-            {{- end }}
           env:
-            {{- if eq $component "ursula" }}
-            - {name: RUST_LOG, value: warn}
-            - {name: TOKIO_WORKER_THREADS, value: "2"}
-            {{- else }}
             {{- $logging := $settings.logging }}
             - {name: LOG_FORMAT, value: {{ $logging.format | quote }}}
             - {name: LOG_LEVEL, value: {{ $logging.level | quote }}}
-            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities: {drop: [ALL]}
           resources:
             {{- toYaml $resources | nindent 12 }}
-          {{- if has $component (list "node" "ursula" "board") }}
+          {{- if has $component (list "node" "board") }}
           ports: [{name: http, containerPort: 8080}]
           readinessProbe:
             httpGet:
-              path: {{ if eq $component "ursula" }}/__ursula/ready{{ else }}/health{{ end }}
+              path: /health
               port: http
               {{- if eq $component "board" }}
               httpHeaders:
@@ -112,9 +101,7 @@ spec:
             {{- if and (eq $component "node") $.Values.node.existingSecret }}
             - {name: node-secrets, mountPath: /secrets, readOnly: true}
             {{- end }}
-            {{- if eq $component "ursula" }}
-            - {name: data, mountPath: /data}
-            {{- else if has $component (list "board" "controller") }}
+            {{- if has $component (list "board" "controller") }}
             - {name: secrets, mountPath: /secrets, readOnly: true}
             {{- if eq $component "controller" }}
             - {name: provider, mountPath: /provider, readOnly: true}
@@ -138,19 +125,9 @@ spec:
             defaultMode: 288
         {{- end }}
         - name: config
-          {{- if and (eq $component "ursula") $settings.existingConfigSecret }}
-          secret:
-            secretName: {{ $settings.existingConfigSecret }}
-            defaultMode: 288
-          {{- else }}
           configMap:
             name: {{ include "transit.name" $configCtx }}
-          {{- end }}
-        {{- if eq $component "ursula" }}
-        - name: data
-          persistentVolumeClaim:
-            claimName: {{ default (include "transit.name" $ctx) $settings.persistence.existingClaim }}
-        {{- else if has $component (list "board" "controller") }}
+        {{- if has $component (list "board" "controller") }}
         - name: secrets
           secret:
             secretName: {{ required (printf "%s.existingSecret is required; never put credentials in values" $component) $settings.existingSecret }}
@@ -170,6 +147,6 @@ spec:
 {{- end }}
 {{- end }}
 {{- end }}
-{{- range $component := list "node" "ursula" "board" "controller" }}
+{{- range $component := list "node" "board" "controller" }}
 {{ include "transit.workload" (dict "root" $ "component" $component) }}
 {{- end }}

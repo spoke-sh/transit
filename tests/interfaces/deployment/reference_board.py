@@ -9,7 +9,7 @@ from harness.services import free_port
 
 
 class Board:
-    def __init__(self, s, directory, namespace, images, pid, command, key, apply, start, chart):
+    def __init__(self, s, directory, namespace, images, pid, command, key, apply, start, chart, object_url):
         self.s, self.directory, self.namespace = s, directory, namespace
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         seed, public = key("board")
@@ -27,11 +27,8 @@ class Board:
             return address
         transit_ip = service_ip("transit")
         dns_ip = service_ip("kube-dns", "kube-system")
-        ursula_ip = service_ip("ursula")
         kube_ip = service_ip("kubernetes", "default")
         substrate_ip = service_ip("api", "ate-system")
-        pods = json.loads(ref.kube(s, ["-n", namespace, "get", "pods", "-l", "app=ursula", "-o", "json"], capture=True))["items"]
-        raw_ip = pods[0]["status"]["podIP"]
         config = {"upstream": f"http://{authority}:8080", "realm": 49, "principal": 4,
                   "seed_file": "/secrets/seed",
                   "public_origin": self.origin, "listen": "0.0.0.0", "port": 8080,
@@ -54,9 +51,7 @@ ip6tables -w -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
 ip6tables -w -A OUTPUT -j REJECT
 '''
         checks = [{"label": label, "url": url, "deny_at_transport": True} for label, url in [
-            ("raw-service", f"http://{ursula_ip}:8080/transit-reference/authority?record=0"),
-            ("raw-pod", f"http://{raw_ip}:8080/transit-reference/authority?record=0"),
-            ("raw-admin", f"http://{raw_ip}:8081/metrics"),
+            ("raw-objects", object_url.replace("https://", "http://") + "/transit-proof/"),
             ("substrate", f"http://{substrate_ip}:443/"),
             ("kubernetes", f"http://{kube_ip}:443/"),
         ]]

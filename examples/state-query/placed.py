@@ -22,7 +22,7 @@ def run(profile, kind):
     proof = ROOT/'zig-out/bin/transit-unified-query-proof'
     example = ROOT/'zig-out/bin/example-state-query'
     host = ROOT/'zig-out/bin/transit-query-host'
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('OTEL_',))} | {'LOG_LEVEL': 'warn'}
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with tempfile.TemporaryDirectory(prefix='transit-query-') as directory:
         work = Path(directory)
@@ -113,8 +113,7 @@ def run(profile, kind):
                 reference = TableReference
             placement = reference(work) if profile == 'reference' else Compose(work)
             if profile == 'compose':
-                (work/'ursula.toml').touch()
-                placement.call('create', 'ursula')
+                placement.prepare_storage_network()
                 network = placement.project+'_storage'
             else:
                 network = 'kind'
@@ -123,17 +122,11 @@ def run(profile, kind):
             if bridge is None: raise RuntimeError('Query placement needs a private IPv4 bridge gateway')
             cold = ColdStore(bind_address=bridge).__enter__()
             placement.cold_address, placement.cold_port = bridge, cold.port
-            config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config()
-            (work/'ursula.toml').write_text(config); (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public']))
             node_config = dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 port=8080, listen='0.0.0.0', resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000)
-            if kind == 'table':
-                node_config['local_directory'] = '/authority'
-            else:
-                node_config.update(ursula_url='http://ursula:8080', bucket='query-example', journal='authority')
+            node_config.update(local_directory='/authority', storage=dict(object_storage=cold.placement_config(work)))
             write('operator/node.json', node_config)
-            storage = placement.start('ursula'); ready(storage, placement.url('ursula')+'/__ursula/ready')
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
             if kind == 'table':
@@ -146,8 +139,8 @@ def run(profile, kind):
                 node_config['table'] = table
                 write('operator/node.json', node_config)
                 authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
-            denied = [placement.address('ursula', 'storage')+':8080', placement.cold_address+':'+str(cold.port), '1.1.1.1:443']
-            assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
+            denied = [placement.cold_address+':'+str(cold.port), '1.1.1.1:443']
+            assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=len(denied))
             invoke('provision', kind, timeout=1800)
             requester, source = activate('requester'), activate('source')
             delivery = courier()
@@ -171,8 +164,6 @@ def run(profile, kind):
                 for process in (source, requester): process.kill(); process.wait(timeout=10)
             delivery.kill(); delivery.wait(timeout=10)
             placement.stop_for_recovery('node', authority)
-            placement.stop_for_recovery('ursula', storage)
-            storage = placement.start('ursula'); ready(storage, placement.url('ursula')+'/__ursula/ready')
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url+'/health')
             requester, source = activate('requester', True), activate('source', True)
             delivery = courier()
@@ -202,7 +193,7 @@ def run(profile, kind):
                 raise AssertionError('retired source disclosed results')
             except RuntimeError as error:
                 assert any(name in str(error) for name in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied')), str(error)
-            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; native backend={"local_directory" if kind == "table" else "ursula"}, {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
+            print(f'Query {profile}/{kind}: same call/source identity, staged capture, physical worker/node/disk recovery, complete owned pages, released pin, retirement and network isolation passed in {time.monotonic()-started:.2f}s; native backend=local_directory + MinIO immutable tier, {cold.native_data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
         except BaseException:
             if placement:
                 print(placement.call('ps'), file=sys.stderr)

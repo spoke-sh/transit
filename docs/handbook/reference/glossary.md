@@ -17,8 +17,6 @@ concepts. Detailed contracts and compatibility requirements live with their owne
 | Station | Transit's OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [Station](station.md). |
 | Fuze | Transit's Zig-native query and compute engine across KV, Table and Document state, inspired by DataFusion and Acero. Its artifact family is `transit-fuze*`; it runs outside kernel authority. See [Fuze queries](queries.md). |
 | Agentic | The class of workloads the system is intended to support. It does not place reasoning loops, goals, or agent/task delegation in the kernel. |
-| Ursula | The selected durable stream storage and transport implementation. See [Storage](storage.md). |
-| ursula-zig | The upstream Zig client used by Transit's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
 | Agent Substrate | The recommended sandbox execution target on Kubernetes. It manages runtime infrastructure and lifecycle; Transit's durable history governs process execution. See [Deployment](deployment.md). |
 | Launcher | Development tooling that provisions and runs a concrete environment. Local, Compose, and reference launchers compose services; they do not replace Transit authority or Station supervision. See the [launcher guide](../../../launchers/README.md). |
 
@@ -138,7 +136,7 @@ alone do not create an association or lifetime dependency.
 | Cardinality limit | A limit on total entries or identities; distinguish an explicit deployment quota from a temporary compiled catalog ceiling |
 | Operation budget | A bound on one request, atomic proposal, scan or result batch; does not by itself cap the whole resource |
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
-| `TransitLog` (`TWAL1`) | Target sequenced write-ahead log and live delta-activation bus (`LocalWal`, `UrsulaWal`, or `Kafka`/`Pulsar`), distinct from compacted Tier 3 object segments |
+| `TransitLog` (`TWAL1`) | Target sequenced write-ahead log and live delta-activation bus (`LocalWal`, with `Kafka`/`Pulsar` adapters planned), distinct from compacted Tier 3 object segments |
 | `TransitObjectStore` | Target immutable segment and manifest store (`LocalSegmentStore` or S3/GCS/R2/Azure Blob) supporting conditional manifest CAS (`If-None-Match`) and byte-range reads |
 | `.tseg` / `.tdel` | Target 64-byte-aligned hybrid OLTP/OLAP data segment format (Arrow buffers, 5-state cell tags, composable Zig codecs, collation-aware zone maps, embedded PK prefix B-tree index) and companion roaring deletion vector |
 | Collation (`COLLATE`) | Explicit ordering and equivalence law (`UCS_BASIC`, `EBCDIC_037_PAD`, `ASCII_CI`, `UCA`) bound into column descriptors, `.tseg` zone maps, B-tree sort keys and `Fuze` vector kernels |
@@ -209,7 +207,6 @@ cluster scopes, conflict handling, and stable message destinations.
 | Correlation | An identity joining related work, such as a request and its reply. It does not itself establish order or authority. |
 | Durable stream | Persistent ordered records with resumable reading under a documented durability/retention contract. |
 | Immutable payload | A logical storage object with a fixed byte body, content hash and unreused identity. Native publication/deletion records preserve its identity; Station Publication and Exchange define their own dependency and lifetime boundaries. |
-| Cursor | Ursula's opaque cache/collapse token, independent of the offset or record position that selects a read location. It is not a Transit message identity or execution position. |
 | Authoritative history | Validated durable records, including checkpoints replacing reclaimed prefixes, that determine accepted work, progress, ownership, lifetime, and effect eligibility. |
 | Outbox | Committed pending outputs awaiting delivery. Retried delivery preserves identity and the destination deduplicates admission. |
 | Delivery courier | Independently restartable service that advances committed outboxes through scoped Transit commands; durable progress stays in the kernel history. |
@@ -218,7 +215,6 @@ cluster scopes, conflict handling, and stable message destinations.
 | Sandbox snapshot | Runtime memory/filesystem capture. Restoring it does not restore ownership or supersede newer protocol history. |
 | Replay | Reconstructing or inspecting committed execution within retained history using recorded outcomes, without redispatching external effects. |
 | Recovery | Restoring valid state and authority, then resuming eligible live work within its lifetime and delivery/attempt contracts. |
-| Producer epoch | Ursula's producer-deduplication generation. It is distinct from a Transit ownership generation; their mapping must be proved. |
 
 See [Streams](streams.md), [Processes](processes.md), and [Storage](storage.md).
 
@@ -272,7 +268,7 @@ checkpoint authority, and reclamation guarantees.
 | gRPC connector worker | Trusted executor of committed, authorized RPC sends with durable captures, finite streaming budgets and bounded reconciliation. |
 | Attempt | One authorized execution attempt of an effect, with its own identity. Retries and redirects remain individually observable. |
 | Dispatch authorization | The durable decision permitting one external attempt after current checks. From that point it may be in flight even if its worker has not yet sent. |
-| Exchange stream group | A Transit manifest and related durable records/streams representing one external exchange, its attempts, messages and metadata. HTTP and gRPC have distinct framing; neither implies a native Ursula group or multi-stream transaction. |
+| Exchange stream group | A Transit manifest and related durable records/streams representing one external exchange, its attempts, messages and metadata. HTTP and gRPC have distinct framing; neither implies a provider-native group or multi-stream transaction. |
 | RPC half-close | The caller ends its request-message direction while the response direction can continue; not terminal success or a durable outcome. |
 | Transcript | The recorded request/response data and observations, with explicit capture boundaries and omissions. |
 | Interpolation | Rendering request variables from recorded bindings or authorized secret references, with field-specific encoding rules. |
@@ -347,7 +343,7 @@ package; Board owns its service instrumentation separately. The neutral
 | C ABI | The versioned native call boundary implemented for client/Station bindings, with opaque handles and explicit ownership; distinct from the signed network protocol and Arrow's data interfaces |
 | Example application | A complete runnable caller demonstrating the public client. `example-counter` and `example-byte-log` are examples; neither is required Transit infrastructure. |
 | Executable | A runnable entry point composing libraries with configuration and lifecycle handling. It is not synonymous with a library, Transit process, or deployment. |
-| Transit backend | A durable storage and transport implementation of Transit's persistence requirements. Packages use `transit-backend-*`; `transit-backend-ursula` exports `transit_backend_ursula`. Each implementation must prove its supported guarantees. |
+| Transit backend | A durable storage and transport implementation of Transit's persistence requirements. Packages use `transit-backend-*`; `transit-backend-local` exports `transit_backend_local`. Each implementation must prove its supported guarantees. |
 | Runtime instance | An explicitly identified deployment of an execution provider, such as a particular Substrate installation. It scopes provider resource references. |
 | Runtime binding | A durable association between a Transit PID and a scoped provider resource/workload version, reconciled by an adapter. It describes hosting, not execution authority. |
 | Runtime binding revision | A version of that hosting association. Changing it does not change the PID or replace ownership fencing. |

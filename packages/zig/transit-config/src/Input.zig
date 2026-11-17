@@ -126,12 +126,13 @@ pub fn reservedEnvironment(key: []const u8) bool {
     // These exact names belong to selectors, build tools or launcher templates.
     // Do not exempt prefixes: misspelled operator settings still fail closed.
     for ([_][]const u8{
-        "TRANSIT_CONSOLE_CONFIG",            "TRANSIT_CONFIG",            "TRANSIT_SQL_TOOLS",
-        "TRANSIT_GSON_JAR",                  "TRANSIT_FUZE_BENCH_PYTHON", "TRANSIT_DOCS_BASE_URL",
-        "TRANSIT_LIBRARY_DIR",               "TRANSIT_PORT",              "TRANSIT_DOCS_URL",
-        "TRANSIT_KUBECONFIG",                "TRANSIT_LAUNCHER_NAME",     "TRANSIT_LAUNCHER_BASE_PORT",
-        "TRANSIT_BOARD_HOST",                "TRANSIT_BOARD_PORT",        "TRANSIT_BOARD_PUBLIC_ORIGIN",
-        "TRANSIT_BOARD_ALLOW_INSECURE_HTTP", "TRANSIT_LOG_LEVEL",         "TRANSIT_LOG_FORMAT",
+        "TRANSIT_CONSOLE_CONFIG",      "TRANSIT_CONFIG",                    "TRANSIT_SQL_TOOLS",
+        "TRANSIT_GSON_JAR",            "TRANSIT_GSON_LICENSE",              "TRANSIT_FUZE_BENCH_PYTHON",
+        "TRANSIT_DOCS_BASE_URL",       "TRANSIT_LIBRARY_DIR",               "TRANSIT_PORT",
+        "TRANSIT_DOCS_URL",            "TRANSIT_KUBECONFIG",                "TRANSIT_LAUNCHER_NAME",
+        "TRANSIT_LAUNCHER_BASE_PORT",  "TRANSIT_BOARD_HOST",                "TRANSIT_BOARD_PORT",
+        "TRANSIT_BOARD_PUBLIC_ORIGIN", "TRANSIT_BOARD_ALLOW_INSECURE_HTTP", "TRANSIT_LOG_LEVEL",
+        "TRANSIT_LOG_FORMAT",
     }) |name| if (std.mem.eql(u8, key, name)) return true;
     inline for (.{ "BOARD", "NODE", "MAINTENANCE", "DELIVERY", "COUNTER", "CONTROLLER", "LEDGER", "REQUESTER", "COORDINATOR", "STATION_OBSERVER", "STATION_LIFECYCLE" }) |service| {
         inline for (.{ "LEVEL", "FORMAT" }) |field| {
@@ -141,8 +142,11 @@ pub fn reservedEnvironment(key: []const u8) bool {
     return false;
 }
 
-test "launcher environment names do not hide server settings or misspellings" {
+test "tooling and launcher environment names do not hide server settings or misspellings" {
     const t = std.testing;
+    try t.expect(reservedEnvironment("TRANSIT_GSON_JAR"));
+    try t.expect(reservedEnvironment("TRANSIT_GSON_LICENSE"));
+    try t.expect(!reservedEnvironment("TRANSIT_GSON_LICENCE"));
     try t.expect(reservedEnvironment("TRANSIT_KUBECONFIG"));
     try t.expect(reservedEnvironment("TRANSIT_LAUNCHER_NAME"));
     try t.expect(reservedEnvironment("TRANSIT_BOARD_PORT"));

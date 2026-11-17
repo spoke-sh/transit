@@ -1,4 +1,4 @@
-"""Public signed inspection against disk Ursula or the native local owner."""
+"""Public signed inspection against the exclusive native owner."""
 from runner.paths import ROOT
 import hashlib
 import json
@@ -9,7 +9,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from harness.phases import phase
 
@@ -39,11 +39,11 @@ def available_post(post, path, signed):
 
 
 class System:
-    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800,
-                 storage_config=None, local=False, server=None, server_setup=None):
+    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=10000,
+                 object_storage=None, server=None, server_setup=None):
         self.node, self.cli = node, cli
-        self.local = local
-        self.store = Fixture(storage_config, retain_on_failure=True)
+        self.object_storage = object_storage
+        self.store = Fixture(retain_on_failure=True)
         self.children, self.logs = [], []
         self.sequence = 0
         self.clock_error_ms = clock_error_ms
@@ -60,7 +60,7 @@ class System:
         try:
             if self.server_binary:
                 from harness.local_installation import ExternalInstallation
-                self.server = ExternalInstallation(self.server_binary, ursula=None if self.local else self.store.url)
+                self.server = ExternalInstallation(self.server_binary, object_storage=self.object_storage)
                 self.server.config['realm'] = 72
                 self.server.config['external']['request_timeout_ms'] = self.request_timeout_ms
                 if self.allow_history_trim:
@@ -81,10 +81,9 @@ class System:
             self.config = self.root / "node.json"
             settings = {"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
                         "port": self.port, "request_timeout_ms": self.request_timeout_ms}
-            if self.local:
-                settings['local_directory'] = str(self.root / 'native')
-            else:
-                settings.update(ursula_url=self.store.url, bucket='inspection', journal='authority')
+            settings['local_directory'] = str(self.store.native_directory)
+            if self.object_storage is not None:
+                settings['storage'] = dict(object_storage=self.object_storage)
             self.config.write_text(json.dumps(settings))
             self.authority = self.start(self.node, self.config, "--bootstrap")
             wait_ready(self.store.http, self.authority, self.url + "/health")
@@ -285,8 +284,6 @@ def run(node, cli):
         s.inspect("processes", principal=1, seed=seed, cut=scoped["cut"], status=403)
         s.authority.kill()
         s.authority.wait(timeout=10)
-        s.store.stop()
-        s.store.start()
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         recovered = s.inspect("mailbox", pids[0])

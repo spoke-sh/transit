@@ -83,7 +83,15 @@ def run(fixture):
                 sql("SELECT name, value, configured_value, pending_restart, source_line FROM transit_settings() WHERE owner = 'node'")
                 if row['name'].startswith('storage.')}
     def storage_values(rows, active, configured):
-        assert rows.keys() == storage_expected.keys(), rows.keys()
+        tier_names = {'object_storage', *('object_storage.' + name for name in (
+            'endpoint', 'region', 'bucket', 'prefix', 'credentials_file', 'ca_file',
+            'request_timeout_ms', 'staging_bytes', 'pending_objects', 'cache_bytes', 'allow_loopback_http'))}
+        assert rows.keys() == storage_expected.keys() | tier_names, rows.keys()
+        # A disabled tier exposes no active/configured child values, including
+        # the credential reference; defaults are separate from active values.
+        for name in tier_names:
+            row = rows[name]
+            assert row['value'] is None and row['configured_value'] is None and not row['pending_restart'], row
         for name, expected in storage_expected.items():
             row = rows[name]
             assert (row['value'], row['configured_value'], row['pending_restart']) == (
@@ -220,7 +228,8 @@ def run(fixture):
         assert startup['value'] == 'true' and not startup['pending_restart'], startup
         storage_active = storage_rows()
         storage_values(storage_active, 1, 1)
-        assert all(row['source_line'] is not None for row in storage_active.values())
+        for name, row in storage_active.items():
+            assert (row['source_line'] is not None) == (name in storage_expected), row
         installed_storage = node_storage()
         for name, (_, expected) in storage_expected.items():
             value = installed_storage

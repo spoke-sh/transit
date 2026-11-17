@@ -39,7 +39,6 @@ pub const External = struct {
     allow_history_trim: bool = false,
     request_timeout_ms: u32 = 2000,
     maintenance: struct { interval_ms: u32 = 1000, checkpoint_every_records: ?u64 = null } = .{},
-    ursula: ?struct { url: []const u8, bucket: []const u8, journal: []const u8 } = null,
     table_file: ?[]const u8 = null,
 };
 pub const Ports = struct { node: u16, gateway: u16 };
@@ -149,6 +148,11 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
     if (self.query.statement_timeout_ceiling != 0 and (self.query.statement_timeout == 0 or self.query.statement_timeout > self.query.statement_timeout_ceiling)) return diagnostic.invalidField("query.statement_timeout", "must not exceed the configured ceiling", null);
     self.storage.requests.validate() catch return diagnostic.invalidField("storage.requests", "request_bytes must fit data_bytes; all budgets must fit the documented bounds", null);
     self.storage.admission.validate() catch return diagnostic.invalidField("storage.admission", "budgets must fit the documented bounds", null);
+    if (self.storage.object_storage) |*tier| {
+        tier.credentials_file = try std.fs.path.resolve(allocator, &.{ base, tier.credentials_file });
+        if (tier.ca_file) |path| tier.ca_file = try std.fs.path.resolve(allocator, &.{ base, path });
+        tier.validate() catch |err| return diagnostic.invalidFieldCause(err, "storage.object_storage", "requires a valid dedicated namespace, credential file reference and bounded staging/cache settings", null);
+    }
     if (self.version != 1) return diagnostic.invalidField("version", "must be 1", null);
     if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux", null);
     {
@@ -200,11 +204,6 @@ pub fn resolve(init: std.process.Init, inputs: Inputs, diagnostic: *Diagnostic, 
         if (external.root_seed_file) |path| external.root_seed_file = try std.fs.path.resolve(allocator, &.{ base, path });
         if (!std.mem.eql(u8, external.listen, "127.0.0.1") and !std.mem.eql(u8, external.listen, "0.0.0.0")) return diagnostic.invalidField("external.listen", "must be 127.0.0.1 or 0.0.0.0 inside the deployment's private network", null);
         if (self.sql.native.local or self.sql.listening() or self.applications != null or self.browser != null) return diagnostic.invalidField("external", "requires sql.native.local=false and no SQL listeners, local applications or browser service", null);
-        if (external.ursula) |remote| {
-            const uri = std.Uri.parse(remote.url) catch return diagnostic.invalidField("external.ursula.url", "must be an absolute HTTP provider URL", null);
-            if (!std.mem.eql(u8, uri.scheme, "http") or uri.host == null or uri.user != null or uri.password != null or remote.bucket.len == 0 or remote.journal.len == 0) return diagnostic.invalidField("external.ursula", "requires a private HTTP URL without credentials and nonempty bucket/journal names", null);
-            if (external.table_file != null) return diagnostic.invalidField("external.table_file", "requires the local storage provider; Ursula does not implement direct Table hosting", null);
-        }
         if (external.table_file) |path| external.table_file = try std.fs.path.resolve(allocator, &.{ base, path });
         if (self.board) |*board| board.local_data = false;
     }
@@ -231,7 +230,7 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8, di
         // Keep local installation identity stable. External placement and its
         // provider are an explicit incompatible composition, never adoption of
         // a component installation or a switch between authority histories.
-        const placement = try std.json.Stringify.valueAlloc(init.gpa, .{ result.config, external.listen, external.ursula, external.allow_history_trim }, .{});
+        const placement = try std.json.Stringify.valueAlloc(init.gpa, .{ result.config, external.listen, external.allow_history_trim }, .{});
         defer init.gpa.free(placement);
         std.crypto.hash.sha2.Sha256.hash(placement, &result.config, .{});
     }

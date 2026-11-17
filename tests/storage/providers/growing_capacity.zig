@@ -1,10 +1,10 @@
 //! Physical v1 pressure proof: one resident page, retained state, finite reserve.
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 const g = core.protocol.Growth;
 const t = std.testing;
-const Engine = core.growing.Engine(adapter.Store, adapter.PackedPageStore);
+const Engine = core.growing.Engine(adapter.Store, adapter.PageStore);
 const ceiling = 96;
 const reserve = 96;
 // Retained logical values exceed one decoded page in the current definition.
@@ -98,34 +98,33 @@ fn verify(engine: *Engine, expected: Expected) !void {
 
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
-    defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-capacity", .name = "authority" } } };
-    var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 1);
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
+    var owner = try adapter.Backend.open(init.gpa, init.io, std.Io.Dir.cwd(), args[1], .{});
+    defer owner.deinit();
+    var store: adapter.Store = .{ .backend = &owner };
+    var pages = try adapter.PageStore.init(&owner, 1);
     defer pages.deinit();
     const genesis: core.growing.Genesis = .{ .realm = 53, .root_key = (try pair()).public_key.toBytes(), .max_clock_error_ms = 1, .allow_history_trim = true, .admission_ceiling = ceiling, .control_reserve = reserve };
     const writing = std.mem.eql(u8, args[2], "write");
-    if (writing) {
-        try store.journal.create();
-        try pages.create();
-    }
     var engine = if (writing) try Engine.bootstrap(&store, &pages, genesis) else try Engine.open(&store, &pages, genesis);
     var now: u64 = if (writing) 10 else 200;
     engine.clock = .{ .context = &now, .read = clock };
-    var oracle = store.journal;
-    oracle.stream.name = "proof-expectations";
     const expected = if (writing) blk: {
         const result = try write(&engine);
-        try oracle.create();
         const bytes = try std.json.Stringify.valueAlloc(init.gpa, result, .{});
         defer init.gpa.free(bytes);
-        try t.expect(try oracle.append(0, bytes));
+        const file = try owner.directory.createFile(init.io, ".proof-expectations", .{ .exclusive = true });
+        defer file.close(init.io);
+        try file.writeStreamingAll(init.io, bytes);
+        try file.sync(init.io);
+        const directory = try owner.directory.openFile(init.io, ".", .{});
+        defer directory.close(init.io);
+        try directory.sync(init.io);
         break :blk result;
     } else blk: {
-        var response = try oracle.read(0);
-        defer response.deinit();
-        const parsed = try std.json.parseFromSlice(Expected, init.gpa, response.body, .{});
+        const bytes = try owner.directory.readFileAlloc(init.io, ".proof-expectations", init.gpa, .limited(65536));
+        defer init.gpa.free(bytes);
+        const parsed = try std.json.parseFromSlice(Expected, init.gpa, bytes, .{});
         defer parsed.deinit();
         break :blk parsed.value;
     };
@@ -148,14 +147,18 @@ pub fn main(init: std.process.Init) !void {
     } else if (!writing and !std.mem.eql(u8, args[2], "recover")) return error.UnknownPhase;
     pages.clearCache();
     try verify(&engine, expected);
-    try t.expect(rows * 256 > pages.residentBytes());
+    // The decoded read cache remains one page. Report the separate fixed
+    // mutation staging workspace as well, rather than hiding it in this bound.
+    try t.expect(rows * 256 > pages.cache.len * @sizeOf(@TypeOf(pages.cache[0])));
     if (engine.head.position > ceiling) {
         try t.expectError(error.HistoryReclaimed, store.read(0));
         try store.maintain(engine.head);
     }
     var buffer: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .profile = "native_v1", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = rows, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_requests = pages.requests }, .{}, &stdout.interface);
+    try std.json.Stringify.value(.{ .profile = "native_v1", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = rows, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_reads = pages.misses }, .{}, &stdout.interface);
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
+    // The parent kills the accepted owner before deinitialization.
+    try std.Io.sleep(init.io, .fromSeconds(30), .awake);
 }

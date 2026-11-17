@@ -121,7 +121,7 @@ def exercise(installation, launcher, invoke, observe):
     assert (installation.path / "update.json").exists()
     invoke("update", "board", "--no-build")
     after = instances()
-    assert before["node"] == after["node"] and before["counter"] == after["counter"] and before["ursula"] == after["ursula"]
+    assert before["node"] == after["node"] and before["counter"] == after["counter"]
     assert before["board"] != after["board"]
     assert observe(12)["generation"] == first["generation"]
     assert "no changes" in invoke("update", "board", "--no-build")

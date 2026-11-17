@@ -113,7 +113,7 @@ and authenticated origin independently of later output-catalog collection.
 
 ## Standalone payload bytes
 
-The local owner serves `POST /v1/payload`; Ursula nodes return 404. An operation
+The native owner serves `POST /v1/payload`. An operation
 has fields, in order, `kind` (`create`, `verify`, `read`), `payload` (`pid`,
 `payload`) and `content` (null, or `bytes` then `sha256`). Creation requires the
 exact length/digest from an accepted `declare_payload`; verify/read require
@@ -224,7 +224,7 @@ the signed wait duration.
 
 Signatures authenticate callers; they neither encrypt responses nor authenticate
 the response transport. A listener outside a trusted private network requires an
-authenticated TLS ingress boundary. Workloads cannot receive raw Ursula/provider
+authenticated TLS ingress boundary. Workloads cannot receive raw storage/provider
 credentials. [Security](../docs/handbook/reference/security.md) owns deployment trust.
 
 ## Operation and recovery

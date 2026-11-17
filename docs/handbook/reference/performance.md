@@ -1,5 +1,10 @@
 # Performance characteristics and improvement plan
 
+Measurements retain their recorded source and provider identity. Results naming
+Ursula describe the retired composition and do not qualify the current native
+MinIO tier. See the [storage cutover evidence](../../history/qualification/native-storage-cutover.md)
+for replacement proof scope.
+
 For planned CSV/JSONL workloads, see
 [schema-on-demand comparisons](#schema-on-demand-measurements). The native
 query measurements below do not measure file discovery or type inference.
@@ -757,7 +762,7 @@ prefix previously prevented a larger page stream from fitting into the same
 flush batch, eventually producing `ColdBackpressure`. Subsequent chunks now
 use the remaining batch budget. The hot-memory limit and acknowledgement rules
 are unchanged. The official container image remains a separate, unpatched
-provider profile; see the [provider mapping](../../../packages/zig/transit-backend-ursula/docs/upstream.md).
+provider profile; see the [provider mapping](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/upstream.md).
 Native 503 responses still require exact saved recovery rather than fresh SQL.
 
 Record the backing filesystem when comparing storage latency. A file-backed WAL

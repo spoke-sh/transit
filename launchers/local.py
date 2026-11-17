@@ -19,8 +19,8 @@ class Local:
         self.manager_log = None
 
     def pc(self, *args, manager=False, spawn=False, **kwargs):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_", "PC_")) and k not in ("LOG_LEVEL", "LOG_FORMAT")}
-        env.update(RUST_LOG="warn", TOKIO_WORKER_THREADS="2", XDG_CONFIG_HOME=str(self.path / "xdg"))
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("OTEL_", "PC_")) and k not in ("LOG_LEVEL", "LOG_FORMAT")}
+        env.update(XDG_CONFIG_HOME=str(self.path / "xdg"))
         (self.path / "xdg/process-compose").mkdir(parents=True, exist_ok=True, mode=0o700)
         # Every Process Compose invocation truncates its own log. Client calls
         # must never erase the daemon's startup, readiness or exit evidence.
@@ -55,7 +55,6 @@ class Local:
         values = {"ROOT_Q": shlex.quote(str(ROOT)), "PYTHON_Q": shlex.quote(sys.executable),
                   "NAME_Q": shlex.quote(installation.name), "STATE_DIR": str(self.path),
                   "STATE_DIR_Q": shlex.quote(str(self.path)),
-                  "URSULA_PORT": installation.load()["base_port"],
                   "TRANSIT_PORT": installation.load()["base_port"] + 1}
         for role in installation.artifacts.roles([]):
             values.update({role.upper().replace("-", "_") + "_" + key: value for key, value in installation.service_environment(role).items()})
@@ -186,9 +185,8 @@ class Local:
             raise RuntimeError(f"{name} did not acquire a fresh activation; inspect its logs")
         if name == "board":
             wait_for(self.installation.board_url + "/health", headers=self.installation.board_headers)
-        elif name in ("node", "ursula"):
-            port = self.installation.load()["base_port"] + {"ursula": 0, "node": 1}[name]
-            wait_for(f'http://127.0.0.1:{port}' + ("/__ursula/ready" if name == "ursula" else "/health"))
+        elif name == "node":
+            wait_for(self.installation.url + "/health")
 
     def validate_update(self, operation):
         for role in self.installation.workloads:

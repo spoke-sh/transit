@@ -156,7 +156,7 @@ class LocalInstallation:
 
 class ExternalInstallation(LocalInstallation):
     """The native product profile with provider-placed application workers."""
-    def __init__(self, cli, *, ursula=None, parent='/var/tmp'):
+    def __init__(self, cli, *, object_storage=None, parent='/var/tmp'):
         import ctypes
         assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
         super().__init__(cli, parent=parent)
@@ -164,8 +164,8 @@ class ExternalInstallation(LocalInstallation):
             storage={'maintenance': {'compact': False, 'archive': {'enabled': False}, 'flush': {'enabled': False}}})
         for name in ('transit-query-host', 'transit-sql-gateway', 'transit-board'):
             (self.root / name).unlink(missing_ok=True)
-        if ursula is not None:
-            self.config['external']['ursula'] = dict(url=ursula, bucket='server', journal='authority')
+        if object_storage is not None:
+            self.config['storage']['object_storage'] = object_storage
         self.url = f"http://127.0.0.1:{self.config['ports']['node']}"
         self.path.write_text(json.dumps(self.config))
 

@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -21,15 +21,13 @@ def run(node, caller):
         config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 45, "root_key": public, "max_clock_error_ms": 10000,
             "admission_ceiling": 24, "control_reserve": 4},
-            "ursula_url": fixture.url, "bucket": "growing-quota", "journal": "authority",
+            "local_directory": str(fixture.native_directory),
             "port": port, "resident_pages": 1, "request_timeout_ms": 10000}))
         pending = fixture.root / "pending.json"
         with (fixture.root / "node.log").open("w+") as log:
             subprocess.run([node, str(config), "--initialize"], stdout=log, stderr=subprocess.STDOUT,
                            check=True, timeout=20)
             for phase in ("write", "recover"):
-                if phase == "recover":
-                    fixture.start()
                 authority = subprocess.Popen([node, str(config)], stdout=log, stderr=subprocess.STDOUT)
                 try:
                     wait_ready(fixture.http, authority, url + "/health")
@@ -42,7 +40,6 @@ def run(node, caller):
                 finally:
                     authority.kill()
                     authority.wait(timeout=10)
-                fixture.stop()
     print("Growing service/Station: explicit quota, retained pending request/backlog, reserve use and disk restart passed.")
 
 

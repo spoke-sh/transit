@@ -163,10 +163,12 @@ browser service; it does not claim the local SQL/application-hosting profile.
 
 `external.listen` is `127.0.0.1` by default or `0.0.0.0` inside a private deployment
 network. Every native request still requires its current signature and rights;
-the listener does not add TLS or create an ingress boundary. An explicit
-`external.ursula` supplies the private HTTP URL, bucket and journal for the native
-authority. Without it the server owns local disk storage. Provider and placement
-are bound to the installation; startup never converts or adopts component history.
+the listener does not add TLS or create an ingress boundary. The server owns
+native disk storage. Optional `storage.object_storage` configures immutable
+MinIO tiering through that same owner. The local WAL, staging and recovery
+metadata remain required. Storage namespace and placement are bound to the
+installation; startup never converts or adopts component history. Obsolete
+`external.ursula` rejects before installation mutation.
 A fresh external installation may observe only the initial genesis position before
 recording recovery state. Nonempty accepted history rejects before service grants,
 including when its root key matches the supplied operator key.
@@ -175,8 +177,8 @@ For the local provider, `external.table_file` names the existing node's typed
 direct Table configuration, including its catalog and registrar reference. It
 may be supplied after native provisioning and before application activation.
 The first configuration is retained by identity; removal or replacement rejects.
-It neither grants catalog rights nor creates a second catalog authority. Ursula
-does not implement this direct Table host and rejects that combination.
+It neither grants catalog rights nor creates a second catalog authority. The
+same native owner supplies local or optionally tiered immutable Table objects.
 External installations expose native inspection; the local SQL settings gateway
 is absent. Their application/provider controllers retain their own original
 operation journals and grants. Server restart recovers only its recorded service
@@ -196,8 +198,8 @@ credential references and accepted provisioning receipts. Dependency checking
 happens before provisioning. Published release bundles are not available; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
 of the server. The default local profile uses the node's exclusive local WAL and
-immutable object owner; it does not start Ursula or MinIO. Explicit Ursula
-deployments use the pinned upstream provider and its S3 cold storage configuration.
+immutable object owner. The server does not start an object-storage service;
+operators provision MinIO separately when configuring the optional tier.
 Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
@@ -629,8 +631,8 @@ that retained root public identity. It never adopts a component-era data path.
 history trimming disabled. The native health endpoint is gated by a private
 server-owned readiness marker, removed before startup and on failed required
 service observations. The marker changes health reporting only and grants no
-protocol authority. Ursula maintenance runs as a server-owned process using the
-same `transit` executable; local maintenance remains in the exclusive node owner.
+protocol authority. Maintenance and optional immutable uploads run as joined,
+bounded tasks within the exclusive native owner.
 
 External-worker runtime replacement requires explicit
 `startup.replace_runtime.from` and `.to` executable SHA-256 pins, a complete

@@ -37,11 +37,11 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=1, definition='bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba', realm=realm, principal=principal, kind=value)
+        body = dict(version=1, definition='06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5', realm=realm, principal=principal, kind=value)
         return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
     if 'send' in value:
         value['send'].setdefault('role', None)
-    body = dict(version=1, definition='bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba', realm=realm, principal=principal, sequence=sequence, command=value)
+    body = dict(version=1, definition='06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5', realm=realm, principal=principal, sequence=sequence, command=value)
     return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
@@ -121,8 +121,6 @@ def node(real, directory, args):
     No private Transit installation checkpoint is edited by the fault injector.
     """
     directory = Path(directory)
-    if '--maintain' in args:
-        os.execv(real[0], [*real, *args])
     source = json.loads(Path(args[0]).read_text())
     external = source['port']
     source['port'] = free_port()
@@ -580,10 +578,11 @@ def external_delivery(cli):
     from contextlib import nullcontext
     import shutil
     from harness.local_installation import ExternalInstallation
-    from harness.ursula import Fixture as Ursula
-    for backend in ('local', 'ursula'):
-        with Ursula(retain_on_failure=True) if backend == 'ursula' else nullcontext() as provider:
-            fixture = ExternalInstallation(cli, ursula=provider.url if provider else None)
+    from storage.providers.cold_storage import ColdStore
+    for backend in ('local', 's3'):
+        with ColdStore() if backend == 's3' else nullcontext() as provider:
+            object_storage = provider.native_config() if provider else None
+            fixture = ExternalInstallation(cli, object_storage=object_storage)
             install_peer(fixture)
             success = False
             print(f'External {backend} server proof: {fixture.root}', flush=True)
@@ -637,18 +636,18 @@ def external_delivery(cli):
                     # retained installation journal. A fresh directory must
                     # neither adopt accepted history nor restore revoked rights.
                     fixture.stop()
-                    foreign = ExternalInstallation(cli, ursula=provider.url)
+                    foreign = ExternalInstallation(cli, object_storage=object_storage)
                     foreign.config['realm'] = realm
                     foreign.config['external']['root_seed_file'] = str(fixture.installation / 'root.seed')
                     foreign.path.write_text(json.dumps(foreign.config))
                     refused = False
                     try:
                         foreign.start()
-                        assert foreign.process.wait(timeout=45) != 0, 'Fresh installation adopted retained Ursula history'
+                        assert foreign.process.wait(timeout=45) != 0, 'Fresh installation adopted retained remote namespace'
                         record = foreign.record()
                         assert not record['genesis_observed'] and record['position'] == 0
                         assert record['provision'][10] is None
-                        assert 'StorageIdentityMismatch' in Path(foreign.logs[-1].name).read_text()
+                        assert 'TierNamespaceInUse' in Path(foreign.logs[-1].name).read_text()
                         refused = True
                     finally:
                         foreign.cleanup()

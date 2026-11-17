@@ -23,8 +23,8 @@ just test::flight-placement reference
 
 Tasks enter the pinned `flight` tool environment. The authority and direct Tables
 persist in one local directory, mounted on an owned volume in Compose and a PVC
-in the reference installation. The fixture also starts isolated Ursula/MinIO
-services; their presence does not establish tiered Table persistence. Compose uses the checked-in
+in the reference installation. The fixture configures a private TLS MinIO immutable tier and keeps native/direct
+WAL, staging and recovery metadata on that volume. Compose uses the checked-in
 [topology](docker-compose.yaml) and static Zig images. Reference requires the
 existing [reference infrastructure](../../deploy/reference/README.md): it creates
 an isolated namespace, registers fresh source/requester Substrate activations,

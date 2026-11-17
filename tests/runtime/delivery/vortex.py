@@ -1,4 +1,4 @@
-"""External fault supervisor for real Transit binaries and an owned disk Ursula.
+"""External fault supervisor for real Transit binaries and an owned disk native Transit.
 
 A seed reproduces workload/fault intent, not OS scheduling. Only public signed
 operations observe authority. No storage files or private checkpoints are edited.
@@ -20,7 +20,7 @@ import tempfile
 import threading
 import time
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.local_installation import ExternalInstallation
 
 
@@ -183,10 +183,7 @@ def scenario(args, destination, record, report):
     # Keep disk tests off Nix's potentially memory-backed TMPDIR.
     disk = ROOT / '.cache/verification/storage'
     disk.mkdir(parents=True, exist_ok=True)
-    previous_tempdir = tempfile.tempdir
-    tempfile.tempdir = str(disk)
-    store = Fixture()
-    tempfile.tempdir = previous_tempdir
+    store = Fixture(parent=disk)
 
     def start(name, argv):
         handle = (store.root / f'{name}-{len(handles)}.log').open('w')
@@ -215,7 +212,7 @@ def scenario(args, destination, record, report):
     try:
         with store:
             try:
-                fixture = ExternalInstallation(binaries['server'], ursula=store.url)
+                fixture = ExternalInstallation(binaries['server'])
                 fixture.config['realm'] = 61
                 peer = Peer(fixture.config['ports']['node'], record)
                 fixture.route_courier(f'http://127.0.0.1:{peer.server_port}')
@@ -274,7 +271,7 @@ def scenario(args, destination, record, report):
                                       state_association='counter', publish_to=sink, seed_file=str(worker_key))
                 worker_config.write_text(json.dumps(worker_options))
                 report['topology'] = dict(realm=61, pid=pid, sink=sink, resource=resource, authority=url,
-                    proxy=proxy_url, store=store.url, wal='disk', filesystem=subprocess.check_output(['stat', '-f', '-c', '%T', store.root], text=True).strip())
+                    proxy=proxy_url, storage='native', wal='disk', filesystem=subprocess.check_output(['stat', '-f', '-c', '%T', store.root], text=True).strip())
                 expected = []
 
                 def until(predicate, label):
@@ -307,12 +304,8 @@ def scenario(args, destination, record, report):
                     if index % 4 == 2:
                         stop(worker, 'worker')
                         stop(authority, 'node')
-                        record('store_kill_requested', pid=store.server.pid)
-                        store.stop()
-                        record('store_stopped')
-                        store.start()
-                        record('store_restarted', pid=store.server.pid)
                         authority = node()
+                        record('native_owner_reopened', pid=authority.pid)
                         # Accepted turn recovery needs no handler or resend.
                     else:
                         until(lambda: query(dict(process=pid))['process']['process']['consumed'] == len(expected), 'worker progress')
@@ -408,11 +401,10 @@ def scenario(args, destination, record, report):
                     thread.join(timeout=10)
                 for handle in handles:
                     handle.close()
-                store.log.flush()
                 for path in store.root.glob('*.log'):
                     shutil.copyfile(path, destination / path.name)
     finally:
-        report['cleanup'] = all(c.poll() is not None for c in children) and store.server is None and (thread is None or not thread.is_alive())
+        report['cleanup'] = all(c.poll() is not None for c in children) and (fixture is None or fixture.process is None or fixture.process.poll() is not None) and (thread is None or not thread.is_alive())
 
 
 def main():
@@ -432,8 +424,7 @@ def main():
         dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
         compiler=subprocess.check_output(['zig', 'version'], text=True).strip(),
         python=sys.version,
-        ursula=subprocess.check_output(['ursula', '--version'], text=True).strip(),
-        provider_sha256=hashlib.sha256(Path(shutil.which('ursula')).read_bytes()).hexdigest(),
+        storage='native Transit WAL and immutable objects',
         binaries={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in args.binaries},
         supervisor_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     report_file = destination / 'report.json'

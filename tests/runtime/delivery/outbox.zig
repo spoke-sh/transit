@@ -1,7 +1,7 @@
 //! Destination ordering and atomic counter/output recovery with pending delivery.
 const std = @import("std");
 const core = @import("transit_core");
-const adapter = @import("transit_backend_ursula");
+const adapter = @import("transit_backend_local");
 const disk = @import("fixture_native_disk");
 const Engine = disk.Engine;
 const t = std.testing;
@@ -18,19 +18,15 @@ fn consume(e: *Engine, key: core.Ed25519.KeyPair, pid: u64) !void {
 pub fn main(init: std.process.Init) !void {
     const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
     const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
     const root = try core.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const genesis: core.Genesis = .{ .realm = 46, .root_key = root.public_key.toBytes(), .allow_history_trim = true, .max_clock_error_ms = 0 };
-    var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
-    defer client.deinit();
-    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = "outbox" } } };
-    var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 8);
+    var owner = try disk.open(init, args[1], "outbox");
+    defer owner.deinit();
+    var store: adapter.Store = .{ .backend = &owner };
+    var pages = try adapter.PageStore.init(&owner, 8);
     defer pages.deinit();
     const write = std.mem.eql(u8, args[2], "write");
-    if (write) {
-        try store.journal.create();
-        try pages.create();
-    }
     var e = if (write) try Engine.bootstrap(&store, &pages, genesis) else try Engine.open(&store, &pages, genesis);
     var clock: disk.Clock = .{};
     e.clock = .{ .context = &clock, .read = disk.Clock.read };
@@ -45,7 +41,7 @@ pub fn main(init: std.process.Init) !void {
         turn.turn.outputs = .{ .{ .pid = 1, .value = core.Value.integer(1) }, .{ .pid = 1, .value = core.Value.integer(2) }, .{ .pid = 2, .value = core.Value.integer(3) }, null };
         _ = try submit(&e, root, turn);
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try disk.publish(&store);
+        try disk.assertCheckpointPublished(&store);
     } else if (std.mem.eql(u8, args[2], "recover")) {
         try t.expectEqual(.pending, (try output(&e, 1)).phase);
         try store.maintain(e.head);
@@ -54,7 +50,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try submit(&e, root, .{ .deliver = 3 });
         try consume(&e, root, 2);
         _ = try submit(&e, root, .{ .checkpoint = {} });
-        try disk.publish(&store);
+        try disk.assertCheckpointPublished(&store);
     } else if (std.mem.eql(u8, args[2], "checkpoint")) {
         try t.expectEqual(@as(i64, 3), try disk.counter(&e, 2));
         try t.expectEqual(.pending, (try output(&e, 1)).phase);
@@ -78,4 +74,5 @@ pub fn main(init: std.process.Init) !void {
         try t.expectError(error.OutputAlreadyResolved, submit(&e, root, .{ .deliver = 1 }));
     } else return error.UnknownPhase;
     std.debug.print("outbox {s}: passed\n", .{args[2]});
+    if (!std.mem.startsWith(u8, args[2], "service_")) try disk.completed(init.io);
 }

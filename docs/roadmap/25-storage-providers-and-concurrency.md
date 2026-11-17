@@ -8,6 +8,12 @@ profile, then inspects accepted changes, conflicts and recovery under its
 declared failure assumptions. Provider configuration alone establishes none of
 those guarantees.
 
+The [Transit storage defaults and Ursula removal plan](transit-storage-ursula-removal.md)
+owns the authorized native-storage cutover and initial single-owner S3 tier.
+Ursula is removed from the provider delivery target; broader provider, encryption
+and concurrent-writer obligations remain open. Implementation status and gates
+belong to that plan; authorization establishes no runtime qualification.
+
 ## Prerequisites and transferred scope
 
 Consume [local storage](02-storage-and-query-performance.md), the
@@ -38,7 +44,7 @@ milestone 2 obligations; this split cannot excuse an unsafe local implementation
    disclosure. A signed lease or cached epoch alone cannot fence a disconnected
    writer. Reuse #125/#111's commit authority; no independent manifest acceptance.
 2. **Deliver real reference storage, envelope encryption at rest, bounded disk caching and provider cost/latency invariants.**
-   Implement and qualify `UrsulaWal` on disk-backed Ursula, shared POSIX
+   Implement and qualify the native WAL with optional S3 object tier, shared POSIX
    filesystems (such as AWS EFS / NFSv4) and real `S3ObjectStore` / S3 Express
    One Zone / GCS / Cloudflare R2 / Azure Blob conditions, immutable writes and
    range reads. Enforce the six provider latency and cloud-cost invariants

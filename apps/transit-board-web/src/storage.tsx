@@ -12,7 +12,7 @@ import { useRead } from "./use-observation";
 import { useScope } from "./state";
 import { ReadStatus } from "./read-status";
 import { InspectorPanel, useInspector } from "./workbench-layout";
-import { positionPercent, type StorageFact } from "./storage-model";
+import { positionPercent, objectTierFacts, type StorageFact } from "./storage-model";
 import "./storage.css";
 import { bytes, byteAllowance, formatBytes } from "./quantities";
 import { ByteSize, ExactBytes } from "./quantity";
@@ -226,6 +226,13 @@ export function Storage() {
               },
             ]}
           />
+          {page.object_tier && (
+            <Evidence
+              title="Object storage tier"
+              basis={`${basis} Backlog is durable transfer work, not an accepted-data count. Cache and transfer counters reset when the owner restarts.`}
+              facts={objectTierFacts(page.object_tier)}
+            />
+          )}
           <Evidence title="Maintenance" basis={basis} facts={maintenanceFacts(page)} />
         </>
       )}

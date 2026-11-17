@@ -453,6 +453,22 @@ pub fn reclaimImmutable(self: *Self, key: []const u8, expected: object.ObjectMet
     return removed;
 }
 
+/// Release only immutable content after the owning tier has durably recorded
+/// verified remote coverage. Preserve the original local identity descriptor.
+/// The caller fences readers/recreation and supplies that coverage authority.
+pub fn evictImmutable(self: *Self, key: []const u8, expected: object.ObjectMeta) !u64 {
+    try object.validateKey(key);
+    const lock = try self.lockKey(key);
+    defer lock.close(self.io);
+    const record = (try self.readRecord(key)) orelse return error.ObjectNotFound;
+    if (record.kind != .immutable or !std.meta.eql(record.meta, expected)) return error.ImmutableObjectConflict;
+    var filename: [144]u8 = undefined;
+    var removed = try removeFile(self.io, self.objects_dir, contentName(key, expected.sha256, false, &filename));
+    removed += try removeFile(self.io, self.objects_dir, contentName(key, expected.sha256, true, &filename));
+    try syncIterated(self.io, self.objects_dir);
+    return removed;
+}
+
 /// Verify and establish durability of an observed immutable publication without
 /// repeating creation. Readable files after a crash are not a directory barrier.
 pub fn confirmImmutable(self: *Self, key: []const u8, expected: object.ObjectMeta) !void {

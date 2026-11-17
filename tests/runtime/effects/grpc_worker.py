@@ -14,7 +14,7 @@ import sys
 import threading
 import time
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 from interfaces.grpc.grpc_faults import Boundary
@@ -33,12 +33,12 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
     for file in descriptor_pb2.FileDescriptorSet.FromString(descriptor_bytes).file: descriptors.Add(file)
     Payload = message_factory.GetMessageClass(descriptors.FindMessageTypeByName("test.Payload"))
     payload = Payload(text="café 🌐", blob=bytes(range(256)), sequence=2**64-1).SerializeToString(deterministic=True)
-    with ColdStore() as cold, Fixture(cold.config()) as fixture:
+    with ColdStore() as cold, Fixture() as fixture:
         port = free_port(); url = f"http://127.0.0.1:{port}"
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
         node_config = fixture.root / "node.json"
         max_clock_error_ms = 10000
-        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": max_clock_error_ms}, "ursula_url": fixture.url, "bucket": "grpc-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": max_clock_error_ms}, "local_directory": str(fixture.native_directory), "storage": {"object_storage": cold.native_config()}, "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         key, cert = fixture.root / "peer.key", fixture.root / "peer.pem"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"], check=True, capture_output=True, timeout=20)
         sends, applied, failures, dropped, recovered = [], set(), [], {}, set()
@@ -185,7 +185,7 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                     child.kill(); child.communicate(timeout=10); child = None
                     release_capture.set(); capture_armed = False
                     authority.kill(); authority.wait(timeout=10); authority = None
-                    fixture.stop(); fixture.start(); authority = start_node()
+                    authority = start_node()
                     before = len(sends); saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "execute")
                     result = invoke(); assert result["phase"] == "unknown" and result["outcome"] == "closed_unknown", result
                     capture_diagnostics[exchange] = result["capture_diagnostic"]
@@ -234,7 +234,7 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                     child.kill(); child.communicate(timeout=10); child = None
                     boundary.close(); boundary.phase = None
                     authority.kill(); authority.wait(timeout=10); authority = None
-                    fixture.stop(); fixture.start(); authority = start_node()
+                    authority = start_node()
                     saved = admin('own'); configure(saved, exchange, 'unary', 'Unary', operation, 'prepare' if phase == 'preparation' else 'execute')
                     result = invoke()
                     if phase == 'preparation':
@@ -314,10 +314,10 @@ def run(node, provision, worker, board=None, browser=None, *, control=False):
                 assert admin('inspect', 2)['effect'] == 'cancelled'
                 print('RPC work cutoff, forged observation, blocked-peer control and permanent retirement passed.', flush=True)
             assert not failures, failures
-            if not control: assert cold.data_objects() > 0
+            if not control: assert cold.native_data_objects() > 0
             profile = 'control' if control else 'faults' if faults else 'shapes'
             print(f"RPC worker {profile}: {len(sends)} sends, {len(applied)} applications.")
-            print(f"RPC capture storage: 8 MiB hot limit, {cold.data_objects()} cold objects, {cold.file_bytes()} object-store bytes.")
+            print(f"RPC capture storage: 32 MiB native disk cache, {cold.native_data_objects()} cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"RPC worker proof wall time: {time.monotonic()-started:.2f}s (excludes compilation).")
         finally:
             boundary.close()

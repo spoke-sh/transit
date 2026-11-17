@@ -13,12 +13,12 @@ import time
 import tempfile
 import urllib.request
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 
 
-def run(node, caller, backend="ursula"):
+def run(node, caller, backend="s3"):
     node, caller = str(Path(node).resolve()), str(Path(caller).resolve())
     with ExitStack() as stack:
         cold = fixture = None
@@ -27,7 +27,7 @@ def run(node, caller, backend="ursula"):
             http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         else:
             cold = stack.enter_context(ColdStore())
-            fixture = stack.enter_context(Fixture(cold.config()))
+            fixture = stack.enter_context(Fixture())
             root, http = fixture.root, fixture.http
         public = json.loads(subprocess.check_output([caller, "public"], timeout=10))
         port = free_port()
@@ -40,7 +40,7 @@ def run(node, caller, backend="ursula"):
         if backend == "local":
             configuration["local_directory"] = str(root / "native")
         else:
-            configuration.update(ursula_url=fixture.url, bucket="document", journal="authority")
+            configuration.update(local_directory=str(fixture.native_directory), storage=dict(object_storage=cold.native_config()))
         config.write_text(json.dumps(configuration))
         manifest = root / "document.json"
         faults, retries, failures = {}, set(), []
@@ -162,9 +162,6 @@ def run(node, caller, backend="ursula"):
                     authority.kill()
                     authority.wait(timeout=10)
                     authority = None
-                    if fixture is not None:
-                        fixture.stop()
-                        fixture.start()
                     configuration["resident_pages"] = 1 if phase == "checkpoint" else 64
                     config.write_text(json.dumps(configuration))
                     authority = start()
@@ -175,8 +172,8 @@ def run(node, caller, backend="ursula"):
             assert 0 < observations["max_value_bytes"] <= 256
             assert observations["max_mutations"] == 4
             if cold is not None:
-                assert cold.data_objects() > 0
-                storage = {"hot_bytes": 8 * 1024 * 1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes()}
+                assert cold.native_data_objects() > 0
+                storage = {"disk_cache_bytes": 32 * 1024 * 1024, "cold_objects": cold.native_data_objects(), "cold_bytes": cold.file_bytes()}
             else:
                 wal = [path for path in (root / "native/wal").rglob("*") if path.is_file()]
                 objects = [path for path in (root / "native/objects").rglob("*") if path.is_file()]
@@ -205,7 +202,7 @@ def run(node, caller, backend="ursula"):
 
 
 if __name__ == "__main__":
-    # Nix's default temporary directory can be tmpfs. Both the Ursula WAL
+    # Nix's default temporary directory can be tmpfs. Both the native Transit WAL
     # and its owned cold store must use the physical-disk fixture parent too.
     tempfile.tempdir = "/var/tmp"
     if hasattr(os, "sched_getaffinity"):
@@ -213,6 +210,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("node")
     parser.add_argument("caller")
-    parser.add_argument("--backend", choices=("ursula", "local"), default="ursula")
+    parser.add_argument("--backend", choices=("s3", "local"), default="s3")
     args = parser.parse_args()
     run(args.node, args.caller, args.backend)

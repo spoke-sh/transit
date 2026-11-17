@@ -42,41 +42,14 @@ test "LocalWal enforces epoch fencing, LSN ordering, and truncates torn tail on 
     try std.testing.expectError(error.TruncatedWalFrame, TransitLog.decodeFrame(f1[0..19]));
 }
 
-test "S3ObjectStore signs AWS SigV4 requests and enforces conditional CAS and range reads" {
-    const allocator = std.testing.allocator;
-    var s3 = S3ObjectStore.S3ObjectStore.initLoopback(
-        allocator,
-        .{
-            .access_key_id = "AKIAIOSFODNN7EXAMPLE",
-            .secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-            .region = "us-east-1",
-        },
-        "s3.us-east-1.amazonaws.com",
-        "transit-segments",
-    );
-    defer s3.deinit();
-    const store = s3.objectStore();
-
-    const payload = "manifest-v1-bytes";
-    const created = try store.putConditional("manifest/42/v1.tman", .if_none_match, payload);
-    try std.testing.expect(created);
-    try std.testing.expect(s3.last_signed != null);
-    try std.testing.expect(std.mem.startsWith(
-        u8,
-        s3.last_signed.?.authorization(),
-        "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261022/us-east-1/s3/aws4_request",
-    ));
-    try std.testing.expectEqualStrings("*", s3.last_signed.?.if_none_match.?);
-
-    // Duplicate `if_none_match` on the same manifest version returns false
-    const duplicate = try store.putConditional("manifest/42/v1.tman", .if_none_match, payload);
-    try std.testing.expect(!duplicate);
-
-    // Range read produces `bytes=9-10`
-    var range_out: [2]u8 = undefined;
-    const slice = try store.getRange("manifest/42/v1.tman", 9, 2, &range_out);
-    try std.testing.expectEqualStrings("v1", slice);
-    try std.testing.expectEqualStrings("bytes=9-10", s3.last_signed.?.rangeHeader().?);
+test "S3 SigV4 matches the independent path-style range request vector" {
+    const signed = try S3ObjectStore.signAwsV4Request(.{
+        .access_key_id = "AKIAIOSFODNN7EXAMPLE",
+        .secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        .region = "us-east-1",
+    }, "GET", "s3.us-east-1.amazonaws.com", "transit-segments", "manifest/42/v1.tman", "20261022T160000Z".*, "", null, .{ .offset = 9, .len = 2 });
+    try std.testing.expectEqualStrings("bytes=9-10", signed.rangeHeader().?);
+    try std.testing.expectEqualStrings("AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20261022/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-content-sha256;x-amz-date, Signature=2ce9e0be97a5a676bf8da2f4847a934c9f795202d6467f754007394a359aacf6", signed.authorization());
 }
 
 test "NvmeCache verifies SHA-256 on cached chunks and protects metadata chunks from scan eviction" {
@@ -265,4 +238,39 @@ test "Table manifests require the shared definition even with valid integrity" {
     bytes[5] ^= 1;
     std.crypto.hash.sha2.Sha256.hash(bytes[0 .. encoded.len - 32], bytes[encoded.len - 32 ..][0..32], .{});
     try t.expectError(error.IncompatibleDefinition, TableManifest.decode(t.allocator, encoded));
+}
+
+test "disk object cache bounds bytes, rejects corrupt hits and reopens cold" {
+    const t = std.testing;
+    var temporary = t.tmpDir(.{});
+    defer temporary.cleanup();
+    const payload = try t.allocator.alloc(u8, 1024 * 1024);
+    defer t.allocator.free(payload);
+    @memset(payload, 37);
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(payload, &digest, .{});
+    const meta: TransitObjectStore.ObjectMeta = .{ .size = payload.len, .sha256 = digest };
+    {
+        var cache = try NvmeCache.DiskCache.open(t.allocator, t.io, temporary.dir, "cache", 32 * 1024 * 1024);
+        defer cache.deinit();
+        for (0..33) |index| {
+            var key: [32]u8 = undefined;
+            try cache.put(try std.fmt.bufPrint(&key, "objects/{d}", .{index}), meta, payload);
+            try t.expect(cache.used <= cache.capacity);
+        }
+        try t.expect(cache.evictions > 0);
+        try t.expect(!try cache.get("objects/0", meta, payload));
+        try t.expect(try cache.get("objects/32", meta, payload));
+        // The last write reused slot zero after exhausting the byte budget.
+        const file = try cache.directory.openFile(t.io, "00000000.cache", .{ .mode = .read_write });
+        try file.writePositionalAll(t.io, "broken", 0);
+        file.close(t.io);
+        try t.expect(!try cache.get("objects/32", meta, payload));
+        try t.expectEqual(@as(u64, 1), cache.corruptions);
+        // Reopening cache must not make its stale metadata an authority.
+    }
+    var cache = try NvmeCache.DiskCache.open(t.allocator, t.io, temporary.dir, "cache", 32 * 1024 * 1024);
+    defer cache.deinit();
+    try t.expectEqual(@as(u64, 0), cache.used);
+    try t.expect(!try cache.get("objects/1", meta, payload));
 }

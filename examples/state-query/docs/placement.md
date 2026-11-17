@@ -6,9 +6,9 @@ binaries import only the public query package. They have no connector, provider
 or storage implementation dependency.
 
 Local runs execute the real query source/requester/courier, finite SQL caller,
-native authority and disk storage. Table uses the local native/direct Table owner;
-KV and Document use disk Ursula with the bounded hot tier and native MinIO on
-the selected private bridge. The fault schedule loses an accepted upload acknowledgement,
+native authority and disk storage. Physical Table, KV and Document profiles use
+the native owner with durable staging and a 32 MiB verified cache backed by
+TLS MinIO on the selected private bridge. The fault schedule loses an accepted upload acknowledgement,
 restarts the caller with its frozen intent, and rejects a changed SQL recovery
 configuration. It also interrupts segment staging and recovers source/requester
 under fresh recorded ownership after node/store loss. Current source retirement
@@ -18,14 +18,13 @@ Compose places source, requester, courier and caller in separate containers on a
 private client network. Each mounts only its own credential/configuration and
 recovery directory. Only Transit joins the storage network. Services use static
 Zig binaries, read-only roots, dropped capabilities and explicit process, CPU and
-memory limits. The network probe checks authority reachability and denies Ursula,
-MinIO and external TCP access.
+memory limits. The network probe checks authority reachability and denies MinIO and external TCP access.
 
 The Table profile initializes its direct catalog through public operations, then
 restarts the native owner with the recorded catalog and registrar configuration.
 Native history and Table data share the retained authority mount (an owned PVC
-in reference placement). Ursula and MinIO remain denial targets in this profile;
-their presence does not establish Table cold-tier recovery.
+in reference placement). Immutable Table objects use the configured tier;
+WAL acceptance and original operation recovery remain local.
 
 Reference places the source and requester as separate Substrate/gVisor actors.
 Each generates an ephemeral key, emits a public registration and waits for its
@@ -40,9 +39,9 @@ The reference probe checks the same storage/external targets plus Kubernetes and
 Substrate control APIs. The source's actual physical worker is killed after a
 committed intermediate segment, then both logical query hosts recover with new
 keys and generations. Source pin and call identity survive. Node/store recovery
-holds Deployments at zero until the disk service is ready; an early Kubernetes
-replacement cannot race the recovery schedule. Ursula's private configuration
-comes from a Secret, outside Helm values and ConfigMaps. Namespace deletion checks
+holds Deployments at zero until the previous owner is joined; an early Kubernetes
+replacement cannot race the recovery schedule. Provider credentials and the
+private CA come from a server-only Secret, outside Helm values and ConfigMaps. Namespace deletion checks
 its recorded UID. All runs preserve the original logical query and verify final
 coverage, released source versions and permanent source retirement.
 

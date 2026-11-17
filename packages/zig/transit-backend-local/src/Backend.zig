@@ -12,7 +12,7 @@ io: std.Io,
 directory: std.Io.Dir,
 lock: std.Io.File,
 wal: storage.LocalWal.LocalWal,
-objects: storage.LocalSegmentStore.LocalSegmentStore,
+objects: @import("NativeObjects.zig"),
 allocations: Allocations,
 data_allocations: DataAllocations,
 mutex: std.Io.Mutex = .init,
@@ -55,10 +55,15 @@ maintenance_settings: ?core.protocol.Storage.Maintenance = null,
 collection_quota: ?*@import("transit_fuze").memory.Quota = null,
 
 pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8, limits: core.protocol.Storage.Limits) !Self {
+    return openWithObjectStorage(allocator, io, parent, path, limits, null);
+}
+pub const ObjectStorage = @import("ObjectTier.zig").Options;
+pub fn openWithObjectStorage(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: []const u8, limits: core.protocol.Storage.Limits, object_storage: ?ObjectStorage) !Self {
     try limits.validate();
+    if (object_storage) |options| try options.validate();
     // The object root's mandatory marker guards the entire native layout. A
     // separate lifetime lock covers the WAL and object owner together.
-    var objects = try storage.LocalSegmentStore.LocalSegmentStore.openDiskAt(allocator, io, parent, path);
+    var objects = try @import("NativeObjects.zig").open(allocator, io, parent, path);
     errdefer objects.deinit();
     const directory = try parent.openDir(io, path, .{ .iterate = true });
     errdefer directory.close(io);
@@ -72,12 +77,20 @@ pub fn open(allocator: std.mem.Allocator, io: std.Io, parent: std.Io.Dir, path: 
     errdefer allocations.deinit();
     var data_allocations = try DataAllocations.open(allocator, io, directory);
     errdefer data_allocations.deinit();
+    try objects.configure(io, directory, object_storage, try wal.log().tail(0) == 0 and try allocations.queue.log().tail(0) == 0 and try data_allocations.queue.log().tail(0) == 0, limits.control_bytes);
     var allocated = try countFiles(io, directory);
     // Known depth only; file/object cardinality does not determine resident size.
     for ([_][]const u8{ "keys", "locks", "objects", "wal", "native-allocations", "native-allocations/queue", "data-allocations", "data-allocations/queue" }) |relative| {
         const child = try directory.openDir(io, relative, .{ .iterate = true });
         defer child.close(io);
         allocated = try std.math.add(u64, allocated, try countFiles(io, child));
+    }
+    if (objects.tier != null) {
+        for ([_][]const u8{ "tier", "tier/states", "tier/locks", "tier/queue" }) |relative| {
+            const child = try directory.openDir(io, relative, .{ .iterate = true });
+            defer child.close(io);
+            allocated = try std.math.add(u64, allocated, try countFiles(io, child));
+        }
     }
     const resolved = try directory.realPathFileAlloc(io, ".", allocator);
     defer allocator.free(resolved);
@@ -132,7 +145,7 @@ pub fn requiresRecovery(self: *Self) !bool {
 
 /// Fixed diagnostic categories. The shared main WAL owns both native and
 /// direct partitions; this observation does not attribute an individual append.
-pub const RecoverySource = enum { main_wal, native_inventory, data_inventory };
+pub const RecoverySource = enum { main_wal, native_inventory, data_inventory, tier_inventory };
 pub fn recoverySource(self: *Self) !?RecoverySource {
     try self.data_inventory.lock(self.io);
     defer self.data_inventory.unlock(self.io);
@@ -140,10 +153,24 @@ pub fn recoverySource(self: *Self) !?RecoverySource {
     defer self.native_inventory.unlock(self.io);
     try self.mutex.lock(self.io);
     defer self.mutex.unlock(self.io);
+    if (self.objects.tier) |tier| if (tier.poisoned.load(.acquire) or tier.queue.wal.requiresRecovery()) return .tier_inventory;
     if (self.wal.requiresRecovery()) return .main_wal;
     if (self.allocations.queue.requiresRecovery()) return .native_inventory;
     if (self.data_allocations.queue.requiresRecovery()) return .data_inventory;
     return null;
+}
+
+fn tierOverhead(self: *Self) usize {
+    return if (self.objects.tier == null) 0 else 8192;
+}
+
+/// Single background operation; accepted storage and cache budgets stay separate.
+pub fn tierStep(self: *Self) !void {
+    const tier = self.objects.tier orelse return;
+    const removed = try tier.step();
+    try self.mutex.lock(self.io);
+    defer self.mutex.unlock(self.io);
+    self.allocated -|= removed;
 }
 
 fn countFiles(io: std.Io, directory: std.Io.Dir) !u64 {
@@ -179,7 +206,7 @@ pub fn putTracked(self: *Self, key: []const u8, bytes: []const u8, control: bool
     const item: storage.TransitObjectStore.ImmutablePut = .{ .key = key, .bytes = bytes, .sha256 = digest };
     const allocation = (try self.prepareDataPut(item, control, source)) orelse return;
     var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
-    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
+    try self.objects.putImmutableBatch((&item)[0..1], &completed, control);
     try self.confirmDataPuts(&.{allocation});
 }
 
@@ -193,7 +220,7 @@ pub fn putBatch(self: *Self, batch: []const storage.TransitObjectStore.Immutable
     var allocations: [Objects.max_put_batch]DataAllocations.Allocation = undefined;
     const count = try self.prepareDataBatch(batch, &pending, &allocations, control, source);
     var completed: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
-    if (count != 0) try self.objects.objectStore().putImmutableBatch(pending[0..count], completed[0..count]);
+    if (count != 0) try self.objects.putImmutableBatch(pending[0..count], completed[0..count], control);
     // Partial batch failure remembers no new durable publication. Exact retry
     // must re-establish the inventory and object barriers for every such item.
     if (count != 0) try self.confirmDataPuts(allocations[0..count]);
@@ -233,7 +260,7 @@ fn prepareDataBatch(
                 if (confirmed) continue;
             } else {
                 const checks = std.math.divCeil(usize, item.bytes.len, 64 * 1024) catch unreachable;
-                try self.reserve(item.bytes.len + checks * 32 + 1024, control);
+                try self.reserve(item.bytes.len + checks * 32 + 1024 + self.tierOverhead(), control);
             }
             pending[count] = item;
             allocations[count] = wanted;
@@ -286,7 +313,7 @@ fn prepareDataPut(self: *Self, item: storage.TransitObjectStore.ImmutablePut, co
         // still fail quota promptly while another creator's sync is paused.
         if (existing == null) {
             const checks = std.math.divCeil(usize, bytes.len, 64 * 1024) catch unreachable;
-            try self.reserve(bytes.len + checks * 32 + 1024, control);
+            try self.reserve(bytes.len + checks * 32 + 1024 + self.tierOverhead(), control);
         }
         break :blk epoch;
     };
@@ -339,12 +366,12 @@ pub fn putNativeTracked(self: *Self, epoch: u64, kind: @FieldType(Allocations.Al
     var key: [96]u8 = undefined;
     const item: storage.TransitObjectStore.ImmutablePut = .{ .key = try allocation.key(&key), .bytes = bytes, .sha256 = digest };
     var completed: [1]storage.TransitObjectStore.ObjectMeta = undefined;
-    try self.objects.objectStore().putImmutableBatch((&item)[0..1], &completed);
+    try self.objects.putImmutableBatch((&item)[0..1], &completed, control);
 }
 
-pub const NativePut = struct { address: [32]u8, bytes: []const u8 };
+pub const NativePut = struct { kind: @FieldType(Allocations.Allocation, "kind") = .page, address: [32]u8, bytes: []const u8 };
 
-pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control: bool, source: bool) !void {
+pub fn putNativeBatch(self: *Self, epoch: u64, batch: []const NativePut, control: bool, source: bool) !void {
     const Objects = storage.TransitObjectStore;
     if (batch.len == 0 or batch.len > Objects.max_put_batch) return error.InvalidObjectBatch;
     var keys: [Objects.max_put_batch][96]u8 = undefined;
@@ -353,7 +380,7 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
     for (batch, allocations[0..batch.len], items[0..batch.len], keys[0..batch.len]) |item, *allocation, *entry, *key| {
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(item.bytes, &digest, .{});
-        allocation.* = .{ .epoch = epoch, .kind = .page, .address = item.address, .meta = .{ .size = item.bytes.len, .sha256 = digest } };
+        allocation.* = .{ .epoch = epoch, .kind = item.kind, .address = item.address, .meta = .{ .size = item.bytes.len, .sha256 = digest } };
         entry.* = .{ .key = try allocation.key(key), .bytes = item.bytes, .sha256 = digest };
     }
     var output: [Objects.max_put_batch]Objects.ObjectMeta = undefined;
@@ -361,7 +388,7 @@ pub fn putNativePages(self: *Self, epoch: u64, batch: []const NativePut, control
     try self.native_creators.lockShared(self.io);
     defer self.native_creators.unlockShared(self.io);
     try self.prepareNativeBatch(allocations[0..batch.len], control, source);
-    try self.objects.objectStore().putImmutableBatch(items[0..batch.len], output[0..batch.len]);
+    try self.objects.putImmutableBatch(items[0..batch.len], output[0..batch.len], control);
 }
 
 fn prepareNativeBatch(self: *Self, allocations: []const Allocations.Allocation, control: bool, source: bool) !void {
@@ -381,7 +408,7 @@ fn prepareNativeBatch(self: *Self, allocations: []const Allocations.Allocation, 
             if (known == null) {
                 const size: usize = @intCast(allocation.meta.size);
                 const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
-                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
+                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes + self.tierOverhead(), control);
             }
         }
     }
@@ -402,7 +429,7 @@ fn prepareNativePut(self: *Self, allocation: Allocations.Allocation, size: usize
             if (epoch < current_epoch or epoch - current_epoch > 1) return error.StaleStorageEpoch;
             if (existing == null) {
                 const checks = std.math.divCeil(usize, size, 64 * 1024) catch unreachable;
-                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes, control);
+                try self.reserve(size + checks * 32 + 1536 + Allocations.record_bytes + self.tierOverhead(), control);
             }
         }
         _ = try self.allocations.recordTrackedWithExisting(allocation, existing, source);

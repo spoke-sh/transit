@@ -12,15 +12,6 @@ x-runtime: &runtime
     driver: json-file
     options: {max-size: 5m, max-file: "2"}
 services:
-  ursula:
-    <<: *runtime
-    image: '${EXCHANGE_URSULA_IMAGE:?}'
-    command: [server, --config, /ursula.toml]
-    environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
-    volumes:
-      - '${EXCHANGE_WORK:?}/ursula.toml:/ursula.toml:ro'
-      - '${EXCHANGE_WORK:?}/wal:/wal'
-    networks: [storage]
   node:
     <<: *runtime
     image: '${EXCHANGE_NODE_IMAGE:?}'

@@ -26,7 +26,7 @@ def run(profile):
     assert profile in ("compose", "reference")
     started = time.monotonic()
     host = ROOT / "zig-out/bin/transit-client-host"
-    env = {k: v for k, v in os.environ.items() if not k.startswith(("URSULA_", "OTEL_"))}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("OTEL_",))}
     env.update(LOG_LEVEL="warn", RUST_LOG="warn", TOKIO_WORKER_THREADS="2")
     http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with tempfile.TemporaryDirectory(prefix="transit-document-") as directory:
@@ -82,8 +82,7 @@ def run(profile):
         try:
             placement = Reference(work) if profile == "reference" else Compose(work)
             if profile == "compose":
-                (work / "ursula.toml").touch()
-                placement.call("create", "ursula")
+                placement.prepare_storage_network()
                 network = placement.project + "_storage"
             else:
                 network = "kind"
@@ -92,30 +91,14 @@ def run(profile):
             if bridge is None: raise RuntimeError('Document placement needs a private IPv4 bridge gateway')
             cold = ColdStore(bind_address=bridge).__enter__()
             placement.cold_address, placement.cold_port = bridge, cold.port
-            config = f'''[server]
-listen = "0.0.0.0:8080"
-admin_listen = "127.0.0.1:0"
-[runtime]
-core_count = 2
-[raft]
-node_id = 1
-group_count = 1
-[raft.wal]
-backend = "disk"
-path = "{'/data/wal' if profile == 'reference' else '/wal'}"
-''' + cold.config()
-            (work / "ursula.toml").write_text(config)
-            (work / "ursula.toml").chmod(0o600)
             write("operator/node.json", server_configuration(realm, '/operator/seed.key',
-                ursula=dict(url='http://ursula:8080', bucket='document-example', journal='authority')))
-            storage = placement.start("ursula")
-            ready(storage, placement.url("ursula")+"/__ursula/ready")
+                object_storage=cold.placement_config(work)))
             placement.initialize()
             authority = placement.start("node")
             url = placement.url("node")
             ready(authority, url+"/health")
-            denied = [placement.address("ursula", "storage")+":8080", placement.cold_address+":"+str(cold.port), "1.1.1.1:443"]
-            assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == dict(authority="reachable", denied=3)
+            denied = [placement.cold_address+":"+str(cold.port), "1.1.1.1:443"]
+            assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == dict(authority="reachable", denied=len(denied))
             records = {}
             for principal, role in enumerate(("writer", "left", "right"), 1):
                 pid = command({"spawn": {}})
@@ -192,9 +175,6 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
             # Unpublished material survives physical node/store loss; only the
             # same durable PID under fresh ownership may resume its candidate.
             placement.stop_for_recovery("node", authority)
-            placement.stop_for_recovery("ursula", storage)
-            storage = placement.start("ursula")
-            ready(storage, placement.url("ursula")+"/__ursula/ready")
             authority = placement.start("node")
             url = placement.url("node")
             ready(authority, url+"/health")
@@ -217,10 +197,10 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
             assert sync["epoch"] == 2 and sync["floor"] == 4 and sync["previous_counter"] == 5
             worker("retire")
             assert submit("right", 3, right)["reason"] == "retired"
-            assert cold.data_objects() > 0, "Cold spill was not exercised"
+            assert cold.native_data_objects() > 0, "Cold spill was not exercised"
             print("Document placement evidence:", json.dumps(dict(profile=profile, seconds=round(time.monotonic()-started, 2), independent_editors=2,
                 node_store_restarts=1, unpublished_recovery=True, bootstrap=profile=="reference", conflicts_resolved=True,
-                resynchronized=True, retired=True, caller_storage_denied=True, hot_bytes=8*1024*1024, cold_objects=cold.data_objects(), cold_bytes=cold.file_bytes())), flush=True)
+                resynchronized=True, retired=True, caller_storage_denied=True, cache_bytes=32*1024*1024, cold_objects=cold.native_data_objects(), cold_bytes=cold.file_bytes())), flush=True)
         except BaseException:
             if placement:
                 print(placement.call("ps", "--all", "--format", "json"))

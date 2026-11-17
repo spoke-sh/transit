@@ -6,6 +6,7 @@ import ipaddress
 import os
 from pathlib import Path
 import secrets
+import ssl
 import shutil
 import subprocess
 import sys
@@ -27,20 +28,23 @@ def minio_binary():
 
 
 class ColdStore:
-    def __init__(self, *, bind_address='127.0.0.1'):
+    def __init__(self, *, bind_address='127.0.0.1', tls=None):
         address = ipaddress.IPv4Address(bind_address)
         if not address.is_private or address.is_unspecified or address.is_multicast:
             raise ValueError('Cold-store fixture needs a selected private interface')
         self.bind_address = str(address)
-        # Cleanup is explicit so an unjoined child retains its owned disk state.
-        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", delete=False)
+        # Failure evidence must survive Nix's disposable TMPDIR as well as an
+        # unjoined child. Only successful joined runs remove their own state.
+        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", dir='/var/tmp', delete=False)
         self.root = Path(self.directory.name) / 'data'
         self.root.mkdir(mode=0o700)
         self.access = "transit-proof"
         self.secret = secrets.token_hex(24)
         self.bucket = "transit-proof"
         self.port = free_port()
-        self.url = f"http://{self.bind_address}:{self.port}"
+        self.tls = (not address.is_loopback) if tls is None else tls
+        self.url = f"{'https' if self.tls else 'http'}://{self.bind_address}:{self.port}"
+        self.ca_file = None
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self.pid = None
         self.process = None
@@ -60,9 +64,24 @@ class ColdStore:
             env = {key: value for key, value in os.environ.items()
                    if not key.startswith(('MINIO_', 'AWS_'))}
             env.update(MINIO_ROOT_USER=self.access, MINIO_ROOT_PASSWORD=self.secret, MINIO_BROWSER='off')
+            tls_args = []
+            if self.tls:
+                certificates = Path(self.directory.name) / 'certs'
+                certificates.mkdir(mode=0o700)
+                self.ca_file = certificates / 'public.crt'
+                subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
+                    '-keyout', str(certificates / 'private.key'), '-out', str(self.ca_file),
+                    '-days', '2', '-subj', '/CN=transit-minio-proof',
+                    '-addext', f'subjectAltName=IP:{self.bind_address}',
+                    '-addext', 'basicConstraints=critical,CA:TRUE'],
+                    check=True, capture_output=True, timeout=30)
+                (certificates / 'private.key').chmod(0o600)
+                self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}),
+                    urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=str(self.ca_file))))
+                tls_args = ['--certs-dir', str(certificates)]
             self.process = subprocess.Popen([
                 binary, 'server', str(self.root), '--address', f'{self.bind_address}:{self.port}',
-                '--console-address', '127.0.0.1:0',
+                '--console-address', '127.0.0.1:0', *tls_args,
             ], env=env, cwd=self.root, stdout=self.log, stderr=subprocess.STDOUT)
             self.pid = self.process.pid
             deadline = time.monotonic() + 30
@@ -86,7 +105,7 @@ class ColdStore:
 
     def create_bucket(self, deadline):
         # Minimal SigV4 for this one empty PutBucket request; no cloud credentials
-        # or SDK chain are consulted. Ursula itself exercises the S3 data path.
+        # or SDK chain are consulted. Transit itself exercises the S3 data path.
         now = datetime.now(timezone.utc)
         date, timestamp = now.strftime("%Y%m%d"), now.strftime("%Y%m%dT%H%M%SZ")
         payload = hashlib.sha256(b"").hexdigest()
@@ -136,32 +155,33 @@ class ColdStore:
                 retries += 1
             time.sleep(min(0.05, max(0, deadline-time.monotonic())))
 
-    def config(self):
-        return f'''[storage.cold]
-backend = "s3"
-root = "pages"
-flush_interval = "100ms"
-flush_size = "256KiB"
-flush_pressure_hot_size = "256KiB"
-max_hot_size_per_group = "8MiB"
-[storage.cold.cache]
-max_size = "8MiB"
-block_size = "256KiB"
-readahead_blocks = 0
-[storage.cold.s3]
-bucket = "{self.bucket}"
-region = "us-east-1"
-endpoint = "{self.url}"
-access_key_id = "{self.access}"
-secret_access_key = "{self.secret}"
-server_side_encryption = "none"
-[storage.snapshot]
-backend = "s3"
-drive_interval = "1s"
-[governance.cold_health]
-hot_size_high = "6MiB"
-hot_size_low = "4MiB"
-'''
+    def native_config(self):
+        """Explicit native tier configuration with an owned credential reference."""
+        import json
+        credentials = Path(self.directory.name) / 'native-credentials.json'
+        credentials.write_text(json.dumps(dict(access_key_id=self.access, secret_access_key=self.secret)))
+        credentials.chmod(0o600)
+        return dict(endpoint=self.url, region='us-east-1', bucket=self.bucket,
+                    prefix='native-' + secrets.token_hex(16), credentials_file=str(credentials),
+                    allow_loopback_http=not self.tls, ca_file=str(self.ca_file) if self.ca_file else None, cache_bytes=32 * 1024 * 1024)
+
+    def placement_config(self, work):
+        """Mount only into the authority; callers never receive provider files."""
+        options = self.native_config()
+        operator = Path(work) / 'operator'
+        for member, name in (('credentials_file', 'object-credentials.json'), ('ca_file', 'object-ca.pem')):
+            source = options[member]
+            if source is not None:
+                target = operator / name
+                target.write_bytes(Path(source).read_bytes())
+                target.chmod(0o600)
+                options[member] = '/operator/' + name
+        return options
+
+    def native_data_objects(self):
+        # Scenario owners may add namespace components below the private prefix.
+        # Count actual generation metadata at either depth, excluding owner markers.
+        return sum(1 for path in (self.root / self.bucket).glob('native-*/**/objects/*/*/xl.meta') if path.is_file())
 
     def file_bytes(self):
         total = 0
@@ -172,14 +192,6 @@ hot_size_low = "4MiB"
             except FileNotFoundError:
                 pass  # Concurrent object-store temporary-file reclamation.
         return total
-
-    def data_objects(self):
-        # Pinned Ursula writes either individual stream chunks or shared packs
-        # for multi-stream flushes. MinIO stores one xl.meta per object. Count
-        # both data layouts, excluding snapshots and bucket/startup metadata.
-        root = self.root / self.bucket / 'pages'
-        return sum(1 for pattern in ('*/*/chunks/*/xl.meta', '*/_packs/*/*/xl.meta')
-                   for path in root.glob(pattern) if path.is_file())
 
     @phase("teardown", "minio")
     def stop(self):
@@ -211,4 +223,7 @@ hot_size_low = "4MiB"
             finally:
                 if self.process is not None and self.process.poll() is None:
                     raise RuntimeError(f'Cold-store cleanup did not join PID {self.pid}; retained {self.directory.name}')
-                self.directory.cleanup()
+                if exc_type:
+                    print(f'Failed MinIO state and private credentials retained at {self.directory.name}', file=sys.stderr)
+                else:
+                    self.directory.cleanup()

@@ -26,18 +26,28 @@ and recovery. Read the [storage reference](../../docs/handbook/reference/storage
 | Automatic Table/Stream maintenance, retained reads, admission pressure and restart | [Method and resource observations](tables/maintenance.md), [schedule](tables/direct_table_maintenance.py), [Table caller](tables/direct_table_maintenance.zig), [Stream caller](../interfaces/native/direct_table_client.zig); `just test direct-table-maintenance` |
 | Queue FIFO claims, uncertain replies, automatic retired-lease expiry and original payloads after restart | [Signed caller](tables/direct_queue.zig), [HTTP schedule](tables/direct_table_service.py); `just test direct-table-service queues` (also included in the default direct-service gate) |
 | Physical codecs and independent bytes | [Codec fixtures](codecs/column_codecs.py) |
-| Ursula/provider-specific conformance | [Provider storage](providers/storage.py), [pages](providers/pages.py), [blocks](providers/block_storage.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
+| Native semantic recovery and signed kernel assertions | [Disk storage driver](providers/storage.py), `just test::storage`; explicit completion then SIGKILL at each phase |
+| Native tier/provider conformance | [MinIO operations and tier recovery](providers/s3.py), [native blocks](providers/block_native.py), [authority growth](providers/growing.py), [cold-store fixture](providers/cold_storage.py) |
 | Expiry, deletion, capacity and maintenance | [retention/](retention/), [real ENOSPC](retention/capacity.py) |
 
 Use [test recipes](../../tasks/test.just) for explicit binary and provider inputs.
 Repository Python drivers use the shared test launcher. Local WAL/Table and
-Ursula schedules preserve separate guarantees; a filename or common helper does
+MinIO tier schedules preserve separate guarantees; a filename or common helper does
 not establish the backend. Performance drivers and budgets live in
 [performance](../performance/README.md), and application actor execution in runtime.
 
 Physical disk, process death, injected failure and modeled power loss are
 distinct evidence. Automatic runner records identify completed commands; archived
 results do not qualify current source.
+
+`just test::server-object-tier` exercises the same installed SQL, settings,
+upload/eviction and cold-restart assertions on Local and Docker Compose with
+real MinIO TLS. It requires Linux, Docker Compose and the pinned shell. The task
+builds with the static OpenSSL inputs from the `release-checks` shell and rejects
+a runtime with a dynamic loader or shared-library dependency. The
+Compose profile uses one static Transit executable, host networking and a
+private installation/credential bind mount; it does not qualify container network
+isolation. Application worker isolation remains a reference-deployment proof.
 
 The historical collection schedules lose replies after local service execution,
 then inspect the same saved acquisition or closure. They run the native collector

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deploy native v1 on the owned reference cluster and kill real workers."""
 import json
+import ipaddress
 from interfaces.native.wire_values import encode_command
 import os
 from pathlib import Path
@@ -13,6 +14,7 @@ import uuid
 
 import interfaces.deployment.reference as ref
 from harness.services import free_port
+from storage.providers.cold_storage import ColdStore
 
 
 def diagnostic_records(text):
@@ -110,15 +112,21 @@ def run():
     def actor():
         return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
 
+    addresses = json.loads(subprocess.check_output(['docker', 'network', 'inspect', 'kind']))[0]['IPAM']['Config']
+    bridge = next(item['Gateway'] for item in addresses if item.get('Gateway') and ipaddress.ip_address(item['Gateway']).version == 4)
+    cold = ColdStore(bind_address=bridge).__enter__()
+    tier = cold.native_config()
+    provider_files = {name: Path(tier[field]).read_text() for field, name in
+                      (('credentials_file', 'object-credentials.json'), ('ca_file', 'object-ca.pem'))}
+    tier.update(credentials_file='/secrets/object-credentials.json', ca_file='/secrets/object-ca.pem')
     config = {"realm": 49, "applications": None, "sql": {"native": {"local": False}},
-              "external": {"allow_history_trim": True, "ursula": {"url": f"http://ursula.{namespace}.svc.cluster.local:8080",
-                                      "bucket": "transit-reference", "journal": "authority"}}}
+              "storage": {"object_storage": tier}, "external": {"allow_history_trim": True}}
     from interfaces.deployment.reference_chart import Chart
     chart = Chart(s, directory, namespace, images, config)
     try:
         apply({"apiVersion": "v1", "kind": "Namespace", "metadata": {"name": namespace}})
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "node-root", "namespace": namespace},
-               "stringData": {"root": root_key.read_text()}})
+               "stringData": {"root": root_key.read_text(), **provider_files}})
         chart.deploy(node={"enabled": True})
         forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
                             "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "port-forward")
@@ -181,7 +189,7 @@ def run():
         live = actor()
         assert live["metadata"]["uid"] == first_actor_uid
         from interfaces.deployment.reference_board import Board
-        board = Board(s, directory, namespace, images, pid, command, key, apply, start, chart)
+        board = Board(s, directory, namespace, images, pid, command, key, apply, start, chart, cold.url)
         board_before = board.process(pid)
         assert board_before["generation"] == completed["process"]["generation"]
         old_worker = live["status"]["workerAssignment"]
@@ -196,8 +204,14 @@ def run():
         assert board_after["pid"] == board_before["pid"]
         assert board_after["generation"] > board_before["generation"]
         assert board_after["binding"]["activation"]["worker_incarnation"] != board_before["binding"]["activation"]["worker_incarnation"]
-        ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=ursula", "--grace-period=0", "--force"])
-        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/ursula", "--timeout=120s"])
+        # The native storage owner is the Transit pod itself. kubectl binds its
+        # forward to one pod, so join it and reconnect to the replacement owner.
+        forward.kill()
+        forward.wait(timeout=10)
+        ref.kube(s, ["-n", namespace, "delete", "pod", "-l", "app=transit", "--grace-period=0", "--force"])
+        ref.kube(s, ["-n", namespace, "rollout", "status", "deployment/transit", "--timeout=120s"])
+        forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
+                            "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "storage-replacement-forward")
         assert await_state(pid, 1153)["process"]["pid"] == pid
         # Server-owned maintenance survives lack of incoming requests and trims
         # while the original authority stays running. No key reaches workers.
@@ -221,7 +235,7 @@ def run():
         assert counter() == 1153
         assert "state" not in board.process(pid), "Board must not decode application state"
         from interfaces.deployment.reference_isolation import run as isolation
-        isolation_evidence = isolation(s, directory, namespace, authority_host, images, template)
+        isolation_evidence = isolation(s, directory, namespace, authority_host, images, template, cold.url)
         # A deterministic poison input must stop replacement, not turn worker
         # exits into an endless Substrate activation loop.
         failed_input = command({"send": {"pid": pid, "value": 9223372036854775807}})
@@ -267,7 +281,7 @@ def run():
                     "first_worker_uid": old_worker["workerPodUid"], "replacement_worker_uid": replacement["status"]["workerAssignment"]["workerPodUid"],
                     "state": 1153, "expired_pid": finite_pid, "isolation": isolation_evidence, "images": images, "pins": ref.PINS, "chart": "deploy/reference/chart"}
         (directory / "evidence.json").write_text(json.dumps(evidence, indent=2))
-        print("Substrate controller crash, same-PID/Actor worker recovery, persistent Ursula/authority restart and background expiry passed.")
+        print("Substrate controller crash, same-PID/Actor worker recovery, native authority restart with retained MinIO objects and background expiry passed.")
         print("Evidence:", directory / "evidence.json")
     except BaseException:
         for log in logs:
@@ -275,12 +289,22 @@ def run():
         ref.kube(s, ["get", "pods", "-n", namespace])
         raise
     finally:
-        for child in children:
-            if child.poll() is None:
-                child.kill()
-            child.wait(timeout=10)
-        for log in logs:
-            log.close()
+        failure = sys.exc_info()
+        # Stop this proof's actual authority/controllers before joining MinIO.
+        # The retained PVC and original namespace remain available for inspection.
+        try:
+            chart.values['running'] = False
+            chart.deploy()
+        finally:
+            try:
+                cold.__exit__(*failure)
+            finally:
+                for child in children:
+                    if child.poll() is None:
+                        child.kill()
+                    child.wait(timeout=10)
+                for log in logs:
+                    log.close()
 
 
 if __name__ == "__main__":

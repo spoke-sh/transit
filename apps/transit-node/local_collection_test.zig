@@ -112,9 +112,11 @@ test "automatic local collection resumes both owners, rechecks privilege and clo
     try f.root(.{ .create_principal = grant });
     try f.pages.begin(f.engine.head.storage_epoch, false);
     const orphan = try f.pages.stageBlock(try core.protocol.Blocks.Spec.of("unpublished"), "unpublished");
-    f.pages.discard();
+    // Persist candidate bytes without publishing an accepted root.
+    try f.pages.finish();
     var native_key_buffer: [96]u8 = undefined;
     const native_key = try std.fmt.bufPrint(&native_key_buffer, "native/b/{x}", .{&orphan.location});
+    try t.expect(try f.owner.objects.objectStore().head(native_key) != null);
     const direct_key = "table-segments/unpublished.tseg";
     try f.owner.put(direct_key, "unpublished", false);
     var native: backend.StorageCollection = .{ .backend = &f.owner };

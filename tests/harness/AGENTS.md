@@ -4,8 +4,9 @@ Follow the [test rules](../AGENTS.md) and [harness index](README.md). Share port
 readiness, process ownership and artifact capture here; keep expected semantics
 and fault schedules in their domain owners.
 
-Generic helpers must not import provider fixtures. Select Ursula explicitly via
-`harness.ursula`; local WAL/Table checks use their own storage configuration.
+Generic helpers must not import provider fixtures. Select native authority state
+explicitly via `harness.native`; MinIO tests add their own `ColdStore` and tier
+configuration. Local WAL/Table checks retain their selected storage profile.
 Do not add a default backend or fallback that changes a scenario's evidence.
 
 Keep finite deadlines, process-exit detection and joined cleanup. A successful

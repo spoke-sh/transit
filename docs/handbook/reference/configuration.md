@@ -250,6 +250,55 @@ when restoring a trusted local backup.
 
 ## Immutable storage
 
+The native disk owner is the default. Optional `storage.object_storage` adds a
+MinIO immutable tier while preserving the local WAL, staging and recovery
+metadata. Select it on a fresh installation; a retained local-only installation
+cannot be silently converted, and a retained tier cannot be disabled or repointed.
+The following fragment belongs inside the server configuration:
+
+```json
+{
+  "storage": {
+    "object_storage": {
+      "endpoint": "https://minio.internal:9000",
+      "region": "us-east-1",
+      "bucket": "transit-data",
+      "prefix": "installation-a",
+      "credentials_file": "secrets/object-storage.json",
+      "ca_file": "secrets/object-storage-ca.pem",
+      "staging_bytes": 1073741824,
+      "pending_objects": 65536,
+      "cache_bytes": 268435456,
+      "request_timeout_ms": 10000
+    }
+  }
+}
+```
+
+Provision the bucket separately and keep the prefix exclusive to this installation.
+The credential file contains `access_key_id`, `secret_access_key` and optional
+`session_token`; values are never inline configuration. Relative credential/CA
+paths resolve against the configuration file. Credentials reload per request;
+CA roots load on owner open. Omit `ca_file` to use system roots. HTTP requires
+`allow_loopback_http: true` and a loopback endpoint, for local tests only.
+
+Endpoint, region, bucket and prefix bind the original namespace. The remaining
+budgets and file references require restart to change. Staging defaults to 1 GiB
+(minimum 32 MiB), pending uploads to 65,536 objects (1–1,048,576), and disposable
+disk cache to 256 MiB (32 MiB–4 GiB). A separate 4,096-item reserve admits control uploads and deletion
+intents; control uploads can also use the native `control_bytes` budget. The 10-second request deadline accepts 1–120,000 ms and joins cancellation.
+These limits supplement native allocation and request budgets. They do not
+permit expiry or eviction of the only durable copy during provider failure.
+
+The signed native storage observation and Board Storage view expose pending
+bytes/objects, budgets, cache usage and transfer failures. Counters reset when
+the owner reopens; backlog is durable private work, not an accepted-operation
+count. Provider addresses and credential paths are excluded from that observation.
+See the [tier profile](../../../packages/zig/transit-backend-local/README.md#optional-immutable-object-tier)
+for recovery and [verification limits](verification.md). AWS S3 and other
+compatible providers remain unqualified.
+
+
 `storage.limits.bytes`, `storage.limits.control_bytes` and
 `storage.limits.candidate_bytes` configure ordinary allocation quota, separate
 control/collection reserve and the private candidate buffer. Defaults are 8 GiB,
@@ -312,12 +361,8 @@ routine eligible turns do not consume the reserve while they fit the ordinary
 budget. Each reservation records which budget owns its bytes until collection
 releases them. Neither quota pressure nor reserve exhaustion expires data.
 
-The Ursula maintenance process begins another physical pass after
-`storage.maintenance.collection_every_records` allocation-ledger records
-(default 1,024). Its `storage.maintenance.compact` setting enables bounded native
-block/page relocation before collection and defaults to false in bare node
-configuration. The local node uses the same threshold separately for native and
-direct source allocation intents. Its counters exclude collection marks,
+The native node uses `storage.maintenance.collection_every_records` (default
+1,024) separately for native and direct source allocation intents. Its counters exclude collection marks,
 retained-item carries, progress records and maintenance-generated fences. A pass
 captures its activity target before accepting the epoch fence; later activity
 remains eligible. Incomplete passes resume across restart, and completed passes

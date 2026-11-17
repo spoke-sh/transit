@@ -17,10 +17,11 @@ The reference command requires the existing Kind/Substrate infrastructure and
 matching runtime image described in the [reference launcher guide](../../../launchers/README.md#run-the-reference-installation).
 It creates a new `transit-serving-*` namespace, a separate worker pool and a
 persistent volume for the native and direct Table owners. It never adopts or updates the default installation.
-The physical fixtures also start isolated Ursula and pinned native MinIO targets
-for storage-network denial probes. Those targets do not store this example's
-Table or native history. Caller/gateway egress probes include their exact
-endpoints; those processes grant no Transit access.
+The physical fixtures configure pinned native MinIO as the immutable tier,
+using private TLS and server-only credential/CA files. Local native/direct WAL,
+staging and recovery metadata stay on the retained authority volume.
+Caller/gateway egress probes deny the exact provider endpoint; a successful
+provider request grants no Transit access.
 Each command runs the demonstration and recovery assertions, then removes only
 its own processes, containers, namespace and temporary credentials.
 

@@ -277,7 +277,7 @@ For implementation, run owning package tests and the following registered
 prerequisites inside the pinned development shell, selected by changed scope:
 `just test direct-mixed-transaction`, `just test direct-queue-transfer`,
 `just test direct-automatic-queue-transfer`, `just test direct-workload-token`,
-`just test direct-workload-result`, `just test storage-collection`,
+`just test direct-workload-result`, `just test local-native-collection`,
 `just test queue-lease-transaction-model`, `just test transaction-decision-model`,
 `just test transaction-workspace-model` and `just test station`. Add the new
 runner's real installed/fault proof; the current Station suite does not test it.

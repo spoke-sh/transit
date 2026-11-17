@@ -10,7 +10,7 @@ _default:
 build:
     zig build examples
 
-# Run an example against a fresh, owned local disk Ursula and authority.
+# Run an example against a fresh, owned local the native disk owner and authority.
 run name:
     zig build apps examples
     python3 -B examples/local.py {{quote(name)}}
@@ -59,7 +59,7 @@ grpc-reference:
     zig build transit-client-host
     python3 -B examples/station-grpc/run.py --profile reference
 
-# Two editors and a writer on a client network isolated from disk Ursula.
+# Two editors and a writer on a client network isolated from the native disk owner.
 document-compose:
     zig build transit-client-host
     python3 -B examples/station-document/run.py --profile compose

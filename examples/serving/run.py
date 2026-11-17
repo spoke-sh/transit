@@ -27,7 +27,7 @@ from placement import Compose, DirectReference
 def run(profile, reactive=False, views=False):
     reactive = reactive or views
     started = time.monotonic()
-    env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
+    env = {k: v for k, v in os.environ.items() if not k.startswith(('OTEL_',))} | {'LOG_LEVEL': 'warn'}
     with tempfile.TemporaryDirectory(prefix='transit-serving-') as directory, ExitStack() as owned:
         work = Path(directory)
         subprocess.run(['zig', 'build', 'transit-station-host', '-Doptimize=ReleaseSafe', '--prefix', str(work / 'tools')], cwd=ROOT, check=True, timeout=900)
@@ -110,7 +110,7 @@ def run(profile, reactive=False, views=False):
             until = time.monotonic() + 90
             while child.poll() is None and time.monotonic() < until:
                 try:
-                    request(endpoint, '/__ursula/ready' if child is storage else '/health')
+                    request(endpoint, '/health')
                     return
                 except (OSError, AssertionError, ValueError): time.sleep(.1)
             raise RuntimeError('Serving placement did not become ready')
@@ -261,8 +261,7 @@ def run(profile, reactive=False, views=False):
             if profile == 'compose':
                 # Compose creates the isolated storage bridge before the native
                 # cold fixture binds its exact host-side private interface.
-                (work / 'ursula.toml').touch()
-                placement.call('create', 'ursula')
+                placement.prepare_storage_network()
                 network = placement.project + '_storage'
             else:
                 network = 'kind'
@@ -273,16 +272,12 @@ def run(profile, reactive=False, views=False):
             cold = owned.enter_context(ColdStore(bind_address=bridge))
             placement.cold_address = bridge
             placement.cold_port = cold.port
-            wal = '/data/wal' if profile == 'reference' else '/wal'
-            (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config())
-            (work / 'ursula.toml').chmod(0o600)
             write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000),
-                local_directory='/authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
-            storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
+                local_directory='/authority', storage=dict(object_storage=cold.placement_config(work)), port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
             placement.initialize()
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
-            denied = [placement.address('ursula', 'storage') + ':8080', placement.cold_address + ':' + str(placement.cold_port), '1.1.1.1:443']
-            assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
+            denied = [placement.cold_address + ':' + str(placement.cold_port), '1.1.1.1:443']
+            assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=len(denied))
             ingress, ingress_resource = provision(77)
             application, application_resource = provision(78)
             if views:
@@ -341,7 +336,7 @@ def run(profile, reactive=False, views=False):
                 cast(ingress, policy(65537)); drained(ingress)
 
                 def recover_views():
-                    nonlocal workers, storage, authority, url, delivery
+                    nonlocal workers, authority, url, delivery
                     if profile == 'reference':
                         for handle in workers: placement.stop_host(handle)
                         delivery.kill(); delivery.wait(timeout=10)
@@ -349,8 +344,6 @@ def run(profile, reactive=False, views=False):
                         for child in workers: placement.stop_for_recovery('', child)
                         placement.stop_for_recovery('courier', delivery)
                     placement.stop_for_recovery('node', authority)
-                    placement.stop_for_recovery('ursula', storage)
-                    storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
                     authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
                     workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
                                activate('application', 78, application, application_resource, application_role)]
@@ -386,8 +379,6 @@ def run(profile, reactive=False, views=False):
                 for child in workers: child.kill(); child.wait(timeout=10)
             for index, child in enumerate(gateway_workers): placement.stop_for_recovery('gateway-' + str(index), child)
             placement.stop_for_recovery('node', authority)
-            placement.stop_for_recovery('ursula', storage)
-            storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
             workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
                        activate('application', 78, application, application_resource, application_role)]

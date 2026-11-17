@@ -19,7 +19,7 @@ from harness import http_probe
 from harness.local_installation import freeze_executables
 from harness.processes import children, command
 from interfaces.installation.server import Fixture
-from storage.providers.pages import metrics, sample_process
+from performance.process_metrics import metrics, sample_process
 from interfaces.cli.table_console import results as table_results, atom
 from harness.services import free_port
 

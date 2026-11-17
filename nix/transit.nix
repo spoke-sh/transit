@@ -24,12 +24,6 @@ let
   # runs offline and verifies the same package identities as build.zig.zon.
   dependencies = [
     {
-      repo = "ursula-zig";
-      rev = "2d507829429d4199f411df02df9cc937bf624144";
-      hash = "sha256-AyMigYnv2/NDjh5txzKUfzbkE8g2f9w8vT/IsdsaEKY=";
-      zigHash = "ursula_zig-0.0.0-rb5hFJsaAgDo2SoUt3p32weNLReXIqRxQjSonL1Ytq5q";
-    }
-    {
       repo = "zarrow";
       rev = "4276ac30d63d1af159490b7dc70e15d749b8d01b";
       hash = "sha256-28o+5LlPtFS0szT8E90fIa5h4HFNxt429NGWo+s1Dhc=";

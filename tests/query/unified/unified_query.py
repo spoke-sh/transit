@@ -11,7 +11,7 @@ import time
 
 import pyarrow as pa
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 from storage.providers.cold_storage import ColdStore
 from query.unified.unified_abi import Native, Port, Failure, upload, verify
@@ -25,7 +25,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
-        with ColdStore() as cold, Fixture(cold.config()) as fixture:
+        with ColdStore() as cold, Fixture() as fixture:
             root = fixture.root
             fixture.env.update(LOG_FORMAT="json", LOG_LEVEL="info")
             from sdk.sdk_unified import install
@@ -35,12 +35,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             url = f"http://127.0.0.1:{port}"
             node_config = root / "node.json"
             resident_pages = 64 if kind == "document" else 8
-            node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
-            if kind == 'table':
-                settings = json.loads(node_config.read_text())
-                for field in ('ursula_url', 'bucket', 'journal'): settings.pop(field)
-                settings['local_directory'] = str(root/'authority')
-                node_config.write_text(json.dumps(settings))
+            node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "local_directory": str(fixture.native_directory), "storage": {"object_storage": cold.native_config()}, "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
             processes, logs = [], []
             native, port_client = None, None
             callers = []
@@ -150,7 +145,6 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     if process.poll() is None: process.kill()
                     process.wait(timeout=10)
                 if after_stop: after_stop()
-                fixture.stop(); fixture.start()
                 authority = start('node-' + label, [node, str(node_config)])
                 wait_ready(fixture.http, authority, url + '/health')
                 if before_workers: before_workers()
@@ -430,11 +424,15 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         raise AssertionError('retired source disclosed a completed result')
                     except Failure as failure:
                         assert failure.detail['err'] in retired_errors, failure
-                if kind != 'table': assert cold.data_objects() > 0
-                else:
-                    assert not any((root/'authority').rglob('*.tseg')), 'this point-write proof must recover unflushed rows'
+                assert cold.native_data_objects() > 0
+                if kind == 'table':
+                    for descriptor in (fixture.native_directory / 'keys').iterdir():
+                        raw = descriptor.read_bytes()
+                        assert len(raw) == 512 and raw[:8] == b'TOBJ\x01\x00\x00\x00'
+                        key = raw[120:120 + int.from_bytes(raw[41:43], 'little')]
+                        assert not key.endswith(b'.tseg'), 'this point-write proof must recover unflushed rows'
                     print('Unified table: exact point-write recovery and released-pin refusal passed without any flushed .tseg segment.', flush=True)
-                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / native backend={'local_directory' if kind == 'table' else 'ursula'} / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / predicate={'compound' if compound else 'atom'} / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
+                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / native backend=local_directory with S3 / {cold.native_data_objects()} cold objects / {cold.file_bytes()} cold bytes / predicate={'compound' if compound else 'atom'} / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)

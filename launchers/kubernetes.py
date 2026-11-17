@@ -271,7 +271,6 @@ class Reference:
         else:
             values = {"running": True,
                 "node": {"enabled": True, "nameOverride": "transit"},
-                "ursula": {"nameOverride": "ursula", "image": infrastructure.PINS["ursula"]},
                 "board": {"enabled": False, "nameOverride": "board", "existingSecret": "board-credentials"},
                 "controller": {"enabled": False, "nameOverride": "controller", "existingSecret": "controller-credentials"}}
         self.service_values(values, selection, images)
@@ -430,7 +429,7 @@ class Reference:
             self.intent(False, "restart")
             self.await_process(lambda p: p["binding"]["activation"] is not None, "fresh activation")
         else:
-            component = {"node": "transit", "board": "board", "controller": "controller", "ursula": "ursula"}.get(name)
+            component = {"node": "transit", "board": "board", "controller": "controller"}.get(name)
             if component is None:
                 raise ValueError("Unknown reference service")
             self.kube("rollout", "restart", "deployment/" + component)
@@ -441,7 +440,7 @@ class Reference:
             infrastructure.ate(self.state, ["logs", "actor", self.values()["controller"]["config"]["provider"]["actor"], "-a", self.namespace, "-c", "counter"])
             return
         name = "transit" if name == "node" else name
-        if name not in ("transit", "board", "controller", "ursula"):
+        if name not in ("transit", "board", "controller"):
             raise ValueError("Unknown service")
         self.kube("logs", "--tail=200", "deployment/" + name)
 

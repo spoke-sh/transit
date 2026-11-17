@@ -10,7 +10,7 @@ import subprocess
 import sys
 import threading
 import time
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.local_installation import ExternalInstallation
 from interfaces.installation.server_application_faults import install_peer, publish_evidence
 
@@ -18,7 +18,7 @@ from interfaces.installation.server_application_faults import install_peer, publ
 def run(server, cli, counter, byte_log, probe):
     with Fixture() as store:
         children, logs = [], []
-        fixture = ExternalInstallation(server, ursula=store.url)
+        fixture = ExternalInstallation(server)
         fixture.config['realm'] = 61
         install_peer(fixture)
         completed = False
@@ -198,8 +198,6 @@ def run(server, cli, counter, byte_log, probe):
             command({"send": {"pid": pids[0], "value": b"5".hex()}})
             authority.kill()
             authority.wait(timeout=10)
-            store.stop()
-            store.start()
             authority = start()
             for index, expected in enumerate([b"12", b"alpha\x007"]):
                 command({"own": {"pid": pids[index], "expected_generation": 2, "worker": index+1}})

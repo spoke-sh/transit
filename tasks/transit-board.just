@@ -105,6 +105,10 @@ browser:
 relational-browser:
     zig build test-direct-board -Doptimize=ReleaseSafe -Ddirect-board-browser=true
 
+# Preserve the local profile above and separately inspect the real MinIO tier.
+tier-browser:
+    zig build test-transit-board -Doptimize=ReleaseSafe -Dtransit-board-browser=true -Dtransit-board-object-tier=true
+
 # Prove the direct worksheet and durable original pin cleanup against the real node.
 relational-test:
     zig build test-direct-board -Doptimize=ReleaseSafe
@@ -124,7 +128,7 @@ demo: build
     zig build apps examples
     python3 -B examples/local.py counter --board
 
-# Qualify the optional growing query API against real hosts and disk Ursula.
+# Qualify the optional growing query API against real hosts and the native disk owner.
 query-test:
     zig build test-board-query
 

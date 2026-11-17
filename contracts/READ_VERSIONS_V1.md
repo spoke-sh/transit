@@ -117,7 +117,7 @@ explicit release and finite source expiry. Root-only recovery ignores an invalid
 test journal prefix after checkpoint; that injected test is not physical trim proof.
 `just test::growing-service` additionally captures a 60-row version while committing
 four new rows, loses the accepted reply, and recovers both current and retained
-state through disk Ursula/node restart with one resident cache page. A replacement
+state through the native disk owner/node restart with one resident cache page. A replacement
 activation reads the retained version while its predecessor is fenced.
 
 `just test::growing` additionally checks live retained versions across actual

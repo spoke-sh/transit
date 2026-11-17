@@ -19,8 +19,8 @@ import threading
 import time
 import tempfile
 from storage.providers.cold_storage import ColdStore
-from storage.providers.pages import metrics, sample_process
-from harness.ursula import Fixture
+from performance.process_metrics import metrics, sample_process
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 
@@ -48,7 +48,6 @@ def main():
     from runner.paths import ROOT as root
     disk = root / '.cache/verification/storage'
     disk.mkdir(parents=True, exist_ok=True)
-    tempfile.tempdir = str(disk)  # Nix's TMPDIR may be tmpfs; measure the checkout filesystem.
     node, caller = (str(Path(path).resolve(strict=True)) for path in (args.node, args.caller))
     artifact = args.output or root / '.cache/verification/growing-load.json'
     artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -59,32 +58,30 @@ def main():
                     platform=platform.platform(), logical_cpus=os.cpu_count(), affinity=sorted(os.sched_getaffinity(0)),
                     stack_limit_bytes=resource.getrlimit(resource.RLIMIT_STACK)[0],
                     zig=subprocess.check_output(['zig', 'version'], text=True).strip(),
-                    ursula=subprocess.check_output(['ursula', '--version'], text=True).strip(),
+                    storage='native Transit; local WAL and optional immutable S3 tier',
                     workload={k: getattr(args, k) for k in ('rows', 'cache', 'payload', 'hot_percent', 'workers', 'interval_ms', 'cold_s3')})
     try:
         with ExitStack() as resources:
             cold = resources.enter_context(ColdStore()) if args.cold_s3 else None
-            fixture = resources.enter_context(Fixture(cold.config() if cold else None))
+            fixture = resources.enter_context(Fixture(parent=disk))
             evidence['filesystem'] = subprocess.check_output(['stat', '-f', '-c', '%T', fixture.root], text=True).strip()
             public = json.loads(subprocess.check_output([caller, 'public'], timeout=10))
             port = free_port()
             url = f'http://127.0.0.1:{port}'
             config = fixture.root / 'node.json'
             config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
-                ursula_url=fixture.url, bucket='growing-load', journal='authority', port=port,
+                local_directory=str(fixture.native_directory), storage=dict(object_storage=cold.native_config() if cold else None), port=port,
                 resident_pages=args.cache, request_timeout_ms=15000, request_metrics=True)))
             manifest = fixture.root / 'expected.json'
             log = resources.enter_context((fixture.root / 'node.log').open('w+'))
             authority = None
             stop = threading.Event()
-            peaks = {name: metrics() for name in ('node', 'ursula', 'cold_store', 'generator')}
+            peaks = {name: metrics() for name in ('node', 'cold_store', 'generator')}
 
             def sample():
                 while not stop.wait(.02):
                     if authority:
                         sample_process(authority.pid, peaks['node'])
-                    if fixture.server:
-                        sample_process(fixture.server.pid, peaks['ursula'])
                     if cold:
                         sample_process(cold.pid, peaks['cold_store'])
                     sample_process(os.getpid(), peaks['generator'])
@@ -181,20 +178,16 @@ def main():
                 authority.kill()
                 authority.wait(timeout=10)
                 authority = None
-                fixture.stop()
-                started = time.monotonic()
-                fixture.start()
-                evidence['provider_restart_seconds'] = time.monotonic() - started
                 evidence['node_restart_seconds'] = start()
                 evidence['recovered'] = driver('recover')
-                # Historical receipts and revocation survive node/provider loss.
+                # Historical receipts and revocation survive native-owner process death.
                 for body, original in accepted:
                     retried = request(body, time.monotonic())
                     assert retried['status'] == 200 and retried['receipt'] == original['receipt']
                 assert request(prepared['denied'], time.monotonic())['status'] == 403
-                evidence['wal_file_bytes'] = sum(p.stat().st_size for p in (fixture.root / 'wal').rglob('*') if p.is_file())
+                evidence['wal_file_bytes'] = sum(p.stat().st_size for p in (fixture.native_directory / 'wal').rglob('*') if p.is_file())
                 if cold:
-                    evidence.update(cold_provider=cold.identity, cold_file_bytes=cold.file_bytes(), cold_data_objects=cold.data_objects())
+                    evidence.update(cold_provider=cold.identity, cold_file_bytes=cold.file_bytes(), cold_data_objects=cold.native_data_objects())
                     assert evidence['cold_data_objects'] > 0
             except subprocess.CalledProcessError as error:
                 raise RuntimeError((error.stderr or '')[-12000:]) from error

@@ -65,8 +65,6 @@ def run(node, cli, counter):
         before = entries(resource, first['resource']['revision'])
         s.authority.kill()
         s.authority.wait(timeout=10)
-        s.store.stop()
-        s.store.start()
         s.authority = s.start(s.node, s.config)
         wait_ready(s.store.http, s.authority, s.url + '/health')
         assert entries(resource) == before
@@ -95,8 +93,11 @@ def run(node, cli, counter):
         config = json.loads(s.config.read_text())
         config['maintenance'] = {'principal': 0, 'seed_file': str(s.seed), 'interval_ms': 50}
         s.config.write_text(json.dumps(config))
+        s.authority.kill()
+        s.authority.wait(timeout=10)
         for _ in range(2):
-            maintenance = s.start(node, s.config, '--maintain')
+            maintenance = s.authority = s.start(node, s.config)
+            wait_ready(s.store.http, maintenance, s.url + '/health')
             until = time.monotonic() + 10
             while True:
                 status, response = s.native_query({'resource': resource}, status=None)

@@ -36,11 +36,16 @@ class Compose:
         assert protocol in ("http", "grpc", "document", "query", "serving", "flight", "sql-wire", "work-items")
         self.project = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
         self.env = os.environ | {"EXCHANGE_UID": str(os.getuid()), "EXCHANGE_GID": str(os.getgid()),
-            "EXCHANGE_WORK": str(work),
-            "EXCHANGE_URSULA_IMAGE": json.loads((ROOT / "deploy/reference/versions.json").read_text())["ursula"]}
+            "EXCHANGE_WORK": str(work)}
         self.command = ["docker", "compose", "--project-name", self.project, "--env-file", os.devnull,
                         "--file", str(Path(__file__).with_name("docker-compose.yaml"))]
         self.build()
+
+    def prepare_storage_network(self):
+        # Compose creates the isolated bridge and authority mount without
+        # executing a node before its explicit configuration has been written.
+        (self.work / 'operator/node.json').touch()
+        self.call('create', 'node')
 
     def call(self, *args, timeout=120):
         result = subprocess.run([*self.command, *args], env=self.env, text=True, capture_output=True, timeout=timeout)
@@ -121,7 +126,7 @@ class Compose:
         return "http://node:8080"
 
     def url(self, service):
-        return "http://" + self.address(service, "storage" if service == "ursula" else "client") + ":8080"
+        return "http://" + self.address(service, "client") + ":8080"
 
     def peer_requests(self):
         return json.loads((self.work / "peer/requests.json").read_text())

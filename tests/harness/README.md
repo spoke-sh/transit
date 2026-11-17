@@ -6,9 +6,8 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | Owner | Responsibility |
 | --- | --- |
 | [services.py](services.py) | Loopback port selection and bounded HTTP readiness while observing the owned process |
-| [ursula.py](ursula.py) | Isolated disk-backed Ursula configuration, startup, SIGKILL/restart and joined cleanup |
+| [native.py](native.py) | Explicit native authority directory and private failure retention; scenarios own and join their node processes |
 | [test_services.py](test_services.py) | Real HTTP readiness/retry, early process exit and deadline controls |
-| [test_ursula.py](test_ursula.py) | Provider listener collision and restart controls using owned child processes; no storage qualification |
 | [abi_support.py](abi_support.py) | Generated native ABI dispatch, bounded handle ownership and exact saved bytes for cross-component fixtures |
 | [operation_helpers.py](operation_helpers.py) | Explicit private operation-driver location; never substitute the installed CLI |
 | [recovery_fixture.py](recovery_fixture.py) | Preserve owned failed state after joining its supplied provider fixtures |
@@ -21,7 +20,8 @@ assertions in domain scenarios and provider setup in explicitly named fixtures.
 | [operations/RecoveryFiles.zig](operations/RecoveryFiles.zig) | Private recovery-file I/O for domain-owned native operation scenarios |
 
 Test drivers on the `tests/` import path use `harness.services` for generic
-helpers. Select `harness.ursula.Fixture` only when the scenario requires Ursula.
+helpers. Use `harness.native.Fixture` for owned native authority state; select the
+explicit MinIO fixture when the scenario exercises remote immutable placement.
 The [storage conformance driver](../storage/providers/storage.py) owns its disk recovery schedules;
 the [direct Table driver](../storage/tables/direct_table_service.py) owns local Table scenarios.
 Sharing port/readiness helpers does not give either driver the other's backend
@@ -73,12 +73,6 @@ discovery results, not reservations against other processes. `wait_ready()` requ
 HTTP 200, observes early process exit, uses a 30-second deadline and bounds each
 request to 0.5 seconds. Callers own process termination and joining, including
 startup failure. Readiness does not establish durable acceptance or recovery.
-
-The Ursula fixture selects distinct public and admin ports in one batch and
-preserves both across restart. Ursula binds admin first; an ephemeral admin port
-could otherwise consume the selected public port. Another process can still take
-a released discovery port. Startup fails in that case; the fixture does not
-retry with a different endpoint or replace the conflicting process.
 
 Callers that investigate uncertain accepted work can select
 `Fixture(retain_on_failure=True)`. It joins the provider and keeps failed private

@@ -99,8 +99,8 @@ variant.
 
 The local server supplies conditional native durability through its exclusive
 [local backend](../../../packages/zig/transit-backend-local/README.md), a
-partition-zero WAL and immutable page/block objects. Ursula deployments retain
-their backend mapping. The local path preserves the existing native root model. The
+partition-zero WAL and immutable page/block objects. Optional MinIO tiering
+preserves the same native root model and local acceptance boundary. The
 [native persistence proofs](../../history/qualification/storage.md#native-authority-over-local-storage--2026-10-22)
 cover restart and lost replies, with the physical collection and power-loss
 limits stated there. Transit owns logical identities, accepted transitions, retained
@@ -217,17 +217,20 @@ batched records. Existing sync-failure schedules separately exercise storage
 errors.
 Bounded stack buffers hold encoded pages. The native
 [`PageStore`](../../../packages/zig/transit-backend-local/src/PageStore.zig)
-preallocates an additional eight-page private buffer per owner and coalesces
-successive tree/path stages across one candidate. Its own reads resolve buffered
+preallocates private buffers for eight pages and eight blocks per owner and
+coalesces successive stages across one candidate. Its own reads resolve buffered
 children independently of read-cache capacity. It flushes when full and in
 `finish`, which native preparation calls before returning a publishable candidate.
-No timer or later command completes this work. Discard may drop unflushed pages;
+No timer or later command completes this work. Discard may drop unflushed pages
+and blocks;
 flushed private objects remain inventoried until ordinary reclamation. A sync,
 quota or encoding failure prevents preparation from returning a candidate for
-WAL acceptance. The buffer does not grow with retained history and its memory is
+WAL acceptance. These buffers do not grow with retained history and their memory is
 included in the owner's resident accounting.
 The finite model checks one- and two-object groups; disk tests
 cover the eight-object bound, overlapping groups, partial failures and restart.
+The file-barrier helper requests bounded concurrent I/O independently of CPU
+parallelism, with joined completion and an inline fallback when unavailable.
 These checks do not prove arbitrary batch sizes or physical power-loss behavior.
 
 Deferring indexes would require
@@ -772,32 +775,12 @@ standalone memtable/manifest composition. Its
 [partition contract](../../../packages/zig/transit-storage/docs/table-partitions.md)
 owns the implemented acceptance, read-pin and recovery boundaries.
 
-### Diagnosis: quadruple B-tree indirection over an HTTP stream store
+### Historical motivation
 
-In the measured earlier baseline, inserting a single Table row incurred `806 ms` from
-the local console (`13,238 ms` over PostgreSQL wire), staging `29` immutable
-pages and issuing `1,072` HTTP requests to Ursula. Formalizing the storage stack
-explains why:
-
-$$\text{Row}(\text{FTR1}) \;\hookrightarrow\; \text{StationIndex}(\text{SBR1}) \;\hookrightarrow\; \text{Resource B-Tree}(\text{TPG1}) \;\hookrightarrow\; \text{Realm Catalog B-Tree}(\text{TPG1}) \;\hookrightarrow\; \text{PackedPageStore}(\text{Base64 JSON over Ursula HTTP})$$
-
-1. **Four nested copy-on-write trees:** A single logical row (`FTR1`) and its
-   primary-key index entry are packed into `StationIndex` (`SBR1`) blocks (`64 KiB`
-   envelopes), which are indexed by the resource's block B-tree (`TPG1`), whose
-   root is stored inside the global realm catalog B-tree (`TPG1`, 8-entry leaves,
-   32-child branches). Every path copy from leaf to root across all four layers
-   allocates new immutable pages.
-2. **Per-turn base64 HTTP stream framing:** `PackedPageStore` serializes each
-   modified `TPG1` page into a base64-encoded JSON string, creates a brand-new
-   Ursula stream `p/<realm>/c/<id>` for the candidate turn, appends frames over
-   HTTP, reads back the entire candidate stream in `192 KiB` windows to verify
-   hashes, seals the stream, and only then conditionally appends to the realm
-   journal `j`.
-3. **Actor-turn wire fragmentation:** Because data operations are funneled
-   through `send_input -> open_view -> read_blocks -> commit_turn` with a
-   `128 KiB` per-turn block ceiling, multi-row writes and schema changes must
-   checkpoint intermediate staging state machines (`STW1`, `STC1`, `STG1`, `STX1`)
-   across multiple sequential turns.
+The retired Ursula composition staged small pages through remote stream requests.
+Its measured amplification motivated the native WAL/object boundary. Those
+[historical measurements](../../history/qualification/native-storage-cutover.md)
+do not qualify the replacement profile or establish current latency budgets.
 
 ### Two pluggable storage primitives: `TransitLog` and `TransitObjectStore`
 
@@ -825,7 +808,7 @@ flowchart TB
   end
 
   subgraph CloudBackends["Cloud / Clustered Mode (Compose & Kubernetes/Substrate launchers)"]
-    DistWal["UrsulaWal / KafkaWal / PulsarWal\nLong-Lived Partition Streams & Data-Activation Bus"]
+    DistWal["KafkaWal / PulsarWal (planned)\nLong-Lived Partition Streams & Data-Activation Bus"]
     CloudObj["S3 / GCS / R2 / Azure Blob\nGeo-Replicated Immutable .tseg Segments, .tdel Vectors & Manifests"]
   end
 
@@ -850,13 +833,9 @@ admissions, and recorded effect intents).
 - **Native Zig `LocalWal` (`transit server` default):** Appends `TWAL1` frames
   incrementally to rolling `64 MiB` local segment files. It syncs each accepted
   append and its required metadata before acknowledgement. The local owner
-  requires no Ursula child daemon. Its measured costs depend on the owner
+  requires no external storage child daemon. Its measured costs depend on the owner
   workload and filesystem; the interface does not promise a latency bound.
-- **`UrsulaWal` (Distributed Stream Backbone):** Repositions Ursula from a
-  per-turn B-tree page store to its natural role: a durable, replicated stream
-  log that sequences `TWAL1` frames per partition and streams live deltas to
-  downstream `Fuze` maintained views, reactive watches and `Station` processes.
-- **`KafkaWal` / `PulsarWal` (External Log Adapters):** Maps each `TransitLog`
+- **`KafkaWal` / `PulsarWal` (planned external log adapters):** Would map each `TransitLog`
   partition to a partitioned topic, enforcing `writer_epoch` fencing via
   idempotent producer epochs or partition-leader CAS and tying log retention
   watermarks to `TransitObjectStore` manifest checkpoints.
@@ -882,9 +861,12 @@ Vectors (`.tdel`)**, and versioned **Table / Partition / Branch Manifests
 | Tier | Physical medium | State held | Eviction & crash-recovery invariant |
 | --- | --- | --- | --- |
 | **Tier 0: RAM** | Bounded Zig arenas (`64 B` aligned) | Active **Memtables / Delta Buffers** (providing immediate MVCC read-your-writes visibility for committed `TWAL1` frames), **Catalog & Grant Head (`policy_epoch`)**, and the **Verified Buffer Pool** (pinned `.tseg` column pages, zone maps and B-tree index nodes). | Volatile; holds zero durability authority. Reconstructed on startup by loading the latest `manifest/v{N}` and replaying `TransitLog` from the manifest's `flushed_lsn` watermark. |
-| **Tier 1: WAL (`TransitLog`)** | `LocalWal`, `UrsulaWal`, or `Kafka`/`Pulsar` | Ordered `TWAL1` commit frames since `flushed_lsn`; live change-data activation stream (`+row`/`-row`) feeding `Fuze` maintained views, reactive watches, `TableChangeReader` and `Station` actors. | Durable before any write receipt is returned. Prefix $\le \text{flushed\_lsn}$ is eligible for `trim` only after the referencing `.tseg` segments and `manifest/v{N}` are durable in Tier 3. |
-| **Tier 2: Local Disk / NVMe** | Local POSIX filesystem | In cloud mode: stateless, content-verified (`SHA-256`) read-through cache of `.tseg`/`.tdel` `64 KiB` frames (`mmap`/`preadv`) plus bounded `Fuze` query spill. In local mode (`transit server`): primary `LocalWal` + `LocalSegmentStore`. | In cloud mode, losing a node or wiping NVMe loses zero committed data; cold nodes warm pages lazily via `get_range`. Eviction drops clean cached frames under W-TinyLFU/clock policy without touching Tier 3. |
-| **Tier 3: Object Storage (`TransitObjectStore`)** | S3 / GCS / R2 / Azure Blob or `LocalSegmentStore` | Immutable **`.tseg` Data Segments**, **`.tdel` Deletion Vectors**, and versioned **Snapshot / Branch Manifests (`manifest/v{N}`)**. | System of record for all compacted data, historical `AS OF` snapshots and branches. Orphaned unreferenced `.tseg` files from aborted staging are swept after lease/epoch expiration. |
+| **Tier 1: WAL (`TransitLog`)** | Native local disk | Accepted native and direct frames, original operations and recovery progress. | Synced before acknowledgment; trimming requires the owning checkpoint and retained-history conditions. Required even with MinIO. |
+| **Tier 2: Local Disk / NVMe** | Local filesystem | Durable staging and retained descriptors; a separate disposable verified disk cache when tiering is enabled. | Staged bytes remain durable until verified remote coverage is recorded. Cache loss is safe; loss of WAL, staging or metadata is not. |
+| **Tier 3: Object Storage (`TransitObjectStore`)** | Native local objects; optional MinIO | Immutable pages, blocks, payloads, segments and owner manifests. | Immutable generations are published asynchronously. Collection requires the complete owning retained graph, epoch/read-lifetime fences and a durable deletion intent. |
+
+Kafka/Pulsar WALs and additional cloud providers remain planned. The current
+tier does not provide bucket-only restore or distributed writer fencing.
 
 ### The `.tseg` hybrid OLTP/OLAP segment format and `.tdel` deletion vectors
 
@@ -1039,15 +1021,11 @@ defines the budgets and recovery gates; the
 from direct public operation and restart schedules. Neither establishes
 multi-writer or provider safety.
 
-- **Verified candidate write-through and epoch-tracked cross-lane cache sharing:**
-  In [`PackedPageStore`](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig),
-  `finish()` populates the verified resident page cache (`rememberCandidate`) as
-  soon as the candidate segment stream is read back, verified and sealed. In
-  [`NativeServer.zig`](../../../apps/transit-node/NativeServer.zig), all 10 request lanes
-  synchronize their verified page caches and journal head entries through an
-  epoch-tracked shared cache (`shared_pages_epoch`), propagating newly staged or
-  fetched pages across lanes without copying unchanged 17 KiB page slots on every
-  request.
+- **Verified native pages:** [`PageStore`](../../../packages/zig/transit-backend-local/src/PageStore.zig)
+  owns a bounded decoded read cache and fixed private mutation workspace. Every
+  candidate seals its local staging barriers before publication. The native host
+  shares verified pages across bounded request lanes while retaining current
+  authorization and original object identities.
 
 - **Immutable native control metadata:** each engine has separate 16-record
   native and policy caches at their exact Catalog roots. Known owned record
@@ -1088,7 +1066,7 @@ acknowledged history. Parallel preparation does not create another authority.
 
 The [native host](../../../apps/transit-node/NativeServer.zig) assigns each admitted
 request an exclusively owned execution lane: engine head, verified caches,
-transport client, working buffers and observation counters. Provider I/O runs
+working buffers and observation counters; the exclusive backend owns storage I/O. Provider I/O runs
 without the host's shared registry mutex. Preparation validates at a published
 basis and stages a private successor. Core's conditional append requires that
 same position. Therefore any intervening grant, owner, resource or sequence
@@ -1106,10 +1084,12 @@ failure releases the reservation while preserving the preceding pin. Conflicting
 operations on one pin fail explicitly. Stale releases cannot overwrite a newer
 reservation, and a fresh startup epoch prevents reuse after node restart.
 
-The [disk barrier proof](../../../tests/storage/providers/node_concurrency.py) holds a provider
-response while requiring an independent signed read and commit to complete
-before release. A second schedule holds old evidence across revocation; a third
-races identical signed writes and checks exact receipt reconciliation. The
+The [native disk barrier tests](../../../packages/zig/transit-backend-local/src/native_test.zig)
+hold private storage I/O while independent reads and control work complete. The
+[public concurrency proof](../../../tests/storage/providers/node_concurrency.py)
+races identical signed writes and checks exact receipt reconciliation; the
+[MinIO block proof](../../../tests/storage/providers/block_native.py) holds remote
+bytes across current revocation. The
 [proof ledger](../../history/qualification/README.md) provides its reproduction command. Core schedules
 exercise global/per-principal pending quotas, failed renewals, stale release and
 shared pins across independently owned engines. The proof ledger records runs.
@@ -1194,85 +1174,19 @@ and keep ordinary timings separate from instrumented attempt counts.
 
 ## Physical ownership, uncertainty and collection
 
-The question is how to reclaim unreachable bytes while readers and candidate
-writers overlap, without making retained cardinality a resident-memory budget.
-The model assumes collision-resistant identities, atomic provider/authority
-conditional appends, durable non-rollback history, trusted bounded-error UTC and
-private provider credentials. It distinguishes accepted root ownership from
-physical allocation and from permission to disclose a value.
+Native allocation inventories precede byte publication and remain independent
+of accepted application roots. Retained native and direct graphs determine
+physical reclamation. The optional immutable tier records upload and deletion
+work durably, publishes verified remote coverage before evicting local content,
+and uses separate remote generations for recreated keys. Local identity,
+allocation and tier inventories are required recovery evidence.
 
-[Candidate segments](../../../packages/zig/transit-backend-ursula/src/PackedPageStore.zig)
-assign private frame addresses before network I/O. The
-[allocation queue](../../../packages/zig/transit-backend-ursula/src/AllocationQueue.zig)
-reserves the known normalized size before creation. Verification and a closing
-seal precede authority CAS. The seal matters beyond immutability: the creator
-has completed its single create attempt before issuing it. A collector may
-therefore delete a sealed orphan after fencing old publication. It cannot infer
-the same fact from absence after an unacknowledged create. Such allocations get
-a permanent closed-name fence, followed by data trimming. Releasing their name
-would allow a delayed create to resurrect unaccounted bytes.
-
-The queue's state transition consumes one item, carries a live item forward or
-releases a deleted item's charge, and advances its cursor in one conditional
-append. This makes repeated recovery idempotent without an in-memory allocation
-set. The consumed prefix can be checkpointed and trimmed. Mark pages themselves
-are accounted control allocations; a later completed pass can collect them.
-The queues and catalogs are durable state, while their operation buffers remain
-bounded independently of retained cardinality.
-
-Control eligibility grants access to recovery capacity; it does not select a
-separate allocation partition. The reservation CAS charges ordinary capacity
-first, falling back to the control reserve only for eligible work that cannot fit.
-The queued allocation records the actual charged class, so carry and reclamation
-release the same budget after restart or a quota change. This distinction matters
-because an ordinary turn with no new output or effect is recovery-eligible.
-Charging every such turn to the reserve exhausts recovery capacity during normal
-traffic even when the ordinary budget is mostly unused. The allocation unit test
-checks primary admission, fallback, reserve exhaustion and lowered quotas; the
-disk collection schedule checks refusal of new ordinary work alongside an
-accepted checkpoint charged to the reserve.
-
-[Root enumeration](../../../packages/zig/transit-core/src/StorageRoots.zig) selects
-retained journal roots and current live captured roots.
-[Traversal](../../../packages/zig/transit-core/src/StorageWalk.zig) follows typed
-catalog-to-block-index edges and verifies pages. Closed view records in old
-catalogs remain history rather than renewed ownership. A resource or read
-version's own root preserves data independently of another owner's lifetime.
-The [collector](../../../packages/zig/transit-backend-ursula/src/StorageCollection.zig)
-records its exact cut, traversal cursor, verified mark index and delete intent.
-An epoch fence makes pre-cut candidates fail ordinary publication CAS. Later
-candidates either use protected accepted data or allocate in the new epoch.
-Incomplete root enumeration, including a racing trim, cannot authorize sweep.
-
-Volatile snapshots on other hosts are protected by their maximum lifetime plus
-the native request bound. After that grace, a durable authority time fence makes
-older clock observations fail. This does not replace the trusted-time assumption
-or grant new access. Deletion is separate from mark completion and quota release;
-a lost delete reply resumes the same intent and requires confirmed absence.
-
-[Relocation](../../../packages/zig/transit-core/src/StorageCompact.zig) copies one
-block or one leaf/path per accepted command. Logical values and resource
-revisions stay unchanged, while physical root references change. Old captured
-roots and unlimited history continue owning their original placement. Thus
-compaction can free a partially live segment only after its last old ownership
-edge is released. It cannot manufacture permission to expire history.
-
-Alternatives have different costs. A single append-only page stream minimizes
-stream identities but cannot reclaim isolated orphans. One stream per page
-allows finer deletion but multiplies metadata and requests. Candidate segments
-amortize writes and account failures, while partly live segments can require
-relocation. Ursula still keeps stream metadata and record indexes in memory;
-these Transit bounds do not prove whole-provider resident independence. Physical
-segment quotas also exclude provider WAL, snapshots and work-ledger overhead.
-Those are explicit deployment and measurement obligations.
-
-The [proof ledger](../../history/qualification/README.md) provides reproduction commands for the
-storage collection and native block schedules, with executed revisions and limits.
-The collection fixture injects trusted time,
-restarts processes/provider between phases, loses a deletion acknowledgement,
-corrupts a reachable block and checks retained read versions after relocation.
-These finite schedules do not prove arbitrary provider rollback safety, immediate
-filesystem/cold-object space return, distributed clock correctness or throughput.
+A missing queue, changed namespace or incompatible definition cannot silently
+create an empty replacement. Provider outages preserve pending work; staging
+quotas refuse further ordinary allocation without authorizing expiry. The
+[native backend](../../../packages/zig/transit-backend-local/README.md) owns the
+implemented tier and its limits. The two collectors below retain their distinct
+graph and publication responsibilities.
 
 ### Local immutable-object collection
 
@@ -1566,11 +1480,11 @@ checking all values at the retained root.
 
 The [compact page codec](../../../packages/zig/transit-core/src/PageCodec.zig) uses
 8-entry leaves and 32-child branches. The
-[backend mapping](../../../packages/zig/transit-backend-ursula/docs/pages.md)
-wraps those bytes in canonical base64 JSON records for pinned Ursula record
-coordinates. Binary encoding removes generic JSON page parsing and shallow
-branches reduce path copies. The cost is a larger decoded page/cache slot and
-base64 framing. These are separate from compute vector widths, Arrow batches
+[native page owner](../../../packages/zig/transit-backend-local/src/PageStore.zig)
+wraps those bytes in a current-definition envelope and retains original digest
+and locator metadata. Binary encoding removes generic JSON page parsing and
+shallow branches reduce path copies. Decoded cache slots and fixed staging
+buffers have their own resident budgets. These are separate from compute vector widths, Arrow batches
 and application publication segments; the native mutation quota is unchanged.
 A current-definition cutover prevents old stored pages from being reinterpreted.
 
@@ -1610,38 +1524,16 @@ loaded runs. Short idle lock waits therefore do not establish negligible
 queueing under load. Moving preparation out of serialized access remains subject
 to the publication contracts below.
 
-### Cold-flush budget starvation
+### Provider backlog and bounds
 
-The unproxied mutation campaign also asks whether reducing foreground latency
-exposes provider backpressure. A diagnostic build observes Ursula
-`ColdBackpressure`; bounded provider samples show the hot backlog approaching
-its 8 MiB admission limit with no cold-write errors. This distinguishes that
-failure from a gateway socket close. Proxies slow the workload and can conceal
-the pressure, so their completed runs cannot resolve the unproxied failure.
-
-In the pinned provider's flush planner, let the batch target be `B`, the first
-stream's eligible bytes `a` with `0 < a < B`, and the next stream's backlog at
-least `B`. Planning the next chunk at size `B` then rejecting `a + B > B` leaves
-`B - a` unused. If the first stream receives more bytes between every pass, the
-second stream can remain unflushed until admission fails. The
-[provider patch](../../../nix/ursula-cold-flush.patch) caps subsequent candidates at
-the remaining batch budget. It preserves immutable chunk publication, the
-existing first-candidate policy and the hot-memory limit. A repeated two-stream
-regression checks progress, exact offsets, bounded aggregate bytes and the
-separation between planning and publication. This corrects avoidable starvation;
-it does not promise admission when incoming bytes exceed durable drain capacity.
-
-The local Nix package owns this correction. Official pinned container images
-remain a separate provider profile. The [campaign evidence](https://github.com/spoke-sh/transit/blob/a610ecd5dcff22f2d0177b61b905a8e985252c13/tests/mutation_latency/results/2026-10-04/README.md)
-records diagnostic-only build patches and failed runs; a provider category never
-authorizes a fresh retry of an uncertain Transit command.
-
-Corrected-provider controls complete 700-case default and fixed-poll workloads
-without uncertain writes. A separate combined direct-client/history/reader
-repeat completes 700 cases and 5,729 reads without a restart. Other completed
-controls still observe authority-timeout restarts, and the first combined
-control loses its reader. The correction addresses the diagnosed flush-budget
-starvation; it does not establish bounded queueing or uninterrupted availability.
+The native tier persists a bounded upload FIFO before local staging can become
+accepted work. A single background worker uploads and verifies immutable objects,
+persists coverage, then evicts disposable local payloads. Failed remote requests
+retain their original intent. A deletion reserve keeps collection distinct from
+ordinary upload admission. This implements no foreground remote PUT; per-object
+background transfer is not the broader planned packing/coalescing optimization.
+Historical Ursula cold-flush starvation and its provider-specific patch are
+recorded in the [retired source](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/nix/ursula-cold-flush.patch).
 
 ### Alternatives and contract boundaries
 
@@ -1838,7 +1730,7 @@ crashes or lossless collection, and do not qualify provider log formats.
 
 ## Evidence and limits
 
-The [backend mapping](../../../packages/zig/transit-backend-ursula/docs/storage.md),
+The [native backend](../../../packages/zig/transit-backend-local/README.md),
 [runtime contract](../../../contracts/RUNTIME_SUBSTRATE_V1.md) and
 [controller](../../../apps/transit-runtime-controller/README.md) identify implementation
 owners. [Capacity/deletion](../../history/qualification/runtime.md#capacity-and-deletion-evidence),

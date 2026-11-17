@@ -1,7 +1,7 @@
 //! Persistent reclamation proof. No recycled protocol identities after trim.
 const std = @import("std");
 const core = @import("transit_core");
-const backend = @import("transit_backend_ursula");
+const backend = @import("transit_backend_local");
 const p = core.protocol;
 const t = std.testing;
 const disk = @import("fixture_native_disk");
@@ -27,21 +27,17 @@ fn collect(e: *Engine, key: p.Ed25519.KeyPair, pid: u64, kind: @FieldType(g.Coll
 pub fn main(init: std.process.Init) !void {
     const raw_args = try init.minimal.args.toSlice(init.arena.allocator());
     const args = if (raw_args.len == 4) raw_args[1..] else raw_args;
-    if (args.len != 3) return error.ExpectedUrlAndPhase;
+    if (args.len != 3) return error.ExpectedDirectoryAndPhase;
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
     const genesis: core.Genesis = .{ .realm = 81, .root_key = key.public_key.toBytes(), .allow_history_trim = true, .max_clock_error_ms = 0 };
-    var client = try backend.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
-    defer client.deinit();
-    var store: backend.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-readiness", .name = "authority" } } };
-    var pages = try backend.PackedPageStore.init(init.gpa, store.journal, 8);
+    var owner = try disk.open(init, args[1], "readiness");
+    defer owner.deinit();
+    var store: backend.Store = .{ .backend = &owner };
+    var pages = try backend.PageStore.init(&owner, 8);
     defer pages.deinit();
     const e = try init.gpa.create(Engine);
     defer init.gpa.destroy(e);
     const write = std.mem.eql(u8, args[2], "write");
-    if (write) {
-        try store.journal.create();
-        try pages.create();
-    }
     e.* = if (write) try Engine.bootstrap(&store, &pages, genesis) else try Engine.open(&store, &pages, genesis);
     var clock: Clock = .{};
     e.clock = .{ .context = &clock, .read = Clock.read };
@@ -141,4 +137,5 @@ pub fn main(init: std.process.Init) !void {
         } else return error.UnknownPhase;
     }
     std.debug.print("readiness {s}: passed\n", .{args[2]});
+    if (!std.mem.startsWith(u8, args[2], "service_")) try disk.completed(init.io);
 }

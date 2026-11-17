@@ -7,11 +7,11 @@ Consult this record for rationale and proposals; it does not extend a qualified 
 Ursula is the storage provider behind the public Transit boundary. Application
 code uses the client, not raw Ursula streams. Start with the
 [local server](../../apps/transit-cli/docs/server.md) for a configured installation
-or the [backend guide](../../packages/zig/transit-backend-ursula/README.md) for implementation.
+or the [backend guide](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/README.md) for implementation.
 
 Status: Ursula is the selected durable storage and transport implementation.
-[transit-backend-ursula](../../packages/zig/transit-backend-ursula/README.md) integrates
-the pinned server through upstream `ursula-zig`. Its [component guides](../../packages/zig/transit-backend-ursula/README.md#guides) own
+[transit-backend-ursula](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/README.md) integrates
+the pinned server through upstream `ursula-zig`. Its [component guides](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/README.md#guides) own
 API mappings, persistence setup, dependency pins, cursor findings, and recovery limits.
 
 ## Why an adapter
@@ -45,7 +45,7 @@ not proof of process expiry or authorization to recreate its identity. See
 Use disk-backed Ursula for persistence/recovery work. The pinned in-memory preset
 is suitable only for disposable experiments. Container deployments use the
 upstream image; the development shell uses the overlay binaries. Follow the
-[backend startup instructions](../../packages/zig/transit-backend-ursula/docs/storage.md#conditional-authority-and-startup)
+[backend startup instructions](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/storage.md#conditional-authority-and-startup)
 and [reference runbook](../../deploy/reference/README.md).
 
 ## Evidence
@@ -53,6 +53,6 @@ and [reference runbook](../../deploy/reference/README.md).
 The [test guide](../../tests/README.md) records single-node disk interruption,
 conditional authority, bounded reads, checkpoint/trim, and deletion proofs.
 Multi-node routing, host/disk loss, backups, and broader provider durability
-claims require separate qualification. The [upstream integration guide](../../packages/zig/transit-backend-ursula/docs/upstream.md) records the corrected
+claims require separate qualification. The [upstream integration guide](https://github.com/spoke-sh/transit/blob/424cc32e88a1b7d85a160195887fd7a7b0199756/packages/zig/transit-backend-ursula/docs/upstream.md) records the corrected
 client cursor API and the separately reported upstream server behavior; those
 findings must inform future dependency upgrades.

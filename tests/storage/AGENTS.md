@@ -5,9 +5,9 @@ storage/retention contracts. Identify the accepted mutation, durable boundary,
 backend, bounded resident work and observable recovery result before adding a
 schedule. Direct WAL/Table data does not use the application actor model.
 
-Keep local and Ursula fixtures explicit. Generic harness helpers must not choose
-a backend implicitly. Use disk-backed Ursula where required and retain local
-WAL/object acceptance independently. Never substitute tmpfs or a model for a
+Keep native local and MinIO-tier fixtures explicit. Generic harness helpers must
+not choose a remote provider implicitly. Use physical disk where required and
+retain local WAL/object acceptance independently. Never substitute tmpfs or a model for a
 physical-disk requirement.
 
 Preserve original operation bytes and accepted progress across process death,

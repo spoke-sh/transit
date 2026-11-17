@@ -676,7 +676,7 @@ test "batched native and direct publications retain inventory across every sync 
                     .{ .address = @splat(1), .bytes = items[0].bytes },
                     .{ .address = @splat(2), .bytes = items[1].bytes },
                 };
-                try owner.putNativePages(1, &batch, false, true);
+                try owner.putNativeBatch(1, &batch, false, true);
             } else {
                 var output: [2]Objects.ObjectMeta = undefined;
                 var data: backend.DataStore = .{ .backend = owner };

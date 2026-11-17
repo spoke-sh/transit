@@ -14,7 +14,7 @@ from runtime.station.station_ledger import AUDIT, audit_state, audit_total, prov
 
 
 def run(server, cli, worker):
-    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, local=True, server=server, server_setup=configure_transport) as s:
+    with System(server, cli, clock_error_ms=10000, request_timeout_ms=5000, server=server, server_setup=configure_transport) as s:
         configs = {}
         resources = {}
         serial = 0

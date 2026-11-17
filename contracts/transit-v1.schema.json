@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba",
+    "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -74,7 +74,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
           ]
         },
         "realm": {
@@ -2117,7 +2117,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                               ]
                                             },
                                             "realm": {
@@ -3430,7 +3430,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                   ]
                                                 },
                                                 "realm": {
@@ -4847,7 +4847,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+        "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
       }
     },
     "SignedRequest": {
@@ -4880,7 +4880,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
               ]
             },
             "realm": {
@@ -6923,7 +6923,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                   ]
                                                 },
                                                 "realm": {
@@ -8236,7 +8236,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                       ]
                                                     },
                                                     "realm": {
@@ -9706,7 +9706,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
               ]
             },
             "realm": {
@@ -11749,7 +11749,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                   ]
                                                 },
                                                 "realm": {
@@ -13062,7 +13062,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                       ]
                                                     },
                                                     "realm": {
@@ -14546,7 +14546,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
               ]
             },
             "realm": {
@@ -19345,6 +19345,7 @@
                       "additionalProperties": false,
                       "x-transit-field-order": [
                         "backend",
+                        "object_tier",
                         "root",
                         "allocated_bytes",
                         "limits",
@@ -19360,8 +19361,150 @@
                           "type": "string",
                           "enum": [
                             "unavailable",
-                            "local",
-                            "ursula"
+                            "local"
+                          ]
+                        },
+                        "object_tier": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "x-transit-field-order": [
+                                "pending_upload_bytes",
+                                "pending_objects",
+                                "staging_limit_bytes",
+                                "pending_object_limit",
+                                "cache_limit_bytes",
+                                "cache_used_bytes",
+                                "cache_hits",
+                                "cache_misses",
+                                "uploads_completed",
+                                "deletes_completed",
+                                "failed_steps",
+                                "last_failure",
+                                "recovery_required"
+                              ],
+                              "properties": {
+                                "pending_upload_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "pending_objects": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "staging_limit_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "pending_object_limit": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "cache_limit_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "cache_used_bytes": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "cache_hits": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "cache_misses": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "uploads_completed": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "deletes_completed": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "failed_steps": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991,
+                                  "x-transit-bits": 64,
+                                  "x-transit-signed": false
+                                },
+                                "last_failure": {
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "enum": [
+                                        "capacity",
+                                        "denied",
+                                        "clock",
+                                        "timeout",
+                                        "recovery",
+                                        "storage",
+                                        "other"
+                                      ]
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "recovery_required": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "required": [
+                                "pending_upload_bytes",
+                                "pending_objects",
+                                "staging_limit_bytes",
+                                "pending_object_limit",
+                                "cache_limit_bytes",
+                                "cache_used_bytes",
+                                "cache_hits",
+                                "cache_misses",
+                                "uploads_completed",
+                                "deletes_completed",
+                                "failed_steps",
+                                "last_failure",
+                                "recovery_required"
+                              ],
+                              "x-transit-defaults": {}
+                            },
+                            {
+                              "type": "null"
+                            }
                           ]
                         },
                         "root": {
@@ -20102,6 +20245,7 @@
                       },
                       "required": [
                         "backend",
+                        "object_tier",
                         "root",
                         "allocated_bytes",
                         "limits",
@@ -27613,7 +27757,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
           ]
         },
         "realm": {
@@ -28968,7 +29112,7 @@
                                             "definition": {
                                               "type": "string",
                                               "enum": [
-                                                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                               ]
                                             },
                                             "realm": {
@@ -29158,7 +29302,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                   ]
                                                 },
                                                 "realm": {
@@ -30017,7 +30161,7 @@
                                 "definition": {
                                   "type": "string",
                                   "enum": [
-                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                   ]
                                 },
                                 "realm": {
@@ -32060,7 +32204,7 @@
                                                                     "definition": {
                                                                       "type": "string",
                                                                       "enum": [
-                                                                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                                       ]
                                                                     },
                                                                     "realm": {
@@ -33373,7 +33517,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                                            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -34790,7 +34934,7 @@
                               ],
                               "x-transit-defaults": {
                                 "version": 1,
-                                "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                               }
                             }
                           }
@@ -36445,7 +36589,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+        "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
       }
     },
     "SignedQuery": {
@@ -36477,7 +36621,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
               ]
             },
             "realm": {
@@ -37832,7 +37976,7 @@
                                                 "definition": {
                                                   "type": "string",
                                                   "enum": [
-                                                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                   ]
                                                 },
                                                 "realm": {
@@ -38022,7 +38166,7 @@
                                                     "definition": {
                                                       "type": "string",
                                                       "enum": [
-                                                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                       ]
                                                     },
                                                     "realm": {
@@ -38881,7 +39025,7 @@
                                     "definition": {
                                       "type": "string",
                                       "enum": [
-                                        "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                        "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                       ]
                                     },
                                     "realm": {
@@ -40924,7 +41068,7 @@
                                                                         "definition": {
                                                                           "type": "string",
                                                                           "enum": [
-                                                                            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                                            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                                           ]
                                                                         },
                                                                         "realm": {
@@ -42237,7 +42381,7 @@
                                                                             "definition": {
                                                                               "type": "string",
                                                                               "enum": [
-                                                                                "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                                                                "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                                                               ]
                                                                             },
                                                                             "realm": {
@@ -43654,7 +43798,7 @@
                                   ],
                                   "x-transit-defaults": {
                                     "version": 1,
-                                    "definition": "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                                    "definition": "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                                   }
                                 }
                               }
@@ -45353,7 +45497,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
           ]
         },
         "realm": {
@@ -50152,6 +50296,7 @@
                   "additionalProperties": false,
                   "x-transit-field-order": [
                     "backend",
+                    "object_tier",
                     "root",
                     "allocated_bytes",
                     "limits",
@@ -50167,8 +50312,150 @@
                       "type": "string",
                       "enum": [
                         "unavailable",
-                        "local",
-                        "ursula"
+                        "local"
+                      ]
+                    },
+                    "object_tier": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "pending_upload_bytes",
+                            "pending_objects",
+                            "staging_limit_bytes",
+                            "pending_object_limit",
+                            "cache_limit_bytes",
+                            "cache_used_bytes",
+                            "cache_hits",
+                            "cache_misses",
+                            "uploads_completed",
+                            "deletes_completed",
+                            "failed_steps",
+                            "last_failure",
+                            "recovery_required"
+                          ],
+                          "properties": {
+                            "pending_upload_bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "pending_objects": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "staging_limit_bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "pending_object_limit": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "cache_limit_bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "cache_used_bytes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "cache_hits": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "cache_misses": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "uploads_completed": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "deletes_completed": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "failed_steps": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            "last_failure": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "enum": [
+                                    "capacity",
+                                    "denied",
+                                    "clock",
+                                    "timeout",
+                                    "recovery",
+                                    "storage",
+                                    "other"
+                                  ]
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "recovery_required": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "pending_upload_bytes",
+                            "pending_objects",
+                            "staging_limit_bytes",
+                            "pending_object_limit",
+                            "cache_limit_bytes",
+                            "cache_used_bytes",
+                            "cache_hits",
+                            "cache_misses",
+                            "uploads_completed",
+                            "deletes_completed",
+                            "failed_steps",
+                            "last_failure",
+                            "recovery_required"
+                          ],
+                          "x-transit-defaults": {}
+                        },
+                        {
+                          "type": "null"
+                        }
                       ]
                     },
                     "root": {
@@ -50909,6 +51196,7 @@
                   },
                   "required": [
                     "backend",
+                    "object_tier",
                     "root",
                     "allocated_bytes",
                     "limits",
@@ -58698,7 +58986,7 @@
                 "definition": {
                   "type": "string",
                   "enum": [
-                    "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+                    "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
                   ]
                 },
                 "realm": {
@@ -58814,7 +59102,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "bea1a0288e086b8c09607e28c12a46dfbab5ba298c09747ca2b57a5e5d86d7ba"
+            "06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5"
           ]
         },
         "realm": {

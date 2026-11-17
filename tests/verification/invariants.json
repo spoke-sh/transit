@@ -20,7 +20,7 @@
         "Competing prepared successors",
         "Acknowledgement lost after append"
       ],
-      "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
+      "limits": "The test store assumes the conditional native WAL boundary; disk integration checks the provider boundary.",
       "model": "tests/verification/models/Authority.tla",
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -376,13 +376,12 @@
       "owner": "docs/handbook/reference/state.md",
       "implementation": [
         "packages/zig/transit-core/src/pages.zig",
-        "packages/zig/transit-backend-ursula/src/PageStore.zig",
-        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig"
+        "packages/zig/transit-backend-local/src/PageStore.zig"
       ],
-      "profile": "immutable-page-v2 primitive; not a public authority profile",
+      "profile": "Current-v1 immutable native pages, separate component and process-death profiles",
       "tasks": [
         "check::native",
-        "test::pages"
+        "test::growing"
       ],
       "scenarios": [
         "Root publication conflict and unreachable staging",
@@ -390,7 +389,7 @@
         "Cache eviction, old-root reads and deletion churn",
         "Missing/corrupt pages and lost staging acknowledgement"
       ],
-      "limits": "Packed append-only page journal and original closed-stream mapping under qualification. No page GC, authority integration or power-loss proof. Cache bytes exclude provider/HTTP/parser/stack memory.",
+      "limits": "Native immutable descriptors and bounded page/cache staging replace packed stream locators. Page collection and host power-loss qualification remain separate. Cache bytes exclude other process memory.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -491,11 +490,11 @@
       "claim": "Published growing authority roots recover through disk restart and opted-in root-history compaction without materializing all retained state",
       "owner": "docs/handbook/reference/state.md",
       "implementation": [
-        "packages/zig/transit-backend-ursula/src/Store.zig",
-        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
+        "packages/zig/transit-backend-local/src/Store.zig",
+        "packages/zig/transit-backend-local/src/PageStore.zig",
         "tests/storage/providers/growing.zig"
       ],
-      "profile": "transit-v1 development authority and disk Ursula; not running service",
+      "profile": "transit-v1 development authority and native disk; not running service",
       "tasks": [
         "test::growing",
         "check::native",
@@ -517,7 +516,7 @@
       "claim": "An explicit growing service profile supports signed bounded caller reads and atomic turns without exposing raw storage or executing application handlers",
       "owner": "docs/handbook/reference/callers.md",
       "implementation": [
-        "apps/transit-node/Native.zig",
+        "apps/transit-node/Local.zig",
         "apps/transit-node/NativeServer.zig",
         "apps/transit-node/Local.zig",
         "packages/zig/transit-client/src/root.zig",
@@ -553,23 +552,25 @@
         "packages/zig/transit-core/src/growing_maintenance.zig",
         "packages/zig/transit-core/src/growing.zig",
         "apps/transit-node/GrowingMaintenance.zig",
-        "packages/zig/transit-backend-ursula/src/Store.zig",
-        "tests/storage/providers/growing_maintenance.py"
+        "packages/zig/transit-backend-local/src/Store.zig",
+        "tests/storage/local/local_native_maintenance.py"
       ],
       "profile": "transit-v1 development maintenance; one record per rotating scan step",
       "tasks": [
         "check::native",
-        "test::growing-service"
+        "test::growing-service",
+        "test::local-owner-recovery",
+        "test::s3"
       ],
       "scenarios": [
         "Clock failure cannot expire finite work or block recorded terminal-source disposition",
         "Continuing admissions cannot extend a scan pass indefinitely",
         "Stale suggestions cannot authorize expiry under an earlier clock sample",
-        "Snapshot publication reply loss and worker restart precede verified trim",
-        "Accepted trim with stalled acknowledgement times out on one CPU",
+        "Uncertain native checkpoint persistence and exclusive recovery precede verified trim",
+        "Lost physical WAL outcomes require exclusive recovery; remote requests have joined deadlines",
         "Current maintenance revocation prevents new physical trim; regrant resumes committed intent",
         "Retained bytes, independent state and authorized external attempts survive terminal-source cleanup and disk restart",
-        "Accepted immutable-page reply loss leaves authority unchanged across a staging-worker restart"
+        "Uncertain immutable staging leaves the accepted authority unchanged across native recovery"
       ],
       "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
       "model": null,
@@ -885,7 +886,7 @@
         "Stale ownership, read revocation after a prefix, expired view and released retained source",
         "Interrupted cleanup resumes without reusing identities; historical source survives current deletion"
       ],
-      "limits": "Single authority, disk Ursula, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
+      "limits": "Single authority, native disk, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -932,7 +933,7 @@
         "Native/port HTTP fixtures, scoped publication actions and validated calls; one owned replay reader, prefix revocation, sticky failure, stale IDs and allocation rollback",
         "Installed Python, Node, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir HTTP callers: bounded upload with fresh ownership after host loss, binary TLS and Unicode/duplicate headers, correlated reply, owned replay without credentials and joined local stop/disposal"
       ],
-      "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and all ten public HTTP SDKs are qualified. Public followups and language-native release conveniences, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
+      "limits": "Finite HTTP/1.1 worker over native disk: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and all ten public HTTP SDKs are qualified. Public followups and language-native release conveniences, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See docs/history/qualification/README.md for executed evidence."
     },
@@ -973,7 +974,7 @@
         "packages/zig/transit-station-grpc/src/Service.zig",
         "packages/zig/transit-exchange/src/Worker.zig"
       ],
-      "profile": "M16 controller-driven finite worker over disk Ursula",
+      "profile": "M16 controller-driven finite worker over native disk",
       "tasks": [
         "test::grpc-worker"
       ],
@@ -1149,7 +1150,7 @@
         "Independent ANTLR/model agreement and semantic visual-edit round-trip; whole-program rejection and allocation failures",
         "Competing bases, attributed receipts, non-owned record abandonment refusal and explicit staging cleanup",
         "Current operator denial between chunks and after completed admission; resource-read revocation",
-        "Three actual worker kills with node and disk Ursula restart, one-page recovery, stale generation refusal and exact lost append/activation replies",
+        "Three actual worker kills with node and native owner restart, one-page recovery, stale generation refusal and exact lost append/activation replies",
         "Native two-part uploads resume a first half across worker loss; complete unsupported programs remain staging and never activate",
         "Independent native signing digests; scoped host admission, current signed reads and exact browser retry after a real route remount",
         "Actual embedded SQL/Form/Canvas editing and conditional publication, then worker/node/disk restart and current reader revocation"
@@ -1228,7 +1229,7 @@
         "tests/interfaces/installation/server_faults.py",
         "tests/interfaces/installation/server_capacity.py"
       ],
-      "profile": "M24 Linux local_table_v1 with native MinIO, disk Ursula and eight owned child roles",
+      "profile": "M24 Linux local_table_v1 with native MinIO, native disk and eight owned child roles",
       "tasks": [
         "check::native",
         "test::server",
@@ -1420,7 +1421,7 @@
         "tests/runner/external_profiles.py",
         "tests/sdk/sdk_raw_client.py"
       ],
-      "profile": "Owned native Linux binaries with disk Ursula, plus independently selected installed-host and local service rigs",
+      "profile": "Owned native Linux binaries with native disk, plus independently selected installed-host and local service rigs",
       "tasks": [
         "test::vortex",
         "test::vortex-profile"
@@ -1795,7 +1796,7 @@
         "tests/sdk/sdk_relational.py",
         "tests/interfaces/board/board_relational.py"
       ],
-      "profile": "Interactive one/two-catalog caller through the Station ABI/port, installed TypeScript/Python adapters and explicit Board HTTP/browser, one native authority and disk Ursula",
+      "profile": "Interactive one/two-catalog caller through the Station ABI/port, installed TypeScript/Python adapters and explicit Board HTTP/browser, one native authority and native disk",
       "tasks": [
         "test::relational-callers",
         "check::native",
@@ -1873,30 +1874,31 @@
       "claim": "Only complete verified segments can publish roots; collection preserves every explicit owner before reclaiming storage",
       "owner": "docs/handbook/reference/storage.md",
       "implementation": [
-        "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
-        "packages/zig/transit-backend-ursula/src/StorageCollection.zig",
+        "packages/zig/transit-backend-local/src/PageStore.zig",
+        "packages/zig/transit-backend-local/src/StorageCollection.zig",
         "packages/zig/transit-core/src/StorageRoots.zig",
         "packages/zig/transit-core/src/StorageWalk.zig",
         "packages/zig/transit-core/src/StorageCompact.zig"
       ],
-      "profile": "Current native v1; disk Ursula segment layout",
+      "profile": "Current-v1 native disk objects and generation-bound MinIO tier",
       "tasks": [
         "check::native",
         "test::native-blocks",
-        "test::storage-collection",
-        "test::block-storage",
-        "test::pages"
+        "test::local-native-collection",
+        "test::growing",
+        "test::s3",
+        "test::tier-data-collection"
       ],
       "scenarios": [
         "Private complete candidate and exact lost staging/commit recovery",
         "Epoch publication fence, trusted-time grace and current/retained roots",
-        "Corruption during marking, lost delete reply and process/provider restart",
-        "Verified relocation followed by actual old segment absence",
-        "Absent/unsealed allocation fences reject delayed creation; exact quota release"
+        "Corruption during marking, lost delete reply and native owner/provider recovery",
+        "Verified relocation followed by actual old immutable object absence",
+        "Missing allocation evidence and stale epochs reject delayed creation; exact quota release"
       ],
-      "limits": "Injected trusted clock in collection fixtures. Encoded allocation counters exclude provider metadata, work ledgers, snapshots and WAL. Provider deletion/trim does not prove erasure from backups or immediate asynchronous cold-object cleanup.",
+      "limits": "Injected trusted clock in graph fixtures. Native allocation accounting includes durable local metadata but is not remote billing or whole-process RSS. Provider deletion does not prove backup erasure. Each physical provider/profile requires its own executed proof.",
       "model": null,
-      "qualification": "Executed disk/core scopes are recorded in tests/README.md; broader service and clean-CI gates are separate."
+      "qualification": "Current cutover gates and retired assertion mapping are recorded in docs/history/qualification/native-storage-cutover.md; registration is not a passing run."
     },
     {
       "id": "STORAGE-02",
@@ -1985,7 +1987,7 @@
         "Local enrollment and recovery preserve authority across restart; optional wire listeners are independent of native admission",
         "Direct Table EXPLAIN derives typed traits using metadata-only grants, rejects SELECT without read rights, acquires no data pins or scans, and rechecks authorization on repeated terminal disclosure"
       ],
-      "limits": "Linux x86_64 process and disk-backed Ursula fixtures, independent Python HTTPS client and actual console/PG/MySQL clients. Source workers are selected within four native wait lanes; no claim of unbounded simultaneous source workers, exhaustive crash schedules, host power-loss recovery, browser admission, transactions or latency SLO. Fresh client home is not a separate security sandbox.",
+      "limits": "Linux x86_64 process and native disk fixtures, independent Python HTTPS client and actual console/PG/MySQL clients. Source workers are selected within four native wait lanes; no claim of unbounded simultaneous source workers, exhaustive crash schedules, host power-loss recovery, browser admission, transactions or latency SLO. Fresh client home is not a separate security sandbox.",
       "model": null,
       "qualification": "Required current-v1 scenarios; tests/README.md records executed outcomes separately from the implementation and this inventory."
     },
@@ -2176,7 +2178,7 @@
         "tests/runtime/document/document.zig",
         "tests/runtime/document/document.py"
       ],
-      "profile": "Current native v1; local POSIX WAL/objects and separate disk Ursula control",
+      "profile": "Current-v1 native POSIX WAL/objects; local and service-owned Document schedules",
       "tasks": [
         "test::document-local",
         "test::document"
@@ -2188,7 +2190,7 @@
         "One-page recovery and current read revocation deny both independent readers and a pending writer",
         "Retired Document cleanup retains accepted-outcome evidence without repeating output"
       ],
-      "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; Ursula separately replaces its disk provider.",
+      "limits": "Finite application workload and process-death schedules; no host power loss, provider failover, automatic lifecycle scheduling or whole-process growth bound. Local evidence inspects actual WAL/object files; the MinIO tier has separate provider conformance.",
       "model": null,
       "qualification": "Executed sources and outcomes belong in docs/history/qualification/storage.md; registration alone does not establish a passing run."
     },

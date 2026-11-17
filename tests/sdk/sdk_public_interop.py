@@ -36,7 +36,7 @@ def run(node, cli, library, artifacts, report_path=None):
         # The complete nested-Arrow ring retains more than the hot-only store's
         # finite capacity. Flush to owned disk-backed cold storage while keeping
         # both the provider hot cache and authority page cache bounded.
-        fixture = GrowingSystem(node, cli, storage_config=cold.config())
+        fixture = GrowingSystem(node, cli, object_storage=cold.native_config())
         fixture.resident_pages = 64
         system = stack.enter_context(fixture)
         clients = []
@@ -318,7 +318,7 @@ def run(node, cli, library, artifacts, report_path=None):
                 print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, automatic schema creation, queued Table recovery, authenticated busy reply and owned nested IPC passed.', flush=True)
         assert fault['lost'] == fault['unavailable_reads'] == len(clients)
         assert fault['delivery_lost'] == 1 and admin_retries > 0
-        assert cold.data_objects() > 0
+        assert cold.native_data_objects() > 0
         check('public-language-ring', {'pairs': pairs, 'reply_value': str(2**64-1), 'query_rows_per_pair': 3,
                                       'fresh_requesters': True, 'owned_ipc_after_close': not children})
         elapsed = time.monotonic()-started
@@ -334,7 +334,7 @@ def run(node, cli, library, artifacts, report_path=None):
                       'transient_read_retries': read_retries, 'injected_unavailable_reads': fault['unavailable_reads'],
                       'admin_exact_retries': admin_retries, 'injected_lost_delivery_receipts': fault['delivery_lost'],
                       'storage': {'hot_bytes_limit': 8 * 1024 * 1024, 'resident_pages': fixture.resident_pages,
-                                  'cold_objects': cold.data_objects(), 'cold_file_bytes': cold.file_bytes()},
+                                  'cold_objects': cold.native_data_objects(), 'cold_file_bytes': cold.file_bytes()},
                       'limits': 'Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement.'}
             Path(report_path).parent.mkdir(parents=True, exist_ok=True)
             Path(report_path).write_text(json.dumps(report, indent=2) + '\n')

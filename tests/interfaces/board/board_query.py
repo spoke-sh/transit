@@ -14,7 +14,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from harness.ursula import Fixture
+from harness.native import Fixture
 from harness.services import free_port, wait_ready
 
 

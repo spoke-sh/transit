@@ -10,6 +10,7 @@ pub const StorageCollection = @import("StorageCollection.zig");
 pub const PayloadStore = @import("PayloadStore.zig");
 
 test {
+    _ = @import("UploadQueue.zig");
     _ = @import("native_test.zig");
     _ = @import("data_test.zig");
     _ = @import("collection_test.zig");

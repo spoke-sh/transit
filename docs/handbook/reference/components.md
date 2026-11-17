@@ -62,7 +62,6 @@ the implementations listed below remain shared runtime libraries.
 | [transit-core](../../../packages/zig/transit-core/README.md) / `transit_core` | Protocol state, validation, conditional authority, recovery | transit-protocol |
 | [transit-data-client](../../../packages/zig/transit-data-client/README.md) / `transit_data_client` | Explicit catalog caller ownership, shared attempt evidence and caller-supplied I/O without Station | transit-catalog |
 | [transit-client](../../../packages/zig/transit-client/README.md) / `transit_client` | Signed HTTP calls, activation sessions, retry material | transit-protocol, transit-observability |
-| [transit-backend-ursula](../../../packages/zig/transit-backend-ursula/README.md) / `transit_backend_ursula` | Storage/transport, checkpoint, trim, deletion, `UrsulaWal` partition streams | transit-core, transit-observability, transit-storage, upstream ursula-zig |
 | [transit-backend-local](../../../packages/zig/transit-backend-local/README.md) / `transit_backend_local` | Native authority WAL publication, immutable pages/blocks, direct data quota/epoch adapter, current authority fence and bounded caches | transit-core, transit-storage, transit-observability; transit-fuze for composition tests |
 | [transit-storage](../../../packages/zig/transit-storage/README.md) / `transit_storage` | `TransitLog`, `TransitObjectStore`, immutable data indexes, private Document `.tseg` candidates, single-owner `TablePartition` acceptance/read pins, `NvmeCache`, manifest/OCC components | transit-protocol, transit-core generic pages, transit-fuze, transit-document |
 | [transit-board-api](../../../packages/zig/transit-board-api/README.md) / `transit_board_api` | Board response types, OpenAPI generation and evidence projections | transit-protocol, transit-station (framework metadata), transit-query, transit-exchange, transit-station-http/grpc/document (allowlisted metadata) |
@@ -86,7 +85,7 @@ the implementations listed below remain shared runtime libraries.
 | [transit-station-document-worker](../../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance |
 | [transit-station-grpc-worker](../../../apps/transit-station-grpc-worker/README.md) | finite RPC preparation/dispatch/capture worker |
 | [transit-station-http-worker](../../../apps/transit-station-http-worker/README.md) | finite HTTP preparation/dispatch/capture worker |
-| [transit-node](../../../apps/transit-node/README.md) | Internal server module: hosts core, local/Ursula storage, signed ingress and trusted time |
+| [transit-node](../../../apps/transit-node/README.md) | Internal server module: hosts core, native storage, signed ingress and trusted time |
 | [transit-runtime-controller](../../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |
 | [transit-station-host](../../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
@@ -102,7 +101,7 @@ the implementations listed below remain shared runtime libraries.
 
 
 Core depends on the public protocol, never Station or a provider. Fuze has no
-Station, Ursula or Substrate dependency. Language SDKs use the shared Zig client
+Station or provider dependency. Language SDKs use the shared Zig client
 and framework through generated boundaries; see the [SDK index](sdks.md).
 Applications import public package modules rather than sibling source files.
 Each library owns its manifest, direct dependencies and focused checks.

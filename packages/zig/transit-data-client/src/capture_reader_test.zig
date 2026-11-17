@@ -102,7 +102,7 @@ test "capture reader owns batches verifies complete digest and recovers saved cl
     try t.expectEqual(2, uncertain.releases);
     try t.expectEqual(.closed, recovered.state);
     const at = std.mem.indexOf(u8, saved, @tagName(p.Growth.current_definition)).?;
-    saved[at] = '0';
+    saved[at] = if (saved[at] == '0') '1' else '0';
     try t.expectError(error.InvalidJsonShape, Reader.Saved.load(t.allocator, saved));
 }
 

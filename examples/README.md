@@ -44,7 +44,7 @@ just examples::run byte-log
 ```
 
 Each command builds the platform and example binaries, then [local.py](local.py)
-starts fresh disk-backed Ursula and `transit server` on loopback ports. It creates
+starts fresh the native disk owner and `transit server` on loopback ports. It creates
 random private keys, provisions a PID with a scoped caller grant and ownership,
 sends two inputs, runs the actual Zig application, and reads back committed state.
 The expected results are `12` and `hello world`. The launcher removes its own
@@ -69,7 +69,7 @@ zig-out/bin/example-byte-log byte-log.json
 `just build::debug apps` installs platform commands (`transit`, `transit-runtime-controller`,
 `transit-client-host`). `just examples::build` installs the Zig example applications. The root
 Zig build supplies the counter/byte-log dependency, `transit-client`; no example
-imports `transit-core`, Ursula or a deployment provider.
+imports `transit-core`, storage or a deployment provider.
 
 Both examples poll one process, retain the same signed pending request when a
 response is uncertain, and stop on stale ownership or a recorded handler failure.
@@ -94,7 +94,7 @@ assertions live under [tests](../tests/runtime/application/callers.py), with an 
 [Zig probe](../tests/sdk/client_probe.zig). The proof drops commit responses and injects
 malformed unavailable replies, checks identical retries and receipts, verifies
 atomic output delivery, rejects stale
-revisions/owners and unauthorized effects, and restarts disk Ursula and the node.
+revisions/owners and unauthorized effects, and restarts the native disk owner and the node.
 The probe never performs a successful application turn.
 
 The counter additionally supplies the workload for `just test::service` and the

@@ -1007,6 +1007,170 @@ cover bounded allocation, verified ranges, stale observations, definition reject
 and five sync failure points. They do not qualify filesystem rollback, distributed
 locks, durable snapshot pins or installed catalog transactions.
 
+## S3 object operations
+
+`S3ObjectStore` implements the object interface over signed HTTP/TLS requests.
+It is a provider primitive, not a native WAL authority or a bucket-only recovery
+profile. Installed native tiering must separately establish durable staging,
+namespace ownership, upload coverage, retention and safe eviction.
+
+The initial path-style profile requires endpoint, region, bucket, nonempty
+prefix, a credential-file reference and a request deadline. Optional `ca_file`
+loads a private PEM trust bundle on open; omission uses system roots. HTTPS is required;
+explicit loopback HTTP supports the pinned integration provider. The adapter
+reopens the JSON credential file (`access_key_id`, `secret_access_key`, optional
+`session_token`) on every request. It follows no redirects, retries no transport
+failure implicitly and logs no credentials or provider response bodies. Deadline
+cancellation joins the request before releasing borrowed buffers. A failed or
+lost PUT/DELETE response preserves uncertainty for the caller to reconcile.
+Each adapter serializes its requests and retains at most one idle HTTP/TLS
+connection. Before dispatch, it closes a connection idle for at least five
+seconds. Fully consumed successful HTTP responses permit reuse. Unsuccessful,
+incomplete or cancelled exchanges close the connection without draining an
+untrusted error body; connection reuse never replays a request.
+
+Each provider key contains a single envelope: a 512-byte descriptor, one SHA-256
+per 64 KiB logical payload chunk, then the unmodified payload. Descriptor fields
+match the local descriptor offsets above, except magic `TS3O` followed by bytes
+`01 00 00 00`; the checks digest covers the complete inline chunk-hash vector,
+including its empty representation. Every payload size has an inline vector.
+Physical HTTP lengths include the envelope; interface lengths describe only the
+logical payload. The maximum logical object remains 32 MiB. The adapter retains
+one bounded transfer slab, independent of bucket cardinality.
+
+Descriptor byte 40 is immutable (1), conditional (2), or permanently retired (3).
+A retirement envelope has zero logical bytes, the empty SHA-256 payload/vector
+digests and no inline vector or payload: exactly 512 provider bytes. Ordinary
+HEAD/GET treat it as absent; immutable and conditional publication cannot replace
+it. The shared definition identifies this current format; earlier definitions
+must not decode it as a live or empty object.
+
+HEAD obtains the provider length and opaque ETag. A conditional range GET reads
+and verifies the descriptor and chunk vector against that same ETag. Subsequent
+ranges require exact status 206, Content-Range, byte count and ETag; touched chunks
+must match the descriptor. Whole-object reads also verify the logical digest.
+Trusted native recovery evidence must still bind the expected descriptor/content;
+a self-consistent remote envelope alone does not establish original acceptance.
+Missing, truncated, foreign-definition and corrupt objects fail explicitly.
+
+Immutable PUT uses `If-None-Match: *`; a precondition failure succeeds only after
+verifying the existing immutable identity and bytes. Conflicting content rejects.
+Conditional publication compares the caller's expected **content digest** with
+the observed descriptor, then sends that object's actual ETag as `If-Match`.
+The digest is never used as a provider ETag. A provider precondition failure is
+false; conflicting concurrent requests, throttling and access failures remain
+distinct errors. DELETE requires the caller's collection authority; it cannot
+infer that retained readers released an object. Provider CAS tests establish
+primitive conditions, not concurrent Transit writer safety.
+
+The separate `retireImmutable` lifecycle operation replaces an exact immutable
+descriptor with a retirement envelope using its provider ETag, or installs the
+envelope with `If-None-Match: *` when the generation is absent. It verifies the
+result and permits at most three re-observations after competing conditional
+publication; transport failures preserve uncertainty for the owning queue.
+An already verified retirement is idempotent. Keep this envelope permanently:
+removing it would allow an earlier timed-out create-only PUT to recreate the
+payload. This lifecycle operation does not make immutable objects mutable
+through the manifest API. Raw DELETE remains a separate primitive and must not
+erase a live installation's retirement records.
+
+`tests/storage/providers/s3.py` exercises actual pinned MinIO with an independent
+signing/envelope oracle, competing clients, corrupt bytes, live credential
+rotation, lost accepted replies and joined timeout cleanup. Installed tiering
+requires separate evidence. AWS S3 remains unqualified and is outside the initial
+MinIO qualification selected for this implementation.
+
+## Native immutable tier ownership
+
+`storage.object_storage` composes the native owner with the real S3 adapter and
+bounded disk cache. The single exclusive local owner retains the WAL, original
+allocation inventories, trusted immutable descriptors and upload/deletion
+progress. A bucket alone cannot recover acknowledged operations. Initial
+provider qualification is MinIO; no shared-filesystem, cross-host concurrent
+writer, automatic failover or AWS qualification follows from this composition.
+
+A fresh owner writes `.object-tier` before provider access. Its 160-byte identity
+contains `TTIER001` at `0..8`, the shared definition at `8..40`, a random
+installation token at `40..72`, a SHA-256 namespace binding at `72..104`, zero
+reserved bytes at `104..128`, and SHA-256 of `0..128` at `128..160`. The binding
+hashes endpoint, region, bucket and prefix in order, each preceded by its
+little-endian `u64` byte length. Immutable conditional publication of this exact
+identity at `.transit/owner` claims the namespace; `tier/claimed` records success.
+`.object-tier-ready` retains the identity hash after inventory initialization.
+A retained owner requires these markers, the upload cursor, queue definition and
+state/lock directories. Missing or foreign evidence rejects without rebuilding
+empty inventories. Namespace claims detect collisions, not distributed fencing;
+cloning the authority directory onto concurrent hosts is unsupported.
+
+For each immutable publication, the owner durably enqueues its original key and
+content identity, records its generation, and syncs local bytes before the owning
+native/direct WAL can accept a reference. Foreground publication sends no remote
+PUT. Each joined background unit uploads one original generation, reads it back
+and verifies it, persists coverage, evicts only local payload/checksum bytes, then
+advances the queue cursor. The original local descriptor remains the trust root.
+A lost response retries the same immutable generation and bytes. Missing staged
+bytes cannot be invented or replaced with remote content of a new identity.
+
+A native candidate owns fixed staging buffers for at most eight private pages
+and eight blocks, separate from its read cache. It may read its own staged bytes;
+other readers cannot use unflushed objects. Preparation seals all remaining
+groups before WAL acceptance. Discarding a candidate drops unflushed bytes only;
+already published private objects retain normal allocation and collection evidence.
+
+Native immutable batches retain their bounded grouping through tier staging.
+The owner checks the whole batch's upload quota before appending its individual
+intent records with one WAL barrier and publishing the tail floor. It then syncs
+and publishes the generation states as a group before using the native local
+object batch barriers. Per-key locks use a common order; every started file sync
+joins before return. Partial failure grants no native/direct acceptance, and
+exclusive recovery reconstructs the same intent positions and generations.
+
+`tier/states/<key-sha256>` is a fixed 512-byte `TTCOVER1` record: shared definition
+at `8..40`; queue position and generation at `40..48` and `48..56`; phase at `56`
+(`1` pending, `2` uploaded, `3` deleting); key length at `64..66`; logical size at
+`72..80`; content SHA-256 at `80..112`; key at `112`; zero reserved/padding bytes;
+and SHA-256 of `0..480` at `480..512`. Integers are little-endian. The remote key
+is `objects/<key-sha256>/<16-digit-hex-generation>` under the configured prefix.
+The durable FIFO and checksummed cursor retain the acknowledged tail floor,
+original cumulative byte counts and consumed progress. Reopen reconciles pending
+intents one record at a time; the latest position determines each key's state.
+Uncertain queue/state persistence poisons the owner until exclusive recovery.
+
+Collection still requires its existing complete retained graph, epoch and reader
+fences. It enqueues a deletion intent before local reclamation. Remote retirement
+always names the original generation, so it cannot remove a recreated key. Its
+permanent empty envelope also rejects a delayed original PUT after local process
+death, request timeout or a lost retirement response. Verify the retirement before
+removing coverage and consuming the deletion intent. `deletes_completed` counts
+these completed generation retirements. Provider failure retains the intent;
+listing a bucket never grants deletion authority.
+
+Retirement removes the live generation's original payload, retaining one
+512-byte control envelope per retired generation. These records are not cache
+and have no automatic expiry. They consume provider storage independently of the
+local staging/cache budgets. The qualified MinIO bucket is unversioned;
+provider-managed versions, snapshots and backups are outside this cleanup proof.
+
+Uploaded reads may use local bytes, a verified disk-cache hit or the provider.
+Every path compares content against the retained original descriptor. The disk
+cache starts cold on reopen and contains at most 4,096 descriptors; its loss does
+not remove staging or acceptance evidence. Two fixed 32 MiB read slots have
+independent clients, one 32 MiB workspace serves uploads, and the writing adapter
+owns one bounded envelope slab. Cache locking never spans provider I/O. Slots,
+request deadlines and the existing server admission bounds limit active work;
+none limits retained cardinality. This bounded concurrency is not distributed
+writer qualification.
+
+Staging and pending-object budgets refuse new upload work before exhaustion.
+Control uploads and deletion share a separate 4,096-item control reserve;
+control uploads additionally use the native `control_bytes` budget. Native allocation accounting
+also reserves tier metadata. Pressure does not expire data, drop queued work or
+evict unuploaded bytes. Signed storage observation includes a required nullable
+`object_tier` value: null for local-only/unavailable storage, otherwise durable
+pending bytes/objects, configured limits, disposable-cache usage, reopen-local
+transfer/cache/failure counters and the recovery blocker. Observation does not
+perform transfers, grant rights or prove that every accepted object is remote.
+
 ## Native authority on local storage
 
 The local native adapter owns one object directory and a `wal/` subdirectory.

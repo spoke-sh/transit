@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Disk-backed Ursula conformance and SIGKILL recovery schedules."""
+"""Native disk semantic proofs with explicit completion and SIGKILL recovery."""
 from pathlib import Path
 import signal
+import select
 import subprocess
 import sys
 import time
 
-from harness.ursula import Fixture
+from harness.native import Fixture
 
 
 PROOFS = ("storage", "kernel", "effects", "lifetime", "outbox", "runtime", "deletion", "state", "readiness")
@@ -18,10 +19,8 @@ def run(binaries):
         if len(binaries) == 1
         else [(binary.name, [str(binary)]) for binary in binaries]
     )
-    with Fixture() as fixture:
+    with Fixture(retain_on_failure=True) as fixture:
         for index, phase in enumerate(("write", "recover", "checkpoint", "trim_recover")):
-            if index:
-                fixture.start()
             for label, prefix in commands:
                 # These phases include hundreds of durable paged transactions:
                 # reclamation and draining recovered input both exceed the old
@@ -29,10 +28,21 @@ def run(binaries):
                 # and record each phase's actual cost.
                 budget = 600
                 started = time.monotonic()
-                subprocess.run([*prefix, fixture.url, phase], env=fixture.env, check=True, timeout=budget)
+                log = fixture.root / f'{label}-{phase}.log'
+                with log.open('w+b') as stderr:
+                    child = subprocess.Popen([*prefix, str(fixture.native_directory), phase], env=fixture.env,
+                                             stdout=subprocess.PIPE, stderr=stderr)
+                    try:
+                        assert select.select([child.stdout], [], [], budget)[0], f'{label}/{phase} completion deadline'
+                        marker = child.stdout.readline()
+                        assert marker == b'native-proof-complete\n', (label, phase, marker, log.read_text()[-5000:])
+                        child.kill()
+                        assert child.wait(timeout=10) == -signal.SIGKILL
+                    finally:
+                        if child.poll() is None: child.kill()
+                        child.wait(timeout=10)
+                        child.stdout.close()
                 print(f"Disk {label}/{phase}: {time.monotonic()-started:.2f}s", flush=True)
-            # SIGKILL tests the WAL boundary, not graceful shutdown flushes.
-            fixture.stop()
     print("Disk WAL survives SIGKILL; one conditional successor and bounded replay verified.")
 
 

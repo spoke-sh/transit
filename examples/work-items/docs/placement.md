@@ -22,13 +22,14 @@ separate PVC for Reference. After native provisioning, the operator enables the
 Table service, restarts the node and initializes the catalog through the public
 typed caller. Ordinary replacement opens the existing history.
 
-The fixture also runs Ursula and pinned native MinIO as isolated denial targets;
-they do not store this application's data. Their addresses, including the exact
-MinIO port, appear in egress probes. The fixture owns and joins the MinIO process
-separately from placement cleanup.
+The fixture runs pinned native MinIO over private TLS for immutable tiering.
+Only the native owner receives the provider credential and CA files. Gateway
+and worker probes deny its exact endpoint. Local WAL, staging and recovery
+metadata remain on the authority volume. Cleanup joins the native owner before
+stopping MinIO.
 
 Compose places data, publication, requester, delivery, gateway, authority and
-the isolated storage target in separate containers. Only authority joins both
+the private provider on isolated networks. Only authority joins both
 the private client and storage networks. Workers mount only their own
 configuration, credential and activation directory. Roots are read-only,
 capabilities are dropped, and process, CPU, memory and log limits are explicit
@@ -51,7 +52,7 @@ key. Its private backend remains stable through gateway replacement. The reused
 edge limits bodies to 8 KiB; this fixture uses bounded Table query requests and
 publishes declarations through the native operator. It does not qualify the
 gateway's larger operator-upload body limit through that edge. Workers cannot
-reach the cold store, Ursula or the public Internet. The reference probes also
+reach the cold store or the public Internet. The reference probes also
 reject Kubernetes and Substrate control endpoints.
 
 The shared browser proof first verifies all three result pages and saves a lost

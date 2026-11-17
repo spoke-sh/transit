@@ -444,20 +444,6 @@
       "meaning": "Encoded private segment candidate ceiling, enforced before physical allocation."
     },
     {
-      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
-      "symbol": "max_frames",
-      "expression": "1024",
-      "classification": "operation",
-      "meaning": "Page/block frames in one immutable candidate, not retained storage cardinality."
-    },
-    {
-      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
-      "symbol": "max_bytes",
-      "expression": "@import(\"transit_core\").protocol.Storage.max_candidate_bytes",
-      "classification": "working-set",
-      "meaning": "Private encoded segment buffer ceiling; transport/readback has separately bounded scratch."
-    },
-    {
       "source": "packages/zig/transit-core/src/StorageWalk.zig",
       "symbol": "max_depth",
       "expression": "2 * (p.max_height + 1)",
@@ -626,6 +612,14 @@
     {
       "source": "packages/zig/transit-query/src/Request.zig",
       "symbol": "plan_bytes"
+    },
+    {
+      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+      "symbol": "max_frames"
+    },
+    {
+      "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+      "symbol": "max_bytes"
     }
   ],
   "collections": [
@@ -825,6 +819,26 @@
       "source": "packages/zig/transit-query/src/Bundle.zig",
       "anchor": "pub const max_bytes = header_bytes + q.QueryAuthorization.encoded_bytes + q.catalog.DirectReadDelegation.encoded_bytes + q.SourceDefinition.max_bytes + codec.max_bytes;",
       "meaning": "Durable plans, original caller proofs and direct Table retention grants use a finite uploaded bundle rather than a whole-plan mailbox frame."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+        "symbol": "max_frames"
+      },
+      "status": "paged",
+      "source": "packages/zig/transit-backend-local/src/PageStore.zig",
+      "anchor": "pub fn stageMany(",
+      "meaning": "Native immutable page batches and bounded candidate staging replace the removed provider segment packing limit; retained cardinality remains paged."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-backend-ursula/src/Segment.zig",
+        "symbol": "max_bytes"
+      },
+      "status": "paged",
+      "source": "packages/zig/transit-backend-local/src/PageStore.zig",
+      "anchor": "pub fn stageMany(",
+      "meaning": "Native immutable page batches and bounded candidate staging replace the removed provider segment packing limit; retained cardinality remains paged."
     }
   ]
 }
