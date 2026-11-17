@@ -105,6 +105,14 @@ for command in ('server',):
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
 for args in ([], ['--help'], ['console', '--help'], ['migrate', '--help'], ['migrate', 'plan', '--help'], ['build', '--help'], ['test', '--help']):
     invoke(args, 0)
+for sub in ('build', 'test'):
+    sub_help = invoke([sub, '--help'], 0, ('--color auto|off|on', 'Colorize human diagnostics (default: auto)')).stdout
+    assert sub_help.rstrip().endswith(b'--help                     Show this help')
+for unsupported_cmd in (['server', '--color', 'off'], ['console', '--color', 'off'], ['migrate', 'plan', '--color', 'off']):
+    invoke(unsupported_cmd, contains=('--color is not supported',))
+for bad_color in (['build', '--color'], ['build', '--color', 'never'], ['test', '--color', 'always']):
+    invoke(bad_color, contains=('--color must be auto, off or on',))
+invoke(['build', '--color', 'off', '--color', 'on'], contains=('--color can only be specified once',))
 version_output = invoke(['--version'], 0, env=NO_TOOLS_ENV, binary=str(ISOLATED_CLI)).stdout
 release = (ROOT / 'VERSION').read_text().strip().encode()
 assert re.fullmatch(rb'Transit ' + re.escape(release) + rb' \(git (?:[0-9a-f]{40}(?:-dirty)?|unknown); CLI contract 1\)\n', version_output), version_output
