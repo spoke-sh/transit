@@ -5,10 +5,11 @@
 Complete recursive `.transit` application authoring by letting an application
 compose typed modules, review a deterministic SQL build or migration, execute it
 through ordinary database owners, and test its behavior and recovery from the
-same source graph. The next implementation work is **explicit-basis Table
-migration synthesis and the remaining typed composition**, followed by runtime
-module boundaries, protected workflows, definition replacement and deterministic
-replay testing. Preserve the compiler, helpers and isolated tests already delivered.
+same source graph. The first approved units deliver **explicit-basis Table
+migration synthesis and value-returning inline calls**. The remaining sequence
+adds dynamic typed composition, runtime module boundaries, protected workflows,
+definition replacement and deterministic replay testing. Preserve the compiler,
+helpers and isolated tests already delivered.
 
 **Review basis:** `424cc32e8`, the local `main` revision used for this plan.
 This revision includes streaming SQL framing, pure functions, ordered guards,
@@ -441,20 +442,20 @@ own milestone even when a shared application exercises both.
 
 ## Immediate next implementation slices
 
-The approved implementation scope is these three initial review units:
+The three approved initial review units are implemented. Their
+[qualification record](../history/qualification/query.md#explicit-basis-table-migrations-and-returning-inline-calls--2026-11-16)
+records the executed checks, retained failures and profile limits:
 
-1. **C.1a — basis and Table diff contract/core.** Define migration-target inputs,
+1. **C.1a — basis and Table diff contract/core.** Migration-target inputs,
    neutral descriptors, unchanged/new/additive behavior, refusal diagnostics and
-   independent equivalence fixtures. Keep current file and 64-step limits. Run A's
-   affected baseline reconciliation with this first implementation PR.
-2. **C.1b — CLI artifacts and real migration journey.** Wire confined basis loading,
-   immutable output, `transit migrate` plan/apply/resume and fresh-vs-replay
-   comparisons. Include modified history, live drift, source-absent execution and
-   lost replies. C.1 is delivered only after this real journey passes.
-3. **B.2a — value-returning inline composition.** Add the reviewed return contract,
-   imported signatures, hygienic single evaluation, rollback and return-path
-   proofs. This has no dependency on C.1's implementation; it can advance on a
-   separate branch if staffing permits.
+   independent equivalence fixtures are implemented within the current file and
+   64-step limits.
+2. **C.1b — CLI artifacts and real migration journey.** Confined basis loading,
+   immutable output, native plan/apply/resume and fresh-vs-replay comparisons
+   exercise modified history, live drift, source-absent execution and lost replies.
+3. **B.2a — value-returning inline composition.** Imported return signatures,
+   hygienic single evaluation, nominal typing, rollback and the scoped typed
+   return-substitution law are implemented.
 
 Next review B.2b's runtime representation and D's privilege boundary before
 implementing those surfaces. Start G.1 with D and the C.2 step-capacity audit with

@@ -436,7 +436,8 @@ Missing locks, missing cached content, undeclared imports and changed bytes reje
 ## Table migration targets
 
 A migration target uses the same module graph and explicit Table names as a
-normal build. Its body describes the complete desired set of public Tables:
+normal build. Its body describes the complete desired set of public Tables and
+must contain at least one Table declaration:
 
 ```sql
 CREATE MIGRATION TARGET default

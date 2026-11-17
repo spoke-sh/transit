@@ -3,9 +3,9 @@
 [Roadmap](README.md) · **Status:** In Progress
 
 The [completion implementation plan](application-modules-completion.md) updates
-remaining work against `424cc32e8` for review on November 15. Start with
-explicit-basis Table `CatalogDiff` migrations and value-returning inline calls,
-then complete runtime variants, `EXPORT REFERENCE` and runtime module boundaries,
+remaining work against `424cc32e8` for review on November 15. The approved initial
+units add explicit-basis Table `CatalogDiff` migrations and typed value-returning
+inline calls. Subsequent work covers runtime variants, `EXPORT REFERENCE` and runtime module boundaries,
 protected capability/secret/transition checking, conditional `CREATE OR REPLACE`
 generation policies, deterministic workflow simulation/`--verify-replay`, and
 common-revision qualification on the six-domain baseline. The plan preserves the
@@ -725,7 +725,16 @@ Source syntax and the typed core belong to
 
 ### `P4` — Desired-state-to-migration synthesizer, schema/definition diffing and `CREATE OR REPLACE` lifecycle
 
-**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+**Owners:** [`packages/zig/transit-compiler/src/CatalogDiff.zig`](../../packages/zig/transit-compiler/src/CatalogDiff.zig), [`apps/transit-cli/BuildMigration.zig`](../../apps/transit-cli/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+
+The delivered [Table migration profile](../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+implements unchanged/new Tables and safe trailing `ADD COLUMN` changes against
+an explicit offline basis. `CREATE MIGRATION TARGET` publishes complete desired
+SQL, a successor basis, provenance and verified immutable SQL history. The
+[qualification record](../history/qualification/query.md#explicit-basis-table-migrations-and-returning-inline-calls--2026-11-16)
+records fresh-definition equivalence, native apply/resume after source removal,
+and live integrity-drift refusal. Other resource kinds, transforms and conditional
+replacement policies remain required to complete P4.
 
 1. **Extend `DirectMigration` and `MigrationRunner` with `CREATE OR REPLACE` for versioned definitions:**
    - Add `replace_view`, `replace_dataflow`, `replace_publication`, `replace_sink`
