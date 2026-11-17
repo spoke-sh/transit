@@ -1,6 +1,8 @@
 //! Offline build invocation; no connection or startup configuration defaults.
 const std = @import("std");
 const Diagnostic = @import("Diagnostic.zig");
+const Style = @import("Style.zig");
+pub const ColorMode = Style.Mode;
 pub const Override = struct { name: []const u8, directory: []const u8 };
 const Self = @This();
 entry: []const u8 = "build.transit",
@@ -9,6 +11,7 @@ out: ?[]const u8 = null,
 check: bool = false,
 fetch: bool = false,
 json: bool = false,
+color: ColorMode = .auto,
 help: bool = false,
 overrides: [255]Override = undefined,
 overrides_len: usize = 0,
@@ -24,7 +27,7 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
     var result: Self = .{ .target = if (testing) "tests" else "default" };
     var seen: u16 = 0;
     var index: usize = 0;
-    const names = [_][]const u8{ "-f", "--target", "--out", "--check", "--fetch", "--format", "--help", "--override" };
+    const names = [_][]const u8{ "-f", "--target", "--out", "--check", "--fetch", "--format", "--help", "--override", "--color" };
     while (index < args.len) : (index += 1) {
         const selected = for (names, 0..) |name, n| {
             if (std.mem.eql(u8, name, args[index])) break n;
@@ -43,7 +46,7 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
             6 => result.help = true,
             else => {
                 index += 1;
-                if (index == args.len or args[index].len == 0 or args[index][0] == '-') return diagnostic.invalidOption("requires a value");
+                if (index == args.len or args[index].len == 0 or args[index][0] == '-') return diagnostic.invalidOption(if (selected == 8) "must be auto, off or on" else "requires a value");
                 const value = args[index];
                 switch (selected) {
                     0 => result.entry = value,
@@ -67,6 +70,10 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
                         result.overrides[result.overrides_len] = .{ .name = name, .directory = value[split + 1 ..] };
                         result.overrides_len += 1;
                     },
+                    8 => {
+                        result.color = std.meta.stringToEnum(ColorMode, value) orelse return diagnostic.invalidOption("must be auto, off or on");
+                        diagnostic.color_mode = result.color;
+                    },
                     else => unreachable,
                 }
             },
@@ -79,9 +86,15 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
 }
 test "build options have no connection defaults and reject conflicting actions" {
     var diagnostic: Diagnostic = .{};
-    const options = try parse(&.{ "--target", "release", "--override", "common=../common", "--check", "--format", "json" }, &diagnostic);
+    const options = try parse(&.{ "--target", "release", "--override", "common=../common", "--check", "--format", "json", "--color", "off" }, &diagnostic);
     try std.testing.expect(options.check and options.json and diagnostic.machine);
+    try std.testing.expectEqual(ColorMode.off, options.color);
     try std.testing.expectEqualStrings("common", options.overrides[0].name);
+    try std.testing.expectEqual(ColorMode.on, (try parseMode(&.{ "--color", "on" }, &diagnostic, true)).color);
+    try std.testing.expectEqual(ColorMode.auto, (try parseMode(&.{ "--color", "auto" }, &diagnostic, false)).color);
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--color", "never" }, &diagnostic));
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{"--color"}, &diagnostic));
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--color", "off", "--color", "on" }, &diagnostic));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--fetch", "--out", "out" }, &diagnostic));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--config", "connection.json" }, &diagnostic));
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "--target", "../escape" }, &diagnostic));

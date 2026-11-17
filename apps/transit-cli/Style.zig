@@ -5,14 +5,28 @@ const input = fuze.SqlInput;
 const Self = @This();
 
 enabled: bool = false,
+ascii_tree: bool = false,
+
+pub const Mode = enum { auto, off, on };
 
 pub fn detect(init: std.process.Init) Self {
-    if (init.environ_map.get("NO_COLOR")) |value| if (value.len != 0) return .{};
-    if (init.environ_map.get("TERM")) |value| if (std.mem.eql(u8, value, "dumb")) return .{};
-    return .{ .enabled = std.Io.File.stderr().isTty(init.io) catch false };
+    return resolve(init, .auto);
 }
 
-pub const Color = enum { plain, word, literal, number, comment, failure, category, emphasis };
+pub fn resolve(init: std.process.Init, mode: Mode) Self {
+    const dumb = if (init.environ_map.get("TERM")) |value| std.mem.eql(u8, value, "dumb") else false;
+    return switch (mode) {
+        .off => .{ .enabled = false, .ascii_tree = dumb },
+        .on => .{ .enabled = true, .ascii_tree = dumb },
+        .auto => blk: {
+            if (init.environ_map.get("NO_COLOR")) |value| if (value.len != 0) break :blk .{ .ascii_tree = dumb };
+            if (dumb) break :blk .{ .ascii_tree = true };
+            break :blk .{ .enabled = std.Io.File.stderr().isTty(init.io) catch false, .ascii_tree = false };
+        },
+    };
+}
+
+pub const Color = enum { plain, word, literal, number, comment, failure, category, emphasis, note, span };
 
 pub fn code(self: Self, color: Color) []const u8 {
     if (!self.enabled) return "";
@@ -25,6 +39,8 @@ pub fn code(self: Self, color: Color) []const u8 {
         .failure => "\x1b[1;31m",
         .category => "\x1b[33m",
         .emphasis => "\x1b[1m",
+        .note => "\x1b[1;36m",
+        .span => "\x1b[1;32m",
     };
 }
 

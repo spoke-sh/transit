@@ -992,6 +992,8 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
+        .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
+        .{ .name = "transit_test", .module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") },
     } });
     lifecycle_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = lifecycle_module }));

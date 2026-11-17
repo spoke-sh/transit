@@ -7,6 +7,9 @@ pub fn main(init: std.process.Init) !void {
     var diagnostic: Diagnostic = .{};
     dispatch(init, &diagnostic) catch |err| {
         if (err == error.TestSuiteFailed) std.process.exit(1);
+        if (std.mem.eql(u8, diagnostic.command, "transit build") or std.mem.eql(u8, diagnostic.command, "transit test")) {
+            diagnostic.style = @import("Style.zig").resolve(init, diagnostic.color_mode);
+        }
         if (diagnostic.machine) @import("Build.zig").emitFailure(init.io, &diagnostic, err) catch {} else diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,

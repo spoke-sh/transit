@@ -7,6 +7,8 @@ const Sources = @import("BuildSources.zig");
 const Options = @import("BuildOptions.zig");
 const Diagnostic = @import("Diagnostic.zig");
 const Host = @import("TestHost.zig");
+const BuildReport = @import("BuildReport.zig");
+const Style = @import("Style.zig");
 const version = @import("build_version");
 const CaseReport = struct {
     name: []const u8,
@@ -19,6 +21,7 @@ const CaseReport = struct {
     action_location: ?p.Diagnostic.Location = null,
 };
 pub fn run(original: std.process.Init, options: Options, diagnostic: *Diagnostic) !void {
+    diagnostic.style = Style.resolve(original, options.color);
     const gpa = if (@import("builtin").mode == .debug) original.gpa else std.heap.c_allocator;
     const runtime = try @import("transit_io").Threaded.create(gpa, .{
         .workers = 16,
@@ -34,42 +37,61 @@ pub fn run(original: std.process.Init, options: Options, diagnostic: *Diagnostic
     var adapter: @import("transit_memory").Quota.Allocator = .{ .parent = init.gpa, .quota = &quota };
     var arena: std.heap.ArenaAllocator = .init(adapter.allocator());
     defer arena.deinit();
-    execute(init, arena.allocator(), adapter.allocator(), options, diagnostic) catch |err| {
+    var compiler_report: c.SourceDiagnostic.Report = .{};
+    var workspace: BuildReport.Workspace = .{ .overrides = options.overrides[0..options.overrides_len] };
+    execute(init, arena.allocator(), adapter.allocator(), options, diagnostic, &compiler_report, &workspace) catch |err| {
         if (err == error.TestSuiteFailed) return err;
         const cause = if (err == error.OutOfMemory and quota.refusals.load(.acquire) != 0) error.TestToolingMemoryLimit else err;
         if (diagnostic.envelope == null) diagnostic.envelope = c.SourceDiagnostic.input(cause, options.entry, "load test input", null);
+        compiler_report.finalize(cause, .{});
+        if (!options.json and !diagnostic.emitted) {
+            @import("Build.zig").emitHumanFailure(init.io, diagnostic.style, .test_suite, options, workspace, diagnostic.envelope.?, &compiler_report);
+            diagnostic.emitted = true;
+        }
         return cause;
     };
 }
-fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Allocator, options: Options, diagnostic: *Diagnostic) !void {
+fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Allocator, options: Options, diagnostic: *Diagnostic, compiler_report: *c.SourceDiagnostic.Report, workspace: *BuildReport.Workspace) !void {
     const cwd = try std.process.currentPathAlloc(init.io, a);
+    workspace.cwd = cwd;
     const entry = try std.fs.path.resolve(a, &.{ cwd, options.entry });
     const root_path = std.fs.path.dirname(entry) orelse return error.InvalidSourcePath;
+    workspace.root_path = root_path;
     const root = Sources.openRoot(init.io, root_path) catch |err| {
         const cause = if (err == error.FileNotFound) error.MissingBuildEntry else err;
         diagnostic.envelope = c.SourceDiagnostic.input(cause, entry, "open test entry directory", null);
+        compiler_report.finalize(cause, .{});
         return cause;
     };
     defer root.close(init.io);
-    var sources: Sources = .{ .a = a, .scratch_parent = scratch, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry), .environment = init.environ_map, .fetch = false, .diagnostic = &diagnostic.envelope, .overrides = options.overrides[0..options.overrides_len] };
+    var sources: Sources = .{ .a = a, .scratch_parent = scratch, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry), .environment = init.environ_map, .fetch = false, .diagnostic = &diagnostic.envelope, .report = compiler_report, .overrides = options.overrides[0..options.overrides_len] };
+    defer {
+        workspace.sources = sources.sources.items;
+        workspace.resolutions = sources.resolutions.items;
+    }
     const resolution = try sources.load();
+    workspace.sources = sources.sources.items;
+    workspace.resolutions = sources.resolutions.items;
     const executable = try @import("Build.zig").executableDigest(init.io, a);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update(&resolution);
     hash.update(&executable);
     const target = try std.ascii.allocLowerString(a, options.target);
-    const product = try c.compile(scratch, sources.sources.items, .{ .entry = std.fs.path.basename(entry), .target = target, .mode = .test_suite, .compiler_revision = version.revision, .resolution_digest = hash.finalResult() }, &diagnostic.envelope);
+    const product = try c.compile(scratch, sources.sources.items, .{ .entry = std.fs.path.basename(entry), .target = target, .mode = .test_suite, .compiler_revision = version.revision, .resolution_digest = hash.finalResult(), .report = compiler_report }, &diagnostic.envelope);
     defer product.deinit();
     const reports = try a.alloc(CaseReport, product.cases.len);
+    const details = try a.alloc(testlib.Runner.Detail, product.cases.len);
+    @memset(details, .{});
     for (product.cases, reports) |case, *report| report.* = .{ .name = case.name, .identity = try a.dupe(u8, &std.fmt.bytesToHex(&case.identity, .lower)), .sql_digest = try a.dupe(u8, &std.fmt.bytesToHex(&case.sql_digest, .lower)), .location = case.location };
     const suite_deadline = testlib.service.wire.Deadline.init(init.io, 300000, null);
     const temporary_path = init.environ_map.get("TMPDIR") orelse "/tmp";
     const temporary = try std.Io.Dir.cwd().openDir(init.io, temporary_path, .{ .iterate = true, .follow_symlinks = false });
     defer temporary.close(init.io);
     diagnostic.envelope = try p.Diagnostic.init("test.incomplete_report", .internal, .output, .unknown, .none, "Test execution did not produce a complete report");
+    compiler_report.reset();
     var complete = true;
     var ok = true;
-    for (product.cases, reports) |case, *report| {
+    for (product.cases, reports, details) |case, *report, *detail| {
         suite_deadline.check(init.io) catch {
             report.error_code = "TestSuiteDeadline";
             complete = false;
@@ -86,7 +108,7 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
             return err;
         };
         const deadline = testlib.service.wire.Deadline.init(init.io, 30000, suite_deadline);
-        const passed = Host.run(init, directory, path, case, deadline, &report.observation) catch |err| failed: {
+        const passed = Host.runDetailed(init, directory, path, case, deadline, &report.observation, detail) catch |err| failed: {
             report.error_code = @errorName(err);
             complete = false;
             break :failed false;
@@ -122,18 +144,30 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
     } else {
         const buffer = try a.alloc(u8, 1024 * 1024);
         var writer: std.Io.Writer = .fixed(buffer);
-        for (reports) |report| {
+        if (ok and complete) {
             const renderer = @import("EnvelopeDiagnostic.zig");
-            if (report.status == .failed) {
-                try renderer.location(&writer, report.action_location orelse report.location);
-                try writer.writeAll(": ");
+            for (reports) |report| {
+                try diagnostic.style.text(&writer, .span, "passed:");
+                try writer.writeByte(' ');
+                try renderer.escaped(&writer, report.name);
+                try writer.writeByte('\n');
             }
-            try writer.print("{s}: ", .{@tagName(report.status)});
-            try renderer.escaped(&writer, report.name);
-            if (report.error_code) |code| {
-                try writer.print(" ({s})", .{code});
-            } else if (report.observation.failure) |failure| try writer.print(" ({s})", .{@tagName(failure)});
-            try writer.writeByte('\n');
+        } else {
+            const views = try a.alloc(BuildReport.CaseView, reports.len);
+            for (reports, details, views) |report, detail, *view| view.* = .{
+                .name = report.name,
+                .status = switch (report.status) {
+                    .passed => .passed,
+                    .failed => .failed,
+                    .not_run => .not_run,
+                },
+                .location = report.location,
+                .action_location = report.action_location,
+                .error_code = report.error_code,
+                .failure = report.observation.failure,
+                .detail = detail,
+            };
+            try BuildReport.renderTestSuiteFailure(&writer, diagnostic.style, target, workspace.*, views);
         }
         try std.Io.File.stderr().writeStreamingAll(init.io, writer.buffered());
     }

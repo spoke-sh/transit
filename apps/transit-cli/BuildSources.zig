@@ -18,6 +18,7 @@ entry: []const u8,
 environment: *const std.process.Environ.Map,
 fetch: bool,
 diagnostic: *?p.Diagnostic,
+report: ?*c.SourceDiagnostic.Report = null,
 overrides: []const Override,
 sources: std.ArrayList(c.Source) = .empty,
 resolutions: std.ArrayList(Resolution) = .empty,
@@ -36,6 +37,7 @@ pub fn load(self: *Self) ![32]u8 {
     try self.readTree(self.root, "root", "", 0);
     self.loadLock() catch |err| {
         self.diagnostic.* = c.SourceDiagnostic.dependency(err, "transit.lock", "read frozen dependency lock");
+        if (self.report) |r| r.finalize(err, .{});
         return err;
     };
     var index: usize = 0;
@@ -45,24 +47,46 @@ pub fn load(self: *Self) ![32]u8 {
         defer scratch.deinit();
         var offset: usize = 0;
         const source = self.sources.items[index];
-        const file = c.Syntax.parse(scratch.allocator(), source.text, &offset) catch |err| {
-            self.diagnostic.* = c.Compiler.project(err, c.Compiler.location(source, offset), null, null);
+        const file = c.Syntax.parseReported(scratch.allocator(), source.text, &offset, index, self.report) catch |err| {
+            var span: c.SourceDiagnostic.Span = .{ .start = @intCast(@min(offset, std.math.maxInt(u32))), .end = @intCast(@min(offset, std.math.maxInt(u32))) };
+            if (self.report) |r| {
+                if (r.has_span) span = r.span else r.setSpan(index, offset, offset);
+                r.finalize(err, .{});
+            }
+            self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, span), null, null);
             return err;
         };
         for (file.dependencies) |dep| self.resolve(dep) catch |err| {
-            if (self.diagnostic.* == null) self.diagnostic.* = c.Compiler.project(err, c.Compiler.location(source, dep.span.start), null, null);
+            const dep_span: c.SourceDiagnostic.Span = .{ .start = dep.span.start, .end = dep.span.end };
+            if (self.report) |r| {
+                if (!r.has_span) r.setSpan(index, dep.span.start, dep.span.end);
+                r.finalize(err, .{ .name = dep.name });
+            }
+            if (self.diagnostic.* == null) self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, dep_span), null, null);
             self.diagnostic.*.?.text(.name, .caller, dep.name) catch {};
-            if (self.diagnostic.*.?.location == null) self.diagnostic.*.?.location = c.Compiler.location(source, dep.span.start);
+            if (self.diagnostic.*.?.location == null) self.diagnostic.*.?.location = c.Compiler.locationSpan(source, dep_span);
             return err;
         };
         for (file.imports) |import| self.checkImport(source, import) catch |err| {
+            const imp_span: c.SourceDiagnostic.Span = .{ .start = import.span.start, .end = import.span.end };
+            if (self.report) |r| {
+                r.setSpan(index, import.span.start, import.span.end);
+                if (err == error.MissingSource) {
+                    r.setHeadline("cannot find imported file '{s}'", .{import.path});
+                } else if (err == error.ExcludedSourcePath) {
+                    r.setHeadline("import '{s}' enters an excluded directory", .{import.path});
+                    r.addNote(null, null, "imports cannot traverse '.git', '.transit', '.direnv' or 'node_modules'", .{});
+                }
+                r.finalize(err, .{ .name = import.alias });
+            }
             if (self.diagnostic.* == null) self.diagnostic.* = c.SourceDiagnostic.input(err, import.path, "resolve source import", null);
-            self.diagnostic.*.?.location = c.Compiler.location(source, import.span.start);
+            self.diagnostic.*.?.location = c.Compiler.locationSpan(source, imp_span);
             self.diagnostic.*.?.text(.name, .caller, import.alias) catch {};
             return err;
         };
     }
     return self.finish() catch |err| {
+        if (self.report) |r| r.finalize(err, .{});
         self.note(err, "root", "transit.lock", if (self.fetch) "publish dependency lock" else "verify source graph", null);
         return err;
     };
@@ -271,6 +295,7 @@ fn note(self: *Self, err: anyerror, package: []const u8, path: []const u8, opera
         else => .{},
     };
     context.apply(&self.diagnostic.*.?);
+    if (self.report) |r| r.finalize(err, context);
 }
 fn add(self: *Self, package: []const u8, path: []const u8, text: []const u8) !void {
     if (self.sources.items.len == 256) return error.SourceFileLimit;
