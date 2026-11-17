@@ -8,6 +8,12 @@ sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or
 native authority. No optimizer rewrites are enabled.
 
+`TableDefinition` shares the existing migration logical fingerprint and complete
+normalized Table definition/constraint fingerprints with pure compilation and
+live catalog reconciliation. Normalization fixes object/revision only; it does
+not infer equivalent identities after arbitrary rewrites. `TableDdl` exposes
+parsed column source spans for safe ADD COLUMN emission.
+
 `SqlScript` frames bounded migration source files, including compound Queue
 program declarations, independently of finite SQL's statement limit.
 `ApplicationProgram` parses their ordered instructions into an owned tree with

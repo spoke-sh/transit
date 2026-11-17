@@ -37,7 +37,7 @@ Ordered public Queue programs and explicit lifecycle controls use the same graph
 `ProgramLowering` validates pure `FUNCTION`, ordered `GUARD` and inline atomic
 `PROCEDURE` declarations across a non-recursive call DAG, checks function purity
 through Fuze's `ScalarProgram`, hoists multi-use impure call arguments once,
-expands `CHECK GUARD` and `CALL` with hygienic `"__t$<n>_<name>"` bindings into
+expands `CHECK GUARD`, `CALL` and typed `LET result = CALL` with hygienic `"__t$<n>_<name>"` bindings into
 canonical program SQL, and preserves both definition-site and call-site source
 locations. `ProgramCheck` collects proposed dependencies and uses Fuze's program
 schema, type and capability owners before comparing the emitted instruction tree
@@ -49,6 +49,15 @@ nominal holes to expression nodes; equality, null tests and matching CASE arms
 preserve domains. Other nominal operations reject. Symbolic program declarations/controls
 and unavailable host features reject. Finite Stream reads and bounded WORKFLOW
 expectations extend the local test product without adding a source interpreter.
+
+`CatalogDiff` synthesizes explicit-basis Table migrations without a live catalog.
+It replays verified immutable CREATE/ADD history, compares full schema and nominal
+identities, asks `TableEvolution.canProject` about additions, emits ordinary SQL
+using shared parser column spans, and independently verifies the final schema.
+Its caller supplies a bounded arena and immutable basis/history buffers. Unsupported
+or destructive changes fail before output; unchanged targets add no SQL version.
+The [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+owns basis fields, namespace bindings, artifact identity and bounds.
 
 `SourceTypes` owns nominal scalar identity, closed constructor payloads and exact
 Table, Stream and Queue interfaces. `ResourceOperands` preserves distinct log

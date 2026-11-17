@@ -48,10 +48,10 @@ forms. Syntax acceptance remains distinct from duplicate domain identity, wrong
 argument/interface, impurity, recursion, nominal SQL operand and exhaustiveness
 checks. Source type words remain contextual except at the explicit built-in kind sites.
 
-[TypedTarget.lean](TypedTarget.lean) owns ten scoped laws across three fragments
+[TypedTarget.lean](TypedTarget.lean) owns eleven scoped laws across three fragments
 (nominal variant specialization, ordered program domain erasure, and five-state
 pure function substitution, ordered guard refusal non-commutativity and hygienic
-atomic procedure rollback), with premises and exclusions in its header and the
+atomic procedure rollback and returning values), with premises and exclusions in its header and the
 source contract. The dedicated `test::application-source-types` task also
 compares finite independent typed expectations with production checked operands,
 program projections and erased SQL; it does not replace grammar correspondence

@@ -1,0 +1,227 @@
+//! Pure migration synthesis over explicit immutable Table history. The caller
+//! owns a bounded arena and verified input buffers; no filesystem or live catalog.
+const std = @import("std");
+const f = @import("transit_fuze");
+const p = @import("transit_protocol");
+const Compiler = @import("Compiler.zig");
+const Context = @import("SourceDiagnostic.zig").Context;
+const Column = @import("TypedOperands.zig").Column;
+const Schema = f.TableSchema.Schema;
+pub const format = "transit_table_basis_v1";
+pub const definition = @tagName(p.Growth.current_definition);
+pub const max_file_bytes = f.SqlScript.max_source_bytes;
+pub const max_history_bytes = 16 * 1024 * 1024;
+pub const max_basis_bytes = 16 * 1024 * 1024;
+pub const max_versions = 256;
+pub const max_steps = 64;
+pub const Table = struct {
+    name: []const u8,
+    sql: []const u8,
+    columns: []const Column,
+    definition_digest: [32]u8,
+    logical_digest: [32]u8,
+};
+pub const History = struct { version: []const u8, name: []const u8, path: []const u8, sha256: [32]u8 };
+pub const File = struct { path: []const u8, sql: []const u8 };
+pub const Basis = struct {
+    format: []const u8,
+    definition: []const u8,
+    compiler: []const u8,
+    database: []const u8,
+    schema: []const u8,
+    tables: []const Table,
+    history: []const History,
+};
+pub const Result = struct { basis: Basis, files: []const File, sql: []const u8, steps: usize };
+const Entry = struct { name: []const u8, schema: Schema };
+
+pub fn hash(bytes: []const u8) [32]u8 {
+    var result: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(bytes, &result, .{});
+    return result;
+}
+pub fn fileName(a: std.mem.Allocator, version: []const u8, name: []const u8) ![]const u8 {
+    if (version.len == 0 or version.len > 64 or name.len == 0 or name.len > 128) return error.InvalidMigrationVersion;
+    // MigrationClient parses both '-' and '_' as filename separators. Keep
+    // synthesized versions unambiguous so applying a file preserves its identity.
+    for (version) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '.') return error.InvalidMigrationVersion;
+    for (name) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '_' and byte != '-') return error.InvalidMigrationVersion;
+    return std.fmt.allocPrint(a, "{s}-{s}.sql", .{ version, name });
+}
+fn compilerValid(value: []const u8) bool {
+    if (value.len != 64) return false;
+    for (value) |byte| if (!std.ascii.isDigit(byte) and !(byte >= 'a' and byte <= 'f')) return false;
+    return true;
+}
+fn nameValid(name: []const u8) bool {
+    return name.len > 0 and name.len <= 63 and std.unicode.utf8ValidateSlice(name) and std.mem.indexOfScalar(u8, name, 0) == null;
+}
+fn statement(a: std.mem.Allocator, sql: []const u8, basis: ?Schema) !f.TableDdl.Statement {
+    var parser = try f.SqlTyped.init(a, sql, null);
+    const parsed = try f.TableDdl.syntax(&parser, basis);
+    try parser.finish();
+    return parsed.bind(a, basis, null);
+}
+fn create(a: std.mem.Allocator, sql: []const u8) !f.TableDdl.Create {
+    const parsed = statement(a, sql, null) catch |err| return if (err == error.OutOfMemory) err else error.UnsupportedMigrationDefinition;
+    if (parsed != .create or parsed.create.if_not_exists or parsed.create.native_binding != null) return error.UnsupportedMigrationDefinition;
+    return parsed.create;
+}
+fn index(entries: []const Entry, name: []const u8) ?usize {
+    for (entries, 0..) |entry, i| if (std.mem.eql(u8, entry.name, name)) return i;
+    return null;
+}
+fn equivalent(left: Schema, right: Schema) !bool {
+    return std.mem.eql(u8, &try f.TableDefinition.fingerprint(left), &try f.TableDefinition.fingerprint(right));
+}
+fn replay(a: std.mem.Allocator, entries: *std.ArrayList(Entry), sql: []const u8, context: *Context) !usize {
+    var script = try f.SqlScript.init(sql);
+    var count: usize = 0;
+    while (try script.next()) |frame| {
+        count += 1;
+        if (count > max_steps) return error.MigrationStepLimit;
+        const text = sql[frame.start..frame.end];
+        const target = f.TableDdl.target(a, text) catch |err| return if (err == error.OutOfMemory) err else error.UnsupportedMigrationHistory;
+        context.* = .{ .name = target.name };
+        const at = index(entries.items, target.name);
+        const parsed = statement(a, text, if (at) |i| entries.items[i].schema else null) catch |err| return if (err == error.OutOfMemory) err else error.UnsupportedMigrationHistory;
+        switch (parsed) {
+            .create => |value| {
+                if (at != null or value.if_not_exists or value.native_binding != null) return error.UnsupportedMigrationHistory;
+                try entries.append(a, .{ .name = value.name, .schema = try value.bind(1) });
+            },
+            .alter => |value| {
+                const i = at orelse return error.MigrationBasisMismatch;
+                if (value.action != .columns or value.action.columns != .add) return error.UnsupportedMigrationHistory;
+                const columns = try a.create([f.TableSchema.max_columns]f.TableSchema.Column);
+                const change = try f.TableEvolution.apply(entries.items[i].schema, value.action.columns, columns);
+                if (!try change.canProject()) return error.MigrationTransformRequired;
+                entries.items[i].schema = change.after;
+            },
+            .drop => return error.MigrationTransformRequired,
+        }
+    }
+    if (count == 0) return error.UnsupportedMigrationHistory;
+    return count;
+}
+fn table(a: std.mem.Allocator, value: Table) !Schema {
+    const parsed = try create(a, value.sql);
+    const schema = try parsed.bind(1);
+    if (!std.mem.eql(u8, value.name, parsed.name) or value.columns.len != schema.columns.len or
+        !std.mem.eql(u8, &try f.TableDefinition.fingerprint(schema), &value.definition_digest) or
+        !std.mem.eql(u8, &try f.TableDefinition.logicalFingerprint(schema), &value.logical_digest)) return error.MigrationBasisMismatch;
+    for (value.columns, schema.columns) |annotation, col| {
+        if (!std.mem.eql(u8, annotation.name, col.name)) return error.MigrationBasisMismatch;
+        if (annotation.domain) |domain| if (domain.len == 0 or domain.len > 128 or !std.unicode.utf8ValidateSlice(domain)) return error.MigrationBasisMismatch;
+    }
+    return schema;
+}
+/// New and unchanged Tables, or trailing columns whose existing-row projection
+/// the ordinary TableEvolution owner admits. Everything else requires a reviewed
+/// transform outside this profile. All historical bytes are preserved verbatim.
+pub fn build(a: std.mem.Allocator, product: *const Compiler.Product, prior: ?Basis, files: []const File, compiler: []const u8, context: *Context) !Result {
+    const target = product.migration orelse return error.MissingMigrationTarget;
+    const new_path = try fileName(a, target.version, target.name);
+    if (!nameValid(target.database) or !nameValid(target.schema) or !compilerValid(compiler)) return error.InvalidMigrationBasis;
+    if ((target.basis == null) != (prior == null)) return error.MissingMigrationBasis;
+    var entries: std.ArrayList(Entry) = .empty;
+    var history: std.ArrayList(History) = .empty;
+    var output_files: std.ArrayList(File) = .empty;
+    var historical_bytes: usize = 0;
+    if (prior) |basis| {
+        if (!std.mem.eql(u8, basis.format, format) or !std.mem.eql(u8, basis.definition, definition)) return error.IncompatibleMigrationBasis;
+        if (!std.mem.eql(u8, basis.database, target.database) or !std.mem.eql(u8, basis.schema, target.schema)) return error.MigrationNamespaceMismatch;
+        if (!compilerValid(basis.compiler) or basis.history.len > max_versions or files.len != basis.history.len) return error.InvalidMigrationBasis;
+        for (basis.history, files, 0..) |version, file, i| {
+            const path = try fileName(a, version.version, version.name);
+            if (!std.mem.eql(u8, version.path, path) or !std.mem.eql(u8, file.path, path)) return error.MigrationBasisMismatch;
+            if ((i > 0 and !std.mem.lessThan(u8, basis.history[i - 1].version, version.version)) or !std.mem.lessThan(u8, version.version, target.version)) return error.MigrationVersionOrder;
+            if (!std.mem.eql(u8, &hash(file.sql), &version.sha256)) return error.MigrationHistoryChanged;
+            historical_bytes = std.math.add(usize, historical_bytes, file.sql.len) catch return error.MigrationHistoryLimit;
+            if (historical_bytes > max_history_bytes) return error.MigrationHistoryLimit;
+            _ = try replay(a, &entries, file.sql, context);
+            try history.append(a, version);
+            try output_files.append(a, file);
+        }
+        if (entries.items.len != basis.tables.len) return error.MigrationBasisMismatch;
+        for (basis.tables, 0..) |value, i| {
+            context.* = .{ .name = value.name };
+            for (basis.tables[0..i]) |other| if (std.mem.eql(u8, other.name, value.name)) return error.DuplicateMigrationBinding;
+            const at = index(entries.items, value.name) orelse return error.MigrationBasisMismatch;
+            if (!try equivalent(entries.items[at].schema, try table(a, value))) return error.MigrationBasisMismatch;
+        }
+    } else if (files.len != 0) return error.InvalidMigrationBasis;
+    var tables: std.ArrayList(Table) = .empty;
+    var sql: std.Io.Writer.Allocating = .init(a);
+    var steps: usize = 0;
+    for (product.steps) |step| {
+        const desired = try create(a, step.sql);
+        context.* = .{ .name = desired.name };
+        const schema = try desired.bind(1);
+        for (tables.items) |other| if (std.mem.eql(u8, other.name, desired.name)) return error.DuplicateMigrationBinding;
+        const at = index(entries.items, desired.name);
+        if (at) |i| {
+            var before = entries.items[i].schema;
+            if (before.columns.len > schema.columns.len) return error.MigrationTransformRequired;
+            const old = for (prior.?.tables) |value| {
+                if (std.mem.eql(u8, value.name, desired.name)) break value;
+            } else return error.MigrationBasisMismatch;
+            if (step.checked.columns.len != schema.columns.len) return error.MigrationBasisMismatch;
+            for (old.columns, step.checked.columns[0..old.columns.len]) |left, right| {
+                if (!std.mem.eql(u8, left.name, right.name) or (left.domain == null) != (right.domain == null) or
+                    (left.domain != null and !std.mem.eql(u8, left.domain.?, right.domain.?))) return error.MigrationTransformRequired;
+            }
+            for (schema.columns[before.columns.len..], desired.column_spans[before.columns.len..]) |col, span| {
+                // Column spans come from the shared DDL parser, including nested
+                // type/default syntax; never split SQL by commas or rewrite names.
+                var name: std.Io.Writer.Allocating = .init(a);
+                try name.writer.writeByte('"');
+                for (desired.name) |byte| {
+                    try name.writer.writeByte(byte);
+                    if (byte == '"') try name.writer.writeByte(byte);
+                }
+                try name.writer.writeByte('"');
+                const alter = try std.fmt.allocPrint(a, "ALTER TABLE {s} ADD COLUMN {s}", .{ name.written(), step.sql[span.start..span.end] });
+                const parsed = try statement(a, alter, before);
+                if (parsed != .alter or parsed.alter.action != .columns or parsed.alter.action.columns != .add or !std.mem.eql(u8, parsed.alter.action.columns.add.name, col.name)) return error.MigrationBasisMismatch;
+                const columns = try a.create([f.TableSchema.max_columns]f.TableSchema.Column);
+                const change = try f.TableEvolution.apply(before, parsed.alter.action.columns, columns);
+                if (!try change.canProject()) return error.MigrationTransformRequired;
+                before = change.after;
+                try sql.writer.print("{s};\n", .{alter});
+                steps += 1;
+                if (steps > max_steps or sql.written().len > f.SqlScript.max_source_bytes) return error.MigrationStepLimit;
+            }
+            if (!try equivalent(before, schema)) return error.MigrationTransformRequired;
+        } else {
+            try sql.writer.print("{s};\n", .{step.sql});
+            steps += 1;
+            if (steps > max_steps or sql.written().len > f.SqlScript.max_source_bytes) return error.MigrationStepLimit;
+        }
+        try tables.append(a, .{ .name = desired.name, .sql = step.sql, .columns = step.checked.columns, .definition_digest = try f.TableDefinition.fingerprint(schema), .logical_digest = try f.TableDefinition.logicalFingerprint(schema) });
+    }
+    for (entries.items) |entry| {
+        const exists = for (tables.items) |value| {
+            if (std.mem.eql(u8, value.name, entry.name)) break true;
+        } else false;
+        if (!exists) {
+            context.* = .{ .name = entry.name };
+            return error.MigrationTransformRequired;
+        }
+    }
+    if (steps != 0) {
+        if (history.items.len == max_versions) return error.MigrationHistoryLimit;
+        const bytes = sql.written();
+        if (historical_bytes + bytes.len > max_history_bytes) return error.MigrationHistoryLimit;
+        // Reparse/replay emission separately and compare all final definitions.
+        if (try replay(a, &entries, bytes, context) != steps) return error.MigrationBasisMismatch;
+        try history.append(a, .{ .version = target.version, .name = target.name, .path = new_path, .sha256 = hash(bytes) });
+        try output_files.append(a, .{ .path = new_path, .sql = bytes });
+    }
+    if (entries.items.len != tables.items.len) return error.MigrationBasisMismatch;
+    for (tables.items) |value| {
+        const i = index(entries.items, value.name) orelse return error.MigrationBasisMismatch;
+        if (!try equivalent(entries.items[i].schema, try table(a, value))) return error.MigrationBasisMismatch;
+    }
+    return .{ .basis = .{ .format = format, .definition = definition, .compiler = compiler, .database = target.database, .schema = target.schema, .tables = tables.items, .history = history.items }, .files = output_files.items, .sql = sql.written(), .steps = steps };
+}

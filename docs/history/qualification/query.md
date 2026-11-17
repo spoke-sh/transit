@@ -9,6 +9,336 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Explicit-basis Table migrations and returning inline calls — 2026-11-16
+
+This increment delivers the three initial units of the
+[M12 completion plan](../../roadmap/application-modules-completion.md): C.1a's
+pure Table diff, C.1b's immutable CLI artifacts and original-operation recovery,
+and B.2a's typed value-returning inline calls. The rebased implementation is
+`83f18ac94dfb561814ed3faaa143fbcf505560dd`, on `main` at
+`bd6cf1d3bdc287bf9ce4ced78657eb7117f4dd62`. Its seven logical commits retain the
+original implementation patches; the roadmap resolution preserves M13's
+upstream status. This basis includes the native-storage cutover and current v1
+definition `06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`.
+All five affected clean lanes and the final measured binary are qualified at
+`3f9de42eeb07766c613d2500a11650840b03612a`, which adds documentation to the implementation
+source above. Final qualification edits are documentation only.
+
+Earlier implementation ended at `5e9a5e6b119f`, based on `424cc32e8`.
+Upstream integrations at `9425373bc8b9` and `81e59708fb68` supplied embedded-role
+fixture fixes and the shared HTTP package respectively. The proof-only change
+at `7d21db5c718c`, replayed as `83f18ac94dfb`, gives each expected typed Queue
+outcome its own 180-second observation allowance. Three refusals can span three
+waits; concurrent batch submission, exact assertions, runtime leases and the
+30-second application-test case budget are unchanged. Earlier passing, failed
+and incomplete records below retain their original revisions and contract
+basis. They are not evidence of the rebased runtime. Retained installations from
+the earlier definition are not reopened using the new binary.
+
+Current syntax, semantics and limits belong to the
+[source contract](../../../contracts/APPLICATION_SOURCE_V1.md),
+[migration contract](../../../contracts/MIGRATION_V1.md) and
+[CLI reference](../../handbook/reference/cli.md).
+
+`CatalogDiff` reconstructs an explicit prior basis from exact immutable SQL,
+compares desired public Tables, and synthesizes new Tables or safe trailing
+columns through shared DDL/evolution owners. Generated history is reparsed and
+compared with fresh desired definitions. Unsupported transforms reject;
+64-step versions, 256 versions, 1 MiB statements and 2 MiB migration files
+remain bounded. Offline build never connects, applies or activates work.
+
+The installed migration journey retains old row values, projects new defaults,
+loses the native apply response, removes source and basis sidecars, restarts the
+disk-backed installation and resumes the original step tokens. It verifies
+retained operation IDs, compares the resulting values with a fresh desired SQL
+installation and rejects a live CHECK removal as integrity drift. Existing
+logical receipt fingerprints are unchanged; live reconciliation separately
+checks interpretation and integrity descriptors.
+
+Returning procedures evaluate arguments and the final top-level return once,
+retain nominal typing and lower into the caller's one atomic decision. The
+modular Queue fixture observes the returned ID and checks rollback after a later
+refusal. The additional Lean law is scoped to total scalar evaluation and one
+atomic decision; eleven laws and finite comparisons do not prove the compiler,
+SQL engine or provider.
+
+### Executed gates
+
+Run metadata retains execution times; each row identifies its exact source revision.
+
+| Check | Source and result |
+| --- | --- |
+| Earlier clean core (`just ci clean --lane core`) | Passed all 28 tasks at `9425373bc8b9`, including fast/contracts, package unit tests, 48 standalone builds, SDK/runtime boundaries, SQL wire contracts, authorization and recovery. |
+| Earlier clean formal (`just ci clean --lane formal`) | Passed all 16 tasks at `5e9a5e6b119f`, including 11 Lean laws, 112 finite equalities, 16 typed-action/SQL and 16 program comparisons, 4 compiler refusals and 18 negative controls. |
+| Earlier clean storage/query (`just ci clean --lane storage-query`) | Passed all 37 tasks at `5e9a5e6b119f`, including compiler tests, 171 source grammar cases, 126 formatter round trips, 10 negative controls, native transactions, physical collection, Document recovery, publication and complete 139-resource Catalog growth/readback across node restart. |
+| Earlier clean installation/UI (`just ci clean --lane installation-ui --work-root /tmp`) | Passed all 26 tasks at `7d21db5c718c` before the shared HTTP integration, including generated migration recovery, returned-value execution and browser consumers. |
+| Earlier integrated clean core | Passed 28 tasks at `81e59708fb68`, including the shared HTTP package and dependent native packages. |
+| Earlier integrated clean connectors | Passed 13 tasks at `81e59708fb68`, including independent HTTP/TLS peers, the durable adapter and real examples. |
+| Earlier integrated clean installation/UI | Passed 26 tasks at `81e59708fb68`, including generated Table migration recovery, returned-value Queue execution, installed SQL and browser consumers. |
+| Rebased clean core (`just ci clean --lane core`) | Passed all 28 tasks at `3f9de42eeb07`, including the native-storage current-v1 contracts, package builds and dependent native packages. |
+| Rebased clean formal (`just ci clean --lane formal`) | Passed all 16 tasks at `3f9de42eeb07`, including the 11 scoped Lean laws, finite comparisons and negative controls. |
+| Rebased clean storage/query (`just ci clean --lane storage-query`) | Passed all 34 tasks at `3f9de42eeb07`, including compiler/source correspondence, native Table/Queue transactions, recovery and retained-catalog checks. |
+| Rebased clean connectors (`just ci clean --lane interfaces-connectors`) | Passed all 13 tasks at `3f9de42eeb07`, including independent HTTP/TLS peers, durable adapters and real connector examples. |
+| Rebased clean installation/UI (`just ci clean --lane installation-ui --work-root /tmp`) | Passed all 26 tasks at `3f9de42eeb07` in the pinned `ci-experience` shell, including generated/fresh SQL comparisons, Table migration recovery, returned-value Queue execution, installed SQL and browser consumers. |
+| Console latency (`just test console-latency-gate`) | Passed the checked-in workload and budgets at `3f9de42eeb07` in the pinned `ci-experience` shell after the competing pipeline exited; complete raw samples and no violations. |
+| Installed SQL types (`just test server-sql-types`) | Passed within the rebased installation/UI lane at `3f9de42eeb07`; the installed driver also passed immediately after latency using the same measured binary. |
+
+| Local record | SHA-256 |
+| --- | --- |
+| `.cache/ci/clean/9425373bc8b9-transit-ci-xndica2z/core.json` | `3802a8fa3f447c08fb9123cd3ed6b7b38764466decdc88fb6f991fc41e0ae6fc` |
+| `.cache/ci/clean/9425373bc8b9-transit-ci-xndica2z/core.meta.json` | `1f70942a167d26e21df35bec5096a4e15e08f46427ec54f3b18faa8e455a0f23` |
+| `.cache/ci/clean/9425373bc8b9-transit-ci-xndica2z/preparation.json` | `05c50da27524e4c5d26ed4f78e43671d572347c65ec6693dfc168daccee83fee` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-jeukp6id/formal.json` | `4f5053e897d0fb42fd2293363e4c2ae29535af9854302883d1ac228815c33f94` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-jeukp6id/formal.meta.json` | `efb287456226a4a4a7e3a6d7cc06082a68d12abdb72f2527689dcd63e0fba098` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-jeukp6id/preparation.json` | `3f77be7e2d10880c14e1521646c3f48d48a18210b6f3727eb0522d3b09364c55` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-3_newo2o/storage-query.json` | `b2d60915855f84f1ce0dc73b390a391a5101ee195c73a2e480b1e59d0c84deee` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-3_newo2o/storage-query.meta.json` | `7202d45ab5bc4565b3da6048b039ae351239a824c0f644e6d121ff35ff5805b9` |
+| `.cache/ci/clean/5e9a5e6b119f-transit-ci-3_newo2o/preparation.json` | `8502ed6953c90d9461afcc7536869a3747cb099e6b076b4e8803a9f4b3eacacf` |
+| `.cache/ci/clean/7d21db5c718c-transit-ci-02iu_uqi/installation-ui.json` | `02f70410a42d639c2c199e8fe9da178c4cc04dc534d167dc2468ce072eeb9154` |
+| `.cache/ci/clean/7d21db5c718c-transit-ci-02iu_uqi/installation-ui.meta.json` | `d6bba0c37ef912154b4f3564a709fb78456b798f81875112a766e9df12ab8ad1` |
+| `.cache/ci/clean/7d21db5c718c-transit-ci-02iu_uqi/preparation.json` | `0f0b9ab60125db71501afb6f2981af55b404c467d67ba72b9a2c56931cfad286` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-8e3_9y20/core.json` | `686e6554f57f8e31f41f2a4c97cc873fdefc79222353a7ae8242b8460bc6b8c6` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-8e3_9y20/core.meta.json` | `d37368bfff92025b251f359d6d9ce2f13da31834e5e1d75c5836ac9c48d7e6e5` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-8e3_9y20/preparation.json` | `b883967b8a77b8bb84d3616e4271dc84cd418221f69b8a00f17ef72ed71a24d7` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-fiqe1ojc/interfaces-connectors.json` | `ec1aac6f9b03619c7cffdf6f9d4d7a9cabf489d0534680a06f6b4e3ac8a3f896` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-fiqe1ojc/interfaces-connectors.meta.json` | `e75f3e536f86bbee2bc167f2395a72f02e7e43f64556539bbff3cc75fa46b3f6` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-fiqe1ojc/preparation.json` | `d91c700d7e1e7bd6d0eb387b6dcf05d16610196386e04dbd8c71d018c0254ff4` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-iwzolupz/installation-ui.json` | `d7b5e30149752fce6d28c4617c9c9f7fcd7bd3d7a27faa49961441e702d6853e` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-iwzolupz/installation-ui.meta.json` | `313fd4c04dcaa0c1a13fce136c71932a1352152de8c0f8e9a93c64004f3e5b1f` |
+| `.cache/ci/clean/81e59708fb68-transit-ci-iwzolupz/preparation.json` | `68898b1806d8c87d07d874580e77f45040f5bda6b545a515062dd24df45f23d8` |
+| `.cache/m12/rebase-20261117.json` | `035931b22000a0c100a38179149e43ee3a072161c17f1523b88fc134790a8fd5` |
+| `.cache/m12/rebase-stopped-idle-orchestration.json` | `a5a3e47e93d97206b3b65b5337cc37f4ca16aadec6bbf14e1c9d9473f20ba3c4` |
+| `.cache/m12/rebase-date-normalization.json` | `969d1be6a0f8884fe62d3d3b8ffeb96895570664da3e37b8a5505ca33e7f8b2e` |
+| `.cache/m12/rebase-date-orchestration-stop.json` | `356c11900e8c1662e6a932fc7e4d4894ca41238687937d39417cfb5c219594c5` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/core.json` | `a875da516d472f79332fe1e63ead8b655e00a20a41efff3e80f82c09507a89df` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/core.meta.json` | `eced613884ac72d2cbd90af4f9a70abdfc9b7e3092b0c65b5eb20f05e74bac48` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-v358wqmm/preparation.json` | `86585407b2fcc5c60fe1153f97f5df4a7baa55755b90413ff4896ed6c167a6ae` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/formal.json` | `2f164f29b2b17a587e1b9d1851b15085dc2fbac9bea9774febf3f55617099050` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/formal.meta.json` | `c0a9ba89d9461cd470fc9fa6baa4d97676c7f08c8f3688cd1d80ae84cc64db1c` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-ews70i0r/preparation.json` | `dbe3e6db0d6b5d0862ac8e5fc693fe7ce263c40d7d1ca940c709f34f7b264a56` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/storage-query.json` | `3f3342a1748c46cc697d95ad2c0a2f18a3cb67c274a32ddcbb9f541474b32fa7` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/storage-query.meta.json` | `ec99a0ee0fdfd88817a8d839e0903d69118dcd6f59303180713eea8d030eeae0` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-6k5gtji4/preparation.json` | `429a57535d6702c6baa996a5255b1c0cd511ba9c48e4dec7966ba69cef477606` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/interfaces-connectors.json` | `605baa48be86e85bd27377ef1d9f96483e9e1b5cab792b1117aa5625f6f6493f` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/interfaces-connectors.meta.json` | `e27a3d53be2d0724668f6f4785f532ca3bb0c0ee46edde7da40648d9ab190ff1` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-5ms2zv1m/preparation.json` | `4d11d39edbaeb56674095973a0b0b91cd53770c868a19de21b870ee61bd12542` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/installation-ui.json` | `c109c65022e3164e78f71485459e78fa902f4aa4a9577c48fdd6c393c36c4bdd` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/installation-ui.meta.json` | `7e3e5228895220202c9d2dd2e4d0f91745a38ced612223cc311fd6daeb07b9e1` |
+| `.cache/ci/clean/3f9de42eeb07-transit-ci-zfin69yh/preparation.json` | `d1981c63e523ab4b3fb7511d03f4381fca7555bddbdd445015051390d413ab2b` |
+| `.cache/transit-latency/m12-7d21db5c718c-w7y5mot7/report.json` | `6f3f73fedb980558efac1cd903c684a40ded4e5248151874a73085995c7c2ff4` |
+| `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9/report.json` | `bef5b7bc08db7ee44a7d6dd7629366ce5cf3b180987264dfa8a090892551b431` |
+| `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9/contention.json` | `e14555c4826c54922164fc690da2e2d659e380ec704baf80298af795a75a74d6` |
+| `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9/sql-types.json` | `c73ca0e2645fd74751c017c7add204b19c34764484437620cbf47730f440dc14` |
+| `.cache/m12/integrated-managed-failure/failure.json` | `fca8a31615c73c00bcf60d524df170e94fcb4690dddc963538067b06cd2152d7` |
+| `.cache/m12/integrated-managed-failure/installation-ui.json` | `8c54c80e1006eea1ec0a8fe9133cfce4254df01e189319e29c4607c0f8983b19` |
+| `.cache/m12/integrated-managed-failure/installation-ui.meta.json` | `5606108432a0276350c36069db7451b836b7123f026c43938fd2637b50f7eb32` |
+| `.cache/m12/integrated-managed-failure/transit-m12-http-integration-clean-installation-ui.log` | `49819cfed6657ba3ccd475cf8a1aa7174168590cb966d018655ba16c7d1f27ea` |
+| `.cache/m12/integrated-managed-failure/transit-m12-integrated-managed-attempts.json` | `b452845bc52e52da4f13e2138c2f55b7990df3e36187fa017e8bd5ec6b5766d7` |
+| `.cache/m12/integrated-managed-failure/transit-m12-integrated-managed-recovery.log` | `bbecef9ab1b4345d89b10d5e6912e032ac1d80cd911ebe71cd5fbdd58a3a1315` |
+| `.cache/m12/integrated-managed-failure/transit-m12-integrated-transaction-controls.json` | `2e4c41b2e51aa898783ebc02856348a5551d987800d23bbb7d96041cff273588` |
+| `.cache/m12/integrated-managed-failure/transit-m12-new-competing-ci.json` | `2164bcb75e567970c2fb2d66e5abfae712044a7c3fbf24e1c319f224593341c9` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/report.json` | `98d0e1fb79de78126ed656e8dfe22a0f7815f00a54f343d9ad38342faf215c6f` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/ambient.json` | `10dbba9ddea5d15c4a065603bb0e9caca971a48020097230040a3ed5f90bfd86` |
+| `.cache/m12/latency-interruption.json` | `004618d677d0c7205d4ce1853f814696aaced4824a3c803e5c911125c87e0bfb` |
+| `.cache/m12/latency-work-observations.jsonl` | `5eb79eac77cde09636c60978c99b7a88b2895eb5e035958043e55d1dee1e149c` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/startup.jsonl` | `b9e6795f9f401e1b88ff0eb99cf76fd35aecc883856523747cb3649ee2dadde3` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-0.jsonl` | `3fdb29969bae55cb2d4da1cf04a240f65d875c0ff582c0477d0251986b19e010` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-1.jsonl` | `4c3aaee5bfebb7bb41bb9efe1f419b894e0caf9f7288704f97020c7b354fb124` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-2.jsonl` | `c1d2b6723e725e2fac1f3558c1fc520e2131525d0578080571cbb2e59c6daca3` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-3.jsonl` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu/statements-4.jsonl` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` |
+| `.cache/m12/installation-retry-overlap.json` | `1216d8dd611a40168d79a8eca94f9443ef61b58e03437523124a6116707e1281` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/pipeline-wait.json` | `fabade6246c0a16fb0dafaee8544ca24ea6bf4869763da28de5d939c0af65782` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/report.json` | `0b1eb16ec3132cefae800cb7d361f0a40cc65d77adb1c1d5432718f2df053a3b` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/ambient.json` | `9781e19ae9b49fd4893ca03e6dd240a0dc714a14414eacee7c3cb97bb9b0a064` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/gates.json` | `171de04cbc54586649ec92c2f9edb6589edbcfbbc1038a37ab5b7bcca867443c` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/sql-types.json` | `85a17df3d3cbf2bac6887caf155968472f1eb1070d46968a6a0e6fa318d400f5` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/startup.jsonl` | `4c01a920c30d55766444766e2c670d411ea6969a7e797673fa4db29601c806ac` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-0.jsonl` | `aaca8e44b786f9482421d91b9b60a1216330b9cdd148df59ace985a19cba9133` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-1.jsonl` | `0dd633abdbad3f88ae7c69981207b051e7940f77380a8172308b08a953a5945e` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-2.jsonl` | `064baa4e3038ba2f813b39e33715b85d747ec1a2a33732732194d4db93429b14` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-3.jsonl` | `409e9342a9501fb6c4d33765a00069f919b3075f1aee4c30ef36fdb8e9b20220` |
+| `.cache/transit-latency/m12-3f9de42eeb07-native-final-etr12cre/statements-4.jsonl` | `87bdc184e07a1e1054c7e7f8475c01372d87b7479fcc7d7c06efa77a2ff4cd37` |
+
+### Retained failures and qualification limits
+
+- Final review found that the native filename reader treats `_` as a version/name
+  separator. Synthesis now rejects `_` inside version IDs so applying emitted
+  SQL cannot silently change a declared version. The compiler and CLI regression
+  checks cover refusal without artifact publication. Pre-fix core/storage clean
+  runs at `1d5d706887ab` were interrupted and retained as incomplete; only the
+  completed committed runs recorded above establish the reported full-lane results.
+- An initial migration CREATE lost its observable outcome in the local debug
+  journey. The retained operation was later observed as applied and the native
+  resume path recovered the same operation ID and token. The initial diagnostic
+  did not preserve its underlying error, so its cause remains unestablished.
+  The CLI/service now retains that error name without changing retry or identity
+  semantics. The original fixture remains private at
+  `/var/tmp/transit-server-proof-m_zzpwby`.
+- The first CHECK-removal probe exposed a real false negative after an applied
+  ADD COLUMN: receipt fingerprint equality incorrectly established verification.
+  The final ALTER comparison now uses full schema reconciliation. The retained
+  failing fixture is `/var/tmp/transit-server-proof-dswfljbp`; subsequent
+  generated-migration and fresh-definition journeys passed.
+- The preexisting ordinary Queue application-test fixture exceeded its unchanged
+  30-second case deadline with scratch on the physical filesystem, before the
+  new returning-call cases. The same ReleaseSafe binary completed that fixture
+  and the complete application-test inventory with scratch on `/tmp` tmpfs.
+  A disk-scratch syscall probe also failed while the tmpfs probe passed. These
+  observations establish a profile difference, not its complete cause. No
+  deadline, authority check or synchronous durability setting was relaxed.
+  The ephemeral tmpfs test result does not qualify physical-disk performance;
+  installed migration fixtures keep their durable data on disk.
+- The first clean installation/UI run stopped in `server-scenarios`: the
+  observed-response HTTP case recorded an incomplete capture and authoritative
+  `closed_unknown` outcome (`HttpOutcomeUnknown`, effect 183, attempt 185).
+  The request was not replayed. Its private fixture remains at
+  `/var/tmp/transit-server-proof-pk5dpk_5` and the original lane evidence at
+  `/tmp/transit-ci-s6ufx9ly`. Concurrent local builds/recovery checks were active;
+  that fact alone does not establish the cause.
+  The fresh `server-scenarios` gate at `9425373bc8b9` passed after the other
+  owned heavy checks completed, including one HTTP send and a recorded observed
+  response. The original `closed_unknown` outcome remains unchanged; the later
+  pass does not identify the original cause.
+
+- The next clean installation/UI run at `9425373bc8b9` passed its first twelve
+  tasks, then the independent typed Queue SQL oracle in `application-build`
+  exceeded its unchanged 180-second observation deadline. One item had completed,
+  two were refused, and the original fourth attempt remained pending. The
+  generated migration, typed Queue and modular returning-call journeys had
+  already completed in that task, but the task and lane failed. Restarting the
+  retained installation settled the same fourth attempt as a refusal, with
+  exactly the original one Table row and one Stream row. No input was resubmitted;
+  the original wait did not establish completion. The fixture is retained at
+  `/var/tmp/transit-server-proof-p8evggiy`, with failed clean evidence at
+  `/tmp/transit-ci-7ti1dwsx`. Recovery does not turn that failed lane into a pass.
+
+- A second clean installation/UI run at `9425373bc8b9` also passed twelve tasks
+  before the generated typed Queue fixture exhausted that same aggregate wait,
+  again at one completion, two refusals and pending attempt four. Its fixture is
+  `/var/tmp/transit-server-proof-jq8kzv7t`, with clean evidence at
+  `/tmp/transit-ci-nmftnv90`. Retained progress candidates continued advancing
+  through native abort, final ACK and checkpoint staging until immediately before
+  shutdown. This evidence does not support treating the wait exhaustion as a
+  deadlocked atomic write.
+- Focused diagnostic runs with 100 ms and 500 ms polling both exhausted the
+  original aggregate wait; slower polling was not adopted. A separate diagnostic
+  using the original runtime binary and a 240-second observation window saw the
+  three refusals settle after 202.479 seconds, then passed original-token recovery,
+  restart, row/Stream rollback and revocation checks. It also recorded a brief
+  SQL availability interruption (`ReadFailed`/`ConnectionRefused`), whose cause
+  remains unestablished. These probes are diagnostic evidence, not passed clean
+  gates. The retained fixtures are `/var/tmp/transit-server-proof-bkj2rcp5`,
+  `/var/tmp/transit-server-proof-acg12ojk` and
+  `/var/tmp/transit-server-proof-oltu6c94` respectively. Temporary native phase
+  tracing was removed; no runtime implementation change was made for this issue.
+- The final installed proof observes each expected terminal outcome separately
+  with the existing 180-second allowance. Only completed/refused counts advance
+  this finite schedule; attempts or pending work do not reset a wait. The two
+  consumers, input batch, native lease durations, exact final counts, rollback,
+  original-operation recovery and revocation assertions remain the same. This
+  changes the aggregate observation allowance for the three refusals; it does
+  not establish a 180-second batch-latency guarantee.
+
+- The clean installation/UI run at `7d21db5c718c` passed ten tasks and the native
+  managed-Table proof, then failed the installed managed Queue restart case.
+  The 180-second wait for its second completion ended with one completion, four
+  refusals and pending attempt six. Retained records show an earlier refusal's
+  ACK settlement losing its Queue lease, and the resumed valid input committing
+  its first atomic block before the second block recorded an aborted decision.
+  Restarting the retained installation and reading its original state found rows
+  `1`, `2` and `101`, with no `102`; no input was resubmitted. The precise abort
+  cause remains unestablished. This is not qualified by extending a wait. The
+  fixture remains at `/var/tmp/transit-server-proof-38ok0kux` and the failed
+  clean evidence at `/tmp/transit-ci-cvgvmit3`. The unchanged Queue journey then
+  passed in a fresh isolated fixture at `/var/tmp/transit-server-proof-lk529l3l`,
+  using the same binary, SQL settings, deadlines and assertions. That component
+  result neither completes the failed lane nor identifies its abort cause.
+
+- The first installation/UI lane at the integrated `81e59708fb68` source
+  passed ten tasks, then failed that same managed Queue restart wait after
+  1,950.48 seconds in `test::managed-tables`. The original installation is
+  `/var/tmp/transit-server-proof-xr0h1gjy`; failed clean evidence remains at
+  `/tmp/transit-ci-0xc2wdcg`. In this run, reading the retained installation
+  after restart found all four rows (`1`, `2`, `101`, `102`), while the head
+  correctly remained at one completion and four refusals with original attempt
+  six pending. The resumed input's two atomic blocks had advanced, but its final
+  checkpoint transaction recorded an aborted decision. Retained transaction
+  control records show the output Table participant validated before the abort
+  at the input Queue participant; the exact invalidating change is not recorded.
+  The manager also recorded an earlier automatic node restart during refusal
+  processing, whose cause is unestablished. No input was resubmitted and no
+  leases, deadlines, assertions or runtime code were changed for this failure.
+  A new full CI pipeline had started in the separate native-storage worktree
+  after the previously awaited pipeline exited. The subsequent installation
+  run started after that pipeline exited and a fixed 60-second idle interval.
+  Another pipeline started at 20:29:34 UTC while the installation lane was
+  active; its overlap is recorded separately. The installation checks continued,
+  while the M12 coordinator waited for the whole competing pipeline, including
+  its later release builds, before advancing to latency. These observations do
+  not establish contention as the exclusive cause or turn the failed lane into
+  a pass.
+
+- The first complete console-latency campaign at `7d21db5c718c` failed its KV-write
+  class budget: 128.0 ms against 127.2 ms. The five installation medians were
+  123, 126, 127, 128 and 125 ms; every other budget comparison passed. The full
+  failed report and original samples remain under
+  `.cache/transit-latency/m12-7d21db5c718c-w7y5mot7`. No measurement, workload,
+  sampling or budget setting was changed. The cause of that overrun remains
+  unestablished; a subsequent pass does not erase it or establish a stable
+  performance margin.
+
+- The complete unchanged latency repeat also failed, with 44 budget violations
+  and a KV-write class result of 1,017 ms against 127.2 ms. All five complete
+  statement transcripts and the startup transcript remain under
+  `.cache/transit-latency/m12-7d21db5c718c-repeat-8xfju3o9`; their report hashes
+  were verified. Binary, driver, helper, source and workload identities match the
+  first campaign. Warm-read class results stayed at 18 ms, while writes and
+  refreshing reads slowed substantially. An unrelated full CI pipeline's
+  disk-backed local-catalog test started about 14 seconds before the repeat's
+  first statement. The retained host snapshot records elevated I/O pressure and
+  low CPU/memory pressure. Contention is a plausible explanation, not an
+  established exclusive cause. The paired installed SQL-type smoke passed with
+  the same binary after this campaign, including all three interfaces' restart
+  checks; that does not turn the latency failure into a pass. The final campaign
+  waits for the competing pipelines, including their own latency gates and
+  release builds, to exit and observes a fixed 60-second idle interval before
+  measuring. The
+  intervening HTTP integration and later native-storage rebase change the final
+  executable and contract identities. The final record identifies its own source,
+  binary and native storage profile. The measured workload and budgets are
+  unchanged; these different runtime bases do not establish an identical-binary
+  performance comparison or the sole cause of either earlier failure.
+
+- The first latency campaign at integrated source `81e59708fb68` started after
+  the competing pipeline exited. A separate focused application test then began
+  while the measured binary was building and remained active when sampling
+  started; another full CI pipeline followed. The attempted build-phase hold
+  did not attach because compilation had already finished, and no timed
+  measurement was paused. The benchmark driver was subsequently interrupted
+  with `SIGINT` through its normal cleanup path to stop the contended campaign.
+  All eight observed owned processes were joined; the original installation
+  remains at `/var/tmp/transit-server-proof-97r03_q_`. The failed incomplete
+  record retains four startup records, two complete 1,598-record statement transcripts,
+  a 416-record prefix of the third transcript and two empty later transcripts.
+  No budget pass or complete coverage is claimed for that prefix. The record is
+  `.cache/transit-latency/m12-81e59708fb68-quiet-v7sktslu`; overlap observations
+  and cleanup identities are retained separately. A following identical-binary
+  campaign was queued but never started: its two idle coordinators were stopped
+  for the requested rebase. The rebased full campaign waits for competing
+  pipeline parents and focused tests and detects renewed overlap while running.
+  It builds the new native-storage binary with the original workload and budgets;
+  earlier installations and raw records retain their original definition.
+
+The rebased gates use fresh installations at the native-storage definition and
+the declared per-outcome observation allowances. Earlier failed aggregate-wait,
+managed-Queue and latency campaigns remain failed or incomplete at their recorded
+source bases. No earlier installation is converted or reopened under the new
+contract. Clean installation checkout/build scratch uses `/tmp`, while installed
+fixtures retain data under `/var/tmp`. The five completed lanes share one rebased
+source; they do not constitute the full repository suite, distributed-provider
+qualification, nightly container performance or evidence for remaining M12 features.
+
 ## Pure functions, ordered guards and inline atomic procedures — 2026-11-15
 
 This slice implements Slices A and B.1 of the

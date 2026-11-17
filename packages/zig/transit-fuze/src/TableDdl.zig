@@ -15,6 +15,7 @@ pub const Create = struct {
     native_binding: ?@import("NativeBinding.zig").Kind = null,
     columns: []const s.Column,
     /// Source coordinates only; excluded from schema identity and codecs.
+    column_spans: []const Parser.Literal.Span = &.{},
     column_type_spans: []const Parser.Literal.Span = &.{},
     primary_key: []const s.ColumnId,
     integrity: Constraints.Integrity = .{},
@@ -203,6 +204,7 @@ fn create(parser: *Parser) !Create {
 pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool) !Create {
     try parser.require(.left);
     var columns: std.ArrayList(s.Column) = .empty;
+    var column_spans: std.ArrayList(Parser.Literal.Span) = .empty;
     var type_spans: std.ArrayList(Parser.Literal.Span) = .empty;
     var explicit_null: [s.max_columns]bool = @splat(false);
     var keys: std.ArrayList(s.ColumnId) = .empty;
@@ -229,7 +231,9 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
         } else {
             if (unsupportedConstraint(parser.*)) return error.UnsupportedTableConstraint;
             if (columns.items.len == s.max_columns) return error.InvalidColumnCount;
+            const column_start = parser.lexer.start;
             const parsed = try column(parser, columns.items.len + 1);
+            try column_spans.append(parser.allocator, .{ .start = column_start, .end = parser.previous_end });
             explicit_null[columns.items.len] = parsed.explicit_nullable;
             try columns.append(parser.allocator, parsed.value);
             try type_spans.append(parser.allocator, parsed.type_span);
@@ -250,7 +254,7 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
         for (keys.items) |id| if (id == columns.items[i].id) return error.DuplicatePrimaryKeyColumn;
         try keys.append(parser.allocator, columns.items[i].id);
     }
-    var result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .column_type_spans = try type_spans.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator), .foreign_keys = try foreign_keys.toOwnedSlice(parser.allocator) };
+    var result: Create = .{ .name = name, .if_not_exists = if_not_exists, .columns = try columns.toOwnedSlice(parser.allocator), .column_spans = try column_spans.toOwnedSlice(parser.allocator), .column_type_spans = try type_spans.toOwnedSlice(parser.allocator), .primary_key = try keys.toOwnedSlice(parser.allocator), .foreign_keys = try foreign_keys.toOwnedSlice(parser.allocator) };
     // Validate all pure shape/default/constraint rules before the catalog assigns
     // a real object identity. The provisional identity is never returned/stored.
     const basis = try result.bindShape(1);

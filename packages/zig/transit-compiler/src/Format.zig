@@ -41,6 +41,7 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                 .module => "MODULE",
                 .interface => "INTERFACE",
                 .target => "TARGET",
+                .migration_target => "MIGRATION TARGET",
                 .test_target => "TEST TARGET",
                 .domain => "DOMAIN",
                 .variant => "VARIANT",
@@ -56,6 +57,18 @@ pub fn write(text: []const u8, file: s.File, writer: *std.Io.Writer) !void {
                     try self.kind(param.kind);
                 }
                 try writer.writeByte(')');
+            }
+            if (def.migration) |migration| {
+                try writer.writeAll(" FROM ");
+                if (migration.basis) |path| try self.string(path) else try writer.writeAll("EMPTY");
+                try writer.writeAll(" FOR DATABASE ");
+                try self.string(migration.database);
+                try writer.writeAll(" SCHEMA ");
+                try self.string(migration.schema);
+                try writer.writeAll(" VERSION ");
+                try self.string(migration.version);
+                try writer.writeAll(" NAME ");
+                try self.string(migration.name);
             }
             if (def.return_type) |ret| {
                 try writer.writeAll(" RETURNS ");

@@ -481,3 +481,52 @@ test "helper validation rejects unused invalid bodies recursion impurity visibil
     };
     try std.testing.expect(found_call_site);
 }
+
+fn returning(allocator: std.mem.Allocator, declaration: []const u8, body: []const u8) !*c.Product {
+    const text = try std.fmt.allocPrint(allocator, "CREATE DOMAIN Id AS BIGINT IDENTITY 'example.id'; {s} " ++
+        "CREATE MODULE App(ty TYPE) AS BEGIN CREATE PUBLIC QUEUE q(id $ty NOT NULL); " ++
+        "CREATE PUBLIC TABLE t(id $ty PRIMARY KEY, note TEXT NOT NULL); " ++
+        "CREATE PUBLIC DATAFLOW flow FROM QUEUE q AS request AS BEGIN BEGIN ATOMIC {s} END; END; END; " ++
+        "CREATE TARGET default AS BEGIN USE App(TYPE Id); END;", .{ declaration, body });
+    defer allocator.free(text);
+    var diagnostic: ?p.Diagnostic = null;
+    return c.compile(allocator, &.{.{ .path = "build.transit", .text = text }}, .{ .compiler_revision = "returns" }, &diagnostic);
+}
+const returning_proc =
+    "CREATE PROCEDURE save(t TABLE(id Id PRIMARY KEY, note TEXT NOT NULL), id Id, note TEXT) RETURNS Id AS BEGIN ATOMIC " ++
+    "LET local = id; INSERT INTO t VALUES (local, note) ON CONFLICT (id) DO ASSERT SAME ROW; RETURN local; END; " ++
+    "CREATE PROCEDURE nested(t TABLE(id Id PRIMARY KEY, note TEXT NOT NULL), id Id, note TEXT) RETURNS Id AS BEGIN ATOMIC " ++
+    "LET result = CALL save(t, id, note); RETURN result; END; ";
+const returning_body = "LET result = CALL nested(t, request.id, RANDOM_TOKEN(16)); REQUIRE result = request.id ELSE 'WrongResult'; REQUIRE FALSE ELSE 'Rollback';";
+test "returning procedure calls preserve nominal values single evaluation and one atomic boundary" {
+    const product = try returning(std.testing.allocator, returning_proc, returning_body);
+    defer product.deinit();
+    const sql = product.steps[2].sql;
+    try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, sql, "RANDOM_TOKEN"));
+    try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, sql, "BEGIN ATOMIC"));
+    try std.testing.expectEqual(@as(usize, 1), std.mem.count(u8, sql, "INSERT INTO"));
+    try std.testing.expect(std.mem.indexOf(u8, sql, "RETURN") == null);
+    const events = product.steps[2].checked.program.?.events;
+    try std.testing.expectEqual(.require, events[events.len - 2].kind);
+    try std.testing.expectEqual(.atomic_end, events[events.len - 1].kind);
+}
+test "returning procedures refuse missing early void mismatched and escaping results" {
+    const Case = struct { declaration: []const u8, body: []const u8 = "", expected: anyerror };
+    const cases = [_]Case{
+        .{ .declaration = "CREATE PROCEDURE bad() RETURNS BIGINT AS BEGIN ATOMIC END;", .expected = error.MissingProcedureReturn },
+        .{ .declaration = "CREATE PROCEDURE bad() AS BEGIN ATOMIC RETURN 1; END;", .expected = error.UnexpectedProcedureReturn },
+        .{ .declaration = "CREATE PROCEDURE bad() RETURNS BIGINT AS BEGIN ATOMIC IF TRUE THEN RETURN 1; END IF; RETURN 2; END;", .expected = error.InvalidSourceTemplate },
+        .{ .declaration = "CREATE PROCEDURE bad() RETURNS BIGINT AS BEGIN ATOMIC RETURN 'wrong'; END;", .expected = error.ProgramTypeMismatch },
+        .{ .declaration = "CREATE PROCEDURE bad() RETURNS Id AS BEGIN ATOMIC RETURN 1; END;", .expected = error.SourceDomainMismatch },
+        .{ .declaration = "CREATE PROCEDURE nothing() AS BEGIN ATOMIC END;", .body = "LET x = CALL nothing();", .expected = error.ProcedureHasNoResult },
+        .{ .declaration = returning_proc, .body = "IF TRUE THEN LET x = CALL nested(t, request.id, 'ok'); END IF; REQUIRE x = request.id ELSE 'No';", .expected = error.UnknownProgramVariable },
+    };
+    for (cases) |case| try std.testing.expectError(case.expected, returning(std.testing.allocator, case.declaration, case.body));
+}
+fn returningAllocations(allocator: std.mem.Allocator) !void {
+    const product = try returning(allocator, returning_proc, returning_body);
+    defer product.deinit();
+}
+test "returning calls release every failed allocation" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, returningAllocations, .{});
+}

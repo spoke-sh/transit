@@ -62,6 +62,14 @@ own native rows, counts, restart and authorization. These laws do not prove the
 source checker, full compiler, arbitrary recursion, SQL runtime or live workflows.
 No new temporal-state/TLA+ result is claimed by compile-time specialization.
 
+Five further scoped laws cover pure function substitution, ordered guard
+refusal, a witness that guard reordering changes outcomes, inline atomic
+procedure decisions, and typed return substitution. The return law exposes a
+value only after a successful atomic decision; its scalar expressions are total.
+Runtime expression errors, current authorization, native rollback and compiler
+correctness still require their independent executable checks. The source suite
+checks all eleven laws and their declared axioms.
+
 The local WAL model separates visible writes from durable file contents, directory
 entries and metadata. Its finite checks cover acknowledgement, fencing, recovery
 and authorized prefix deletion under explicit sync and atomic-replacement

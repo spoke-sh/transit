@@ -716,7 +716,11 @@ def install_typed_queue(fixture, sql):
     outcomes = []
     for suffix, refused in (('a', 3), ('b', 0)):
         name = f'typed_process_{suffix}'
-        head = await_head(fixture, name, lambda h: h['completed'] + h['refused'] >= refused + 1)['observation']['head']
+        # Both pipelines keep running after the same batch of enqueues. Give
+        # each expected terminal outcome the existing bounded observation wait;
+        # attempts and pending work cannot reset it. A's first item settled above.
+        for terminal_count in range(2 if suffix == 'a' else 1, refused + 2):
+            head = await_head(fixture, name, lambda h, expected=terminal_count: h['completed'] + h['refused'] >= expected)['observation']['head']
         assert (head['completed'], head['refused']) == (1, refused), head
         rows = fixture.console(f'SELECT id, machine_id, body FROM typed_accepted_{suffix} ORDER BY id; CONSUME id, machine_id, body FROM typed_events_{suffix};')
         assert [records(value) for value in rows if 'schema' in value] == [[{'id': '7', 'machine_id': '7', 'body': 'ready'}]] * 2, rows
@@ -888,6 +892,151 @@ def execute_typed_queue(cli, sql):
         else:
             print(f'Private failed typed Queue execution: {fixture.root}', file=sys.stderr)
 
+def migration_journey(cli, temporary):
+    root = temporary / 'migration-source'
+    root.mkdir()
+    source = root / 'build.transit'
+    definitions = root / 'tables.transit'
+    definitions.write_text("CREATE PUBLIC MODULE Tables() AS BEGIN CREATE PUBLIC TABLE migration_items (id BIGINT PRIMARY KEY, note TEXT NOT NULL DEFAULT 'initial', CHECK (id > 0)); END;\n")
+    def target(basis='EMPTY', version='0001'):
+        source.write_text("IMPORT tables FROM 'tables.transit';\n"
+                          f"CREATE MIGRATION TARGET default FROM {basis} FOR DATABASE 'transit' SCHEMA 'public' VERSION '{version}' NAME 'tables' AS BEGIN USE tables.Tables(); END;\n")
+    target()
+    first = cli_build(cli, root)
+    first_dir = Path(first['directory'])
+    first_basis = (first_dir / 'basis.json').read_bytes()
+    first_sql = first_dir / 'migrations/0001-tables.sql'
+    original = first_sql.read_bytes()
+    assert first['statements'] == 1 and b'CREATE TABLE' in original
+    assert cli_build(cli, root)['reused']
+    target(version='0001_patch')
+    failure = cli_build(cli, root, '--out', root / 'ambiguous-version', expected=1)
+    assert 'InvalidMigrationVersion' in json.dumps(failure)
+    assert not (root / 'ambiguous-version').exists()
+    basis_path = first_dir.relative_to(root) / 'basis.json'
+    target(f"'{basis_path}'", '0002')
+    definitions.write_text(definitions.read_text().replace(", CHECK (id > 0)", ", extra TEXT DEFAULT 'a,b', amount BIGINT NOT NULL DEFAULT 7, CHECK (id > 0)"))
+    check = cli_build(cli, root, '--check')
+    assert check['statements'] == 2
+    second = cli_build(cli, root)
+    second_dir = Path(second['directory'])
+    assert second['statements'] == 2 and cli_build(cli, root)['reused']
+    desired_sql = (second_dir / 'desired.sql').read_text()
+    cached_delta = second_dir / 'migrations/0002-tables.sql'
+    original_delta = cached_delta.read_bytes()
+    cached_delta.write_bytes(original_delta.replace(b'EXTRA', b'WRONG'))
+    cli_build(cli, root, expected=1)
+    cached_delta.write_bytes(original_delta)
+    assert (second_dir / 'migrations/0001-tables.sql').read_bytes() == original
+    assert (second_dir / 'migrations/0002-tables.sql').read_text().count('ADD COLUMN') == 2
+    # Both the explicit basis and every historical byte participate in checking.
+    first_sql.write_bytes(original + b'-- changed history\n')
+    failure = cli_build(cli, root, '--check', expected=1)
+    assert 'MigrationHistoryChanged' in json.dumps(failure)
+    first_sql.write_bytes(original)
+    foreign = json.loads(first_basis)
+    foreign['definition'] = 'foreign'
+    (first_dir / 'basis.json').write_text(json.dumps(foreign))
+    failure = cli_build(cli, root, '--check', expected=1)
+    assert 'IncompatibleMigrationBasis' in json.dumps(failure)
+    (first_dir / 'basis.json').write_bytes(first_basis)
+    outside = root / 'linked-basis'
+    outside.symlink_to(first_dir, target_is_directory=True)
+    target("'linked-basis/basis.json'", '0002')
+    cli_build(cli, root, '--check', expected=1)
+    outside.unlink()
+    target("'../escape/basis.json'", '0002')
+    cli_build(cli, root, '--check', expected=1)
+    target(f"'{second_dir.relative_to(root) / 'basis.json'}'", '0003')
+    unchanged = cli_build(cli, root)
+    assert unchanged['statements'] == 0
+    assert len(list((Path(unchanged['directory']) / 'migrations').glob('*.sql'))) == 2
+    preserved = definitions.read_text()
+    definitions.write_text(preserved.replace("DEFAULT 'initial'", "DEFAULT 'changed'"))
+    failure = cli_build(cli, root, '--out', root / 'refused', expected=1)
+    assert 'MigrationTransformRequired' in json.dumps(failure) and not (root / 'refused').exists()
+    definitions.write_text(preserved)
+    # Source relocation keeps the same explicit object names and SQL bytes.
+    relocated = temporary / 'relocated-migration-source'
+    shutil.copytree(root, relocated)
+    copied = cli_build(cli, relocated, '--out', relocated / 'reviewed')
+    assert (Path(copied['directory']) / 'desired.sql').read_bytes() == (second_dir / 'desired.sql').read_bytes()
+
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        migrations = fixture.root / 'migrations'
+        shutil.copytree(first_dir / 'migrations', migrations)
+        def migrate(action, *args, expected=0):
+            result = subprocess.run([fixture.cli, 'migrate', action, '--format', 'json', *map(str, args)],
+                                    cwd=fixture.root, env=fixture.environment, text=True, capture_output=True, timeout=90)
+            assert result.returncode == expected, (action, result.stdout, result.stderr)
+            return json.loads(result.stdout)
+        first_applied = migrate('apply', '--dir', migrations, '--database', 'transit', '--schema', 'public')
+        assert first_applied['outcome'] == 'applied', first_applied
+        fixture.console("INSERT INTO migration_items (id) VALUES (7);")
+        shutil.copy2(second_dir / 'migrations/0002-tables.sql', migrations)
+        plan_file = fixture.root / 'plan.json'
+        planned = migrate('plan', '--dir', migrations, '--out', plan_file)
+        saved = json.loads(plan_file.read_text())
+        # Lose the complete semantic response, then destroy all source/sidecars.
+        client = Client(fixture.console_config(), fixture.record()['definition']).open()
+        try:
+            client.call(dict(migrate=dict(kind='apply', sources=saved['sources'],
+                        expected_plan_digest=saved['plan_digest'], attempt_id=[0x72] * 16,
+                        target=dict(database='transit', schema='public'))), discard_response=True)
+        finally:
+            client.close()
+        shutil.rmtree(root)
+        shutil.rmtree(relocated)
+        fixture.stop(kill=True)
+        fixture.start()
+        fixture.ready()
+        resumed = migrate('resume', '--dir', migrations)
+        assert resumed['outcome'] in ('applied', 'verified', 'already_satisfied'), resumed
+        assert [step['step_token'] for step in resumed['versions'][1]['steps']] == [step['step_token'] for step in planned['versions'][1]['steps']]
+        expected_rows = [{'id': '7', 'note': 'initial', 'extra': 'a,b', 'amount': '7'}]
+        assert records(fixture.console('SELECT * FROM migration_items;')[-1]) == expected_rows
+        verified = migrate('verify', '--dir', migrations)
+        assert verified['outcome'] == 'verified', verified
+        assert [step['operation_id'] for step in verified['versions'][1]['steps']] == [step['operation_id'] for step in resumed['versions'][1]['steps']]
+        fixture.console('INSERT INTO migration_items (id) VALUES (0);', expected=1)
+        # A live CHECK rewrite is drift even when legacy receipt digests agree.
+        fixture.console('ALTER TABLE migration_items DROP CONSTRAINT constraint_1;')
+        drift = migrate('verify', '--dir', migrations, expected=3)
+        assert drift['outcome'] == 'drift_detected', drift
+        assert any(step.get('drift', {}).get('aspect') == 'integrity'
+                   for version in drift['versions'] for step in version['steps'] if step.get('drift'))
+        passed = True
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed generated migration execution: {fixture.root}', file=sys.stderr)
+
+    fresh = Fixture(cli)
+    fresh.use_private_runtime()
+    passed = False
+    try:
+        fresh.start()
+        fresh.ready()
+        fresh.console(desired_sql)
+        fresh.console('INSERT INTO migration_items (id) VALUES (7);')
+        assert records(fresh.console('SELECT * FROM migration_items;')[-1]) == expected_rows
+        fresh.console('INSERT INTO migration_items (id) VALUES (0);', expected=1)
+        passed = True
+    finally:
+        fresh.cleanup()
+        if passed:
+            shutil.rmtree(fresh.root)
+        else:
+            print(f'Private failed fresh migration definition: {fresh.root}', file=sys.stderr)
+
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
@@ -896,6 +1045,8 @@ def main():
         queue_sql = queue_journey(cli, Path(temporary))
         typed_queue_sql = typed_queue_journey(cli, Path(temporary))
         modular_sql = modular_programs_journey(cli, Path(temporary))
+        print('Application build: generated Table migration and recovery', flush=True)
+        migration_journey(cli, Path(temporary))
         print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
         print('Application build: generated typed Queue fixture', flush=True)

@@ -450,3 +450,23 @@ theorem procedure_inline_atomic (env : Env context) (arg : Value parameter)
 #print axioms guard_sequence_refusal
 #print axioms guard_reorder_non_equivalent
 #print axioms procedure_inline_atomic
+
+/-- The return value is exposed only after a successful atomic decision.
+    This fragment has total scalar expressions; runtime expression errors and
+    database authority remain obligations of the ordinary SQL owner. -/
+def returned (decision : TxDecision) (value : Value type) : Option (Value type) :=
+  match decision with
+  | .commit _ => some value
+  | .rollback _ => none
+
+theorem procedure_return_substitution (env : Env context) (arg : Value parameter)
+    (callee : List (AtomicStep (parameter :: context)))
+    (continuation : List (AtomicStep context))
+    (result : Expr (parameter :: context) type) :
+    returned (runAtomic env (callee.map (AtomicStep.substitute arg) ++ continuation))
+      ((result.substitute arg).eval env) =
+    returned (evalProcedureCall env arg callee continuation)
+      (result.eval (extend arg env)) := by
+  rw [procedure_inline_atomic, nominal_substitution]
+
+#print axioms procedure_return_substitution

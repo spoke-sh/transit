@@ -12,8 +12,10 @@ definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
     | INTERFACE sourceName parameters
     | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
     | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
-    | PROCEDURE sourceName parameters AS BEGIN ATOMIC? programBlock END
+    | PROCEDURE sourceName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
+    | MIGRATION TARGET sourceName FROM (EMPTY | STRING) FOR DATABASE STRING SCHEMA STRING VERSION STRING NAME STRING AS BEGIN body END
     | TEST? TARGET sourceName AS BEGIN body END) SEMI;
+procedureBody: programBlock (RETURN programExpression SEMI)?;
 functionBody: RETURN programExpression SEMI | programInstruction+;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 parameter: sourceName parameterKind;
@@ -83,7 +85,7 @@ sourceProgramControl: AUTHORIZE DATAFLOW programResourceName AS ROLE CURRENT_ROL
     | (ACTIVATE | SUSPEND | RESUME | RETIRE) DATAFLOW programResourceName;
 programBlock: programInstruction*;
 programInstruction
-    : LET programName EQ (programSelect | programExpression) SEMI
+    : LET programName EQ (CALL helperName programArguments | programSelect | programExpression) SEMI
     | REQUIRE programExpression ELSE sourceString SEMI
     | CHECK GUARD helperName programArguments SEMI
     | CALL helperName programArguments SEMI
@@ -149,7 +151,7 @@ tableConstraint: (CONSTRAINT identifier)? checkConstraint;
 identifier: identifierHole | plainIdentifier;
 plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
+sourceKeyword: MIGRATION | EMPTY | VERSION | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -183,7 +185,7 @@ referenceTypeHead: typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE 
 sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
 typeWord: typeWordWithoutLogs | STREAM | QUEUE;
 typeWordWithoutLogs: typeWordOrdinary | NULL_ | CASE | CAST;
-typeWordOrdinary: IDENTIFIER | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+typeWordOrdinary: IDENTIFIER | MIGRATION | EMPTY | VERSION | FOR | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
     | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
     | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE
     | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES
@@ -269,3 +271,7 @@ COMPLETED: 'COMPLETED';
 REFUSED: 'REFUSED';
 WITHIN: 'WITHIN';
 OBSERVATIONS: 'OBSERVATIONS';
+
+MIGRATION: 'MIGRATION';
+EMPTY: 'EMPTY';
+VERSION: 'VERSION';

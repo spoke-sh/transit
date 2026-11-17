@@ -35,6 +35,7 @@ const Env = struct {
     helper: ?Graph.Ref = null,
     mode: enum { dataflow, function, guard, procedure } = .dataflow,
     rename_locals: bool = false,
+    return_binding: ?[]const u8 = null,
     bindings: []const types.Binding = &.{},
     symbols: std.ArrayList(Symbol) = .empty,
     resources: []const ResourceBinding = &.{},
@@ -95,9 +96,9 @@ pub fn validateAll(compiler: *Compiler) !void {
                 .identifier, .type, .module => return error.InvalidParameterType,
             }
         }
-        if (def.kind == .function) {
+        if (def.return_type) |return_type| {
             compiler.context = .{ .name = def.name };
-            _ = try types.resolve(graph, file_idx, def.return_type.?);
+            _ = try types.resolve(graph, file_idx, return_type);
         }
         compiler.context = .{};
     };
@@ -402,6 +403,7 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref) !void {
             try lowerer.lowerBlock(&env, body_tokens, &idx, false, 0);
         },
         .procedure => {
+            if (def.return_type != null) env.return_binding = try lowerer.freshHygienic("ret");
             try lowerer.emitFixed("BEGIN ATOMIC", origin_base);
             var idx: usize = 0;
             try lowerer.lowerBlock(&env, body_tokens, &idx, true, 0);
@@ -712,14 +714,58 @@ fn lowerBlock(self: *Self, env: *Env, tokens: []const s.Token, i: *usize, atomic
         const start_tok = tokens[i.*];
         if (tokenWord(text, start_tok, "CHECK")) {
             i.* += 2; // CHECK GUARD
-            try self.inlineHelperCall(env, tokens, i, .guard, atomic, start_tok.start, depth + 1);
+            try self.inlineHelperCall(env, tokens, i, .guard, atomic, start_tok.start, depth + 1, null);
             try self.consumeSemicolon(env, tokens, i);
             continue;
         }
         if (tokenWord(text, start_tok, "CALL")) {
             i.* += 1; // CALL
-            try self.inlineHelperCall(env, tokens, i, .procedure, atomic, start_tok.start, depth + 1);
+            try self.inlineHelperCall(env, tokens, i, .procedure, atomic, start_tok.start, depth + 1, null);
             try self.consumeSemicolon(env, tokens, i);
+            continue;
+        }
+        if (tokenWord(text, start_tok, "RETURN")) {
+            const binding = env.return_binding orelse return error.UnexpectedProcedureReturn;
+            const helper = self.compiler.graph.getDefinition(env.helper orelse return error.UnexpectedProcedureReturn);
+            const origin = self.makeOrigin(env, start_tok.start);
+            const mark = self.beginHoistScope();
+            var hoisted: Hoisted = .{ .writer = .{ .allocator = self.scratch, .limit = self.writer.limit } };
+            self.hoist = &hoisted;
+            i.* += 1;
+            try self.emitFixed("LET", origin);
+            try self.emitQuotedRaw(binding, origin);
+            try self.emitFixed("=", origin);
+            try self.lowerExpression(env, tokens, i, 0, true, depth + 1);
+            try self.requireEmitSymbol(env, tokens, i, ";");
+            self.hoist = null;
+            try self.applyHoist(mark, &hoisted);
+            if (i.* != tokens.len) return error.UnexpectedProcedureReturn;
+            try self.obligations.append(self.output, .{
+                .target = .{ .binding = binding },
+                .expected = try types.resolve(self.compiler.graph, env.file, helper.return_type.?),
+                .name = helper.name,
+            });
+            continue;
+        }
+        if (tokenWord(text, start_tok, "LET") and i.* + 3 < tokens.len and tokenWord(text, tokens[i.* + 3], "CALL")) {
+            const var_tok = tokens[i.* + 1];
+            const decoded = try self.decodeProgramName(text, var_tok);
+            for (env.symbols.items) |sym| if (std.mem.eql(u8, sym.original, decoded)) {
+                self.setError(env, var_tok.start);
+                return error.DuplicateProgramVariable;
+            };
+            const returned = try self.freshHygienic("ret");
+            i.* += 4;
+            try self.inlineHelperCall(env, tokens, i, .procedure, atomic, start_tok.start, depth + 1, returned);
+            try self.consumeSemicolon(env, tokens, i);
+            const origin = self.makeOrigin(env, var_tok.start);
+            try self.emitFixed("LET", origin);
+            const local = if (env.rename_locals) try self.freshHygienic(decoded) else decoded;
+            try self.emitQuotedRaw(local, origin);
+            try self.emitFixed("=", origin);
+            try self.emitQuotedRaw(returned, origin);
+            try self.emitFixed(";", origin);
+            if (env.rename_locals) try env.symbols.append(self.scratch, .{ .original = decoded, .emitted = local });
             continue;
         }
         if (tokenWord(text, start_tok, "BEGIN")) {
@@ -1040,7 +1086,7 @@ fn sliceCallArguments(self: *Self, env: *const Env, tokens: []const s.Token, i: 
     return error.InvalidSourceSyntax;
 }
 
-fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *usize, kind: s.Template.HelperKind, atomic: bool, call_offset: usize, depth: usize) anyerror!void {
+fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *usize, kind: s.Template.HelperKind, atomic: bool, call_offset: usize, depth: usize, result_binding: ?[]const u8) anyerror!void {
     try self.compiler.tick();
     if (depth > self.compiler.limits.depth) {
         self.setError(caller_env, call_offset);
@@ -1056,6 +1102,10 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         return err;
     };
     const callee = self.compiler.graph.getDefinition(callee_ref);
+    if (result_binding != null and callee.return_type == null) {
+        self.setError(caller_env, call_offset);
+        return error.ProcedureHasNoResult;
+    }
     const arg_slices = try self.sliceCallArguments(caller_env, tokens, i);
     if (arg_slices.len != callee.parameters.len) {
         self.setError(caller_env, call_offset);
@@ -1071,6 +1121,7 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         .mode = if (kind == .guard) .guard else .procedure,
         .rename_locals = true,
         .call = outer_call,
+        .return_binding = if (callee.return_type != null) result_binding orelse try self.freshHygienic("ret") else null,
     };
 
     for (callee.parameters, arg_slices) |param, arg_tokens| {

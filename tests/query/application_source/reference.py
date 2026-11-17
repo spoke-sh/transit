@@ -55,7 +55,9 @@ def parse(source):
                 if not node.ATOMIC():
                     following = tokens.tokens[node.BEGIN().symbol.tokenIndex + 1]
                     raise Refusal(offsets[following.start], 'procedure requires BEGIN ATOMIC')
-                bounds(node.programBlock(), True, 'procedure')
+                if bool(node.RETURNS()) != bool(node.procedureBody().RETURN()):
+                    raise Refusal(span(node.procedureBody())['end'], 'procedure return coverage')
+                bounds(node.procedureBody(), True, 'procedure')
             elif node.GUARD():
                 if node.ATOMIC():
                     raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic guard')
@@ -277,12 +279,19 @@ def parse(source):
             result.append({'name': param.sourceName().getText().lower(), 'kind': value})
         return result
 
+    def migration(node):
+        if not node.MIGRATION():
+            return None
+        strings = [string(token) for token in node.STRING()]
+        basis = None if node.EMPTY() else strings.pop(0)
+        return dict(zip(('basis', 'database', 'schema', 'version', 'name'), [basis, *strings]))
+
     definitions = []
     for definition in root.definition():
         domain = None
         constructors = []
         if definition.DOMAIN():
-            domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING())}
+            domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING(0))}
             if not 1 <= len(domain['identity'].encode()) <= 128:
                 raise Refusal(span(definition)['start'], 'domain identity bound')
         if definition.VARIANT():
@@ -291,20 +300,21 @@ def parse(source):
             if len(constructors) > 64 or len(set(names)) != len(names):
                 raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
         return_type = None
-        if definition.FUNCTION():
+        if definition.sourceType():
             raw_ret = definition.sourceType()
             return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
         program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
                    template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
-                   template(definition.programBlock(), helper='procedure_body') if definition.PROCEDURE() else None)
+                   template(definition.procedureBody(), helper='procedure_body') if definition.PROCEDURE() else None)
         definitions.append({'name': definition.sourceName().getText().lower(), 'public': bool(definition.PUBLIC()),
                             'kind': ('domain' if domain else 'variant' if constructors else
                                      'function' if definition.FUNCTION() else 'guard' if definition.GUARD() else
-                                     'procedure' if definition.PROCEDURE() else 'module' if definition.MODULE() else
+                                     'procedure' if definition.PROCEDURE() else 'migration_target' if definition.MIGRATION() else 'module' if definition.MODULE() else
                                      'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target'),
                             'parameters': parameters(definition.parameters()), 'body': body(definition.body()) if definition.body() else [],
                             'span': span(definition), 'domain': domain, 'constructors': constructors,
-                            'return_type': return_type, 'program': program})
+                            'return_type': return_type, 'program': program,
+                            'migration': migration(definition)})
     imports = [{'alias': item.sourceName(0).getText().lower(), 'package': item.sourceName(1).getText().lower() if item.PACKAGE() else None,
                 'path': string(item.STRING()), 'span': span(item)} for item in root.sourceImport()]
     dependencies = [{'name': item.sourceName().getText().lower(), 'repository': string(item.STRING(0)), 'revision': string(item.STRING(1)),

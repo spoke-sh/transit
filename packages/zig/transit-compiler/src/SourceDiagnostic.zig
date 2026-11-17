@@ -18,7 +18,7 @@ pub const Context = struct {
         if (self.required) |number| value.fact(.required, .caller, .{ .unsigned = .init(number) }) catch {};
     }
 };
-const Family = enum { entry, file_kind, path, encoding, syntax, import, target, domain, type, dependency, capability, limit, io, output, internal };
+const Family = enum { entry, file_kind, path, encoding, syntax, import, target, domain, type, dependency, capability, limit, io, output, migration, internal };
 const Rule = struct { code: []const u8, category: d.Category, stage: d.Stage, message: []const u8 };
 fn rule(family: Family) Rule {
     return switch (family) {
@@ -28,7 +28,7 @@ fn rule(family: Family) Rule {
         .encoding => .{ .code = "application.source.encoding", .category = .syntax, .stage = .input, .message = "The source is not valid UTF-8. Save the indicated .transit file as UTF-8 before compiling it." },
         .syntax => .{ .code = "application.source.syntax", .category = .syntax, .stage = .parse, .message = "Invalid application source syntax. Correct the statement at the indicated location using the supported .transit grammar." },
         .import => .{ .code = "application.source.import", .category = .binding, .stage = .bind, .message = "Cannot resolve the source import or symbol. Check its path, package declaration and PUBLIC export; imports must stay inside their declared package." },
-        .target => .{ .code = "application.source.target", .category = .binding, .stage = .bind, .message = "The selected target is missing, empty or has the wrong kind. Select a declared CREATE TARGET for build or CREATE TEST TARGET for test with --target NAME." },
+        .target => .{ .code = "application.source.target", .category = .binding, .stage = .bind, .message = "The selected target is missing, empty or has the wrong kind. Select a declared CREATE TARGET or CREATE MIGRATION TARGET for build or CREATE TEST TARGET for test with --target NAME." },
         .domain => .{ .code = "application.source.domain", .category = .binding, .stage = .bind, .message = "Source domains do not match. Pass a value of the expected domain; equal scalar representations do not make distinct domains interchangeable." },
         .type => .{ .code = "application.source.type", .category = .binding, .stage = .bind, .message = "The source operand or interface has the wrong type. Match the declared parameter, resource kind and complete column signature; source holes are typed operands." },
         .dependency => .{ .code = "application.source.dependency", .category = .integrity, .stage = .input, .message = "The dependency, lock or verified cache is unavailable or inconsistent. Check the named dependency and exact revision; use transit build --fetch explicitly to prepare reviewed dependencies, then retry offline." },
@@ -36,11 +36,28 @@ fn rule(family: Family) Rule {
         .limit => .{ .code = "application.source.limit", .category = .limit, .stage = .compile, .message = "A source compilation budget was exceeded. Reduce the indicated input or expansion; keep each atomic SQL statement intact and within its owning limit." },
         .io => .{ .code = "application.source.io", .category = .unavailable, .stage = .input, .message = "Cannot read the indicated build input. Check that the path exists, is a regular file and is readable; preserve the lock and verified source contents." },
         .output => .{ .code = "application.source.output", .category = .unavailable, .stage = .output, .message = "Cannot publish or verify the build output. Check the named destination, permissions and available space; use a fresh --out directory for an explicit output and preserve existing artifacts." },
+        .migration => .{ .code = "application.source.migration", .category = .binding, .stage = .compile, .message = "Cannot synthesize this Table migration. Check the explicit basis, immutable SQL history, target namespace and strictly increasing version; restore missing or modified inputs." },
         .internal => .{ .code = "application.source.failure", .category = .internal, .stage = .compile, .message = "Application compilation failed. Inspect the reported location and cause; if the input meets the source contract, report the failure with the compiler revision." },
     };
 }
 const families = std.StaticStringMap(Family).initComptime(.{
     .{ "MissingBuildEntry", .entry },
+    .{ "MissingMigrationTarget", .target },
+    .{ "MigrationHistoryLimit", .limit },
+    .{ "MigrationStepLimit", .limit },
+    .{ "InvalidMigrationBasisPath", .migration },
+    .{ "InvalidMigrationBasis", .migration },
+    .{ "IncompatibleMigrationBasis", .migration },
+    .{ "MigrationNamespaceMismatch", .migration },
+    .{ "MissingMigrationBasis", .migration },
+    .{ "MigrationBasisMismatch", .migration },
+    .{ "MigrationVersionOrder", .migration },
+    .{ "MigrationHistoryChanged", .migration },
+    .{ "DuplicateMigrationBinding", .migration },
+    .{ "InvalidMigrationVersion", .migration },
+    .{ "MigrationTransformRequired", .migration },
+    .{ "UnsupportedMigrationDefinition", .migration },
+    .{ "UnsupportedMigrationHistory", .migration },
     .{ "UnsupportedSourceFileKind", .file_kind },
     .{ "SymLinkLoop", .file_kind },
     .{ "InvalidSourcePath", .path },
@@ -107,6 +124,9 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "MutationInsideGuard", .capability },
     .{ "ProcedureOutsideAtomic", .capability },
     .{ "ImpureSourceFunction", .capability },
+    .{ "MissingProcedureReturn", .syntax },
+    .{ "UnexpectedProcedureReturn", .syntax },
+    .{ "ProcedureHasNoResult", .type },
     .{ "RecursiveSourceCall", .capability },
     .{ "NestedAtomicProgram", .capability },
     .{ "ProtectedProgramValue", .capability },
@@ -229,10 +249,14 @@ pub fn project(err: anyerror, at: ?d.Location, call: ?d.Location, instance: ?[]c
     const family = families.get(name) orelse if (std.mem.indexOf(u8, name, "Limit") != null or err == error.OutOfMemory or err == error.ProgramTooComplex or err == error.ProgramTooDeep) Family.limit else if (std.mem.startsWith(u8, name, "Unsupported")) Family.capability else Family.internal;
     const selected = rule(family);
     const message = switch (err) {
+        error.MigrationTransformRequired => "This object requires an explicit reviewed data transform or definition change. Automatic synthesis supports new Tables and safe trailing column additions only; it cannot infer drops, renames, nominal changes, constraint tightening or type/codec/collation rewrites.",
+        error.UnsupportedMigrationHistory, error.UnsupportedMigrationDefinition => "This migration target accepts only Table CREATE declarations and immutable history containing CREATE plus safe ADD COLUMN steps. Keep data transforms and other resource kinds in separately reviewed ordinary migrations.",
         error.InvalidQueuePredicate => "The Queue acquisition predicate cannot use this expression. Use supported direct column/literal comparisons, Boolean combinations or null tests; move other guards into the program body.",
         error.ImpureSourceFunction => "A source function must be a pure deterministic RETURN expression. Move Table reads and REQUIRE checks into a GUARD, and move mutations into an atomic PROCEDURE or DATAFLOW block.",
         error.MutationInsideGuard => "A source guard is read-only and cannot open an atomic block or mutate Tables, Streams or Queues. Keep mutations in an atomic PROCEDURE or DATAFLOW block.",
         error.ProcedureOutsideAtomic => "A source procedure must declare AS BEGIN ATOMIC ... END so its inlined mutations execute within one atomic transaction boundary.",
+        error.MissingProcedureReturn, error.UnexpectedProcedureReturn => "A returning procedure must end with one top-level RETURN expression. Add RETURNS with the result type, keep the final RETURN after all branches, and remove early returns.",
+        error.ProcedureHasNoResult => "LET result = CALL requires a procedure with RETURNS and a final RETURN expression. Use statement-form CALL when the procedure has no result.",
         error.RecursiveSourceCall => "Source functions, guards and procedures must form a finite acyclic call graph. Remove the direct or mutual recursion so every program lowers into bounded SQL.",
         error.UnknownProgramVariable, error.UnknownProgramField, error.UnknownProgramResource, error.UnknownColumn => "The program name or field is not in scope. Check the bound resource signature and lexical names; branch/body locals are not available after scope exit or in a failure handler.",
         error.DuplicateProgramVariable, error.DuplicateProgramField, error.DuplicateProgramResource => "The program declares a name more than once. Give each field, resource and in-scope variable a distinct name.",

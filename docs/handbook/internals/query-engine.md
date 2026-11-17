@@ -38,8 +38,11 @@ Stream and Queue handles also retain their exact resource kind and schema.
 validates pure `FUNCTION`, ordered `GUARD` and inline atomic `PROCEDURE`
 declarations across a non-recursive call DAG, checks function bodies through
 Fuze's `ScalarProgram` owner, hoists multi-use impure call arguments once, and
-expands `CHECK GUARD` and `CALL` with hygienic `"__t$<n>_<name>"` bindings while
-retaining both definition and invocation spans.
+expands `CHECK GUARD`, `CALL` and typed `LET value = CALL helper(...)` with
+hygienic `"__t$<n>_<name>"` bindings while retaining both definition and invocation
+spans. A returning procedure has one final top-level `RETURN`; argument and return
+expressions evaluate once within the caller's existing atomic boundary. Physical
+types and nominal domains are checked before source-only helpers are erased.
 [ProgramCheck](../../../packages/zig/transit-compiler/src/ProgramCheck.zig)
 collects a Queue program's referenced resources, then uses the installed
 `ApplicationProgram` type binder, schema mapping and public-data facility set.
@@ -92,7 +95,9 @@ defines reproducible grammar, Lean and finite correspondence checks. The
 models typed substitution, complete unique arm selection and ordered Table
 insert preservation alongside nominal program domain erasure, five-state pure
 function substitution, ordered guard refusal non-commutativity and hygienic
-inline atomic procedure rollback (ten scoped laws). Its source
+inline atomic procedure rollback and typed return substitution (eleven scoped
+laws). The return law assumes total scalar expressions and exposes the value only
+after a successful atomic decision. Its source
 interpreter extends an environment; specialization substitutes into a typed
 action program. Independent expectations compare both interpretations with
 Zig's checked actions, program projections and emitted SQL, including equal raw
@@ -121,6 +126,17 @@ source round-trips. It separately verifies attribution and case-identity
 derivation while comparing emitted SQL, bindings, fingerprints and test actions.
 The grammar tools and private projection executable are verification facilities,
 not dependencies of the installed compiler.
+
+[CatalogDiff](../../../packages/zig/transit-compiler/src/CatalogDiff.zig) compares
+desired public Tables with an explicit offline basis. It reconstructs the prior
+definitions from verified immutable migration SQL through `TableDdl` and
+`TableEvolution`, then permits new Tables and safe trailing columns. Generated
+steps are replayed and compared with the complete desired definitions; destructive
+changes and changes requiring data validation or transforms reject. The CLI
+publishes `desired.sql`, a successor `basis.json`, provenance and exact immutable
+migration history. Native migration execution retains the original operation
+identities independently of source files or basis sidecars. Live reconciliation
+checks full Table semantics and integrity without changing existing receipt digests.
 
 The CLI owns bounded file capture, explicit Git fetch, locks and atomic output
 publication. It includes the executable digest as well as the build revision in

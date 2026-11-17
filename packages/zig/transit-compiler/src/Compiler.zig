@@ -34,6 +34,7 @@ pub const Product = struct {
     sql: []const u8 = "",
     steps: []const Step = &.{},
     cases: []const Test.Case = &.{},
+    migration: ?s.Migration = null,
     input_digest: [32]u8 = undefined,
     sql_digest: [32]u8 = undefined,
     work: usize = 0,
@@ -139,7 +140,8 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     self.offset = definition.span.start;
     self.test_mode = options.mode == .test_suite;
     const target_kind: @FieldType(s.Definition, "kind") = if (self.test_mode) .test_target else .target;
-    if (definition.kind != target_kind) return error.WrongSourceTargetKind;
+    if (definition.kind != target_kind and !(options.mode == .build and definition.kind == .migration_target)) return error.WrongSourceTargetKind;
+    result.migration = definition.migration;
     self.context = .{};
     std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
     try types.validate(graph, self.a, &self.file, &self.offset, &self.work, self.limits.work);

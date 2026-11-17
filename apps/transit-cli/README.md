@@ -13,7 +13,8 @@ dataflow declarations share SQL operation owners and retain original identities
 for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
 `transit build` compiles typed application modules offline into executable SQL
-and provenance. Explicit `--fetch` prepares pinned dependencies; normal builds
+and provenance. Explicit-basis migration targets publish reviewed Table CREATE/ADD
+SQL, immutable history and a successor basis; they never apply it. Explicit `--fetch` prepares pinned dependencies; normal builds
 verify frozen content without network access. See the
 [application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
 

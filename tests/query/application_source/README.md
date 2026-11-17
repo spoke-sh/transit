@@ -45,11 +45,11 @@ Lean 4 tool. [TypedTarget.lean](../../../contracts/application-source/TypedTarge
 models exact scalar/domain types, typed de Bruijn variables, checked total variant
 arm tables, ordered inserts into explicitly typed Table bindings, five-state
 pure function expressions, ordered guard checks and single-decision atomic
-procedure steps. Its ten laws cover nominal substitution, exhaustive selection,
+procedure steps. Its eleven laws cover nominal substitution, exhaustive selection,
 specialization preservation, domain-preserving record projection, program
 substitution, ordered event erasure, five-state pure function substitution,
 lexical guard-sequence refusal preservation, guard-reordering non-equivalence
-and hygienic inline atomic procedure rollback. The program and procedure
+and hygienic inline atomic procedure rollback and returning values. The program and procedure
 fragments model typed scalar guards/writes and explicit acquisition/read/atomic
 markers; physical typing, nullability and well-formed execution remain premises,
 not proved runtime behavior.

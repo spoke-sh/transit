@@ -185,6 +185,15 @@ def lean_examples(cases_):
             f'#print axioms {rollback_name}',
         ]
         names.update((commit_name, rollback_name))
+        return_name = f'{label}_proc_return'
+        refuse_name = f'{label}_proc_no_return'
+        lines += [
+            f'theorem {return_name} : returned (evalProcedureCall emptyEnv {label}Val {label}Callee {label}AcceptCont) {label}Val = some {label}Val := by decide',
+            f'#print axioms {return_name}',
+            f'theorem {refuse_name} : returned (evalProcedureCall emptyEnv {label}Val {label}Callee {label}RejectCont) {label}Val = none := by decide',
+            f'#print axioms {refuse_name}',
+        ]
+        names.update((return_name, refuse_name))
     return '\n'.join(lines) + '\n', names
 
 

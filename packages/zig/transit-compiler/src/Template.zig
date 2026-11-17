@@ -29,7 +29,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end:
     if (self.i != tokens.len) return self.invalid();
     return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
 }
-pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, helper: HelperKind, location: *usize) !Syntax {
+pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, helper: HelperKind, returns_value: bool, location: *usize) !Syntax {
     var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .allow_holes = false };
     const kind: Kind = switch (helper) {
         .function => blk: {
@@ -52,6 +52,11 @@ pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token
         },
         .procedure => blk: {
             try self.programBlock(true, .procedure);
+            if (returns_value) {
+                if (!self.take("RETURN")) return error.MissingProcedureReturn;
+                try self.programExpression(0);
+                try self.require(";");
+            } else if (self.is("RETURN")) return error.UnexpectedProcedureReturn;
             break :blk .procedure_body;
         },
     };
@@ -525,12 +530,23 @@ fn programExpression(self: *Self, minimum: u8) anyerror!void {
 fn programBlock(self: *Self, atomic: bool, mode: BlockMode) anyerror!void {
     try self.enter();
     defer self.depth -= 1;
-    while (self.i < self.tokens.len and !self.is("END") and !self.is("ELSE") and !self.is("ON")) {
+    while (self.i < self.tokens.len and !self.is("END") and !self.is("ELSE") and !self.is("ON") and !(mode == .procedure and self.is("RETURN"))) {
         const start = self.at();
         if (self.take("LET")) {
             try self.programName();
             try self.require("=");
-            if (self.take("SELECT")) {
+            if (self.take("CALL")) {
+                if (mode == .guard) {
+                    self.location.* = start;
+                    return error.MutationInsideGuard;
+                }
+                if (!atomic and mode != .function) {
+                    self.location.* = start;
+                    return error.MutationOutsideAtomic;
+                }
+                try self.helperName();
+                try self.programArguments();
+            } else if (self.take("SELECT")) {
                 if (!self.take("*")) {
                     try self.programName();
                     while (self.take(",")) try self.programName();

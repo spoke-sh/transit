@@ -3,13 +3,14 @@
 [Roadmap](README.md) · **Status:** In Progress
 
 The [completion implementation plan](application-modules-completion.md) updates
-the remaining delivery sequence, effort model and immediate execution slices at
-`505d8ac31`: local Queue test/bound reconciliation, pure `FUNCTION`, ordered
-`GUARD`, inline atomic `PROCEDURE` and runtime `VARIANT` composition, explicit-basis
-`CatalogDiff` migrations, `EXPORT REFERENCE` and runtime module grant boundaries,
+remaining work against `424cc32e8` for review on November 15. The approved initial
+units add explicit-basis Table `CatalogDiff` migrations and typed value-returning
+inline calls. Subsequent work covers runtime variants, `EXPORT REFERENCE` and runtime module boundaries,
 protected capability/secret/transition checking, conditional `CREATE OR REPLACE`
-generation draining, deterministic workflow simulation/`--verify-replay`, and
-common-revision qualification on the 6-domain baseline. Slice A and Slice B.1
+generation policies, deterministic workflow simulation/`--verify-replay`, and
+common-revision qualification on the six-domain baseline. The plan preserves the
+implemented 1 MiB statement and 2 MiB migration-file bounds, treats 256 steps as a
+separate extension, and aligns publication dependencies with M13. Slices A and B.1
 deliver local session read-pin drain/publication wakeup and transaction
 commit-invalidation abort recovery alongside pure deterministic `FUNCTION`,
 ordered `GUARD` / `CHECK GUARD` and hygienic inline atomic `PROCEDURE` / `CALL`
@@ -308,9 +309,11 @@ executable SQL:
   to track compound lexical block depth across `BEGIN [ATOMIC] ... [ON FAILURE ...] END`,
   `CASE ... END [CASE]`, `IF ... THEN ... [ELSIF ...] [ELSE ...] END IF`, and
   `FOR ... IN ... DO ... END FOR` in addition to parenthesis depth, while
-  separating single interactive statement limits (4,096–65,536 bytes) from
-  multi-statement source/migration file limits (proposed 1 MiB per file and 256
-  steps per migration version, with bounded scratch memory).
+  separating editor, executable-statement and multi-statement file bounds.
+  Streaming framing now admits 1 MiB executable statements and 2 MiB migration
+  files; the editor retains its separate 4,096-byte bound. Preserve these limits
+  while qualifying the proposed 256 steps per migration version with bounded
+  scratch memory; current migration execution permits 64 steps.
 - **Offline whole-program semantic validation and linear capability checking:**
   Provide `transit build` and a check-only mode over `build.transit`, backed by
   shared Zig compiler components using
@@ -559,12 +562,12 @@ Source syntax and the typed core belong to
    - Preserve exact 1-based `(line, column, byte_offset)` coordinates for both
      the enclosing declaration and each inner statement inside a compound block.
 3. **Separate single-statement interactive limits from source/output file limits:**
-   - Keep `Sql.max_Interactive_statement_bytes` bounded for ad-hoc wire queries
-     while raising `MigrationClient.loadSourceFile` and `MigrationRunner` source
-     file bounds to `max_migration_file_bytes = 1024 * 1024` (1 MiB) and
-     `DirectMigration.max_steps = 256` per version, using caller-supplied
-     bounded scratch arenas so memory residency stays $O(\text{single statement})$
-     during scanning.
+   - Preserve the delivered `Sql.max_statement_bytes = 1024 * 1024` (1 MiB),
+     separate 4,096-byte editor limit, and 2 MiB migration source-file bound.
+     Qualify `DirectMigration.max_steps = 256` separately from the current 64-step
+     limit, including receipt, wire and recovery budgets. Use caller-supplied
+     bounded scratch arenas so scanning residency stays $O(\text{single statement})$;
+     changing a constant alone does not qualify larger plans.
    - Keep whole-program symbol/graph memory separately budgeted from scanning
      scratch; an O(single statement) scanner does not make compilation constant
      space. Define deterministic declaration ordering independent of filesystem
@@ -722,7 +725,16 @@ Source syntax and the typed core belong to
 
 ### `P4` — Desired-state-to-migration synthesizer, schema/definition diffing and `CREATE OR REPLACE` lifecycle
 
-**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+**Owners:** [`packages/zig/transit-compiler/src/CatalogDiff.zig`](../../packages/zig/transit-compiler/src/CatalogDiff.zig), [`apps/transit-cli/BuildMigration.zig`](../../apps/transit-cli/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+
+The delivered [Table migration profile](../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+implements unchanged/new Tables and safe trailing `ADD COLUMN` changes against
+an explicit offline basis. `CREATE MIGRATION TARGET` publishes complete desired
+SQL, a successor basis, provenance and verified immutable SQL history. The
+[qualification record](../history/qualification/query.md#explicit-basis-table-migrations-and-returning-inline-calls--2026-11-16)
+records fresh-definition equivalence, native apply/resume after source removal,
+and live integrity-drift refusal. Other resource kinds, transforms and conditional
+replacement policies remain required to complete P4.
 
 1. **Extend `DirectMigration` and `MigrationRunner` with `CREATE OR REPLACE` for versioned definitions:**
    - Add `replace_view`, `replace_dataflow`, `replace_publication`, `replace_sink`
@@ -862,6 +874,7 @@ remain required to complete P5.
 | [M6](06-streams-queues-and-durable-runtime.md) & [M7](07-document-storage-and-station-decoupling.md) | `STREAM`, `QUEUE` and `DOCUMENT` catalog primitives and mixed transactions | M12's module compiler, `CREATE OR REPLACE` lifecycle and `transit test` harness consume M6/M7's direct `StreamPartition`, `QueuePartition` and `DocumentPartition` owners directly. |
 | [M8](08-gateway-architecture-and-protocol-ingress.md) & [M9](09-client-foundation-and-language-apis.md) | Co-hosted direct-plane HTTP/SQL ingress, command deadlines and `MigrationClient` | M12's `SOURCE` profiles and `MigrationClient` file-bound increases plug directly into M8's co-hosted command ingress and M9's shared SQL client. |
 | [M10](10-standards-and-catalogs.md) & [M11](11-indexing-and-access-paths.md) | `DirectDefinition` (`TCDESC01`), `CHECK`/`FOREIGN KEY` dependency graph, lazy schema projection and online phased rewrites | M12's migration synthesizer uses M10's `logicalFingerprint` and lazy-projection rules to classify additive vs. rewrite DDL, and delegates physical table rewrites to M11's online rewrite lifecycle. |
+| [M13](13-declarative-serving-and-reactive-dataflows.md) | Station-independent typed operations, publication, subscriptions and transport bindings | M12 emits ordinary executable declarations and tests their source composition as M13 qualifies each owner. Basic publication does not wait for M29/M30; M13 owns retirement of the interface/UI compiler after consumer migration. |
 | [M14](14-sql-and-dataflows.md) | Managed computations, WAL-activated DBSP dataflows and 5-state lifecycle (`ACTIVATE`, `SUSPEND`, `RESUME`, `REFRESH`, `RETIRE`) | M12 owns recursive `.transit` source composition and SQL emission, static type/capability/secret checking, compile-time `PROFILE`/`GUARD`/`PROCEDURE` lowering, `CREATE OR REPLACE` revision migration and offline unit testing; M14 owns runtime WAL-driven incremental dataflow execution, analytical SQL operators and bitemporal `AS OF JOIN`. |
 | [M17](17-data-centric-compilation-and-specialization.md) | Shared build graph, executable SQL and AOT targets | M12 owns recursive `.transit` composition and canonical `.sql` emission; M17 extends `transit build` with optional specialization/AOT outputs from the same bound SQL semantics, without a separate module system or runtime authority. |
 | [M22](22-branches-merges-and-restore.md) & [M31](31-reviewed-data-collaboration.md) | Catalog/schema diffing (`DIFF_SCHEMA`) and reviewed branch proposals | M12's offline module-to-migration synthesizer shares the canonical schema/definition diff representation extended across branches and remotes in M22 and M31. |

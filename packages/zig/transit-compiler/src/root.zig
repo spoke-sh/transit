@@ -2,6 +2,7 @@
 pub const Format = @import("Format.zig");
 pub const Syntax = @import("Syntax.zig");
 pub const Graph = @import("Graph.zig");
+pub const CatalogDiff = @import("CatalogDiff.zig");
 pub const Compiler = @import("Compiler.zig");
 pub const Test = @import("Test.zig");
 pub const SourceDiagnostic = @import("SourceDiagnostic.zig");
@@ -14,5 +15,6 @@ test {
     _ = @import("source_test.zig");
     _ = @import("resource_test.zig");
     _ = @import("program_test.zig");
+    _ = @import("migration_test.zig");
     _ = SourceDiagnostic;
 }

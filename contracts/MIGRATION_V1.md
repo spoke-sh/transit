@@ -17,6 +17,14 @@ and `DatabaseRuntime`). They never route admission, token deduplication,
 schema inspection or recovery through `Station` actor turns (`GenServer`,
 `AccountRuntime`, `Ledger`) or `STATE_V1` 256-byte KV records.
 
+Source `CREATE MIGRATION TARGET` builds can synthesize new Tables and safe
+trailing column additions from an explicit offline basis. The
+[source contract](APPLICATION_SOURCE_V1.md#table-migration-targets) owns this
+bounded profile. Builds publish ordinary immutable SQL; this ledger remains the
+only apply/resume authority. Live reconciliation checks CHECK descriptors and
+column interpretation rules in addition to the legacy logical fingerprint.
+Stored fingerprint bytes and original accepted operation identities are unchanged.
+
 ## Source ordering, naming and immutability
 
 Migration sources are ordered UTF-8 SQL files named `<version_id>-<name>.sql`
@@ -135,7 +143,12 @@ logical `TableSchema.Schema` and its canonical SHA-256 fingerprint
 1. `DirectMigration.reconcileCreate` compares the live `TableSchema.Schema`
    against the migration's desired schema across table kind, column count,
    column names, logical types ($\tau$), nullability, codecs ($\epsilon$),
-   collations/ordering ($\kappa$), primary-key columns, and secondary indexes.
+   collations/ordering ($\kappa$), defaults, column interpretation rules,
+   primary-key columns and bound integrity descriptors (including CHECK and
+   unique constraints). The final applied ALTER is reconciled against its
+   reconstructed desired schema using the same comparison. Legacy receipt
+   fingerprints remain unchanged; their equality alone does not establish
+   that these additional descriptors match.
 2. If the live table matches the desired schema and the statement specifies
    `IF NOT EXISTS` (or the step was already recorded as `applied` or `verified`
    under the same `step_token`), the step is classified as `already_satisfied`.

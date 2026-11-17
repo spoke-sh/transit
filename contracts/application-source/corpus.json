@@ -950,5 +950,19 @@
     "parse": true,
     "compile": "build",
     "error": "TableInterfaceMismatch"
+  },
+  {
+    "name": "migration-empty",
+    "source": "CREATE MIGRATION TARGET default FROM EMPTY FOR DATABASE 'transit' SCHEMA 'public' VERSION '0001' NAME 'initial' AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 1
+  },
+  {
+    "name": "migration-prior",
+    "source": "CREATE MIGRATION TARGET default FROM 'releases/initial/basis.json' FOR DATABASE 'transit' SCHEMA 'public' VERSION '0002' NAME 'add_note' AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY, note TEXT); END;",
+    "parse": true,
+    "compile": "build",
+    "steps": 1
   }
 ]
