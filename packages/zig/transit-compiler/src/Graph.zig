@@ -1,6 +1,7 @@
 //! Resolved source buffers, explicit package paths and source visibility.
 const std = @import("std");
 const s = @import("Syntax.zig");
+const SourceDiagnostic = @import("SourceDiagnostic.zig");
 pub const Source = struct { package: []const u8 = "root", path: []const u8, text: []const u8 };
 pub const Ref = struct { file: usize, definition: usize };
 const Self = @This();
@@ -10,6 +11,9 @@ files: []const s.File,
 max_depth: usize,
 
 pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offset: *usize, max_depth: usize) !Self {
+    return initReported(a, sources, file_at, offset, max_depth, null);
+}
+pub fn initReported(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offset: *usize, max_depth: usize, report: ?*SourceDiagnostic.Report) !Self {
     if (sources.len == 0 or sources.len > 256) return error.SourceFileLimit;
     const files = try a.alloc(s.File, sources.len);
     var bytes: usize = 0;
@@ -22,30 +26,71 @@ pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offs
         bytes = std.math.add(usize, bytes, source.text.len) catch return error.SourceBytesLimit;
         if (bytes > 16 * 1024 * 1024) return error.SourceBytesLimit;
         for (sources[0..i]) |prior| if (std.mem.eql(u8, prior.package, source.package) and std.mem.eql(u8, prior.path, source.path)) return error.DuplicateSourceFile;
-        files[i] = try s.parse(a, source.text, offset);
+        files[i] = try s.parseReported(a, source.text, offset, i, report);
         dependency_count += files[i].dependencies.len;
         if (dependency_count > 256) return error.SourceDependencyLimit;
         for (files[i].definitions, 0..) |definition, j| {
             offset.* = definition.span.start;
-            for (files[i].definitions[0..j]) |prior| if (std.mem.eql(u8, definition.name, prior.name)) return error.DuplicateSourceName;
-            for (files[i].imports) |import| if (std.mem.eql(u8, definition.name, import.alias)) return error.DuplicateSourceName;
+            for (files[i].definitions[0..j]) |prior| if (std.mem.eql(u8, definition.name, prior.name)) {
+                if (report) |r| {
+                    r.setSpan(i, definition.span.start, definition.span.end);
+                    r.setHeadline("duplicate declaration of '{s}'", .{definition.name});
+                    r.addNote(i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' first declared here", .{prior.name});
+                }
+                return error.DuplicateSourceName;
+            };
+            for (files[i].imports) |import| if (std.mem.eql(u8, definition.name, import.alias)) {
+                if (report) |r| {
+                    r.setSpan(i, definition.span.start, definition.span.end);
+                    r.setHeadline("declaration '{s}' conflicts with import alias", .{definition.name});
+                    r.addNote(i, .{ .start = import.span.start, .end = import.span.end }, "import alias '{s}' declared here", .{import.alias});
+                }
+                return error.DuplicateSourceName;
+            };
         }
         for (files[i].imports, 0..) |import, j| {
             offset.* = import.span.start;
-            for (files[i].imports[0..j]) |prior| if (std.mem.eql(u8, import.alias, prior.alias)) return error.DuplicateSourceName;
+            for (files[i].imports[0..j]) |prior| if (std.mem.eql(u8, import.alias, prior.alias)) {
+                if (report) |r| {
+                    r.setSpan(i, import.span.start, import.span.end);
+                    r.setHeadline("duplicate import alias '{s}'", .{import.alias});
+                    r.addNote(i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' first imported here", .{prior.alias});
+                }
+                return error.DuplicateSourceName;
+            };
         }
         for (files[i].dependencies, 0..) |dependency, j| {
             offset.* = dependency.span.start;
-            try validateDependency(dependency);
-            for (files[i].dependencies[0..j]) |prior| if (std.mem.eql(u8, dependency.name, prior.name)) return error.DuplicateDependency;
+            validateDependency(dependency) catch |err| {
+                if (report) |r| r.setSpan(i, dependency.span.start, dependency.span.end);
+                return err;
+            };
+            for (files[i].dependencies[0..j]) |prior| if (std.mem.eql(u8, dependency.name, prior.name)) {
+                if (report) |r| {
+                    r.setSpan(i, dependency.span.start, dependency.span.end);
+                    r.setHeadline("duplicate dependency '{s}'", .{dependency.name});
+                    r.addNote(i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' first declared here", .{prior.name});
+                }
+                return error.DuplicateDependency;
+            };
         }
     }
     for (files, 0..) |file, i| for (file.dependencies) |dependency| {
-        for (files[0..i]) |prior_file| for (prior_file.dependencies) |prior| {
+        for (files[0..i], 0..i) |prior_file, prior_i| for (prior_file.dependencies) |prior| {
             if (std.mem.eql(u8, prior.name, dependency.name) and
                 (!std.mem.eql(u8, prior.repository, dependency.repository) or
                     !std.mem.eql(u8, prior.revision, dependency.revision) or
-                    !std.mem.eql(u8, prior.subdirectory, dependency.subdirectory))) return error.ConflictingDependency;
+                    !std.mem.eql(u8, prior.subdirectory, dependency.subdirectory)))
+            {
+                file_at.* = i;
+                offset.* = dependency.span.start;
+                if (report) |r| {
+                    r.setSpan(i, dependency.span.start, dependency.span.end);
+                    r.setHeadline("conflicting dependency declaration for '{s}'", .{dependency.name});
+                    r.addNote(prior_i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' declared with different revision or path here", .{prior.name});
+                }
+                return error.ConflictingDependency;
+            }
         };
     };
     var self: Self = .{ .a = a, .sources = sources, .files = files, .max_depth = max_depth };
@@ -53,10 +98,10 @@ pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offs
     const heights = try a.alloc(usize, sources.len);
     @memset(heights, 0);
     @memset(visited, 0);
-    for (sources, 0..) |_, i| _ = try self.visit(i, visited, heights, 0, file_at, offset);
+    for (sources, 0..) |_, i| _ = try self.visit(i, visited, heights, 0, file_at, offset, report);
     @memset(visited, 0);
     @memset(heights, 0);
-    for (sources, 0..) |_, i| _ = try self.visitPackage(i, visited, heights, 0, file_at, offset);
+    for (sources, 0..) |_, i| _ = try self.visitPackage(i, visited, heights, 0, file_at, offset, report);
     return self;
 }
 pub fn validPackage(name: []const u8) !void {
@@ -108,7 +153,7 @@ pub fn imported(self: Self, file: usize, import: s.Import) !usize {
     for (self.sources, 0..) |source, i| if (std.mem.eql(u8, package, source.package) and std.mem.eql(u8, path, source.path)) return i;
     return error.MissingSource;
 }
-fn visit(self: *Self, file: usize, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize) anyerror!usize {
+fn visit(self: *Self, file: usize, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize, report: ?*SourceDiagnostic.Report) anyerror!usize {
     file_at.* = file;
     if (visited[file] == 1) return error.SourceImportCycle;
     if (visited[file] == 2) {
@@ -120,14 +165,32 @@ fn visit(self: *Self, file: usize, visited: []u8, heights: []usize, depth: usize
     var height: usize = 1;
     for (self.files[file].imports) |import| {
         offset.* = import.span.start;
-        const next = try self.imported(file, import);
-        height = @max(height, 1 + try self.visit(next, visited, heights, depth + 1, file_at, offset));
+        const next = self.imported(file, import) catch |err| {
+            if (report) |r| {
+                r.setSpan(file, import.span.start, import.span.end);
+                if (err == error.UndeclaredDependency) {
+                    r.setHeadline("import '{s}' references undeclared dependency package '{s}'", .{ import.alias, import.package.? });
+                } else if (err == error.MissingSource) {
+                    r.setHeadline("cannot find imported file '{s}'", .{import.path});
+                }
+            }
+            return err;
+        };
+        const sub = self.visit(next, visited, heights, depth + 1, file_at, offset, report) catch |err| {
+            if (err == error.SourceImportCycle) if (report) |r| if (!r.has_span) {
+                file_at.* = file;
+                offset.* = import.span.start;
+                r.setSpan(file, import.span.start, import.span.end);
+            };
+            return err;
+        };
+        height = @max(height, 1 + sub);
     }
     visited[file] = 2;
     heights[file] = height;
     return height;
 }
-fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize) anyerror!usize {
+fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize, report: ?*SourceDiagnostic.Report) anyerror!usize {
     const package = self.sources[representative].package;
     const index = for (self.sources, 0..) |source, i| {
         if (std.mem.eql(u8, source.package, package)) break i;
@@ -146,11 +209,32 @@ fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []us
         for (self.files[i].dependencies) |dependency| {
             file_at.* = i;
             offset.* = dependency.span.start;
-            if (std.mem.eql(u8, dependency.name, "root")) return error.ReservedPackageName;
+            if (std.mem.eql(u8, dependency.name, "root")) {
+                if (report) |r| {
+                    r.setSpan(i, dependency.span.start, dependency.span.end);
+                    r.setHeadline("dependency name 'root' is reserved for the root package", .{});
+                }
+                return error.ReservedPackageName;
+            }
             const next = for (self.sources, 0..) |candidate, j| {
                 if (std.mem.eql(u8, candidate.package, dependency.name)) break j;
-            } else return error.MissingSource;
-            height = @max(height, 1 + try self.visitPackage(next, visited, heights, depth + 1, file_at, offset));
+            } else {
+                if (report) |r| {
+                    r.setSpan(i, dependency.span.start, dependency.span.end);
+                    r.setHeadline("dependency package '{s}' has not been fetched", .{dependency.name});
+                    r.addNote(null, null, "run 'transit build --fetch' to fetch pinned repository dependencies", .{});
+                }
+                return error.MissingSource;
+            };
+            const sub = self.visitPackage(next, visited, heights, depth + 1, file_at, offset, report) catch |err| {
+                if (err == error.SourceDependencyCycle) if (report) |r| if (!r.has_span) {
+                    file_at.* = i;
+                    offset.* = dependency.span.start;
+                    r.setSpan(i, dependency.span.start, dependency.span.end);
+                };
+                return err;
+            };
+            height = @max(height, 1 + sub);
         }
     }
     visited[index] = 2;
@@ -158,17 +242,30 @@ fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []us
     return height;
 }
 pub fn resolve(self: Self, file: usize, name: s.Name) !Ref {
+    return self.resolveReported(file, name, null);
+}
+pub fn resolveReported(self: Self, file: usize, name: s.Name, report: ?*SourceDiagnostic.Report) !Ref {
     if (name.constructor != null) return error.InvalidSourceName;
     var target = file;
     if (name.qualifier) |qualifier| {
         target = for (self.files[file].imports) |import| {
             if (std.mem.eql(u8, qualifier, import.alias)) break try self.imported(file, import);
-        } else return error.UnknownImport;
+        } else {
+            if (report) |r| r.setHeadline("unknown import alias '{s}'", .{qualifier});
+            return error.UnknownImport;
+        };
     }
     for (self.files[target].definitions, 0..) |definition, i| if (std.mem.eql(u8, name.member, definition.name)) {
-        if (name.qualifier != null and !definition.public) return error.PrivateSourceSymbol;
+        if (name.qualifier != null and !definition.public) {
+            if (report) |r| {
+                r.setHeadline("symbol '{s}' in '{s}' is private", .{ name.member, name.qualifier.? });
+                r.addNote(target, .{ .start = definition.span.start, .end = definition.span.end }, "'{s}' declared without 'PUBLIC' here", .{definition.name});
+            }
+            return error.PrivateSourceSymbol;
+        }
         return .{ .file = target, .definition = i };
     };
+    if (report) |r| r.setHeadline("unknown symbol '{s}'", .{name.member});
     return error.UnknownSourceSymbol;
 }
 pub fn getDefinition(self: Self, ref: Ref) s.Definition {

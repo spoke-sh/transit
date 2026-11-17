@@ -2,6 +2,7 @@
 //! Fuze owns scanning, reserved SQL names and later type/statement preparation.
 const std = @import("std");
 const f = @import("transit_fuze");
+const SourceDiagnostic = @import("SourceDiagnostic.zig");
 const Token = f.SqlInput.CompilerScan.Token;
 pub const Role = enum { identifier, type, value, operand, table, stream, queue };
 pub const Hole = struct { name: []const u8, role: Role, start: u32, end: u32 };
@@ -14,34 +15,76 @@ a: std.mem.Allocator,
 text: []const u8,
 tokens: []const Token,
 location: *usize,
+report: ?*SourceDiagnostic.Report = null,
 end: u32,
 i: usize = 0,
 depth: usize = 0,
 allow_holes: bool = true,
 holes: std.ArrayList(Hole) = .empty,
 
+pub fn describeToken(text: []const u8, token: Token, buf: *[96]u8) []const u8 {
+    return switch (token.kind) {
+        .string => "string literal",
+        .quoted => "quoted identifier",
+        .number => blk: {
+            const slice = text[token.start..token.end];
+            if (slice.len <= 24) break :blk std.fmt.bufPrint(buf, "'{s}'", .{slice}) catch "numeric literal";
+            break :blk "numeric literal";
+        },
+        .word, .symbol => blk: {
+            const slice = text[token.start..token.end];
+            var w: std.Io.Writer = .fixed(buf);
+            w.writeByte('\'') catch break :blk "token";
+            for (slice[0..@min(slice.len, 48)]) |byte| {
+                if (byte >= 0x20 and byte <= 0x7e and byte != '\'') w.writeByte(byte) catch break else w.print("\\x{x:0>2}", .{byte}) catch break;
+            }
+            if (slice.len > 48) w.writeAll("...") catch {};
+            w.writeByte('\'') catch {};
+            break :blk w.buffered();
+        },
+        .space, .comment => "whitespace",
+    };
+}
+
 pub fn parse(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, expected_rows: bool, location: *usize) !Syntax {
-    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location };
+    return parseReported(a, text, tokens, end, expected_rows, location, null);
+}
+pub fn parseReported(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, expected_rows: bool, location: *usize, report: ?*SourceDiagnostic.Report) !Syntax {
+    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .report = report };
     const kind = if (expected_rows) blk: {
         if (tokens.len != 0) try self.rows(false);
         break :blk Kind.rows;
     } else try self.statement();
-    if (self.i != tokens.len) return self.invalid();
+    if (self.i != tokens.len) {
+        self.failUnexpectedTail();
+        return self.invalid();
+    }
     return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
 }
 pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, helper: HelperKind, returns_value: bool, location: *usize) !Syntax {
-    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .allow_holes = false };
+    return parseHelperReported(a, text, tokens, end, helper, returns_value, location, null);
+}
+pub fn parseHelperReported(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, helper: HelperKind, returns_value: bool, location: *usize, report: ?*SourceDiagnostic.Report) !Syntax {
+    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .report = report, .allow_holes = false };
     const kind: Kind = switch (helper) {
         .function => blk: {
             if (self.take("RETURN")) {
                 try self.programExpression(0);
                 try self.require(";");
             } else {
-                if (self.i == self.tokens.len) return self.invalid();
+                if (self.i == self.tokens.len) {
+                    self.failExpected("'RETURN'");
+                    return self.invalid();
+                }
                 const first = self.at();
+                const first_end = self.tokens[self.i].end;
                 try self.programBlock(false, .function);
-                if (self.i != self.tokens.len) return self.invalid();
+                if (self.i != self.tokens.len) {
+                    self.failUnexpectedTail();
+                    return self.invalid();
+                }
                 self.location.* = first;
+                if (self.report) |r| r.setSpan(null, first, first_end);
                 return error.ImpureSourceFunction;
             }
             break :blk .function_body;
@@ -53,15 +96,52 @@ pub fn parseHelper(a: std.mem.Allocator, text: []const u8, tokens: []const Token
         .procedure => blk: {
             try self.programBlock(true, .procedure);
             if (returns_value) {
-                if (!self.take("RETURN")) return error.MissingProcedureReturn;
+                if (!self.take("RETURN")) {
+                    const sp = self.currentSpan();
+                    if (self.report) |r| r.setSpan(null, sp.start, sp.end);
+                    return error.MissingProcedureReturn;
+                }
                 try self.programExpression(0);
                 try self.require(";");
-            } else if (self.is("RETURN")) return error.UnexpectedProcedureReturn;
+            } else if (self.is("RETURN")) {
+                const sp = self.currentSpan();
+                if (self.report) |r| r.setSpan(null, sp.start, sp.end);
+                return error.UnexpectedProcedureReturn;
+            }
             break :blk .procedure_body;
         },
     };
-    if (self.i != tokens.len) return self.invalid();
+    if (self.i != tokens.len) {
+        self.failUnexpectedTail();
+        return self.invalid();
+    }
     return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
+}
+fn currentSpan(self: *const Self) SourceDiagnostic.Span {
+    return if (self.i < self.tokens.len) .{ .start = self.tokens[self.i].start, .end = self.tokens[self.i].end } else .{ .start = self.end, .end = self.end };
+}
+fn found(self: *const Self, buf: *[96]u8) []const u8 {
+    return if (self.i < self.tokens.len) describeToken(self.text, self.tokens[self.i], buf) else "end of statement";
+}
+fn failExpected(self: *Self, expected: []const u8) void {
+    const r = self.report orelse return;
+    if (r.headline_len != 0) return;
+    var buf: [96]u8 = undefined;
+    const sp = self.currentSpan();
+    r.setSpan(null, sp.start, sp.end);
+    r.setHeadline("expected {s}, found {s}", .{ expected, self.found(&buf) });
+}
+fn failUnexpectedTail(self: *Self) void {
+    const r = self.report orelse return;
+    if (r.headline_len != 0) return;
+    var buf: [96]u8 = undefined;
+    const sp = self.currentSpan();
+    r.setSpan(null, sp.start, sp.end);
+    if (self.clauseWord()) {
+        r.setHeadline("unsupported SQL clause '{s}' in .transit template", .{self.raw()});
+    } else {
+        r.setHeadline("unexpected {s} after statement", .{self.found(&buf)});
+    }
 }
 fn at(self: *Self) u32 {
     const offset = if (self.i < self.tokens.len) self.tokens[self.i].start else self.end;
@@ -82,10 +162,19 @@ fn take(self: *Self, word: []const u8) bool {
 }
 fn invalid(self: *Self) error{InvalidSourceTemplate} {
     _ = self.at();
+    if (self.report) |r| if (!r.has_span) {
+        const sp = self.currentSpan();
+        r.setSpan(null, sp.start, sp.end);
+    };
     return error.InvalidSourceTemplate;
 }
 fn require(self: *Self, word: []const u8) !void {
-    if (!self.take(word)) return self.invalid();
+    if (!self.take(word)) {
+        var q: [72]u8 = undefined;
+        const label = std.fmt.bufPrint(&q, "'{s}'", .{word}) catch word;
+        self.failExpected(label);
+        return self.invalid();
+    }
 }
 fn tag(self: *Self, kind: f.SqlInput.Kind) bool {
     _ = self.at();
@@ -100,10 +189,18 @@ fn hole(self: *Self, role: Role) !bool {
     if (!self.take("$")) return false;
     if (!self.tag(.word) or !self.allow_holes) {
         self.location.* = start;
+        const end = if (self.i < self.tokens.len) self.tokens[self.i].end else start + 1;
+        if (self.report) |r| {
+            r.setSpan(null, start, end);
+            if (!self.allow_holes) r.setHeadline("'$parameter' templates are not allowed inside source helper bodies", .{}) else r.setHeadline("expected parameter name after '$'", .{});
+        }
         return error.InvalidSourceOperand;
     }
     const operand_name = self.raw();
-    if (operand_name.len > 63) return error.InvalidSourceName;
+    if (operand_name.len > 63) {
+        if (self.report) |r| r.setSpan(null, start, self.tokens[self.i].end);
+        return error.InvalidSourceName;
+    }
     const end = self.tokens[self.i].end;
     self.i += 1;
     try self.holes.append(self.a, .{ .name = try std.ascii.allocLowerString(self.a, operand_name), .role = role, .start = start, .end = end });
@@ -111,7 +208,17 @@ fn hole(self: *Self, role: Role) !bool {
 }
 fn name(self: *Self) !void {
     if (try self.hole(.identifier)) return;
-    if (!self.tag(.quoted) and (!self.tag(.word) or f.Sql.isReserved(self.raw()))) return self.invalid();
+    if (!self.tag(.quoted) and (!self.tag(.word) or f.Sql.isReserved(self.raw()))) {
+        if (self.tag(.word) and f.Sql.isReserved(self.raw())) {
+            if (self.report) |r| if (r.headline_len == 0) {
+                const sp = self.currentSpan();
+                r.setSpan(null, sp.start, sp.end);
+                r.setHeadline("expected identifier, found reserved SQL keyword '{s}'", .{self.raw()});
+                r.addNote(null, null, "quote reserved words with double quotes if used as an identifier", .{});
+            };
+        } else self.failExpected("identifier");
+        return self.invalid();
+    }
     self.i += 1;
 }
 fn reference(self: *Self) !void {
@@ -120,12 +227,18 @@ fn reference(self: *Self) !void {
 }
 fn unsigned(self: *Self) !void {
     if (try self.hole(.value)) return;
-    if (!self.tag(.number)) return self.invalid();
+    if (!self.tag(.number)) {
+        self.failExpected("integer literal or '$parameter'");
+        return self.invalid();
+    }
     self.i += 1;
 }
 fn string(self: *Self) !void {
     if (try self.hole(.value)) return;
-    if (!self.tag(.string)) return self.invalid();
+    if (!self.tag(.string)) {
+        self.failExpected("string literal or '$parameter'");
+        return self.invalid();
+    }
     self.i += 1;
 }
 fn nullable(self: *Self) !void {
@@ -135,7 +248,10 @@ fn dataType(self: *Self) anyerror!void {
     try self.enter();
     defer self.depth -= 1;
     if (try self.hole(.type)) return;
-    if (!self.tag(.word)) return self.invalid();
+    if (!self.tag(.word)) {
+        self.failExpected("column data type or '$parameter'");
+        return self.invalid();
+    }
     const word = self.raw();
     self.i += 1;
     const types = std.StaticStringMap(enum { fields, list, array, map, range, vector, double, character }).initComptime(.{
@@ -230,7 +346,10 @@ fn literal(self: *Self) anyerror!void {
         return self.require(")");
     }
     if (self.take("+") or self.take("-")) if (try self.hole(.value)) return self.cast();
-    if (!self.tag(.number)) return self.invalid();
+    if (!self.tag(.number)) {
+        self.failExpected("literal value or '$parameter'");
+        return self.invalid();
+    }
     self.i += 1;
     // SqlInput retains punctuation separately. A numeric literal must stay contiguous.
     if (self.i < self.tokens.len and self.tokens[self.i - 1].end == self.tokens[self.i].start and self.take(".")) {
@@ -267,6 +386,7 @@ fn comparison(self: *Self) !void {
         }
         if (!required) return;
     }
+    self.failExpected("comparison operator ('=', '<>', '<', '<=', '>', '>=')");
     return self.invalid();
 }
 fn predicate(self: *Self) anyerror!void {
@@ -442,13 +562,31 @@ fn clauseWord(self: *Self) bool {
     return false;
 }
 fn programName(self: *Self) !void {
-    if (!self.tag(.word) and !self.tag(.quoted)) return self.invalid();
-    if (self.tag(.word) and self.raw().len > 63) return error.InvalidSourceName;
+    if (!self.tag(.word) and !self.tag(.quoted)) {
+        self.failExpected("identifier");
+        return self.invalid();
+    }
+    if (self.tag(.word) and self.raw().len > 63) {
+        if (self.report) |r| {
+            const sp = self.currentSpan();
+            r.setSpan(null, sp.start, sp.end);
+        }
+        return error.InvalidSourceName;
+    }
     self.i += 1;
 }
 fn sourceWordName(self: *Self) !void {
-    if (!self.tag(.word)) return self.invalid();
-    if (self.raw().len > 63) return error.InvalidSourceName;
+    if (!self.tag(.word)) {
+        self.failExpected("identifier");
+        return self.invalid();
+    }
+    if (self.raw().len > 63) {
+        if (self.report) |r| {
+            const sp = self.currentSpan();
+            r.setSpan(null, sp.start, sp.end);
+        }
+        return error.InvalidSourceName;
+    }
     self.i += 1;
 }
 fn helperName(self: *Self) !void {
@@ -631,7 +769,15 @@ fn programBlock(self: *Self, atomic: bool, mode: BlockMode) anyerror!void {
             try self.resourceName(if (stream) .stream else .queue);
             try self.require("VALUES");
             try self.programArguments();
-        } else return error.UnsupportedProgramInstruction;
+        } else {
+            if (self.report) |r| if (r.headline_len == 0) {
+                var buf: [96]u8 = undefined;
+                const sp = self.currentSpan();
+                r.setSpan(null, sp.start, sp.end);
+                r.setHeadline("unsupported program instruction {s}", .{self.found(&buf)});
+            };
+            return error.UnsupportedProgramInstruction;
+        }
         try self.require(";");
     }
 }
@@ -656,9 +802,16 @@ fn program(self: *Self) !Kind {
 }
 fn statement(self: *Self) !Kind {
     if (self.take("CREATE")) {
-        if (!self.take("PUBLIC")) return error.RuntimePrivateOrUnsupportedDeclaration;
+        if (!self.take("PUBLIC")) {
+            self.failExpected("'PUBLIC' after 'CREATE'");
+            if (self.report) |r| r.addNote(null, null, "resources in .transit modules and targets must be declared 'CREATE PUBLIC TABLE|STREAM|QUEUE|DATAFLOW'", .{});
+            return error.RuntimePrivateOrUnsupportedDeclaration;
+        }
         if (self.take("DATAFLOW")) return self.program();
-        const kind: Kind = if (self.take("TABLE")) .create else if (self.take("STREAM")) .create_stream else if (self.take("QUEUE")) .create_queue else return error.RuntimePrivateOrUnsupportedDeclaration;
+        const kind: Kind = if (self.take("TABLE")) .create else if (self.take("STREAM")) .create_stream else if (self.take("QUEUE")) .create_queue else {
+            self.failExpected("'TABLE', 'STREAM', 'QUEUE' or 'DATAFLOW' after 'CREATE PUBLIC'");
+            return error.RuntimePrivateOrUnsupportedDeclaration;
+        };
         try self.name();
         try self.require("(");
         try self.tableElement();
@@ -739,6 +892,12 @@ fn statement(self: *Self) !Kind {
         if (self.take("LIMIT")) try self.unsigned();
         return .consume;
     }
+    if (self.report) |r| if (r.headline_len == 0) {
+        var buf: [96]u8 = undefined;
+        const sp = self.currentSpan();
+        r.setSpan(null, sp.start, sp.end);
+        r.setHeadline("unsupported statement starting with {s}", .{self.found(&buf)});
+    };
     return error.UnsupportedBuildStatement;
 }
 

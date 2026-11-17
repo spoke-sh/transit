@@ -44,7 +44,7 @@ fn scalar(self: *Self, span: Span, table: *const types.Table, column: usize, rol
     const expected = table.domains[column];
     const value = self.at(span);
     const actual = if (value) |v| if (v.scalar()) |ty| ty.domain else null else null;
-    self.context.* = .{ .offset = span.start, .name = table.name, .column = table.schema.columns[column].name, .expected = if (expected) |ref| self.graph.getDefinition(ref).domain.?.identity else @tagName(table.schema.columns[column].type), .actual = if (value) |v| if (v.scalar()) |ty| ty.label(self.graph) else @tagName(v) else "ordinary SQL scalar" };
+    self.context.* = .{ .offset = span.start, .end = span.end, .name = table.name, .column = table.schema.columns[column].name, .expected = if (expected) |ref| self.graph.getDefinition(ref).domain.?.identity else @tagName(table.schema.columns[column].type), .actual = if (value) |v| if (v.scalar()) |ty| ty.label(self.graph) else @tagName(v) else "ordinary SQL scalar" };
     if (!std.meta.eql(actual, expected)) return error.SourceDomainMismatch;
     if (value) |v| {
         if (v == .symbolic and !try v.symbolic.physical().eql(table.schema.columns[column].type)) return error.SourceTypeMismatch;
@@ -112,7 +112,7 @@ fn declaration(self: *Self, output: std.mem.Allocator, catalog: *Catalog, create
     @memset(domains, null);
     for (create.columns, create.column_type_spans, 0..) |column, span, i| {
         if (self.at(span)) |value| {
-            self.context.* = .{ .offset = span.start, .name = table.name, .column = table.schema.columns[i].name };
+            self.context.* = .{ .offset = span.start, .end = span.end, .name = table.name, .column = table.schema.columns[i].name };
             if (value != .type) return error.InvalidSourceTypeOperand;
             domains[i] = value.type.domain;
             if (domains[i] != null) {

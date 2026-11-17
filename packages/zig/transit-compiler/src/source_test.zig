@@ -71,3 +71,47 @@ fn repeat(a: std.mem.Allocator, text: []const u8, n: usize) ![]const u8 {
     for (0..n) |i| @memcpy(bytes[i * text.len ..][0..text.len], text);
     return bytes;
 }
+
+test "diagnostic report captures token spans headlines notes and call frames" {
+    const t = std.testing;
+    var diagnostic: ?p.Diagnostic = null;
+    var report: c.SourceDiagnostic.Report = .{};
+    const syntax_src = "CREATE TARGET default BEGIN\n  SELECT * FROM t;\nEND;";
+    try t.expectError(error.InvalidSourceSyntax, c.compile(t.allocator, &.{.{ .path = "build.transit", .text = syntax_src }}, .{ .compiler_revision = "source-syntax-test", .report = &report }, &diagnostic));
+    try t.expectEqual(@as(u64, 5), try diagnostic.?.location.?.length.value());
+    try t.expectEqualStrings("expected 'AS', found 'BEGIN'", report.headline().?);
+
+    const mod_rows =
+        \\CREATE PUBLIC DOMAIN MachineId AS BIGINT IDENTITY 'example.machine';
+        \\CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site';
+        \\CREATE PUBLIC MODULE Rows(name IDENTIFIER, id_type TYPE, id SiteId) AS BEGIN
+        \\  CREATE PUBLIC TABLE $name (id $id_type NOT NULL PRIMARY KEY);
+        \\  INSERT INTO $name VALUES ($id);
+        \\END;
+    ;
+    const mod_mid =
+        \\IMPORT rows FROM 'rows.transit';
+        \\CREATE PUBLIC MODULE Setup(id rows.SiteId) AS BEGIN
+        \\  USE rows.Rows(NAME 'items', TYPE rows.MachineId, id);
+        \\END;
+    ;
+    const entry_src =
+        \\IMPORT rows FROM 'rows.transit';
+        \\IMPORT mid FROM 'mid.transit';
+        \\CREATE TARGET default AS BEGIN
+        \\  USE mid.Setup(rows.SiteId(7));
+        \\END;
+    ;
+    try t.expectError(error.SourceDomainMismatch, c.compile(t.allocator, &.{
+        .{ .path = "rows.transit", .text = mod_rows },
+        .{ .path = "mid.transit", .text = mod_mid },
+        .{ .path = "build.transit", .text = entry_src },
+    }, .{ .compiler_revision = "source-syntax-test", .report = &report }, &diagnostic));
+    try t.expect(std.mem.indexOf(u8, report.headline().?, "domain mismatch") != null);
+    try t.expect(std.mem.indexOf(u8, report.headline().?, "example.machine") != null);
+    try t.expect(std.mem.indexOf(u8, report.headline().?, "example.site") != null);
+    try t.expectEqual(@as(u64, 3), try diagnostic.?.location.?.length.value());
+    try t.expectEqual(@as(u8, 2), report.frames_len);
+    try t.expectEqualStrings("setup", report.frames[0].name());
+    try t.expectEqualStrings("rows", report.frames[1].name());
+}

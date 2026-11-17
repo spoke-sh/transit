@@ -2,8 +2,261 @@
 //! Captured names/types describe caller input, never source bodies or credentials.
 const std = @import("std");
 const d = @import("transit_protocol").Diagnostic;
+
+pub const Span = struct { start: u32 = 0, end: u32 = 0 };
+
+pub const Note = struct {
+    file: ?usize = null,
+    span: Span = .{},
+    located: bool = false,
+    bytes: [256]u8 = @splat(0),
+    len: u16 = 0,
+    pub fn slice(self: *const Note) []const u8 {
+        return self.bytes[0..self.len];
+    }
+};
+
+pub const CallFrame = struct {
+    callee: [64]u8 = @splat(0),
+    callee_len: u8 = 0,
+    file: usize = 0,
+    span: Span = .{},
+    pub fn name(self: *const CallFrame) []const u8 {
+        return self.callee[0..self.callee_len];
+    }
+};
+
+pub const Report = struct {
+    file: ?usize = null,
+    span: Span = .{},
+    has_span: bool = false,
+    headline_bytes: [256]u8 = @splat(0),
+    headline_len: u16 = 0,
+    notes: [2]?Note = @splat(null),
+    frames: [64]CallFrame = undefined,
+    frames_len: u8 = 0,
+
+    pub fn reset(self: *Report) void {
+        self.* = .{};
+    }
+    pub fn headline(self: *const Report) ?[]const u8 {
+        return if (self.headline_len == 0) null else self.headline_bytes[0..self.headline_len];
+    }
+    pub fn setSpan(self: *Report, file: ?usize, start: usize, end: usize) void {
+        const s: u32 = @intCast(@min(start, std.math.maxInt(u32)));
+        const e: u32 = @intCast(@min(@max(start, end), std.math.maxInt(u32)));
+        self.file = file;
+        self.span = .{ .start = s, .end = e };
+        self.has_span = true;
+    }
+    pub fn setHeadline(self: *Report, comptime fmt: []const u8, args: anytype) void {
+        self.headline_len = formatBounded(&self.headline_bytes, fmt, args);
+    }
+    pub fn addNote(self: *Report, file: ?usize, span: ?Span, comptime fmt: []const u8, args: anytype) void {
+        for (&self.notes) |*slot| if (slot.* == null) {
+            var item: Note = .{ .file = file, .span = span orelse .{}, .located = file != null and span != null };
+            item.len = formatBounded(&item.bytes, fmt, args);
+            if (item.len != 0) slot.* = item;
+            return;
+        };
+    }
+    pub fn pushFrame(self: *Report, callee: []const u8, file: usize, span: Span) void {
+        if (self.frames_len >= self.frames.len) return;
+        var frame: CallFrame = .{ .file = file, .span = span };
+        const n: u8 = @intCast(@min(callee.len, frame.callee.len));
+        @memcpy(frame.callee[0..n], callee[0..n]);
+        frame.callee_len = n;
+        self.frames[self.frames_len] = frame;
+        self.frames_len += 1;
+    }
+    pub fn popFrame(self: *Report) void {
+        if (self.frames_len > 0) self.frames_len -= 1;
+    }
+    /// Populate a concise Zig-style headline and optional guidance note from the
+    /// error tag and context whenever the failing site only supplied an error.
+    pub fn finalize(self: *Report, err: anyerror, context: Context) void {
+        if (self.headline_len == 0) {
+            switch (err) {
+                error.MissingBuildEntry => {
+                    self.setHeadline("cannot find build entry file", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "create 'build.transit' or select a .transit file with '-f <file>'", .{});
+                },
+                error.UnsupportedSourceFileKind, error.SymLinkLoop => {
+                    self.setHeadline("source path must be a regular .transit file", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "symbolic links and special files are not supported inside source packages", .{});
+                },
+                error.IsDir => self.setHeadline("expected a regular .transit file, found a directory", .{}),
+                error.NotDir => self.setHeadline("a component of the source path is not a directory", .{}),
+                error.InvalidSourcePath => self.setHeadline("invalid source path; expected a package-relative '.transit' path", .{}),
+                error.ExcludedSourcePath => {
+                    self.setHeadline("source path enters an excluded directory", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "imports cannot traverse '.git', '.transit', '.direnv' or 'node_modules'", .{});
+                },
+                error.InvalidSourceEncoding, error.InvalidUtf8 => self.setHeadline("source file contains invalid UTF-8 or disallowed control bytes", .{}),
+                error.UnterminatedSqlToken => self.setHeadline("unterminated string literal, quoted identifier or comment", .{}),
+                error.UnbalancedSqlBlock => self.setHeadline("unbalanced 'BEGIN ... END' block", .{}),
+                error.InvalidSourceName => if (context.name) |n| self.setHeadline("invalid identifier '{s}'", .{n}) else self.setHeadline("expected a valid identifier (1..63 ASCII bytes)", .{}),
+                error.InvalidCatalogName, error.InvalidInstanceName => self.setHeadline("invalid resource or instance identifier", .{}),
+                error.DuplicateSourceName => if (context.name) |n| self.setHeadline("duplicate declaration of '{s}'", .{n}) else self.setHeadline("duplicate declaration name in this scope", .{}),
+                error.DuplicateTestCase => self.setHeadline("duplicate test case identity in target", .{}),
+                error.ExportOutsideModule => self.setHeadline("'EXPORT' is only allowed inside 'CREATE MODULE'", .{}),
+                error.TestAssertionOutsideCase => self.setHeadline("test assertion is only allowed inside a 'TEST' block", .{}),
+                error.TestStatementOutsideCase => self.setHeadline("SQL statement in test target must be inside a 'TEST' block", .{}),
+                error.TestInBuildTarget => self.setHeadline("'TEST' case cannot be evaluated inside a build target", .{}),
+                error.NestedTestCase => self.setHeadline("nested 'TEST' blocks are not supported", .{}),
+                error.InvalidTestName => self.setHeadline("test name must be 1..128 non-control UTF-8 bytes", .{}),
+                error.InvalidTestCount => self.setHeadline("expected non-negative 64-bit integer count", .{}),
+                error.InvalidTestStatement => {
+                    self.setHeadline("unexpected ';' inside assertion statement", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "omit the trailing ';' inside ASSERT (...)", .{});
+                },
+                error.TestRowsRequired => self.setHeadline("'ASSERT ROWS' requires a 'SELECT' or 'CONSUME' query", .{}),
+                error.TestCommandRequired => self.setHeadline("'ASSERT COMMAND' requires a Table DDL or DML statement", .{}),
+                error.TestMutationRequired => self.setHeadline("'ASSERT STATEMENT ... FAILS WITH' requires 'INSERT', 'UPDATE' or 'DELETE'", .{}),
+                error.MissingSource => if (context.name) |n| self.setHeadline("cannot find imported source for '{s}'", .{n}) else self.setHeadline("cannot find imported '.transit' file", .{}),
+                error.UnknownImport => if (context.name) |n| self.setHeadline("unknown import alias '{s}'", .{n}) else self.setHeadline("unknown import alias", .{}),
+                error.UnknownSourceSymbol => if (context.name) |n| self.setHeadline("unknown symbol '{s}'", .{n}) else self.setHeadline("unknown source symbol", .{}),
+                error.PrivateSourceSymbol => {
+                    if (context.name) |n| self.setHeadline("symbol '{s}' is private", .{n}) else self.setHeadline("imported symbol is private", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "mark exported module declarations with 'PUBLIC'", .{});
+                },
+                error.UnknownSourceExport => if (context.name) |n| self.setHeadline("module instance has no export named '{s}'", .{n}) else self.setHeadline("unknown module export", .{}),
+                error.UnknownSourceOperand => if (context.name) |n| self.setHeadline("unbound template parameter '${s}'", .{n}) else self.setHeadline("unbound '$parameter' in SQL template", .{}),
+                error.UnknownBuildTable => if (context.name) |n| self.setHeadline("unknown resource '{s}' in proposed catalog", .{n}) else self.setHeadline("unknown Table, Stream or Queue in proposed catalog", .{}),
+                error.UnknownBuildProgram => if (context.name) |n| self.setHeadline("unknown dataflow program '{s}'", .{n}) else self.setHeadline("unknown dataflow program in proposed catalog", .{}),
+                error.UndeclaredDependency => if (context.name) |n| self.setHeadline("import references undeclared dependency package '{s}'", .{n}) else self.setHeadline("import references an undeclared dependency package", .{}),
+                error.SourceImportCycle => self.setHeadline("import cycle detected between '.transit' files", .{}),
+                error.SourceDependencyCycle => self.setHeadline("dependency cycle detected between packages", .{}),
+                error.MissingSourceTarget, error.MissingMigrationTarget => if (context.name) |n| self.setHeadline("target '{s}' is not declared", .{n}) else self.setHeadline("selected target is not declared", .{}),
+                error.WrongSourceTargetKind => {
+                    if (context.name) |n| self.setHeadline("target '{s}' has the wrong kind for this command", .{n}) else self.setHeadline("selected target has the wrong kind for this command", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "use 'CREATE TARGET' / 'CREATE MIGRATION TARGET' with 'transit build' and 'CREATE TEST TARGET' with 'transit test'", .{});
+                },
+                error.EmptyBuildTarget => self.setHeadline("build target emitted no SQL statements", .{}),
+                error.EmptyTestTarget => self.setHeadline("test target selected zero 'TEST' cases", .{}),
+                error.EmptyTestCase => self.setHeadline("test case contains no SQL statements or assertions", .{}),
+                error.SourceDomainMismatch => if (context.expected != null and context.actual != null)
+                    (if (context.column) |col| self.setHeadline("domain mismatch on column '{s}': expected '{s}', found '{s}'", .{ col, context.expected.?, context.actual.? }) else if (context.name) |n| self.setHeadline("domain mismatch for '{s}': expected '{s}', found '{s}'", .{ n, context.expected.?, context.actual.? }) else self.setHeadline("domain mismatch: expected '{s}', found '{s}'", .{ context.expected.?, context.actual.? }))
+                else
+                    self.setHeadline("nominal source domains do not match", .{}),
+                error.DuplicateDomainIdentity => self.setHeadline("duplicate nominal domain identity string", .{}),
+                error.InvalidDomainIdentity => self.setHeadline("domain identity must be 1..128 valid UTF-8 bytes", .{}),
+                error.SourceTypeMismatch, error.ProgramTypeMismatch => if (context.expected != null and context.actual != null)
+                    (if (context.name) |n| self.setHeadline("type mismatch for '{s}': expected '{s}', found '{s}'", .{ n, context.expected.?, context.actual.? }) else self.setHeadline("type mismatch: expected '{s}', found '{s}'", .{ context.expected.?, context.actual.? }))
+                else
+                    self.setHeadline("type mismatch", .{}),
+                error.TableInterfaceMismatch => if (context.column != null and context.expected != null and context.actual != null)
+                    self.setHeadline("resource signature mismatch on column '{s}': expected '{s}', found '{s}'", .{ context.column.?, context.expected.?, context.actual.? })
+                else
+                    self.setHeadline("resource column signature does not match parameter type", .{}),
+                error.ModuleInterfaceMismatch => self.setHeadline("module signature does not match declared 'INTERFACE'", .{}),
+                error.SourceArgumentCount, error.ProgramArgumentMismatch => if (context.name) |n| self.setHeadline("wrong number of arguments in call to '{s}'", .{n}) else self.setHeadline("wrong number of arguments in call", .{}),
+                error.NonExhaustiveSourceMatch => self.setHeadline("non-exhaustive 'MATCH': every variant constructor must be handled", .{}),
+                error.DuplicateSourceMatchArm => self.setHeadline("duplicate constructor arm in 'MATCH'", .{}),
+                error.UnknownVariantConstructor => self.setHeadline("unknown variant constructor", .{}),
+                error.InvalidVariantConstructor => self.setHeadline("expected a 'VARIANT' constructor", .{}),
+                error.NotModuleConstructor => self.setHeadline("referenced symbol is not a 'MODULE'", .{}),
+                error.NotSourceDomain => self.setHeadline("referenced type is not a 'DOMAIN'", .{}),
+                error.NullablePrimaryKey => self.setHeadline("primary key column cannot be nullable", .{}),
+                error.ConflictingModuleInstance => if (context.name) |n| self.setHeadline("duplicate catalog resource name '{s}'", .{n}) else self.setHeadline("conflicting catalog resource name across module instances", .{}),
+                error.ForeignTableExport => self.setHeadline("module can only export resources created within the same module instance", .{}),
+                error.UnknownColumn => if (context.column) |col| self.setHeadline("unknown column '{s}'", .{col}) else self.setHeadline("unknown column in scope", .{}),
+                error.UnknownProgramVariable => self.setHeadline("unknown variable in program scope", .{}),
+                error.UnknownProgramField => self.setHeadline("unknown field on record value", .{}),
+                error.UnknownProgramResource => self.setHeadline("unknown resource in program scope", .{}),
+                error.DuplicateProgramVariable, error.DuplicateProgramField, error.DuplicateProgramResource => self.setHeadline("duplicate name in program scope", .{}),
+                error.MissingRequiredField, error.NullNotAllowed => self.setHeadline("required non-null column is missing or NULL", .{}),
+                error.InvalidRowWidth => self.setHeadline("row value count does not match target column count", .{}),
+                error.LiteralOutOfRange, error.Overflow => self.setHeadline("numeric literal is out of range for target type", .{}),
+                error.MissingSourceLock => {
+                    self.setHeadline("missing 'transit.lock' for declared dependencies", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "run 'transit build --fetch' to populate verified dependencies and write transit.lock", .{});
+                },
+                error.StaleSourceLock, error.SourceDigestMismatch, error.RepositoryRevisionMismatch => {
+                    self.setHeadline("locked dependency state does not match declared dependencies", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "run 'transit build --fetch' to refresh transit.lock and verified packages", .{});
+                },
+                error.InvalidSourceLock, error.InvalidSourceDigest, error.IncompatibleSourceDefinition => self.setHeadline("invalid or incompatible 'transit.lock'", .{}),
+                error.ConflictingDependency, error.DuplicateDependency => self.setHeadline("conflicting dependency declarations for the same package name", .{}),
+                error.UndeclaredOverride => self.setHeadline("'--override' names a package that is not declared as a dependency", .{}),
+                error.RepositoryCredentialsForbidden => self.setHeadline("dependency repository URL must not embed credentials, query parameters or fragments", .{}),
+                error.UnsupportedRepositoryTransport => self.setHeadline("unsupported dependency repository transport; use 'https://', 'file://' or an absolute path", .{}),
+                error.InvalidRepositoryRevision => self.setHeadline("dependency revision must be a 40-character hexadecimal commit SHA", .{}),
+                error.RuntimePrivateOrUnsupportedDeclaration => {
+                    self.setHeadline("declaration requires 'PUBLIC' or uses an unsupported resource kind", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "use 'CREATE PUBLIC TABLE', 'CREATE PUBLIC STREAM', 'CREATE PUBLIC QUEUE' or 'CREATE PUBLIC DATAFLOW'", .{});
+                },
+                error.MutationOutsideAtomic => {
+                    self.setHeadline("mutation or procedure call requires a 'BEGIN ATOMIC ... END' block", .{});
+                },
+                error.MutationInsideGuard => self.setHeadline("read-only 'GUARD' cannot open 'ATOMIC' or mutate state", .{}),
+                error.ProcedureOutsideAtomic => self.setHeadline("'PROCEDURE' body must begin with 'AS BEGIN ATOMIC'", .{}),
+                error.ImpureSourceFunction => self.setHeadline("'FUNCTION' body must be a single pure 'RETURN <expr>;'", .{}),
+                error.MissingProcedureReturn => self.setHeadline("returning 'PROCEDURE' must end with a top-level 'RETURN <expr>;'", .{}),
+                error.UnexpectedProcedureReturn => self.setHeadline("early or void 'RETURN' is not allowed here", .{}),
+                error.ProcedureHasNoResult => self.setHeadline("'LET ... = CALL' requires a 'PROCEDURE' declared with 'RETURNS'", .{}),
+                error.RecursiveSourceCall => self.setHeadline("recursive call cycle detected between source helpers", .{}),
+                error.NestedAtomicProgram => self.setHeadline("'BEGIN ATOMIC' blocks cannot be nested", .{}),
+                error.UnsupportedNominalColumn => self.setHeadline("nominal domain column must be 'NOT NULL' without 'DEFAULT' or 'CHECK'", .{}),
+                error.UnsupportedNominalOperation => self.setHeadline("operation is not supported on nominal domain values; use assignment, '=', '<>' or 'IS [NOT] NULL'", .{}),
+                error.InvalidQueuePredicate => self.setHeadline("unsupported expression in Queue acquisition 'WHERE' predicate", .{}),
+                error.MigrationTransformRequired => {
+                    if (context.name) |n| self.setHeadline("migration of table '{s}' requires an explicit data transform", .{n}) else self.setHeadline("schema change requires an explicit reviewed migration", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "automatic synthesis supports new Tables and safe trailing 'ADD COLUMN' steps only", .{});
+                },
+                error.MigrationVersionOrder => self.setHeadline("migration version must be strictly greater than all prior versions in basis", .{}),
+                error.MigrationHistoryChanged, error.MigrationBasisMismatch => self.setHeadline("existing migration history or basis sidecar was modified or is inconsistent", .{}),
+                error.MigrationNamespaceMismatch => self.setHeadline("migration target database/schema does not match prior basis", .{}),
+                error.MissingMigrationBasis => self.setHeadline("cannot find prior migration basis file", .{}),
+                error.BuildOutputExists, error.PathAlreadyExists => {
+                    self.setHeadline("output directory already exists", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "pass a new directory path to '--out' so existing artifacts are not overwritten", .{});
+                },
+                error.BuildArtifactMismatch => self.setHeadline("existing build artifact bytes do not match fresh compilation", .{}),
+                error.FileNotFound => self.setHeadline("file not found", .{}),
+                error.AccessDenied, error.PermissionDenied => self.setHeadline("permission denied", .{}),
+                else => {
+                    const name = @errorName(err);
+                    const family = families.get(name) orelse if (std.mem.indexOf(u8, name, "Limit") != null or err == error.OutOfMemory or err == error.ProgramTooComplex or err == error.ProgramTooDeep) Family.limit else if (std.mem.startsWith(u8, name, "Unsupported")) Family.capability else Family.internal;
+                    if (family == .limit) {
+                        if (context.budget != null and context.limit != null) {
+                            self.setHeadline("{s} limit exceeded (limit: {d})", .{ context.budget.?, context.limit.? });
+                        } else if (context.limit) |lim| {
+                            self.setHeadline("compilation budget exceeded ({s}, limit: {d})", .{ name, lim });
+                        } else {
+                            self.setHeadline("compilation budget exceeded ({s})", .{name});
+                        }
+                    } else if (family == .syntax) {
+                        self.setHeadline("invalid .transit syntax", .{});
+                    } else if (family == .capability) {
+                        self.setHeadline("unsupported construct in .transit source ({s})", .{name});
+                    } else {
+                        const selected = rule(family);
+                        const period = std.mem.indexOfScalar(u8, selected.message, '.') orelse selected.message.len;
+                        self.setHeadline("{s}", .{selected.message[0..period]});
+                    }
+                },
+            }
+        }
+    }
+};
+
+fn formatBounded(buf: []u8, comptime fmt: []const u8, args: anytype) u16 {
+    var scratch: [512]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&scratch);
+    w.print(fmt, args) catch {};
+    const written = w.buffered();
+    var end = @min(written.len, buf.len);
+    while (end > 0 and (written[end - 1] & 0xc0) == 0x80) end -= 1;
+    if (end > 0 and written[end - 1] >= 0x80 and !std.unicode.utf8ValidateSlice(written[0..end])) {
+        while (end > 0 and !std.unicode.utf8ValidateSlice(written[0..end])) end -= 1;
+    }
+    @memcpy(buf[0..end], written[0..end]);
+    return @intCast(end);
+}
 pub const Context = struct {
     offset: ?usize = null,
+    end: ?usize = null,
     name: ?[]const u8 = null,
     column: ?[]const u8 = null,
     expected: ?[]const u8 = null,
