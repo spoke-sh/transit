@@ -364,7 +364,11 @@ bytes plain.
 Console diagnostics highlight error labels, identifiers, categories, coordinates,
 carets and correction commands on terminal stderr. Nonempty `NO_COLOR` or
 `TERM=dumb` disables color; redirected stderr is plain even with
-`CLICOLOR_FORCE`. Color does not change text, redaction, caret alignment, result
+`CLICOLOR_FORCE`. `transit build` and `transit test` additionally accept
+`--color auto|off|on` (`auto` by default, using the same `stderr` terminal,
+`NO_COLOR` and `TERM=dumb` rules; `off` forces plain text; `on` enables ANSI
+color on stderr while leaving `--format json` stdout plain). Other subcommands
+reject `--color`. Color does not change text, redaction, caret alignment, result
 stdout or timing-footer order.
 Search acceptance returns the match to the editor; submitting requires another
 Enter. SQL and dot-command submissions append to `$HOME/.transit_history` as

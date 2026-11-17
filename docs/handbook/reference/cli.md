@@ -70,6 +70,7 @@ The same rules apply to local overrides and fetched dependencies.
 | `--override NAME=DIRECTORY` | Use explicit local source for one declared dependency, recorded in provenance |
 | `--out DIRECTORY` | Publish to an absent directory instead of `.transit/build/TARGET/INPUT-DIGEST/` |
 | `--format text\|json` | Human status on stderr or one machine result/diagnostic on stdout |
+| `--color auto\|off\|on` | Control ANSI color on human stderr (`auto` default; `off` disables color; `on` forces color on stderr) |
 
 `--fetch` cannot combine with `--check`, `--out` or `--override`; `--check` cannot
 combine with `--out`. Builds never fetch implicitly or read `.transitrc`.
@@ -102,14 +103,18 @@ assertions check the live destination. Source and sidecars are not needed for
 apply or recovery. See [Table migration targets](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 for syntax, exact bounds and unsupported transforms.
 
-Failures name the source path, target, dependency or output operation when known,
-with a correction for that failure family. Source errors show one-based line and
-byte-column coordinates, including related module call sites. Filesystem errors
-show the path and observed kind without invented coordinates. Type mismatches
-show expected and actual types where the binder knows them. Paths are escaped
-and bounded; truncation is marked. These facts also appear in `--format json`.
-"No SQL was submitted" describes a compilation failure; test execution failures
-retain their case outcomes and do not make that claim.
+Failures render the failing build or test step, workspace/cache-resolved source
+path, specific failure headline, terminal-escaped plain source excerpt with span
+underline, located notes, `referenced by:` module instantiation trace and a
+`Build Summary:` or `Test Summary:` tree on stderr. Source errors show one-based
+line and byte-column coordinates. Filesystem errors show the path and observed
+kind without invented coordinates. Type and domain mismatches show expected and
+actual types and parameter/column declarations where known. Paths are escaped
+and bounded; truncation is marked. Structured facts continue to appear in
+`--format json` on stdout without ANSI color or source bodies.
+`(no SQL submitted)` appears in `Test Summary:` only when compilation fails
+before test execution begins; runtime test failures report case outcomes and
+assertion counts without making that claim.
 
 The compiler allows up to 1 MiB per source file, 16 MiB aggregate source, 256 files,
 64 import/constructor levels, 100,000 evaluation steps, 64 MiB owned allocations
@@ -128,7 +133,8 @@ containers. Prepare repository dependencies explicitly with `transit build
 read server configuration, connection credentials or `.transitrc`.
 
 Use `--format text` for status on stderr or `--format json` for one bounded final
-report on stdout. Reports distinguish `passed`, `failed` and `not_run` cases;
+report on stdout; `--color auto|off|on` controls ANSI highlighting on stderr (and
+is supported only by `build` and `test`). Reports distinguish `passed`, `failed` and `not_run` cases;
 `complete` records coverage and `ok` records success. They include input/SQL and
 compiler identities, safe source locations and assertion facts without expected
 or actual row payloads. Ordinary mismatches allow later isolated cases to run;

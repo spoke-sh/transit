@@ -552,7 +552,8 @@ record; previous successful artifacts retain their original input identity.
 
 ```text
 transit build [-f build.transit] [--target default] [--out DIRECTORY]
-              [--check] [--fetch] [--override NAME=DIRECTORY] [--format text|json]
+              [--check] [--fetch] [--override NAME=DIRECTORY]
+              [--format text|json] [--color auto|off|on]
 ```
 
 `--fetch` prepares dependencies/lock only and cannot combine with `--check` or
@@ -562,10 +563,11 @@ must be absent. Build and fetch never read `.transitrc` or connect to Transit.
 The build command does not apply migrations or activate application work.
 
 Human status goes to stderr; JSON mode emits one success or diagnostic envelope
-on stdout. Failures use [DIAGNOSTICS_V1](DIAGNOSTICS_V1.md), with bounded source
+on stdout. Failures use [DIAGNOSTICS_V1](DIAGNOSTICS_V1.md) in `--format json`, with bounded source
 locations, definition/call-site facts, rule and correction guidance. Diagnostic
-source locations use one-based lines/byte-columns and zero-based byte offsets.
-Values, credentials and fetched source bodies are excluded from diagnostics.
+source locations use one-based lines/byte-columns, zero-based byte offsets and
+token/statement byte lengths.
+Values, credentials and fetched source bodies are excluded from JSON diagnostics.
 Source failure codes use the `application.source.*` families: `entry`, `file_kind`,
 `path`, `encoding`, `syntax`, `import`, `target`, `domain`, `type`, `dependency`,
 `unsupported`, `limit`, `io`, `output` and the unknown/internal fallback `failure`.
@@ -575,11 +577,17 @@ observed kind and `operation` for the attempted operation, without invented sour
 coordinates. In these families, path facts encode POSIX bytes as printable ASCII
 with other bytes, quotes and backslashes escaped as `\xhh`; truncation preserves
 complete escapes and is explicit. Source locations retain the shared location
-encoding. Human output includes primary and related filenames and escapes terminal
-controls. Type checks retain parameter/column names and expected/actual types;
+encoding. Human stderr output formats a step-failure header, workspace/cache-resolved
+filenames, terminal-escaped plain source-line excerpts, span underlines, located
+notes, `referenced by:` module expansion traces and a `Build Summary:` /
+`Test Summary:` tree. `--color auto` (default) highlights severity labels,
+headlines, span underlines and summary counts on terminal stderr unless
+`NO_COLOR` is nonempty or `TERM=dumb`; `--color off` disables ANSI color and
+`--color on` enables it on stderr without changing `--format json` stdout.
+Type checks retain parameter/column names and expected/actual types;
 known budget failures retain their limit. `native_cause` is secondary detail,
-not a recovery API. Artifact failures use stage `output`. The human statement
-"No SQL was submitted" applies only to failures before test execution begins.
+not a recovery API. Artifact failures use stage `output`. Test summaries include
+`(no SQL submitted)` only on failures before test execution begins.
 Invalid CLI usage exits 2; compilation/resolution/I/O failures exit 1; success
 exits 0. A successful check/build is not execution or installation evidence.
 
@@ -666,6 +674,7 @@ recompiled or resubmitted with new identities. Unresolved work fails explicitly.
 ```text
 transit test [-f build.transit] [--target tests]
              [--override NAME=DIRECTORY] [--format text|json]
+             [--color auto|off|on]
 ```
 
 Tests share frozen build resolution and override provenance. Use the explicit
@@ -674,7 +683,10 @@ change locks, read `.transitrc` or discover server configuration. Success is not
 cached. JSON emits one bounded final report; text status uses stderr. Reports
 identify source/compiler/native definitions, input/SQL digests, target and cases,
 coverage and outcome. Payloads and private installation/credential files are
-excluded. Mismatch facts identify the assertion/location rather than print data.
+excluded. Mismatch facts identify the assertion/location and observed counts
+rather than print row data. Human failure output renders the failing test step
+tree, assertion/statement location with plain source-line excerpt and span
+underline, enclosing `TEST` location note and `Test Summary:` counts.
 
 Exit 0 requires all selected cases and cleanup to pass. Invalid invocation exits
 2; compilation, assertion, runtime, reporting or cleanup failure exits 1.
