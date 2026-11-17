@@ -24,6 +24,7 @@ pub const Action = struct { context: *anyopaque, call: *const fn (*anyopaque, Co
 const CaseAction = struct {
     case: @import("transit_compiler").Test.Case,
     observed: *Observation,
+    detail: ?*testlib.Runner.Detail = null,
     fn call(raw: *anyopaque, context: Context) !bool {
         const self: *@This() = @ptrCast(@alignCast(raw));
         var runner: testlib.Runner = .{ .allocator = context.session.allocator, .session = context.session };
@@ -31,6 +32,7 @@ const CaseAction = struct {
             self.observed.rows = runner.rows;
             self.observed.bytes = runner.bytes;
             self.observed.operation = context.session.operation;
+            if (self.detail) |out_detail| out_detail.* = runner.detail;
         }
         const result = runner.run(self.case) catch |err| {
             self.observed.actions = runner.action + 1;
@@ -82,7 +84,10 @@ const Worker = struct {
     }
 };
 pub fn run(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: @import("transit_compiler").Test.Case, deadline: g.wire.Deadline, observed: *Observation) !bool {
-    var action: CaseAction = .{ .case = case, .observed = observed };
+    return runDetailed(init, directory, path, case, deadline, observed, null);
+}
+pub fn runDetailed(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: @import("transit_compiler").Test.Case, deadline: g.wire.Deadline, observed: *Observation, detail: ?*testlib.Runner.Detail) !bool {
+    var action: CaseAction = .{ .case = case, .observed = observed, .detail = detail };
     return runAction(init, directory, path, deadline, .{ .context = &action, .call = CaseAction.call, .resources = &observed.resources });
 }
 /// Embedding seam for the real host qualification binary. The CLI exposes only

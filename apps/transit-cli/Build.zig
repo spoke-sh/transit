@@ -6,29 +6,46 @@ const Sources = @import("BuildSources.zig");
 const Options = @import("BuildOptions.zig");
 const Diagnostic = @import("Diagnostic.zig");
 const Migration = @import("BuildMigration.zig");
+const BuildReport = @import("BuildReport.zig");
+const Style = @import("Style.zig");
 const version = @import("build_version");
 const SourceIdentity = struct { package: []const u8, path: []const u8, digest: []const u8 };
 pub fn run(init: std.process.Init, options: Options, diagnostic: *Diagnostic) !void {
+    diagnostic.style = Style.resolve(init, options.color);
     var budget: @import("transit_memory").Budget = .{ .parent = init.gpa, .limit = 256 * 1024 * 1024 };
     var arena: std.heap.ArenaAllocator = .init(budget.allocator());
     defer arena.deinit();
-    execute(init, arena.allocator(), budget.allocator(), options, diagnostic) catch |err| {
+    var compiler_report: c.SourceDiagnostic.Report = .{};
+    var workspace: BuildReport.Workspace = .{ .overrides = options.overrides[0..options.overrides_len] };
+    execute(init, arena.allocator(), budget.allocator(), options, diagnostic, &compiler_report, &workspace) catch |err| {
         const cause = if (err == error.OutOfMemory and budget.exhausted) error.BuildToolingMemoryLimit else err;
         if (diagnostic.envelope == null) diagnostic.envelope = c.SourceDiagnostic.input(cause, options.entry, "load build input", null);
+        compiler_report.finalize(cause, .{});
+        if (!options.json and !diagnostic.emitted) {
+            emitHumanFailure(init.io, diagnostic.style, .build, options, workspace, diagnostic.envelope.?, &compiler_report);
+            diagnostic.emitted = true;
+        }
         return cause;
     };
 }
-fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem.Allocator, options: Options, diagnostic: *Diagnostic) !void {
+fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem.Allocator, options: Options, diagnostic: *Diagnostic, compiler_report: *c.SourceDiagnostic.Report, workspace: *BuildReport.Workspace) !void {
     const cwd = try std.process.currentPathAlloc(init.io, a);
+    workspace.cwd = cwd;
     const entry_path = try std.fs.path.resolve(a, &.{ cwd, options.entry });
     const root_path = std.fs.path.dirname(entry_path) orelse return error.InvalidSourcePath;
+    workspace.root_path = root_path;
     const root = Sources.openRoot(init.io, root_path) catch |err| {
         const cause = if (err == error.FileNotFound) error.MissingBuildEntry else err;
         diagnostic.envelope = c.SourceDiagnostic.input(cause, entry_path, "open build entry directory", null);
+        compiler_report.finalize(cause, .{});
         return cause;
     };
     defer root.close(init.io);
-    var sources: Sources = .{ .a = a, .scratch_parent = scratch_parent, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry_path), .environment = init.environ_map, .fetch = options.fetch, .diagnostic = &diagnostic.envelope, .overrides = options.overrides[0..options.overrides_len] };
+    var sources: Sources = .{ .a = a, .scratch_parent = scratch_parent, .io = init.io, .root = root, .root_path = root_path, .entry = std.fs.path.basename(entry_path), .environment = init.environ_map, .fetch = options.fetch, .diagnostic = &diagnostic.envelope, .report = compiler_report, .overrides = options.overrides[0..options.overrides_len] };
+    defer {
+        workspace.sources = sources.sources.items;
+        workspace.resolutions = sources.resolutions.items;
+    }
     const resolved = try sources.load();
     if (options.fetch) return report(init.io, a, options.json, .{ .ok = true, .action = "fetch", .dependencies = sources.resolutions.items.len }, "Dependencies verified; transit.lock published.\n");
     const executable = try executableDigest(init.io, a);
@@ -36,13 +53,15 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     identity.update(&resolved);
     identity.update(&executable);
     const target = try std.ascii.allocLowerString(a, options.target);
-    const product = try c.compile(init.gpa, sources.sources.items, .{ .entry = std.fs.path.basename(entry_path), .target = target, .compiler_revision = version.revision, .resolution_digest = identity.finalResult() }, &diagnostic.envelope);
+    const product = try c.compile(init.gpa, sources.sources.items, .{ .entry = std.fs.path.basename(entry_path), .target = target, .compiler_revision = version.revision, .resolution_digest = identity.finalResult(), .report = compiler_report }, &diagnostic.envelope);
     defer product.deinit();
     const compiler_hex = std.fmt.bytesToHex(&executable, .lower);
     var migration_context: c.SourceDiagnostic.Context = .{};
     const migration: ?Migration.Prepared = if (product.migration != null) Migration.prepare(a, init.io, root, product, &compiler_hex, &migration_context) catch |err| {
         diagnostic.envelope = c.SourceDiagnostic.input(err, product.migration.?.basis orelse options.entry, "synthesize Table migration", null);
         migration_context.apply(&diagnostic.envelope.?);
+        compiler_report.reset();
+        compiler_report.finalize(err, migration_context);
         return err;
     } else null;
     const input_digest = if (migration) |value| value.input_digest else product.input_digest;
@@ -67,10 +86,18 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     const out = if (options.out) |selected| try std.fs.path.resolve(a, &.{ cwd, selected }) else try std.fmt.allocPrint(a, "{s}/.transit/build/{s}/{s}", .{ root_path, target, input_hex });
     const reused = publish(init.io, a, out, product.sql, provenance, migration, options.out == null) catch |err| {
         diagnostic.envelope = c.SourceDiagnostic.output(err, out, "publish application SQL");
+        compiler_report.reset();
+        compiler_report.finalize(err, .{});
         return err;
     };
     const status = try std.fmt.allocPrint(a, "{s} {s}: {s}\n", .{ if (migration != null) "Migration artifacts" else "Application SQL", if (reused) "verified" else "published", out });
     try report(init.io, a, options.json, .{ .ok = true, .action = "build", .target = target, .directory = out, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .statements = statement_count, .reused = reused }, status);
+}
+pub fn emitHumanFailure(io: std.Io, style: Style, mode: BuildReport.Mode, options: Options, workspace: BuildReport.Workspace, envelope: p.Diagnostic, compiler_report: ?*const c.SourceDiagnostic.Report) void {
+    var buffer: [8192]u8 = undefined;
+    var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
+    BuildReport.renderFailure(&writer.interface, style, mode, options, workspace, envelope, compiler_report) catch return;
+    writer.interface.flush() catch {};
 }
 fn report(io: std.Io, a: std.mem.Allocator, json: bool, value: anytype, human: []const u8) !void {
     if (!json) return std.Io.File.stderr().writeStreamingAll(io, human);

@@ -133,9 +133,16 @@ def main():
         human = subprocess.run([str(cli), 'test'], cwd=programs, capture_output=True, text=True,
                                timeout=60, env={'PATH': '/unavailable'}, preexec_fn=offline)
         at = wrong['cases'][0]['action_location']
+        shown = at['source'].removeprefix('root/')
         assert human.returncode == 1 and not human.stdout, human
-        assert f"{at['source']}:{at['line']}:{at['byte_column']}: failed:" in human.stderr, human.stderr
-        assert 'No SQL was submitted' not in human.stderr, human.stderr
+        assert f"{shown}:{at['line']}:{at['byte_column']}: error: row assertion failed:" in human.stderr, human.stderr
+        assert '^~' in human.stderr and 'note: in test ' in human.stderr, human.stderr
+        assert 'Test Summary: 1/2 tests passed; 1 failed' in human.stderr, human.stderr
+        assert 'no sql submitted' not in human.stderr.lower() and 'root/' not in human.stderr and '\x1b' not in human.stderr, human.stderr
+        colored = subprocess.run([str(cli), 'test', '--color', 'on'], cwd=programs, capture_output=True, text=True,
+                                 timeout=60, env={'PATH': '/unavailable'}, preexec_fn=offline)
+        assert colored.returncode == 1 and not colored.stdout, colored
+        assert '\x1b[1;31merror:\x1b[0m' in colored.stderr and '\x1b[1;32m^~' in colored.stderr and '\x1b[1;36mnote:\x1b[0m' in colored.stderr, colored.stderr
         source(programs, 'build.transit', program_source.replace('COMPLETED 1 REFUSED 2 WITHIN 1000', 'COMPLETED 2 REFUSED 2 WITHIN 1'))
         incomplete = invoke(cli, programs, expected=1)
         assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete

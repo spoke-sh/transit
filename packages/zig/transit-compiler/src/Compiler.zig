@@ -9,11 +9,12 @@ const Catalog = @import("WorkingCatalog.zig");
 const Test = @import("Test.zig");
 const types = @import("SourceTypes.zig");
 const Operands = @import("TypedOperands.zig");
-const Context = @import("SourceDiagnostic.zig").Context;
+const SourceDiagnostic = @import("SourceDiagnostic.zig");
+const Context = SourceDiagnostic.Context;
 const Origin = Operands.Origin;
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
-pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{} };
+pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{}, report: ?*SourceDiagnostic.Report = null };
 pub const Step = struct {
     sql: []const u8,
     plan_digest: [32]u8,
@@ -57,6 +58,7 @@ work: usize = 0,
 output_bytes: usize = 0,
 file: usize = 0,
 offset: usize = 0,
+span_end: usize = 0,
 call_site: ?p.Diagnostic.Location = null,
 instance: []const u8 = "target",
 test_mode: bool = false,
@@ -74,10 +76,15 @@ checked_statements: usize = 0,
 checking: [64]struct { definition: Graph.Ref, arguments: []const Binding } = undefined,
 checking_count: usize = 0,
 context: Context = .{},
+report: ?*SourceDiagnostic.Report = null,
+frames: [64]SourceDiagnostic.CallFrame = undefined,
+frames_len: u8 = 0,
 
 pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options: Options, diagnostic: *?p.Diagnostic) !*Product {
     diagnostic.* = null;
+    if (options.report) |r| r.reset();
     const result = parent.create(Product) catch |err| {
+        if (options.report) |r| r.finalize(err, .{});
         diagnostic.* = project(err, if (sources.len > 0) location(sources[0], 0) else null, null, null);
         return err;
     };
@@ -86,6 +93,7 @@ pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options
     errdefer result.deinit();
     return compileInner(result, sources, options, diagnostic) catch |err| {
         const cause = if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err;
+        if (options.report) |r| r.finalize(cause, .{});
         if (diagnostic.* == null) diagnostic.* = project(cause, if (sources.len > 0) location(sources[0], 0) else null, null, null);
         return cause;
     };
@@ -103,16 +111,23 @@ fn compileInner(result: *Product, sources: []const Graph.Source, options: Option
     const a = result.arena.allocator();
     var file: usize = 0;
     var offset: usize = 0;
-    const graph = Graph.init(a, sources, &file, &offset, options.limits.depth) catch |err| {
-        diagnostic.* = project(err, if (file < sources.len) location(sources[file], offset) else null, null, null);
+    const graph = Graph.initReported(a, sources, &file, &offset, options.limits.depth, options.report) catch |err| {
+        var span: SourceDiagnostic.Span = .{ .start = @intCast(@min(offset, std.math.maxInt(u32))), .end = @intCast(@min(offset, std.math.maxInt(u32))) };
+        if (options.report) |r| {
+            if (r.has_span) {
+                if (r.file) |rf| file = rf else if (file < sources.len) r.file = file;
+                span = r.span;
+            } else if (file < sources.len) r.setSpan(file, offset, offset);
+            r.finalize(err, .{});
+        }
+        diagnostic.* = project(err, if (file < sources.len) locationSpan(sources[file], span) else null, null, null);
         return err;
     };
     var scratch: std.heap.ArenaAllocator = .init(result.budget.allocator());
     defer scratch.deinit();
-    var self: Self = .{ .a = a, .graph = graph, .catalog = .{ .output = a, .scratch = scratch.allocator() }, .scratch = &scratch, .limits = options.limits };
+    var self: Self = .{ .a = a, .graph = graph, .catalog = .{ .output = a, .scratch = scratch.allocator() }, .scratch = &scratch, .limits = options.limits, .report = options.report };
     return self.run(result, options) catch |err| {
-        diagnostic.* = project(if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err, location(sources[self.file], self.offset), self.call_site, self.instance);
-        self.context.apply(&diagnostic.*.?);
+        const cause = if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err;
         const limit_context: Context = switch (err) {
             error.BuildWorkLimit => .{ .budget = "compiler work", .limit = self.limits.work, .required = self.work + 1 },
             error.SourceDepthLimit => .{ .budget = "source expansion depth", .limit = self.limits.depth },
@@ -121,6 +136,29 @@ fn compileInner(result: *Product, sources: []const Graph.Source, options: Option
             error.BuildStatementLimit => .{ .budget = "SQL statement bytes", .limit = f.Sql.max_statement_bytes },
             else => .{},
         };
+        var end_at = @max(self.offset, self.span_end);
+        if (end_at == self.offset and self.file < sources.len) end_at = tokenEndAt(sources[self.file].text, self.offset);
+        var span: SourceDiagnostic.Span = .{
+            .start = @intCast(@min(self.offset, std.math.maxInt(u32))),
+            .end = @intCast(@min(end_at, std.math.maxInt(u32))),
+        };
+        if (options.report) |r| {
+            if (r.has_span) {
+                if (r.file) |rf| self.file = rf else r.file = self.file;
+                span = r.span;
+            } else {
+                r.setSpan(self.file, span.start, span.end);
+            }
+            @memcpy(r.frames[0..self.frames_len], self.frames[0..self.frames_len]);
+            r.frames_len = self.frames_len;
+            var merged = self.context;
+            if (limit_context.budget != null) merged.budget = limit_context.budget;
+            if (limit_context.limit != null) merged.limit = limit_context.limit;
+            if (limit_context.required != null) merged.required = limit_context.required;
+            r.finalize(cause, merged);
+        }
+        diagnostic.* = project(cause, locationSpan(sources[self.file], span), self.call_site, self.instance);
+        self.context.apply(&diagnostic.*.?);
         limit_context.apply(&diagnostic.*.?);
         return err;
     };
@@ -135,12 +173,40 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     self.file = entry;
     const target_name = try std.ascii.allocLowerString(a, options.target);
     self.context = .{ .name = target_name };
-    const target = graph.resolve(entry, .{ .member = target_name }) catch |err| return if (err == error.UnknownSourceSymbol) error.MissingSourceTarget else err;
+    const target = graph.resolve(entry, .{ .member = target_name }) catch |err| {
+        if (err == error.UnknownSourceSymbol) {
+            if (self.report) |r| {
+                r.setSpan(entry, 0, 0);
+                r.setHeadline("target '{s}' is not declared in '{s}'", .{ target_name, options.entry });
+                for (graph.files[entry].definitions) |cand| {
+                    if (cand.kind == .target or cand.kind == .migration_target or cand.kind == .test_target) {
+                        r.addNote(entry, .{ .start = cand.span.start, .end = cand.span.end }, "available target '{s}' declared here", .{cand.name});
+                        break;
+                    }
+                }
+            }
+            return error.MissingSourceTarget;
+        }
+        return err;
+    };
     const definition = graph.getDefinition(target);
     self.offset = definition.span.start;
+    self.span_end = definition.span.end;
     self.test_mode = options.mode == .test_suite;
     const target_kind: @FieldType(s.Definition, "kind") = if (self.test_mode) .test_target else .target;
-    if (definition.kind != target_kind and !(options.mode == .build and definition.kind == .migration_target)) return error.WrongSourceTargetKind;
+    if (definition.kind != target_kind and !(options.mode == .build and definition.kind == .migration_target)) {
+        if (self.report) |r| {
+            r.setSpan(target.file, definition.span.start, definition.span.end);
+            if (self.test_mode) {
+                r.setHeadline("target '{s}' is a build target, expected 'CREATE TEST TARGET'", .{target_name});
+                r.addNote(null, null, "run 'transit build --target {s}' or select a 'CREATE TEST TARGET'", .{target_name});
+            } else {
+                r.setHeadline("target '{s}' is a test target, expected 'CREATE TARGET' or 'CREATE MIGRATION TARGET'", .{target_name});
+                r.addNote(null, null, "run 'transit test --target {s}' or select a build target", .{target_name});
+            }
+        }
+        return error.WrongSourceTargetKind;
+    }
     result.migration = definition.migration;
     self.context = .{};
     std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
@@ -226,7 +292,7 @@ fn resolve(self: *Self, file: usize, name: s.Name, bindings: []const Binding) !G
         if (binding.value != .module) return error.NotModuleConstructor;
         return binding.value.module;
     };
-    const ref = try self.graph.resolve(file, name);
+    const ref = try self.graph.resolveReported(file, name, self.report);
     if (self.graph.getDefinition(ref).kind != .module) return error.NotModuleConstructor;
     return ref;
 }
@@ -287,16 +353,35 @@ fn freshBinding(self: *Self, file: usize, name: []const u8, bindings: []const Bi
     for (self.graph.files[file].definitions) |definition| if (std.mem.eql(u8, name, definition.name)) return error.DuplicateSourceName;
 }
 fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []const Binding, depth: usize) anyerror!Value {
+    self.span_end = span.end;
     const ref = try self.resolve(file, call.name, bindings);
     const definition = self.graph.getDefinition(ref);
-    if (call.arguments.len != definition.parameters.len) return error.SourceArgumentCount;
+    if (call.arguments.len != definition.parameters.len) {
+        self.context = .{ .name = definition.name };
+        if (self.report) |r| {
+            r.setSpan(file, span.start, span.end);
+            r.setHeadline("wrong number of arguments to module '{s}': expected {d}, found {d}", .{ definition.name, definition.parameters.len, call.arguments.len });
+            r.addNote(ref.file, .{ .start = definition.span.start, .end = definition.span.end }, "module '{s}' declared here", .{definition.name});
+        }
+        return error.SourceArgumentCount;
+    }
     var values: [64]Binding = undefined;
     for (call.arguments, definition.parameters, 0..) |arg, parameter, i| {
         const value = try self.expression(file, arg, bindings, 0);
         self.file = file;
         self.offset = arg.span.start;
+        self.span_end = arg.span.end;
         self.context = .{ .name = parameter.name };
-        try self.argument(ref.file, parameter.kind, value);
+        self.argument(ref.file, parameter.kind, value) catch |err| {
+            if (self.report) |r| {
+                r.setSpan(file, arg.span.start, arg.span.end);
+                if (parameter.kind == .identifier and value != .identifier) {
+                    r.addNote(null, null, "pass identifier arguments using 'NAME <string>', e.g. NAME 'items'", .{});
+                }
+                r.addNote(ref.file, .{ .start = definition.span.start, .end = definition.span.end }, "parameter '{s}' of module '{s}' declared here", .{ parameter.name, definition.name });
+            }
+            return err;
+        };
         self.context = .{};
         // Reached symbolic callees are checked for their declared scalar types.
         // This also checks both paths of recursive IF bodies before a recursive
@@ -318,11 +403,21 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     const before_expansion = self.expansion;
     const before_owner = self.owner;
     const before_exports = self.exports;
+    const before_frames = self.frames_len;
+    if (self.frames_len < self.frames.len) {
+        var frame: SourceDiagnostic.CallFrame = .{ .file = file, .span = .{ .start = span.start, .end = span.end } };
+        const n: u8 = @intCast(@min(definition.name.len, frame.callee.len));
+        @memcpy(frame.callee[0..n], definition.name[0..n]);
+        frame.callee_len = n;
+        self.frames[self.frames_len] = frame;
+        self.frames_len += 1;
+    }
     var completed = false;
     defer {
         if (completed) {
             self.call_site = before_site;
             self.instance = before_instance;
+            self.frames_len = before_frames;
         }
         self.expansion = before_expansion;
         self.owner = before_owner;
@@ -372,9 +467,12 @@ fn checkBody(self: *Self, file: usize, statements: []const s.Statement, bindings
     checker.body(file, statements, bindings, depth) catch |err| {
         self.file = checker.file;
         self.offset = checker.offset;
+        self.span_end = checker.span_end;
         self.call_site = checker.call_site;
         self.instance = checker.instance;
         self.context = checker.context;
+        self.frames = checker.frames;
+        self.frames_len = checker.frames_len;
         return err;
     };
     if (stable_catalog and (checker.catalog.entries.items.len != self.catalog.entries.items.len or
@@ -385,18 +483,47 @@ fn match(self: *Self, file: usize, input: @FieldType(@FieldType(s.Statement, "va
     if (value != .variant) return error.SourceTypeMismatch;
     const variant = value.variant;
     const definition = self.graph.getDefinition(variant.definition);
-    if (input.arms.len != definition.constructors.len) return error.NonExhaustiveSourceMatch;
+    if (input.arms.len != definition.constructors.len) {
+        if (self.report) |r| {
+            r.setSpan(file, input.value.span.start, input.value.span.end);
+            for (definition.constructors) |ctor| {
+                const covered = for (input.arms) |arm| {
+                    const name = arm.constructor.constructor orelse arm.constructor.member;
+                    if (std.mem.eql(u8, name, ctor.name)) break true;
+                } else false;
+                if (!covered) {
+                    r.setHeadline("non-exhaustive 'MATCH' on variant '{s}': missing '{s}'", .{ definition.name, ctor.name });
+                    break;
+                }
+            }
+            r.addNote(variant.definition.file, .{ .start = definition.span.start, .end = definition.span.end }, "variant '{s}' declared here", .{definition.name});
+        }
+        return error.NonExhaustiveSourceMatch;
+    }
     var seen: [64]bool = @splat(false);
     var selected: usize = 0;
     for (input.arms, 0..) |arm, i| {
         self.offset = arm.span.start;
+        self.span_end = arm.span.end;
         const resolved = try types.constructor(self.graph, file, arm.constructor);
         if (!std.meta.eql(resolved.definition, variant.definition)) return error.SourceTypeMismatch;
-        if (seen[resolved.index]) return error.DuplicateSourceMatchArm;
+        if (seen[resolved.index]) {
+            if (self.report) |r| {
+                r.setSpan(file, arm.span.start, arm.span.end);
+                r.setHeadline("duplicate 'WHEN' arm for constructor '{s}'", .{definition.constructors[resolved.index].name});
+            }
+            return error.DuplicateSourceMatchArm;
+        }
         seen[resolved.index] = true;
         if (resolved.index == variant.constructor) selected = i;
         const fields = definition.constructors[resolved.index].fields;
-        if (arm.names.len != fields.len) return error.SourceArgumentCount;
+        if (arm.names.len != fields.len) {
+            if (self.report) |r| {
+                r.setSpan(file, arm.span.start, arm.span.end);
+                r.setHeadline("constructor '{s}' expects {d} binding(s), found {d}", .{ definition.constructors[resolved.index].name, fields.len, arm.names.len });
+            }
+            return error.SourceArgumentCount;
+        }
         const arm_bindings = try self.a.alloc(Binding, bindings.len + fields.len);
         @memcpy(arm_bindings[0..bindings.len], bindings);
         for (arm.names, fields, 0..) |name, field, n| {
@@ -418,6 +545,7 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
     for (statements) |statement| {
         self.file = file;
         self.offset = statement.span.start;
+        self.span_end = statement.span.end;
         self.context = .{};
         try self.tick();
         const bindings = scope.items;
@@ -518,6 +646,7 @@ fn construct(self: *Self, file: usize, call: s.Call, bindings: []const Binding, 
 fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const Binding, depth: usize) anyerror!Value {
     self.file = file;
     self.offset = expr.span.start;
+    self.span_end = expr.span.end;
     try self.tick();
     if (depth >= self.limits.depth) return error.SourceDepthLimit;
     return switch (expr.value) {
@@ -612,6 +741,7 @@ fn emit(self: *Self, file: usize, span: s.Span, template: s.Template.Syntax, bin
         for (origins.items) |origin| if (offset >= origin.start and offset < origin.end) {
             if (origin.file) |origin_file| self.file = origin_file;
             self.offset = origin.source;
+            self.span_end = origin.source;
             if (origin.call) |call| self.call_site = location(self.graph.sources[call.file], call.offset);
             break;
         };
@@ -673,7 +803,7 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
         try types.hashValue(binding.value, self.graph, &binding_hash, 0);
     }
     try self.steps.append(self.a, .{ .sql = try self.a.dupe(u8, canonical), .plan_digest = digest, .definition = location(self.graph.sources[file], span.start), .call = self.call_site, .instance = try self.a.dupe(u8, self.instance), .bindings_digest = binding_hash.finalResult(), .checked = checked });
-    if (self.in_case) try self.actions.append(self.a, .{ .step = self.steps.items.len - 1, .expectation = .complete, .location = location(self.graph.sources[file], span.start) });
+    if (self.in_case) try self.actions.append(self.a, .{ .step = self.steps.items.len - 1, .expectation = .complete, .location = locationSpan(self.graph.sources[file], .{ .start = span.start, .end = span.end }) });
 }
 fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []const Binding, depth: usize) !void {
     if (!self.test_mode) return error.TestInBuildTarget;
@@ -701,7 +831,7 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
     const sql = try self.verify();
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(sql, &digest, .{});
-    try self.cases.append(self.a, .{ .name = try self.a.dupe(u8, case.name), .identity = identity, .location = location(self.graph.sources[file], span.start), .sql = sql, .sql_digest = digest, .steps = try self.steps.toOwnedSlice(self.a), .actions = try self.actions.toOwnedSlice(self.a) });
+    try self.cases.append(self.a, .{ .name = try self.a.dupe(u8, case.name), .identity = identity, .location = locationSpan(self.graph.sources[file], .{ .start = span.start, .end = span.end }), .sql = sql, .sql_digest = digest, .steps = try self.steps.toOwnedSlice(self.a), .actions = try self.actions.toOwnedSlice(self.a) });
 }
 fn assertion(self: *Self, file: usize, span: s.Span, value: s.Assertion, bindings: []const Binding) !void {
     if (!self.in_case) return error.TestAssertionOutsideCase;
@@ -746,7 +876,7 @@ fn workflow(self: *Self, file: usize, span: s.Span, value: s.Workflow, bindings:
         if (std.mem.eql(u8, program.name, name.identifier)) break program;
     } else return error.UnknownBuildProgram;
     if (program.control.state != .active and program.control.state != .suspended and program.control.state != .retired) return error.InvalidDataflowTransition;
-    try self.actions.append(self.a, .{ .expectation = .{ .workflow = .{ .name = name.identifier, .completed = value.completed, .refused = value.refused, .observations = value.observations } }, .location = location(self.graph.sources[file], span.start) });
+    try self.actions.append(self.a, .{ .expectation = .{ .workflow = .{ .name = name.identifier, .completed = value.completed, .refused = value.refused, .observations = value.observations } }, .location = locationSpan(self.graph.sources[file], .{ .start = span.start, .end = span.end }) });
 }
 pub const BoundedBuffer = struct {
     allocator: std.mem.Allocator,
@@ -806,6 +936,18 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
     }
     return writer.bytes.items;
 }
+fn tokenEndAt(text: []const u8, offset: usize) usize {
+    if (offset >= text.len) return offset;
+    var scan = f.SqlInput.CompilerScan.init(text[offset..]) catch return offset;
+    const first = (scan.next() catch null) orelse return offset;
+    if (first.start != 0) return offset;
+    if (first.kind == .symbol and first.end == 1 and text[offset] == '$') {
+        if (scan.next() catch null) |second| {
+            if (second.start == 1 and second.kind == .word) return offset + second.end;
+        }
+    }
+    return offset + first.end;
+}
 fn tokenIs(text: []const u8, token: s.Token, word: []const u8) bool {
     return token.kind == .word and std.ascii.eqlIgnoreCase(text[token.start..token.end], word);
 }
@@ -838,7 +980,11 @@ pub fn writeValue(writer: *BoundedBuffer, value: Value) !void {
     }
 }
 pub fn location(source: Graph.Source, offset: usize) p.Diagnostic.Location {
-    const position = @min(offset, source.text.len);
+    return locationSpan(source, .{ .start = @intCast(@min(offset, std.math.maxInt(u32))), .end = @intCast(@min(offset, std.math.maxInt(u32))) });
+}
+pub fn locationSpan(source: Graph.Source, span: SourceDiagnostic.Span) p.Diagnostic.Location {
+    const position = @min(@as(usize, span.start), source.text.len);
+    const end_pos = @min(@max(position, @as(usize, span.end)), source.text.len);
     var line: u64 = 1;
     var start: usize = 0;
     for (source.text[0..position], 0..) |byte, i| if (byte == '\n') {
@@ -847,7 +993,7 @@ pub fn location(source: Graph.Source, offset: usize) p.Diagnostic.Location {
     };
     var path: [600]u8 = undefined;
     const name = std.fmt.bufPrint(&path, "{s}/{s}", .{ source.package, source.path }) catch source.path;
-    var result: p.Diagnostic.Location = .{ .offset = .init(position), .length = .init(0), .line = .init(line), .byte_column = .init(position - start + 1) };
+    var result: p.Diagnostic.Location = .{ .offset = .init(position), .length = .init(end_pos - position), .line = .init(line), .byte_column = .init(position - start + 1) };
     const source_path = p.Diagnostic.SourcePath.init(name) catch unreachable;
     source_path.apply(&result);
     return result;

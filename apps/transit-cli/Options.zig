@@ -58,12 +58,12 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        const known = for ([_][]const u8{ "--help", "--no-ui", "--config", "--format", "-c", "-f", "--parameters", "--init", "--no-rc", "--dir", "--plan", "--out", "--database", "--schema", "--branch", "--account", "--attempt", "--allow-grants" }) |name| {
+        const known = for ([_][]const u8{ "--help", "--no-ui", "--config", "--format", "-c", "-f", "--parameters", "--init", "--no-rc", "--dir", "--plan", "--out", "--database", "--schema", "--branch", "--account", "--attempt", "--allow-grants", "--color" }) |name| {
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
         const option = known orelse return diagnostic.invalidArgument("unexpected input");
-        if (std.mem.eql(u8, option, "--dir") or std.mem.eql(u8, option, "--plan") or std.mem.eql(u8, option, "--out") or std.mem.eql(u8, option, "--database") or std.mem.eql(u8, option, "--schema") or std.mem.eql(u8, option, "--branch") or std.mem.eql(u8, option, "--account") or std.mem.eql(u8, option, "--attempt") or std.mem.eql(u8, option, "--allow-grants")) {
+        if (std.mem.eql(u8, option, "--dir") or std.mem.eql(u8, option, "--plan") or std.mem.eql(u8, option, "--out") or std.mem.eql(u8, option, "--database") or std.mem.eql(u8, option, "--schema") or std.mem.eql(u8, option, "--branch") or std.mem.eql(u8, option, "--account") or std.mem.eql(u8, option, "--attempt") or std.mem.eql(u8, option, "--allow-grants") or std.mem.eql(u8, option, "--color")) {
             diagnostic.show_help = true;
             return diagnostic.invalidOption("is not supported by this command");
         }
@@ -121,12 +121,12 @@ fn parseMigrate(args: []const []const u8, console_config: ?[]const u8, result: *
     }
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        const known = for ([_][]const u8{ "--help", "--dir", "-f", "--plan", "--out", "--config", "--database", "--schema", "--branch", "--account", "--attempt", "--allow-grants", "--format", "--no-ui", "-c", "--parameters", "--init", "--no-rc" }) |name| {
+        const known = for ([_][]const u8{ "--help", "--dir", "-f", "--plan", "--out", "--config", "--database", "--schema", "--branch", "--account", "--attempt", "--allow-grants", "--format", "--no-ui", "-c", "--parameters", "--init", "--no-rc", "--color" }) |name| {
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
         const option = known orelse return diagnostic.invalidArgument("unexpected input");
-        if (std.mem.eql(u8, option, "--no-ui") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "--parameters") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")) {
+        if (std.mem.eql(u8, option, "--no-ui") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "--parameters") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc") or std.mem.eql(u8, option, "--color")) {
             diagnostic.show_help = true;
             return diagnostic.invalidOption("is not supported by this command");
         }
@@ -279,5 +279,10 @@ test "migrate parses actions, target assertions and rejects console/server flags
         &.{ "migrate", "plan", "--dir", "m", "--plan", "p.json" },
         &.{ "migrate", "status", "--no-rc" },
         &.{ "console", "--dir", "migrations" },
+        &.{ "server", "--color", "off" },
+        &.{ "console", "--color", "off" },
+        &.{ "migrate", "plan", "--dir", "m", "--color", "off" },
     }) |args| try t.expectError(error.InvalidInvocation, parse(args));
+    try t.expectEqual(@import("BuildOptions.zig").ColorMode.off, (try parse(&.{ "build", "--color", "off" })).build.color);
+    try t.expectEqual(@import("BuildOptions.zig").ColorMode.on, (try parse(&.{ "test", "--color", "on" })).build.color);
 }

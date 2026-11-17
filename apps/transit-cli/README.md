@@ -13,14 +13,16 @@ dataflow declarations share SQL operation owners and retain original identities
 for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
 `transit build` compiles typed application modules offline into executable SQL
-and provenance. Explicit-basis migration targets publish reviewed Table CREATE/ADD
+and provenance, with Zig-style source diagnostics and `--color auto|off|on` on
+stderr. Explicit-basis migration targets publish reviewed Table CREATE/ADD
 SQL, immutable history and a successor basis; they never apply it. Explicit `--fetch` prepares pinned dependencies; normal builds
 verify frozen content without network access. See the
 [application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
 
 `transit test` compiles the same source graph and runs explicit Table and public
 Queue-program cases in
-private local databases. It uses real SQL session and authorization owners without
+private local databases, reporting compile and assertion failures with source
+spans, notes and `--color auto|off|on` on stderr. It uses real SQL session and authorization owners without
 listeners or server configuration. See the
 [test CLI reference](../../docs/handbook/reference/cli.md#application-table-tests)
 for supported assertions, budgets and complete/failure reporting.

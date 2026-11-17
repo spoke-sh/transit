@@ -1,6 +1,7 @@
 //! Source syntax only. File and repository I/O stay with the caller.
 const std = @import("std");
 const f = @import("transit_fuze");
+const SourceDiagnostic = @import("SourceDiagnostic.zig");
 pub const Template = @import("Template.zig");
 pub const Token = f.SqlInput.CompilerScan.Token;
 pub const Span = struct { start: u32, end: u32 };
@@ -62,13 +63,22 @@ text: []const u8,
 tokens: []const Token,
 index: usize = 0,
 location: *usize,
+report: ?*SourceDiagnostic.Report = null,
+file_index: ?usize = null,
 depth: usize = 0,
 
 pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
+    return parseReported(a, text, location, null, null);
+}
+pub fn parseReported(a: std.mem.Allocator, text: []const u8, location: *usize, file_index: ?usize, report: ?*SourceDiagnostic.Report) !File {
     // Shared framing is a prerequisite, not semantic acceptance.
-    var framed = try f.SqlScript.Compiler.init(text);
+    var framed = f.SqlScript.Compiler.init(text) catch |err| {
+        if (report) |r| r.setSpan(file_index, 0, 0);
+        return err;
+    };
     while (framed.next() catch |err| {
         location.* = framed.scan.position;
+        if (report) |r| r.setSpan(file_index, framed.scan.position, @min(text.len, framed.scan.position + 1));
         return err;
     }) |_| {}
     var scan = try f.SqlInput.CompilerScan.init(text);
@@ -77,7 +87,7 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         if (token.kind == .space or token.kind == .comment) continue;
         try tokens.append(a, token);
     }
-    var self: Self = .{ .a = a, .text = text, .tokens = try tokens.toOwnedSlice(a), .location = location };
+    var self: Self = .{ .a = a, .text = text, .tokens = try tokens.toOwnedSlice(a), .location = location, .report = report, .file_index = file_index };
     var definitions: std.ArrayList(Definition) = .empty;
     var imports: std.ArrayList(Import) = .empty;
     var dependencies: std.ArrayList(Dependency) = .empty;
@@ -102,7 +112,11 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
             try self.require(";");
             try dependencies.append(a, .{ .name = name, .repository = repository, .revision = revision, .subdirectory = subdirectory, .span = self.span(start) });
         } else {
-            try self.require("CREATE");
+            if (!self.is("CREATE")) {
+                self.failExpected("'IMPORT', 'DEPENDENCY' or 'CREATE'");
+                return error.InvalidSourceSyntax;
+            }
+            _ = self.take("CREATE");
             const public = self.take("PUBLIC");
             const kind: @FieldType(Definition, "kind") = if (self.take("DOMAIN")) .domain else if (self.take("VARIANT")) .variant else if (self.take("MODULE")) .module else if (self.take("INTERFACE")) .interface else if (self.take("FUNCTION")) .function else if (self.take("GUARD")) .guard else if (self.take("PROCEDURE")) .procedure else if (self.take("MIGRATION")) blk: {
                 try self.require("TARGET");
@@ -110,7 +124,12 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
             } else if (self.take("TARGET")) .target else if (self.take("TEST")) blk: {
                 try self.require("TARGET");
                 break :blk .test_target;
-            } else return error.UnsupportedSourceDeclaration;
+            } else {
+                const resource_like = self.is("TABLE") or self.is("STREAM") or self.is("QUEUE") or self.is("DATAFLOW");
+                self.failExpected("top-level declaration ('MODULE', 'TARGET', 'TEST TARGET', 'MIGRATION TARGET', 'DOMAIN', 'VARIANT', 'INTERFACE', 'FUNCTION', 'GUARD' or 'PROCEDURE')");
+                if (resource_like) if (self.report) |r| r.addNote(null, null, "place resource declarations inside 'CREATE TARGET <name> AS BEGIN ... END;' or 'CREATE MODULE'", .{});
+                return error.UnsupportedSourceDeclaration;
+            };
             const name = try self.identifier();
             const parameters = if (kind == .module or kind == .interface or kind == .function or kind == .guard or kind == .procedure) try self.parseParameters() else &.{};
             const return_type: ?TypeRef = if (kind == .function or (kind == .procedure and self.is("RETURNS"))) blk: {
@@ -137,45 +156,80 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
                 try self.require("AS");
                 const base = try self.scalarType();
                 try self.require("IDENTITY");
+                const id_span = self.currentSpan();
                 domain = .{ .base = base, .identity = try self.string() };
-                if (domain.?.identity.len == 0 or domain.?.identity.len > 128) return error.InvalidDomainIdentity;
+                if (domain.?.identity.len == 0 or domain.?.identity.len > 128) {
+                    if (self.report) |r| r.setSpan(self.file_index, id_span.start, id_span.end);
+                    return error.InvalidDomainIdentity;
+                }
             } else if (kind == .variant) {
                 try self.require("AS");
                 try self.require("(");
                 while (true) {
                     if (constructors.items.len == 64) return error.SourceConstructorLimit;
+                    const ctor_span = self.currentSpan();
                     const constructor = try self.identifier();
-                    for (constructors.items) |prior| if (std.mem.eql(u8, prior.name, constructor)) return error.DuplicateSourceName;
+                    for (constructors.items) |prior| if (std.mem.eql(u8, prior.name, constructor)) {
+                        if (self.report) |r| {
+                            r.setSpan(self.file_index, ctor_span.start, ctor_span.end);
+                            r.setHeadline("duplicate variant constructor '{s}'", .{constructor});
+                        }
+                        return error.DuplicateSourceName;
+                    };
                     try constructors.append(a, .{ .name = constructor, .fields = try self.parseParameters() });
                     if (!self.take(",")) break;
                 }
                 try self.require(")");
             } else if (kind == .function or kind == .guard or kind == .procedure) {
                 try self.require("AS");
+                const begin_span = self.currentSpan();
                 try self.require("BEGIN");
                 if (kind == .procedure) {
-                    if (!self.take("ATOMIC")) return error.ProcedureOutsideAtomic;
+                    if (!self.take("ATOMIC")) {
+                        const sp = self.currentSpan();
+                        if (self.report) |r| r.setSpan(self.file_index, sp.start, sp.end);
+                        return error.ProcedureOutsideAtomic;
+                    }
                 } else if (self.is("ATOMIC")) {
+                    const sp = self.currentSpan();
+                    if (self.report) |r| r.setSpan(self.file_index, sp.start, sp.end);
                     return if (kind == .function) error.ImpureSourceFunction else error.MutationInsideGuard;
                 }
                 const body_begin = self.index;
                 var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
-                const frame = (try script.next()) orelse return error.InvalidSourceSyntax;
+                const frame = (try script.next()) orelse {
+                    self.failExpected("'END'");
+                    if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
+                    return error.InvalidSourceSyntax;
+                };
                 while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
-                if (self.index == body_begin) return error.InvalidSourceSyntax;
+                if (self.index == body_begin) {
+                    self.failExpected("'END'");
+                    return error.InvalidSourceSyntax;
+                }
                 const end_token = self.tokens[self.index - 1];
-                if (!std.ascii.eqlIgnoreCase(self.text[end_token.start..end_token.end], "END")) return error.InvalidSourceSyntax;
-                program = try Template.parseHelper(self.a, self.text, self.tokens[body_begin .. self.index - 1], end_token.start, switch (kind) {
+                if (!std.ascii.eqlIgnoreCase(self.text[end_token.start..end_token.end], "END")) {
+                    self.failExpected("'END'");
+                    if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
+                    return error.InvalidSourceSyntax;
+                }
+                program = try Template.parseHelperReported(self.a, self.text, self.tokens[body_begin .. self.index - 1], end_token.start, switch (kind) {
                     .function => .function,
                     .guard => .guard,
                     .procedure => .procedure,
                     else => unreachable,
-                }, return_type != null, self.location);
+                }, return_type != null, self.location, self.report);
             }
             const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant or kind == .function or kind == .guard or kind == .procedure) &.{} else blk: {
                 try self.require("AS");
+                const begin_span = self.currentSpan();
                 try self.require("BEGIN");
-                const result = try self.parseBody(.end);
+                const result = self.parseBody(.end) catch |err| {
+                    if (err == error.InvalidSourceSyntax and self.index == self.tokens.len) {
+                        if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
+                    }
+                    return err;
+                };
                 try self.require("END");
                 break :blk result;
             };
@@ -184,6 +238,21 @@ pub fn parse(a: std.mem.Allocator, text: []const u8, location: *usize) !File {
         }
     }
     return .{ .definitions = try definitions.toOwnedSlice(a), .imports = try imports.toOwnedSlice(a), .dependencies = try dependencies.toOwnedSlice(a) };
+}
+fn currentSpan(self: *const Self) SourceDiagnostic.Span {
+    const end_pos: u32 = @intCast(self.text.len);
+    return if (self.index < self.tokens.len) .{ .start = self.tokens[self.index].start, .end = self.tokens[self.index].end } else .{ .start = end_pos, .end = end_pos };
+}
+fn found(self: *const Self, buf: *[96]u8) []const u8 {
+    return if (self.index < self.tokens.len) Template.describeToken(self.text, self.tokens[self.index], buf) else "end of file";
+}
+fn failExpected(self: *Self, expected: []const u8) void {
+    const r = self.report orelse return;
+    if (r.headline_len != 0) return;
+    var buf: [96]u8 = undefined;
+    const sp = self.currentSpan();
+    r.setSpan(self.file_index, sp.start, sp.end);
+    r.setHeadline("expected {s}, found {s}", .{ expected, self.found(&buf) });
 }
 fn at(self: *Self) u32 {
     const offset: u32 = if (self.index < self.tokens.len) self.tokens[self.index].start else @intCast(self.text.len);
@@ -206,14 +275,28 @@ fn take(self: *Self, value: []const u8) bool {
     return true;
 }
 fn require(self: *Self, value: []const u8) !void {
-    if (!self.take(value)) return error.InvalidSourceSyntax;
+    if (!self.take(value)) {
+        var q: [72]u8 = undefined;
+        const label = std.fmt.bufPrint(&q, "'{s}'", .{value}) catch value;
+        self.failExpected(label);
+        return error.InvalidSourceSyntax;
+    }
 }
 fn identifier(self: *Self) ![]const u8 {
     _ = self.at();
-    if (self.index == self.tokens.len or self.tokens[self.index].kind != .word) return error.InvalidSourceName;
+    if (self.index == self.tokens.len or self.tokens[self.index].kind != .word) {
+        self.failExpected("identifier");
+        return error.InvalidSourceName;
+    }
     const token = self.tokens[self.index];
     self.index += 1;
-    if (token.end - token.start > 63) return error.InvalidSourceName;
+    if (token.end - token.start > 63) {
+        if (self.report) |r| {
+            r.setSpan(self.file_index, token.start, token.end);
+            r.setHeadline("identifier exceeds 63-byte maximum length", .{});
+        }
+        return error.InvalidSourceName;
+    }
     return std.ascii.allocLowerString(self.a, self.text[token.start..token.end]);
 }
 fn parseName(self: *Self) !Name {
@@ -223,7 +306,11 @@ fn parseName(self: *Self) !Name {
     return .{ .qualifier = first, .member = second, .constructor = if (self.take(".")) try self.identifier() else null };
 }
 fn scalarType(self: *Self) !ScalarType {
-    return if (self.take("BIGINT")) .bigint else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else error.UnsupportedSourceType;
+    if (self.take("BIGINT")) return .bigint;
+    if (self.take("TEXT")) return .text;
+    if (self.take("BOOLEAN")) return .boolean;
+    self.failExpected("scalar type ('BIGINT', 'TEXT' or 'BOOLEAN')");
+    return error.UnsupportedSourceType;
 }
 fn typeRef(self: *Self) !TypeRef {
     if (self.is("BIGINT") or self.is("TEXT") or self.is("BOOLEAN")) return .{ .scalar = try self.scalarType() };
@@ -234,8 +321,15 @@ fn tableSignature(self: *Self) ![]const Column {
     var columns: std.ArrayList(Column) = .empty;
     while (true) {
         if (columns.items.len == f.TableSchema.max_columns) return error.SourceParameterLimit;
+        const col_span = self.currentSpan();
         const name = try self.identifier();
-        for (columns.items) |prior| if (std.mem.eql(u8, prior.name, name)) return error.DuplicateSourceName;
+        for (columns.items) |prior| if (std.mem.eql(u8, prior.name, name)) {
+            if (self.report) |r| {
+                r.setSpan(self.file_index, col_span.start, col_span.end);
+                r.setHeadline("duplicate column '{s}' in resource signature", .{name});
+            }
+            return error.DuplicateSourceName;
+        };
         var column: Column = .{ .name = name, .type = try self.typeRef() };
         var explicit_null = false;
         if (self.take("NOT")) {
@@ -244,7 +338,13 @@ fn tableSignature(self: *Self) ![]const Column {
         } else explicit_null = self.take("NULL");
         if (self.take("PRIMARY")) {
             try self.require("KEY");
-            if (explicit_null) return error.NullablePrimaryKey;
+            if (explicit_null) {
+                if (self.report) |r| {
+                    r.setSpan(self.file_index, col_span.start, col_span.end);
+                    r.setHeadline("primary key column '{s}' cannot be declared NULL", .{name});
+                }
+                return error.NullablePrimaryKey;
+            }
             column.primary = true;
             column.nullable = false;
         }
@@ -257,7 +357,10 @@ fn tableSignature(self: *Self) ![]const Column {
 }
 fn string(self: *Self) ![]const u8 {
     _ = self.at();
-    if (self.index == self.tokens.len or self.tokens[self.index].kind != .string) return error.InvalidSourceSyntax;
+    if (self.index == self.tokens.len or self.tokens[self.index].kind != .string) {
+        self.failExpected("string literal");
+        return error.InvalidSourceSyntax;
+    }
     const token = self.tokens[self.index];
     self.index += 1;
     return decodeString(self.a, self.text[token.start..token.end]);
@@ -284,8 +387,15 @@ fn parseParameters(self: *Self) ![]const Parameter {
     if (self.take(")")) return &.{};
     while (true) {
         if (result.items.len == 64) return error.SourceParameterLimit;
+        const param_span = self.currentSpan();
         const parameter_name = try self.identifier();
-        for (result.items) |prior| if (std.mem.eql(u8, prior.name, parameter_name)) return error.DuplicateSourceName;
+        for (result.items) |prior| if (std.mem.eql(u8, prior.name, parameter_name)) {
+            if (self.report) |r| {
+                r.setSpan(self.file_index, param_span.start, param_span.end);
+                r.setHeadline("duplicate parameter '{s}'", .{parameter_name});
+            }
+            return error.DuplicateSourceName;
+        };
         const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("MODULE")) .{ .module = try self.parseName() } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else if (self.takeSignature("STREAM")) .{ .stream = try self.tableSignature() } else if (self.takeSignature("QUEUE")) .{ .queue = try self.tableSignature() } else .{ .named = try self.parseName() };
         try result.append(self.a, .{ .name = parameter_name, .kind = kind });
         if (self.take(")")) break;
@@ -299,7 +409,10 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
     if (self.depth > 64) return error.SourceDepthLimit;
     var result: std.ArrayList(Statement) = .empty;
     while (!self.is("END") and !(stop == .conditional and self.is("ELSE")) and !(stop == .arm and self.is("WHEN"))) {
-        if (self.index == self.tokens.len) return error.InvalidSourceSyntax;
+        if (self.index == self.tokens.len) {
+            self.failExpected("'END'");
+            return error.InvalidSourceSyntax;
+        }
         const start = self.at();
         const value: @FieldType(Statement, "value") = if (self.take("USE")) blk: {
             var call = try self.parseCall();
@@ -307,7 +420,10 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
             try self.require(";");
             break :blk .{ .use = call };
         } else if (self.take("EXPORT")) blk: {
-            const kind: enum { table, stream, queue } = if (self.take("TABLE")) .table else if (self.take("STREAM")) .stream else if (self.take("QUEUE")) .queue else return error.InvalidSourceSyntax;
+            const kind: enum { table, stream, queue } = if (self.take("TABLE")) .table else if (self.take("STREAM")) .stream else if (self.take("QUEUE")) .queue else {
+                self.failExpected("'TABLE', 'STREAM' or 'QUEUE' after 'EXPORT'");
+                return error.InvalidSourceSyntax;
+            };
             const operand = self.take("$");
             const source = try self.parseName();
             try self.require("AS");
@@ -326,8 +442,15 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
                 var names: std.ArrayList([]const u8) = .empty;
                 if (!self.take(")")) while (true) {
                     if (names.items.len == 64) return error.SourceParameterLimit;
+                    const bind_span = self.currentSpan();
                     const name = try self.identifier();
-                    for (names.items) |prior| if (std.mem.eql(u8, prior, name)) return error.DuplicateSourceName;
+                    for (names.items) |prior| if (std.mem.eql(u8, prior, name)) {
+                        if (self.report) |r| {
+                            r.setSpan(self.file_index, bind_span.start, bind_span.end);
+                            r.setHeadline("duplicate pattern binding '{s}'", .{name});
+                        }
+                        return error.DuplicateSourceName;
+                    };
                     try names.append(self.a, name);
                     if (self.take(")")) break;
                     try self.require(",");
@@ -336,15 +459,25 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
                 const body = try self.parseBody(.arm);
                 try arms.append(self.a, .{ .constructor = constructor, .names = try names.toOwnedSlice(self.a), .body = body, .span = self.span(arm_start) });
             }
-            if (arms.items.len == 0) return error.InvalidSourceSyntax;
+            if (arms.items.len == 0) {
+                self.failExpected("'WHEN' arm in 'MATCH' statement");
+                return error.InvalidSourceSyntax;
+            }
             try self.require("END");
             try self.require("MATCH");
             try self.require(";");
             break :blk .{ .match = .{ .value = value, .arms = try arms.toOwnedSlice(self.a) } };
         } else if (self.take("TEST")) blk: {
+            const name_span = self.currentSpan();
             const name = try self.string();
-            if (name.len == 0 or name.len > 128 or !std.unicode.utf8ValidateSlice(name)) return error.InvalidTestName;
-            for (name) |byte| if (std.ascii.isControl(byte)) return error.InvalidTestName;
+            if (name.len == 0 or name.len > 128 or !std.unicode.utf8ValidateSlice(name)) {
+                if (self.report) |r| r.setSpan(self.file_index, name_span.start, name_span.end);
+                return error.InvalidTestName;
+            }
+            for (name) |byte| if (std.ascii.isControl(byte)) {
+                if (self.report) |r| r.setSpan(self.file_index, name_span.start, name_span.end);
+                return error.InvalidTestName;
+            };
             try self.require("USING");
             try self.require("MODULES");
             try self.require("(");
@@ -356,8 +489,14 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
                 try self.require(",");
             };
             try self.require("AS");
+            const test_begin = self.currentSpan();
             try self.require("BEGIN");
-            const body = try self.parseBody(.end);
+            const body = self.parseBody(.end) catch |err| {
+                if (err == error.InvalidSourceSyntax and self.index == self.tokens.len) {
+                    if (self.report) |r| r.addNote(self.file_index, test_begin, "'BEGIN' block opened here", .{});
+                }
+                return err;
+            };
             try self.require("END");
             try self.require(";");
             break :blk .{ .test_case = .{ .name = name, .setup = try setup.toOwnedSlice(self.a), .body = body } };
@@ -374,11 +513,20 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
                 try self.require(";");
                 break :blk .{ .workflow = .{ .name = name, .completed = completed, .refused = refused, .observations = observations } };
             }
-            const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else return error.UnsupportedTestAssertion;
+            const kind: enum { rows, command, refusal } = if (self.take("ROWS")) .rows else if (self.take("COMMAND")) .command else if (self.take("STATEMENT")) .refusal else {
+                self.failExpected("'ROWS', 'COMMAND', 'STATEMENT' or 'WORKFLOW' after 'ASSERT'");
+                return error.UnsupportedTestAssertion;
+            };
             const sql = try self.template(try self.parenthesized(), false);
             // Assertions contain simple statements in the reference grammar.
             // An empty compound body can otherwise pass shared SQL framing.
-            if (sql.kind == .program) return error.UnsupportedTestAssertion;
+            if (sql.kind == .program) {
+                if (self.report) |r| {
+                    r.setSpan(self.file_index, start, self.span(start).end);
+                    r.setHeadline("dataflow program declarations are not allowed inside 'ASSERT (...)'", .{});
+                }
+                return error.UnsupportedTestAssertion;
+            }
             const expected: @FieldType(Assertion, "expected") = switch (kind) {
                 .rows => rows: {
                     try self.require("EQUAL");
@@ -393,15 +541,29 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
                 .refusal => refusal: {
                     try self.require("FAILS");
                     try self.require("WITH");
-                    break :refusal .{ .refusal = std.meta.stringToEnum(@FieldType(@FieldType(Assertion, "expected"), "refusal"), try self.string()) orelse return error.UnsupportedTestRefusal };
+                    const reason_span = self.currentSpan();
+                    const reason_text = try self.string();
+                    break :refusal .{ .refusal = std.meta.stringToEnum(@FieldType(@FieldType(Assertion, "expected"), "refusal"), reason_text) orelse {
+                        if (self.report) |r| {
+                            r.setSpan(self.file_index, reason_span.start, reason_span.end);
+                            r.setHeadline("unsupported refusal reason; expected 'duplicate_key' or 'check_violation'", .{});
+                        }
+                        return error.UnsupportedTestRefusal;
+                    } };
                 },
             };
             try self.require(";");
             break :blk .{ .assertion = .{ .sql = sql, .expected = expected } };
         } else if (self.take("IF")) blk: {
+            const if_span = SourceDiagnostic.Span{ .start = start, .end = start + 2 };
             const condition = try self.expression(0);
             try self.require("THEN");
-            const yes = try self.parseBody(.conditional);
+            const yes = self.parseBody(.conditional) catch |err| {
+                if (err == error.InvalidSourceSyntax and self.index == self.tokens.len) {
+                    if (self.report) |r| r.addNote(self.file_index, if_span, "'IF' statement opened here", .{});
+                }
+                return err;
+            };
             const no = if (self.take("ELSE")) try self.parseBody(.end) else &.{};
             try self.require("END");
             try self.require("IF");
@@ -410,7 +572,10 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
         } else blk: {
             const begin = self.index;
             var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
-            const frame = (try script.next()) orelse return error.InvalidSourceSyntax;
+            const frame = (try script.next()) orelse {
+                self.failExpected("statement");
+                return error.InvalidSourceSyntax;
+            };
             while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
             const sql = self.tokens[begin..self.index];
             try self.require(";");
@@ -422,7 +587,13 @@ fn parseBody(self: *Self, stop: enum { end, conditional, arm }) anyerror![]const
 }
 fn template(self: *Self, tokens: []const Token, rows: bool) !Template.Syntax {
     const end = if (self.index > 0) self.tokens[self.index - 1].start else self.at();
-    return Template.parse(self.a, self.text, tokens, end, rows, self.location);
+    const parsed = Template.parseReported(self.a, self.text, tokens, end, rows, self.location, self.report) catch |err| {
+        if (self.report) |r| if (r.file == null) {
+            r.file = self.file_index;
+        };
+        return err;
+    };
+    return parsed;
 }
 fn parseCall(self: *Self) !Call {
     return self.callAfterName(try self.parseName());
@@ -439,6 +610,7 @@ fn callAfterName(self: *Self, name: Name) !Call {
     return .{ .name = name, .arguments = try arguments.toOwnedSlice(self.a) };
 }
 fn parenthesized(self: *Self) ![]const Token {
+    const open_span = self.currentSpan();
     try self.require("(");
     const start = self.index;
     var depth: usize = 1;
@@ -450,20 +622,38 @@ fn parenthesized(self: *Self) ![]const Token {
             depth -= 1;
             if (depth == 0) return self.tokens[start .. self.index - 1];
         } else {
-            if (self.is(";")) return error.InvalidTestStatement;
+            if (self.is(";")) {
+                const semi = self.currentSpan();
+                if (self.report) |r| r.setSpan(self.file_index, semi.start, semi.end);
+                return error.InvalidTestStatement;
+            }
             self.index += 1;
         }
     }
+    self.failExpected("')'");
+    if (self.report) |r| r.addNote(self.file_index, open_span, "opening '(' here", .{});
     return error.InvalidSourceSyntax;
 }
 fn count(self: *Self) !u64 {
     _ = self.at();
-    if (self.index == self.tokens.len) return error.InvalidTestCount;
+    if (self.index == self.tokens.len) {
+        self.failExpected("non-negative integer count");
+        return error.InvalidTestCount;
+    }
     const token = self.tokens[self.index];
     const bytes = self.text[token.start..token.end];
-    for (bytes) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidTestCount;
+    for (bytes) |byte| if (!std.ascii.isDigit(byte)) {
+        self.failExpected("non-negative integer count");
+        return error.InvalidTestCount;
+    };
     self.index += 1;
-    return std.fmt.parseInt(u64, bytes, 10) catch return error.InvalidTestCount;
+    return std.fmt.parseInt(u64, bytes, 10) catch {
+        if (self.report) |r| {
+            r.setSpan(self.file_index, token.start, token.end);
+            r.setHeadline("integer count overflows 64-bit unsigned range", .{});
+        }
+        return error.InvalidTestCount;
+    };
 }
 fn expression(self: *Self, minimum: u8) anyerror!*Expr {
     self.depth += 1;

@@ -109,14 +109,20 @@ def source_diagnostics(cli, parent, command):
         assert value['outcome'] == 'not_submitted', value
         facts = {item['field']: item for item in value['facts'] if item}
         human = run(*args, json_mode=False)
-        assert value['message'] in human and 'No SQL was submitted.' in human, human
+        assert 'error: ' in human and 'Code: application.source' not in human and 'native_cause:' not in human, human
+        if command == 'build':
+            assert 'Build Summary:' in human and 'steps succeeded; 1 failed' in human, human
+        else:
+            assert 'Test Summary:' in human and '(no SQL submitted)' in human, human
         for field, expected in (('actual_source', path), ('source_kind', kind)):
             if expected is not None:
                 assert facts[field]['value']['text'] == expected, value
                 assert expected in human, human
         if value['location']:
             at = value['location']
-            assert f"{at['source']}:{at['line']}:{at['byte_column']}: error:" in human, human
+            shown = at['source'].removeprefix('root/')
+            assert f"{shown}:{at['line']}:{at['byte_column']}: error:" in human and 'root/' not in human, human
+            assert '\n^' in human or ' ^' in human, human
         return value
 
     # Entry validation wins over a bad unrelated candidate discovered later.
@@ -183,6 +189,19 @@ def source_diagnostics(cli, parent, command):
     source(root, 'bad.transit', '\nIMPORT;')
     syntax = failure('syntax', stage='parse')
     assert syntax['location']['source'] == 'root/bad.transit' and syntax['location']['line'] == '2', syntax
+    assert int(syntax['location']['length']) == 1, syntax
+    colored = subprocess.run([str(cli), command, '--color', 'on'], cwd=root, capture_output=True, text=True,
+                             timeout=30, env={'PATH': '/unavailable'}, preexec_fn=offline)
+    assert colored.returncode == 1 and not colored.stdout, colored
+    assert '\x1b[1;31merror:\x1b[0m' in colored.stderr and '\x1b[1;32m^\x1b[0m' in colored.stderr, colored.stderr
+    assert "expected identifier, found ';'" in colored.stderr, colored.stderr
+    plain_forced = subprocess.run([str(cli), command, '--color', 'off'], cwd=root, capture_output=True, text=True,
+                                  timeout=30, env={'PATH': '/unavailable'}, preexec_fn=offline)
+    assert plain_forced.returncode == 1 and '\x1b' not in plain_forced.stderr, plain_forced.stderr
+    json_colored = subprocess.run([str(cli), command, '--format', 'json', '--color', 'on'], cwd=root,
+                                  capture_output=True, text=True, timeout=30, env={'PATH': '/unavailable'}, preexec_fn=offline)
+    assert json_colored.returncode == 1 and not json_colored.stderr and '\x1b' not in json_colored.stdout
+    assert json.loads(json_colored.stdout)['code'] == 'application.source.syntax'
     source(root, 'bad.transit', '\nCREATE nonsense;')
     failure('unsupported', stage='compile')
     (root / 'bad.transit').unlink()

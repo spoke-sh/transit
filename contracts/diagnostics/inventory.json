@@ -266,13 +266,15 @@
       "open_error_set_uses": 1,
       "propagation": {
         "try": 46,
-        "catch": 7
+        "catch": 9
       },
       "imports": [
         "BuildMigration.zig",
         "BuildOptions.zig",
+        "BuildReport.zig",
         "BuildSources.zig",
         "Diagnostic.zig",
+        "Style.zig",
         "build_version",
         "server/ArtifactHash.zig",
         "std",
@@ -323,7 +325,45 @@
       },
       "imports": [
         "Diagnostic.zig",
+        "Style.zig",
         "std"
+      ]
+    },
+    "apps/transit-cli/BuildReport.zig": {
+      "errors": {},
+      "outcomes": {
+        "CaseView.status": [
+          "passed",
+          "failed",
+          "not_run"
+        ],
+        "Mode": [
+          "build",
+          "test_suite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "renderFailure()": "<inferred>",
+        "renderTestSuiteFailure()": "<inferred>",
+        "writeExcerpt()": "<inferred>",
+        "writeLocation()": "<inferred>",
+        "writePackagePath()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 210,
+        "catch": 22
+      },
+      "imports": [
+        "BuildOptions.zig",
+        "BuildSources.zig",
+        "EnvelopeDiagnostic.zig",
+        "Style.zig",
+        "std",
+        "transit_compiler",
+        "transit_query",
+        "transit_test"
       ]
     },
     "apps/transit-cli/BuildSources.zig": {
@@ -333,6 +373,7 @@
         "ConflictingDependency": 1,
         "DependencyLimit": 2,
         "EmptySourcePackage": 1,
+        "ExcludedSourcePath": 1,
         "FetchWithOverride": 1,
         "FileNotFound": 3,
         "IncompatibleSourceDefinition": 1,
@@ -342,7 +383,7 @@
         "InvalidSourceLock": 1,
         "InvalidSourcePath": 2,
         "MissingBuildEntry": 1,
-        "MissingSource": 1,
+        "MissingSource": 2,
         "MissingSourceLock": 1,
         "PathAlreadyExists": 3,
         "ReadFailed": 1,
@@ -1207,7 +1248,14 @@
           "comment",
           "failure",
           "category",
-          "emphasis"
+          "emphasis",
+          "note",
+          "span"
+        ],
+        "Mode": [
+          "auto",
+          "off",
+          "on"
         ]
       },
       "error_sets": {},
@@ -1410,6 +1458,7 @@
         "Migrate.zig",
         "Options.zig",
         "RuntimeRole.zig",
+        "Style.zig",
         "Test.zig",
         "TestHost.zig",
         "build_version",
@@ -13286,8 +13335,8 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 141,
-        "catch": 11
+        "try": 140,
+        "catch": 15
       },
       "imports": [
         "Graph.zig",
@@ -13347,17 +13396,17 @@
         "InvalidRepositoryRevision": 2,
         "InvalidSourceName": 1,
         "InvalidSourcePath": 3,
-        "MissingSource": 2,
+        "MissingSource": 3,
         "PrivateSourceSymbol": 1,
         "RepositoryCredentialsForbidden": 1,
         "ReservedPackageName": 1,
         "SourceBytesLimit": 2,
-        "SourceDependencyCycle": 1,
+        "SourceDependencyCycle": 2,
         "SourceDependencyLimit": 1,
         "SourceDepthLimit": 4,
         "SourceFileLimit": 1,
-        "SourceImportCycle": 1,
-        "UndeclaredDependency": 1,
+        "SourceImportCycle": 2,
+        "UndeclaredDependency": 2,
         "UnknownImport": 1,
         "UnknownSourceSymbol": 1,
         "UnsupportedRepositoryTransport": 1
@@ -13368,7 +13417,9 @@
         "importPath()": "<inferred>",
         "imported()": "<inferred>",
         "init()": "<inferred>",
+        "initReported()": "<inferred>",
         "resolve()": "<inferred>",
+        "resolveReported()": "<inferred>",
         "selectedPath()": "<inferred>",
         "treeDigest()": "<inferred>",
         "validPackage()": "<inferred>",
@@ -13379,10 +13430,11 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 19,
-        "catch": 2
+        "try": 15,
+        "catch": 6
       },
       "imports": [
+        "SourceDiagnostic.zig",
         "Syntax.zig",
         "std"
       ]
@@ -13617,31 +13669,123 @@
     },
     "packages/zig/transit-compiler/src/SourceDiagnostic.zig": {
       "errors": {
-        "DuplicateProgramField": 1,
-        "DuplicateProgramResource": 1,
-        "DuplicateProgramVariable": 1,
-        "ImpureSourceFunction": 1,
-        "InvalidQueuePredicate": 1,
-        "MigrationTransformRequired": 1,
-        "MissingProcedureReturn": 1,
-        "MissingRequiredField": 1,
-        "MutationInsideGuard": 1,
-        "NullNotAllowed": 1,
-        "OutOfMemory": 1,
-        "ProcedureHasNoResult": 1,
-        "ProcedureOutsideAtomic": 1,
-        "ProgramTooComplex": 1,
-        "ProgramTooDeep": 1,
-        "RecursiveSourceCall": 1,
-        "UnexpectedProcedureReturn": 1,
-        "UnknownColumn": 1,
-        "UnknownProgramField": 1,
-        "UnknownProgramResource": 1,
-        "UnknownProgramVariable": 1,
+        "AccessDenied": 1,
+        "BuildArtifactMismatch": 1,
+        "BuildOutputExists": 1,
+        "ConflictingDependency": 1,
+        "ConflictingModuleInstance": 1,
+        "DuplicateDependency": 1,
+        "DuplicateDomainIdentity": 1,
+        "DuplicateProgramField": 2,
+        "DuplicateProgramResource": 2,
+        "DuplicateProgramVariable": 2,
+        "DuplicateSourceMatchArm": 1,
+        "DuplicateSourceName": 1,
+        "DuplicateTestCase": 1,
+        "EmptyBuildTarget": 1,
+        "EmptyTestCase": 1,
+        "EmptyTestTarget": 1,
+        "ExcludedSourcePath": 1,
+        "ExportOutsideModule": 1,
+        "FileNotFound": 1,
+        "ForeignTableExport": 1,
+        "ImpureSourceFunction": 2,
+        "IncompatibleSourceDefinition": 1,
+        "InvalidCatalogName": 1,
+        "InvalidDomainIdentity": 1,
+        "InvalidInstanceName": 1,
+        "InvalidQueuePredicate": 2,
+        "InvalidRepositoryRevision": 1,
+        "InvalidRowWidth": 1,
+        "InvalidSourceDigest": 1,
+        "InvalidSourceEncoding": 1,
+        "InvalidSourceLock": 1,
+        "InvalidSourceName": 1,
+        "InvalidSourcePath": 1,
+        "InvalidTestCount": 1,
+        "InvalidTestName": 1,
+        "InvalidTestStatement": 1,
+        "InvalidUtf8": 1,
+        "InvalidVariantConstructor": 1,
+        "IsDir": 1,
+        "LiteralOutOfRange": 1,
+        "MigrationBasisMismatch": 1,
+        "MigrationHistoryChanged": 1,
+        "MigrationNamespaceMismatch": 1,
+        "MigrationTransformRequired": 2,
+        "MigrationVersionOrder": 1,
+        "MissingBuildEntry": 1,
+        "MissingMigrationBasis": 1,
+        "MissingMigrationTarget": 1,
+        "MissingProcedureReturn": 2,
+        "MissingRequiredField": 2,
+        "MissingSource": 1,
+        "MissingSourceLock": 1,
+        "MissingSourceTarget": 1,
+        "ModuleInterfaceMismatch": 1,
+        "MutationInsideGuard": 2,
+        "MutationOutsideAtomic": 1,
+        "NestedAtomicProgram": 1,
+        "NestedTestCase": 1,
+        "NonExhaustiveSourceMatch": 1,
+        "NotDir": 1,
+        "NotModuleConstructor": 1,
+        "NotSourceDomain": 1,
+        "NullNotAllowed": 2,
+        "NullablePrimaryKey": 1,
+        "OutOfMemory": 2,
+        "Overflow": 1,
+        "PathAlreadyExists": 1,
+        "PermissionDenied": 1,
+        "PrivateSourceSymbol": 1,
+        "ProcedureHasNoResult": 2,
+        "ProcedureOutsideAtomic": 2,
+        "ProgramArgumentMismatch": 1,
+        "ProgramTooComplex": 2,
+        "ProgramTooDeep": 2,
+        "ProgramTypeMismatch": 1,
+        "RecursiveSourceCall": 2,
+        "RepositoryCredentialsForbidden": 1,
+        "RepositoryRevisionMismatch": 1,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceArgumentCount": 1,
+        "SourceDependencyCycle": 1,
+        "SourceDigestMismatch": 1,
+        "SourceDomainMismatch": 1,
+        "SourceImportCycle": 1,
+        "SourceTypeMismatch": 1,
+        "StaleSourceLock": 1,
+        "SymLinkLoop": 1,
+        "TableInterfaceMismatch": 1,
+        "TestAssertionOutsideCase": 1,
+        "TestCommandRequired": 1,
+        "TestInBuildTarget": 1,
+        "TestMutationRequired": 1,
+        "TestRowsRequired": 1,
+        "TestStatementOutsideCase": 1,
+        "UnbalancedSqlBlock": 1,
+        "UndeclaredDependency": 1,
+        "UndeclaredOverride": 1,
+        "UnexpectedProcedureReturn": 2,
+        "UnknownBuildProgram": 1,
+        "UnknownBuildTable": 1,
+        "UnknownColumn": 2,
+        "UnknownImport": 1,
+        "UnknownProgramField": 2,
+        "UnknownProgramResource": 2,
+        "UnknownProgramVariable": 2,
+        "UnknownSourceExport": 1,
+        "UnknownSourceOperand": 1,
+        "UnknownSourceSymbol": 1,
+        "UnknownVariantConstructor": 1,
         "UnsupportedMigrationDefinition": 1,
         "UnsupportedMigrationHistory": 1,
-        "UnsupportedNominalColumn": 1,
-        "UnsupportedNominalOperation": 1
+        "UnsupportedNominalColumn": 2,
+        "UnsupportedNominalOperation": 2,
+        "UnsupportedRepositoryTransport": 1,
+        "UnsupportedSourceFileKind": 1,
+        "UnterminatedSqlToken": 1,
+        "WrongSourceTargetKind": 1
       },
       "outcomes": {
         "Family": [
@@ -13665,10 +13809,10 @@
       },
       "error_sets": {},
       "error_returns": {},
-      "open_error_set_uses": 4,
+      "open_error_set_uses": 5,
       "propagation": {
         "try": 0,
-        "catch": 18
+        "catch": 19
       },
       "imports": [
         "std",
@@ -13745,7 +13889,7 @@
         "ImpureSourceFunction": 1,
         "InvalidDomainIdentity": 1,
         "InvalidSourceName": 2,
-        "InvalidSourceSyntax": 10,
+        "InvalidSourceSyntax": 14,
         "InvalidTestCount": 3,
         "InvalidTestName": 2,
         "InvalidTestStatement": 1,
@@ -13873,6 +14017,7 @@
         "parseCall()": "<inferred>",
         "parseName()": "<inferred>",
         "parseParameters()": "<inferred>",
+        "parseReported()": "<inferred>",
         "require()": "<inferred>",
         "scalarType()": "<inferred>",
         "string()": "<inferred>",
@@ -13882,10 +14027,11 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 174,
-        "catch": 2
+        "try": 169,
+        "catch": 8
       },
       "imports": [
+        "SourceDiagnostic.zig",
         "Template.zig",
         "std",
         "transit_fuze"
@@ -13977,6 +14123,8 @@
         "nullable()": "<inferred>",
         "parse()": "<inferred>",
         "parseHelper()": "<inferred>",
+        "parseHelperReported()": "<inferred>",
+        "parseReported()": "<inferred>",
         "predicate()": "anyerror",
         "program()": "<inferred>",
         "programArguments()": "anyerror",
@@ -14001,9 +14149,10 @@
       "open_error_set_uses": 9,
       "propagation": {
         "try": 262,
-        "catch": 0
+        "catch": 7
       },
       "imports": [
+        "SourceDiagnostic.zig",
         "std",
         "transit_fuze"
       ]

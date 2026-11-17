@@ -9,7 +9,36 @@ session: *g.Session,
 rows: usize = 0,
 bytes: usize = 0,
 action: usize = 0,
+detail: Detail = .{},
 pub const Failure = enum { rows, counts, expected_refusal, refusal_reason, workflow_counts, workflow_progress };
+pub const Detail = struct {
+    expected_primary: u64 = 0,
+    expected_secondary: u64 = 0,
+    observed_primary: u64 = 0,
+    observed_secondary: u64 = 0,
+    observations: u64 = 0,
+    schema_mismatch: bool = false,
+    expected_reason: [32]u8 = @splat(0),
+    expected_reason_len: u8 = 0,
+    observed_reason: [32]u8 = @splat(0),
+    observed_reason_len: u8 = 0,
+    pub fn setExpectedReason(self: *Detail, text: []const u8) void {
+        const n: u8 = @intCast(@min(text.len, self.expected_reason.len));
+        @memcpy(self.expected_reason[0..n], text[0..n]);
+        self.expected_reason_len = n;
+    }
+    pub fn setObservedReason(self: *Detail, text: []const u8) void {
+        const n: u8 = @intCast(@min(text.len, self.observed_reason.len));
+        @memcpy(self.observed_reason[0..n], text[0..n]);
+        self.observed_reason_len = n;
+    }
+    pub fn expectedReason(self: *const Detail) []const u8 {
+        return self.expected_reason[0..self.expected_reason_len];
+    }
+    pub fn observedReason(self: *const Detail) []const u8 {
+        return self.observed_reason[0..self.observed_reason_len];
+    }
+};
 pub const Outcome = struct { passed: bool, actions: usize, failure: ?Failure = null };
 
 pub fn run(self: *Self, case: t.Case) !Outcome {
@@ -36,7 +65,10 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
         if (expectation != .complete and expectation != .rows) return error.TestInvalidExpectation;
         const expected = if (expectation == .rows) expectation.rows else null;
         const schema: g.fuze.Types.Type = .{ .structure = prepared.fields() };
-        if (expected) |value| if (!std.mem.eql(u8, &try value.schema.fingerprint(), &try schema.fingerprint())) return .rows;
+        if (expected) |value| if (!std.mem.eql(u8, &try value.schema.fingerprint(), &try schema.fingerprint())) {
+            self.detail = .{ .expected_primary = value.values.len, .schema_mismatch = true };
+            return .rows;
+        };
         var bag = try Bag.init(self.allocator, if (expected) |value| value.values else &.{});
         defer bag.deinit();
         const read = try session.openRead(prepared, &.{});
@@ -67,7 +99,11 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
         try completion.validate(try read.observation(observation.allocator()));
         read.resumeWire();
         try read.validateDisclosure();
-        return if (expected != null and (!equal or bag.remaining != 0)) .rows else null;
+        if (expected) |value| if (!equal or bag.remaining != 0) {
+            self.detail = .{ .expected_primary = value.values.len, .observed_primary = observed };
+            return .rows;
+        };
+        return null;
     }
     const completion = (if (prepared.* == .managed) self.managed(sql, prepared) else session.write(prepared, &.{})) catch |err| {
         if (err != error.GatewayMutationRejected or expectation != .refusal) return err;
@@ -80,16 +116,35 @@ fn execute(self: *Self, sql: []const u8, expectation: t.Expectation, buffer: []u
             .duplicate_key => reason == .duplicate_key,
             .check_violation => reason == .check_violation,
         };
-        return if (matched) null else .refusal_reason;
+        if (!matched) {
+            self.detail = .{};
+            self.detail.setExpectedReason(@tagName(expectation.refusal));
+            self.detail.setObservedReason(@tagName(reason));
+            return .refusal_reason;
+        }
+        return null;
     };
     try completion.validate();
     if (prepared.* != .managed) try session.validateWireCompletion(prepared, completion);
     return switch (expectation) {
         .complete => null,
-        .refusal => .expected_refusal,
+        .refusal => |expected_refusal| blk: {
+            self.detail = .{};
+            self.detail.setExpectedReason(@tagName(expected_refusal));
+            break :blk .expected_refusal;
+        },
         .command => |expected| blk: {
             const counts = completion.counts orelse return error.TestMissingCounts;
-            break :blk if (counts.matched == expected.matched and counts.changed == expected.changed) null else .counts;
+            if (counts.matched != expected.matched or counts.changed != expected.changed) {
+                self.detail = .{
+                    .expected_primary = expected.matched,
+                    .expected_secondary = expected.changed,
+                    .observed_primary = counts.matched,
+                    .observed_secondary = counts.changed,
+                };
+                break :blk .counts;
+            }
+            break :blk null;
         },
         .rows, .workflow => error.TestInvalidExpectation,
     };
@@ -137,6 +192,8 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
     defer declaration.deinit();
     var remaining = expected.observations;
     var interval_ms: u32 = 10;
+    var last_completed: u64 = 0;
+    var last_refused: u64 = 0;
     while (remaining > 0) : (remaining -= 1) {
         try session.deadline.check(session.io);
         session.current() catch |err| if (workflowObservationContended(session.wire.last_rejection, err)) {
@@ -156,7 +213,18 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
             continue;
         } else return err;
         try observed.head.validate();
-        if (observed.head.completed > expected.completed or observed.head.refused > expected.refused) return .workflow_counts;
+        last_completed = observed.head.completed;
+        last_refused = observed.head.refused;
+        if (observed.head.completed > expected.completed or observed.head.refused > expected.refused) {
+            self.detail = .{
+                .expected_primary = expected.completed,
+                .expected_secondary = expected.refused,
+                .observed_primary = observed.head.completed,
+                .observed_secondary = observed.head.refused,
+                .observations = expected.observations,
+            };
+            return .workflow_counts;
+        }
         if (observed.head.completed == expected.completed and observed.head.refused == expected.refused) {
             // Recheck disclosure against the same frozen declaration. A new
             // definition or a namespace permission alone cannot stand in for it.
@@ -176,6 +244,8 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
                 }
                 continue;
             } else return err;
+            last_completed = disclosed.head.completed;
+            last_refused = disclosed.head.refused;
             if (disclosed.head.completed == expected.completed and disclosed.head.refused == expected.refused) return null;
         }
         if (remaining > 1) {
@@ -183,6 +253,13 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
             interval_ms = @min(interval_ms * 2, 50);
         }
     }
+    self.detail = .{
+        .expected_primary = expected.completed,
+        .expected_secondary = expected.refused,
+        .observed_primary = last_completed,
+        .observed_secondary = last_refused,
+        .observations = expected.observations,
+    };
     return .workflow_progress;
 }
 
