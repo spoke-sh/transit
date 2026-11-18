@@ -11,17 +11,26 @@ pub const Resolver = struct {
     pub const Parent = struct { schema: s.Schema, definition: Definition };
     context: *anyopaque,
     lookup: *const fn (*anyopaque, std.mem.Allocator, []const u8) anyerror!Parent,
+    lookup_qualified: ?*const fn (*anyopaque, std.mem.Allocator, ?[]const u8, []const u8) anyerror!Parent = null,
 };
 pub const Syntax = struct {
     name: []const u8,
     local_columns: []const Reference,
+    target_schema: ?[]const u8 = null,
     target: []const u8,
+    target_span: ?Parser.Literal.Span = null,
+    target_qualifier_span: ?Parser.Literal.Span = null,
     target_columns: []const Reference,
     on_delete: c.ReferentialAction,
     on_update: c.ReferentialAction,
     pub fn bind(self: Syntax, a: std.mem.Allocator, schema: s.Schema, table: []const u8, id: c.ConstraintId, location: ?*sql.Location, resolver: ?Resolver) !c.ForeignKeyConstraint {
         const resolve = resolver orelse return error.ForeignKeyResolutionRequired;
-        const parent = try resolve.lookup(resolve.context, a, self.target);
+        const parent = if (resolve.lookup_qualified) |qualified|
+            try qualified(resolve.context, a, self.target_schema, self.target)
+        else blk: {
+            if (self.target_schema != null) return error.ForeignKeyResolutionRequired;
+            break :blk try resolve.lookup(resolve.context, a, self.target);
+        };
         const local = try a.alloc(s.ColumnId, self.local_columns.len);
         const target = try a.alloc(s.ColumnId, self.target_columns.len);
         for (local, self.local_columns) |*out, ref| out.* = schema.columns[try ref.resolve(table, schema.columns, location)].id;
@@ -55,12 +64,9 @@ fn action(parser: *Parser) !c.ReferentialAction {
     }
     return error.InvalidForeignKeyAction;
 }
-pub fn parse(parser: *Parser, name: []const u8) !Syntax {
-    try parser.requireWord("FOREIGN");
-    try parser.requireWord("KEY");
-    const local = try columns(parser);
+pub fn parseReferences(parser: *Parser, name: []const u8, local: []const Reference) !Syntax {
     try parser.requireWord("REFERENCES");
-    const target = try parser.named(.source);
+    const target = try Reference.source(parser, .source);
     const remote = try columns(parser);
     if (local.len != remote.len) return error.InvalidForeignKeyArity;
     var on_delete: c.ReferentialAction = .restrict;
@@ -82,5 +88,21 @@ pub fn parse(parser: *Parser, name: []const u8) !Syntax {
     // Never turn an ordinary enforced SQL FK into advisory metadata silently.
     if (!try parser.takeWord("NOT")) return error.ForeignKeyIndexEnforcementUnavailable;
     try parser.requireWord("ENFORCED");
-    return .{ .name = name, .local_columns = local, .target = target, .target_columns = remote, .on_delete = on_delete, .on_update = on_update };
+    return .{
+        .name = name,
+        .local_columns = local,
+        .target_schema = target.qualifier,
+        .target = target.name,
+        .target_span = target.span,
+        .target_qualifier_span = target.qualifier_span,
+        .target_columns = remote,
+        .on_delete = on_delete,
+        .on_update = on_update,
+    };
+}
+pub fn parse(parser: *Parser, name: []const u8) !Syntax {
+    try parser.requireWord("FOREIGN");
+    try parser.requireWord("KEY");
+    const local = try columns(parser);
+    return parseReferences(parser, name, local);
 }

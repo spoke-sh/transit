@@ -23,7 +23,8 @@ def sized(cell,typ):
 
 def compiled_bytes(sql,basis):
     schema=create(basis)['schema']; columns=schema['columns']; ctx=tree(sql).mutationStatement(); assert ctx
-    names=[identifier(n) for n in ctx.identifier()]; assert names[0]=='items'
+    qn=ctx.qualifiedName(); assert identifier(qn.name)=='items'
+    names=[identifier(n) for n in ctx.identifier()]
     def find(ref):
         qualifier,name=column(ref) if hasattr(ref,'identifier') else (None,identifier(ref))
         assert qualifier in (None,'items')
@@ -32,7 +33,7 @@ def compiled_bytes(sql,basis):
         return (columns[i]['default'] or {'null':{}}) if value.DEFAULT() else literal(value.literal(),columns[i]['type'])
     data=b'FDM1'+hashlib.sha256(schema_bytes(schema)).digest()+b'\x05items'
     if ctx.INSERT():
-        selected=[next(i for i,c in enumerate(columns) if c['name']==name) for name in names[1:]] if len(names)>1 else list(range(len(columns)))
+        selected=[next(i for i,c in enumerate(columns) if c['name']==name) for name in names] if names else list(range(len(columns)))
         rows=[]
         for row in ctx.mutationRow():
             values=[c['default'] or {'null':{}} for c in columns]
@@ -115,12 +116,14 @@ def postgres_agreement(sql):
         def conjunction(ctx):return group([negation(n) for n in ctx.negation()],'AND_EXPR')
         def disjunction(ctx):return group([conjunction(n) for n in ctx.conjunction()],'OR_EXPR')
         return disjunction(ctx.predicate().disjunction())
-    ctx=tree(sql).mutationStatement(); names=[identifier(n) for n in ctx.identifier()]
+    ctx=tree(sql).mutationStatement(); qn=ctx.qualifiedName(); names=[identifier(n) for n in ctx.identifier()]
     tag,node=next(iter(json.loads(parse_sql_json(sql))['stmts'][0]['stmt'].items()))
-    left={'source':names[0]};right={'source':node['relation']['relname']}
+    left={'source':identifier(qn.name)};right={'source':node['relation']['relname']}
+    if qn.schema: left['schema']=identifier(qn.schema)
+    if node['relation'].get('schemaname'): right['schema']=node['relation']['schemaname']
     if ctx.INSERT():
         assert tag=='InsertStmt'
-        left.update(columns=names[1:] or None,rows=[[antlr_literal(v) for v in row.mutationValue()] for row in ctx.mutationRow()])
+        left.update(columns=names or None,rows=[[antlr_literal(v) for v in row.mutationValue()] for row in ctx.mutationRow()])
         right.update(columns=[x['ResTarget']['name'] for x in node['cols']] if 'cols' in node else None,rows=[[pg_value(v) for v in row['List']['items']] for row in node['selectStmt']['SelectStmt']['valuesLists']])
     else:
         left['predicate']=antlr_predicate(ctx.whereClause()) if ctx.whereClause() else None
@@ -178,7 +181,7 @@ def log_append_expected(case):
     """Interpret the dedicated ANTLR tree, without rewriting it as INSERT."""
     import uuid
     ctx = tree(case['sql'], 'logAppendStatement').logAppendCommand()
-    name = identifier(ctx.identifier())
+    name = identifier(ctx.qualifiedName().name)
     schema = create(case['basis'])['schema']
     columns = schema['columns']
     values = ctx.logAppendValues()

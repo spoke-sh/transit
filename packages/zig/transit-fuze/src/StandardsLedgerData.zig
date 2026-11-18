@@ -200,7 +200,7 @@ pub const features = [_]l.FeatureDescriptor{
         .title = "Constraint management: deterministic row-level CHECK constraints",
         .owner = "packages/zig/transit-fuze/src/TableConstraints.zig",
         .dependencies = &.{"F031-F034"},
-        .deviations = "Table-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, inline CHECK, subqueries and effects reject.",
+        .deviations = "Table-level and column-level bounded AND comparisons and IS NULL predicates; stable IDs, NOT VALID new-write enforcement and bounded validation. OR, subqueries and effects reject.",
         .corpus_sources = &.{"contracts/sql/corpus/declarations.json"},
         .states = .{ .parse = .implemented, .lower = .implemented, .execute = .implemented, .recover = .implemented, .transport = .implemented },
         .reference_verified = false,
@@ -551,7 +551,7 @@ pub const compiler_cases = [_]l.CompilerCase{
         .feature = "F491",
         .entrypoint = .table_ddl,
         .sql = "CREATE TABLE t (id BIGINT CHECK (id > 0))",
-        .accept = false,
+        .accept = true,
     },
     .{
         .id = "foreign-key",
@@ -705,6 +705,13 @@ pub const compiler_cases = [_]l.CompilerCase{
         .feature = "F492",
         .entrypoint = .table_ddl_catalog,
         .sql = "CREATE TABLE t (id BIGINT, FOREIGN KEY (id) REFERENCES parent (id) NOT ENFORCED)",
+        .accept = true,
+    },
+    .{
+        .id = "foreign-key-column-cross-schema",
+        .feature = "F492",
+        .entrypoint = .table_ddl_catalog,
+        .sql = "CREATE TABLE networking.t (id BIGINT REFERENCES tenancy.parent (id) ON DELETE RESTRICT NOT ENFORCED)",
         .accept = true,
     },
     .{

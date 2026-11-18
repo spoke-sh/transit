@@ -10,6 +10,7 @@ const Check = @import("SqlCheck.zig");
 pub const ForeignKey = @import("SqlForeignKey.zig");
 const Constraints = @import("TableConstraints.zig");
 pub const Create = struct {
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     if_not_exists: bool,
     native_binding: ?@import("NativeBinding.zig").Kind = null,
@@ -31,14 +32,15 @@ pub const Create = struct {
     }
 };
 pub const Alter = struct {
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     object: u64,
     schema: [32]u8,
     action: union(enum) { columns: evolution.Change, rename_table: []const u8 },
 };
-pub const Drop = struct { name: []const u8, if_exists: bool, object: ?u64, schema: ?[32]u8 };
+pub const Drop = struct { schema_name: ?[]const u8 = null, name: []const u8, if_exists: bool, object: ?u64, schema: ?[32]u8 };
 pub const Statement = union(enum) { create: Create, alter: Alter, drop: Drop };
-pub const Target = struct { kind: std.meta.Tag(Statement), name: []const u8 };
+pub const Target = struct { kind: std.meta.Tag(Statement), schema_name: ?[]const u8 = null, name: []const u8 };
 /// Header only, for authorized catalog resolution before bound compilation.
 /// The result borrows allocator storage and is never execution admission.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {
@@ -62,7 +64,8 @@ fn targetContext(allocator: std.mem.Allocator, text: []const u8, location: ?*sql
         if (kind == .create) try parser.requireWord("NOT");
         try parser.requireWord("EXISTS");
     }
-    return .{ .kind = kind, .name = try parser.named(if (kind == .create) .proposed else .source) };
+    const ref = try Reference.source(&parser, if (kind == .create) .proposed else .source);
+    return .{ .kind = kind, .schema_name = ref.qualifier, .name = ref.name };
 }
 pub const Owned = struct {
     arena: std.heap.ArenaAllocator,
@@ -94,9 +97,18 @@ fn compileContext(allocator: std.mem.Allocator, text: []const u8, basis: ?s.Sche
     const statement = try input.bindWithForeignKeys(arena.allocator(), basis, location, resolver);
     return .{ .arena = arena, .statement = statement };
 }
-const ParsedColumn = struct { value: s.Column, primary: bool, explicit_nullable: bool, type_span: Parser.Literal.Span };
-fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
+const ParsedColumn = struct {
+    value: s.Column,
+    primary: bool,
+    explicit_nullable: bool,
+    type_span: Parser.Literal.Span,
+    checks: []const Check.Syntax = &.{},
+    foreign_keys: []const ForeignKey.Syntax = &.{},
+};
+fn column(parser: *Parser, id: s.ColumnId, next_constraint_index: *usize) !ParsedColumn {
+    const name_start = parser.lexer.start;
     const name = try parser.named(.proposed);
+    const name_span: Parser.Literal.Span = .{ .start = name_start, .end = parser.previous_end };
     const type_start = parser.lexer.start;
     const data_type = try parser.dataType();
     const type_span: Parser.Literal.Span = .{ .start = type_start, .end = parser.previous_end };
@@ -105,6 +117,8 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
     var seen_default = false;
     var seen_collation = false;
     var primary = false;
+    var col_checks: std.ArrayList(Check.Syntax) = .empty;
+    var col_foreign_keys: std.ArrayList(ForeignKey.Syntax) = .empty;
     while (true) {
         if (parser.word("NOT") or parser.word("NULL")) {
             if (seen_null) return error.DuplicateColumnConstraint;
@@ -150,6 +164,18 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
             try parser.requireWord("TZIF");
             const bytes = try semanticBytes(parser, .binary);
             value.semantics.timezone = try @import("PinnedTimezone.zig").Descriptor.init(version, zone, bytes);
+        } else if (parser.word("CONSTRAINT") or parser.word("CHECK") or parser.word("REFERENCES")) {
+            if (next_constraint_index.* == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
+            const constraint_name = if (try parser.takeWord("CONSTRAINT")) try parser.named(.proposed) else try std.fmt.allocPrint(parser.allocator, "constraint_{d}", .{next_constraint_index.* + 1});
+            if (parser.word("CHECK")) {
+                try col_checks.append(parser.allocator, try Check.parse(parser, constraint_name));
+                next_constraint_index.* += 1;
+            } else if (parser.word("REFERENCES")) {
+                const local = try parser.allocator.alloc(Reference, 1);
+                local[0] = .{ .name = name, .span = name_span };
+                try col_foreign_keys.append(parser.allocator, try ForeignKey.parseReferences(parser, constraint_name, local));
+                next_constraint_index.* += 1;
+            } else return error.UnsupportedTableConstraint;
         } else if (unsupportedConstraint(parser.*)) {
             return error.UnsupportedTableConstraint;
         } else break;
@@ -159,7 +185,14 @@ fn column(parser: *Parser, id: s.ColumnId) !ParsedColumn {
         if (explicit_nullable) return error.NullablePrimaryKey;
         value.nullable = false;
     }
-    return .{ .value = value, .primary = primary, .explicit_nullable = explicit_nullable, .type_span = type_span };
+    return .{
+        .value = value,
+        .primary = primary,
+        .explicit_nullable = explicit_nullable,
+        .type_span = type_span,
+        .checks = try col_checks.toOwnedSlice(parser.allocator),
+        .foreign_keys = try col_foreign_keys.toOwnedSlice(parser.allocator),
+    };
 }
 fn semanticBytes(parser: *Parser, expected: @import("Types.zig").Type) ![]const u8 {
     const cell = try parser.value(expected);
@@ -193,8 +226,9 @@ fn create(parser: *Parser) !Create {
         try parser.requireWord("NOT");
         try parser.requireWord("EXISTS");
     }
-    const name = try parser.named(.proposed);
-    var result = try columnDefinitions(parser, name, if_not_exists);
+    const ref = try Reference.source(parser, .proposed);
+    var result = try columnDefinitions(parser, ref.name, if_not_exists);
+    result.schema_name = ref.qualifier;
     result.native_binding = try @import("NativeBinding.zig").clause(parser);
     if (result.native_binding) |binding| if (binding.isKV()) return error.InvalidNativeBindingKind;
     return result;
@@ -211,12 +245,19 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
     var key_names: std.ArrayList(Reference) = .empty;
     var checks: std.ArrayList(Check.Syntax) = .empty;
     var foreign_keys: std.ArrayList(ForeignKey.Syntax) = .empty;
+    var next_constraint_index: usize = 0;
     var primary = false;
     while (true) {
         if (parser.word("CONSTRAINT") or parser.word("CHECK") or parser.word("FOREIGN")) {
-            if (checks.items.len + foreign_keys.items.len == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
-            const constraint_name = if (try parser.takeWord("CONSTRAINT")) try parser.named(.proposed) else try std.fmt.allocPrint(parser.allocator, "constraint_{d}", .{checks.items.len + foreign_keys.items.len + 1});
-            if (parser.word("CHECK")) try checks.append(parser.allocator, try Check.parse(parser, constraint_name)) else if (parser.word("FOREIGN")) try foreign_keys.append(parser.allocator, try ForeignKey.parse(parser, constraint_name)) else return error.UnsupportedTableConstraint;
+            if (next_constraint_index == Constraints.max_constraints_per_table) return error.InvalidConstraintCount;
+            const constraint_name = if (try parser.takeWord("CONSTRAINT")) try parser.named(.proposed) else try std.fmt.allocPrint(parser.allocator, "constraint_{d}", .{next_constraint_index + 1});
+            if (parser.word("CHECK")) {
+                try checks.append(parser.allocator, try Check.parse(parser, constraint_name));
+                next_constraint_index += 1;
+            } else if (parser.word("FOREIGN")) {
+                try foreign_keys.append(parser.allocator, try ForeignKey.parse(parser, constraint_name));
+                next_constraint_index += 1;
+            } else return error.UnsupportedTableConstraint;
         } else if (try parser.takeWord("PRIMARY")) {
             if (primary) return error.MultiplePrimaryKeys;
             primary = true;
@@ -232,11 +273,13 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
             if (unsupportedConstraint(parser.*)) return error.UnsupportedTableConstraint;
             if (columns.items.len == s.max_columns) return error.InvalidColumnCount;
             const column_start = parser.lexer.start;
-            const parsed = try column(parser, columns.items.len + 1);
+            const parsed = try column(parser, columns.items.len + 1, &next_constraint_index);
             try column_spans.append(parser.allocator, .{ .start = column_start, .end = parser.previous_end });
             explicit_null[columns.items.len] = parsed.explicit_nullable;
             try columns.append(parser.allocator, parsed.value);
             try type_spans.append(parser.allocator, parsed.type_span);
+            try checks.appendSlice(parser.allocator, parsed.checks);
+            try foreign_keys.appendSlice(parser.allocator, parsed.foreign_keys);
             if (parsed.primary) {
                 if (primary) return error.MultiplePrimaryKeys;
                 primary = true;
@@ -269,7 +312,7 @@ pub fn columnDefinitions(parser: *Parser, name: []const u8, if_not_exists: bool)
 pub const Syntax = union(enum) {
     create: Create,
     alter: AlterSyntax,
-    drop: struct { name: []const u8, if_exists: bool },
+    drop: struct { schema_name: ?[]const u8 = null, name: []const u8, if_exists: bool },
     pub fn bind(self: Syntax, allocator: std.mem.Allocator, basis: ?s.Schema, location: ?*sql.Location) !Statement {
         return self.bindWithForeignKeys(allocator, basis, location, null);
     }
@@ -293,12 +336,13 @@ pub const Syntax = union(enum) {
             .alter => |value| .{ .alter = try value.bind(allocator, basis orelse return error.TableSchemaRequired, location, resolver) },
             .drop => |value| blk: {
                 if (basis == null and !value.if_exists) return error.TableNotFound;
-                break :blk .{ .drop = .{ .name = value.name, .if_exists = value.if_exists, .object = if (basis) |schema| schema.object else null, .schema = if (basis) |schema| try schema.fingerprint() else null } };
+                break :blk .{ .drop = .{ .schema_name = value.schema_name, .name = value.name, .if_exists = value.if_exists, .object = if (basis) |schema| schema.object else null, .schema = if (basis) |schema| try schema.fingerprint() else null } };
             },
         };
     }
 };
 pub const AlterSyntax = struct {
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     column: ?Reference = null,
     action: union(enum) {
@@ -391,7 +435,7 @@ pub const AlterSyntax = struct {
             var output: [s.max_columns]s.Column = undefined;
             _ = try evolution.apply(basis, action.columns, &output);
         }
-        return .{ .name = self.name, .object = basis.object, .schema = try basis.fingerprint(), .action = action };
+        return .{ .schema_name = self.schema_name, .name = self.name, .object = basis.object, .schema = try basis.fingerprint(), .action = action };
     }
 };
 /// Optional captured metadata supplies type hints, never a substitute binding.
@@ -403,7 +447,10 @@ pub fn syntax(parser: *Parser, hints: ?s.Schema) !Syntax {
 }
 fn alter(parser: *Parser, hints: ?s.Schema) !AlterSyntax {
     try parser.requireWord("TABLE");
-    return alterBody(parser, try parser.named(.source), hints);
+    const ref = try Reference.source(parser, .source);
+    var result = try alterBody(parser, ref.name, hints);
+    result.schema_name = ref.qualifier;
+    return result;
 }
 pub fn alterBody(parser: *Parser, name: []const u8, hints: ?s.Schema) !AlterSyntax {
     var result: AlterSyntax = .{ .name = name, .action = undefined };
@@ -421,8 +468,9 @@ pub fn alterBody(parser: *Parser, name: []const u8, hints: ?s.Schema) !AlterSynt
             break :blk .{ .add_check = try Check.parse(parser, constraint_name) };
         }
         _ = try parser.takeWord("COLUMN");
-        const added = try column(parser, 1);
-        if (added.primary) return error.UnsupportedTableConstraint;
+        var inline_constraints: usize = 0;
+        const added = try column(parser, 1, &inline_constraints);
+        if (added.primary or added.checks.len != 0 or added.foreign_keys.len != 0) return error.UnsupportedTableConstraint;
         break :blk .{ .add = .{ .name = added.value.name, .type = added.value.type, .nullable = added.value.nullable, .default = added.value.default, .max_characters = added.value.max_characters, .encoding = added.value.encoding, .collation = added.value.collation, .semantics = added.value.semantics } };
     } else if (try parser.takeWord("DROP")) blk: {
         if (try parser.takeWord("CONSTRAINT")) {
@@ -472,10 +520,10 @@ fn drop(parser: *Parser) !@FieldType(Syntax, "drop") {
     try parser.requireWord("TABLE");
     const if_exists = try parser.takeWord("IF");
     if (if_exists) try parser.requireWord("EXISTS");
-    const name = try parser.named(.source);
+    const ref = try Reference.source(parser, .source);
     if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
     _ = try parser.takeWord("RESTRICT");
-    return .{ .name = name, .if_exists = if_exists };
+    return .{ .schema_name = ref.qualifier, .name = ref.name, .if_exists = if_exists };
 }
 
 test {

@@ -64,7 +64,9 @@ test "DDL rejects unsupported semantics and conflicting constraints before mutat
         .{ "CREATE TABLE t (id INT NOT NULL DEFAULT NULL)", error.NullNotAllowed },
         .{ "CREATE TABLE t (id INT DEFAULT 1 DEFAULT 2)", error.DuplicateColumnConstraint },
         .{ "CREATE TABLE t (id INT UNIQUE)", error.UnsupportedTableConstraint },
-        .{ "CREATE TABLE t (id INT CHECK(id > 0))", error.UnsupportedTableConstraint },
+        .{ "CREATE TABLE t (id INT CONSTRAINT u UNIQUE)", error.UnsupportedTableConstraint },
+        .{ "CREATE TABLE t (id INT CHECK(id > 0 OR id < 0))", error.UnsupportedCheckExpression },
+        .{ "CREATE TABLE t (id INT REFERENCES p(id))", error.ForeignKeyIndexEnforcementUnavailable },
         .{ "CREATE TABLE t (name VARCHAR(2) DEFAULT '東京é')", error.CharacterLimitExceeded },
         .{ "CREATE TABLE t (x DECIMAL(3,1) DEFAULT 1.25)", error.Inexact },
         .{ "CREATE TABLE t (x LIST(VARCHAR(10)))", error.UnsupportedNestedCharacterLimit },
@@ -172,4 +174,36 @@ test "DDL retains unknown key and ALTER column positions through deferred bindin
         try e.expectError(case[1], ddl.compile(e.allocator, case[0], schema, &location));
         try e.expectEqual(std.mem.indexOf(u8, case[0], case[2]).?, location.offset);
     }
+}
+
+test "DDL parses schema-qualified tables inline CHECK and cross-schema NOT ENFORCED foreign keys" {
+    const Parent = struct {
+        fn lookup(_: *anyopaque, _: std.mem.Allocator, _: []const u8) !ddl.ForeignKey.Resolver.Parent {
+            return error.UnexpectedUnqualifiedLookup;
+        }
+        fn lookupQualified(_: *anyopaque, arena: std.mem.Allocator, schema_name: ?[]const u8, name: []const u8) !ddl.ForeignKey.Resolver.Parent {
+            if (schema_name == null or !std.mem.eql(u8, schema_name.?, "tenancy") or !std.mem.eql(u8, name, "organizations")) return error.UnknownTable;
+            const cols = try arena.dupe(s.Column, &.{.{ .id = 1, .name = "id", .type = .uuid, .nullable = false }});
+            return .{
+                .schema = .{ .object = 11, .revision = 1, .next_column = 2, .columns = cols, .primary_key = &.{1} },
+                .definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 1, .catalog = 1 }, .branch = 1, .object = 11 }, .revision = 1, .digest = @splat(9) },
+            };
+        }
+    };
+    var ctx: u8 = 0;
+    const sql_text = "CREATE TABLE networking.networks (id UUID PRIMARY KEY, org_id UUID NOT NULL REFERENCES tenancy.organizations(id) ON DELETE RESTRICT NOT ENFORCED, revision BIGINT NOT NULL CHECK (revision > 0))";
+    var arena: std.heap.ArenaAllocator = .init(e.allocator);
+    defer arena.deinit();
+    const tgt = try ddl.target(arena.allocator(), sql_text);
+    try e.expectEqualStrings("networking", tgt.schema_name.?);
+    try e.expectEqualStrings("networks", tgt.name);
+    var compiled = try ddl.compileWithForeignKeys(e.allocator, sql_text, null, null, .transit, .{ .context = &ctx, .lookup = Parent.lookup, .lookup_qualified = Parent.lookupQualified });
+    defer compiled.deinit();
+    try e.expectEqualStrings("networking", compiled.statement.create.schema_name.?);
+    try e.expectEqualStrings("networks", compiled.statement.create.name);
+    const bound = try compiled.statement.create.bind(22);
+    try e.expectEqual(@as(usize, 1), bound.integrity.checks.len);
+    try e.expectEqual(@as(usize, 1), bound.integrity.foreign_keys.len);
+    try e.expectEqual(@as(u64, 11), bound.integrity.foreign_keys[0].target_object);
+    try e.expectError(error.UnsupportedTableConstraint, ddl.compile(e.allocator, "ALTER TABLE networking.networks ADD COLUMN extra BIGINT CHECK (extra > 0)", bound, null));
 }

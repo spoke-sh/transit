@@ -127,6 +127,7 @@ def column(ctx, identity):
 
 def create(sql):
     ctx=tree(sql).extensionStatement().createTable(); assert ctx
+    qn=ctx.qualifiedName()
     columns=[]; keys=[]
     for item in ctx.tableElement():
         if item.columnDef():
@@ -138,7 +139,7 @@ def create(sql):
     schema=dict(definition=json.loads((ROOT/'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'], object='7',revision='1',next_column=str(len(columns)+1),columns=columns,
                 primary_key=[next(c['id'] for c in columns if c['name']==key) for key in keys],
                 integrity=dict(next_id=1, checks=[], foreign_keys=[]))
-    return dict(kind='table',name=identifier(ctx.identifier()),if_not_exists=bool(ctx.IF()),schema=schema)
+    return dict(kind='table',schema_name=identifier(qn.schema) if qn.schema else None,name=identifier(qn.name),if_not_exists=bool(ctx.IF()),schema=schema)
 
 
 def schema_bytes(schema):

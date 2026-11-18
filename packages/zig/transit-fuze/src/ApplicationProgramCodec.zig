@@ -124,6 +124,7 @@ const Validator = struct {
         }
     }
     fn select(self: *Validator, query: a.Select, depth: usize) !void {
+        if (query.schema) |schema| try self.text(schema, true);
         try self.text(query.target, true);
         if (query.columns) |columns| {
             if (columns.len == 0 or columns.len > a.max_arguments) return error.ProgramTooComplex;
@@ -141,12 +142,14 @@ const Validator = struct {
                     switch (binding.value) {
                         .expression => |value| try self.expression(value, depth + 1),
                         .get => |get| {
+                            if (get.schema) |schema| try self.text(schema, true);
                             try self.text(get.target, true);
                             try self.expression(get.key, depth + 1);
                         },
                         .select => |query| try self.select(query, depth + 1),
                         .effect => |effect| {
                             if (atomic) return error.EffectInsideAtomic;
+                            if (effect.sink_schema) |schema| try self.text(schema, true);
                             try self.text(effect.sink, true);
                             try self.expression(effect.identity, depth + 1);
                             try self.expression(effect.guard, depth + 1);
@@ -171,6 +174,7 @@ const Validator = struct {
                 },
                 .put => |put| {
                     if (!atomic) return error.MutationOutsideAtomic;
+                    if (put.target_schema) |schema| try self.text(schema, true);
                     try self.text(put.target, true);
                     try self.expression(put.key, depth + 1);
                     try self.expression(put.value, depth + 1);
@@ -179,6 +183,7 @@ const Validator = struct {
                 },
                 .insert => |insert| {
                     if (!atomic) return error.MutationOutsideAtomic;
+                    if (insert.target_schema) |schema| try self.text(schema, true);
                     try self.text(insert.target, true);
                     try self.expressions(insert.values, depth + 1);
                     if (insert.conflict_columns.len > a.max_arguments) return error.ProgramTooComplex;
@@ -186,11 +191,13 @@ const Validator = struct {
                 },
                 .append => |append| {
                     if (!atomic) return error.MutationOutsideAtomic;
+                    if (append.target_schema) |schema| try self.text(schema, true);
                     try self.text(append.target, true);
                     try self.expressions(append.values, depth + 1);
                 },
                 .handoff => |handoff| {
                     if (!atomic) return error.MutationOutsideAtomic;
+                    if (handoff.queue_schema) |schema| try self.text(schema, true);
                     try self.text(handoff.queue, true);
                     try self.expression(handoff.request, depth + 1);
                     try self.expression(handoff.effect, depth + 1);
@@ -226,7 +233,9 @@ const Validator = struct {
 pub fn validate(program: a.Program) !void {
     if (program.nodes == 0 or program.nodes > a.max_nodes) return error.ProgramTooComplex;
     var self: Validator = .{ .nodes = program.nodes };
+    if (program.schema) |schema| try self.text(schema, true);
     try self.text(program.name, true);
+    if (program.queue_schema) |schema| try self.text(schema, true);
     try self.text(program.queue, true);
     try self.text(program.input, true);
     if (program.deadline) |deadline| {

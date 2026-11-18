@@ -7,6 +7,7 @@ const Sql = @import("Sql.zig");
 const Parser = @import("SqlTyped.zig");
 const TableDdl = @import("TableDdl.zig");
 const Schema = @import("TableSchema.zig");
+const Reference = @import("SqlReference.zig");
 const PerfectHash = @import("PerfectHash.zig");
 
 pub const default_limits: q.Limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 64 };
@@ -29,6 +30,7 @@ pub const Basis = struct { schema: Schema.Schema, configuration: q.Configuration
 pub const Configured = struct { configuration: q.Configuration, limits: q.Limits, destination: union(enum) { unchanged, clear, name: []const u8 } = .unchanged };
 pub const Statement = struct {
     kind: q.Kind,
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     action: union(enum) { create: TableDdl.Create, alter, rename: []const u8, drop },
     partition: ?struct { count: u32, key: ?[]const u8 } = null,
@@ -118,7 +120,7 @@ pub const Owned = struct {
     }
 };
 
-pub const Inspection = struct { kind: q.Kind, name: []const u8, describe: bool };
+pub const Inspection = struct { kind: q.Kind, schema_name: ?[]const u8 = null, name: []const u8, describe: bool };
 
 /// Pure named-log inspection syntax. The name belongs to the parser allocator;
 /// definition lookup and current disclosure authority remain with the service.
@@ -130,9 +132,9 @@ pub fn inspection(parser: Parser) !?Inspection {
     const kind: q.Kind = if (try header.takeWord("STREAM")) .stream else if (try header.takeWord("QUEUE")) .queue else return null;
     // DESCRIBE stream/queue can still name a Table with that contextual name.
     if (header.token.tag == .eof or header.token.tag == .semi) return null;
-    const name = try header.named(.source);
+    const ref = try Reference.source(&header, .source);
     try header.finish();
-    return .{ .kind = kind, .name = name, .describe = describe };
+    return .{ .kind = kind, .schema_name = ref.qualifier, .name = ref.name, .describe = describe };
 }
 
 test "log inspection preserves contextual Table names and the selected dialect" {
@@ -157,12 +159,13 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
     const verb: enum { create, alter, drop } = if (try parser.takeWord("CREATE")) .create else if (try parser.takeWord("ALTER")) .alter else if (try parser.takeWord("DROP")) .drop else return error.UnsupportedStatement;
     const kind: q.Kind = if (try parser.takeWord("STREAM")) .stream else if (try parser.takeWord("QUEUE")) .queue else return error.UnsupportedStatement;
     if (parser.word("IF")) return error.UnsupportedConstruct;
-    const name = try parser.named(if (verb == .create) .proposed else .source);
-    var statement: Statement = .{ .kind = kind, .name = name, .action = .drop };
+    const ref = try Reference.source(&parser, if (verb == .create) .proposed else .source);
+    var statement: Statement = .{ .kind = kind, .schema_name = ref.qualifier, .name = ref.name, .action = .drop };
     switch (verb) {
         .create => {
-            const shape = try TableDdl.columnDefinitions(&parser, name, false);
-            if (!shape.integrity.empty()) return error.UnsupportedTableConstraint;
+            var shape = try TableDdl.columnDefinitions(&parser, ref.name, false);
+            shape.schema_name = ref.qualifier;
+            if (!shape.integrity.empty() or shape.foreign_keys.len != 0) return error.UnsupportedTableConstraint;
             if (shape.primary_key.len != 0) return error.UnsupportedLogPrimaryKey;
             statement.action = .{ .create = shape };
             if (try parser.takeWord("PARTITION")) {

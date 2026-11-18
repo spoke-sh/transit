@@ -16,7 +16,7 @@ fn header(parser: *Parser) !Target {
     } else return error.UnsupportedStatement;
     try parser.requireWord("ON");
     try parser.requireWord("QUEUE");
-    return .{ .kind = kind, .source = try Reference.unqualified(parser, .source) };
+    return .{ .kind = kind, .source = try Reference.source(parser, .source) };
 }
 pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Target {
     var parser = try Parser.initDialect(allocator, text, location, true, dialect);

@@ -107,7 +107,10 @@
       "syntax_error": true
     },
     {
-      "sql": "CREATE TABLE a.b (id INT64)",
+      "sql": "CREATE TABLE a.b (id INT64)"
+    },
+    {
+      "sql": "CREATE TABLE a.b.c (id INT64)",
       "syntax_error": true
     },
     {

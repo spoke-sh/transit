@@ -13,7 +13,7 @@ pub const Target = struct { kind: Kind, source: Reference };
 fn header(parser: *Parser) !Target {
     const kind: Kind = if (try parser.takeWord("PRODUCE")) .stream else if (try parser.takeWord("ENQUEUE")) .queue else return error.UnsupportedStatement;
     try parser.requireWord("INTO");
-    return .{ .kind = kind, .source = try Reference.unqualified(parser, .source) };
+    return .{ .kind = kind, .source = try Reference.source(parser, .source) };
 }
 pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Target {
     var parser = try Parser.initDialect(allocator, text, location, true, dialect);
@@ -88,7 +88,7 @@ pub const Prepared = struct {
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         const selected = try header(&parser);
         const syntax: f.TableDml.Syntax = .{
-            .subject = .{ .kind = .insert, .name = selected.source.name, .span = selected.source.span },
+            .subject = .{ .kind = .insert, .schema_name = selected.source.qualifier, .name = selected.source.name, .span = selected.source.span, .qualifier_span = selected.source.qualifier_span },
             .subject_span = selected.source.span,
             .action = .{ .insert = try f.TableDml.insertValues(&parser, schema) },
         };

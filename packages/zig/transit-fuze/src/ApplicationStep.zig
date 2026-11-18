@@ -19,13 +19,13 @@ pub const Action = union(enum) {
     advance: a.Cursor.Advance,
     begin: a.Id,
     commit: a.Id,
-    get: struct { target: []const u8, key: Value },
+    get: struct { schema: ?[]const u8 = null, target: []const u8, key: Value },
     select: a.Select,
-    effect: struct { sink: []const u8, identity: Value, guard: *const a.Expression, kind: enum { form, headers }, fields: []const Field },
-    put: struct { target: []const u8, key: Value, value: Value, fields: []const Field, expected: union(enum) { absent, revision: Value } },
-    insert: struct { target: []const u8, values: []const Value, conflict_columns: []const []const u8 },
-    append: struct { kind: @FieldType(@FieldType(@FieldType(a.Instruction, "value"), "append"), "kind"), target: []const u8, values: []const Value },
-    handoff: struct { request: Value, queue: []const u8, effect: Value },
+    effect: struct { sink_schema: ?[]const u8 = null, sink: []const u8, identity: Value, guard: *const a.Expression, kind: enum { form, headers }, fields: []const Field },
+    put: struct { target_schema: ?[]const u8 = null, target: []const u8, key: Value, value: Value, fields: []const Field, expected: union(enum) { absent, revision: Value } },
+    insert: struct { target_schema: ?[]const u8 = null, target: []const u8, values: []const Value, conflict_columns: []const []const u8 },
+    append: struct { kind: @FieldType(@FieldType(@FieldType(a.Instruction, "value"), "append"), "kind"), target_schema: ?[]const u8 = null, target: []const u8, values: []const Value },
+    handoff: struct { request: Value, queue_schema: ?[]const u8 = null, queue: []const u8, effect: Value },
     respond: Response,
     respond_error: struct { request: Value, failure: Value, profile: []const u8 },
     page: struct { select: a.Select, request: Value, profile: []const u8, size: u16 },
@@ -94,24 +94,24 @@ pub fn prepare(self: *Self) !Prepared {
                 .atomic => unreachable,
                 .let => |binding| switch (binding.value) {
                     .expression => |expression| .{ .bind = try evaluation.evaluate(expression) },
-                    .get => |get| .{ .get = .{ .target = get.target, .key = try evaluation.evaluate(get.key) } },
+                    .get => |get| .{ .get = .{ .schema = get.schema, .target = get.target, .key = try evaluation.evaluate(get.key) } },
                     .select => |select| .{ .select = select },
                     .effect => |effect| blk: {
                         if (!try evaluation.condition(try evaluation.evaluate(effect.guard))) break :blk .{ .refused = "EffectGuardRefused" };
-                        break :blk .{ .effect = .{ .sink = effect.sink, .identity = try evaluation.evaluate(effect.identity), .guard = effect.guard, .kind = if (effect.request == .form) .form else .headers, .fields = try self.fields(switch (effect.request) {
+                        break :blk .{ .effect = .{ .sink_schema = effect.sink_schema, .sink = effect.sink, .identity = try evaluation.evaluate(effect.identity), .guard = effect.guard, .kind = if (effect.request == .form) .form else .headers, .fields = try self.fields(switch (effect.request) {
                             .form, .headers => |request| request,
                         }) } };
                     },
                 },
                 .require => |require| if (try evaluation.condition(try evaluation.evaluate(require.condition))) .{ .advance = .{ .instruction = entry.id } } else .{ .refused = require.refusal },
                 .conditional => |choice| .{ .advance = .{ .branch = .{ .id = entry.id, .yes = try evaluation.condition(try evaluation.evaluate(choice.condition)) } } },
-                .put => |put| .{ .put = .{ .target = put.target, .key = try evaluation.evaluate(put.key), .value = try evaluation.evaluate(put.value), .fields = try self.fields(put.fields), .expected = switch (put.expected) {
+                .put => |put| .{ .put = .{ .target_schema = put.target_schema, .target = put.target, .key = try evaluation.evaluate(put.key), .value = try evaluation.evaluate(put.value), .fields = try self.fields(put.fields), .expected = switch (put.expected) {
                     .absent => .absent,
                     .revision => |revision| .{ .revision = try evaluation.evaluate(revision) },
                 } } },
-                .insert => |insert| .{ .insert = .{ .target = insert.target, .values = try self.values(insert.values), .conflict_columns = insert.conflict_columns } },
-                .append => |append| .{ .append = .{ .kind = append.kind, .target = append.target, .values = try self.values(append.values) } },
-                .handoff => |handoff| .{ .handoff = .{ .request = try evaluation.evaluate(handoff.request), .queue = handoff.queue, .effect = try evaluation.evaluate(handoff.effect) } },
+                .insert => |insert| .{ .insert = .{ .target_schema = insert.target_schema, .target = insert.target, .values = try self.values(insert.values), .conflict_columns = insert.conflict_columns } },
+                .append => |append| .{ .append = .{ .kind = append.kind, .target_schema = append.target_schema, .target = append.target, .values = try self.values(append.values) } },
+                .handoff => |handoff| .{ .handoff = .{ .request = try evaluation.evaluate(handoff.request), .queue_schema = handoff.queue_schema, .queue = handoff.queue, .effect = try evaluation.evaluate(handoff.effect) } },
                 .respond => |response| blk: {
                     if (response.guard) |guard| if (!try evaluation.condition(try evaluation.evaluate(guard))) break :blk .{ .refused = "ResponseGuardRefused" };
                     const cookies = try self.scratch.alloc(Cookie, response.cookies.len);

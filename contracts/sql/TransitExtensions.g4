@@ -10,10 +10,10 @@ snapshotClause: AS OF SNAPSHOT STRING (IN SCHEMA identifier)?;
 projectionClause: PROJECTING TO (CURRENT | SNAPSHOT STRING);
 // Native cohosted SQL lowers these forms to the direct managed Table owner.
 managedCommand
-    : CREATE DATAFLOW identifier INTO identifier AS relationalSelect
-    | (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE) DATAFLOW identifier
-    | SHOW DATAFLOW identifier (REVISION INTEGER)?
-    | EXPLAIN CREATE DATAFLOW identifier INTO identifier AS relationalSelect
+    : CREATE DATAFLOW qualifiedName INTO qualifiedName AS relationalSelect
+    | (AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE) DATAFLOW qualifiedName
+    | SHOW DATAFLOW qualifiedName (REVISION INTEGER)?
+    | EXPLAIN CREATE DATAFLOW qualifiedName INTO qualifiedName AS relationalSelect
     ;
 // Ingestion declarations are distinct from query adapters. Runtime activation
 // requires its own qualified catalog, capture and effect owners.
@@ -101,9 +101,9 @@ havingNegation: NOT havingNegation | LPAREN havingDisjunction RPAREN | havingAto
 havingAtom: relationalExpression (IS NOT? NULL_ | comparison (literal | PARAMETER));
 orderByClause: ORDER BY relationalOrderItem (COMMA relationalOrderItem)*;
 relationalOrderItem: relationalExpression (ASC | DESC)? (NULLS (FIRST | LAST))?;
-relationalTarget: (identifier | streamSliceTarget) relationalAlias?;
+relationalTarget: (qualifiedName | streamSliceTarget) relationalAlias?;
 streamSliceTarget
-    : STREAM_SLICE LPAREN identifier COMMA PARTITION INTEGER COMMA streamSliceBound (COMMA streamSliceBound)? RPAREN
+    : STREAM_SLICE LPAREN qualifiedName COMMA PARTITION INTEGER COMMA streamSliceBound (COMMA streamSliceBound)? RPAREN
     ;
 streamSliceBound
     : OFFSET INTEGER (TO INTEGER)?
@@ -120,9 +120,10 @@ relationalJoin: (INNER | LEFT OUTER?)? JOIN relationalTarget ON columnReference 
 selectStatement
     : relationalSelect
     | SELECT aggregateSelection FROM LPAREN
-        SELECT projection FROM identifier sourceAlias? whereClause? limitClause?
+        SELECT projection FROM qualifiedName sourceAlias? whereClause? limitClause?
       RPAREN AS identifier limitClause?
     ;
+qualifiedName: (schema=identifier DOT)? name=identifier;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
 aggregateSelection: (COUNT LPAREN (STAR | columnReference | scalarCall) RPAREN | SUM LPAREN (columnReference | scalarCall) RPAREN) outputAlias?;
@@ -157,10 +158,10 @@ limitClause: LIMIT (INTEGER | PARAMETER);
 // All mutations bind to a configured catalog and its current permissions.
 // Literal/descriptor parsing conveys neither row validity nor execution rights.
 mutationStatement
-    : INSERT INTO identifier (LPAREN identifier (COMMA identifier)* RPAREN)?
+    : INSERT INTO qualifiedName (LPAREN identifier (COMMA identifier)* RPAREN)?
       VALUES mutationRow (COMMA mutationRow)*
-    | UPDATE identifier SET assignment (COMMA assignment)* whereClause?
-    | DELETE FROM identifier whereClause?
+    | UPDATE qualifiedName SET assignment (COMMA assignment)* whereClause?
+    | DELETE FROM qualifiedName whereClause?
     ;
 assignment: columnReference EQ mutationValue;
 mutationValue: DEFAULT | literal;
@@ -168,7 +169,7 @@ mutationRow: LPAREN mutationValue (COMMA mutationValue)* RPAREN;
 
 // Dedicated typed append compiler, also admitted by ordinary SQL sessions.
 logAppendStatement: logAppendCommand SEMI? EOF;
-logAppendCommand: (PRODUCE | ENQUEUE) INTO identifier logAppendValues
+logAppendCommand: (PRODUCE | ENQUEUE) INTO qualifiedName logAppendValues
     (PARTITION logAppendOperand)?
     (PRODUCER ID logAppendOperand EPOCH logAppendOperand SEQUENCE logAppendOperand)?
     (WITH LPAREN VISIBLE_AT EQ logAppendOperand RPAREN)?
@@ -183,20 +184,20 @@ logAppendOperand: literal | PARAMETER;
 
 // Grammar covers group/wait preparation; execution validates its narrower profile.
 logConsumeStatement: logConsumeCommand SEMI? EOF;
-logConsumeCommand: CONSUME projection FROM identifier sourceAlias?
+logConsumeCommand: CONSUME projection FROM qualifiedName sourceAlias?
     (GROUP workloadReceiptOperand)? workloadWhereClause? templateLimitClause?
     (WAIT workloadTextOperand)?;
 // Native admission validates the supported partition routing and wait profile.
 logClaimStatement: logClaimCommand SEMI? EOF;
-logClaimCommand: CLAIM projection FROM identifier sourceAlias?
+logClaimCommand: CLAIM projection FROM qualifiedName sourceAlias?
     workloadWhereClause? templateLimitClause? WITH LEASE workloadTextOperand
     (WAIT workloadTextOperand)?;
 logSettlementStatement: logSettlementCommand SEMI? EOF;
-logSettlementCommand: ACK ON QUEUE identifier RECEIPT workloadReceiptOperand
-    | NACK ON QUEUE identifier RECEIPT workloadReceiptOperand (WITH LPAREN VISIBLE_AT EQ workloadTimestampOperand RPAREN)?
-    | EXTEND LEASE ON QUEUE identifier RECEIPT workloadReceiptOperand BY workloadTextOperand;
+logSettlementCommand: ACK ON QUEUE qualifiedName RECEIPT workloadReceiptOperand
+    | NACK ON QUEUE qualifiedName RECEIPT workloadReceiptOperand (WITH LPAREN VISIBLE_AT EQ workloadTimestampOperand RPAREN)?
+    | EXTEND LEASE ON QUEUE qualifiedName RECEIPT workloadReceiptOperand BY workloadTextOperand;
 logOffsetStatement: logOffsetCommand SEMI? EOF;
-logOffsetCommand: COMMIT OFFSET ON STREAM identifier RECEIPT workloadReceiptOperand;
+logOffsetCommand: COMMIT OFFSET ON STREAM qualifiedName RECEIPT workloadReceiptOperand;
 workloadReceiptOperand: X STRING | PARAMETER | NULL_;
 workloadTimestampOperand: TIMESTAMP STRING | PARAMETER | NULL_;
 workloadTextOperand: STRING | PARAMETER | NULL_;
@@ -231,10 +232,10 @@ extensionStatement
     ;
 
 // Dedicated log declarations share logical columns, never Table DML semantics.
-createLog: CREATE logKind identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+createLog: CREATE logKind qualifiedName LPAREN tableElement (COMMA tableElement)* RPAREN
     logPartitioning? (WITH logOptions)?;
-alterLog: ALTER logKind identifier (SET logOptions | RENAME TO identifier);
-dropLog: DROP logKind identifier;
+alterLog: ALTER logKind qualifiedName (SET logOptions | RENAME TO identifier);
+dropLog: DROP logKind qualifiedName;
 logKind: STREAM | QUEUE;
 logPartitioning: (PARTITION BY HASH LPAREN identifier RPAREN)? PARTITIONS INTEGER;
 logOptions: LPAREN logOption (COMMA logOption)* RPAREN;
@@ -286,7 +287,7 @@ secretRef
 // General typed schemas; constraints, aliases and parameter values are checked
 // by the shared compiler. Storage/operator/transport admission remains separate.
 createTable
-    : CREATE TABLE (IF NOT EXISTS)? identifier LPAREN tableElement (COMMA tableElement)* RPAREN nativeBindingClause?
+    : CREATE TABLE (IF NOT EXISTS)? qualifiedName LPAREN tableElement (COMMA tableElement)* RPAREN nativeBindingClause?
     ;
 nativeBindingClause: WITH LPAREN identifier EQ STRING RPAREN;
 tableElement: columnDef | PRIMARY KEY LPAREN identifier (COMMA identifier)* RPAREN | tableConstraint;
@@ -294,7 +295,10 @@ tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstrain
 checkConstraint: CHECK LPAREN checkPredicate (AND checkPredicate)* RPAREN (NOT VALID)?;
 checkPredicate: columnReference (IS NOT? NULL_ | comparison (literal | columnReference));
 foreignKeyConstraint
-    : FOREIGN KEY constraintColumns REFERENCES identifier constraintColumns referentialClause* NOT ENFORCED
+    : FOREIGN KEY constraintColumns columnReferencesConstraint
+    ;
+columnReferencesConstraint
+    : REFERENCES qualifiedName constraintColumns referentialClause* NOT ENFORCED
     ;
 constraintColumns: LPAREN identifier (COMMA identifier)* RPAREN;
 referentialClause: ON (DELETE | UPDATE) (RESTRICT | NO ACTION | CASCADE | SET NULL_);
@@ -303,6 +307,7 @@ columnConstraint
     : nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation
     | ROUNDING identifier | METRIC identifier
     | TIMEZONE STRING TZDB STRING TZIF X STRING
+    | (CONSTRAINT identifier)? (checkConstraint | columnReferencesConstraint)
     ;
 collation: UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD;
 nullability: NOT NULL_ | NULL_;
@@ -326,7 +331,7 @@ scalarTypeName
 typeField: identifier dataType nullability? OPTIONAL?;
 
 alterTable
-    : ALTER TABLE identifier (
+    : ALTER TABLE qualifiedName (
         ADD COLUMN? columnDef
       | ADD tableConstraint
       | DROP CONSTRAINT identifier RESTRICT?
@@ -341,7 +346,7 @@ alterTable
         )
       )
     ;
-dropTable: DROP TABLE (IF EXISTS)? identifier RESTRICT?;
+dropTable: DROP TABLE (IF EXISTS)? qualifiedName RESTRICT?;
 
 // Proposed DDL over M17's Document model; M17 does not implement SQL DDL.
 createDocument
@@ -353,9 +358,9 @@ createKv
     : CREATE KV identifier LPAREN dataType RPAREN nativeBindingClause?
     ;
 kvWorkloadCommand
-    : PUT INTO identifier (KEY kvKey VALUE kvValue | VALUES kvEntry (COMMA kvEntry)*) kvExpectation?
-    | GET FROM identifier KEY kvKey
-    | DELETE FROM identifier (KEY kvKey | KEYS LPAREN kvKey (COMMA kvKey)* RPAREN)
+    : PUT INTO qualifiedName (KEY kvKey VALUE kvValue | VALUES kvEntry (COMMA kvEntry)*) kvExpectation?
+    | GET FROM qualifiedName KEY kvKey
+    | DELETE FROM qualifiedName (KEY kvKey | KEYS LPAREN kvKey (COMMA kvKey)* RPAREN)
     ;
 kvEntry: LPAREN kvKey COMMA kvValue RPAREN;
 kvKey: STRING (TYPECAST BYTEA)? | X STRING | PARAMETER;

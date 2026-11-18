@@ -51,6 +51,8 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
                 // This operand names an exact bound resource, not a LET value.
                 value.* = if (call.function == .current_revision and index == 0 and argument.value == .name)
                     .{ .text = argument.value.name }
+                else if (call.function == .current_revision and index == 0 and argument.value == .field and argument.value.field.base.value == .name)
+                    .{ .text = try std.fmt.allocPrint(self.scratch, "{s}\x00{s}", .{ argument.value.field.base.value.name, argument.value.field.name }) }
                 else
                     try self.expression(argument, depth + 1);
             }
