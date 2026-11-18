@@ -23,6 +23,7 @@ connector_proposal: ?c.DirectSource.Proposal = null,
 connector_list: ?c.DirectSource.Selection = null,
 historical_list: ?c.protocol.DataLifecycle.Snapshot = null,
 historical_namespace: ?u64 = null,
+inspected_namespace: ?u64 = null,
 projection: ?c.DirectSchemaProjection.Accepted = null,
 storage: bool = false,
 node_storage: bool = false,
@@ -123,8 +124,9 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
     var parser = try f.SqlTyped.initDialect(a, selection.statement, null, false, host.dialect);
     if (try f.LogDdl.inspection(parser)) |inspection| {
         if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const target_ns = try host.table.resolveSchema(inspection.schema_name, host.namespace);
         const name = try c.TableMetadata.Name.init(inspection.name);
-        const response = try host.table.call(.{ .log_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = try host.table.call(.{ .log_lookup = .{ .namespace = target_ns, .name = name.slice() } });
         defer response.deinit();
         const metadata = response.value.result.log_lookup orelse return error.CatalogNameNotFound;
         const definition = metadata.declaration;
@@ -138,12 +140,13 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             defer owned.deinit();
             break :blk try describeRows(a, owned.schema);
         };
-        return .{ .arena = arena, .name = name, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
+        return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .log_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &log_fields };
     }
     if (try f.DocumentDdl.inspection(parser)) |inspection| {
         if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const target_ns = try host.table.resolveSchema(inspection.schema_name, host.namespace);
         const name = try c.TableMetadata.Name.init(inspection.name);
-        const response = try host.table.call(.{ .document_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = try host.table.call(.{ .document_lookup = .{ .namespace = target_ns, .name = name.slice() } });
         defer response.deinit();
         const metadata = response.value.result.document_lookup orelse return error.CatalogNameNotFound;
         const binding = try c.DirectTableBinding.init(host.table.connection, metadata.definition);
@@ -165,12 +168,13 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             defer owned.deinit();
             break :blk try describeRows(a, owned.schema);
         };
-        return .{ .arena = arena, .name = name, .metadata = binding, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &document_fields };
+        return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .metadata = binding, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &document_fields };
     }
     if (try f.KVDdl.inspection(parser)) |inspection| {
         if (selection.snapshot != null) return error.UnsupportedHistoricalKind;
+        const target_ns = try host.table.resolveSchema(inspection.schema_name, host.namespace);
         const name = try c.TableMetadata.Name.init(inspection.name);
-        const response = try host.table.call(.{ .kv_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = try host.table.call(.{ .kv_lookup = .{ .namespace = target_ns, .name = name.slice() } });
         defer response.deinit();
         const definition = try (response.value.result.kv_lookup orelse return error.CatalogNameNotFound).cloneInto(a);
         const rows = if (!inspection.describe) blk: {
@@ -190,7 +194,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             });
             break :blk rows;
         } else try kvDescribeRows(a, definition);
-        return .{ .arena = arena, .name = name, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &kv_fields };
+        return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .kv_metadata = .{ .connection = host.table.connection, .definition = definition }, .rows = rows, .output = if (inspection.describe) &log_describe_fields else &kv_fields };
     }
     const selected_namespace = if (selection.snapshot != null) try selection.resolveNamespace(host.table, host.namespace) else host.namespace;
     if (try parser.takeWord("SHOW")) {
@@ -207,10 +211,11 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         if (try parser.takeWord("DATAFLOW")) {
             if (!host.native_profile or host.source != null or selection.snapshot != null) return error.UnsupportedManagedTable;
             const command = (try g.database.ManagedSql.inspect(a, sql, host.dialect)) orelse return error.InvalidSqlSyntax;
+            const target_ns = try host.table.resolveSchema(if (command.schema) |*s| s.slice() else null, host.namespace);
             const name = try c.TableMetadata.Name.init(command.name.slice());
             const revision = command.revision;
             const application: g.direct.ManagedApplication = .{ .client = host.table };
-            if (try g.ManagedOperations.program(host, command.name)) |found| {
+            if (try g.ManagedOperations.programNamespace(host, target_ns, command.name)) |found| {
                 defer found.deinit();
                 if (revision != null) return error.UnsupportedProgramRevision;
                 const encoded = try c.protocol.Json.valueAlloc(a, found.value);
@@ -219,9 +224,9 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
                 const observed = try application.inspect(declared);
                 const rows = try a.alloc([]const f.Types.Values.Cell, 1);
                 rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = observed }))});
-                return .{ .arena = arena, .name = name, .program = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
+                return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .program = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
             }
-            const response = host.table.call(.{ .managed_inspection = .{ .namespace = host.namespace, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
+            const response = host.table.call(.{ .managed_inspection = .{ .namespace = target_ns, .name = try .init(name.slice()), .expected = null, .revision = revision } }) catch |err| return if (err == error.NotFound) (if (revision != null) error.DataflowRevisionNotFound else error.CatalogNameNotFound) else err;
             defer response.deinit();
             const inspected = response.value.result.managed_inspection;
             var declared = inspected.declaration;
@@ -230,10 +235,10 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             if (revision) |number| {
                 const completed = inspected.completed orelse return error.InvalidManagedTableRecord;
                 rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .revision = completed.revision.metadata, .manifest = completed.manifest, .decision = completed.decision }))});
-                return .{ .arena = arena, .name = name, .managed = declared, .managed_revision = .{ .revision = number, .root = completed.manifest }, .rows = rows, .output = &.{.{ .name = "dataflow_revision", .type = .utf8 }} };
+                return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .managed = declared, .managed_revision = .{ .revision = number, .root = completed.manifest }, .rows = rows, .output = &.{.{ .name = "dataflow_revision", .type = .utf8 }} };
             }
             rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .declaration = declared, .observation = inspected.observation.? }))});
-            return .{ .arena = arena, .name = name, .managed = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
+            return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .managed = declared, .rows = rows, .output = &.{.{ .name = "dataflow", .type = .utf8 }} };
         }
         if (!(try parser.takeWord("STORAGE"))) {
             arena.deinit();
@@ -244,27 +249,35 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             try validateNode(host);
             return .{ .arena = arena, .node_storage = true, .rows = &.{}, .output = &Storage.node_fields };
         }
-        const name = try c.TableMetadata.Name.init(try parser.name());
+        const storage_ref = try parser.qualifiedName();
+        const target_ns = try host.table.resolveSchema(storage_ref.schema, host.namespace);
+        const name = try c.TableMetadata.Name.init(storage_ref.name);
         try parser.finish();
-        const response = try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        const response = try host.table.call(.{ .lookup = .{ .namespace = target_ns, .name = name.slice() } });
         defer response.deinit();
         const definition = response.value.result.lookup orelse return error.CatalogNameNotFound;
         const binding = try c.DirectTableBinding.init(host.table.connection, definition);
-        return .{ .arena = arena, .name = name, .metadata = binding, .storage = true, .rows = &.{}, .output = &Storage.fields };
+        return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .metadata = binding, .storage = true, .rows = &.{}, .output = &Storage.fields };
     }
     if (!host.native_profile) {
         arena.deinit();
         return null;
     }
     if (try parser.takeWord("DESCRIBE")) {
-        const name = try c.TableMetadata.Name.init(try parser.name());
+        const desc_ref = try parser.qualifiedName();
+        const name = try c.TableMetadata.Name.init(desc_ref.name);
         try parser.finish();
-        const response = if (selection.snapshot) |snapshot| c.DirectHistory.resolve(host.table, snapshot, selected_namespace, name.slice(), false) catch |err| {
-            if (err == error.HistoricalObjectNotSelected) return try describeView(host, &arena, selected_namespace, name, selection.snapshot, selection.projection);
+        const target_ns = if (desc_ref.schema) |s_name| (if (selection.snapshot) |cut| blk: {
+            const res = try c.DirectHistory.call(host.table, .{ .namespace = .{ .snapshot = cut, .name = try .init(s_name) } });
+            defer res.deinit();
+            break :blk (res.value.result.historical_catalog.namespace orelse return error.HistoricalObjectNotSelected).id;
+        } else try host.table.resolveSchema(s_name, host.namespace)) else selected_namespace;
+        const response = if (selection.snapshot) |snapshot| c.DirectHistory.resolve(host.table, snapshot, target_ns, name.slice(), false) catch |err| {
+            if (err == error.HistoricalObjectNotSelected) return try describeView(host, &arena, target_ns, name, selection.snapshot, selection.projection);
             return err;
-        } else try host.table.call(.{ .lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+        } else try host.table.call(.{ .lookup = .{ .namespace = target_ns, .name = name.slice() } });
         defer response.deinit();
-        const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return try describeView(host, &arena, selected_namespace, name, selection.snapshot, selection.projection));
+        const binding = if (selection.snapshot != null) try c.DirectTableBinding.initCatalog(host.table.connection, response.value.result.historical_catalog.source) else try c.DirectTableBinding.init(host.table.connection, response.value.result.lookup orelse return try describeView(host, &arena, target_ns, name, selection.snapshot, selection.projection));
         const projected = if (selection.projection) |target| try c.DirectSchemaProjection.resolve(host.table, binding.interpretation, target) else null;
         defer if (projected) |value| value.deinit();
         const projection = if (projected) |value| value.value.result.schema_projection.prepared.target else null;
@@ -272,7 +285,7 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
         var owned_schema = try f.TableSchema.decode(a, try schema.decode(a, f.TableSchema.max_bytes));
         defer owned_schema.deinit();
         const rows = try describeRows(a, owned_schema.schema);
-        return .{ .arena = arena, .name = name, .metadata = binding, .historical_namespace = if (selection.snapshot != null) selected_namespace else null, .rows = rows, .output = &describe_fields, .projection = projection };
+        return .{ .arena = arena, .name = name, .inspected_namespace = target_ns, .metadata = binding, .historical_namespace = if (selection.snapshot != null) target_ns else null, .rows = rows, .output = &describe_fields, .projection = projection };
     }
     if (try parser.takeWord("EXPLAIN")) {
         if (try g.database.ManagedSql.parse(a, sql[parser.lexer.start..], host.dialect)) |parsed_value| {
@@ -292,8 +305,13 @@ pub fn prepare(host: *g.Session, sql: []const u8) !?Self {
             }
             if (parsed.statement != .create) return error.UnsupportedManagedTable;
             const value = parsed.statement.create;
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
+            if (value.output_schema) |*out_s| {
+                const out_ns = try host.table.resolveSchema(out_s.slice(), host.namespace);
+                if (out_ns != target_ns) return error.UnsupportedManagedTable;
+            }
             const manager: g.direct.ManagedTable = .{ .client = host.table };
-            var declared = try manager.prepare(host.namespace, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
+            var declared = try manager.prepare(target_ns, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
             declared.sql = try a.dupe(u8, declared.sql);
             const rows = try a.alloc([]const f.Types.Values.Cell, 1);
             rows[0] = try a.dupe(f.Types.Values.Cell, &.{text(try c.protocol.Json.valueAlloc(a, .{ .consumer = "finite_recomputation", .sources = .{declared.source}, .output = declared.output, .limits = declared.options, .executed = false, .basis = @as(?[]const u8, null) }))});
@@ -416,7 +434,7 @@ pub fn validate(self: *Self, host: *g.Session) !void {
     if (self.program) |declared| {
         for (declared.resources) |resource| try resource.requireCurrent(host.table);
         if (self.kind != .plan) {
-            const named = try g.ManagedOperations.program(host, declared.name) orelse return error.CatalogNameNotFound;
+            const named = try g.ManagedOperations.programNamespace(host, declared.namespace, declared.name) orelse return error.CatalogNameNotFound;
             defer named.deinit();
             if (!std.meta.eql(try declared.interpretation(host.allocator), try named.value.interpretation(host.allocator))) return error.DataflowIdentityConflict;
             const application: g.direct.ManagedApplication = .{ .client = host.table };
@@ -430,17 +448,17 @@ pub fn validate(self: *Self, host: *g.Session) !void {
         _ = try source.client.describe(source.definition);
     }
     if (self.metadata) |binding| {
-        if ((self.historical_namespace orelse host.namespace) != binding.namespace) return error.CatalogIdentityConflict;
+        if ((self.historical_namespace orelse self.inspected_namespace orelse host.namespace) != binding.namespace) return error.CatalogIdentityConflict;
         _ = try binding.require(host.table, .inspect);
     }
     if (self.kv_metadata) |binding| {
-        if (host.namespace != binding.definition.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
+        if ((self.inspected_namespace orelse host.namespace) != binding.definition.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
         const response = try host.table.call(.{ .kv = .{ .observe = binding.definition.interpretation.interpretation.object } });
         defer response.deinit();
         if (response.value.result.kv.definition.retired or !std.meta.eql(response.value.result.kv.definition.interpretation, binding.definition.interpretation)) return error.CatalogDefinitionChanged;
     }
     if (self.log_metadata) |binding| {
-        if (host.namespace != binding.definition.properties.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
+        if ((self.inspected_namespace orelse host.namespace) != binding.definition.properties.namespace or !std.meta.eql(host.table.connection, binding.connection)) return error.CatalogIdentityConflict;
         try c.DirectLogClient.requireCurrent(host.table, binding.definition);
     }
     if (self.statement) |*statement| try statement.validate(&host.table);

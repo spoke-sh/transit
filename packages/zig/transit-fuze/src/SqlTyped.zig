@@ -181,6 +181,11 @@ pub fn name(self: *Self) ![]const u8 {
     if (result.len == 0 or result.len > 255 or std.mem.indexOfScalar(u8, result, 0) != null) return error.InvalidColumnName;
     return result;
 }
+pub const QualifiedName = struct { schema: ?[]const u8 = null, name: []const u8 };
+pub fn qualifiedName(self: *Self) !QualifiedName {
+    const ref = try @import("SqlReference.zig").source(self, .source);
+    return .{ .schema = ref.qualifier, .name = ref.name };
+}
 fn number(self: *Self) ![]const u8 {
     if (self.token.tag == .minus or self.token.tag == .plus) self.annotate(.number);
     const negative = try self.take(.minus);

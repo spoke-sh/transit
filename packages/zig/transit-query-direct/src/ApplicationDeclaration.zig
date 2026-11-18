@@ -72,10 +72,11 @@ pub fn validate(self: Self, allocator: std.mem.Allocator) !void {
         return error.DataflowIdentityConflict;
     for (self.resources, 0..) |resource, index| {
         try resource.validate(allocator, self.connection);
-        if (resource.namespace() != self.namespace or std.meta.eql(resource.interpretation().object, self.object)) return error.DataflowIdentityConflict;
+        if (std.meta.eql(resource.interpretation().object, self.object)) return error.DataflowIdentityConflict;
+        if (resource.schema == null and resource.namespace() != self.namespace) return error.DataflowIdentityConflict;
         for (self.resources[0..index]) |prior| {
             if (std.meta.eql(prior.interpretation().object, resource.interpretation().object) or
-                std.meta.eql(prior.name(), resource.name())) return error.DuplicateProgramResource;
+                a.Types.sameResource(prior.schemaSlice(), prior.name().slice(), resource.schemaSlice(), resource.name().slice())) return error.DuplicateProgramResource;
         }
     }
 }
@@ -129,7 +130,7 @@ pub fn inputClaim(self: Self, allocator: std.mem.Allocator, partition: u32, oper
     try self.validate(allocator);
     try self.connection.owner(operation);
     for (self.resources) |resource| {
-        if (!std.mem.eql(u8, resource.name().slice(), self.program.queue)) continue;
+        if (!a.Types.sameResource(resource.schemaSlice(), resource.name().slice(), self.program.queue_schema, self.program.queue)) continue;
         if (resource.value != .log or resource.value.log.declaration.kind() != .queue) return error.ProgramResourceKindMismatch;
         const queue = resource.value.log;
         _ = try queue.declaration.partition(partition);
@@ -297,4 +298,94 @@ fn testSecretBinding(allocator: std.mem.Allocator, connection: c.DirectTableProt
     });
     defer prepared.deinit();
     return .{ .value = .{ .kv = .{ .stored = try prepared.stored(), .properties = properties, .spec = spec } } };
+}
+
+fn testTableBinding(allocator: std.mem.Allocator, connection: c.DirectTableProtocol.Connection, namespace: u64, schema_name: []const u8, id: u64, name: []const u8) !Binding {
+    var ddl = try q.fuze.TableDdl.compile(allocator, "CREATE TABLE items (id BIGINT NOT NULL PRIMARY KEY, label TEXT NOT NULL)", null, null);
+    defer ddl.deinit();
+    const schema = try ddl.statement.create.bind(id);
+    const properties: c.DirectCatalog.Properties = .{ .namespace = namespace, .name = try .init(name), .authorization = id + 200 };
+    var properties_buffer: [4096]u8 = undefined;
+    var native = try c.storage.TableDeclaration.prepare(allocator, .{
+        .object = .{ .scope = connection.scope, .branch = connection.branch, .object = id },
+        .revision = 1,
+        .schema = schema,
+        .properties = try properties.encode(&properties_buffer),
+    });
+    defer native.deinit();
+    const stored = try native.stored();
+    var schema_buffer: [q.fuze.TableSchema.max_bytes]u8 = undefined;
+    return .{
+        .schema = try .init(schema_name),
+        .value = .{ .table = .{
+            .stored = stored,
+            .properties = properties,
+            .schema = try c.DirectTableProtocol.Binary.encode(allocator, try schema.encode(&schema_buffer)),
+        } },
+    };
+}
+
+test "application declarations bind cross-schema resources with distinct same-leaf table names" {
+    const t = std.testing;
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const connection: c.DirectTableProtocol.Connection = .{ .scope = .{ .realm = 42, .resource = 3, .catalog = 9 }, .branch = 1, .audience = 5, .principal = 4, .role = 6 };
+    var queue = try q.fuze.LogDdl.compile(t.allocator, "CREATE QUEUE networking.jobs (id BIGINT NOT NULL, label TEXT NOT NULL)", .transit, null);
+    defer queue.deinit();
+    const queue_schema = try queue.statement.action.create.bind(21);
+    const configuration = try queue.statement.configure(null, queue_schema);
+    const queue_properties: c.DirectCatalog.Properties = .{ .namespace = 2, .name = try .init("jobs"), .authorization = 221 };
+    var properties_buffer: [4096]u8 = undefined;
+    var native_queue = try c.storage.LogDeclaration.prepare(t.allocator, .{
+        .object = .{ .scope = connection.scope, .branch = 1, .object = 21 },
+        .revision = 1,
+        .schema = queue_schema,
+        .configuration = configuration.configuration,
+        .limits = configuration.limits,
+        .properties = try queue_properties.encode(&properties_buffer),
+    });
+    defer native_queue.deinit();
+    const stored_queue = try native_queue.stored();
+    var queue_buffer: [q.fuze.TableSchema.max_bytes]u8 = undefined;
+    const queue_binding: Binding = .{
+        .schema = try .init("networking"),
+        .value = .{ .log = .{
+            .declaration = .{
+                .stored = stored_queue,
+                .properties = queue_properties,
+                .seed = stored_queue,
+                .initialization = .{ .scope = connection.scope, .principal = 4, .operation = 321 },
+                .first_partition = 1,
+            },
+            .schema = try c.DirectTableProtocol.Binary.encode(arena.allocator(), try queue_schema.encode(&queue_buffer)),
+        } },
+    };
+    const tenancy_items = try testTableBinding(arena.allocator(), connection, 3, "tenancy", 22, "items");
+    const networking_items = try testTableBinding(arena.allocator(), connection, 2, "networking", 23, "items");
+    const resources = [_]Binding{ queue_binding, tenancy_items, networking_items };
+    const source =
+        "CREATE DATAFLOW networking.sync_items FROM QUEUE networking.jobs AS job AS BEGIN " ++
+        "LET org = SELECT id, label FROM tenancy.items WHERE id = job.id; " ++
+        "REQUIRE org.id IS NOT NULL ELSE 'MissingOrg'; " ++
+        "BEGIN ATOMIC INSERT INTO networking.items VALUES (org.id, job.label) ON CONFLICT (id) DO ASSERT SAME ROW; END; " ++
+        "END;";
+    const compiled = try prepare(t.allocator, .{
+        .connection = connection,
+        .namespace = 2,
+        .object = 24,
+        .operation = 324,
+        .source = source,
+        .resources = &resources,
+        .limits = .{ .requests = 1000, .scan_rows = 1000, .result_bytes = 65536, .continuation_bytes = 65536, .retained_bytes = 64 * 1024 * 1024, .transaction = c.DirectTransaction.default_limits },
+    });
+    defer compiled.deinit();
+    const bytes = try compiled.value.encode(t.allocator);
+    defer t.allocator.free(bytes);
+    const restored = try decode(t.allocator, bytes);
+    defer restored.deinit();
+    var bound = try restored.value.bind(t.allocator);
+    defer bound.deinit();
+    try t.expectEqual(@as(usize, 3), bound.uses.len);
+    try t.expect(bound.uses[1].read and !bound.uses[1].write);
+    try t.expect(bound.uses[2].write);
 }

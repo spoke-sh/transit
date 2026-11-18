@@ -4,9 +4,9 @@ const g = @import("root.zig");
 const f = g.fuze;
 const Name = g.catalog.TableAuthority.Name;
 pub const Statement = union(enum) {
-    create: struct { name: Name, output: Name, sql: []const u8 },
-    program: struct { name: Name, sql: []const u8 },
-    control: struct { name: Name, command: g.catalog.protocol.Dataflow.Command, role: ?f.AuthorizationSql.Role = null },
+    create: struct { schema: ?Name = null, name: Name, output_schema: ?Name = null, output: Name, sql: []const u8 },
+    program: struct { schema: ?Name = null, name: Name, sql: []const u8 },
+    control: struct { schema: ?Name = null, name: Name, command: g.catalog.protocol.Dataflow.Command, role: ?f.AuthorizationSql.Role = null },
 };
 pub const Prepared = struct {
     arena: std.heap.ArenaAllocator,
@@ -15,13 +15,15 @@ pub const Prepared = struct {
         self.arena.deinit();
     }
 };
-pub const Inspection = struct { name: Name, revision: ?u64 };
+pub const Inspection = struct { schema: ?Name = null, name: Name, revision: ?u64 };
 pub fn inspect(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Dialect) !?Inspection {
     var arena: std.heap.ArenaAllocator = .init(allocator);
     defer arena.deinit();
     var parser = try f.SqlTyped.initDialect(arena.allocator(), sql, null, false, dialect);
     if (!try parser.takeWord("SHOW") or !try parser.takeWord("DATAFLOW")) return null;
-    const name = try Name.init(try parser.name());
+    const ref = try parser.qualifiedName();
+    const schema = if (ref.schema) |q| try Name.init(q) else null;
+    const name = try Name.init(ref.name);
     const revision: ?u64 = if (try parser.takeWord("REVISION")) blk: {
         if (parser.token.tag != .integer) return error.InvalidDataflowRevision;
         const value = std.fmt.parseInt(u64, parser.token.text, 10) catch return error.InvalidDataflowRevision;
@@ -30,7 +32,7 @@ pub fn inspect(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Dia
         break :blk value;
     } else null;
     try parser.finish();
-    return .{ .name = name, .revision = revision };
+    return .{ .schema = schema, .name = name, .revision = revision };
 }
 pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Dialect) !?Prepared {
     var arena: std.heap.ArenaAllocator = .init(allocator);
@@ -43,21 +45,26 @@ pub fn parse(allocator: std.mem.Allocator, sql: []const u8, dialect: f.Sql.Diale
             arena.deinit();
             return null;
         }
-        const name = try Name.init(try parser.name());
+        const ref = try parser.qualifiedName();
+        const schema = if (ref.schema) |q| try Name.init(q) else null;
+        const name = try Name.init(ref.name);
         if (parser.word("FROM")) {
             var program = try f.ApplicationProgram.parse(a, owned, null);
             defer program.deinit();
-            return .{ .arena = arena, .statement = .{ .program = .{ .name = name, .sql = owned } } };
+            return .{ .arena = arena, .statement = .{ .program = .{ .schema = schema, .name = name, .sql = owned } } };
         }
         if (!try parser.takeWord("INTO")) return error.InvalidSqlSyntax;
-        const output = try Name.init(try parser.name());
+        const out_ref = try parser.qualifiedName();
+        const output_schema = if (out_ref.schema) |q| try Name.init(q) else null;
+        const output = try Name.init(out_ref.name);
         if (!try parser.takeWord("AS")) return error.InvalidSqlSyntax;
         const tail = owned[parser.lexer.start..];
         if (!try parser.takeWord("SELECT")) return error.UnsupportedManagedTable;
-        return .{ .arena = arena, .statement = .{ .create = .{ .name = name, .output = output, .sql = tail } } };
+        return .{ .arena = arena, .statement = .{ .create = .{ .schema = schema, .name = name, .output_schema = output_schema, .output = output, .sql = tail } } };
     }
     if (try f.ApplicationControl.parse(&parser)) |control| {
-        return .{ .arena = arena, .statement = .{ .control = .{ .name = try Name.init(control.name), .command = control.command, .role = control.role } } };
+        const schema = if (control.schema) |s| try Name.init(s) else null;
+        return .{ .arena = arena, .statement = .{ .control = .{ .schema = schema, .name = try Name.init(control.name), .command = control.command, .role = control.role } } };
     }
     arena.deinit();
     return null;
@@ -74,6 +81,16 @@ test "managed SQL preserves names and query text and rejects trailing controls" 
     try t.expectEqual(g.catalog.protocol.Dataflow.Command.suspend_computation, control.statement.control.command);
     try t.expectError(error.UnsupportedConstruct, parse(t.allocator, "ACTIVATE DATAFLOW item trailing", .transit));
     try t.expect(try parse(t.allocator, "CREATE TABLE input (id BIGINT)", .transit) == null);
+    var qualified = (try parse(t.allocator, "CREATE DATAFLOW tenancy.projection INTO networking.output AS SELECT id FROM tenancy.input", .transit)).?;
+    defer qualified.deinit();
+    try t.expectEqualStrings("tenancy", qualified.statement.create.schema.?.slice());
+    try t.expectEqualStrings("projection", qualified.statement.create.name.slice());
+    try t.expectEqualStrings("networking", qualified.statement.create.output_schema.?.slice());
+    try t.expectEqualStrings("output", qualified.statement.create.output.slice());
+    const inspected = (try inspect(t.allocator, "SHOW DATAFLOW networking.\"Case Name\" REVISION 2", .transit)).?;
+    try t.expectEqualStrings("networking", inspected.schema.?.slice());
+    try t.expectEqualStrings("Case Name", inspected.name.slice());
+    try t.expectEqual(@as(?u64, 2), inspected.revision);
 }
 
 test "lowered Queue programs retain the complete ordered body and explicit executor" {

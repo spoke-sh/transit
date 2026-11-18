@@ -22,10 +22,11 @@ pub const limits: q.ApplicationDeclaration.Limits = .{
 pub fn prepare(client: c.DirectTableClient, namespace: u64, object: u64, operation: u64, sql: []const u8) !std.json.Parsed(q.ApplicationDeclaration) {
     var parsed = try a.parse(client.allocator, sql, null);
     defer parsed.deinit();
+    const decl_namespace = try client.resolveSchema(parsed.program.schema, namespace);
     var arena: std.heap.ArenaAllocator = .init(client.allocator);
     defer arena.deinit();
-    var self: Self = .{ .client = client, .namespace = namespace, .arena = &arena };
-    try self.resource(parsed.program.queue, .log);
+    var self: Self = .{ .client = client, .namespace = decl_namespace, .arena = &arena };
+    try self.resource(parsed.program.queue_schema, parsed.program.queue, .log);
     if (parsed.program.predicate) |value| try self.expression(value);
     switch (parsed.program.body) {
         .instructions => |body| try self.block(body),
@@ -49,7 +50,7 @@ pub fn prepare(client: c.DirectTableClient, namespace: u64, object: u64, operati
     }
     const result = try q.ApplicationDeclaration.prepare(client.allocator, .{
         .connection = client.connection,
-        .namespace = namespace,
+        .namespace = decl_namespace,
         .object = selected_object,
         .operation = operation,
         .source = sql,
@@ -67,23 +68,25 @@ pub fn prepare(client: c.DirectTableClient, namespace: u64, object: u64, operati
 }
 
 const Kind = enum { table, kv, log, document };
-fn resource(self: *Self, name: []const u8, kind: Kind) !void {
-    for (self.resources.items) |known| if (std.mem.eql(u8, known.name().slice(), name)) return;
+fn resource(self: *Self, schema_name: ?[]const u8, name: []const u8, kind: Kind) !void {
+    for (self.resources.items) |known| if (a.Types.sameResource(known.schemaSlice(), known.name().slice(), schema_name, name)) return;
     if (self.resources.items.len == q.ApplicationDeclaration.max_resources) return error.ProgramTooComplex;
+    const res_ns = try self.client.resolveSchema(schema_name, self.namespace);
     const response = try self.client.call(switch (kind) {
-        .table => .{ .lookup = .{ .namespace = self.namespace, .name = name } },
-        .document => .{ .document_lookup = .{ .namespace = self.namespace, .name = name } },
-        .kv => .{ .kv_lookup = .{ .namespace = self.namespace, .name = name } },
-        .log => .{ .log_lookup = .{ .namespace = self.namespace, .name = name } },
+        .table => .{ .lookup = .{ .namespace = res_ns, .name = name } },
+        .document => .{ .document_lookup = .{ .namespace = res_ns, .name = name } },
+        .kv => .{ .kv_lookup = .{ .namespace = res_ns, .name = name } },
+        .log => .{ .log_lookup = .{ .namespace = res_ns, .name = name } },
     });
     defer response.deinit();
-    const value: q.ApplicationBinding = switch (response.value.result) {
+    var value: q.ApplicationBinding = switch (response.value.result) {
         .lookup => |v| .table(v orelse return error.CatalogNameNotFound),
         .document_lookup => |v| .table((v orelse return error.CatalogNameNotFound).definition),
         .kv_lookup => |v| .kv(v orelse return error.CatalogNameNotFound),
         .log_lookup => |v| .{ .value = .{ .log = v orelse return error.CatalogNameNotFound } },
         else => return error.InvalidTableResponse,
     };
+    value.schema = if (schema_name) |s| try .init(s) else null;
     // The RPC response owns schema/record bytes. Detach before its next call.
     const bytes = try c.protocol.Json.valueAlloc(self.arena.allocator(), value);
     const owned = try c.protocol.Json.parseFromSliceOwned(q.ApplicationBinding, self.arena.allocator(), bytes);
@@ -93,8 +96,17 @@ fn expression(self: *Self, value: *const a.Expression) anyerror!void {
     switch (value.value) {
         .call => |call| {
             if (call.function == .current_revision) {
-                if (call.arguments.len != 2 or call.arguments[0].value != .name) return error.ProgramArgumentMismatch;
-                try self.resource(call.arguments[0].value.name, .document);
+                if (call.arguments.len != 2) return error.ProgramArgumentMismatch;
+                switch (call.arguments[0].value) {
+                    .name => |doc_name| try self.resource(null, doc_name, .document),
+                    .field => |field| {
+                        if (field.base.value != .name) return error.ProgramArgumentMismatch;
+                        try self.resource(field.base.value.name, field.name, .document);
+                    },
+                    else => return error.ProgramArgumentMismatch,
+                }
+                try self.expression(call.arguments[1]);
+                return;
             }
             for (call.arguments) |argument| try self.expression(argument);
         },
@@ -119,11 +131,11 @@ fn block(self: *Self, body: []const a.Instruction) anyerror!void {
         .let => |binding| switch (binding.value) {
             .expression => |value| try self.expression(value),
             .get => |read| {
-                try self.resource(read.target, .kv);
+                try self.resource(read.schema, read.target, .kv);
                 try self.expression(read.key);
             },
             .select => |read| {
-                try self.resource(read.target, .table);
+                try self.resource(read.schema, read.target, .table);
                 if (read.predicate) |value| try self.expression(value);
             },
             .effect => return error.ApplicationHostUnavailable,
@@ -136,18 +148,18 @@ fn block(self: *Self, body: []const a.Instruction) anyerror!void {
             try self.block(branch.no);
         },
         .put => |put| {
-            try self.resource(put.target, .kv);
+            try self.resource(put.target_schema, put.target, .kv);
             try self.expression(put.key);
             try self.expression(put.value);
             for (put.fields) |field| try self.expression(field.value);
             if (put.expected == .revision) try self.expression(put.expected.revision);
         },
         .insert => |insert| {
-            try self.resource(insert.target, .table);
+            try self.resource(insert.target_schema, insert.target, .table);
             for (insert.values) |value| try self.expression(value);
         },
         .append => |append| {
-            try self.resource(append.target, .log);
+            try self.resource(append.target_schema, append.target, .log);
             for (append.values) |value| try self.expression(value);
         },
         .handoff, .respond, .respond_error => return error.ApplicationHostUnavailable,

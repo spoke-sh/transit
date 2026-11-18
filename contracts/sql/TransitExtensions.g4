@@ -123,7 +123,7 @@ selectStatement
         SELECT projection FROM qualifiedName sourceAlias? whereClause? limitClause?
       RPAREN AS identifier limitClause?
     ;
-qualifiedName: (schema=identifier DOT)? name=identifier;
+qualifiedName: identifier (DOT identifier)?;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
 aggregateSelection: (COUNT LPAREN (STAR | columnReference | scalarCall) RPAREN | SUM LPAREN (columnReference | scalarCall) RPAREN) outputAlias?;
@@ -302,7 +302,7 @@ columnReferencesConstraint
     ;
 constraintColumns: LPAREN identifier (COMMA identifier)* RPAREN;
 referentialClause: ON (DELETE | UPDATE) (RESTRICT | NO ACTION | CASCADE | SET NULL_);
-columnDef: identifier dataType columnConstraint*;
+columnDef: columnIdentifier dataType columnConstraint*;
 columnConstraint
     : nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation
     | ROUNDING identifier | METRIC identifier
@@ -420,7 +420,8 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-identifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
+identifier: columnIdentifier | CONSTRAINT | CHECK | FOREIGN | REFERENCES;
+columnIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE;
 settingIdentifier: legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER;
 legacyIdentifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
@@ -439,7 +440,7 @@ legacyIdentifier
     | STREAM | STREAM_SLICE | QUEUE | PARTITION | PARTITIONS | HASH
     | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING
     | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT
-    | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION
+    | ENFORCED | VALID | VALIDATE | NO | ACTION
     ;
 
 AT: 'AT';

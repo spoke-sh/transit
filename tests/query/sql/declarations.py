@@ -3,7 +3,7 @@ import copy
 import itertools
 import json
 import subprocess
-from query.sql.reference import ROOT, CACHE, tree, identifier
+from query.sql.reference import ROOT, CACHE, tree, identifier, qualified_name
 from query.sql.table_reference import ALIASES, create, column, data_type, literal, schema_bytes
 
 TYPES=dict(INT64='int64',BOOL='boolean',UTF8='utf8',BINARY='binary')
@@ -34,9 +34,10 @@ def expected(case):
                 elif ctx.DEFAULT(): selected['default']=literal(ctx.literal(),selected['type']) if ctx.SET() else None
                 elif ctx.NOT(): selected['nullable']=bool(ctx.DROP())
                 else: assert ctx.DROP(); schema['columns'].remove(selected)
-        return dict(kind='alter',schema_name=identifier(qn.schema) if qn.schema else None,name=identifier(qn.name),rename=renamed,schema=schema)
+        schema_name, table_name = qualified_name(qn)
+        return dict(kind='alter',schema_name=schema_name,name=table_name,rename=renamed,schema=schema)
     if extension.dropTable():
-        ctx=extension.dropTable(); qn=ctx.qualifiedName(); return dict(kind='drop',schema_name=identifier(qn.schema) if qn.schema else None,name=identifier(qn.name),if_exists=bool(ctx.IF()),object=7 if case.get('basis') else None)
+        ctx=extension.dropTable(); schema_name, table_name = qualified_name(ctx.qualifiedName()); return dict(kind='drop',schema_name=schema_name,name=table_name,if_exists=bool(ctx.IF()),object=7 if case.get('basis') else None)
     ctx=extension.createKv() or extension.createDocument(); assert ctx
     kind='kv' if extension.createKv() else 'document'; name=identifier(ctx.identifier())
     typ=TYPES[ctx.dataType().getText().upper()] if kind=='kv' else None

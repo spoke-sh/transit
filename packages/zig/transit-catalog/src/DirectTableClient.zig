@@ -327,6 +327,27 @@ pub fn require(self: Self, requested: c.DirectCatalog.AccessRequest) !p.Authoriz
     defer response.deinit();
     return response.value.subject;
 }
+/// Resolve an optional SQL schema qualifier without issuing any RPC when the
+/// statement leaves its target unqualified.
+pub fn resolveSchema(self: Self, schema_name: ?[]const u8, fallback: u64) !u64 {
+    const name = schema_name orelse return fallback;
+    _ = try c.TableAuthority.Name.init(name);
+    var after: ?u64 = null;
+    var position: ?p.DataLifecycle.Position = null;
+    var pages: u32 = 0;
+    while (pages < 128) : (pages += 1) {
+        const response = try self.call(.{ .namespaces = .{ .after = after } });
+        defer response.deinit();
+        const page = response.value.result.namespaces;
+        if (position) |expected| if (!std.meta.eql(expected, page.directory_position)) return error.CatalogCursorChanged;
+        position = page.directory_position;
+        for (page.entries) |entry| if (entry) |found| {
+            if (!found.retired and std.mem.eql(u8, found.name.slice(), name)) return found.id;
+        };
+        after = page.next orelse return error.CatalogSchemaMissing;
+    }
+    return error.QueryPageBudget;
+}
 pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
     try self.connection.validate();
     if (self.delegation) |delegation| {

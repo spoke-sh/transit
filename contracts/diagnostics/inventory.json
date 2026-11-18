@@ -6923,7 +6923,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 23,
+        "try": 24,
         "catch": 0
       },
       "imports": [
@@ -7425,7 +7425,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 20,
+        "try": 21,
         "catch": 0
       },
       "imports": [
@@ -7451,7 +7451,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -7477,7 +7477,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 9,
+        "try": 10,
         "catch": 0
       },
       "imports": [
@@ -7678,7 +7678,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 47,
+        "try": 48,
         "catch": 1
       },
       "imports": [
@@ -7714,7 +7714,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 86,
+        "try": 87,
         "catch": 0
       },
       "imports": [
@@ -7749,7 +7749,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 49,
         "catch": 0
       },
       "imports": [
@@ -7775,7 +7775,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 20,
         "catch": 0
       },
       "imports": [
@@ -7803,7 +7803,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 13,
+        "try": 14,
         "catch": 0
       },
       "imports": [
@@ -7831,7 +7831,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
+        "try": 18,
         "catch": 1
       },
       "imports": [
@@ -9276,11 +9276,14 @@
     "packages/zig/transit-catalog/src/DirectTableClient.zig": {
       "errors": {
         "AccessDenied": 1,
+        "CatalogCursorChanged": 1,
         "CatalogDenied": 1,
+        "CatalogSchemaMissing": 1,
         "Conflict": 1,
         "InvalidTableDelegation": 3,
         "InvalidTableResponse": 7,
         "InvalidTransactionExecution": 1,
+        "QueryPageBudget": 1,
         "Rejected": 1
       },
       "outcomes": {},
@@ -9294,11 +9297,12 @@
         "closeOriginalHistory()": "<inferred>",
         "closeOriginalPin()": "<inferred>",
         "require()": "<inferred>",
+        "resolveSchema()": "<inferred>",
         "signed()": "<inferred>"
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 30,
+        "try": 32,
         "catch": 1
       },
       "imports": [
@@ -9472,6 +9476,7 @@
       "error_sets": {},
       "error_returns": {
         "ForeignParents.lookup()": "<inferred>",
+        "ForeignParents.lookupQualified()": "<inferred>",
         "assertion()": "<inferred>",
         "bind()": "<inferred>",
         "bindPrepared()": "<inferred>",
@@ -9482,7 +9487,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 38,
+        "try": 40,
         "catch": 0
       },
       "imports": [
@@ -9505,7 +9510,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 11,
+        "try": 12,
         "catch": 0
       },
       "imports": [
@@ -23000,6 +23005,7 @@
         "nullability()": "<inferred>",
         "number()": "<inferred>",
         "parameter()": "<inferred>",
+        "qualifiedName()": "<inferred>",
         "require()": "<inferred>",
         "requireWord()": "<inferred>",
         "take()": "<inferred>",
@@ -23011,12 +23017,13 @@
       },
       "open_error_set_uses": 5,
       "propagation": {
-        "try": 94,
+        "try": 95,
         "catch": 4
       },
       "imports": [
         "Sql.zig",
         "SqlLiteral.zig",
+        "SqlReference.zig",
         "SqlTypes.zig",
         "Types.zig",
         "VectorMetric.zig",
@@ -25388,6 +25395,7 @@
         "SourceCodec.zig",
         "Sql.zig",
         "SqlDiagnostic.zig",
+        "SqlForeignKey.zig",
         "SqlInput.zig",
         "SqlScript.zig",
         "SqlTyped.zig",
@@ -28099,7 +28107,7 @@
           "deadline"
         ],
         "Definition": [
-          "@\"06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5\""
+          "f311e893f8d2f4c21f426790172fadfebe7eb2364615eb1566c09f11d39bb0bb"
         ],
         "Effect.phase": [
           "pending",
@@ -29810,7 +29818,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 28,
+        "try": 30,
         "catch": 0
       },
       "imports": [
@@ -29903,7 +29911,7 @@
     },
     "packages/zig/transit-query-direct/src/ApplicationDeclaration.zig": {
       "errors": {
-        "DataflowIdentityConflict": 3,
+        "DataflowIdentityConflict": 4,
         "DuplicateProgramNativeBinding": 1,
         "DuplicateProgramResource": 1,
         "IncompatibleDefinition": 1,
@@ -29925,11 +29933,12 @@
         "interpretation()": "<inferred>",
         "prepare()": "<inferred>",
         "testSecretBinding()": "<inferred>",
+        "testTableBinding()": "<inferred>",
         "validate()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 35,
+        "try": 44,
         "catch": 0
       },
       "imports": [
@@ -30364,7 +30373,7 @@
         "ApplicationHostUnavailable": 3,
         "CatalogNameNotFound": 4,
         "InvalidTableResponse": 1,
-        "ProgramArgumentMismatch": 1,
+        "ProgramArgumentMismatch": 3,
         "ProgramTooComplex": 1,
         "UnsupportedProgramPartitioning": 1
       },
@@ -30385,7 +30394,7 @@
       },
       "open_error_set_uses": 2,
       "propagation": {
-        "try": 42,
+        "try": 47,
         "catch": 0
       },
       "imports": [
@@ -30453,6 +30462,7 @@
         "CatalogIdentityConflict": 1,
         "CatalogKindMismatch": 3,
         "CatalogNameNotFound": 1,
+        "HistoricalObjectNotSelected": 1,
         "InvalidLogPartition": 1,
         "InvalidQueryAccess": 1,
         "InvalidQueryBudget": 2,
@@ -30481,7 +30491,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 40,
+        "try": 43,
         "catch": 0
       },
       "imports": [
@@ -30608,7 +30618,7 @@
     "packages/zig/transit-query-direct/src/DirectTablePrepared.zig": {
       "errors": {
         "CatalogIdentityConflict": 1,
-        "HistoricalObjectNotSelected": 2,
+        "HistoricalObjectNotSelected": 3,
         "InvalidQueryAccess": 1,
         "TableDefinitionChanged": 3,
         "TableNotFound": 1,
@@ -30631,7 +30641,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 48,
+        "try": 51,
         "catch": 2
       },
       "imports": [
@@ -38711,7 +38721,7 @@
         "ManagedTableNameConflict": 3,
         "ManagedTableRequiresCohostedService": 1,
         "SqlOperationBindingChanged": 1,
-        "UnsupportedManagedTable": 1,
+        "UnsupportedManagedTable": 3,
         "UnsupportedProgramMigration": 2
       },
       "outcomes": {
@@ -38733,6 +38743,8 @@
         "definition()": "<inferred>",
         "namedObject()": "<inferred>",
         "program()": "<inferred>",
+        "programInSchema()": "<inferred>",
+        "programNamespace()": "<inferred>",
         "read()": "<inferred>",
         "requireNamed()": "<inferred>",
         "requireProfile()": "<inferred>",
@@ -38742,7 +38754,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 74,
+        "try": 83,
         "catch": 1
       },
       "imports": [
@@ -38753,6 +38765,7 @@
     "packages/zig/transit-sql-service/src/MigrationDataflow.zig": {
       "errors": {
         "CatalogNameNotFound": 1,
+        "CatalogSchemaMissing": 1,
         "DataflowControlChanged": 1,
         "DataflowSourceChanged": 2,
         "InvalidMigrationDependency": 3,
@@ -38775,8 +38788,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 32,
-        "catch": 0
+        "try": 43,
+        "catch": 1
       },
       "imports": [
         "root.zig",
@@ -38786,6 +38799,7 @@
     "packages/zig/transit-sql-service/src/MigrationRunner.zig": {
       "errors": {
         "AuthorizationStepBudget": 1,
+        "CatalogSchemaMissing": 1,
         "ExpectedGatewayRead": 1,
         "GatewayMutationRejected": 1,
         "InvalidMigrationStepCount": 2,
@@ -38795,15 +38809,25 @@
         "MigrationSessionControlUnsupported": 5,
         "MissingGatewayTerminal": 1,
         "OutOfMemory": 1,
-        "TableNotFound": 2,
+        "TableNotFound": 3,
         "UnsupportedMigrationStatement": 1
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "WorkingSchemas.ForeignContext.lookupQualified()": "<inferred>",
+        "WorkingSchemas.ForeignContext.lookupUnqualified()": "<inferred>",
+        "WorkingSchemas.canonicalForObject()": "<inferred>",
+        "WorkingSchemas.canonicalKey()": "<inferred>",
         "WorkingSchemas.get()": "<inferred>",
+        "WorkingSchemas.getEntry()": "<inferred>",
+        "WorkingSchemas.getEntryParts()": "<inferred>",
         "WorkingSchemas.getLive()": "<inferred>",
-        "WorkingSchemas.put()": "<inferred>",
+        "WorkingSchemas.getLiveEntry()": "<inferred>",
+        "WorkingSchemas.getParts()": "<inferred>",
+        "WorkingSchemas.getProducer()": "<inferred>",
+        "WorkingSchemas.putEntry()": "<inferred>",
+        "WorkingSchemas.syntheticDefinition()": "<inferred>",
         "allocationFailureFraming()": "<inferred>",
         "applyMigrations()": "<inferred>",
         "buildPlanReport()": "<inferred>",
@@ -38814,7 +38838,7 @@
         "consumeRead()": "<inferred>",
         "execute()": "<inferred>",
         "executeStepStatement()": "<inferred>",
-        "lookupLiveSchema()": "<inferred>",
+        "lookupLiveTable()": "<inferred>",
         "planQuery()": "<inferred>",
         "planWorkingQuery()": "<inferred>",
         "recordEvidence()": "<inferred>",
@@ -38828,8 +38852,8 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 186,
-        "catch": 22
+        "try": 208,
+        "catch": 23
       },
       "imports": [
         "root.zig",
@@ -39348,7 +39372,7 @@
         "DataflowIdentityConflict": 1,
         "DataflowRevisionNotFound": 1,
         "Forbidden": 1,
-        "HistoricalObjectNotSelected": 1,
+        "HistoricalObjectNotSelected": 2,
         "InvalidManagedTableRecord": 1,
         "InvalidSqlSyntax": 1,
         "NotFound": 1,
@@ -39360,7 +39384,7 @@
         "UnsupportedConstruct": 2,
         "UnsupportedHistoricalKind": 4,
         "UnsupportedHistoricalTransaction": 1,
-        "UnsupportedManagedTable": 3,
+        "UnsupportedManagedTable": 4,
         "UnsupportedProgramRevision": 1,
         "UnsupportedSourceStatement": 1
       },
@@ -39381,7 +39405,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 175,
+        "try": 185,
         "catch": 2
       },
       "imports": [
@@ -39860,7 +39884,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 22,
+        "try": 26,
         "catch": 1
       },
       "imports": [
@@ -50070,7 +50094,7 @@
       "relationalImplicitAlias": "legacyIdentifier | STREAMS | QUEUES | BY",
       "relationalJoin": "( INNER | LEFT OUTER ? ) ? JOIN relationalTarget ON columnReference EQ columnReference",
       "selectStatement": "relationalSelect | SELECT aggregateSelection FROM LPAREN SELECT projection FROM qualifiedName sourceAlias ? whereClause ? limitClause ? RPAREN AS identifier limitClause ?",
-      "qualifiedName": "( schema = identifier DOT ) ? name = identifier",
+      "qualifiedName": "identifier ( DOT identifier ) ?",
       "sourceAlias": "AS identifier",
       "selection": "projection | aggregateSelection",
       "aggregateSelection": "( COUNT LPAREN ( STAR | columnReference | scalarCall ) RPAREN | SUM LPAREN ( columnReference | scalarCall ) RPAREN ) outputAlias ?",
@@ -50149,7 +50173,7 @@
       "columnReferencesConstraint": "REFERENCES qualifiedName constraintColumns referentialClause * NOT ENFORCED",
       "constraintColumns": "LPAREN identifier ( COMMA identifier ) * RPAREN",
       "referentialClause": "ON ( DELETE | UPDATE ) ( RESTRICT | NO ACTION | CASCADE | SET NULL_ )",
-      "columnDef": "identifier dataType columnConstraint *",
+      "columnDef": "columnIdentifier dataType columnConstraint *",
       "columnConstraint": "nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation | ROUNDING identifier | METRIC identifier | TIMEZONE STRING TZDB STRING TZIF X STRING | ( CONSTRAINT identifier ) ? ( checkConstraint | columnReferencesConstraint )",
       "collation": "UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD",
       "nullability": "NOT NULL_ | NULL_",
@@ -50175,9 +50199,10 @@
       "catalogKind": "TABLES | STREAMS | QUEUES | DATABASES | SCHEMAS | SOURCES | SINKS | CONNECTIONS",
       "describeStatement": "DESCRIBE logKind ? identifier",
       "explainStatement": "EXPLAIN selectStatement",
-      "identifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
+      "identifier": "columnIdentifier | CONSTRAINT | CHECK | FOREIGN | REFERENCES",
+      "columnIdentifier": "settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE",
       "settingIdentifier": "legacyIdentifier | JOIN | INNER | LEFT | OUTER | RIGHT | FULL | CROSS | NATURAL | GROUP | BY | HAVING | ORDER",
-      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | PUT | GET | KEYS | ABSENT | PRESENT | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | ROW | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE | STREAM | STREAM_SLICE | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | CONSTRAINT | CHECK | FOREIGN | REFERENCES | ENFORCED | VALID | VALIDATE | NO | ACTION",
+      "legacyIdentifier": "IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN | INSERT | UPDATE | DELETE | SET | VALUES | COUNT | SUM | PUT | GET | KEYS | ABSENT | PRESENT | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | KEY | IF | EXISTS | COLLATE | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD | EBCDIC_1047_NOPAD | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | RANGE | MULTIRANGE | VECTOR | ROUNDING | METRIC | TIMEZONE | TZDB | TZIF | DATA | TYPE | STRUCT | ROW | LIST | ARRAY | MAP | UNION | OPTIONAL | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | DOUBLE | PRECISION | CHARACTER | VARYING | ROLE | LOGIN | NOLOGIN | CREATEROLE | NOCREATEROLE | SCHEMA | DATABASE | AUTHORIZATION | OWNER | CURRENT_ROLE | CURRENT_USER | SESSION_USER | PUBLIC | ALL | PRIVILEGES | OPTION | ADMIN | INHERIT | CASCADE | NONE | RESET | CONNECT | USAGE | IN | BEGIN | START | TRANSACTION | WORK | ISOLATION | LEVEL | SERIALIZABLE | READ | ONLY | WRITE | COMMIT | OFFSET | ROLLBACK | SAVEPOINT | RELEASE | TRANSIT_RELOAD_CONF | TRANSIT_SETTINGS | TRANSIT_CONFIG_RELOADS | ASC | DESC | NULLS | FIRST | LAST | SOURCE | STORAGE | STREAM | STREAM_SLICE | QUEUE | PARTITION | PARTITIONS | HASH | PRODUCE | ENQUEUE | PRODUCER | ID | EPOCH | SEQUENCE | VISIBLE_AT | RETURNING | CONSUME | CLAIM | LEASE | WAIT | ACK | NACK | EXTEND | RECEIPT | ENFORCED | VALID | VALIDATE | NO | ACTION",
       "AT": "'AT'",
       "DECIMAL_ADD": "'DECIMAL_ADD'",
       "DECIMAL_SUBTRACT": "'DECIMAL_SUBTRACT'",

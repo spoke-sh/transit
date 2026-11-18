@@ -449,8 +449,8 @@ fn environment(self: Self, client: c.DirectTableClient, value: M.Declaration, wo
     if (work.execution.current) |reference| return .{ .candidate = try self.load(client, value, work, reference) };
     return .{ .input = try self.owner.loadInput(client, value, work, work.environment orelse return error.InvalidDirectRecord) };
 }
-fn resource(value: M.Declaration, name: []const u8) !q.ApplicationBinding {
-    for (value.resources) |binding| if (std.mem.eql(u8, binding.name().slice(), name)) return binding;
+fn resource(value: M.Declaration, schema: ?[]const u8, name: []const u8) !q.ApplicationBinding {
+    for (value.resources) |binding| if (a.Types.sameResource(binding.schemaSlice(), binding.name().slice(), schema, name)) return binding;
     return error.UnknownProgramResource;
 }
 fn beginKey(self: Self, client: c.DirectTableClient, value: M.Declaration, work: I.Work, step: u32, kind: @FieldType(Transaction, "kind")) T.Key {
@@ -866,7 +866,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
             return;
         },
         .get => |get| {
-            const binding = try resource(value, get.target);
+            const binding = try resource(value, get.schema, get.target);
             if (binding.value != .kv) return error.ProgramResourceKindMismatch;
             const response = try client.call(.{ .kv_lookup = .{ .namespace = binding.namespace(), .name = binding.name().slice() } });
             defer response.deinit();
@@ -876,7 +876,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         },
         .select => |select| {
             if (work.execution.transaction == null) return self.startTransaction(client, value, work, step.step, .read);
-            const binding = try resource(value, select.target);
+            const binding = try resource(value, select.schema, select.target);
             const response = try Native.table(private, binding);
             defer response.deinit();
             const metadata = try Native.tableMetadata(response.value.result);
@@ -884,7 +884,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         },
         .put => |put| {
             if (private.transaction == null) return error.InvalidTransactionGuard;
-            const binding = try resource(value, put.target);
+            const binding = try resource(value, put.target_schema, put.target);
             if (binding.value != .kv) return error.ProgramResourceKindMismatch;
             const response = try client.call(.{ .kv_lookup = .{ .namespace = binding.namespace(), .name = binding.name().slice() } });
             defer response.deinit();
@@ -894,7 +894,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         },
         .insert => |insert| {
             if (private.transaction == null) return error.InvalidTransactionGuard;
-            const binding = try resource(value, insert.target);
+            const binding = try resource(value, insert.target_schema, insert.target);
             const response = try Native.table(private, binding);
             defer response.deinit();
             const metadata = try Native.tableMetadata(response.value.result);
@@ -908,7 +908,7 @@ fn evaluate(self: Self, client: c.DirectTableClient, value: M.Declaration, work:
         },
         .append => |append| {
             if (private.transaction == null) return error.InvalidTransactionGuard;
-            const binding = try resource(value, append.target);
+            const binding = try resource(value, append.target_schema, append.target);
             if (binding.value != .log) return error.ProgramResourceKindMismatch;
             var metadata = try c.DirectLogProtocol.decodeMetadata(client.allocator, client.connection, binding.value.log);
             defer metadata.deinit();

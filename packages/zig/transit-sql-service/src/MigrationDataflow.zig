@@ -16,9 +16,11 @@ pub const Planner = struct {
 
     fn reference(self: *Planner, name: []const u8) !p.Migration.TableReference {
         const schema = try self.schemas.get(name) orelse return error.TableNotFound;
-        const producer = self.schemas.producers.get(name);
+        const producer = try self.schemas.getProducer(name);
         const existing = if (producer == null) blk: {
-            const response = try self.table.call(.{ .lookup = .{ .namespace = self.namespace, .name = name } });
+            const split = g.MigrationRunner.splitObjectName(name);
+            const target_ns = if (split.schema) |s| try self.table.resolveSchema(s, self.namespace) else self.namespace;
+            const response = try self.table.call(.{ .lookup = .{ .namespace = target_ns, .name = split.name } });
             defer response.deinit();
             break :blk (response.value.result.lookup orelse return error.TableNotFound).interpretation.interpretation;
         } else null;
@@ -31,17 +33,26 @@ pub const Planner = struct {
         const value: Evidence = if (report.computation) |original| original else switch (parsed.statement) {
             .program => return error.UnsupportedProgramMigration,
             .create => |create| blk: {
-                if (self.values.contains(create.name.slice())) return error.ManagedTableNameConflict;
+                const df_key = if (create.schema) |*s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s.slice(), create.name.slice() }) else create.name.slice();
+                if (self.values.contains(df_key)) return error.ManagedTableNameConflict;
+                const target_ns = if (create.schema) |*s| (self.table.resolveSchema(s.slice(), self.namespace) catch |err| switch (err) {
+                    error.CatalogSchemaMissing => 0,
+                    else => return err,
+                }) else self.namespace;
                 const manager: g.direct.ManagedTable = .{ .client = self.table.* };
-                if (try manager.find(self.namespace, create.name)) |found| {
+                if (target_ns != 0) if (try manager.find(target_ns, create.name)) |found| {
                     found.deinit();
                     return error.ManagedTableNameConflict;
-                }
+                };
                 var syntax = try f.RelationalSql.parseDialect(self.allocator, create.sql, null, options.dialect);
                 defer syntax.deinit();
-                if (syntax.targets.len != 1 or std.mem.eql(u8, syntax.targets[0].name, create.output.slice())) return error.UnsupportedManagedTable;
-                const source = try self.reference(syntax.targets[0].name);
-                const output = try self.reference(create.output.slice());
+                const src_schema = syntax.targets[0].schema orelse if (create.schema) |*s| s.slice() else null;
+                const out_schema = if (create.output_schema) |*s| s.slice() else if (create.schema) |*s| s.slice() else null;
+                const src_qualified = if (src_schema) |s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s, syntax.targets[0].name }) else syntax.targets[0].name;
+                const out_qualified = if (out_schema) |s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s, create.output.slice() }) else create.output.slice();
+                if (syntax.targets.len != 1 or std.mem.eql(u8, src_qualified, out_qualified)) return error.UnsupportedManagedTable;
+                const source = try self.reference(src_qualified);
+                const output = try self.reference(out_qualified);
                 const connection = self.table.connection;
                 const source_schema = (try self.schemas.get(source.name)).?;
                 const plan_value = try syntax.bind(&.{.{ .alias = syntax.targets[0].alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = source_schema }}, .maintained, options.budgets, null);
@@ -52,14 +63,18 @@ pub const Planner = struct {
             },
             .control => |control| blk: {
                 if (control.role != null) return error.UnsupportedProgramMigration;
-                var current = self.values.get(control.name.slice()) orelse load: {
+                const df_key = if (control.schema) |*s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s.slice(), control.name.slice() }) else control.name.slice();
+                var current = self.values.get(df_key) orelse load: {
+                    const target_ns = try self.table.resolveSchema(if (control.schema) |*s| s.slice() else null, self.namespace);
                     const manager: g.direct.ManagedTable = .{ .client = self.table.* };
-                    const declared = try manager.find(self.namespace, control.name) orelse return error.CatalogNameNotFound;
+                    const declared = try manager.find(target_ns, control.name) orelse return error.CatalogNameNotFound;
                     defer declared.deinit();
                     const observed = try manager.inspect(declared.value);
                     var digest: [32]u8 = undefined;
                     std.crypto.hash.sha2.Sha256.hash(declared.value.sql, &digest, .{});
-                    break :load Evidence{ .source = try self.reference(declared.value.source.name.slice()), .output = try self.reference(declared.value.output.name.slice()), .sql_sha256 = digest, .existing = try declared.value.interpretation(self.allocator), .producer = null, .before = null, .after = observed.head.control };
+                    const src_ref_name = if (control.schema) |*s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s.slice(), declared.value.source.name.slice() }) else declared.value.source.name.slice();
+                    const out_ref_name = if (control.schema) |*s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s.slice(), declared.value.output.name.slice() }) else declared.value.output.name.slice();
+                    break :load Evidence{ .source = try self.reference(src_ref_name), .output = try self.reference(out_ref_name), .sql_sha256 = digest, .existing = try declared.value.interpretation(self.allocator), .producer = null, .before = null, .after = observed.head.control };
                 };
                 current.before = current.after;
                 current.after = try current.after.apply(control.command);
@@ -81,7 +96,9 @@ fn produced(allocator: std.mem.Allocator, table: c.DirectTableClient, account: [
 
 fn resolve(allocator: std.mem.Allocator, table: c.DirectTableClient, account: [32]u8, namespace: u64, reference: p.Migration.TableReference) !p.DataLifecycle.Definition {
     const expected = if (reference.producer) |identity| try produced(allocator, table, account, namespace, identity) else reference.existing orelse return error.InvalidMigrationDependency;
-    const response = try table.call(.{ .lookup = .{ .namespace = namespace, .name = reference.name } });
+    const split = g.MigrationRunner.splitObjectName(reference.name);
+    const target_ns = if (split.schema) |s| try table.resolveSchema(s, namespace) else namespace;
+    const response = try table.call(.{ .lookup = .{ .namespace = target_ns, .name = split.name } });
     defer response.deinit();
     const actual = response.value.result.lookup orelse return error.TableNotFound;
     if (!std.meta.eql(expected, actual.interpretation.interpretation)) return error.DataflowSourceChanged;
@@ -105,7 +122,9 @@ pub fn guard(allocator: std.mem.Allocator, table: c.DirectTableClient, account: 
 
 pub fn verify(table: c.DirectTableClient, namespace: u64, step: M.StepReport) !void {
     const value = step.computation orelse return error.InvalidMigrationDependency;
-    const response = try table.call(.{ .managed_inspection = .{ .namespace = namespace, .name = try .init(step.object_name), .expected = step.object_definition orelse return error.MigrationDependencyUnapplied, .revision = null } });
+    const split = g.MigrationRunner.splitObjectName(step.object_name);
+    const target_ns = if (split.schema) |s| try table.resolveSchema(s, namespace) else namespace;
+    const response = try table.call(.{ .managed_inspection = .{ .namespace = target_ns, .name = try .init(split.name), .expected = step.object_definition orelse return error.MigrationDependencyUnapplied, .revision = null } });
     defer response.deinit();
     const observed = response.value.result.managed_inspection;
     const observation = observed.observation orelse return error.MissingManagedTableObservation;

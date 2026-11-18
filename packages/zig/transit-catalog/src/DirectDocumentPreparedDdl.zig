@@ -28,12 +28,13 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const target = try f.DocumentDdl.targetDialect(arena.allocator(), text, location, dialect);
+    const target_namespace = try client.resolveSchema(target.schema_name, namespace);
     var definition: ?c.DirectTableBinding = null;
     var doc_policy: ?f.DocumentDdl.Policy = null;
     var schema: ?f.TableSchema.Owned = null;
     errdefer if (schema) |*value| value.deinit();
     if (target.kind != .create) {
-        const response = try client.call(.{ .document_lookup = .{ .namespace = namespace, .name = target.name } });
+        const response = try client.call(.{ .document_lookup = .{ .namespace = target_namespace, .name = target.name } });
         defer response.deinit();
         if (response.value.result.document_lookup) |metadata| {
             definition = try c.DirectTableBinding.init(client.connection, metadata.definition);
@@ -46,7 +47,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     errdefer compiled.deinit();
     var create_owner: ?u64 = null;
     if (target.kind == .create) {
-        create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
+        create_owner = (try client.require(.{ .namespace = target_namespace, .target = null, .access = .create_table })).role;
     } else if (definition) |value| {
         _ = try value.require(client, if (target.kind == .alter) .alter else .drop);
     }
@@ -57,7 +58,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     hash.update(text);
     return .{
         .connection = client.connection,
-        .namespace = namespace,
+        .namespace = target_namespace,
         .compiled = compiled,
         .definition = definition,
         .policy = doc_policy,

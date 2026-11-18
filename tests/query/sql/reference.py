@@ -50,7 +50,8 @@ def identifier(ctx):
 
 
 def qualified_name(ctx):
-    return (identifier(ctx.schema) if ctx.schema else None), identifier(ctx.name)
+    names = [identifier(i) for i in ctx.identifier()]
+    return (None, names[0]) if len(names) == 1 else (names[0], names[1])
 
 
 def column(ctx):

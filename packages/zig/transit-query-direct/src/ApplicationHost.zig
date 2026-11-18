@@ -78,8 +78,11 @@ fn function(self: *Self, name: a.Function, args: []const V) !V {
         .current_revision => {
             if (args.len != 2 or args[0] != .text) return error.ProgramArgumentMismatch;
             const scope = self.scope orelse return error.InvalidTransactionGuard;
+            const sep = std.mem.indexOfScalar(u8, args[0].text, 0);
+            const doc_schema = if (sep) |idx| args[0].text[0..idx] else null;
+            const doc_name = if (sep) |idx| args[0].text[idx + 1 ..] else args[0].text;
             for (scope.declaration.resources) |binding| {
-                if (std.mem.eql(u8, binding.name().slice(), args[0].text))
+                if (a.Types.sameResource(binding.schemaSlice(), binding.name().slice(), doc_schema, doc_name))
                     return q.ApplicationData.currentRevisionObserved(self.scratch, scope.client, binding, args[1], scope.reads);
             }
             return error.UnknownProgramResource;

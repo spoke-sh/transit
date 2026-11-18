@@ -51,6 +51,7 @@ pub const TableEvolution = @import("TableEvolution.zig");
 pub const TableSchemaProjection = @import("TableSchemaProjection.zig");
 pub const SqlTypes = @import("SqlTypes.zig");
 pub const SqlTyped = @import("SqlTyped.zig");
+pub const SqlForeignKey = @import("SqlForeignKey.zig");
 pub const TableDefinition = @import("TableDefinition.zig");
 pub const TableDdl = @import("TableDdl.zig");
 pub const DocumentDdl = @import("DocumentDdl.zig");

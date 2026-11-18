@@ -188,7 +188,10 @@ fn workflow(self: *Self, expected: @FieldType(t.Expectation, "workflow")) !?Fail
     defer session.end();
     try g.ManagedOperations.requireProfile(session);
     try session.current();
-    const declaration = try session.fresh(g.ManagedOperations.program, .{ session, try g.catalog.TableAuthority.Name.init(expected.name) }) orelse return error.TestMissingProgram;
+    const dot = std.mem.indexOfScalar(u8, expected.name, '.');
+    const wf_schema = if (dot) |idx| expected.name[0..idx] else null;
+    const wf_name = if (dot) |idx| expected.name[idx + 1 ..] else expected.name;
+    const declaration = try session.fresh(g.ManagedOperations.programInSchema, .{ session, wf_schema, try g.catalog.TableAuthority.Name.init(wf_name) }) orelse return error.TestMissingProgram;
     defer declaration.deinit();
     var remaining = expected.observations;
     var interval_ms: u32 = 10;

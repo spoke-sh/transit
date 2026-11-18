@@ -11,7 +11,7 @@ import re
 import struct
 import subprocess
 from interfaces.native.stream_handles import encode as stream_handle
-from query.sql.reference import ROOT, CACHE, tree, identifier, column
+from query.sql.reference import ROOT, CACHE, tree, identifier, qualified_name, column
 from query.sql.table_reference import create, schema_bytes, literal, cell_bytes
 
 TYPES=dict(int64='INT64',boolean='BOOLEAN',utf8='UTF8',binary='BINARY')
@@ -23,7 +23,7 @@ def sized(cell,typ):
 
 def compiled_bytes(sql,basis):
     schema=create(basis)['schema']; columns=schema['columns']; ctx=tree(sql).mutationStatement(); assert ctx
-    qn=ctx.qualifiedName(); assert identifier(qn.name)=='items'
+    qn=ctx.qualifiedName(); assert qualified_name(qn)[1]=='items'
     names=[identifier(n) for n in ctx.identifier()]
     def find(ref):
         qualifier,name=column(ref) if hasattr(ref,'identifier') else (None,identifier(ref))
@@ -116,10 +116,10 @@ def postgres_agreement(sql):
         def conjunction(ctx):return group([negation(n) for n in ctx.negation()],'AND_EXPR')
         def disjunction(ctx):return group([conjunction(n) for n in ctx.conjunction()],'OR_EXPR')
         return disjunction(ctx.predicate().disjunction())
-    ctx=tree(sql).mutationStatement(); qn=ctx.qualifiedName(); names=[identifier(n) for n in ctx.identifier()]
+    ctx=tree(sql).mutationStatement(); qn_schema, qn_name=qualified_name(ctx.qualifiedName()); names=[identifier(n) for n in ctx.identifier()]
     tag,node=next(iter(json.loads(parse_sql_json(sql))['stmts'][0]['stmt'].items()))
-    left={'source':identifier(qn.name)};right={'source':node['relation']['relname']}
-    if qn.schema: left['schema']=identifier(qn.schema)
+    left={'source':qn_name};right={'source':node['relation']['relname']}
+    if qn_schema: left['schema']=qn_schema
     if node['relation'].get('schemaname'): right['schema']=node['relation']['schemaname']
     if ctx.INSERT():
         assert tag=='InsertStmt'
@@ -181,7 +181,7 @@ def log_append_expected(case):
     """Interpret the dedicated ANTLR tree, without rewriting it as INSERT."""
     import uuid
     ctx = tree(case['sql'], 'logAppendStatement').logAppendCommand()
-    name = identifier(ctx.qualifiedName().name)
+    name = qualified_name(ctx.qualifiedName())[1]
     schema = create(case['basis'])['schema']
     columns = schema['columns']
     values = ctx.logAppendValues()

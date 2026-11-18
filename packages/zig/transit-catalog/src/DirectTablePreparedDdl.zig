@@ -25,10 +25,15 @@ pub const Write = union(enum) {
 
 const ForeignParents = struct {
     client: c.DirectTableClient,
-    namespace: u64,
+    default_namespace: u64,
+    target_namespace: u64,
     fn lookup(context: *anyopaque, allocator: std.mem.Allocator, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
+        return lookupQualified(context, allocator, null, name);
+    }
+    fn lookupQualified(context: *anyopaque, allocator: std.mem.Allocator, parent_schema: ?[]const u8, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
         const self: *ForeignParents = @ptrCast(@alignCast(context));
-        const response = try self.client.call(.{ .lookup = .{ .namespace = self.namespace, .name = name } });
+        const parent_ns = if (parent_schema) |schema_name| try self.client.resolveSchema(schema_name, self.default_namespace) else self.target_namespace;
+        const response = try self.client.call(.{ .lookup = .{ .namespace = parent_ns, .name = name } });
         defer response.deinit();
         const metadata = response.value.result.lookup orelse return error.TableNotFound;
         const binding = try c.DirectTableBinding.init(self.client.connection, metadata);
@@ -41,19 +46,20 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const target = try f.TableDdl.targetDialect(arena.allocator(), text, location, dialect);
+    const target_namespace = try client.resolveSchema(target.schema_name, namespace);
     var definition: ?c.DirectTableBinding = null;
     var schema: ?f.TableSchema.Owned = null;
     errdefer if (schema) |*value| value.deinit();
     if (target.kind != .create) {
-        const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+        const response = try client.call(.{ .lookup = .{ .namespace = target_namespace, .name = target.name } });
         defer response.deinit();
         if (response.value.result.lookup) |metadata| {
             definition = try c.DirectTableBinding.init(client.connection, metadata);
             schema = try f.TableSchema.decode(allocator, try metadata.schema.decode(arena.allocator(), f.TableSchema.max_bytes));
         }
     }
-    var parents = ForeignParents{ .client = client, .namespace = namespace };
-    var compiled = try f.TableDdl.compileWithForeignKeys(allocator, text, if (schema) |value| value.schema else null, location, dialect, .{ .context = &parents, .lookup = ForeignParents.lookup });
+    var parents = ForeignParents{ .client = client, .default_namespace = namespace, .target_namespace = target_namespace };
+    var compiled = try f.TableDdl.compileWithForeignKeys(allocator, text, if (schema) |value| value.schema else null, location, dialect, .{ .context = &parents, .lookup = ForeignParents.lookup, .lookup_qualified = ForeignParents.lookupQualified });
     errdefer compiled.deinit();
     if (compiled.statement == .create) if (compiled.statement.create.native_binding) |native_binding| {
         var bound = try compiled.statement.create.bind(1);
@@ -62,7 +68,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     };
     var create_owner: ?u64 = null;
     if (target.kind == .create) {
-        create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
+        create_owner = (try client.require(.{ .namespace = target_namespace, .target = null, .access = .create_table })).role;
     } else if (definition) |value| {
         _ = try value.require(client, if (target.kind == .alter) .alter else .drop);
     }
@@ -73,7 +79,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     hash.update(@tagName(dialect));
     hash.update("\x00");
     hash.update(text);
-    return .{ .connection = client.connection, .namespace = namespace, .compiled = compiled, .definition = definition, .schema = schema, .conditional_intent = hash.finalResult(), .create_owner = create_owner };
+    return .{ .connection = client.connection, .namespace = target_namespace, .compiled = compiled, .definition = definition, .schema = schema, .conditional_intent = hash.finalResult(), .create_owner = create_owner };
 }
 
 pub fn deinit(self: *Self) void {

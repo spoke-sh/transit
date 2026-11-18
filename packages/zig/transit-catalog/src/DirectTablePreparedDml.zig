@@ -19,7 +19,8 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     const target = try f.TableDml.targetDialect(arena.allocator(), text, location, dialect);
-    const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+    const target_namespace = try client.resolveSchema(target.schema_name, namespace);
+    const response = try client.call(.{ .lookup = .{ .namespace = target_namespace, .name = target.name } });
     defer response.deinit();
     const metadata = response.value.result.lookup orelse return error.TableNotFound;
     const binding = try c.DirectTableBinding.init(client.connection, metadata);
