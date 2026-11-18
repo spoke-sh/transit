@@ -114,6 +114,53 @@ fn visitSource(self: *Self, index: usize, visited: *[256]u8, depth: usize) anyer
         self.visitSource(target, visited, depth + 1) catch |err| return err;
         if (self.report) |r| r.popFrame();
     }
+    try self.visitStatements(index, source, file.statements, visited, depth);
+    for (file.definitions) |def| {
+        if (def.suite_path) |suite_path| {
+            try self.visitLocalPath(index, source, def.name, suite_path, def.span, visited, depth);
+        }
+        for (def.suites) |suite| switch (suite) {
+            .path => |suite_path| try self.visitLocalPath(index, source, def.name, suite_path, def.span, visited, depth),
+            .symbol => {},
+        };
+        try self.visitStatements(index, source, def.body, visited, depth);
+    }
+}
+fn visitStatements(self: *Self, index: usize, source: c.Source, statements: []const c.Syntax.Statement, visited: *[256]u8, depth: usize) anyerror!void {
+    if (depth >= 64) return;
+    for (statements) |stmt| switch (stmt.value) {
+        .declare_from => |raw_path| try self.visitLocalPath(index, source, raw_path, raw_path, stmt.span, visited, depth),
+        .conditional => |cond| {
+            try self.visitStatements(index, source, cond.yes, visited, depth + 1);
+            try self.visitStatements(index, source, cond.no, visited, depth + 1);
+        },
+        .match => |m| for (m.arms) |arm| try self.visitStatements(index, source, arm.body, visited, depth + 1),
+        .test_case => |tc| try self.visitStatements(index, source, tc.body, visited, depth + 1),
+        else => {},
+    };
+}
+fn visitLocalPath(self: *Self, index: usize, source: c.Source, label: []const u8, raw_path: []const u8, span: c.Syntax.Span, visited: *[256]u8, depth: usize) anyerror!void {
+    const target = self.checkLocalPath(source, raw_path) catch |err| {
+        const loc_span: c.SourceDiagnostic.Span = .{ .start = span.start, .end = span.end };
+        if (self.report) |r| {
+            r.setSpan(index, span.start, span.end);
+            if (err == error.MissingSource) {
+                r.setHeadline("cannot find source file '{s}'", .{raw_path});
+            } else if (err == error.ExcludedSourcePath) {
+                r.setHeadline("source path '{s}' enters an excluded directory", .{raw_path});
+                r.addNote(null, null, "source paths cannot traverse '.git', '.transit', '.direnv' or 'node_modules'", .{});
+            }
+            r.finalize(err, .{ .name = label });
+        }
+        if (self.diagnostic.* == null) self.diagnostic.* = c.SourceDiagnostic.input(err, raw_path, "resolve source path", null);
+        self.diagnostic.*.?.location = c.Compiler.locationSpan(source, loc_span);
+        self.diagnostic.*.?.text(.name, .caller, label) catch {};
+        return err;
+    };
+    if (self.report) |r| r.pushFrame(label, index, .{ .start = span.start, .end = span.end });
+    errdefer {}
+    self.visitSource(target, visited, depth + 1) catch |err| return err;
+    if (self.report) |r| r.popFrame();
 }
 fn loadEntry(self: *Self) !void {
     try c.Graph.selectedPath(self.entry);
@@ -191,6 +238,19 @@ fn checkRelativeLinks(self: *Self, package: []const u8, base_file: []const u8, r
             }
         }
     }
+}
+fn checkLocalPath(self: *Self, source: c.Source, raw_path: []const u8) !usize {
+    const path = try c.Graph.resolveSourcePath(self.a, source.path, raw_path);
+    try self.checkRelativeLinks(source.package, source.path, raw_path);
+    for (self.links.items) |link| {
+        if (!std.mem.eql(u8, link.package, source.package)) continue;
+        if (std.mem.eql(u8, path, link.path) or (std.mem.startsWith(u8, path, link.path) and path.len > link.path.len and path[link.path.len] == '/')) {
+            self.note(error.UnsupportedSourceFileKind, source.package, link.path, "resolve source path", "sym_link");
+            return error.UnsupportedSourceFileKind;
+        }
+    }
+    for (self.sources.items, 0..) |candidate, idx| if (std.mem.eql(u8, candidate.package, source.package) and std.mem.eql(u8, candidate.path, path)) return idx;
+    return error.MissingSource;
 }
 fn checkImport(self: *Self, source: c.Source, import: c.Syntax.Import) !usize {
     const package = import.package orelse source.package;

@@ -86,16 +86,36 @@ def parse(source):
                     atomic = True
                 elif (node.INSERT() or node.PRODUCE() or node.ENQUEUE() or node.CALL()) and not atomic:
                     raise Refusal(span(node)['start'], 'mutation outside atomic program')
-        if rule in ('sourceName', 'referenceHead') and len(node.getText().encode()) > 63:
+        if rule in ('sourceName', 'sourceNameWithoutModule', 'referenceHead', 'plainReferenceHead') and len(node.getText().encode()) > 63:
             raise Refusal(span(node)['start'], 'name bound')
-        if rule == 'parameters':
+        if rule in ('parameters', 'rowParameters'):
             names = [p.sourceName().getText().lower() for p in node.parameter()]
             if len(names) > 64 or len(set(names)) != len(names):
                 raise Refusal(span(node)['start'], 'parameter bound/duplicate')
-        if rule in ('sourceCall', 'sourceAtom') and len(node.expression()) > 64:
-            raise Refusal(span(node)['start'], 'argument bound')
-        if rule == 'sourceStatement' and len(node.sourceCall()) > 64:
+        if rule == 'callArguments':
+            if node.namedArgument():
+                names = [na.sourceName().getText().lower() for na in node.namedArgument()]
+                if len(names) > 64 or len(set(names)) != len(names):
+                    raise Refusal(span(node)['start'], 'named argument bound/duplicate')
+            elif len(node.expression()) > 64:
+                raise Refusal(span(node)['start'], 'argument bound')
+        if rule == 'sourceAtom' and node.ROW() and node.namedArgument():
+            names = [na.sourceName().getText().lower() for na in node.namedArgument()]
+            if len(names) > 64 or len(set(names)) != len(names):
+                raise Refusal(span(node)['start'], 'row field bound/duplicate')
+        if rule == 'exportTargetBody':
+            if len(node.suiteRef()) > 64:
+                raise Refusal(span(node)['start'], 'suite bound')
+            opt_names = [opt.sourceName().getText().lower() for opt in node.targetOption()]
+            if len(opt_names) > 64 or len(set(opt_names)) != len(opt_names):
+                raise Refusal(span(node)['start'], 'option bound/duplicate')
+        if rule == 'sourceStatement' and len(node.caseModule()) > 64:
             raise Refusal(span(node)['start'], 'setup bound')
+        if rule == 'sourceStatement' and node.REFERENCE():
+            col_nodes = node.sourceName()[:-1] if node.AS() else node.sourceName()
+            cols = [c.getText().lower() for c in col_nodes]
+            if len(cols) > 64 or len(set(cols)) != len(cols):
+                raise Refusal(span(node)['start'], 'reference column bound/duplicate')
         if rule == 'matchArm':
             names = [n.getText().lower() for n in node.sourceName()]
             if len(names) > 64 or len(set(names)) != len(names):
@@ -184,6 +204,10 @@ def parse(source):
             value = {'integer': int(ctx.INTEGER().getText())}
         elif ctx.NAME() and ctx.STRING():
             value = {'identifier': string(ctx.STRING())}
+        elif ctx.SCHEMA_BINDING() and ctx.STRING():
+            value = {'schema_binding': string(ctx.STRING())}
+        elif ctx.ROW() and ctx.namedArgument():
+            value = {'row': [{'name': na.sourceName().getText().lower(), 'value': expr(na.expression())} for na in ctx.namedArgument()]}
         elif ctx.TYPE():
             kind = ctx.sourceType()
             value = {'type': kind.getText().lower()} if kind.sourceBaseType() else {'named_type': name(kind)}
@@ -191,73 +215,116 @@ def parse(source):
             value = {'boolean': bool(ctx.TRUE())}
         elif ctx.STRING():
             value = {'text': string(ctx.STRING())}
-        elif ctx.referenceHead():
-            value = {'construct': {'name': name(ctx), 'arguments': [expr(arg) for arg in ctx.expression()], 'result': None}} if ctx.LPAREN() else {'reference': name(ctx)}
+        elif ctx.plainReferenceHead() or ctx.SCHEMA_BINDING() or ctx.ROW():
+            value = {'construct': call_parts(ctx, ctx.callArguments())} if ctx.LPAREN() else {'reference': name(ctx)}
         else:
-            value = expr(ctx.expression(0))['value']
+            value = expr(ctx.expression())['value']
         if 'integer' in value and not -(2 ** 63) <= value['integer'] < 2 ** 63:
             raise Refusal(span(ctx)['start'], 'integer bound')
         return {'span': span(ctx), 'value': value}
 
-    def call(ctx):
-        return {'name': name(ctx.sourceQualifiedName()), 'arguments': [expr(arg) for arg in ctx.expression()], 'result': None}
+    def call_parts(name_ctx, args_ctx, result=None, let_binding=False):
+        if args_ctx is None:
+            arguments, names = [], []
+        elif args_ctx.namedArgument():
+            names = [na.sourceName().getText().lower() for na in args_ctx.namedArgument()]
+            arguments = [expr(na.expression()) for na in args_ctx.namedArgument()]
+        else:
+            names = []
+            arguments = [expr(arg) for arg in args_ctx.expression()]
+        return {'name': name(name_ctx), 'arguments': arguments, 'names': names, 'result': result, 'let_binding': let_binding}
 
-    def body(ctx):
-        result = []
-        for stmt in ctx.sourceStatement():
-            if stmt.USE():
-                invoked = call(stmt.sourceCall(0))
-                invoked['result'] = stmt.sourceName().getText().lower() if stmt.AS() else None
-                value = {'use': invoked}
-            elif stmt.EXPORT():
-                exported = {'source': name(stmt.sourceQualifiedName()), 'operand': bool(stmt.DOLLAR()), 'alias': stmt.sourceName().getText().lower()}
+    def statement_node(stmt):
+        if stmt.LET():
+            sc = stmt.sourceCall()
+            value = {'use': call_parts(sc.sourceQualifiedName(), sc.callArguments(),
+                                       result=stmt.sourceName(0).getText().lower(), let_binding=True)}
+        elif stmt.USE():
+            if stmt.sourceCall():
+                sc = stmt.sourceCall()
+                value = {'use': call_parts(sc.sourceQualifiedName(), sc.callArguments(),
+                                           result=stmt.sourceName(0).getText().lower() if stmt.AS() else None)}
+            elif stmt.LPAREN():
+                value = {'use': call_parts(stmt.sourceQualifiedName(), stmt.callArguments(),
+                                           result=stmt.sourceName(0).getText().lower() if stmt.AS() else None)}
+            else:
+                value = {'use_module': name(stmt.sourceQualifiedName())}
+        elif stmt.DECLARE():
+            value = {'declare_from': string(stmt.STRING())}
+        elif stmt.BIND():
+            value = {'bind_schema': {'name': stmt.sourceName(0).getText().lower(), 'target': expr(stmt.expression())}}
+        elif stmt.EXPORT():
+            if stmt.REFERENCE():
+                src = name(stmt.helperName())
+                col_nodes = stmt.sourceName()[:-1] if stmt.AS() else stmt.sourceName()
+                alias = stmt.sourceName()[-1].getText().lower() if stmt.AS() else src['member']
+                value = {'reference_export': {'source': src, 'columns': [c.getText().lower() for c in col_nodes], 'alias': alias}}
+            elif stmt.TABLE() or stmt.STREAM() or stmt.QUEUE():
+                src = name(stmt.helperName())
+                alias = stmt.sourceName(0).getText().lower() if stmt.sourceName() else src['member']
+                exported = {'source': src, 'operand': bool(stmt.DOLLAR()), 'alias': alias}
                 if stmt.TABLE():
                     value = {'table_export': exported}
                 else:
                     value = {'log_export': {'kind': 'stream' if stmt.STREAM() else 'queue', **exported}}
-            elif stmt.MATCH():
-                arms = [{'constructor': name(arm.sourceQualifiedName()), 'names': [n.getText().lower() for n in arm.sourceName()],
-                         'body': body(arm.body()), 'span': span(arm)} for arm in stmt.matchArm()]
-                value = {'match': {'value': expr(stmt.expression()), 'arms': arms}}
-            elif stmt.IF():
-                value = {'conditional': {'condition': expr(stmt.expression()), 'yes': body(stmt.body(0)),
-                                         'no': body(stmt.body(1)) if stmt.ELSE() else []}}
-            elif stmt.TEST():
-                label = string(stmt.STRING())
-                if not 1 <= len(label.encode()) <= 128 or any(ord(c) < 32 or ord(c) == 127 for c in label):
-                    raise Refusal(span(stmt)['start'], 'case label')
-                value = {'test_case': {'name': label, 'setup': [call(c) for c in stmt.sourceCall()], 'body': body(stmt.body(0))}}
-            elif stmt.WORKFLOW():
-                counts = [int(c.getText()) for c in stmt.INTEGER()]
-                if any(c >= 2 ** 64 for c in counts):
-                    raise Refusal(span(stmt)['start'], 'count bound')
-                value = {'workflow': {'name': expr(stmt.expression()), **dict(zip(('completed', 'refused', 'observations'), counts))}}
-            elif stmt.ASSERT():
-                assertion = stmt.assertion()
-                if assertion.ROWS():
-                    expected = {'rows': template(assertion.expectedRows(), True)}
-                elif assertion.COMMAND():
-                    counts = [int(c.getText()) for c in assertion.INTEGER()]
-                    if any(c >= 2 ** 64 for c in counts):
-                        raise Refusal(span(assertion)['start'], 'count bound')
-                    expected = {'command': dict(zip(('matched', 'changed'), counts))}
-                else:
-                    reason = string(assertion.STRING())
-                    if reason not in ('duplicate_key', 'check_violation'):
-                        raise Refusal(span(assertion)['start'], 'refusal kind')
-                    expected = {'refusal': reason}
-                value = {'assertion': {'sql': template(assertion.simpleTemplate()), 'expected': expected}}
             else:
-                value = {'sql': template(stmt.tableTemplate())}
-            result.append({'span': span(stmt), 'value': value})
-        return result
+                src = name(stmt.helperName())
+                alias = stmt.sourceName(0).getText().lower() if stmt.AS() else src['member']
+                sym_kind = ('function' if stmt.FUNCTION() else 'guard' if stmt.GUARD() else
+                            'procedure' if stmt.PROCEDURE() else 'view' if stmt.VIEW() else
+                            'dataflow' if stmt.DATAFLOW() else 'profile')
+                value = {'symbol_export': {'kind': sym_kind, 'source': src, 'alias': alias}}
+        elif stmt.MATCH():
+            arms = [{'constructor': name(arm.sourceQualifiedName()), 'names': [n.getText().lower() for n in arm.sourceName()],
+                     'body': body(arm.body()), 'span': span(arm)} for arm in stmt.matchArm()]
+            value = {'match': {'value': expr(stmt.expression()), 'arms': arms}}
+        elif stmt.IF():
+            value = {'conditional': {'condition': expr(stmt.expression()), 'yes': body(stmt.body(0)),
+                                     'no': body(stmt.body(1)) if stmt.ELSE() else []}}
+        elif stmt.TEST():
+            label = string(stmt.STRING())
+            if not 1 <= len(label.encode()) <= 128 or any(ord(c) < 32 or ord(c) == 127 for c in label):
+                raise Refusal(span(stmt)['start'], 'case label')
+            setup = [{'call': call_parts(cm.sourceQualifiedName(), cm.callArguments())} if cm.LPAREN()
+                     else {'reference': name(cm.sourceQualifiedName())} for cm in stmt.caseModule()]
+            value = {'test_case': {'name': label, 'setup': setup, 'body': body(stmt.body(0))}}
+        elif stmt.WORKFLOW():
+            counts = [int(c.getText()) for c in stmt.INTEGER()]
+            if any(c >= 2 ** 64 for c in counts):
+                raise Refusal(span(stmt)['start'], 'count bound')
+            value = {'workflow': {'name': expr(stmt.expression()), **dict(zip(('completed', 'refused', 'observations'), counts))}}
+        elif stmt.ASSERT():
+            assertion = stmt.assertion()
+            if assertion.ROWS():
+                expected = {'rows': template(assertion.expectedRows(), True)}
+            elif assertion.COMMAND():
+                counts = [int(c.getText()) for c in assertion.INTEGER()]
+                if any(c >= 2 ** 64 for c in counts):
+                    raise Refusal(span(assertion)['start'], 'count bound')
+                expected = {'command': dict(zip(('matched', 'changed'), counts))}
+            else:
+                reason = string(assertion.STRING())
+                if reason not in ('duplicate_key', 'check_violation'):
+                    raise Refusal(span(assertion)['start'], 'refusal kind')
+                expected = {'refusal': reason}
+            value = {'assertion': {'sql': template(assertion.simpleTemplate()), 'expected': expected}}
+        else:
+            value = {'sql': template(stmt.tableTemplate())}
+        return {'span': span(stmt), 'value': value}
+
+    def body(ctx):
+        return [statement_node(stmt) for stmt in ctx.sourceStatement()]
 
     def parameters(ctx):
         result = []
         for param in ctx.parameter() if ctx else []:
             kind = param.parameterKind()
-            if kind.MODULE():
-                value = {'module': name(kind.sourceQualifiedName())}
+            if kind.SCHEMA_BINDING():
+                value = {'schema_binding': None}
+            elif kind.MODULE():
+                value = {'module_of' if kind.OF() else 'module': name(kind.sourceQualifiedName())}
+            elif kind.rowParameters():
+                value = {'row': parameters(kind.rowParameters())}
             elif kind.TABLE() or kind.STREAM() or kind.QUEUE():
                 columns = []
                 for col in kind.signatureColumn():
@@ -279,44 +346,107 @@ def parse(source):
             result.append({'name': param.sourceName().getText().lower(), 'kind': value})
         return result
 
-    def migration(node):
-        if not node.MIGRATION():
+    def migration_clause(mc):
+        if mc is None:
             return None
-        strings = [string(token) for token in node.STRING()]
-        basis = None if node.EMPTY() else strings.pop(0)
+        strings = [string(token) for token in mc.STRING()]
+        basis = None if mc.EMPTY() else strings.pop(0)
         return dict(zip(('basis', 'database', 'schema', 'version', 'name'), [basis, *strings]))
 
     definitions = []
     for definition in root.definition():
         domain = None
         constructors = []
-        if definition.DOMAIN():
-            domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING(0))}
-            if not 1 <= len(domain['identity'].encode()) <= 128:
-                raise Refusal(span(definition)['start'], 'domain identity bound')
-        if definition.VARIANT():
-            constructors = [{'name': ctor.sourceName().getText().lower(), 'fields': parameters(ctor.parameters())} for ctor in definition.variantConstructor()]
-            names = [ctor['name'] for ctor in constructors]
-            if len(constructors) > 64 or len(set(names)) != len(names):
-                raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
         return_type = None
-        if definition.sourceType():
-            raw_ret = definition.sourceType()
-            return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
-        program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
-                   template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
-                   template(definition.procedureBody(), helper='procedure_body') if definition.PROCEDURE() else None)
-        definitions.append({'name': definition.sourceName().getText().lower(), 'public': bool(definition.PUBLIC()),
-                            'kind': ('domain' if domain else 'variant' if constructors else
-                                     'function' if definition.FUNCTION() else 'guard' if definition.GUARD() else
-                                     'procedure' if definition.PROCEDURE() else 'migration_target' if definition.MIGRATION() else 'module' if definition.MODULE() else
-                                     'interface' if definition.INTERFACE() else 'test_target' if definition.TEST() else 'target'),
-                            'parameters': parameters(definition.parameters()), 'body': body(definition.body()) if definition.body() else [],
+        program = None
+        mig = None
+        target_of = None
+        target_ref = None
+        output_path = None
+        suite_path = None
+        suites = []
+        target_options = []
+        if definition.EXPORT():
+            def_name = definition.sourceName().getText().lower()
+            if definition.MODULE():
+                def_kind = 'module'
+                params = parameters(definition.parameters())
+                def_body = body(definition.body())
+            elif definition.SUITE():
+                def_kind = 'test_suite'
+                params = []
+                def_body = []
+                suite_path = string(definition.STRING())
+            else:
+                etb = definition.exportTargetBody()
+                params = []
+                def_body = []
+                if etb.EQ() and not etb.AS():
+                    def_kind = 'target_alias'
+                    target_ref = {'qualifier': etb.sourceName(0).getText().lower(),
+                                  'member': etb.sourceName(1).getText().lower(), 'constructor': None}
+                elif etb.SQL():
+                    def_kind = 'target'
+                    target_of = etb.sourceName(0).getText().lower()
+                    output_path = string(etb.STRING()) if etb.INTO() else None
+                elif etb.MIGRATIONS():
+                    def_kind = 'migration_target'
+                    target_of = etb.sourceName(0).getText().lower()
+                    mig = migration_clause(etb.migrationClause())
+                    output_path = string(etb.STRING()) if etb.INTO() else None
+                else:
+                    def_kind = 'test_target'
+                    target_of = etb.sourceName(0).getText().lower()
+                    suites = [{'path': string(sr.STRING())} if sr.STRING() else {'symbol': name(sr.helperName())} for sr in etb.suiteRef()]
+                    target_options = [{'name': to.sourceName().getText().lower(), 'value': expr(to.expression())} for to in etb.targetOption()]
+        else:
+            def_name = definition.sourceName().getText().lower()
+            if definition.DOMAIN():
+                domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING())}
+                if not 1 <= len(domain['identity'].encode()) <= 128:
+                    raise Refusal(span(definition)['start'], 'domain identity bound')
+            if definition.VARIANT():
+                constructors = [{'name': ctor.sourceName().getText().lower(), 'fields': parameters(ctor.parameters())} for ctor in definition.variantConstructor()]
+                names = [ctor['name'] for ctor in constructors]
+                if len(constructors) > 64 or len(set(names)) != len(names):
+                    raise Refusal(span(definition)['start'], 'constructor bound/duplicate')
+            if definition.sourceType():
+                raw_ret = definition.sourceType()
+                return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
+            program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
+                       template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
+                       template(definition.procedureBody(), helper='procedure_body') if definition.PROCEDURE() else None)
+            mig = migration_clause(definition.migrationClause()) if definition.MIGRATION() else None
+            def_kind = ('domain' if domain else 'variant' if constructors else
+                        'function' if definition.FUNCTION() else 'guard' if definition.GUARD() else
+                        'procedure' if definition.PROCEDURE() else 'migration_target' if definition.MIGRATION() else
+                        'module' if definition.MODULE() else 'interface' if definition.INTERFACE() else
+                        'test_target' if definition.TEST() else 'target')
+            params = parameters(definition.parameters())
+            def_body = body(definition.body()) if definition.body() else []
+        definitions.append({'name': def_name, 'public': bool(definition.PUBLIC() or definition.EXPORT()),
+                            'kind': def_kind, 'parameters': params, 'body': def_body,
                             'span': span(definition), 'domain': domain, 'constructors': constructors,
-                            'return_type': return_type, 'program': program,
-                            'migration': migration(definition)})
-    imports = [{'alias': item.sourceName(0).getText().lower(), 'package': item.sourceName(1).getText().lower() if item.PACKAGE() else None,
-                'path': string(item.STRING()), 'span': span(item)} for item in root.sourceImport()]
+                            'return_type': return_type, 'program': program, 'migration': mig,
+                            'target_of': target_of, 'target_ref': target_ref, 'output_path': output_path,
+                            'suite_path': suite_path, 'suites': suites, 'target_options': target_options})
+
+    def import_node(item):
+        if item.sourceNameWithoutModule():
+            alias = item.sourceNameWithoutModule().getText().lower()
+            pkg = item.sourceName(0).getText().lower() if item.PACKAGE() else None
+        elif len(item.sourceName()) == 2 or (len(item.sourceName()) == 1 and not item.PACKAGE()):
+            alias = item.sourceName(0).getText().lower()
+            pkg = item.sourceName(1).getText().lower() if item.PACKAGE() else None
+        else:
+            alias = 'module'
+            pkg = item.sourceName(0).getText().lower() if item.PACKAGE() else None
+        return {'alias': alias, 'package': pkg, 'path': string(item.STRING()), 'span': span(item)}
+
+    imports = [import_node(item) for item in root.sourceImport()]
     dependencies = [{'name': item.sourceName().getText().lower(), 'repository': string(item.STRING(0)), 'revision': string(item.STRING(1)),
                      'subdirectory': string(item.STRING(2)) if item.SUBDIRECTORY() else '', 'span': span(item)} for item in root.dependency()]
-    return {'definitions': definitions, 'imports': imports, 'dependencies': dependencies}
+    defaults = [{'name': item.sourceName().getText().lower(), 'span': span(item)} for item in root.defaultTarget()]
+    statements = [statement_node(stmt) for stmt in root.sourceStatement()]
+    return {'definitions': definitions, 'imports': imports, 'dependencies': dependencies,
+            'defaults': defaults, 'statements': statements}

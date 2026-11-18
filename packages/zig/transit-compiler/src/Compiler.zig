@@ -603,6 +603,7 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
             .test_case => |case| try self.testCase(file, statement.span, case, bindings, depth),
             .assertion => |check| try self.assertion(file, statement.span, check, bindings),
             .workflow => |check| try self.workflow(file, statement.span, check, bindings),
+            .use_module, .declare_from, .bind_schema, .symbol_export, .reference_export => return error.UnsupportedSourceDeclaration,
         }
     }
 }
@@ -656,6 +657,7 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
         .type => |value| .{ .type = .{ .base = value } },
         .named_type => |name| .{ .type = try types.resolve(self.graph, file, .{ .named = name }) },
         .construct => |call| try self.construct(file, call, bindings, depth),
+        .schema_binding, .row => return error.UnsupportedSourceType,
         .identifier => |value| blk: {
             if (value.len == 0 or value.len > 63 or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidInstanceName;
             break :blk .{ .identifier = value };
@@ -824,7 +826,10 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
     self.checked_statements = 0;
     self.expected_rows = 0;
     self.expected_bytes = 0;
-    for (case.setup) |call| try self.body(file, &.{.{ .span = span, .value = .{ .use = call } }}, bindings, depth + 1);
+    for (case.setup) |setup| switch (setup) {
+        .call => |call| try self.body(file, &.{.{ .span = span, .value = .{ .use = call } }}, bindings, depth + 1),
+        .reference => return error.UnsupportedSourceDeclaration,
+    };
     try self.body(file, case.body, bindings, depth + 1);
     if (self.checked_statements == 0) return error.EmptyTestCase;
     if (self.symbolic) return;

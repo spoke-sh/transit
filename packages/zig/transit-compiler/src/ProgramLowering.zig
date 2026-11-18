@@ -93,7 +93,7 @@ pub fn validateAll(compiler: *Compiler) !void {
                     if (def.kind != .procedure) return error.InvalidParameterType;
                     try validateSignatureColumns(graph, file_idx, cols, .queue);
                 },
-                .identifier, .type, .module => return error.InvalidParameterType,
+                .identifier, .type, .schema_binding, .module, .module_of, .row => return error.InvalidParameterType,
             }
         }
         if (def.return_type) |return_type| {
