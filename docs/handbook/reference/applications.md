@@ -9,9 +9,16 @@ for the complete example.
 ## Application source builds
 
 `transit build` compiles `.transit` modules to ordinary SQL for new Tables,
-Streams and Queues, literal mutations and log appends, and finite single-Table SELECT. Typed constructors
-accept values, types and other modules; interfaces check module arguments.
-Imports expose public source symbols, and bounded constructor recursion can
+Streams and Queues, literal mutations and log appends, finite single-Table SELECT,
+and public Queue programs. Typed constructors (`CREATE [PUBLIC] MODULE` or
+shorthand `EXPORT MODULE`) accept scalar/nominal values, `ROW(...)` records,
+`SCHEMA_BINDING` metadata, types, module constructors and first-class module
+instances (`MODULE OF`). Intra-package `./` and `../` imports (`IMPORT [MODULE]`),
+`DECLARE FROM` module fragments, `LET inst = USE [MODULE] ...` diamond
+module-instance bindings, `EXPORT FUNCTION/GUARD/PROCEDURE` helper exports and
+delegated `EXPORT TARGET` declarations (`= alias.target`, `AS SQL OF`,
+`AS MIGRATIONS OF`, `AS TESTS OF`, and `EXPORT DEFAULT TARGET`) compose multi-level
+workspaces without duplicating shared DDL; bounded constructor recursion can also
 compose repeated instances with explicit, caller-chosen resource names.
 
 A minimal `build.transit` is:
@@ -99,23 +106,28 @@ Every runtime branch is checked. A domain annotation does not prove that a sende
 is authorized or a referenced row exists; use a lookup and REQUIRE or `CHECK GUARD`
 for existence. Ordinary SQL still receives scalar columns and values.
 
-This profile rejects runtime-private storage, stored runtime or privileged
-procedures, option profiles, runtime variant dispatch, protected effects,
-COMMAND programs and unsupported Table/query forms. Table migration targets synthesize new Tables and safe trailing column
-additions against an explicit offline basis. `CREATE MIGRATION TARGET` names the
-prior basis (or `EMPTY`), database/schema bindings and proposed version/name.
-Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
+This profile rejects runtime-private storage, multi-schema `CREATE SCHEMA` and
+schema-qualified `schema.object` DDL/DML, `CREATE VIEW`, `EXPORT REFERENCE TABLE`,
+stored runtime or privileged procedures, option profiles, runtime variant dispatch,
+protected effects, COMMAND programs and unsupported Table/query forms. Table migration targets synthesize new Tables and safe trailing column
+additions against an explicit offline basis. `CREATE MIGRATION TARGET` and
+`EXPORT TARGET ... AS MIGRATIONS OF ...` name the prior basis (or `EMPTY`),
+required `FOR DATABASE ... SCHEMA ... VERSION ... NAME ...` bindings and optional
+`INTO '<path>'` metadata. Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
 and publish a reviewable `migrations/` directory without applying it. The
 [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
-defines the syntax and limits. Broader migration kinds and full Platform
-compilation remain planned. The existing
+defines the syntax and limits. Broader migration kinds and multi-schema/view/serving
+extensions remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 
 ## Isolated application Table tests
 
-`transit test` selects `CREATE TEST TARGET tests` from the same source graph and
-frozen dependencies as a build. Declare explicit cases inside a test target or
-composed module. Each case has its own setup modules and empty local database:
+`transit test` selects the entry file's unique test target (or `--target NAME`,
+defaulting to `CREATE TEST TARGET tests` when no test target is exported) from
+the same source graph and frozen dependencies as a build. Declare explicit cases
+inside a test target, composed module or `EXPORT TEST SUITE` / `USING SUITES (...)`
+suite file. Each case has its own setup modules (or per-case target composition
+alias) and empty local database:
 
 ```text
 CREATE TEST TARGET tests AS BEGIN

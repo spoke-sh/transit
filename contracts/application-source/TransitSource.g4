@@ -3,46 +3,73 @@ grammar TransitSource;
 options { caseInsensitive = true; }
 import TransitExtensions;
 
-sourceFile: (SEMI | sourceImport | dependency | definition)* EOF;
-sourceImport: IMPORT sourceName FROM (PACKAGE sourceName FILE)? STRING SEMI;
+sourceFile: (SEMI | sourceImport | dependency | defaultTarget | definition | sourceStatement)* EOF;
+sourceImport: IMPORT (MODULE FROM | MODULE sourceName FROM | sourceNameWithoutModule FROM) (PACKAGE sourceName FILE)? STRING SEMI;
 dependency: DEPENDENCY sourceName FROM STRING REVISION STRING (SUBDIRECTORY STRING)? SEMI;
-definition: CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
-    | DOMAIN sourceName AS sourceBaseType IDENTITY STRING
-    | VARIANT sourceName AS LPAREN variantConstructor (COMMA variantConstructor)* RPAREN
-    | INTERFACE sourceName parameters
-    | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
-    | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
-    | PROCEDURE sourceName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
-    | MIGRATION TARGET sourceName FROM (EMPTY | STRING) FOR DATABASE STRING SCHEMA STRING VERSION STRING NAME STRING AS BEGIN body END
-    | TEST? TARGET sourceName AS BEGIN body END) SEMI;
+defaultTarget: EXPORT DEFAULT TARGET sourceName SEMI;
+migrationClause: FROM (EMPTY | STRING) FOR DATABASE STRING SCHEMA STRING VERSION STRING NAME STRING;
+definition
+    : CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
+        | DOMAIN sourceName AS sourceBaseType IDENTITY STRING
+        | VARIANT sourceName AS LPAREN variantConstructor (COMMA variantConstructor)* RPAREN
+        | INTERFACE sourceName parameters
+        | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
+        | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
+        | PROCEDURE sourceName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
+        | MIGRATION TARGET sourceName migrationClause AS BEGIN body END
+        | TEST? TARGET sourceName AS BEGIN body END) SEMI
+    | EXPORT (MODULE sourceName parameters AS BEGIN body END
+        | TEST SUITE sourceName FROM STRING
+        | TARGET sourceName exportTargetBody) SEMI
+    ;
+exportTargetBody
+    : EQ sourceName DOT sourceName
+    | AS SQL OF sourceName (INTO STRING)?
+    | AS MIGRATIONS OF sourceName migrationClause (INTO STRING)?
+    | AS TESTS OF sourceName USING SUITES LPAREN suiteRef (COMMA suiteRef)* RPAREN
+      (WITH LPAREN targetOption (COMMA targetOption)* RPAREN)?
+    ;
+suiteRef: STRING | helperName;
+targetOption: sourceName EQ expression;
 procedureBody: programBlock (RETURN programExpression SEMI)?;
 functionBody: RETURN programExpression SEMI | programInstruction+;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
+rowParameters: LPAREN parameter (COMMA parameter)* RPAREN;
 parameter: sourceName parameterKind;
-parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | MODULE sourceQualifiedName
+parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | SCHEMA_BINDING
+    | MODULE OF? sourceQualifiedName
+    | ROW rowParameters
     | (TABLE | STREAM | QUEUE) LPAREN signatureColumn (COMMA signatureColumn)* RPAREN | sourceParameterName;
 sourceBaseType: BIGINT | TEXT | BOOLEAN;
 sourceParameterName: parameterHead (DOT sourceName (DOT sourceName)?)?;
 parameterHead: referenceTypeHead | TRUE | FALSE | NOT;
 sourceTypeName: typeHead (DOT sourceName (DOT sourceName)?)?;
-typeHead: referenceTypeHead | MODULE | TABLE | IDENTIFIER_KIND | TYPE | TRUE | FALSE | NOT;
+typeHead: referenceTypeHead | MODULE | TABLE | IDENTIFIER_KIND | SCHEMA_BINDING | TYPE | TRUE | FALSE | NOT;
 sourceType: sourceBaseType | sourceTypeName;
 signatureColumn: sourceName sourceType nullability? (PRIMARY KEY)? (COLLATE sourceName)?;
 variantConstructor: sourceName parameters;
 sourceQualifiedName: sourceName (DOT sourceName (DOT sourceName)?)?;
 body: sourceStatement*;
 sourceStatement
-    : USE sourceCall (AS sourceName)? SEMI
-    | EXPORT (TABLE | STREAM | QUEUE) DOLLAR? sourceQualifiedName AS sourceName SEMI
+    : LET sourceName EQ USE MODULE? sourceCall SEMI
+    | USE (MODULE sourceQualifiedName (LPAREN callArguments? RPAREN (AS sourceName)?)? | sourceCall (AS sourceName)?) SEMI
+    | DECLARE FROM STRING SEMI
+    | BIND SCHEMA sourceName TO expression SEMI
+    | EXPORT REFERENCE TABLE helperName LPAREN sourceName (COMMA sourceName)* RPAREN (AS sourceName)? SEMI
+    | EXPORT (TABLE | STREAM | QUEUE) (DOLLAR helperName AS sourceName | helperName (AS sourceName)?) SEMI
+    | EXPORT (FUNCTION | GUARD | PROCEDURE | VIEW | DATAFLOW | PROFILE) helperName (AS sourceName)? SEMI
     | MATCH expression matchArm+ END MATCH SEMI
     | IF expression THEN body (ELSE body)? END IF SEMI
-    | TEST STRING USING MODULES LPAREN (sourceCall (COMMA sourceCall)*)? RPAREN AS BEGIN body END SEMI
+    | TEST STRING USING MODULES LPAREN (caseModule (COMMA caseModule)*)? RPAREN AS BEGIN body END SEMI
     | ASSERT assertion SEMI
     | ASSERT WORKFLOW expression COMPLETED INTEGER REFUSED INTEGER WITHIN INTEGER OBSERVATIONS SEMI
     | tableTemplate SEMI
     ;
 matchArm: WHEN sourceQualifiedName LPAREN (sourceName (COMMA sourceName)*)? RPAREN THEN body;
-sourceCall: sourceQualifiedName LPAREN (expression (COMMA expression)*)? RPAREN;
+caseModule: sourceQualifiedName (LPAREN callArguments? RPAREN)?;
+sourceCall: sourceQualifiedName LPAREN callArguments? RPAREN;
+callArguments: namedArgument (COMMA namedArgument)* | expression (COMMA expression)*;
+namedArgument: sourceName FAT_ARROW expression;
 assertion
     : ROWS LPAREN simpleTemplate RPAREN EQUAL LPAREN expectedRows? RPAREN
     | COMMAND LPAREN simpleTemplate RPAREN MATCHED INTEGER CHANGED INTEGER
@@ -59,8 +86,12 @@ sourceAdd: sourceMultiply ((PLUS | MINUS) sourceMultiply)*;
 sourceMultiply: sourceUnary (STAR sourceUnary)*;
 sourceUnary: MINUS sourceUnary | NOT sourceUnary | sourceAtom;
 sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
+    | SCHEMA_BINDING LPAREN STRING RPAREN
+    | SCHEMA_BINDING (DOT sourceName (DOT sourceName)? (LPAREN callArguments? RPAREN)?)?
+    | ROW LPAREN namedArgument (COMMA namedArgument)* RPAREN
+    | ROW (DOT sourceName (DOT sourceName)? (LPAREN callArguments? RPAREN)?)?
     | TYPE sourceType | LPAREN expression RPAREN
-    | referenceHead (DOT sourceName (DOT sourceName)?)? (LPAREN (expression (COMMA expression)*)? RPAREN)?;
+    | plainReferenceHead (DOT sourceName (DOT sourceName)?)? (LPAREN callArguments? RPAREN)?;
 
 // Delivered public resource profile, with syntax before schema binding.
 tableTemplate: simpleTemplate | sourceProgram;
@@ -112,7 +143,7 @@ programPrimary: (LPAREN programExpression RPAREN | valueHole | NULL_ | TRUE | FA
     | ROW programArguments | programAtomName (DOT programName programArguments | programArguments)?) (DOT programName)*;
 programName: sourceName | QUOTED_IDENTIFIER;
 programAtomName: typeWordOrdinary | STREAM | QUEUE | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
-    | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE | QUOTED_IDENTIFIER;
+    | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE | QUOTED_IDENTIFIER;
 sourceSelect: SELECT selection FROM identifier sourceTableAlias? whereClause? limitClause?
     | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias?
       whereClause? limitClause? RPAREN AS identifier;
@@ -151,7 +182,7 @@ tableConstraint: (CONSTRAINT identifier)? checkConstraint;
 identifier: identifierHole | plainIdentifier;
 plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: MIGRATION | EMPTY | VERSION | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
+sourceKeyword: MIGRATION | MIGRATIONS | EMPTY | VERSION | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | TESTS | SUITE | SUITES | SQL | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | DECLARE | BIND | VIEW | PROFILE | REFERENCE | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -179,13 +210,18 @@ checkHole: DOLLAR sourceName;
 
 // Source identifiers are contextual words, unlike reserved SQL identifiers.
 sourceName: referenceHead | TYPE | TRUE | FALSE | NOT;
-referenceHead: referenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
-referenceTypeHead: typeWord | STRUCT | ROW | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
+sourceNameWithoutModule: referenceHeadWithoutModule | TYPE | TRUE | FALSE | NOT;
+referenceHead: referenceHeadWithoutModule | MODULE;
+referenceHeadWithoutModule: plainReferenceHeadWithoutModule | ROW | SCHEMA_BINDING;
+plainReferenceHead: plainReferenceHeadWithoutModule | MODULE;
+plainReferenceHeadWithoutModule: plainReferenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TABLE;
+referenceTypeHead: plainReferenceTypeHead | ROW;
+plainReferenceTypeHead: typeWord | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
     | DOUBLE | CHARACTER;
-sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | MODULE | TABLE;
+sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE;
 typeWord: typeWordWithoutLogs | STREAM | QUEUE;
 typeWordWithoutLogs: typeWordOrdinary | NULL_ | CASE | CAST;
-typeWordOrdinary: IDENTIFIER | MIGRATION | EMPTY | VERSION | FOR | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
+typeWordOrdinary: IDENTIFIER | MIGRATION | MIGRATIONS | EMPTY | VERSION | FOR | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
     | DECIMAL_RESCALE | RANGE_OVERLAPS | RANGE_CONTAINS | RANGE_ADJACENT | RANGE_COMPARE
     | VECTOR_DISTANCE | TIME_BUCKET | LOCAL_TO_UTC | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE
     | SUSPEND | RESUME | REFRESH | RETIRE | BEGIN | CONSTRAINT | CHECK | FOREIGN | REFERENCES
@@ -208,8 +244,9 @@ typeWordOrdinary: IDENTIFIER | MIGRATION | EMPTY | VERSION | FOR | AT | DECIMAL_
     | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON
     | SHOW | STORAGE | DESCRIBE | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT
     | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
-    | INTERFACE | TARGET | TEST | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
+    | INTERFACE | TARGET | TEST | TESTS | SUITE | SUITES | SQL | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
     | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME
+    | DECLARE | BIND | VIEW | PROFILE | REFERENCE
     | USING | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 
 IMPORT: 'IMPORT';
@@ -273,5 +310,17 @@ WITHIN: 'WITHIN';
 OBSERVATIONS: 'OBSERVATIONS';
 
 MIGRATION: 'MIGRATION';
+MIGRATIONS: 'MIGRATIONS';
 EMPTY: 'EMPTY';
 VERSION: 'VERSION';
+DECLARE: 'DECLARE';
+BIND: 'BIND';
+SCHEMA_BINDING: 'SCHEMA_BINDING';
+SUITE: 'SUITE';
+SUITES: 'SUITES';
+SQL: 'SQL';
+TESTS: 'TESTS';
+VIEW: 'VIEW';
+PROFILE: 'PROFILE';
+REFERENCE: 'REFERENCE';
+FAT_ARROW: '=>';

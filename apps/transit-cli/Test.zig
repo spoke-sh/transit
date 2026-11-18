@@ -76,9 +76,11 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
     hash.update(&resolution);
     hash.update(&executable);
-    const target = try std.ascii.allocLowerString(a, options.target);
-    const product = try c.compile(scratch, sources.sources.items, .{ .entry = std.fs.path.basename(entry), .target = target, .mode = .test_suite, .compiler_revision = version.revision, .resolution_digest = hash.finalResult(), .report = compiler_report }, &diagnostic.envelope);
+    const requested_target = try std.ascii.allocLowerString(a, options.target);
+    const product = try c.compile(scratch, sources.sources.items, .{ .entry = std.fs.path.basename(entry), .target = requested_target, .target_explicit = options.target_explicit, .mode = .test_suite, .compiler_revision = version.revision, .resolution_digest = hash.finalResult(), .report = compiler_report }, &diagnostic.envelope);
     defer product.deinit();
+    const target = try a.dupe(u8, product.selected_target);
+    workspace.selected_target = target;
     const reports = try a.alloc(CaseReport, product.cases.len);
     const details = try a.alloc(testlib.Runner.Detail, product.cases.len);
     @memset(details, .{});

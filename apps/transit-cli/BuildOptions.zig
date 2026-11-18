@@ -7,6 +7,7 @@ pub const Override = struct { name: []const u8, directory: []const u8 };
 const Self = @This();
 entry: []const u8 = "build.transit",
 target: []const u8 = "default",
+target_explicit: bool = false,
 out: ?[]const u8 = null,
 check: bool = false,
 fetch: bool = false,
@@ -54,6 +55,7 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
                         if (value.len > 63) return diagnostic.invalidOption("requires a source target name");
                         for (value, 0..) |byte, n| if (!(std.ascii.isAlphabetic(byte) or byte == '_' or n > 0 and std.ascii.isDigit(byte))) return diagnostic.invalidOption("requires a source target name");
                         result.target = value;
+                        result.target_explicit = true;
                     },
                     2 => result.out = value,
                     5 => {
@@ -87,7 +89,9 @@ pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: boo
 test "build options have no connection defaults and reject conflicting actions" {
     var diagnostic: Diagnostic = .{};
     const options = try parse(&.{ "--target", "release", "--override", "common=../common", "--check", "--format", "json", "--color", "off" }, &diagnostic);
-    try std.testing.expect(options.check and options.json and diagnostic.machine);
+    try std.testing.expect(options.check and options.json and options.target_explicit and diagnostic.machine);
+    try std.testing.expect(!(try parse(&.{}, &diagnostic)).target_explicit);
+    try std.testing.expect(!(try parseMode(&.{}, &diagnostic, true)).target_explicit);
     try std.testing.expectEqual(ColorMode.off, options.color);
     try std.testing.expectEqualStrings("common", options.overrides[0].name);
     try std.testing.expectEqual(ColorMode.on, (try parseMode(&.{ "--color", "on" }, &diagnostic, true)).color);

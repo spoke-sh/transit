@@ -1056,6 +1056,191 @@ def migration_journey(cli, temporary):
             print(f'Private failed fresh migration definition: {fresh.root}', file=sys.stderr)
 
 
+def workspace_composition_journey(cli, temporary):
+    root = temporary / 'workspace-composition'
+    source(root, 'build.transit', (
+        "IMPORT MODULE apps FROM './apps/build.transit';\n"
+        "EXPORT TARGET app_sql = apps.app_sql;\n"
+        "EXPORT TARGET app_migrations = apps.app_migrations;\n"
+        "EXPORT DEFAULT TARGET app_sql;\n"
+    ))
+    source(root, 'apps/build.transit', (
+        "IMPORT MODULE app FROM './app/build.transit';\n"
+        "EXPORT TARGET app_sql = app.sql;\n"
+        "EXPORT TARGET app_migrations = app.migrations;\n"
+    ))
+    source(root, 'apps/app/shared/helpers.transit', (
+        "CREATE PUBLIC FUNCTION normalize_label(raw TEXT) RETURNS TEXT AS BEGIN\n"
+        "  RETURN CASE WHEN raw = '' THEN 'unnamed' ELSE raw END;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/app/tenancy/state.transit', (
+        "CREATE PUBLIC TABLE ws_tenants (id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL);\n"
+    ))
+    source(root, 'apps/app/tenancy/guards.transit', (
+        "CREATE GUARD require_tenant(tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL), tenant_id BIGINT) AS BEGIN\n"
+        "  LET found = SELECT active FROM tenants_tbl WHERE id = tenant_id;\n"
+        "  REQUIRE found IS NOT NULL ELSE 'MissingTenant';\n"
+        "  REQUIRE found.active ELSE 'InactiveTenant';\n"
+        "END;\n"
+    ))
+    source(root, 'apps/app/tenancy/build.transit', (
+        "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN\n"
+        "  BIND SCHEMA tenancy TO schema;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './guards.transit';\n"
+        "  EXPORT TABLE ws_tenants;\n"
+        "  EXPORT GUARD require_tenant;\n"
+        "END;\n"
+    ))
+    net_state_v1 = "CREATE PUBLIC TABLE ws_networks (id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL);\n"
+    source(root, 'apps/app/networking/state.transit', net_state_v1)
+    source(root, 'apps/app/networking/procedures.transit', (
+        "CREATE PROCEDURE attach_network(\n"
+        "  tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL),\n"
+        "  networks_tbl TABLE(id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL),\n"
+        "  net_id BIGINT,\n"
+        "  tenant_id BIGINT,\n"
+        "  label TEXT\n"
+        ") RETURNS BIGINT AS BEGIN ATOMIC\n"
+        "  CHECK GUARD tenancy.require_tenant(tenants_tbl, tenant_id);\n"
+        "  INSERT INTO networks_tbl VALUES (net_id, tenant_id, normalize_label(label)) ON CONFLICT (id) DO ASSERT SAME ROW;\n"
+        "  RETURN net_id;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/app/networking/build.transit', (
+        "IMPORT MODULE helpers FROM '../shared/helpers.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, tenancy MODULE OF tenancy_build.application) AS BEGIN\n"
+        "  BIND SCHEMA networking TO schema;\n"
+        "  USE MODULE helpers;\n"
+        "  USE MODULE tenancy;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './procedures.transit';\n"
+        "  EXPORT TABLE ws_networks;\n"
+        "  EXPORT PROCEDURE attach_network;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/app/ingress/flow.transit', (
+        "CREATE PUBLIC QUEUE ws_ingress_requests (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL, label TEXT NOT NULL);\n"
+        "CREATE PUBLIC STREAM ws_ingress_events (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL);\n"
+        "CREATE PUBLIC DATAFLOW ws_process_ingress FROM QUEUE ws_ingress_requests AS req AS BEGIN\n"
+        "  CHECK GUARD require_tenant(ws_tenants, req.tenant_id);\n"
+        "  BEGIN ATOMIC\n"
+        "    LET attached = CALL networking.attach_network(tenancy.ws_tenants, networking.ws_networks, req.id, req.tenant_id, req.label);\n"
+        "    PRODUCE INTO ws_ingress_events VALUES (attached, req.tenant_id);\n"
+        "  END;\n"
+        "END;\n"
+        "AUTHORIZE DATAFLOW ws_process_ingress AS ROLE CURRENT_ROLE;\n"
+        "ACTIVATE DATAFLOW ws_process_ingress;\n"
+    ))
+    source(root, 'apps/app/ingress/build.transit', (
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "IMPORT MODULE networking_build FROM '../networking/build.transit';\n"
+        "EXPORT MODULE application(\n"
+        "  schema SCHEMA_BINDING,\n"
+        "  tenancy MODULE OF tenancy_build.application,\n"
+        "  networking MODULE OF networking_build.application\n"
+        ") AS BEGIN\n"
+        "  BIND SCHEMA ingress TO schema;\n"
+        "  USE MODULE tenancy;\n"
+        "  USE MODULE networking;\n"
+        "  DECLARE FROM './flow.transit';\n"
+        "END;\n"
+    ))
+    def write_app_build(mig_basis='EMPTY', mig_version='0001', sql_into="'../../.local/build/app/application.sql'", mig_clause="FOR DATABASE 'transit' SCHEMA 'public' VERSION '{ver}' NAME 'workspace'"):
+        clause = mig_clause.format(ver=mig_version)
+        source(root, 'apps/app/build.transit', (
+            "IMPORT MODULE tenancy FROM './tenancy/build.transit';\n"
+            "IMPORT MODULE networking FROM './networking/build.transit';\n"
+            "IMPORT MODULE ingress FROM './ingress/build.transit';\n"
+            "EXPORT MODULE schema_bundle(bindings ROW(tenancy SCHEMA_BINDING, networking SCHEMA_BINDING)) AS BEGIN\n"
+            "  LET tenancy_mod = USE MODULE tenancy.application(schema => bindings.tenancy);\n"
+            "  LET net_mod = USE MODULE networking.application(schema => bindings.networking, tenancy => tenancy_mod);\n"
+            "END;\n"
+            "EXPORT MODULE full_application(bindings ROW(tenancy SCHEMA_BINDING, networking SCHEMA_BINDING)) AS BEGIN\n"
+            "  LET tenancy_mod = USE MODULE tenancy.application(schema => bindings.tenancy);\n"
+            "  LET net_mod = USE MODULE networking.application(schema => bindings.networking, tenancy => tenancy_mod);\n"
+            "  LET ingress_mod = USE MODULE ingress.application(schema => bindings.networking, tenancy => tenancy_mod, networking => net_mod);\n"
+            "END;\n"
+            "LET tables_only = USE MODULE schema_bundle(bindings => ROW(tenancy => SCHEMA_BINDING('tenancy'), networking => SCHEMA_BINDING('networking')));\n"
+            "LET control = USE MODULE full_application(bindings => ROW(tenancy => SCHEMA_BINDING('tenancy'), networking => SCHEMA_BINDING('networking')));\n"
+            f"EXPORT TARGET sql AS SQL OF control INTO {sql_into};\n"
+            f"EXPORT TARGET migrations AS MIGRATIONS OF tables_only FROM {mig_basis} {clause} INTO '../../.local/build/app/migrations';\n"
+        ))
+    write_app_build()
+    # Omitted --target selects EXPORT DEFAULT TARGET app_sql across 3 levels.
+    built = cli_build(cli, root)
+    assert built['target'] == 'app_sql' and not built['reused'], built
+    assert cli_build(cli, root)['reused']
+    out_dir = Path(built['directory'])
+    provenance = json.loads((out_dir / 'provenance.json').read_text())
+    assert provenance['target'] == 'app_sql'
+    assert provenance['declared_output'] == '.local/build/app/application.sql', provenance
+    app_sql = (out_dir / 'application.sql').read_text()
+    assert app_sql.count('CREATE TABLE WS_TENANTS') == 1, app_sql
+    assert app_sql.count('CREATE TABLE WS_NETWORKS') == 1, app_sql
+
+    # Delegated migration target resolves child-relative basis paths and synthesizes v1 -> v2.
+    mig_v1 = cli_build(cli, root, '--target', 'app_migrations')
+    assert mig_v1['target'] == 'app_migrations' and mig_v1['statements'] == 2, mig_v1
+    v1_rel_from_app = '../../' + str(Path(mig_v1['directory']).relative_to(root) / 'basis.json')
+    source(root, 'apps/app/networking/state.transit',
+           "CREATE PUBLIC TABLE ws_networks (id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL, region TEXT);\n")
+    source(root, 'apps/app/networking/procedures.transit',
+           (root / 'apps/app/networking/procedures.transit').read_text().replace(
+               'networks_tbl TABLE(id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL)',
+               'networks_tbl TABLE(id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL, region TEXT)',
+           ).replace(
+               'normalize_label(label))', "normalize_label(label), 'us-east')"
+           ))
+    write_app_build(mig_basis=f"'{v1_rel_from_app}'", mig_version='0002')
+    mig_v2 = cli_build(cli, root, '--target', 'app_migrations')
+    assert mig_v2['statements'] == 1, mig_v2
+    assert 'ADD COLUMN' in (Path(mig_v2['directory']) / 'migrations/0002-workspace.sql').read_text()
+
+    # Negative controls: escaping INTO path and omitted FOR DATABASE clause.
+    write_app_build(sql_into="'../../../outside/application.sql'")
+    escaped = cli_build(cli, root, '--check', expected=1)
+    assert escaped['code'] == 'application.source.path', escaped
+    write_app_build(mig_clause='')
+    missing_db = cli_build(cli, root, '--target', 'app_migrations', '--check', expected=1)
+    assert missing_db['code'] == 'application.source.syntax', missing_db
+
+    # Execute generated diamond SQL against a real local installation without source files.
+    shutil.rmtree(root)
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        lines = app_sql.splitlines()
+        assert len(lines) == 7, lines
+        fixture.console(
+            '\n'.join(lines[:3]) + '\n'
+            "ALTER QUEUE ws_ingress_requests SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+            + '\n'.join(lines[3:])
+        )
+        fixture.console("INSERT INTO ws_tenants VALUES (10, TRUE, 'core');")
+        fixture.console("ENQUEUE INTO ws_ingress_requests VALUES (99, 10, '');")
+        head = await_head(fixture, 'ws_process_ingress', lambda h: h['completed'] >= 1)['observation']['head']
+        assert (head['completed'], head['refused']) == (1, 0), head
+        assert records(fixture.console('SELECT id, tenant_id, label FROM ws_networks;')[-1]) == [
+            {'id': '99', 'tenant_id': '10', 'label': 'unnamed'}
+        ]
+        assert records(fixture.console('CONSUME id, tenant_id FROM ws_ingress_events;')[-1]) == [
+            {'id': '99', 'tenant_id': '10'}
+        ]
+        passed = True
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed workspace composition execution: {fixture.root}', file=sys.stderr)
+
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
@@ -1066,6 +1251,8 @@ def main():
         modular_sql = modular_programs_journey(cli, Path(temporary))
         print('Application build: generated Table migration and recovery', flush=True)
         migration_journey(cli, Path(temporary))
+        print('Application build: workspace module-instance DAG and delegated targets', flush=True)
+        workspace_composition_journey(cli, Path(temporary))
         print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
         print('Application build: generated typed Queue fixture', flush=True)

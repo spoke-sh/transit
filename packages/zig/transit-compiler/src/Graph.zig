@@ -8,6 +8,7 @@ const Self = @This();
 a: std.mem.Allocator,
 sources: []const Source,
 files: []const s.File,
+is_fragment: []const bool = &.{},
 max_depth: usize,
 
 pub fn init(a: std.mem.Allocator, sources: []const Source, file_at: *usize, offset: *usize, max_depth: usize) !Self {
@@ -74,6 +75,43 @@ pub fn initReported(a: std.mem.Allocator, sources: []const Source, file_at: *usi
                 return error.DuplicateDependency;
             };
         }
+        if (files[i].defaults.len > 1) {
+            offset.* = files[i].defaults[1].span.start;
+            if (report) |r| {
+                r.setSpan(i, files[i].defaults[1].span.start, files[i].defaults[1].span.end);
+                r.setHeadline("duplicate 'EXPORT DEFAULT TARGET' in file", .{});
+                r.addNote(i, .{ .start = files[i].defaults[0].span.start, .end = files[i].defaults[0].span.end }, "default target first declared here", .{});
+            }
+            return error.DuplicateSourceName;
+        }
+        for (files[i].statements, 0..) |stmt, j| {
+            if (stmt.value != .use or !stmt.value.use.let_binding) continue;
+            const let_name = stmt.value.use.result.?;
+            offset.* = stmt.span.start;
+            for (files[i].statements[0..j]) |prior| {
+                if (prior.value == .use and prior.value.use.let_binding and std.mem.eql(u8, prior.value.use.result.?, let_name)) {
+                    if (report) |r| {
+                        r.setSpan(i, stmt.span.start, stmt.span.end);
+                        r.setHeadline("duplicate 'LET {s}' binding in file", .{let_name});
+                    }
+                    return error.DuplicateSourceName;
+                }
+            }
+            for (files[i].definitions) |def| if (std.mem.eql(u8, def.name, let_name)) {
+                if (report) |r| {
+                    r.setSpan(i, stmt.span.start, stmt.span.end);
+                    r.setHeadline("'LET {s}' conflicts with declaration of '{s}'", .{ let_name, def.name });
+                }
+                return error.DuplicateSourceName;
+            };
+            for (files[i].imports) |imp| if (std.mem.eql(u8, imp.alias, let_name)) {
+                if (report) |r| {
+                    r.setSpan(i, stmt.span.start, stmt.span.end);
+                    r.setHeadline("'LET {s}' conflicts with import alias '{s}'", .{ let_name, imp.alias });
+                }
+                return error.DuplicateSourceName;
+            };
+        }
     }
     for (files, 0..) |file, i| for (file.dependencies) |dependency| {
         for (files[0..i], 0..i) |prior_file, prior_i| for (prior_file.dependencies) |prior| {
@@ -93,7 +131,25 @@ pub fn initReported(a: std.mem.Allocator, sources: []const Source, file_at: *usi
             }
         };
     };
-    var self: Self = .{ .a = a, .sources = sources, .files = files, .max_depth = max_depth };
+    var has_fragments_or_suites = false;
+    for (files) |f_item| {
+        if (f_item.statements.len != 0) has_fragments_or_suites = true;
+        for (f_item.definitions) |d_item| {
+            if (d_item.suite_path != null or d_item.suites.len != 0 or d_item.body.len != 0) {
+                for (d_item.body) |st| if (st.value == .declare_from or st.value == .conditional or st.value == .match) {
+                    has_fragments_or_suites = true;
+                    break;
+                };
+                if (d_item.suite_path != null or d_item.suites.len != 0) has_fragments_or_suites = true;
+            }
+        }
+    }
+    const is_fragment = if (has_fragments_or_suites) blk: {
+        const buf = try a.alloc(bool, sources.len);
+        @memset(buf, false);
+        break :blk buf;
+    } else &.{};
+    var self: Self = .{ .a = a, .sources = sources, .files = files, .is_fragment = is_fragment, .max_depth = max_depth };
     const visited = try a.alloc(u8, sources.len);
     const heights = try a.alloc(usize, sources.len);
     @memset(heights, 0);
@@ -102,6 +158,11 @@ pub fn initReported(a: std.mem.Allocator, sources: []const Source, file_at: *usi
     @memset(visited, 0);
     @memset(heights, 0);
     for (sources, 0..) |_, i| _ = try self.visitPackage(i, visited, heights, 0, file_at, offset, report);
+    if (has_fragments_or_suites) {
+        @memset(visited, 0);
+        @memset(heights, 0);
+        for (sources, 0..) |_, i| _ = try self.visitFragments(i, @constCast(is_fragment), visited, heights, 0, file_at, offset, report);
+    }
     return self;
 }
 pub fn validPackage(name: []const u8) !void {
@@ -124,6 +185,68 @@ pub fn selectedPath(path: []const u8) !void {
     var components = std.mem.splitScalar(u8, path, '/');
     while (components.next()) |part| if (excludedComponent(part)) return error.ExcludedSourcePath;
 }
+/// Resolve a relative subpath against `base_file`'s directory within the same
+/// package root. `.` and intra-package `..` normalize; escaping the package
+/// root, leading `/`, empty segments or traversing an excluded component fails.
+pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    return resolveSubpath(a, base_file, raw_path, true);
+}
+/// Resolve a relative workspace artifact or basis subpath against `base_file`'s
+/// directory while permitting `.transit` cache paths and forbidding `.git` or
+/// escaping the workspace root.
+pub fn resolveWorkspaceSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    return resolveSubpath(a, base_file, raw_path, false);
+}
+fn resolveSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8, comptime forbid_excluded: bool) ![]const u8 {
+    if (raw_path.len == 0 or raw_path.len > 512 or !std.unicode.utf8ValidateSlice(raw_path) or std.mem.indexOfAny(u8, raw_path, "\\\x00\r\n") != null or raw_path[0] == '/') return error.InvalidSourcePath;
+    var stack: [64][]const u8 = undefined;
+    var len: usize = 0;
+    if (std.mem.lastIndexOfScalar(u8, base_file, '/')) |slash| {
+        var base_parts = std.mem.splitScalar(u8, base_file[0..slash], '/');
+        while (base_parts.next()) |part| {
+            if (part.len == 0) return error.InvalidSourcePath;
+            if (if (forbid_excluded) excludedComponent(part) else std.mem.eql(u8, part, ".git")) return error.ExcludedSourcePath;
+            if (len == stack.len) return error.SourceDepthLimit;
+            stack[len] = part;
+            len += 1;
+        }
+    }
+    var parts = std.mem.splitScalar(u8, raw_path, '/');
+    while (parts.next()) |part| {
+        if (part.len == 0) return error.InvalidSourcePath;
+        if (if (forbid_excluded) excludedComponent(part) else std.mem.eql(u8, part, ".git")) return error.ExcludedSourcePath;
+        if (std.mem.eql(u8, part, ".")) continue;
+        if (std.mem.eql(u8, part, "..")) {
+            if (len == 0) return error.InvalidSourcePath;
+            len -= 1;
+            continue;
+        }
+        if (len == stack.len) return error.SourceDepthLimit;
+        stack[len] = part;
+        len += 1;
+    }
+    if (len == 0) return error.InvalidSourcePath;
+    var total: usize = len - 1;
+    for (stack[0..len]) |part| total += part.len;
+    if (total > 512) return error.InvalidSourcePath;
+    const out = try a.alloc(u8, total);
+    var pos: usize = 0;
+    for (stack[0..len], 0..) |part, idx| {
+        if (idx != 0) {
+            out[pos] = '/';
+            pos += 1;
+        }
+        @memcpy(out[pos..][0..part.len], part);
+        pos += part.len;
+    }
+    if (forbid_excluded) try selectedPath(out) else try validPath(out);
+    return out;
+}
+pub fn resolveSourcePath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    const resolved = try resolvePackageSubpath(a, base_file, raw_path);
+    if (!std.mem.endsWith(u8, resolved, ".transit")) return error.InvalidSourcePath;
+    return resolved;
+}
 pub fn validateDependency(value: s.Dependency) !void {
     if (value.repository.len == 0 or value.repository.len > 2048 or value.repository[0] == '-' or std.mem.indexOfAny(u8, value.repository, "\x00\r\n") != null) return error.InvalidRepository;
     if (std.mem.startsWith(u8, value.repository, "https://") or std.mem.startsWith(u8, value.repository, "file://")) {
@@ -135,11 +258,13 @@ pub fn validateDependency(value: s.Dependency) !void {
     if (value.subdirectory.len > 0) try validPath(value.subdirectory);
 }
 pub fn importPath(a: std.mem.Allocator, source_path: []const u8, import: s.Import) ![]const u8 {
-    try selectedPath(import.path);
-    if (!std.mem.endsWith(u8, import.path, ".transit")) return error.InvalidSourcePath;
-    if (import.package != null) return a.dupe(u8, import.path);
-    if (std.mem.lastIndexOfScalar(u8, source_path, '/')) |slash| return std.fmt.allocPrint(a, "{s}/{s}", .{ source_path[0..slash], import.path });
-    return a.dupe(u8, import.path);
+    return resolveSourcePath(a, if (import.package != null) "" else source_path, import.path);
+}
+pub fn localFile(self: Self, file: usize, raw_path: []const u8) !usize {
+    const package = self.sources[file].package;
+    const path = try resolveSourcePath(self.a, self.sources[file].path, raw_path);
+    for (self.sources, 0..) |source, i| if (std.mem.eql(u8, package, source.package) and std.mem.eql(u8, path, source.path)) return i;
+    return error.MissingSource;
 }
 pub fn imported(self: Self, file: usize, import: s.Import) !usize {
     const package = import.package orelse self.sources[file].package;
@@ -175,6 +300,16 @@ fn visit(self: *Self, file: usize, visited: []u8, heights: []usize, depth: usize
                 }
             }
             return err;
+        };
+        for (self.files[next].statements) |stmt| if (stmt.value != .use or !stmt.value.use.let_binding) {
+            file_at.* = next;
+            offset.* = stmt.span.start;
+            if (report) |r| {
+                r.setSpan(next, stmt.span.start, stmt.span.end);
+                r.setHeadline("imported module file cannot contain loose top-level statements", .{});
+                r.addNote(file, .{ .start = import.span.start, .end = import.span.end }, "imported as '{s}' here; use 'DECLARE FROM' inside a module for fragments", .{import.alias});
+            }
+            return error.UnsupportedSourceDeclaration;
         };
         const sub = self.visit(next, visited, heights, depth + 1, file_at, offset, report) catch |err| {
             if (err == error.SourceImportCycle) if (report) |r| if (!r.has_span) {
@@ -239,6 +374,84 @@ fn visitPackage(self: *Self, representative: usize, visited: []u8, heights: []us
     }
     visited[index] = 2;
     heights[index] = height;
+    return height;
+}
+fn visitFragments(self: *Self, file: usize, is_fragment: []bool, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize, report: ?*SourceDiagnostic.Report) anyerror!usize {
+    file_at.* = file;
+    if (visited[file] == 1) return error.SourceImportCycle;
+    if (visited[file] == 2) {
+        if (depth + heights[file] > self.max_depth) return error.SourceDepthLimit;
+        return heights[file];
+    }
+    if (depth >= self.max_depth) return error.SourceDepthLimit;
+    visited[file] = 1;
+    var height: usize = 1;
+    for (self.files[file].definitions) |def| {
+        if (def.suite_path) |suite_path| {
+            offset.* = def.span.start;
+            _ = self.localFile(file, suite_path) catch |err| {
+                if (report) |r| {
+                    r.setSpan(file, def.span.start, def.span.end);
+                    if (err == error.MissingSource) r.setHeadline("cannot find test suite file '{s}'", .{suite_path});
+                }
+                return err;
+            };
+        }
+        for (def.suites) |suite| switch (suite) {
+            .path => |suite_path| {
+                offset.* = def.span.start;
+                _ = self.localFile(file, suite_path) catch |err| {
+                    if (report) |r| {
+                        r.setSpan(file, def.span.start, def.span.end);
+                        if (err == error.MissingSource) r.setHeadline("cannot find test suite file '{s}'", .{suite_path});
+                    }
+                    return err;
+                };
+            },
+            .symbol => {},
+        };
+        const sub = try self.visitFragmentStatements(file, def.body, is_fragment, visited, heights, depth, file_at, offset, report);
+        height = @max(height, sub);
+    }
+    const top_sub = try self.visitFragmentStatements(file, self.files[file].statements, is_fragment, visited, heights, depth, file_at, offset, report);
+    height = @max(height, top_sub);
+    visited[file] = 2;
+    heights[file] = height;
+    return height;
+}
+fn visitFragmentStatements(self: *Self, file: usize, statements: []const s.Statement, is_fragment: []bool, visited: []u8, heights: []usize, depth: usize, file_at: *usize, offset: *usize, report: ?*SourceDiagnostic.Report) anyerror!usize {
+    var height: usize = 1;
+    for (statements) |stmt| switch (stmt.value) {
+        .declare_from => |raw_path| {
+            file_at.* = file;
+            offset.* = stmt.span.start;
+            const next = self.localFile(file, raw_path) catch |err| {
+                if (report) |r| {
+                    r.setSpan(file, stmt.span.start, stmt.span.end);
+                    if (err == error.MissingSource) r.setHeadline("cannot find fragment file '{s}'", .{raw_path});
+                }
+                return err;
+            };
+            is_fragment[next] = true;
+            const sub = self.visitFragments(next, is_fragment, visited, heights, depth + 1, file_at, offset, report) catch |err| {
+                if (err == error.SourceImportCycle) if (report) |r| if (!r.has_span) {
+                    file_at.* = file;
+                    offset.* = stmt.span.start;
+                    r.setSpan(file, stmt.span.start, stmt.span.end);
+                };
+                return err;
+            };
+            height = @max(height, 1 + sub);
+        },
+        .conditional => |cond| {
+            height = @max(height, try self.visitFragmentStatements(file, cond.yes, is_fragment, visited, heights, depth, file_at, offset, report));
+            height = @max(height, try self.visitFragmentStatements(file, cond.no, is_fragment, visited, heights, depth, file_at, offset, report));
+        },
+        .match => |m| for (m.arms) |arm| {
+            height = @max(height, try self.visitFragmentStatements(file, arm.body, is_fragment, visited, heights, depth, file_at, offset, report));
+        },
+        else => {},
+    };
     return height;
 }
 pub fn resolve(self: Self, file: usize, name: s.Name) !Ref {

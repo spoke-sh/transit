@@ -14,7 +14,7 @@ const Context = SourceDiagnostic.Context;
 const Origin = Operands.Origin;
 pub const format = "transit_source_v1";
 pub const Limits = struct { files: usize = 256, source_bytes: usize = 16 * 1024 * 1024, depth: usize = 64, work: usize = 100000, memory_bytes: usize = 64 * 1024 * 1024, output_bytes: usize = 8 * 1024 * 1024 };
-pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{}, report: ?*SourceDiagnostic.Report = null };
+pub const Options = struct { entry: []const u8 = "build.transit", target: []const u8 = "default", target_explicit: bool = true, mode: enum { build, test_suite } = .build, compiler_revision: []const u8, resolution_digest: [32]u8 = @splat(0), limits: Limits = .{}, report: ?*SourceDiagnostic.Report = null };
 pub const Step = struct {
     sql: []const u8,
     plan_digest: [32]u8,
@@ -32,10 +32,13 @@ pub const Step = struct {
 pub const Product = struct {
     budget: memory.Budget,
     arena: std.heap.ArenaAllocator,
+    selected_target: []const u8 = "",
     sql: []const u8 = "",
     steps: []const Step = &.{},
     cases: []const Test.Case = &.{},
     migration: ?s.Migration = null,
+    migration_basis_path: ?[]const u8 = null,
+    declared_output_path: ?[]const u8 = null,
     input_digest: [32]u8 = undefined,
     sql_digest: [32]u8 = undefined,
     work: usize = 0,
@@ -45,6 +48,29 @@ pub const Product = struct {
         parent.destroy(self);
     }
 };
+/// Arena backing wrapper that disables address-dependent in-place resizes so
+/// arena slab growth is strictly deterministic across allocator layouts.
+fn arenaBacking(budget: *memory.Budget) std.mem.Allocator {
+    return .{
+        .ptr = budget,
+        .vtable = &.{
+            .alloc = struct {
+                fn call(ctx: *anyopaque, len: usize, alignment: std.mem.Alignment, ra: usize) ?[*]u8 {
+                    const b: *memory.Budget = @ptrCast(@alignCast(ctx));
+                    return b.allocator().rawAlloc(len, alignment, ra);
+                }
+            }.call,
+            .resize = std.mem.Allocator.noResize,
+            .remap = std.mem.Allocator.noRemap,
+            .free = struct {
+                fn call(ctx: *anyopaque, bytes: []u8, alignment: std.mem.Alignment, ra: usize) void {
+                    const b: *memory.Budget = @ptrCast(@alignCast(ctx));
+                    b.allocator().rawFree(bytes, alignment, ra);
+                }
+            }.call,
+        },
+    };
+}
 const Value = types.Value;
 const Binding = types.Binding;
 const Self = @This();
@@ -71,6 +97,10 @@ expected_bytes: usize = 0,
 owner: usize = 0,
 next_owner: usize = 0,
 exports: ?*std.ArrayList(types.Export) = null,
+bound_schemas: ?*std.ArrayList([]const u8) = null,
+target_composition: ?struct { file: usize, instance: []const u8 } = null,
+declaring: [64]usize = undefined,
+declaring_len: usize = 0,
 symbolic: bool = false,
 checked_statements: usize = 0,
 checking: [64]struct { definition: Graph.Ref, arguments: []const Binding } = undefined,
@@ -89,7 +119,7 @@ pub fn compile(parent: std.mem.Allocator, sources: []const Graph.Source, options
         return err;
     };
     result.* = .{ .budget = .{ .parent = parent, .limit = options.limits.memory_bytes }, .arena = undefined };
-    result.arena = .init(result.budget.allocator());
+    result.arena = .init(arenaBacking(&result.budget));
     errdefer result.deinit();
     return compileInner(result, sources, options, diagnostic) catch |err| {
         const cause = if (err == error.OutOfMemory and result.budget.exhausted) error.BuildMemoryLimit else err;
@@ -123,7 +153,7 @@ fn compileInner(result: *Product, sources: []const Graph.Source, options: Option
         diagnostic.* = project(err, if (file < sources.len) locationSpan(sources[file], span) else null, null, null);
         return err;
     };
-    var scratch: std.heap.ArenaAllocator = .init(result.budget.allocator());
+    var scratch: std.heap.ArenaAllocator = .init(arenaBacking(&result.budget));
     defer scratch.deinit();
     var self: Self = .{ .a = a, .graph = graph, .catalog = .{ .output = a, .scratch = scratch.allocator() }, .scratch = &scratch, .limits = options.limits, .report = options.report };
     return self.run(result, options) catch |err| {
@@ -171,15 +201,30 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
         if (std.mem.eql(u8, source.package, "root") and std.mem.eql(u8, source.path, options.entry)) break i;
     } else return error.MissingBuildEntry;
     self.file = entry;
-    const target_name = try std.ascii.allocLowerString(a, options.target);
+    for (graph.files[entry].statements) |stmt| if (stmt.value != .use or !stmt.value.use.let_binding) {
+        self.offset = stmt.span.start;
+        self.span_end = stmt.span.end;
+        if (self.report) |r| {
+            r.setSpan(entry, stmt.span.start, stmt.span.end);
+            r.setHeadline("loose top-level statement is not allowed in build entry '{s}'", .{options.entry});
+            r.addNote(null, null, "place SQL and assertions inside 'MODULE', 'TARGET' or 'TEST' blocks", .{});
+        }
+        return error.UnsupportedSourceDeclaration;
+    };
+    try self.validateDefaults();
+    self.file = entry;
+    self.test_mode = options.mode == .test_suite;
+    const target_name = try self.selectTargetName(entry, options);
+    result.selected_target = target_name;
+    if (self.report) |r| r.setTarget(target_name);
     self.context = .{ .name = target_name };
-    const target = graph.resolve(entry, .{ .member = target_name }) catch |err| {
+    const target = self.resolveTarget(entry, target_name) catch |err| {
         if (err == error.UnknownSourceSymbol) {
             if (self.report) |r| {
                 r.setSpan(entry, 0, 0);
                 r.setHeadline("target '{s}' is not declared in '{s}'", .{ target_name, options.entry });
                 for (graph.files[entry].definitions) |cand| {
-                    if (cand.kind == .target or cand.kind == .migration_target or cand.kind == .test_target) {
+                    if (cand.kind == .target or cand.kind == .migration_target or cand.kind == .test_target or cand.kind == .target_alias) {
                         r.addNote(entry, .{ .start = cand.span.start, .end = cand.span.end }, "available target '{s}' declared here", .{cand.name});
                         break;
                     }
@@ -190,24 +235,45 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
         return err;
     };
     const definition = graph.getDefinition(target);
+    self.file = target.file;
     self.offset = definition.span.start;
     self.span_end = definition.span.end;
-    self.test_mode = options.mode == .test_suite;
     const target_kind: @FieldType(s.Definition, "kind") = if (self.test_mode) .test_target else .target;
     if (definition.kind != target_kind and !(options.mode == .build and definition.kind == .migration_target)) {
         if (self.report) |r| {
             r.setSpan(target.file, definition.span.start, definition.span.end);
             if (self.test_mode) {
-                r.setHeadline("target '{s}' is a build target, expected 'CREATE TEST TARGET'", .{target_name});
-                r.addNote(null, null, "run 'transit build --target {s}' or select a 'CREATE TEST TARGET'", .{target_name});
+                r.setHeadline("target '{s}' is a build target, expected a test target", .{target_name});
+                r.addNote(null, null, "run 'transit build --target {s}' or select a test target", .{target_name});
             } else {
-                r.setHeadline("target '{s}' is a test target, expected 'CREATE TARGET' or 'CREATE MIGRATION TARGET'", .{target_name});
+                r.setHeadline("target '{s}' is a test target, expected a build or migration target", .{target_name});
                 r.addNote(null, null, "run 'transit test --target {s}' or select a build target", .{target_name});
             }
         }
         return error.WrongSourceTargetKind;
     }
-    result.migration = definition.migration;
+    if (definition.output_path) |raw_out| {
+        result.declared_output_path = Graph.resolveWorkspaceSubpath(a, sources[target.file].path, raw_out) catch |err| {
+            if (self.report) |r| {
+                r.setSpan(target.file, definition.span.start, definition.span.end);
+                r.setHeadline("target output path '{s}' must stay confined within the workspace root", .{raw_out});
+            }
+            return err;
+        };
+    }
+    if (definition.migration) |mig| {
+        result.migration = mig;
+        if (mig.basis) |raw_basis| {
+            result.migration_basis_path = Graph.resolveWorkspaceSubpath(a, sources[target.file].path, raw_basis) catch |err| {
+                if (err == error.OutOfMemory) return err;
+                if (self.report) |r| {
+                    r.setSpan(target.file, definition.span.start, definition.span.end);
+                    r.setHeadline("migration basis path '{s}' must stay confined within the workspace root", .{raw_basis});
+                }
+                return error.InvalidMigrationBasisPath;
+            };
+        }
+    }
     self.context = .{};
     std.crypto.hash.sha2.Sha256.hash(target_name, &self.expansion, .{});
     try types.validate(graph, self.a, &self.file, &self.offset, &self.work, self.limits.work);
@@ -215,7 +281,56 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     try @import("ProgramLowering.zig").validateAll(self);
     self.call_site = null;
     self.context = .{};
-    try self.body(target.file, definition.body, &.{}, 0);
+    if (definition.target_of) |instance_name| {
+        if (!self.test_mode) {
+            _ = try self.evaluateTargetComposition(target.file, definition.span, instance_name, 0);
+        } else {
+            if (definition.target_options.len != 0) {
+                for (definition.target_options) |opt| _ = try self.expression(target.file, opt.value, &.{}, 0);
+                const first_opt = definition.target_options[0];
+                self.file = target.file;
+                self.offset = definition.span.start;
+                self.span_end = definition.span.end;
+                self.context = .{ .name = first_opt.name };
+                if (self.report) |r| {
+                    r.setSpan(target.file, definition.span.start, definition.span.end);
+                    r.setHeadline("test target option '{s}' is not yet supported by the test runner", .{first_opt.name});
+                    r.addNote(null, null, "omit 'WITH (...)' options until synthetic setup, replay and flow-coverage gates land", .{});
+                }
+                return error.UnsupportedTestOption;
+            }
+            try self.checkTargetComposition(target.file, definition.span, instance_name);
+            self.target_composition = .{ .file = target.file, .instance = instance_name };
+            defer self.target_composition = null;
+            for (definition.suites) |suite| {
+                self.file = target.file;
+                self.offset = definition.span.start;
+                self.span_end = definition.span.end;
+                const suite_file = switch (suite) {
+                    .path => |raw_path| try graph.localFile(target.file, raw_path),
+                    .symbol => |sym| blk: {
+                        const s_ref = try graph.resolveReported(target.file, sym, self.report);
+                        const s_def = graph.getDefinition(s_ref);
+                        if (s_def.kind != .test_suite) {
+                            self.file = s_ref.file;
+                            self.offset = s_def.span.start;
+                            self.span_end = s_def.span.end;
+                            self.context = .{ .name = s_def.name };
+                            if (self.report) |r| {
+                                r.setSpan(s_ref.file, s_def.span.start, s_def.span.end);
+                                r.setHeadline("'{s}' is not an 'EXPORT TEST SUITE'", .{s_def.name});
+                            }
+                            return error.WrongSourceTargetKind;
+                        }
+                        break :blk try graph.localFile(s_ref.file, s_def.suite_path.?);
+                    },
+                };
+                try self.body(suite_file, graph.files[suite_file].statements, &.{}, 0);
+            }
+        }
+    } else {
+        try self.body(target.file, definition.body, &.{}, 0);
+    }
     if (self.test_mode) {
         if (self.cases.items.len == 0) return error.EmptyTestTarget;
         result.cases = try self.cases.toOwnedSlice(a);
@@ -277,14 +392,189 @@ pub fn tick(self: *Self) !void {
     if (self.work == self.limits.work) return error.BuildWorkLimit;
     self.work += 1;
 }
+fn validateDefaults(self: *Self) !void {
+    for (self.graph.files, 0..) |file_item, fi| {
+        if (file_item.defaults.len == 0) continue;
+        const def_target = file_item.defaults[0];
+        self.file = fi;
+        self.offset = def_target.span.start;
+        self.span_end = def_target.span.end;
+        self.context = .{ .name = def_target.name };
+        const resolved = self.resolveTarget(fi, def_target.name) catch |err| {
+            if (err == error.UnknownSourceSymbol) {
+                if (self.report) |r| {
+                    r.setSpan(fi, def_target.span.start, def_target.span.end);
+                    r.setHeadline("default target '{s}' is not declared in this file", .{def_target.name});
+                }
+                return error.MissingSourceTarget;
+            }
+            return err;
+        };
+        const resolved_def = self.graph.getDefinition(resolved);
+        if (resolved_def.kind != .target and resolved_def.kind != .migration_target) {
+            if (self.report) |r| {
+                r.setSpan(fi, def_target.span.start, def_target.span.end);
+                r.setHeadline("'EXPORT DEFAULT TARGET {s}' must reference a build or migration target", .{def_target.name});
+            }
+            return error.WrongSourceTargetKind;
+        }
+    }
+    self.context = .{};
+}
+fn selectTargetName(self: *Self, entry: usize, options: Options) ![]const u8 {
+    if (options.target_explicit) return std.ascii.allocLowerString(self.a, options.target);
+    const entry_file = self.graph.files[entry];
+    if (options.mode == .build) {
+        if (entry_file.defaults.len != 0) return entry_file.defaults[0].name;
+        return "default";
+    }
+    for (entry_file.definitions) |def| {
+        if (std.mem.eql(u8, def.name, "tests")) return "tests";
+    }
+    var unique: ?[]const u8 = null;
+    for (entry_file.definitions) |def| {
+        if (def.kind != .test_target and def.kind != .target_alias) continue;
+        const resolved = try self.resolveTarget(entry, def.name);
+        if (self.graph.getDefinition(resolved).kind == .test_target) {
+            if (unique != null) {
+                if (self.report) |r| {
+                    r.setSpan(entry, def.span.start, def.span.end);
+                    r.setHeadline("multiple test targets declared in '{s}'; select one with '--target <name>'", .{options.entry});
+                }
+                return error.MissingSourceTarget;
+            }
+            unique = def.name;
+        }
+    }
+    return unique orelse "tests";
+}
+fn resolveTarget(self: *Self, file: usize, name: []const u8) !Graph.Ref {
+    var cur = try self.graph.resolve(file, .{ .member = name });
+    var seen: [256]Graph.Ref = undefined;
+    var hops: usize = 0;
+    while (self.graph.getDefinition(cur).kind == .target_alias) {
+        const def = self.graph.getDefinition(cur);
+        self.file = cur.file;
+        self.offset = def.span.start;
+        self.span_end = def.span.end;
+        for (seen[0..hops]) |prior| if (std.meta.eql(prior, cur)) {
+            if (self.report) |r| {
+                r.setSpan(cur.file, def.span.start, def.span.end);
+                r.setHeadline("cycle detected in 'EXPORT TARGET' forwarding", .{});
+            }
+            return error.SourceImportCycle;
+        };
+        if (hops >= self.limits.depth or hops >= seen.len) return error.SourceDepthLimit;
+        seen[hops] = cur;
+        hops += 1;
+        cur = try self.graph.resolveReported(cur.file, def.target_ref.?, self.report);
+    }
+    return cur;
+}
+fn markReferencedLets(expr: *const s.Expr, stmts: []const s.Statement, needed: []bool) void {
+    switch (expr.value) {
+        .reference => |name| {
+            const root_ident = name.qualifier orelse name.member;
+            for (stmts, 0..) |stmt, idx| {
+                if (stmt.value == .use and stmt.value.use.let_binding and std.mem.eql(u8, stmt.value.use.result.?, root_ident)) {
+                    needed[idx] = true;
+                }
+            }
+        },
+        .construct => |call| {
+            const root_ident = call.name.qualifier orelse call.name.member;
+            for (stmts, 0..) |stmt, idx| {
+                if (stmt.value == .use and stmt.value.use.let_binding and std.mem.eql(u8, stmt.value.use.result.?, root_ident)) {
+                    needed[idx] = true;
+                }
+            }
+            for (call.arguments) |arg| markReferencedLets(arg, stmts, needed);
+        },
+        .row => |fields| for (fields) |f_item| markReferencedLets(f_item.value, stmts, needed),
+        .unary => |u| markReferencedLets(u.operand, stmts, needed),
+        .binary => |b| {
+            markReferencedLets(b.left, stmts, needed);
+            markReferencedLets(b.right, stmts, needed);
+        },
+        else => {},
+    }
+}
+fn evaluateTargetComposition(self: *Self, target_file: usize, err_span: s.Span, instance_name: []const u8, depth: usize) !Value {
+    const stmts = self.graph.files[target_file].statements;
+    const target_idx = for (stmts, 0..) |stmt, idx| {
+        if (stmt.value == .use and stmt.value.use.let_binding and std.mem.eql(u8, stmt.value.use.result.?, instance_name)) break idx;
+    } else {
+        self.file = target_file;
+        self.offset = err_span.start;
+        self.span_end = err_span.end;
+        self.context = .{ .name = instance_name };
+        if (self.report) |r| {
+            r.setSpan(target_file, err_span.start, err_span.end);
+            r.setHeadline("unknown module instance '{s}' in target declaration", .{instance_name});
+        }
+        return error.UnknownSourceSymbol;
+    };
+    const needed = try self.a.alloc(bool, target_idx + 1);
+    @memset(needed, false);
+    needed[target_idx] = true;
+    var rev = target_idx + 1;
+    while (rev > 0) {
+        rev -= 1;
+        if (!needed[rev]) continue;
+        for (stmts[rev].value.use.arguments) |arg| markReferencedLets(arg, stmts[0..rev], needed[0..rev]);
+    }
+    var let_scope: std.ArrayList(Binding) = .empty;
+    for (stmts[0 .. target_idx + 1], 0..) |stmt, idx| {
+        if (!needed[idx]) continue;
+        self.file = target_file;
+        self.offset = stmt.span.start;
+        self.span_end = stmt.span.end;
+        const val = try self.invoke(target_file, stmt.span, stmt.value.use, let_scope.items, depth);
+        try let_scope.append(self.a, .{ .name = stmt.value.use.result.?, .value = val });
+    }
+    return let_scope.items[let_scope.items.len - 1].value;
+}
+fn checkTargetComposition(self: *Self, target_file: usize, err_span: s.Span, instance_name: []const u8) !void {
+    var checker = try self.fork();
+    checker.symbolic = false;
+    checker.test_mode = false;
+    checker.catalog = .{ .output = self.a, .scratch = self.scratch.allocator() };
+    defer {
+        self.work = checker.work;
+        self.next_owner = checker.next_owner;
+    }
+    _ = checker.evaluateTargetComposition(target_file, err_span, instance_name, 0) catch |err| {
+        self.file = checker.file;
+        self.offset = checker.offset;
+        self.span_end = checker.span_end;
+        self.call_site = checker.call_site;
+        self.instance = checker.instance;
+        self.context = checker.context;
+        self.frames = checker.frames;
+        self.frames_len = checker.frames_len;
+        return err;
+    };
+}
+fn validateParameterKind(self: *Self, file: usize, kind: s.Kind, depth: usize) anyerror!void {
+    if (depth >= self.limits.depth) return error.SourceDepthLimit;
+    switch (kind) {
+        .module => |m_name| {
+            const interface = try self.graph.resolve(file, m_name);
+            if (self.graph.getDefinition(interface).kind != .interface) return error.InvalidModuleInterface;
+        },
+        .module_of => |m_name| {
+            const ctor = try self.graph.resolveReported(file, m_name, self.report);
+            if (self.graph.getDefinition(ctor).kind != .module) return error.NotModuleConstructor;
+        },
+        .row => |fields| for (fields) |f_item| try self.validateParameterKind(file, f_item.kind, depth + 1),
+        else => {},
+    }
+}
 fn validateInterfaces(self: *Self) !void {
     for (self.graph.files, 0..) |file, i| for (file.definitions) |definition| {
         self.file = i;
         self.offset = definition.span.start;
-        for (definition.parameters) |parameter| if (parameter.kind == .module) {
-            const interface = try self.graph.resolve(i, parameter.kind.module);
-            if (self.graph.getDefinition(interface).kind != .interface) return error.InvalidModuleInterface;
-        };
+        for (definition.parameters) |parameter| try self.validateParameterKind(i, parameter.kind, 0);
     };
 }
 fn resolve(self: *Self, file: usize, name: s.Name, bindings: []const Binding) !Graph.Ref {
@@ -303,23 +593,39 @@ fn signature(self: *Self, expected: Graph.Ref, actual: Graph.Ref, depth: usize) 
     const got = self.graph.getDefinition(actual);
     if (want.parameters.len != got.parameters.len) return error.ModuleInterfaceMismatch;
     for (want.parameters, got.parameters) |left, right| {
-        if (std.meta.activeTag(left.kind) != std.meta.activeTag(right.kind)) return error.ModuleInterfaceMismatch;
-        if (left.kind == .module) try self.signature(try self.graph.resolve(expected.file, left.kind.module), try self.graph.resolve(actual.file, right.kind.module), depth + 1);
-        if (left.kind == .named and !std.meta.eql(try self.graph.resolve(expected.file, left.kind.named), try self.graph.resolve(actual.file, right.kind.named))) return error.ModuleInterfaceMismatch;
-        switch (left.kind) {
-            inline .table, .stream, .queue => |columns, tag| {
-                const other = @field(right.kind, @tagName(tag));
-                if (columns.len != other.len) return error.ModuleInterfaceMismatch;
-                for (columns, other) |l, r| {
-                    if (!std.mem.eql(u8, l.name, r.name) or l.nullable != r.nullable or l.primary != r.primary or !std.mem.eql(u8, l.collation, r.collation) or
-                        !types.Scalar.eql(try types.resolve(self.graph, expected.file, l.type), try types.resolve(self.graph, actual.file, r.type))) return error.ModuleInterfaceMismatch;
-                }
-            },
-            else => {},
-        }
+        try self.sameParameterKind(expected.file, left.kind, actual.file, right.kind, depth + 1);
+    }
+}
+fn sameParameterKind(self: *Self, left_file: usize, left: s.Kind, right_file: usize, right: s.Kind, depth: usize) anyerror!void {
+    if (depth >= self.limits.depth) return error.SourceDepthLimit;
+    if (std.meta.activeTag(left) != std.meta.activeTag(right)) return error.ModuleInterfaceMismatch;
+    switch (left) {
+        .module => |m| try self.signature(try self.graph.resolve(left_file, m), try self.graph.resolve(right_file, right.module), depth),
+        .module_of => |m| if (!std.meta.eql(try self.graph.resolve(left_file, m), try self.graph.resolve(right_file, right.module_of))) return error.ModuleInterfaceMismatch,
+        .named => |n| if (!std.meta.eql(try self.graph.resolve(left_file, n), try self.graph.resolve(right_file, right.named))) return error.ModuleInterfaceMismatch,
+        .row => |fields| {
+            if (fields.len != right.row.len) return error.ModuleInterfaceMismatch;
+            for (fields, right.row) |lf, rf| {
+                if (!std.mem.eql(u8, lf.name, rf.name)) return error.ModuleInterfaceMismatch;
+                try self.sameParameterKind(left_file, lf.kind, right_file, rf.kind, depth + 1);
+            }
+        },
+        inline .table, .stream, .queue => |columns, tag| {
+            const other = @field(right, @tagName(tag));
+            if (columns.len != other.len) return error.ModuleInterfaceMismatch;
+            for (columns, other) |l, r| {
+                if (!std.mem.eql(u8, l.name, r.name) or l.nullable != r.nullable or l.primary != r.primary or !std.mem.eql(u8, l.collation, r.collation) or
+                    !types.Scalar.eql(try types.resolve(self.graph, left_file, l.type), try types.resolve(self.graph, right_file, r.type))) return error.ModuleInterfaceMismatch;
+            }
+        },
+        else => {},
     }
 }
 fn argument(self: *Self, file: usize, kind: s.Kind, value: Value) !void {
+    return self.argumentDepth(file, kind, value, 0);
+}
+fn argumentDepth(self: *Self, file: usize, kind: s.Kind, value: Value, depth: usize) anyerror!void {
+    if (depth >= self.limits.depth) return error.SourceDepthLimit;
     self.context.expected = @tagName(kind);
     self.context.actual = if (value.scalar()) |ty| ty.label(self.graph) else @tagName(value);
     switch (kind) {
@@ -344,6 +650,26 @@ fn argument(self: *Self, file: usize, kind: s.Kind, value: Value) !void {
             if (value != .module) return error.SourceTypeMismatch;
             try self.signature(try self.graph.resolve(file, name), value.module, 0);
         },
+        .module_of => |name| {
+            const expected_ctor = try self.graph.resolve(file, name);
+            if (self.graph.getDefinition(expected_ctor).kind != .module) return error.NotModuleConstructor;
+            self.context.expected = self.graph.getDefinition(expected_ctor).name;
+            self.context.actual = if (value == .instance and value.instance.constructor != null) self.graph.getDefinition(value.instance.constructor.?).name else @tagName(value);
+            if (value != .instance or value.instance.constructor == null or !std.meta.eql(value.instance.constructor.?, expected_ctor)) return error.SourceTypeMismatch;
+        },
+        .row => |fields| {
+            if (value != .row or value.row.len != fields.len) return error.SourceTypeMismatch;
+            for (fields) |expected_field| {
+                const actual_val = for (value.row) |actual_field| {
+                    if (std.mem.eql(u8, actual_field.name, expected_field.name)) break actual_field.value;
+                } else {
+                    self.context = .{ .name = expected_field.name, .expected = @tagName(expected_field.kind), .actual = "missing" };
+                    return error.SourceTypeMismatch;
+                };
+                self.context.name = expected_field.name;
+                try self.argumentDepth(file, expected_field.kind, actual_val, depth + 1);
+            }
+        },
         else => if (!std.mem.eql(u8, @tagName(kind), @tagName(value))) return error.SourceTypeMismatch,
     }
 }
@@ -366,8 +692,38 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
         return error.SourceArgumentCount;
     }
     var values: [64]Binding = undefined;
-    for (call.arguments, definition.parameters, 0..) |arg, parameter, i| {
-        const value = try self.expression(file, arg, bindings, 0);
+    var evaluated_args: [64]Value = undefined;
+    for (call.arguments, 0..) |arg, idx| {
+        evaluated_args[idx] = try self.expression(file, arg, bindings, 0);
+    }
+    if (call.names.len != 0) {
+        for (call.names) |arg_name| {
+            const exists = for (definition.parameters) |param| {
+                if (std.mem.eql(u8, param.name, arg_name)) break true;
+            } else false;
+            if (!exists) {
+                self.file = file;
+                self.offset = span.start;
+                self.span_end = span.end;
+                self.context = .{ .name = arg_name };
+                if (self.report) |r| {
+                    r.setSpan(file, span.start, span.end);
+                    r.setHeadline("unknown named argument '{s}' in call to module '{s}'", .{ arg_name, definition.name });
+                    r.addNote(ref.file, .{ .start = definition.span.start, .end = definition.span.end }, "module '{s}' declared here", .{definition.name});
+                }
+                return error.UnknownSourceOperand;
+            }
+        }
+    }
+    for (definition.parameters, 0..) |parameter, i| {
+        const arg_idx = if (call.names.len != 0) blk: {
+            for (call.names, 0..) |arg_name, n_idx| {
+                if (std.mem.eql(u8, arg_name, parameter.name)) break :blk n_idx;
+            }
+            unreachable;
+        } else i;
+        const arg = call.arguments[arg_idx];
+        const value = evaluated_args[arg_idx];
         self.file = file;
         self.offset = arg.span.start;
         self.span_end = arg.span.end;
@@ -392,7 +748,7 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     // being checked without inventing payload values or traversing forever.
     if (self.symbolic) for (self.checking[0..self.checking_count]) |prior| if (std.meta.eql(prior.definition, ref) and types.sameSpecialization(prior.arguments, values[0..call.arguments.len])) {
         if (call.result != null) return error.UnsupportedRecursiveExports;
-        return .{ .instance = &.{} };
+        return .{ .instance = .{ .constructor = ref, .exports = &.{} } };
     };
     if (self.checking_count == self.checking.len) return error.SourceDepthLimit;
     self.checking[self.checking_count] = .{ .definition = ref, .arguments = values[0..call.arguments.len] };
@@ -403,6 +759,7 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     const before_expansion = self.expansion;
     const before_owner = self.owner;
     const before_exports = self.exports;
+    const before_schemas = self.bound_schemas;
     const before_frames = self.frames_len;
     if (self.frames_len < self.frames.len) {
         var frame: SourceDiagnostic.CallFrame = .{ .file = file, .span = .{ .start = span.start, .end = span.end } };
@@ -422,6 +779,7 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
         self.expansion = before_expansion;
         self.owner = before_owner;
         self.exports = before_exports;
+        self.bound_schemas = before_schemas;
     }
     var expansion = std.crypto.hash.sha2.Sha256.init(.{});
     expansion.update(&before_expansion);
@@ -436,11 +794,13 @@ fn invoke(self: *Self, file: usize, span: s.Span, call: s.Call, bindings: []cons
     self.next_owner += 1;
     self.owner = self.next_owner;
     var exports: std.ArrayList(types.Export) = .empty;
+    var schemas: std.ArrayList([]const u8) = .empty;
     self.exports = &exports;
+    self.bound_schemas = &schemas;
     try self.body(ref.file, definition.body, values[0..call.arguments.len], depth + 1);
     const result = try exports.toOwnedSlice(self.a);
     completed = true;
-    return .{ .instance = result };
+    return .{ .instance = .{ .constructor = ref, .exports = result } };
 }
 fn fork(self: *Self) !Self {
     var result = self.*;
@@ -455,6 +815,10 @@ fn fork(self: *Self) !Self {
     if (self.exports) |exports| {
         result.exports = try self.a.create(std.ArrayList(types.Export));
         result.exports.?.* = try exports.clone(self.a);
+    }
+    if (self.bound_schemas) |schemas| {
+        result.bound_schemas = try self.a.create(std.ArrayList([]const u8));
+        result.bound_schemas.?.* = try schemas.clone(self.a);
     }
     return result;
 }
@@ -542,6 +906,139 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
     if (depth >= self.limits.depth) return error.SourceDepthLimit;
     var scope: std.ArrayList(Binding) = .empty;
     try scope.appendSlice(self.a, incoming);
+    try self.bodyInline(file, statements, &scope, depth);
+}
+fn mergeModuleExport(self: *Self, file: usize, scope: *std.ArrayList(Binding), exported: types.Export) !void {
+    for (scope.items) |prior| if (std.mem.eql(u8, prior.name, exported.name)) {
+        if (types.sameSpecialization(&.{.{ .name = prior.name, .value = prior.value }}, &.{.{ .name = exported.name, .value = exported.value }})) return;
+        self.context = .{ .name = exported.name };
+        return error.DuplicateSourceName;
+    };
+    for (self.graph.files[file].imports) |import| if (std.mem.eql(u8, exported.name, import.alias)) return error.DuplicateSourceName;
+    for (self.graph.files[file].definitions) |definition| if (std.mem.eql(u8, exported.name, definition.name)) return error.DuplicateSourceName;
+    try scope.append(self.a, .{ .name = exported.name, .value = exported.value });
+}
+fn useModule(self: *Self, file: usize, mod_name: s.Name, scope: *std.ArrayList(Binding)) !void {
+    if (self.exports == null) return error.UnsupportedSourceDeclaration;
+    if (mod_name.constructor != null) return error.InvalidSourceName;
+    for (scope.items) |b| {
+        if (mod_name.qualifier == null and std.mem.eql(u8, b.name, mod_name.member)) {
+            if (b.value != .instance) {
+                self.context = .{ .name = mod_name.member, .expected = "module instance", .actual = @tagName(b.value) };
+                return error.SourceTypeMismatch;
+            }
+            for (b.value.instance.exports) |exported| try self.mergeModuleExport(file, scope, exported);
+            return;
+        }
+        if (mod_name.qualifier) |qualifier| if (std.mem.eql(u8, b.name, qualifier)) {
+            const inner = try self.projectField(b.value, mod_name.member);
+            if (inner != .instance) return error.SourceTypeMismatch;
+            for (inner.instance.exports) |exported| try self.mergeModuleExport(file, scope, exported);
+            return;
+        };
+    }
+    if (mod_name.qualifier == null) {
+        for (self.graph.files[file].imports) |imp| if (std.mem.eql(u8, imp.alias, mod_name.member)) {
+            const imp_file = try self.graph.imported(file, imp);
+            for (self.graph.files[imp_file].definitions, 0..) |def, def_idx| {
+                if (!def.public) continue;
+                const val: Value = switch (def.kind) {
+                    .function => .{ .helper = .{ .kind = .function, .ref = .{ .file = imp_file, .definition = def_idx } } },
+                    .guard => .{ .helper = .{ .kind = .guard, .ref = .{ .file = imp_file, .definition = def_idx } } },
+                    .procedure => .{ .helper = .{ .kind = .procedure, .ref = .{ .file = imp_file, .definition = def_idx } } },
+                    .module => .{ .module = .{ .file = imp_file, .definition = def_idx } },
+                    else => continue,
+                };
+                try self.mergeModuleExport(file, scope, .{ .name = def.name, .value = val });
+            }
+            return;
+        };
+    }
+    self.context = .{ .name = mod_name.qualifier orelse mod_name.member };
+    return error.UnknownSourceSymbol;
+}
+fn declareFrom(self: *Self, file: usize, span: s.Span, raw_path: []const u8, scope: *std.ArrayList(Binding), depth: usize) anyerror!void {
+    if (self.exports == null) return error.UnsupportedSourceDeclaration;
+    const frag_file = try self.graph.localFile(file, raw_path);
+    for (self.declaring[0..self.declaring_len]) |active| if (active == frag_file) return error.SourceImportCycle;
+    if (self.declaring_len >= self.declaring.len or depth >= self.limits.depth) return error.SourceDepthLimit;
+    self.declaring[self.declaring_len] = frag_file;
+    self.declaring_len += 1;
+    defer self.declaring_len -= 1;
+
+    const before_frames = self.frames_len;
+    if (self.frames_len < self.frames.len) {
+        var frame: SourceDiagnostic.CallFrame = .{ .file = file, .span = .{ .start = span.start, .end = span.end } };
+        const n: u8 = @intCast(@min(raw_path.len, frame.callee.len));
+        @memcpy(frame.callee[0..n], raw_path[0..n]);
+        frame.callee_len = n;
+        self.frames[self.frames_len] = frame;
+        self.frames_len += 1;
+    }
+    var completed = false;
+    defer if (completed) {
+        self.frames_len = before_frames;
+    };
+
+    const frag = self.graph.files[frag_file];
+    for (frag.definitions, 0..) |def, def_idx| {
+        self.file = frag_file;
+        self.offset = def.span.start;
+        self.span_end = def.span.end;
+        switch (def.kind) {
+            .function, .guard, .procedure => {
+                for (scope.items) |prior| if (std.mem.eql(u8, prior.name, def.name)) {
+                    self.context = .{ .name = def.name };
+                    return error.DuplicateSourceName;
+                };
+                const h_kind: types.HelperKind = switch (def.kind) {
+                    .function => .function,
+                    .guard => .guard,
+                    .procedure => .procedure,
+                    else => unreachable,
+                };
+                const captured = try self.a.dupe(Binding, scope.items);
+                try scope.append(self.a, .{ .name = def.name, .value = .{ .helper = .{ .kind = h_kind, .ref = .{ .file = frag_file, .definition = def_idx }, .bindings = captured } } });
+            },
+            .domain, .variant => {},
+            else => return error.UnsupportedSourceDeclaration,
+        }
+    }
+    try @import("ProgramLowering.zig").validateFragmentHelpers(self, frag_file, scope.items);
+    try self.bodyInline(frag_file, frag.statements, scope, depth + 1);
+    completed = true;
+}
+fn resolveExportedHelper(self: *Self, file: usize, source: s.Name, expected: types.HelperKind, bindings: []const Binding) !types.Helper {
+    if (source.qualifier) |qualifier| {
+        for (bindings) |b| if (std.mem.eql(u8, b.name, qualifier)) {
+            if (b.value != .instance) return error.SourceTypeMismatch;
+            for (b.value.instance.exports) |exported| if (std.mem.eql(u8, exported.name, source.member)) {
+                if (exported.value != .helper or exported.value.helper.kind != expected) return error.SourceTypeMismatch;
+                return exported.value.helper;
+            };
+            self.context = .{ .name = source.member };
+            return error.UnknownSourceExport;
+        };
+        const ref = try self.graph.resolveReported(file, source, self.report);
+        const def = self.graph.getDefinition(ref);
+        if (!std.mem.eql(u8, @tagName(def.kind), @tagName(expected))) return error.SourceTypeMismatch;
+        return .{ .kind = expected, .ref = ref };
+    }
+    var idx = bindings.len;
+    while (idx > 0) {
+        idx -= 1;
+        const b = bindings[idx];
+        if (!std.mem.eql(u8, b.name, source.member)) continue;
+        if (b.value != .helper or b.value.helper.kind != expected) return error.SourceTypeMismatch;
+        return b.value.helper;
+    }
+    const ref = try self.graph.resolveReported(file, source, self.report);
+    const def = self.graph.getDefinition(ref);
+    if (!std.mem.eql(u8, @tagName(def.kind), @tagName(expected))) return error.SourceTypeMismatch;
+    return .{ .kind = expected, .ref = ref };
+}
+fn bodyInline(self: *Self, file: usize, statements: []const s.Statement, scope: *std.ArrayList(Binding), depth: usize) anyerror!void {
+    if (depth >= self.limits.depth) return error.SourceDepthLimit;
     for (statements) |statement| {
         self.file = file;
         self.offset = statement.span.start;
@@ -565,35 +1062,126 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
                 const result = try self.invoke(file, statement.span, call, bindings, depth);
                 if (call.result) |name| try scope.append(self.a, .{ .name = name, .value = result });
             },
+            .use_module => |mod_name| try self.useModule(file, mod_name, scope),
+            .declare_from => |raw_path| try self.declareFrom(file, statement.span, raw_path, scope, depth),
+            .bind_schema => |bind_stmt| {
+                const schemas = self.bound_schemas orelse return error.UnsupportedSourceDeclaration;
+                const val = try self.expression(file, bind_stmt.target, bindings, 0);
+                self.file = file;
+                self.offset = statement.span.start;
+                self.span_end = statement.span.end;
+                if (val != .schema_binding) {
+                    self.context = .{ .name = bind_stmt.name, .expected = "schema_binding", .actual = @tagName(val) };
+                    return error.SourceTypeMismatch;
+                }
+                for (schemas.items) |prior| if (std.mem.eql(u8, prior, bind_stmt.name)) {
+                    self.context = .{ .name = bind_stmt.name };
+                    if (self.report) |r| {
+                        r.setSpan(file, statement.span.start, statement.span.end);
+                        r.setHeadline("schema '{s}' is already bound in this module", .{bind_stmt.name});
+                    }
+                    return error.DuplicateSourceName;
+                };
+                try schemas.append(self.a, bind_stmt.name);
+            },
             .table_export => |exported| {
                 const exports = self.exports orelse return error.ExportOutsideModule;
                 if (exports.items.len == 64) return error.SourceExportLimit;
                 for (exports.items) |prior| if (std.mem.eql(u8, prior.name, exported.alias)) return error.DuplicateSourceName;
-                const value = try self.reference(file, exported.source, bindings);
                 const table = if (exported.operand) blk: {
+                    const value = try self.reference(file, exported.source, bindings);
                     if (value != .identifier) return error.SourceTypeMismatch;
                     const entry = try self.catalog.find(value.identifier);
                     if (entry.owner != self.owner) return error.ForeignTableExport;
                     break :blk entry;
-                } else if (value == .table) value.table else return error.SourceTypeMismatch;
+                } else blk: {
+                    if (exported.source.qualifier == null) {
+                        var found_binding: ?Value = null;
+                        for (bindings) |b| if (std.mem.eql(u8, b.name, exported.source.member)) {
+                            found_binding = b.value;
+                            break;
+                        };
+                        if (found_binding) |val| {
+                            if (val != .table) return error.SourceTypeMismatch;
+                            break :blk val.table;
+                        }
+                        const entry = try self.catalog.find(exported.source.member);
+                        if (entry.owner != self.owner) return error.ForeignTableExport;
+                        break :blk entry;
+                    }
+                    const value = try self.reference(file, exported.source, bindings);
+                    if (value != .table) return error.SourceTypeMismatch;
+                    break :blk value.table;
+                };
                 try exports.append(self.a, .{ .name = exported.alias, .value = .{ .table = table } });
             },
             .log_export => |exported| {
                 const exports = self.exports orelse return error.ExportOutsideModule;
                 if (exports.items.len == 64) return error.SourceExportLimit;
                 for (exports.items) |prior| if (std.mem.eql(u8, prior.name, exported.alias)) return error.DuplicateSourceName;
-                const value = try self.reference(file, exported.source, bindings);
                 const entry = if (exported.operand) blk: {
+                    const value = try self.reference(file, exported.source, bindings);
                     if (value != .identifier) return error.SourceTypeMismatch;
                     const resource = try self.catalog.findResource(value.identifier);
                     if (resource.owner != self.owner) return error.ForeignTableExport;
                     break :blk resource;
-                } else switch (value) {
-                    .stream, .queue => |resource| resource,
-                    else => return error.SourceTypeMismatch,
+                } else blk: {
+                    if (exported.source.qualifier == null) {
+                        var found_binding: ?Value = null;
+                        for (bindings) |b| if (std.mem.eql(u8, b.name, exported.source.member)) {
+                            found_binding = b.value;
+                            break;
+                        };
+                        if (found_binding) |val| {
+                            break :blk switch (val) {
+                                .stream, .queue => |res| res,
+                                else => return error.SourceTypeMismatch,
+                            };
+                        }
+                        const resource = try self.catalog.findResource(exported.source.member);
+                        if (resource.owner != self.owner) return error.ForeignTableExport;
+                        break :blk resource;
+                    }
+                    const value = try self.reference(file, exported.source, bindings);
+                    break :blk switch (value) {
+                        .stream, .queue => |resource| resource,
+                        else => return error.SourceTypeMismatch,
+                    };
                 };
                 if (!std.mem.eql(u8, @tagName(entry.kind), @tagName(exported.kind))) return error.SourceTypeMismatch;
                 try exports.append(self.a, .{ .name = exported.alias, .value = entry.value() });
+            },
+            .symbol_export => |exported| {
+                const exports = self.exports orelse return error.ExportOutsideModule;
+                const h_kind: types.HelperKind = switch (exported.kind) {
+                    .function => .function,
+                    .guard => .guard,
+                    .procedure => .procedure,
+                    .view, .dataflow, .profile => {
+                        if (self.report) |r| {
+                            r.setSpan(file, statement.span.start, statement.span.end);
+                            r.setHeadline("'EXPORT {s}' is not yet supported in this compiler profile", .{switch (exported.kind) {
+                                .view => "VIEW",
+                                .dataflow => "DATAFLOW",
+                                .profile => "PROFILE",
+                                else => unreachable,
+                            }});
+                        }
+                        return error.UnsupportedSourceDeclaration;
+                    },
+                };
+                if (exports.items.len == 64) return error.SourceExportLimit;
+                for (exports.items) |prior| if (std.mem.eql(u8, prior.name, exported.alias)) return error.DuplicateSourceName;
+                const helper_val = try self.resolveExportedHelper(file, exported.source, h_kind, bindings);
+                try exports.append(self.a, .{ .name = exported.alias, .value = .{ .helper = helper_val } });
+            },
+            .reference_export => {
+                if (self.exports == null) return error.ExportOutsideModule;
+                if (self.report) |r| {
+                    r.setSpan(file, statement.span.start, statement.span.end);
+                    r.setHeadline("'EXPORT REFERENCE TABLE' requires runtime-enforced cross-module foreign keys", .{});
+                }
+                return error.RuntimePrivateOrUnsupportedDeclaration;
             },
             .match => |input| try self.match(file, input, bindings, depth),
             .sql => |template| {
@@ -606,13 +1194,28 @@ fn body(self: *Self, file: usize, statements: []const s.Statement, incoming: []c
         }
     }
 }
+fn projectField(self: *Self, container: Value, field: []const u8) !Value {
+    switch (container) {
+        .instance => |inst| {
+            for (inst.exports) |exported| if (std.mem.eql(u8, exported.name, field)) return exported.value;
+            self.context = .{ .name = field };
+            return error.UnknownSourceExport;
+        },
+        .row => |fields| {
+            for (fields) |item| if (std.mem.eql(u8, item.name, field)) return item.value;
+            self.context = .{ .name = field };
+            return error.UnknownSourceExport;
+        },
+        else => return error.SourceTypeMismatch,
+    }
+}
 fn reference(self: *Self, file: usize, name: s.Name, bindings: []const Binding) !Value {
     for (bindings) |binding| {
         if (name.qualifier == null and std.mem.eql(u8, binding.name, name.member)) return binding.value;
         if (name.qualifier) |qualifier| if (std.mem.eql(u8, binding.name, qualifier)) {
-            if (name.constructor != null or binding.value != .instance) return error.SourceTypeMismatch;
-            for (binding.value.instance) |exported| if (std.mem.eql(u8, name.member, exported.name)) return exported.value;
-            return error.UnknownSourceExport;
+            const first = try self.projectField(binding.value, name.member);
+            if (name.constructor) |second_field| return self.projectField(first, second_field);
+            return first;
         };
     }
     return .{ .module = try self.resolve(file, name, bindings) };
@@ -636,9 +1239,27 @@ fn construct(self: *Self, file: usize, call: s.Call, bindings: []const Binding, 
     const resolved = try types.constructor(self.graph, file, call.name);
     const fields = self.graph.getDefinition(resolved.definition).constructors[resolved.index].fields;
     if (fields.len != call.arguments.len) return error.SourceArgumentCount;
+    var evaluated: [64]Value = undefined;
+    for (call.arguments, 0..) |arg, idx| {
+        evaluated[idx] = try self.expression(file, arg, bindings, depth + 1);
+    }
+    if (call.names.len != 0) {
+        for (call.names) |arg_name| {
+            const exists = for (fields) |f_item| {
+                if (std.mem.eql(u8, f_item.name, arg_name)) break true;
+            } else false;
+            if (!exists) return error.UnknownSourceOperand;
+        }
+    }
     const values = try self.a.alloc(Value, fields.len);
-    for (fields, call.arguments, values) |field, arg, *value| {
-        value.* = try self.expression(file, arg, bindings, depth + 1);
+    for (fields, values, 0..) |field, *value, idx| {
+        const arg_idx = if (call.names.len != 0) blk: {
+            for (call.names, 0..) |arg_name, n_idx| {
+                if (std.mem.eql(u8, arg_name, field.name)) break :blk n_idx;
+            }
+            unreachable;
+        } else idx;
+        value.* = evaluated[arg_idx];
         try self.argument(resolved.definition.file, field.kind, value.*);
     }
     return .{ .variant = .{ .definition = resolved.definition, .constructor = resolved.index, .fields = values } };
@@ -656,6 +1277,30 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
         .type => |value| .{ .type = .{ .base = value } },
         .named_type => |name| .{ .type = try types.resolve(self.graph, file, .{ .named = name }) },
         .construct => |call| try self.construct(file, call, bindings, depth),
+        .schema_binding => |value| blk: {
+            if (value.len == 0 or value.len > 63 or !(std.ascii.isAlphabetic(value[0]) or value[0] == '_')) {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid schema binding identifier '{s}'", .{value});
+                }
+                return error.InvalidCatalogName;
+            }
+            for (value) |byte| if (!(std.ascii.isAlphanumeric(byte) or byte == '_')) {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid schema binding identifier '{s}'", .{value});
+                }
+                return error.InvalidCatalogName;
+            };
+            break :blk .{ .schema_binding = try std.ascii.allocLowerString(self.a, value) };
+        },
+        .row => |fields| blk: {
+            const out = try self.a.alloc(types.Export, fields.len);
+            for (fields, out) |field, *slot| {
+                slot.* = .{ .name = field.name, .value = try self.expression(file, field.value, bindings, depth + 1) };
+            }
+            break :blk .{ .row = out };
+        },
         .identifier => |value| blk: {
             if (value.len == 0 or value.len > 63 or !std.unicode.utf8ValidateSlice(value) or std.mem.indexOfScalar(u8, value, 0) != null) return error.InvalidInstanceName;
             break :blk .{ .identifier = value };
@@ -824,8 +1469,42 @@ fn testCase(self: *Self, file: usize, span: s.Span, case: s.Case, bindings: []co
     self.checked_statements = 0;
     self.expected_rows = 0;
     self.expected_bytes = 0;
-    for (case.setup) |call| try self.body(file, &.{.{ .span = span, .value = .{ .use = call } }}, bindings, depth + 1);
-    try self.body(file, case.body, bindings, depth + 1);
+    var needs_case_scope = false;
+    for (case.setup) |setup| switch (setup) {
+        .call => |call| if (call.result != null) {
+            needs_case_scope = true;
+        },
+        .reference => needs_case_scope = true,
+    };
+    if (!needs_case_scope) {
+        for (case.setup) |setup| try self.body(file, &.{.{ .span = span, .value = .{ .use = setup.call } }}, bindings, depth + 1);
+        try self.body(file, case.body, bindings, depth + 1);
+    } else {
+        var case_scope: std.ArrayList(Binding) = .empty;
+        try case_scope.appendSlice(self.a, bindings);
+        var used_composition = false;
+        for (case.setup) |setup| switch (setup) {
+            .call => |call| {
+                if (call.result) |res_name| try self.freshBinding(file, res_name, case_scope.items);
+                const val = try self.invoke(file, span, call, case_scope.items, depth + 1);
+                if (call.result) |res_name| try case_scope.append(self.a, .{ .name = res_name, .value = val });
+            },
+            .reference => |ref_name| {
+                if (ref_name.qualifier != null or ref_name.constructor != null) return error.NotModuleConstructor;
+                const comp = self.target_composition orelse return error.NotModuleConstructor;
+                if (used_composition) return error.ConflictingModuleInstance;
+                used_composition = true;
+                try self.freshBinding(file, ref_name.member, case_scope.items);
+                const comp_val = try self.evaluateTargetComposition(comp.file, span, comp.instance, depth + 1);
+                try case_scope.append(self.a, .{ .name = ref_name.member, .value = comp_val });
+                for (comp_val.instance.exports) |exported| {
+                    if (std.mem.eql(u8, exported.name, ref_name.member)) continue;
+                    try self.mergeModuleExport(file, &case_scope, exported);
+                }
+            },
+        };
+        try self.body(file, case.body, case_scope.items, depth + 1);
+    }
     if (self.checked_statements == 0) return error.EmptyTestCase;
     if (self.symbolic) return;
     const sql = try self.verify();
@@ -975,7 +1654,7 @@ pub fn writeValue(writer: *BoundedBuffer, value: Value) !void {
         },
         .table, .stream, .queue => |table| try quoted(writer, table.name, '"'),
         .symbolic => return error.UnsupportedSymbolicSchema,
-        .variant, .instance => return error.InvalidSourceOperand,
+        .variant, .instance, .row, .schema_binding, .helper => return error.InvalidSourceOperand,
         .module => return error.ModuleIsNotSqlOperand,
     }
 }

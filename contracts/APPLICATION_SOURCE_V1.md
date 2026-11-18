@@ -21,11 +21,20 @@ and formal preservation proofs.
 
 `build.transit` and imported files use the same grammar. Names are case-insensitive
 ASCII identifiers; quoted SQL identifiers retain SQL semantics. Source declarations
-are modules, interfaces, domains, variants, functions, guards, atomic procedures,
-targets, imports and repository dependencies. Modules, interfaces, functions,
-guards, procedures and types are private unless declared PUBLIC. Targets are selected by name in
-the entry file. Imports expose only public declarations. All source files are
-parsed before evaluation; duplicate names, missing imports and cycles reject.
+are modules (`CREATE [PUBLIC] MODULE` or shorthand `EXPORT MODULE`), interfaces,
+domains, variants, functions, guards, atomic procedures, test suites, targets,
+default-target selectors, top-level `LET ... = USE [MODULE] ...` module-instance
+bindings, imports and repository dependencies. Modules, interfaces, functions,
+guards, procedures and types are private unless declared `PUBLIC` or `EXPORT`.
+Targets are selected in the entry file: when `--target` is omitted, `transit build`
+selects the entry file's `EXPORT DEFAULT TARGET <name>;` declaration (or `default`
+when none is declared), and `transit test` selects the entry file's unique test
+target or test-target alias (falling back to `tests` when absent and refusing
+ambiguous multi-test entries unless `--target` is passed). Imports use
+`IMPORT [MODULE] [alias] FROM '<path>';` (defaulting `alias` to the file stem when
+omitted after `IMPORT MODULE`) and expose only public declarations. All source
+files are parsed before evaluation; duplicate names, missing imports and cycles
+reject.
 
 ```text
 IMPORT rows FROM 'rows.transit';
@@ -50,20 +59,63 @@ AS BEGIN
 END;
 ```
 
-Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, `MODULE
-interface_name`, named domains/variants or exact `TABLE(...)`, `STREAM(...)` and
-`QUEUE(...)` signatures. Module interfaces describe ordered parameter types; parameter
-names need not match. Qualified references use an import alias and public member.
-Constructors can accept and forward module values, call local/private helpers,
-and recurse under explicit work/depth limits. Import cycles remain forbidden.
+Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, `SCHEMA_BINDING`,
+`ROW(field kind, ...)`, `MODULE interface_name`, `MODULE [OF] constructor_name`,
+named domains/variants or exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
+signatures. Module interfaces describe ordered parameter types; parameter
+names need not match. Calls accept either positional arguments or `param => expr`
+named arguments (never mixed in one call). Qualified references use an import
+alias and public member. Constructors can accept and forward module constructors,
+first-class module instances and `ROW(...)` records, call local/private helpers,
+and recurse under explicit work/depth limits. Import and fragment cycles remain
+forbidden.
 
-`USE constructor(arguments);` evaluates a constructor. Compile-time expressions
-include parameter references, module references, signed integer/text/Boolean
+`USE constructor(arguments);` evaluates a constructor immediately. First-class
+module-instance bindings (`LET inst = USE [MODULE] constructor(arguments);` at
+file top level or inside a module body) evaluate a constructor once into an
+immutable module-instance value whose DDL statements emit at most once across a
+diamond dependency DAG; `USE MODULE inst;` brings `inst`'s exported resources and
+helpers (`EXPORT TABLE|STREAM|QUEUE name [AS alias];`,
+`EXPORT FUNCTION|GUARD|PROCEDURE name [AS alias];`) into lexical scope without
+re-executing `inst`'s body, and `inst.export_name` resolves exported handles and
+callable helpers across `MODULE OF` parameters. `DECLARE FROM '<path>';`
+lexically includes statements from a sibling or child fragment file under the
+enclosing module's scope; loose statements in directly imported module files
+reject. `SCHEMA_BINDING('<name>')` and `BIND SCHEMA <alias> TO <expr>;` validate
+compile-time schema-binding values in the current single-catalog profile without
+installing multi-schema runtime namespaces (`CREATE SCHEMA` and schema-qualified
+`schema.object` SQL DDL/DML remain outside this slice). `EXPORT VIEW`,
+`EXPORT DATAFLOW`, `EXPORT PROFILE` and `EXPORT REFERENCE TABLE` parse for
+actionable diagnostics and reject at compile time (`UnsupportedSourceExport`)
+until their runtime catalog and serving owners land.
+
+`EXPORT TARGET` supports workspace delegation and composition-backed targets:
+- `EXPORT TARGET name = alias.target;` forwards a build, migration or test target
+  exported by an imported child `build.transit`.
+- `EXPORT TARGET name AS SQL OF instance [INTO '<path>'];` emits the ordered SQL
+  of a top-level `LET` module instance.
+- `EXPORT TARGET name AS MIGRATIONS OF instance FROM (EMPTY | '<basis>') FOR DATABASE '<db>' SCHEMA '<schema>' VERSION '<ver>' NAME '<name>' [INTO '<path>'];`
+  synthesizes an explicit-basis Table migration for `instance` (omitting `FOR DATABASE`
+  rejects with a dedicated diagnostic note).
+- `EXPORT TARGET name AS TESTS OF instance USING SUITES (alias.suite, './file.test.transit', ...);`
+  composes `EXPORT TEST SUITE` exports and suite files over fresh per-case
+  instantiations of `instance`; `TEST '...' USING MODULES (<local_alias>)` binds
+  `<local_alias>` to that per-case target composition. `WITH (...)` target
+  options (such as `verify_replay = TRUE`) reject explicitly (`UnsupportedTestOption`)
+  rather than being ignored.
+Optional `INTO '<path>'` must stay confined within the workspace root and is
+recorded as `declared_output` in `provenance.json`; `.transit/build/<target>/<input-digest>/`
+remains the default cache location unless `--out` is passed on the CLI.
+
+Compile-time expressions
+include parameter references, module and instance references, `ROW(field => expr, ...)`
+literals and `.field` projections, `SCHEMA_BINDING('name')`, signed integer/text/Boolean
 literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN`, named type operands and constructors, parentheses, checked
 integer `+`, `-`, `*`, comparisons and Boolean AND/OR/NOT. Conditional bodies use
 `IF expression THEN ... [ELSE ...] END IF;`. Conditions must be Boolean.
 Expressions have no ambient environment, time, random, database or effect access.
-Module bodies contain USE, IF, MATCH, resource exports and executable SQL statements; nested declarations
+Module bodies contain `LET ... = USE [MODULE]`, `USE [MODULE]`, `DECLARE FROM`,
+`BIND SCHEMA`, `IF`, `MATCH`, resource/helper exports and executable SQL statements; nested declarations
 and runtime-private resource declarations reject in this profile.
 
 Expression precedence, from tightest to loosest, is unary minus/NOT,
@@ -335,16 +387,20 @@ and scalar assignment/predicate operands before final SQL emission. It is not a
 persisted IR, additional authority or mandatory runtime sidecar. The current
 native definition, lock and artifact formats are unchanged.
 
-The [typed-target specification](application-source/TypedTarget.lean) proves ten
-scoped laws across three fragments: nominal substitution, selection from a
+The [typed-target specification](application-source/TypedTarget.lean) proves twelve
+scoped laws across four fragments: nominal substitution, selection from a
 checked total arm table and ordered action preservation for one scalar payload
 per constructor and Table inserts; record projection under substitution, ordered
-program substitution and domain erasure preserving event order and bindings; and
+program substitution and domain erasure preserving event order and bindings;
 five-state pure function substitution (`function_substitution`), lexical
 guard-sequence refusal preservation (`guard_sequence_refusal`), guard-reordering
-non-equivalence (`guard_reorder_non_equivalent`) and hygienic inline atomic
+non-equivalence (`guard_reorder_non_equivalent`), hygienic inline atomic
 procedure expansion preserving single-decision rollback
-(`procedure_inline_atomic`). Exact source types, well-typed environments and
+(`procedure_inline_atomic`) and post-commit value return substitution
+(`procedure_return_substitution`); and diamond module-instance DAG sharing
+(`module_instance_dag_sharing`), proving single-DDL emission, nominal domain
+preservation across exported handles and strict non-equivalence against
+per-consumer constructor re-instantiation whenever DDL is non-empty. Exact source types, well-typed environments and
 signatures are premises; de Bruijn variables express capture-free substitution.
 The program trace and atomic-procedure fragments assume ordinary physical typing
 and well-formed execution; they do not model nullable lookup execution or prove
@@ -385,8 +441,10 @@ no temporal-model result.
 
 ## Resolution and locks
 
-Relative imports resolve beneath their package root; absolute paths, `..`, empty
-components, symlinks and undeclared file kinds reject. A package consists of
+Relative imports, fragments and suite paths resolve against their declaring
+file's directory (`./` and intra-package `../` normalize cleanly); escaping the
+package root, absolute paths, empty components, symlinks and undeclared file
+kinds reject. A package consists of
 UTF-8 `.transit` files selected from a bounded tree, sorted by relative path.
 Validate the selected entry before scanning the rest of the package. Directory
 components named `.git`, `.transit`, `.direnv` or `node_modules` are excluded
@@ -449,10 +507,11 @@ END;
 ```
 
 For a successor, replace `EMPTY` with a quoted path to the previous artifact's
-`basis.json`, relative to the build entry's directory. The path must remain
-inside that directory, with no empty, `.` or `..` components, symlinks or special
-files. Explicit basis reads may enter `.transit`; source discovery still skips
-that directory. Database/schema names are required comparison bindings. They do
+`basis.json`, resolved relative to the declaring target file's directory (`./`
+and intra-workspace `../` normalize, while escaping the workspace root, empty
+components, `.git`, symlinks and special files reject). Explicit basis reads may enter `.transit`; source discovery still skips
+that directory. `EXPORT TARGET name AS MIGRATIONS OF instance ...` uses these
+same basis, comparison and artifact rules. Database/schema names are required comparison bindings. They do
 not select a connection or authorize a live destination. Review the build, then
 use `transit migrate plan --dir OUTPUT/migrations --database transit --schema public`
 and apply the resulting saved plan through the ordinary migration owner.

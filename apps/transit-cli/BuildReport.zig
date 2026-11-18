@@ -14,6 +14,7 @@ pub const Mode = enum { build, test_suite };
 pub const Workspace = struct {
     cwd: []const u8 = "",
     root_path: []const u8 = "",
+    selected_target: ?[]const u8 = null,
     sources: []const c.Source = &.{},
     overrides: []const Options.Override = &.{},
     resolutions: []const Sources.Resolution = &.{},
@@ -59,7 +60,8 @@ pub fn renderFailure(
     var step_buf: [128]u8 = undefined;
     var succeeded: usize = 0;
     var total_steps: usize = 2;
-    const step_label = stepLabel(&step_buf, mode, options, envelope, &succeeded, &total_steps);
+    const effective_target = workspace.selected_target orelse (if (report) |r| r.selectedTarget() else null) orelse options.target;
+    const step_label = stepLabel(&step_buf, mode, options, effective_target, envelope, &succeeded, &total_steps);
 
     try out.writeAll(root_name);
     try out.writeByte('\n');
@@ -334,7 +336,7 @@ pub fn renderTestSuiteFailure(
     try out.writeByte('\n');
 }
 
-fn stepLabel(buf: *[128]u8, mode: Mode, options: Options, envelope: p.Diagnostic, succeeded: *usize, total: *usize) []const u8 {
+fn stepLabel(buf: *[128]u8, mode: Mode, options: Options, target_name: []const u8, envelope: p.Diagnostic, succeeded: *usize, total: *usize) []const u8 {
     if (mode == .build) {
         if (options.fetch) {
             succeeded.* = 0;
@@ -344,7 +346,7 @@ fn stepLabel(buf: *[128]u8, mode: Mode, options: Options, envelope: p.Diagnostic
         if (options.check) {
             succeeded.* = 0;
             total.* = 1;
-            return std.fmt.bufPrint(buf, "check target '{s}'", .{options.target}) catch "check target";
+            return std.fmt.bufPrint(buf, "check target '{s}'", .{target_name}) catch "check target";
         }
         total.* = 2;
         if (envelope.stage == .output) {
@@ -353,12 +355,12 @@ fn stepLabel(buf: *[128]u8, mode: Mode, options: Options, envelope: p.Diagnostic
         }
         succeeded.* = 0;
         if (std.mem.eql(u8, envelope.code.slice(), "application.source.dependency")) return "verify dependencies";
-        return std.fmt.bufPrint(buf, "compile target '{s}'", .{options.target}) catch "compile target";
+        return std.fmt.bufPrint(buf, "compile target '{s}'", .{target_name}) catch "compile target";
     }
     succeeded.* = 0;
     total.* = 2;
     if (std.mem.eql(u8, envelope.code.slice(), "application.source.dependency")) return "verify dependencies";
-    return std.fmt.bufPrint(buf, "compile target '{s}'", .{options.target}) catch "compile target";
+    return std.fmt.bufPrint(buf, "compile target '{s}'", .{target_name}) catch "compile target";
 }
 
 fn buildHeadline(buf: *[384]u8, envelope: p.Diagnostic, report: ?*const c.SourceDiagnostic.Report, kind_suffix: ?[]const u8) []const u8 {

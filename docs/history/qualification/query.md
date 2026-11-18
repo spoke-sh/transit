@@ -9,6 +9,41 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Workspace delegation, module-instance DAGs and fragment composition — 2026-11-18
+
+This increment delivers Layer 1 of workspace composition for
+[Milestone 12](../../roadmap/application-modules-completion.md) at implementation
+revision `e7ce70823` (branched from `main` at `0b903c933`, current v1 definition
+`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`): intra-package
+`./` and `../` path normalization, `IMPORT [MODULE]`, `EXPORT MODULE`,
+`DECLARE FROM` module fragments, `ROW(...)` and `SCHEMA_BINDING` metadata, named
+`=>` arguments, first-class `LET ... = USE [MODULE]` / `MODULE OF` diamond
+module-instance DAG evaluation, behavioral `EXPORT FUNCTION/GUARD/PROCEDURE`
+exports, `EXPORT TEST SUITE`, delegated `EXPORT TARGET` (`= alias.target`,
+`AS SQL OF`, `AS MIGRATIONS OF`, `AS TESTS OF`) and `EXPORT DEFAULT TARGET` /
+unique entry test-target selection.
+
+Multi-schema `CREATE SCHEMA` / `schema.object` runtime bindings, `CREATE VIEW`,
+`EXPORT REFERENCE TABLE` and `WITH (...)` test controls remain explicitly refused
+at compile time (`UnsupportedSourceExport`, `UnsupportedTestOption`) until their
+catalog and runtime owners land. Probing the external `spoke-sh/platform`
+monorepo read-only with the built `transit` binary traverses `build.transit` →
+`apps/build.transit` → `apps/platform/build.transit` (default target
+`platform_sql`), parses all eight submodule imports and diamond `LET ... = USE MODULE`
+bindings, and reports the missing `MIGRATION_V1` `FOR DATABASE <db> SCHEMA <schema>`
+clause at `apps/platform/build.transit:76:14` with its dedicated diagnostic note
+and `referenced by:` workspace import trace.
+
+### Focused source, compiler and CLI evidence at `e7ce70823`
+
+| Check | Result |
+| --- | --- |
+| Scoped Lean 4 proof & correspondence (`just test::application-source-types`) | Passed 12 Lean laws (adding `module_instance_dag_sharing` with constructive `Nat` cancellation and no axioms beyond `propext`), 120 finite equalities, 16 typed/SQL and 20 program/diamond comparisons, 4 refusals and 21 negative controls. |
+| Independent ANTLR/Zig source grammar (`just test::application-source-grammar`) | Passed 186 source cases, 132 formatter round trips and 10 negative controls. |
+| Compiler and runner unit suites (`just test::application-compiler`, `just test::application-runner`) | Passed all 75 compiler unit tests (including deterministic `checkAllAllocationFailures` over diamond module-instance compilation) and test-runner suites. |
+| Offline CLI build & migration (`just test::application-build`) | Passed 3-level workspace default-target selection, `declared_output` provenance, diamond single-DDL emission, child-relative v1→v2 Table migration synthesis, escaping-path/missing-database refusals and local runtime Queue execution. |
+| Isolated CLI tests & host controls (`just test::application-test`, `just test::application-test-host`) | Passed unique entry test-target discovery, ambiguous multi-test refusal, `EXPORT TEST SUITE` + file suite composition over per-case `USING MODULES (platform)` instances, `UnsupportedTestOption` refusal and host fault/revocation controls. |
+
 ## Explicit-basis Table migrations and returning inline calls — 2026-11-16
 
 This increment delivers the three initial units of the

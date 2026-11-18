@@ -10,7 +10,7 @@ pub fn prepare(a: std.mem.Allocator, io: std.Io, root: std.Io.Dir, product: *con
     var prior: ?d.Basis = null;
     var prior_digest: ?[32]u8 = null;
     var files: std.ArrayList(d.File) = .empty;
-    if (target.basis) |path| {
+    if (product.migration_basis_path orelse target.basis) |path| {
         if (path.len == 0 or path.len > 512 or std.fs.path.isAbsolute(path) or std.mem.indexOfScalar(u8, path, 0) != null or std.mem.indexOfScalar(u8, path, '\\') != null) return error.InvalidMigrationBasisPath;
         var directory = try root.openDir(io, ".", .{ .iterate = true, .follow_symlinks = false });
         defer directory.close(io);

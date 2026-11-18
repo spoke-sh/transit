@@ -180,7 +180,7 @@ fn run(a: std.mem.Allocator, request: Request, out: *std.json.Stringify) !void {
         sources[0] = .{ .path = "build.transit", .text = request.source };
         @memcpy(sources[1..], request.files);
         var diagnostic: ?p.Diagnostic = null;
-        const result = c.compile(a, sources, .{ .compiler_revision = "source-grammar-proof", .mode = if (mode == .build) .build else .test_suite, .target = if (mode == .build) "default" else "tests" }, &diagnostic) catch |err| {
+        const result = c.compile(a, sources, .{ .compiler_revision = "source-grammar-proof", .mode = if (mode == .build) .build else .test_suite, .target = if (mode == .build) "default" else "tests", .target_explicit = false }, &diagnostic) catch |err| {
             try out.objectField("compile_error");
             try out.write(@errorName(err));
             try out.endObject();

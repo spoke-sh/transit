@@ -35,9 +35,19 @@ pub const Report = struct {
     notes: [2]?Note = @splat(null),
     frames: [64]CallFrame = undefined,
     frames_len: u8 = 0,
+    target_bytes: [64]u8 = @splat(0),
+    target_len: u8 = 0,
 
     pub fn reset(self: *Report) void {
         self.* = .{};
+    }
+    pub fn setTarget(self: *Report, name: []const u8) void {
+        const n: u8 = @intCast(@min(name.len, self.target_bytes.len));
+        @memcpy(self.target_bytes[0..n], name[0..n]);
+        self.target_len = n;
+    }
+    pub fn selectedTarget(self: *const Report) ?[]const u8 {
+        return if (self.target_len == 0) null else self.target_bytes[0..self.target_len];
     }
     pub fn headline(self: *const Report) ?[]const u8 {
         return if (self.headline_len == 0) null else self.headline_bytes[0..self.headline_len];
@@ -213,6 +223,7 @@ pub const Report = struct {
                     if (self.notes[0] == null) self.addNote(null, null, "pass a new directory path to '--out' so existing artifacts are not overwritten", .{});
                 },
                 error.BuildArtifactMismatch => self.setHeadline("existing build artifact bytes do not match fresh compilation", .{}),
+                error.UnsupportedTestOption => self.setHeadline("unsupported option in 'EXPORT TARGET ... WITH (...)'", .{}),
                 error.FileNotFound => self.setHeadline("file not found", .{}),
                 error.AccessDenied, error.PermissionDenied => self.setHeadline("permission denied", .{}),
                 else => {
@@ -485,6 +496,7 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "UnsupportedSymbolicProgram", .capability },
     .{ "UnsupportedSymbolicSchema", .capability },
     .{ "UnsupportedTestAssertion", .capability },
+    .{ "UnsupportedTestOption", .capability },
     .{ "UnsupportedTestRefusal", .capability },
     .{ "UnsupportedVariantField", .capability },
     .{ "BuildEmissionMismatch", .internal },

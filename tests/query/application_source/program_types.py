@@ -194,7 +194,126 @@ def lean_examples(cases_):
             f'#print axioms {refuse_name}',
         ]
         names.update((return_name, refuse_name))
+    for i, case in enumerate(diamond_cases()):
+        label = f'diamond{i}'
+        domain = DOMAINS[case['domain']]
+        ty = f'⟨.integer, some "{domain}"⟩'
+        raw = case['raw']
+        follow = raw + 100
+        shared_name = f'{label}_shared'
+        distinct_name = f'{label}_unshared_distinct'
+        lines += [
+            f'def {label}Type : SourceType := {ty}',
+            f'def {label}LeftVal : Value {label}Type := ⟨.integer ({raw}), rfl⟩',
+            f'def {label}RightVal : Value {label}Type := ⟨.integer ({follow}), rfl⟩',
+            f'def {label}Ctor : ModuleCtor [] (Table {label}Type) := fun _ => ⟨[⟨"shared_tenants", {ty}, .integer 0⟩], ⟨"shared_tenants"⟩⟩',
+            f'def {label}Left : ModuleConsumer [] {label}Type (Table {label}Type) := fun tbl => [.insert tbl (.var .head)]',
+            f'def {label}Right : ModuleConsumer [] {label}Type (Table {label}Type) := fun tbl => [.insert tbl (.var .head)]',
+            f'theorem {shared_name} : evalSharedDiamond emptyEnv {label}Ctor {label}LeftVal {label}Left {label}RightVal {label}Right = '
+            f'[⟨"shared_tenants", {ty}, .integer 0⟩, ⟨"shared_tenants", {ty}, .integer ({raw})⟩, ⟨"shared_tenants", {ty}, .integer ({follow})⟩] := by decide',
+            f'#print axioms {shared_name}',
+            f'theorem {distinct_name} : evalSharedDiamond emptyEnv {label}Ctor {label}LeftVal {label}Left {label}RightVal {label}Right ≠ '
+            f'evalUnsharedPair emptyEnv {label}Ctor {label}LeftVal {label}Left {label}RightVal {label}Right := by decide',
+            f'#print axioms {distinct_name}',
+        ]
+        names.update((shared_name, distinct_name))
     return '\n'.join(lines) + '\n', names
+
+
+def diamond_cases():
+    for raw in (-7, 7):
+        for domain in DOMAINS:
+            yield {'raw': raw, 'domain': domain}
+
+
+def diamond_request(index, case, bad_domain=False):
+    domain = DOMAINS[case['domain']]
+    other = DOMAINS['site' if case['domain'] == 'machine' else 'machine']
+    raw = case['raw']
+    follow = raw + 100
+    right_arg = f'other_mod.OtherId({follow})' if bad_domain else f'tenancy_build.TenantId({follow})'
+    right_imports = (
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit'; "
+        + ("IMPORT MODULE other_mod FROM '../other/build.transit'; " if bad_domain else '')
+    )
+    right_param_ty = 'other_mod.OtherId' if bad_domain else 'tenancy_build.TenantId'
+    files = [
+        {
+            'path': 'apps/build.transit',
+            'text': (
+                "IMPORT MODULE tenancy_build FROM './tenancy/build.transit'; "
+                "IMPORT MODULE left_mod FROM './left/build.transit'; "
+                "IMPORT MODULE right_mod FROM './right/build.transit'; "
+                + ("IMPORT MODULE other_mod FROM './other/build.transit'; " if bad_domain else '')
+                + "EXPORT MODULE application(bindings ROW(tenancy SCHEMA_BINDING)) AS BEGIN "
+                "LET tenancy_inst = USE MODULE tenancy_build.application(schema => bindings.tenancy, id_type => TYPE tenancy_build.TenantId); "
+                f"LET left_inst = USE MODULE left_mod.application(tenancy => tenancy_inst, initial => tenancy_build.TenantId({raw})); "
+                f"LET right_inst = USE MODULE right_mod.application(tenancy => tenancy_inst, followup => {right_arg}); "
+                "END; "
+                "LET control = USE MODULE application(bindings => ROW(tenancy => SCHEMA_BINDING('public'))); "
+                "EXPORT TARGET app AS SQL OF control;"
+            ),
+        },
+        {
+            'path': 'apps/tenancy/build.transit',
+            'text': (
+                f"CREATE PUBLIC DOMAIN TenantId AS BIGINT IDENTITY '{domain}'; "
+                "EXPORT MODULE application(schema SCHEMA_BINDING, id_type TYPE) AS BEGIN "
+                "BIND SCHEMA tenancy TO schema; "
+                "DECLARE FROM './tables.transit'; "
+                "EXPORT TABLE shared_tenants; END;"
+            ),
+        },
+        {
+            'path': 'apps/tenancy/tables.transit',
+            'text': "CREATE PUBLIC TABLE shared_tenants (id $id_type PRIMARY KEY);",
+        },
+        {
+            'path': 'apps/left/build.transit',
+            'text': (
+                "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit'; "
+                "EXPORT MODULE application(tenancy MODULE OF tenancy_build.application, initial tenancy_build.TenantId) AS BEGIN "
+                "USE MODULE tenancy; "
+                "INSERT INTO shared_tenants VALUES ($initial); END;"
+            ),
+        },
+        {
+            'path': 'apps/right/build.transit',
+            'text': (
+                right_imports
+                + f"EXPORT MODULE application(tenancy MODULE OF tenancy_build.application, followup {right_param_ty}) AS BEGIN "
+                "USE MODULE tenancy; "
+                "INSERT INTO shared_tenants VALUES ($followup); END;"
+            ),
+        },
+    ]
+    if bad_domain:
+        files.append({'path': 'apps/other/build.transit', 'text': f"CREATE PUBLIC DOMAIN OtherId AS BIGINT IDENTITY '{other}';"})
+    return {
+        'name': f'diamond-{index}',
+        'source': "IMPORT MODULE apps FROM './apps/build.transit'; EXPORT DEFAULT TARGET app; EXPORT TARGET app = apps.app;",
+        'compile': 'build',
+        'files': files,
+    }
+
+
+def compare_diamond(case, product):
+    domain = DOMAINS[case['domain']]
+    raw = case['raw']
+    follow = raw + 100
+    want_sql = [
+        'CREATE TABLE SHARED_TENANTS ( ID BIGINT PRIMARY KEY )',
+        f'INSERT INTO SHARED_TENANTS VALUES ( {raw} )',
+        f'INSERT INTO SHARED_TENANTS VALUES ( {follow} )',
+    ]
+    same(want_sql, [step['sql'] for step in product['steps']], 'diamond single-DDL ordinary SQL')
+    same(''.join(line + ';\n' for line in want_sql), product['sql'], 'complete diamond SQL')
+    for step, expected_val in zip(product['steps'][1:], (raw, follow)):
+        checked = step['checked']
+        same('shared_tenants', checked['table'], 'diamond exported table binding')
+        same([{'name': 'id', 'domain': domain}], checked['columns'], 'diamond column domain')
+        same(domain, checked['operands'][0]['domain'], 'diamond operand domain')
+        same(expected_val, checked['operands'][0]['value']['integer'], 'diamond operand scalar')
 
 
 def helper_cases():
@@ -414,4 +533,23 @@ def run(driver, destination, must_fail):
         same(want_err, output.get('compile_error'))
         assert 'product' not in output
 
-    return len(outputs) + len(h_outputs), controls
+    d_descriptors = list(diamond_cases())
+    d_outputs = execute(driver, [diamond_request(i, case) for i, case in enumerate(d_descriptors)], destination, 'diamond-products')
+    for case, output in zip(d_descriptors, d_outputs):
+        assert 'product' in output, output
+        compare_diamond(case, output['product'])
+    for label in ('diamond duplicate DDL', 'diamond dropped domain', 'diamond changed SQL'):
+        damaged = copy.deepcopy(d_outputs[0]['product'])
+        if label == 'diamond duplicate DDL':
+            damaged['steps'].insert(2, copy.deepcopy(damaged['steps'][0]))
+        elif label == 'diamond dropped domain':
+            damaged['steps'][1]['checked']['operands'][0]['domain'] = None
+            damaged['steps'][1]['checked']['columns'][0]['domain'] = None
+        else:
+            damaged['steps'][2]['sql'] += ' WHERE FALSE'
+        controls.append(must_fail(label, lambda: compare_diamond(d_descriptors[0], damaged)))
+    for output in execute(driver, [diamond_request(i, case, bad_domain=True) for i, case in enumerate(d_descriptors)], destination, 'diamond-refusals'):
+        same('SourceDomainMismatch', output.get('compile_error'))
+        assert 'product' not in output
+
+    return len(outputs) + len(h_outputs) + len(d_outputs), controls

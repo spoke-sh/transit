@@ -6,7 +6,9 @@
     "expected": {
       "definitions": [],
       "imports": [],
-      "dependencies": []
+      "dependencies": [],
+      "defaults": [],
+      "statements": []
     }
   },
   {
@@ -964,5 +966,186 @@
     "parse": true,
     "compile": "build",
     "steps": 1
+  },
+  {
+    "name": "workspace-delegation-syntax",
+    "source": "IMPORT MODULE apps FROM './apps/build.transit'; IMPORT module FROM './mod.transit'; EXPORT TARGET platform_sql = apps.platform_sql; EXPORT TARGET platform_migrations = apps.platform_migrations; EXPORT TARGET platform_tests = apps.platform_tests; EXPORT DEFAULT TARGET platform_sql;",
+    "parse": true,
+    "checks": {
+      "imports.0.alias": "apps",
+      "imports.0.path": "./apps/build.transit",
+      "imports.1.alias": "module",
+      "definitions.0.kind": "target_alias",
+      "definitions.0.target_ref": {
+        "qualifier": "apps",
+        "member": "platform_sql",
+        "constructor": null
+      },
+      "defaults.0.name": "platform_sql"
+    }
+  },
+  {
+    "name": "module-instance-composition-syntax",
+    "source": "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit'; EXPORT MODULE application(schema SCHEMA_BINDING, bindings ROW(tenancy SCHEMA_BINDING, nested ROW(limit_rows BIGINT)), tenancy MODULE OF tenancy_build.application) AS BEGIN BIND SCHEMA networking TO schema; USE MODULE tenancy; DECLARE FROM './state.transit'; EXPORT TABLE networks; EXPORT STREAM audit_events; EXPORT QUEUE requests; EXPORT REFERENCE TABLE networks(id, tenant_id); EXPORT FUNCTION normalize_name; EXPORT GUARD require_tenant AS check_tenant; EXPORT PROCEDURE attach_consumer; EXPORT VIEW network_refs; EXPORT DATAFLOW create_network; EXPORT PROFILE json_command; END; LET control = USE MODULE application(schema => SCHEMA_BINDING('app_net'), bindings => ROW(tenancy => SCHEMA_BINDING('app_tenancy'), nested => ROW(limit_rows => 100)), tenancy => shared_tenancy); EXPORT TEST SUITE unit_tests FROM './networking.test.transit'; EXPORT TARGET app_sql AS SQL OF control INTO '../../.local/build/application.sql'; EXPORT TARGET app_migrations AS MIGRATIONS OF control FROM EMPTY FOR DATABASE 'transit' SCHEMA 'public' VERSION '0001' NAME 'initial' INTO '../../.local/build/migrations'; EXPORT TARGET app_tests AS TESTS OF control USING SUITES (unit_tests, tenancy_build.tests, './integration.test.transit') WITH (verify_replay = TRUE, setup = './tests/setup.transit');",
+    "parse": true,
+    "checks": {
+      "definitions.0.kind": "module",
+      "definitions.0.public": true,
+      "definitions.0.parameters.0.kind": {
+        "schema_binding": null
+      },
+      "definitions.0.parameters.2.kind.module_of": {
+        "qualifier": "tenancy_build",
+        "member": "application",
+        "constructor": null
+      },
+      "statements.0.value.use.let_binding": true,
+      "statements.0.value.use.result": "control",
+      "statements.0.value.use.names": [
+        "schema",
+        "bindings",
+        "tenancy"
+      ],
+      "definitions.1.kind": "test_suite",
+      "definitions.2.target_of": "control",
+      "definitions.3.kind": "migration_target",
+      "definitions.4.kind": "test_target"
+    }
+  },
+  {
+    "name": "suite-file-syntax",
+    "source": "CREATE PUBLIC TABLE seed_notes (id BIGINT PRIMARY KEY); TEST 'isolated composition' USING MODULES (control, extra.setup(limit_rows => 5)) AS BEGIN ASSERT ROWS (SELECT id FROM seed_notes) EQUAL (); END;",
+    "parse": true,
+    "checks": {
+      "statements.1.value.test_case.setup.0": {
+        "reference": {
+          "qualifier": null,
+          "member": "control",
+          "constructor": null
+        }
+      },
+      "statements.1.value.test_case.setup.1.call.names": [
+        "limit_rows"
+      ]
+    }
+  },
+  {
+    "name": "contextual-composition-words",
+    "source": "CREATE PUBLIC INTERFACE of(); CREATE DOMAIN declare AS BIGINT IDENTITY 'ctx.declare'; CREATE MODULE bind(suite declare, suites MODULE of, sql BIGINT, tests TEXT, view BOOLEAN, profile IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $profile (declare $Tests, reference BIGINT); END;",
+    "parse": true
+  },
+  {
+    "name": "mixed-positional-and-named-args",
+    "source": "CREATE MODULE m() AS BEGIN USE f(1, b => 2); END;",
+    "parse": false,
+    "at": "=>"
+  },
+  {
+    "name": "duplicate-named-arg",
+    "source": "CREATE MODULE m() AS BEGIN USE f(a => 1, a => 2); END;",
+    "parse": false
+  },
+  {
+    "name": "empty-row-literal",
+    "source": "CREATE MODULE m() AS BEGIN USE f(ROW()); END;",
+    "parse": false,
+    "at": "));"
+  },
+  {
+    "name": "duplicate-row-field",
+    "source": "CREATE MODULE m() AS BEGIN USE f(ROW(a => 1, a => 2)); END;",
+    "parse": false
+  },
+  {
+    "name": "spaced-fat-arrow",
+    "source": "CREATE MODULE m() AS BEGIN USE f(a = > 1); END;",
+    "parse": false,
+    "at": ">"
+  },
+  {
+    "name": "migration-missing-for-database",
+    "source": "EXPORT TARGET m AS MIGRATIONS OF app FROM EMPTY VERSION '0001' NAME 'init';",
+    "parse": false,
+    "at": "VERSION"
+  },
+  {
+    "name": "unqualified-target-alias",
+    "source": "EXPORT TARGET x = local_only;",
+    "parse": false,
+    "at": ";"
+  },
+  {
+    "name": "operand-export-missing-alias",
+    "source": "CREATE MODULE m(t IDENTIFIER) AS BEGIN EXPORT TABLE $t; END;",
+    "parse": false,
+    "at": ";"
+  },
+  {
+    "name": "empty-using-suites",
+    "source": "EXPORT TARGET t AS TESTS OF app USING SUITES ();",
+    "parse": false,
+    "at": ")"
+  },
+  {
+    "name": "diamond-composition-build",
+    "source": "IMPORT MODULE apps FROM './apps/build.transit'; EXPORT TARGET app_sql = apps.app_sql; EXPORT DEFAULT TARGET app_sql;",
+    "files": [
+      {
+        "path": "apps/build.transit",
+        "text": "IMPORT MODULE app FROM './app/build.transit'; EXPORT TARGET app_sql = app.sql;"
+      },
+      {
+        "path": "apps/app/build.transit",
+        "text": "IMPORT MODULE tenancy FROM './tenancy/build.transit'; IMPORT MODULE networking FROM './networking/build.transit'; EXPORT MODULE application(bindings ROW(tenancy SCHEMA_BINDING, networking SCHEMA_BINDING)) AS BEGIN LET t = USE MODULE tenancy.application(schema => bindings.tenancy); LET n = USE MODULE networking.application(schema => bindings.networking, tenancy => t); END; LET control = USE MODULE application(bindings => ROW(tenancy => SCHEMA_BINDING('tenancy'), networking => SCHEMA_BINDING('networking'))); EXPORT TARGET sql AS SQL OF control INTO '../../.local/build/app.sql';"
+      },
+      {
+        "path": "apps/app/tenancy/state.transit",
+        "text": "CREATE PUBLIC TABLE tenants (id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL);"
+      },
+      {
+        "path": "apps/app/tenancy/guards.transit",
+        "text": "CREATE GUARD require_tenant(tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL), tenant_id BIGINT) AS BEGIN LET found = SELECT active FROM tenants_tbl WHERE id = tenant_id; REQUIRE found IS NOT NULL AND found.active ELSE 'Inactive'; END;"
+      },
+      {
+        "path": "apps/app/tenancy/build.transit",
+        "text": "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN BIND SCHEMA tenancy TO schema; DECLARE FROM './state.transit'; DECLARE FROM './guards.transit'; EXPORT TABLE tenants; EXPORT GUARD require_tenant; END;"
+      },
+      {
+        "path": "apps/app/networking/flow.transit",
+        "text": "CREATE PUBLIC QUEUE net_requests (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL); CREATE PUBLIC TABLE networks (id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW process_net FROM QUEUE net_requests AS req AS BEGIN CHECK GUARD tenancy.require_tenant(tenants, req.tenant_id); BEGIN ATOMIC INSERT INTO networks VALUES (req.id, req.tenant_id) ON CONFLICT (id) DO ASSERT SAME ROW; END; END;"
+      },
+      {
+        "path": "apps/app/networking/build.transit",
+        "text": "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit'; EXPORT MODULE application(schema SCHEMA_BINDING, tenancy MODULE OF tenancy_build.application) AS BEGIN BIND SCHEMA networking TO schema; USE MODULE tenancy; DECLARE FROM './flow.transit'; END;"
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "steps": 4
+  },
+  {
+    "name": "diamond-composition-tests",
+    "source": "IMPORT MODULE app FROM './app/build.transit'; EXPORT TARGET app_tests = app.tests;",
+    "files": [
+      {
+        "path": "app/build.transit",
+        "text": "IMPORT MODULE tenancy FROM './tenancy/build.transit'; EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN LET t = USE MODULE tenancy.application(schema => schema); EXPORT TABLE t.tenants AS tenants; END; LET control = USE MODULE application(schema => SCHEMA_BINDING('tenancy')); EXPORT TARGET tests AS TESTS OF control USING SUITES (tenancy.tests);"
+      },
+      {
+        "path": "app/tenancy/state.transit",
+        "text": "CREATE PUBLIC TABLE tenants (id BIGINT PRIMARY KEY);"
+      },
+      {
+        "path": "app/tenancy/build.transit",
+        "text": "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN BIND SCHEMA tenancy TO schema; DECLARE FROM './state.transit'; EXPORT TABLE tenants; END; EXPORT TEST SUITE tests FROM './tenancy.test.transit';"
+      },
+      {
+        "path": "app/tenancy/tenancy.test.transit",
+        "text": "TEST 'suite case' USING MODULES (platform) AS BEGIN ASSERT COMMAND (INSERT INTO tenants VALUES (1)) MATCHED 1 CHANGED 1; ASSERT ROWS (SELECT id FROM tenants) EQUAL ((1)); END;"
+      }
+    ],
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 1
   }
 ]

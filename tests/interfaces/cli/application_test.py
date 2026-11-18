@@ -116,6 +116,154 @@ def installed_oracle(cli, sql):
             print(f'Private failed Table test oracle: {fixture.root}', file=sys.stderr)
 
 
+def workspace_test_journey(cli, parent):
+    ws = parent / 'workspace-tests'
+    source(ws, 'build.transit', (
+        "IMPORT MODULE apps FROM './apps/build.transit';\n"
+        "EXPORT TARGET app_sql = apps.app_sql;\n"
+        "EXPORT TARGET app_tests = apps.app_tests;\n"
+        "EXPORT DEFAULT TARGET app_sql;\n"
+    ))
+    source(ws, 'apps/build.transit', (
+        "IMPORT MODULE app FROM './app/build.transit';\n"
+        "EXPORT TARGET app_sql = app.sql;\n"
+        "EXPORT TARGET app_tests = app.tests;\n"
+    ))
+    source(ws, 'apps/app/shared/helpers.transit', (
+        "CREATE PUBLIC FUNCTION normalize_label(raw TEXT) RETURNS TEXT AS BEGIN\n"
+        "  RETURN CASE WHEN raw = '' THEN 'unnamed' ELSE raw END;\n"
+        "END;\n"
+    ))
+    source(ws, 'apps/app/tenancy/state.transit', (
+        "CREATE PUBLIC TABLE tenants (id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL);\n"
+    ))
+    source(ws, 'apps/app/tenancy/guards.transit', (
+        "CREATE GUARD require_tenant(tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL), tenant_id BIGINT) AS BEGIN\n"
+        "  LET found = SELECT active FROM tenants_tbl WHERE id = tenant_id;\n"
+        "  REQUIRE found IS NOT NULL ELSE 'MissingTenant';\n"
+        "  REQUIRE found.active ELSE 'InactiveTenant';\n"
+        "END;\n"
+    ))
+    source(ws, 'apps/app/tenancy/build.transit', (
+        "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN\n"
+        "  BIND SCHEMA tenancy TO schema;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './guards.transit';\n"
+        "  EXPORT TABLE tenants;\n"
+        "  EXPORT GUARD require_tenant;\n"
+        "END;\n"
+        "EXPORT TEST SUITE tests FROM './tenancy.test.transit';\n"
+    ))
+    source(ws, 'apps/app/tenancy/tenancy.test.transit', (
+        "TEST 'tenancy table accepts active tenant' USING MODULES (platform) AS BEGIN\n"
+        "  ASSERT COMMAND (INSERT INTO tenants VALUES (1, TRUE, 'acme')) MATCHED 1 CHANGED 1;\n"
+        "  ASSERT ROWS (SELECT id, label FROM tenants) EQUAL ((1, 'acme'));\n"
+        "END;\n"
+    ))
+    source(ws, 'apps/app/networking/state.transit', (
+        "CREATE PUBLIC TABLE networks (id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL);\n"
+    ))
+    source(ws, 'apps/app/networking/procedures.transit', (
+        "CREATE PROCEDURE attach_network(\n"
+        "  tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL, label TEXT NOT NULL),\n"
+        "  networks_tbl TABLE(id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL, label TEXT NOT NULL),\n"
+        "  net_id BIGINT,\n"
+        "  tenant_id BIGINT,\n"
+        "  label TEXT\n"
+        ") RETURNS BIGINT AS BEGIN ATOMIC\n"
+        "  CHECK GUARD tenancy.require_tenant(tenants_tbl, tenant_id);\n"
+        "  INSERT INTO networks_tbl VALUES (net_id, tenant_id, normalize_label(label)) ON CONFLICT (id) DO ASSERT SAME ROW;\n"
+        "  RETURN net_id;\n"
+        "END;\n"
+    ))
+    source(ws, 'apps/app/networking/build.transit', (
+        "IMPORT MODULE helpers FROM '../shared/helpers.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, tenancy MODULE OF tenancy_build.application) AS BEGIN\n"
+        "  BIND SCHEMA networking TO schema;\n"
+        "  USE MODULE helpers;\n"
+        "  USE MODULE tenancy;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './procedures.transit';\n"
+        "  EXPORT TABLE networks;\n"
+        "  EXPORT PROCEDURE attach_network;\n"
+        "END;\n"
+    ))
+    source(ws, 'apps/app/ingress/flow.transit', (
+        "CREATE PUBLIC QUEUE ingress_requests (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL, label TEXT NOT NULL);\n"
+        "CREATE PUBLIC STREAM ingress_events (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL);\n"
+        "CREATE PUBLIC DATAFLOW process_ingress FROM QUEUE ingress_requests AS req AS BEGIN\n"
+        "  CHECK GUARD require_tenant(tenants, req.tenant_id);\n"
+        "  BEGIN ATOMIC\n"
+        "    LET attached = CALL networking.attach_network(tenancy.tenants, networking.networks, req.id, req.tenant_id, req.label);\n"
+        "    PRODUCE INTO ingress_events VALUES (attached, req.tenant_id);\n"
+        "  END;\n"
+        "END;\n"
+        "AUTHORIZE DATAFLOW process_ingress AS ROLE CURRENT_ROLE;\n"
+        "ACTIVATE DATAFLOW process_ingress;\n"
+    ))
+    source(ws, 'apps/app/ingress/build.transit', (
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "IMPORT MODULE networking_build FROM '../networking/build.transit';\n"
+        "EXPORT MODULE application(\n"
+        "  schema SCHEMA_BINDING,\n"
+        "  tenancy MODULE OF tenancy_build.application,\n"
+        "  networking MODULE OF networking_build.application\n"
+        ") AS BEGIN\n"
+        "  BIND SCHEMA ingress TO schema;\n"
+        "  USE MODULE tenancy;\n"
+        "  USE MODULE networking;\n"
+        "  DECLARE FROM './flow.transit';\n"
+        "END;\n"
+    ))
+    composition_suite = (
+        "TEST 'diamond composition executes guard and returning procedure once' USING MODULES (platform) AS BEGIN\n"
+        "  ASSERT COMMAND (INSERT INTO tenants VALUES (10, TRUE, 'core')) MATCHED 1 CHANGED 1;\n"
+        "  ENQUEUE INTO ingress_requests VALUES (99, 10, '');\n"
+        "  ASSERT WORKFLOW NAME 'process_ingress' COMPLETED 1 REFUSED 0 WITHIN 1000 OBSERVATIONS;\n"
+        "  ASSERT ROWS (SELECT id, tenant_id, label FROM networks) EQUAL ((99, 10, 'unnamed'));\n"
+        "  ASSERT ROWS (CONSUME id, tenant_id FROM ingress_events) EQUAL ((99, 10));\n"
+        "END;\n"
+    )
+    source(ws, 'apps/app/tests/composition.test.transit', composition_suite)
+    source(ws, 'apps/app/build.transit', (
+        "IMPORT MODULE tenancy FROM './tenancy/build.transit';\n"
+        "IMPORT MODULE networking FROM './networking/build.transit';\n"
+        "IMPORT MODULE ingress FROM './ingress/build.transit';\n"
+        "EXPORT MODULE application(bindings ROW(tenancy SCHEMA_BINDING, networking SCHEMA_BINDING)) AS BEGIN\n"
+        "  LET tenancy_mod = USE MODULE tenancy.application(schema => bindings.tenancy);\n"
+        "  LET net_mod = USE MODULE networking.application(schema => bindings.networking, tenancy => tenancy_mod);\n"
+        "  LET ingress_mod = USE MODULE ingress.application(schema => bindings.networking, tenancy => tenancy_mod, networking => net_mod);\n"
+        "END;\n"
+        "LET control = USE MODULE application(bindings => ROW(tenancy => SCHEMA_BINDING('tenancy'), networking => SCHEMA_BINDING('networking')));\n"
+        "EXPORT TARGET sql AS SQL OF control;\n"
+        "EXPORT TARGET tests AS TESTS OF control USING SUITES (tenancy.tests, './tests/composition.test.transit');\n"
+    ))
+    # Unique test target is selected automatically when --target is omitted.
+    report = invoke(cli, ws, timeout=120)
+    assert report['target'] == 'app_tests' and report['complete'], report
+    assert [case['status'] for case in report['cases']] == ['passed', 'passed'], report
+    assert not (ws / '.transit').exists()
+
+    # Multiple entry test targets refuse implicit selection until --target disambiguates.
+    root_text = (ws / 'build.transit').read_text()
+    source(ws, 'build.transit', root_text + "EXPORT TARGET second_tests = apps.app_tests;\n")
+    ambiguous = invoke(cli, ws, expected=1)
+    assert ambiguous['code'] == 'application.source.target' and ambiguous['outcome'] == 'not_submitted', ambiguous
+    explicit = invoke(cli, ws, '--target', 'app_tests', timeout=120)
+    assert explicit['target'] == 'app_tests' and explicit['complete'], explicit
+    source(ws, 'build.transit', root_text)
+
+    # Unsupported WITH (...) test options fail compilation rather than being ignored.
+    app_build_text = (ws / 'apps/app/build.transit').read_text()
+    source(ws, 'apps/app/build.transit',
+           app_build_text.replace("USING SUITES (tenancy.tests, './tests/composition.test.transit');",
+                                  "USING SUITES (tenancy.tests, './tests/composition.test.transit') WITH (verify_replay = TRUE);"))
+    unsupported = invoke(cli, ws, expected=1)
+    assert unsupported['code'] == 'application.source.unsupported' and unsupported['outcome'] == 'not_submitted', unsupported
+    shutil.rmtree(ws)
+
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
@@ -322,6 +470,7 @@ def main():
         invoke(cli, remote, expected=1)
         shutil.rmtree(project)
         shutil.rmtree(remote)
+        workspace_test_journey(cli, root)
         installed_oracle(cli, oracle)
     print('Application tests: offline isolation, typed rows, counts, refusals, child/remote targets and failure coverage passed')
 

@@ -49,13 +49,16 @@ are never merged between them. The rc files remain DuckDB-style dot-command scri
 
 ## Application source builds
 
-`transit build [-f FILE] [--target NAME]` reads `build.transit` by default and
-selects target `default`. It compiles new Table, Stream and Queue definitions,
+`transit build [-f FILE] [--target NAME]` reads `build.transit` by default and,
+when `--target` is omitted, selects the entry file's `EXPORT DEFAULT TARGET` (or
+`default` when none is declared). It compiles new Table, Stream and Queue definitions,
 bounded literal mutations and log appends, finite single-Table reads, and public
 Queue programs (including pure `FUNCTION`, ordered `GUARD` and inline atomic
-`PROCEDURE` helpers) without opening a Transit connection.
-The entry file's directory is the package root. Relative imports stay below that
-root; source files use the same module language as the build entry.
+`PROCEDURE` helpers) across intra-package `./`/`../` workspace trees, module
+fragments and diamond module-instance DAGs without opening a Transit connection.
+The entry file's directory is the package root. Relative imports, fragments and
+delegated target paths normalize within that root; escaping the package/workspace
+root rejects. Source files use the same module language as the build entry.
 
 Build and test validate the selected entry first. They skip `.git`, `.transit`,
 `.direnv` and `node_modules` below each package root, and ignore unrelated leaf
@@ -81,17 +84,20 @@ Caches made with earlier source-selection rules fail frozen verification. Review
 the dependency and run an explicit `transit build --fetch` to prepare its current
 selected tree; an ordinary build does not rewrite the lock.
 
-Successful output contains `application.sql` and `provenance.json`, published by
+Successful output contains `application.sql` and `provenance.json` (recording any
+workspace-confined `INTO '<path>'` clause as `declared_output`), published by
 one directory rename after validation. Existing explicit output directories
 reject. A matching default artifact is verified against a fresh compilation;
 changed bytes reject. Failed or interrupted publication cannot create a partial
 complete directory. SQL execution needs no source or provenance files and still
 checks current caller rights. Build output is not an installation receipt.
 
-`CREATE MIGRATION TARGET` selects an explicit-basis Table migration build.
-Instead of `application.sql`, it publishes `desired.sql`, `basis.json`,
+`CREATE MIGRATION TARGET` and `EXPORT TARGET ... AS MIGRATIONS OF ...` select an
+explicit-basis Table migration build.
+Instead of `application.sql`, they publish `desired.sql`, `basis.json`,
 `provenance.json` and immutable version files in `migrations/`. A successor names
-the previous basis inside the package root; all historical SQL is verified and
+the previous basis relative to the declaring target file's directory (confined
+within the workspace root); all historical SQL is verified and
 copied unchanged. New Tables and safe trailing column additions are supported;
 unchanged definitions produce zero new steps. Destructive or ambiguous changes
 refuse before publication. `--check` includes basis/history verification.
@@ -125,8 +131,10 @@ remains planned.
 
 ## Application Table tests
 
-`transit test [-f FILE] [--target NAME]` defaults to `build.transit` and test target
-`tests`. It uses the installed Transit binary without a running server or
+`transit test [-f FILE] [--target NAME]` defaults to `build.transit` and, when
+`--target` is omitted, selects the entry file's unique test target or delegated
+test-target alias (falling back to `tests` when none is exported and refusing
+ambiguous multi-test entries). It uses the installed Transit binary without a running server or
 containers. Prepare repository dependencies explicitly with `transit build
 --fetch`; tests verify the frozen lock and cache without network access. Explicit
 `--override NAME=DIRECTORY` changes source provenance, as for builds. Tests never

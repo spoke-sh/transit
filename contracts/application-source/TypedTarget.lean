@@ -470,3 +470,80 @@ theorem procedure_return_substitution (env : Env context) (arg : Value parameter
   rw [procedure_inline_atomic, nominal_substitution]
 
 #print axioms procedure_return_substitution
+
+/- A fourth fragment models first-class module-instance DAG sharing: evaluating
+   a shared module constructor once (`LET m = USE MODULE ...`) emits its DDL
+   actions once and exposes its typed export interface to multiple downstream
+   consumers without re-instantiating the constructor. -/
+structure ModuleInstance (Interface : Type) where
+  ddl : List BoundAction
+  exports : Interface
+
+abbrev ModuleCtor (context : List SourceType) (Interface : Type) :=
+  Env context → ModuleInstance Interface
+
+abbrev ModuleConsumer (context : List SourceType) (parameter : SourceType) (Interface : Type) :=
+  Interface → List (Write (parameter :: context))
+
+def evalSharedDiamond (env : Env context)
+    (ctor : ModuleCtor context Interface)
+    (argLeft : Value paramLeft) (left : ModuleConsumer context paramLeft Interface)
+    (argRight : Value paramRight) (right : ModuleConsumer context paramRight Interface) :
+    List BoundAction :=
+  let inst := ctor env
+  inst.ddl ++
+    boundActions env ((left inst.exports).map (Write.substitute argLeft)) ++
+    boundActions env ((right inst.exports).map (Write.substitute argRight))
+
+def evalUnsharedPair (env : Env context)
+    (ctor : ModuleCtor context Interface)
+    (argLeft : Value paramLeft) (left : ModuleConsumer context paramLeft Interface)
+    (argRight : Value paramRight) (right : ModuleConsumer context paramRight Interface) :
+    List BoundAction :=
+  let inst1 := ctor env
+  let inst2 := ctor env
+  inst1.ddl ++
+    boundActions env ((left inst1.exports).map (Write.substitute argLeft)) ++
+    inst2.ddl ++
+    boundActions env ((right inst2.exports).map (Write.substitute argRight))
+
+/-- Shared module-instance DAG evaluation preserves nominal domain substitution
+    across exported handles while emitting the shared instance's DDL once ahead
+    of downstream consumers; whenever the shared DDL is non-empty, shared DAG
+    evaluation is strictly non-equivalent to per-consumer re-instantiation. -/
+theorem module_instance_dag_sharing (env : Env context)
+    (ctor : ModuleCtor context Interface)
+    (argLeft : Value paramLeft) (left : ModuleConsumer context paramLeft Interface)
+    (argRight : Value paramRight) (right : ModuleConsumer context paramRight Interface) :
+    evalSharedDiamond env ctor argLeft left argRight right =
+      (ctor env).ddl ++
+        (left (ctor env).exports).map (Write.eval (extend argLeft env)) ++
+        (right (ctor env).exports).map (Write.eval (extend argRight env)) ∧
+    ((ctor env).ddl ≠ [] →
+      evalSharedDiamond env ctor argLeft left argRight right ≠
+        evalUnsharedPair env ctor argLeft left argRight right) := by
+  have subst_writes : ∀ {p : SourceType} (v : Value p) (ws : List (Write (p :: context))),
+      boundActions env (ws.map (Write.substitute v)) = ws.map (Write.eval (extend v env)) := by
+    intro p v ws
+    induction ws with
+    | nil => rfl
+    | cons step rest ih =>
+      cases step with
+      | insert table expr =>
+        simp only [List.map_cons, boundActions, Write.substitute, Write.eval, nominal_substitution] at ih ⊢
+        exact congrArg _ ih
+  constructor
+  · simp only [evalSharedDiamond, subst_writes]
+  · intro h_nonempty h_eq
+    have h_len := congrArg List.length h_eq
+    simp only [evalSharedDiamond, evalUnsharedPair, List.length_append] at h_len
+    have h_mid := Nat.add_right_cancel h_len
+    have h_zero : 0 = (ctor env).ddl.length :=
+      Nat.add_left_cancel (Eq.trans (Nat.add_zero _).symm h_mid)
+    cases h_ddl : (ctor env).ddl with
+    | nil => exact h_nonempty h_ddl
+    | cons head tail =>
+      rw [h_ddl, List.length_cons] at h_zero
+      exact Nat.noConfusion h_zero
+
+#print axioms module_instance_dag_sharing
