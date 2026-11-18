@@ -35,39 +35,64 @@ pub fn load(self: *Self) ![32]u8 {
         return err;
     };
     try self.readTree(self.root, "root", "", 0);
+    sortSlice(self.sources.items[1..]);
     self.loadLock() catch |err| {
         self.diagnostic.* = c.SourceDiagnostic.dependency(err, "transit.lock", "read frozen dependency lock");
         if (self.report) |r| r.finalize(err, .{});
         return err;
     };
+    var visited: [256]u8 = @splat(0);
+    try self.visitSource(0, &visited, 0);
     var index: usize = 0;
     while (index < self.sources.items.len) : (index += 1) {
-        // Dependency discovery shares the source parser, but never retains its AST.
-        var scratch: std.heap.ArenaAllocator = .init(self.scratch_parent);
-        defer scratch.deinit();
-        var offset: usize = 0;
-        const source = self.sources.items[index];
-        const file = c.Syntax.parseReported(scratch.allocator(), source.text, &offset, index, self.report) catch |err| {
-            var span: c.SourceDiagnostic.Span = .{ .start = @intCast(@min(offset, std.math.maxInt(u32))), .end = @intCast(@min(offset, std.math.maxInt(u32))) };
-            if (self.report) |r| {
-                if (r.has_span) span = r.span else r.setSpan(index, offset, offset);
-                r.finalize(err, .{});
-            }
-            self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, span), null, null);
-            return err;
-        };
-        for (file.dependencies) |dep| self.resolve(dep) catch |err| {
-            const dep_span: c.SourceDiagnostic.Span = .{ .start = dep.span.start, .end = dep.span.end };
-            if (self.report) |r| {
-                if (!r.has_span) r.setSpan(index, dep.span.start, dep.span.end);
-                r.finalize(err, .{ .name = dep.name });
-            }
-            if (self.diagnostic.* == null) self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, dep_span), null, null);
-            self.diagnostic.*.?.text(.name, .caller, dep.name) catch {};
-            if (self.diagnostic.*.?.location == null) self.diagnostic.*.?.location = c.Compiler.locationSpan(source, dep_span);
-            return err;
-        };
-        for (file.imports) |import| self.checkImport(source, import) catch |err| {
+        if (visited[index] == 0) try self.visitSource(index, &visited, 0);
+    }
+    return self.finish() catch |err| {
+        if (self.report) |r| r.finalize(err, .{});
+        self.note(err, "root", "transit.lock", if (self.fetch) "publish dependency lock" else "verify source graph", null);
+        return err;
+    };
+}
+fn sortSlice(slice: []c.Source) void {
+    std.mem.sort(c.Source, slice, {}, struct {
+        fn less(_: void, left: c.Source, right: c.Source) bool {
+            const order = std.mem.order(u8, left.package, right.package);
+            return order == .lt or order == .eq and std.mem.lessThan(u8, left.path, right.path);
+        }
+    }.less);
+}
+fn visitSource(self: *Self, index: usize, visited: *[256]u8, depth: usize) anyerror!void {
+    if (visited[index] != 0) return;
+    if (depth >= 64) return;
+    visited[index] = 1;
+    defer visited[index] = 2;
+    // Dependency discovery shares the source parser, but never retains its AST.
+    var scratch: std.heap.ArenaAllocator = .init(self.scratch_parent);
+    defer scratch.deinit();
+    var offset: usize = 0;
+    const source = self.sources.items[index];
+    const file = c.Syntax.parseReported(scratch.allocator(), source.text, &offset, index, self.report) catch |err| {
+        var span: c.SourceDiagnostic.Span = .{ .start = @intCast(@min(offset, std.math.maxInt(u32))), .end = @intCast(@min(offset, std.math.maxInt(u32))) };
+        if (self.report) |r| {
+            if (r.has_span) span = r.span else r.setSpan(index, offset, offset);
+            r.finalize(err, .{});
+        }
+        self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, span), null, null);
+        return err;
+    };
+    for (file.dependencies) |dep| self.resolve(dep) catch |err| {
+        const dep_span: c.SourceDiagnostic.Span = .{ .start = dep.span.start, .end = dep.span.end };
+        if (self.report) |r| {
+            if (!r.has_span) r.setSpan(index, dep.span.start, dep.span.end);
+            r.finalize(err, .{ .name = dep.name });
+        }
+        if (self.diagnostic.* == null) self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, dep_span), null, null);
+        self.diagnostic.*.?.text(.name, .caller, dep.name) catch {};
+        if (self.diagnostic.*.?.location == null) self.diagnostic.*.?.location = c.Compiler.locationSpan(source, dep_span);
+        return err;
+    };
+    for (file.imports) |import| {
+        const target = self.checkImport(source, import) catch |err| {
             const imp_span: c.SourceDiagnostic.Span = .{ .start = import.span.start, .end = import.span.end };
             if (self.report) |r| {
                 r.setSpan(index, import.span.start, import.span.end);
@@ -84,12 +109,11 @@ pub fn load(self: *Self) ![32]u8 {
             self.diagnostic.*.?.text(.name, .caller, import.alias) catch {};
             return err;
         };
+        if (self.report) |r| r.pushFrame(import.alias, index, .{ .start = import.span.start, .end = import.span.end });
+        errdefer {}
+        self.visitSource(target, visited, depth + 1) catch |err| return err;
+        if (self.report) |r| r.popFrame();
     }
-    return self.finish() catch |err| {
-        if (self.report) |r| r.finalize(err, .{});
-        self.note(err, "root", "transit.lock", if (self.fetch) "publish dependency lock" else "verify source graph", null);
-        return err;
-    };
 }
 fn loadEntry(self: *Self) !void {
     try c.Graph.selectedPath(self.entry);
@@ -114,17 +138,73 @@ fn loadLock(self: *Self) !void {
         self.pins = lock.dependencies;
     }
 }
-fn checkImport(self: *Self, source: c.Source, import: c.Syntax.Import) !void {
-    const path = try c.Graph.importPath(self.a, source.path, import);
+fn checkRelativeLinks(self: *Self, package: []const u8, base_file: []const u8, raw_path: []const u8) !void {
+    var stack: [64][]const u8 = undefined;
+    var len: usize = 0;
+    if (std.mem.lastIndexOfScalar(u8, base_file, '/')) |slash| {
+        var base_parts = std.mem.splitScalar(u8, base_file[0..slash], '/');
+        while (base_parts.next()) |part| {
+            if (len < stack.len) {
+                stack[len] = part;
+                len += 1;
+            }
+        }
+    }
+    var parts = std.mem.splitScalar(u8, raw_path, '/');
+    while (parts.next()) |part| {
+        if (part.len == 0 or std.mem.eql(u8, part, ".")) continue;
+        if (std.mem.eql(u8, part, "..")) {
+            if (len > 0) len -= 1;
+            continue;
+        }
+        if (len < stack.len) {
+            stack[len] = part;
+            len += 1;
+        }
+        var prefix_buf: [512]u8 = undefined;
+        var pos: usize = 0;
+        var ok = true;
+        for (stack[0..len], 0..) |seg, idx| {
+            if (idx != 0) {
+                if (pos == prefix_buf.len) {
+                    ok = false;
+                    break;
+                }
+                prefix_buf[pos] = '/';
+                pos += 1;
+            }
+            if (pos + seg.len > prefix_buf.len) {
+                ok = false;
+                break;
+            }
+            @memcpy(prefix_buf[pos..][0..seg.len], seg);
+            pos += seg.len;
+        }
+        if (ok) {
+            const candidate = prefix_buf[0..pos];
+            for (self.links.items) |link| {
+                if (!std.mem.eql(u8, link.package, package)) continue;
+                if (std.mem.eql(u8, candidate, link.path) or (std.mem.startsWith(u8, candidate, link.path) and candidate.len > link.path.len and candidate[link.path.len] == '/')) {
+                    self.note(error.UnsupportedSourceFileKind, package, link.path, "resolve source import", "sym_link");
+                    return error.UnsupportedSourceFileKind;
+                }
+            }
+        }
+    }
+}
+fn checkImport(self: *Self, source: c.Source, import: c.Syntax.Import) !usize {
     const package = import.package orelse source.package;
+    const base_file = if (import.package != null) "" else source.path;
+    const path = try c.Graph.importPath(self.a, source.path, import);
+    try self.checkRelativeLinks(package, base_file, import.path);
     for (self.links.items) |link| {
         if (!std.mem.eql(u8, link.package, package)) continue;
-        if (std.mem.startsWith(u8, path, link.path) and path.len > link.path.len and path[link.path.len] == '/') {
+        if (std.mem.eql(u8, path, link.path) or (std.mem.startsWith(u8, path, link.path) and path.len > link.path.len and path[link.path.len] == '/')) {
             self.note(error.UnsupportedSourceFileKind, package, link.path, "resolve source import", "sym_link");
             return error.UnsupportedSourceFileKind;
         }
     }
-    for (self.sources.items) |candidate| if (std.mem.eql(u8, candidate.package, package) and std.mem.eql(u8, candidate.path, path)) return;
+    for (self.sources.items, 0..) |candidate, idx| if (std.mem.eql(u8, candidate.package, package) and std.mem.eql(u8, candidate.path, path)) return idx;
     return error.MissingSource;
 }
 fn finish(self: *Self) ![32]u8 {
@@ -218,6 +298,7 @@ fn resolve(self: *Self, dependency: c.Syntax.Dependency) !void {
         };
     }
     if (self.sources.items.len == first) return error.EmptySourcePackage;
+    sortSlice(self.sources.items[first..]);
     const digest = try self.treeHex(name);
     if (self.fetch) try self.storeCache(name, digest);
     try self.resolutions.append(self.a, .{ .name = name, .repository = try self.a.dupe(u8, dependency.repository), .revision = try self.a.dupe(u8, dependency.revision), .subdirectory = try self.a.dupe(u8, dependency.subdirectory), .digest = digest, .override = override_path != null });

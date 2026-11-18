@@ -448,3 +448,29 @@ test "checked nominal evidence stays outside the current provenance JSON format"
     }
     try std.testing.expect(std.mem.indexOf(u8, bytes, "example.machine-id") == null);
 }
+
+test "intra-package relative './' and '../' imports resolve while escapes and excluded segments reject" {
+    var diagnostic: ?p.Diagnostic = null;
+    const nested = [_]c.Source{
+        .{ .path = "build.transit", .text = "IMPORT apps FROM './apps/build.transit'; CREATE TARGET default AS BEGIN USE apps.App(); END;" },
+        .{ .path = "apps/build.transit", .text = "IMPORT child FROM './platform/tenancy/build.transit'; CREATE PUBLIC MODULE App() AS BEGIN USE child.Tenancy(); END;" },
+        .{ .path = "apps/platform/tenancy/build.transit", .text = "IMPORT shared FROM '../shared/rows.transit'; CREATE PUBLIC MODULE Tenancy() AS BEGIN USE shared.Rows(NAME 'items'); END;" },
+        .{ .path = "apps/platform/shared/rows.transit", .text = "CREATE PUBLIC MODULE Rows(name IDENTIFIER) AS BEGIN CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY); END;" },
+    };
+    const product = try c.compile(std.testing.allocator, &nested, .{ .compiler_revision = "test" }, &diagnostic);
+    defer product.deinit();
+    try std.testing.expectEqual(1, product.steps.len);
+    try std.testing.expectEqualStrings("CREATE TABLE \"items\" ( ID BIGINT PRIMARY KEY )", product.steps[0].sql);
+
+    try refuses(error.InvalidSourcePath, &.{
+        .{ .path = "build.transit", .text = "IMPORT sub FROM './sub/build.transit';" },
+        .{ .path = "sub/build.transit", .text = "IMPORT escaped FROM '../../outside.transit';" },
+    }, .{ .compiler_revision = "test" });
+    try refuses(error.InvalidSourcePath, &.{
+        .{ .path = "build.transit", .text = "IMPORT abs FROM '/sub/build.transit';" },
+    }, .{ .compiler_revision = "test" });
+    try refuses(error.ExcludedSourcePath, &.{
+        .{ .path = "build.transit", .text = "IMPORT bad FROM './node_modules/../lib.transit';" },
+        .{ .path = "lib.transit", .text = "CREATE PUBLIC MODULE M() AS BEGIN END;" },
+    }, .{ .compiler_revision = "test" });
+}

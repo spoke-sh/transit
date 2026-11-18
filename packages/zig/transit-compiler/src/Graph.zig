@@ -124,6 +124,59 @@ pub fn selectedPath(path: []const u8) !void {
     var components = std.mem.splitScalar(u8, path, '/');
     while (components.next()) |part| if (excludedComponent(part)) return error.ExcludedSourcePath;
 }
+/// Resolve a relative subpath against `base_file`'s directory within the same
+/// package root. `.` and intra-package `..` normalize; escaping the package
+/// root, leading `/`, empty segments or traversing an excluded component fails.
+pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    if (raw_path.len == 0 or raw_path.len > 512 or !std.unicode.utf8ValidateSlice(raw_path) or std.mem.indexOfAny(u8, raw_path, "\\\x00\r\n") != null or raw_path[0] == '/') return error.InvalidSourcePath;
+    var stack: [64][]const u8 = undefined;
+    var len: usize = 0;
+    if (std.mem.lastIndexOfScalar(u8, base_file, '/')) |slash| {
+        var base_parts = std.mem.splitScalar(u8, base_file[0..slash], '/');
+        while (base_parts.next()) |part| {
+            if (part.len == 0) return error.InvalidSourcePath;
+            if (excludedComponent(part)) return error.ExcludedSourcePath;
+            if (len == stack.len) return error.SourceDepthLimit;
+            stack[len] = part;
+            len += 1;
+        }
+    }
+    var parts = std.mem.splitScalar(u8, raw_path, '/');
+    while (parts.next()) |part| {
+        if (part.len == 0) return error.InvalidSourcePath;
+        if (excludedComponent(part)) return error.ExcludedSourcePath;
+        if (std.mem.eql(u8, part, ".")) continue;
+        if (std.mem.eql(u8, part, "..")) {
+            if (len == 0) return error.InvalidSourcePath;
+            len -= 1;
+            continue;
+        }
+        if (len == stack.len) return error.SourceDepthLimit;
+        stack[len] = part;
+        len += 1;
+    }
+    if (len == 0) return error.InvalidSourcePath;
+    var total: usize = len - 1;
+    for (stack[0..len]) |part| total += part.len;
+    if (total > 512) return error.InvalidSourcePath;
+    const out = try a.alloc(u8, total);
+    var pos: usize = 0;
+    for (stack[0..len], 0..) |part, idx| {
+        if (idx != 0) {
+            out[pos] = '/';
+            pos += 1;
+        }
+        @memcpy(out[pos..][0..part.len], part);
+        pos += part.len;
+    }
+    try selectedPath(out);
+    return out;
+}
+pub fn resolveSourcePath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    const resolved = try resolvePackageSubpath(a, base_file, raw_path);
+    if (!std.mem.endsWith(u8, resolved, ".transit")) return error.InvalidSourcePath;
+    return resolved;
+}
 pub fn validateDependency(value: s.Dependency) !void {
     if (value.repository.len == 0 or value.repository.len > 2048 or value.repository[0] == '-' or std.mem.indexOfAny(u8, value.repository, "\x00\r\n") != null) return error.InvalidRepository;
     if (std.mem.startsWith(u8, value.repository, "https://") or std.mem.startsWith(u8, value.repository, "file://")) {
@@ -135,11 +188,7 @@ pub fn validateDependency(value: s.Dependency) !void {
     if (value.subdirectory.len > 0) try validPath(value.subdirectory);
 }
 pub fn importPath(a: std.mem.Allocator, source_path: []const u8, import: s.Import) ![]const u8 {
-    try selectedPath(import.path);
-    if (!std.mem.endsWith(u8, import.path, ".transit")) return error.InvalidSourcePath;
-    if (import.package != null) return a.dupe(u8, import.path);
-    if (std.mem.lastIndexOfScalar(u8, source_path, '/')) |slash| return std.fmt.allocPrint(a, "{s}/{s}", .{ source_path[0..slash], import.path });
-    return a.dupe(u8, import.path);
+    return resolveSourcePath(a, if (import.package != null) "" else source_path, import.path);
 }
 pub fn imported(self: Self, file: usize, import: s.Import) !usize {
     const package = import.package orelse self.sources[file].package;
