@@ -213,6 +213,7 @@ pub const Report = struct {
                     if (self.notes[0] == null) self.addNote(null, null, "pass a new directory path to '--out' so existing artifacts are not overwritten", .{});
                 },
                 error.BuildArtifactMismatch => self.setHeadline("existing build artifact bytes do not match fresh compilation", .{}),
+                error.UnsupportedTestOption => self.setHeadline("unsupported option in 'EXPORT TARGET ... WITH (...)'", .{}),
                 error.FileNotFound => self.setHeadline("file not found", .{}),
                 error.AccessDenied, error.PermissionDenied => self.setHeadline("permission denied", .{}),
                 else => {
@@ -485,6 +486,7 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "UnsupportedSymbolicProgram", .capability },
     .{ "UnsupportedSymbolicSchema", .capability },
     .{ "UnsupportedTestAssertion", .capability },
+    .{ "UnsupportedTestOption", .capability },
     .{ "UnsupportedTestRefusal", .capability },
     .{ "UnsupportedVariantField", .capability },
     .{ "BuildEmissionMismatch", .internal },

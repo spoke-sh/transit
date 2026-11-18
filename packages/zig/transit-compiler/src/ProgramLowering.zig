@@ -15,6 +15,7 @@ const ProgramCheck = @import("ProgramCheck.zig");
 const CallOrigin = Operands.CallOrigin;
 const Symbol = struct { original: []const u8, emitted: []const u8 };
 const ResourceBinding = struct { name: []const u8, table: *const types.Table };
+const ResolvedCallee = struct { ref: Graph.Ref, bindings: []const types.Binding = &.{} };
 
 const ArgClosure = struct {
     file: usize,
@@ -113,15 +114,52 @@ pub fn validateAll(compiler: *Compiler) !void {
     const heights = try compiler.a.alloc(usize, total_defs);
     @memset(visited, 0);
     @memset(heights, 0);
-    for (graph.files, 0..) |file, file_idx| for (file.definitions, 0..) |def, def_idx| {
-        if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
-        _ = try visitCallGraph(compiler, base_offsets, visited, heights, .{ .file = file_idx, .definition = def_idx }, 0);
-    };
+    for (graph.files, 0..) |file, file_idx| {
+        if (file_idx < graph.is_fragment.len and graph.is_fragment[file_idx]) continue;
+        for (file.definitions, 0..) |def, def_idx| {
+            if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
+            _ = try visitCallGraph(compiler, base_offsets, visited, heights, .{ .ref = .{ .file = file_idx, .definition = def_idx } }, 0);
+        }
+    }
 
-    for (graph.files, 0..) |file, file_idx| for (file.definitions, 0..) |def, def_idx| {
-        if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
-        try validateHelperBody(compiler, .{ .file = file_idx, .definition = def_idx });
+    for (graph.files, 0..) |file, file_idx| {
+        if (file_idx < graph.is_fragment.len and graph.is_fragment[file_idx]) continue;
+        for (file.definitions, 0..) |def, def_idx| {
+            if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
+            try validateHelperBody(compiler, .{ .file = file_idx, .definition = def_idx }, &.{});
+        }
+    }
+    compiler.context = .{};
+}
+
+pub fn validateFragmentHelpers(compiler: *Compiler, frag_file: usize, bindings: []const types.Binding) !void {
+    const graph = compiler.graph;
+    const defs = graph.files[frag_file].definitions;
+    var has_helper = false;
+    for (defs) |def| if (def.kind == .function or def.kind == .guard or def.kind == .procedure) {
+        has_helper = true;
+        break;
     };
+    if (!has_helper) return;
+
+    var total_defs: usize = 0;
+    const base_offsets = try compiler.a.alloc(usize, graph.files.len);
+    for (graph.files, 0..) |file, i| {
+        base_offsets[i] = total_defs;
+        total_defs += file.definitions.len;
+    }
+    const visited = try compiler.a.alloc(u8, total_defs);
+    const heights = try compiler.a.alloc(usize, total_defs);
+    @memset(visited, 0);
+    @memset(heights, 0);
+    for (defs, 0..) |def, def_idx| {
+        if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
+        _ = try visitCallGraph(compiler, base_offsets, visited, heights, .{ .ref = .{ .file = frag_file, .definition = def_idx }, .bindings = bindings }, 0);
+    }
+    for (defs, 0..) |def, def_idx| {
+        if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
+        try validateHelperBody(compiler, .{ .file = frag_file, .definition = def_idx }, bindings);
+    }
     compiler.context = .{};
 }
 
@@ -178,8 +216,9 @@ fn buildSyntheticTable(scratch: std.mem.Allocator, graph: Graph, file: usize, ob
     return entry;
 }
 
-fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u8, heights: []usize, ref: Graph.Ref, depth: usize) anyerror!usize {
+fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u8, heights: []usize, current: ResolvedCallee, depth: usize) anyerror!usize {
     try compiler.tick();
+    const ref = current.ref;
     const node = base_offsets[ref.file] + ref.definition;
     const def = compiler.graph.getDefinition(ref);
     if (visited[node] == 1) return error.RecursiveSourceCall;
@@ -205,7 +244,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
         if (def.kind != .function and tokenWord(text, tokens[i], "CHECK") and i + 1 < tokens.len and tokenWord(text, tokens[i + 1], "GUARD")) {
             const call_offset = tokens[i].start;
             i += 2;
-            const target = try parseCalleeRef(compiler, ref.file, text, tokens, &i, .guard, call_offset);
+            const target = try parseCalleeRef(compiler, ref.file, current.bindings, text, tokens, &i, .guard, call_offset);
             height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                 if (err == error.RecursiveSourceCall) {
                     compiler.file = ref.file;
@@ -220,7 +259,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
             if (next_after_name < tokens.len and tokenSymbol(text, tokens[next_after_name], '(')) {
                 const call_offset = tokens[i].start;
                 i += 1;
-                const target = try parseCalleeRef(compiler, ref.file, text, tokens, &i, .procedure, call_offset);
+                const target = try parseCalleeRef(compiler, ref.file, current.bindings, text, tokens, &i, .procedure, call_offset);
                 height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                     if (err == error.RecursiveSourceCall) {
                         compiler.file = ref.file;
@@ -237,7 +276,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
         {
             const call_offset = tokens[i].start;
             var cursor = i;
-            const target = try resolveQualifiedFunction(compiler, ref.file, text, tokens, &cursor, call_offset);
+            const target = try resolveQualifiedFunction(compiler, ref.file, current.bindings, text, tokens, &cursor, call_offset);
             i = cursor - 1;
             height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                 if (err == error.RecursiveSourceCall) {
@@ -251,7 +290,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
         if (!preceded_by_dot and i + 1 < tokens.len and tokens[i].kind == .word and tokenSymbol(text, tokens[i + 1], '(')) {
             const raw = text[tokens[i].start..tokens[i].end];
             if (!std.ascii.eqlIgnoreCase(raw, "ROW") and !std.ascii.eqlIgnoreCase(raw, "CAST")) {
-                if (try resolveLocalFunction(compiler, ref.file, raw, tokens[i].start)) |target| {
+                if (try resolveLocalFunction(compiler, ref.file, current.bindings, raw, tokens[i].start)) |target| {
                     const call_offset = tokens[i].start;
                     height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                         if (err == error.RecursiveSourceCall) {
@@ -269,7 +308,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
     return height;
 }
 
-fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref) !void {
+fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const types.Binding) !void {
     if (!compiler.scratch.reset(.retain_capacity)) return error.OutOfMemory;
     const scratch = compiler.scratch.allocator();
     const graph = compiler.graph;
@@ -363,6 +402,7 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref) !void {
             else => unreachable,
         },
         .rename_locals = true,
+        .bindings = bindings,
         .resources = res_bindings.items,
     };
     for (def.parameters) |param| {
@@ -451,7 +491,7 @@ pub fn lowerProgram(
     if (!tokenWord(text, tokens[0], "CREATE") or !tokenWord(text, tokens[1], "PUBLIC") or !tokenWord(text, tokens[2], "DATAFLOW"))
         return error.RuntimePrivateOrUnsupportedDeclaration;
 
-    const rename_locals = hasHelperCalls(compiler.graph, file, text, tokens);
+    const rename_locals = hasHelperCalls(compiler.graph, file, bindings, text, tokens);
     var self: Self = .{
         .compiler = compiler,
         .catalog = &compiler.catalog,
@@ -525,7 +565,7 @@ pub fn lowerProgram(
     return self.writer.bytes.items;
 }
 
-fn hasHelperCalls(graph: Graph, file: usize, text: []const u8, tokens: []const s.Token) bool {
+fn hasHelperCalls(graph: Graph, file: usize, bindings: []const types.Binding, text: []const u8, tokens: []const s.Token) bool {
     var i: usize = 0;
     while (i < tokens.len) : (i += 1) {
         if (tokenWord(text, tokens[i], "CHECK") and i + 1 < tokens.len and tokenWord(text, tokens[i + 1], "GUARD")) return true;
@@ -539,6 +579,9 @@ fn hasHelperCalls(graph: Graph, file: usize, text: []const u8, tokens: []const s
             return true;
         if (!preceded_by_dot and i + 1 < tokens.len and tokens[i].kind == .word and tokenSymbol(text, tokens[i + 1], '(')) {
             const raw = text[tokens[i].start..tokens[i].end];
+            for (bindings) |b| {
+                if (b.value == .helper and std.ascii.eqlIgnoreCase(raw, b.name)) return true;
+            }
             for (graph.files[file].definitions) |def| {
                 if (std.ascii.eqlIgnoreCase(raw, def.name) and
                     (def.kind == .function or std.meta.stringToEnum(f.ApplicationProgram.Function, def.name) == null))
@@ -980,7 +1023,58 @@ fn requireEmitSymbol(self: *Self, env: *const Env, tokens: []const s.Token, i: *
     i.* += 1;
 }
 
-fn parseCalleeRef(compiler: *Compiler, file: usize, text: []const u8, tokens: []const s.Token, i: *usize, expected_kind: s.Template.HelperKind, call_offset: usize) !Graph.Ref {
+fn helperKindMatches(actual: types.HelperKind, expected: s.Template.HelperKind) bool {
+    return switch (expected) {
+        .function => actual == .function,
+        .guard => actual == .guard,
+        .procedure => actual == .procedure,
+    };
+}
+
+fn resolveBoundHelper(compiler: *Compiler, file: usize, bindings: []const types.Binding, name: s.Name, expected_kind: s.Template.HelperKind, call_offset: usize) !?ResolvedCallee {
+    if (name.qualifier) |qualifier| {
+        for (bindings) |b| if (std.mem.eql(u8, b.name, qualifier)) {
+            if (b.value != .instance) {
+                compiler.file = file;
+                compiler.offset = call_offset;
+                return error.SourceTypeMismatch;
+            }
+            for (b.value.instance.exports) |exported| if (std.mem.eql(u8, exported.name, name.member)) {
+                if (exported.value != .helper or !helperKindMatches(exported.value.helper.kind, expected_kind)) {
+                    compiler.file = file;
+                    compiler.offset = call_offset;
+                    compiler.context = .{ .name = name.member, .expected = @tagName(expected_kind), .actual = if (exported.value == .helper) @tagName(exported.value.helper.kind) else @tagName(exported.value) };
+                    return error.SourceTypeMismatch;
+                }
+                return .{ .ref = exported.value.helper.ref, .bindings = exported.value.helper.bindings };
+            };
+            compiler.file = file;
+            compiler.offset = call_offset;
+            compiler.context = .{ .name = name.member };
+            return error.UnknownSourceExport;
+        };
+        return null;
+    }
+    var idx = bindings.len;
+    while (idx > 0) {
+        idx -= 1;
+        const b = bindings[idx];
+        if (!std.mem.eql(u8, b.name, name.member)) continue;
+        if (b.value == .helper) {
+            if (!helperKindMatches(b.value.helper.kind, expected_kind)) {
+                if (expected_kind == .function and std.meta.stringToEnum(f.ApplicationProgram.Function, name.member) != null) return null;
+                compiler.file = file;
+                compiler.offset = call_offset;
+                compiler.context = .{ .name = b.name, .expected = @tagName(expected_kind), .actual = @tagName(b.value.helper.kind) };
+                return error.SourceTypeMismatch;
+            }
+            return .{ .ref = b.value.helper.ref, .bindings = b.value.helper.bindings };
+        }
+    }
+    return null;
+}
+
+fn parseCalleeRef(compiler: *Compiler, file: usize, bindings: []const types.Binding, text: []const u8, tokens: []const s.Token, i: *usize, expected_kind: s.Template.HelperKind, call_offset: usize) !ResolvedCallee {
     const first = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.*].start..tokens[i.*].end]);
     i.* += 1;
     var name: s.Name = .{ .member = first };
@@ -990,6 +1084,7 @@ fn parseCalleeRef(compiler: *Compiler, file: usize, text: []const u8, tokens: []
         i.* += 1;
         name = .{ .qualifier = first, .member = second };
     }
+    if (try resolveBoundHelper(compiler, file, bindings, name, expected_kind, call_offset)) |bound| return bound;
     const ref = compiler.graph.resolve(file, name) catch |err| {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1007,10 +1102,10 @@ fn parseCalleeRef(compiler: *Compiler, file: usize, text: []const u8, tokens: []
         compiler.context = .{ .name = def.name, .expected = @tagName(expected_kind), .actual = @tagName(def.kind) };
         return error.SourceTypeMismatch;
     }
-    return ref;
+    return .{ .ref = ref };
 }
 
-fn resolveQualifiedFunction(compiler: *Compiler, file: usize, text: []const u8, tokens: []const s.Token, i: *usize, call_offset: usize) !Graph.Ref {
+fn resolveQualifiedFunction(compiler: *Compiler, file: usize, bindings: []const types.Binding, text: []const u8, tokens: []const s.Token, i: *usize, call_offset: usize) !ResolvedCallee {
     if (tokens[i.*].kind != .word or tokens[i.* + 2].kind != .word) {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1019,6 +1114,7 @@ fn resolveQualifiedFunction(compiler: *Compiler, file: usize, text: []const u8, 
     const qualifier = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.*].start..tokens[i.*].end]);
     const member = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.* + 2].start..tokens[i.* + 2].end]);
     i.* += 3;
+    if (try resolveBoundHelper(compiler, file, bindings, .{ .qualifier = qualifier, .member = member }, .function, call_offset)) |bound| return bound;
     const ref = compiler.graph.resolve(file, .{ .qualifier = qualifier, .member = member }) catch |err| {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1031,14 +1127,15 @@ fn resolveQualifiedFunction(compiler: *Compiler, file: usize, text: []const u8, 
         compiler.context = .{ .name = def.name, .expected = "function", .actual = @tagName(def.kind) };
         return error.SourceTypeMismatch;
     }
-    return ref;
+    return .{ .ref = ref };
 }
 
-fn resolveLocalFunction(compiler: *Compiler, file: usize, raw: []const u8, call_offset: usize) !?Graph.Ref {
+fn resolveLocalFunction(compiler: *Compiler, file: usize, bindings: []const types.Binding, raw: []const u8, call_offset: usize) !?ResolvedCallee {
     const lower = try std.ascii.allocLowerString(compiler.scratch.allocator(), raw);
+    if (try resolveBoundHelper(compiler, file, bindings, .{ .member = lower }, .function, call_offset)) |bound| return bound;
     for (compiler.graph.files[file].definitions, 0..) |def, idx| {
         if (std.mem.eql(u8, def.name, lower)) {
-            if (def.kind == .function) return .{ .file = file, .definition = idx };
+            if (def.kind == .function) return .{ .ref = .{ .file = file, .definition = idx } };
             if (std.meta.stringToEnum(f.ApplicationProgram.Function, lower) == null) {
                 compiler.file = file;
                 compiler.offset = call_offset;
@@ -1097,10 +1194,11 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         return error.MutationOutsideAtomic;
     }
     const text = self.compiler.graph.sources[caller_env.file].text;
-    const callee_ref = parseCalleeRef(self.compiler, caller_env.file, text, tokens, i, kind, call_offset) catch |err| {
+    const resolved_callee = parseCalleeRef(self.compiler, caller_env.file, caller_env.bindings, text, tokens, i, kind, call_offset) catch |err| {
         if (caller_env.call) |prior| self.compiler.call_site = Compiler.location(self.compiler.graph.sources[prior.file], prior.offset);
         return err;
     };
+    const callee_ref = resolved_callee.ref;
     const callee = self.compiler.graph.getDefinition(callee_ref);
     if (result_binding != null and callee.return_type == null) {
         self.setError(caller_env, call_offset);
@@ -1120,6 +1218,7 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         .helper = callee_ref,
         .mode = if (kind == .guard) .guard else .procedure,
         .rename_locals = true,
+        .bindings = resolved_callee.bindings,
         .call = outer_call,
         .return_binding = if (callee.return_type != null) result_binding orelse try self.freshHygienic("ret") else null,
     };
@@ -1221,6 +1320,39 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
                 return error.SourceTypeMismatch;
             },
         }
+    }
+    if (arg_tokens.len == 3 and arg_tokens[0].kind == .word and tokenSymbol(text, arg_tokens[1], '.') and arg_tokens[2].kind == .word) {
+        const qual = try self.decodeProgramName(text, arg_tokens[0]);
+        const mem = try self.decodeProgramName(text, arg_tokens[2]);
+        for (caller_env.bindings) |b| if (std.mem.eql(u8, b.name, qual)) {
+            if (b.value != .instance) {
+                self.setError(caller_env, arg_offset);
+                return error.SourceTypeMismatch;
+            }
+            for (b.value.instance.exports) |exported| if (std.mem.eql(u8, exported.name, mem)) {
+                return switch (exported.value) {
+                    .table => |tbl| if (expected_kind == .table) tbl else blk: {
+                        self.setError(caller_env, arg_offset);
+                        break :blk error.SourceTypeMismatch;
+                    },
+                    .stream => |tbl| if (expected_kind == .stream) tbl else blk: {
+                        self.setError(caller_env, arg_offset);
+                        break :blk error.SourceTypeMismatch;
+                    },
+                    .queue => |tbl| if (expected_kind == .queue) tbl else blk: {
+                        self.setError(caller_env, arg_offset);
+                        break :blk error.SourceTypeMismatch;
+                    },
+                    else => blk: {
+                        self.setError(caller_env, arg_offset);
+                        break :blk error.SourceTypeMismatch;
+                    },
+                };
+            };
+            self.setError(caller_env, arg_offset);
+            self.compiler.context = .{ .name = mem };
+            return error.UnknownSourceExport;
+        };
     }
     if (arg_tokens.len == 1 and (arg_tokens[0].kind == .word or arg_tokens[0].kind == .quoted)) {
         const decoded = try self.decodeProgramName(text, arg_tokens[0]);
@@ -1398,12 +1530,13 @@ fn closureIsImpure(graph: Graph, closure: ArgClosure, depth: usize) bool {
     return false;
 }
 
-fn expandFunctionCall(self: *Self, caller_env: *const Env, callee_ref: Graph.Ref, tokens: []const s.Token, i: *usize, call_offset: usize, hoistable: bool, depth: usize) anyerror!void {
+fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: ResolvedCallee, tokens: []const s.Token, i: *usize, call_offset: usize, hoistable: bool, depth: usize) anyerror!void {
     try self.compiler.tick();
     if (depth > self.compiler.limits.depth) {
         self.setError(caller_env, call_offset);
         return error.SourceDepthLimit;
     }
+    const callee_ref = resolved_callee.ref;
     const callee = self.compiler.graph.getDefinition(callee_ref);
     const arg_slices = try self.sliceCallArguments(caller_env, tokens, i);
     if (arg_slices.len != callee.parameters.len) {
@@ -1462,6 +1595,7 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, callee_ref: Graph.Ref
         .helper = callee_ref,
         .mode = .function,
         .rename_locals = true,
+        .bindings = resolved_callee.bindings,
         .fn_params = fn_params,
         .call = outer_call,
     };
@@ -1693,7 +1827,7 @@ fn lowerPrimary(self: *Self, env: *const Env, tokens: []const s.Token, i: *usize
     } else {
         const raw = text[tok.start..tok.end];
         if (i.* + 3 < tokens.len and tokenSymbol(text, tokens[i.* + 1], '.') and tokenSymbol(text, tokens[i.* + 3], '(')) {
-            const callee_ref = resolveQualifiedFunction(self.compiler, env.file, text, tokens, i, tok.start) catch |err| {
+            const callee_ref = resolveQualifiedFunction(self.compiler, env.file, env.bindings, text, tokens, i, tok.start) catch |err| {
                 if (env.call) |prior| self.compiler.call_site = Compiler.location(self.compiler.graph.sources[prior.file], prior.offset);
                 return err;
             };
@@ -1703,7 +1837,7 @@ fn lowerPrimary(self: *Self, env: *const Env, tokens: []const s.Token, i: *usize
                 try self.requireEmitWord(env, tokens, i, "ROW");
                 try self.lowerArguments(env, tokens, i, hoistable, depth + 1);
             } else if (tok.kind == .word) {
-                const local_callee = resolveLocalFunction(self.compiler, env.file, raw, tok.start) catch |err| {
+                const local_callee = resolveLocalFunction(self.compiler, env.file, env.bindings, raw, tok.start) catch |err| {
                     if (env.call) |prior| self.compiler.call_site = Compiler.location(self.compiler.graph.sources[prior.file], prior.offset);
                     return err;
                 };

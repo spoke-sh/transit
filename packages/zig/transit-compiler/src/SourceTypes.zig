@@ -50,20 +50,26 @@ pub const Table = struct {
     }
 };
 pub const Export = struct { name: []const u8, value: Value };
+pub const HelperKind = enum { function, guard, procedure };
+pub const Helper = struct { kind: HelperKind, ref: Graph.Ref, bindings: []const Binding = &.{} };
+pub const ModuleInstance = struct { constructor: ?Graph.Ref = null, exports: []const Export };
 pub const Variant = struct { definition: Graph.Ref, constructor: usize, fields: []const Value };
 pub const Value = union(enum) {
     integer: i64,
     text: []const u8,
     boolean: bool,
     identifier: []const u8,
+    schema_binding: []const u8,
     type: Scalar,
     module: Graph.Ref,
+    helper: Helper,
     nominal: struct { type: Scalar, value: Primitive },
     variant: Variant,
+    row: []const Export,
     table: *const Table,
     stream: *const Table,
     queue: *const Table,
-    instance: []const Export,
+    instance: ModuleInstance,
     symbolic: Scalar,
     pub fn scalar(self: Value) ?Scalar {
         return switch (self) {
@@ -163,7 +169,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             into.update(&bytes);
         },
         .boolean => |v| into.update(&.{@intFromBool(v)}),
-        .text, .identifier => |v| Graph.hashPart(into, v),
+        .text, .identifier, .schema_binding => |v| Graph.hashPart(into, v),
         .type, .symbolic => |v| v.hash(graph, into),
         .nominal => |v| {
             v.type.hash(graph, into);
@@ -176,10 +182,18 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             Graph.hashPart(into, graph.sources[ref.file].path);
             Graph.hashPart(into, graph.getDefinition(ref).name);
         },
+        .helper => |h| {
+            Graph.hashPart(into, @tagName(h.kind));
+            try hashValue(.{ .module = h.ref }, graph, into, depth + 1);
+        },
         .variant => |v| {
             try hashValue(.{ .module = v.definition }, graph, into, depth + 1);
             Graph.hashPart(into, graph.getDefinition(v.definition).constructors[v.constructor].name);
             for (v.fields) |item| try hashValue(item, graph, into, depth + 1);
+        },
+        .row => |fields| for (fields) |item| {
+            Graph.hashPart(into, item.name);
+            try hashValue(item.value, graph, into, depth + 1);
         },
         .table, .stream, .queue => |table| {
             Graph.hashPart(into, table.name);
@@ -189,9 +203,12 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
                 if (ref) |d| (try domain(graph, d)).hash(graph, into) else Graph.hashPart(into, "raw");
             }
         },
-        .instance => |exports| for (exports) |item| {
-            Graph.hashPart(into, item.name);
-            try hashValue(item.value, graph, into, depth + 1);
+        .instance => |inst| {
+            if (inst.constructor) |ctor| try hashValue(.{ .module = ctor }, graph, into, depth + 1);
+            for (inst.exports) |item| {
+                Graph.hashPart(into, item.name);
+                try hashValue(item.value, graph, into, depth + 1);
+            }
         },
     }
 }
@@ -209,12 +226,24 @@ fn sameValue(left: Value, right: Value, depth: usize) bool {
     if (std.meta.activeTag(left) != std.meta.activeTag(right)) return false;
     return switch (left) {
         .identifier => |v| std.mem.eql(u8, v, right.identifier),
+        .schema_binding => |v| std.mem.eql(u8, v, right.schema_binding),
         .type => |v| Scalar.eql(v, right.type),
         .module => |v| std.meta.eql(v, right.module),
+        .helper => |v| v.kind == right.helper.kind and std.meta.eql(v.ref, right.helper.ref),
         inline .table, .stream, .queue => |v, tag| v == @field(right, @tagName(tag)),
         .variant => |v| blk: {
             if (!std.meta.eql(v.definition, right.variant.definition) or v.constructor != right.variant.constructor or v.fields.len != right.variant.fields.len) break :blk false;
             for (v.fields, right.variant.fields) |l, r| if (!sameValue(l, r, depth + 1)) break :blk false;
+            break :blk true;
+        },
+        .row => |fields| blk: {
+            if (fields.len != right.row.len) break :blk false;
+            for (fields, right.row) |l, r| if (!std.mem.eql(u8, l.name, r.name) or !sameValue(l.value, r.value, depth + 1)) break :blk false;
+            break :blk true;
+        },
+        .instance => |inst| blk: {
+            if (!std.meta.eql(inst.constructor, right.instance.constructor) or inst.exports.len != right.instance.exports.len) break :blk false;
+            for (inst.exports, right.instance.exports) |l, r| if (!std.mem.eql(u8, l.name, r.name) or !sameValue(l.value, r.value, depth + 1)) break :blk false;
             break :blk true;
         },
         else => false,

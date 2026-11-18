@@ -1085,5 +1085,67 @@
     "source": "EXPORT TARGET t AS TESTS OF app USING SUITES ();",
     "parse": false,
     "at": ")"
+  },
+  {
+    "name": "diamond-composition-build",
+    "source": "IMPORT MODULE apps FROM './apps/build.transit'; EXPORT TARGET app_sql = apps.app_sql; EXPORT DEFAULT TARGET app_sql;",
+    "files": [
+      {
+        "path": "apps/build.transit",
+        "text": "IMPORT MODULE app FROM './app/build.transit'; EXPORT TARGET app_sql = app.sql;"
+      },
+      {
+        "path": "apps/app/build.transit",
+        "text": "IMPORT MODULE tenancy FROM './tenancy/build.transit'; IMPORT MODULE networking FROM './networking/build.transit'; EXPORT MODULE application(bindings ROW(tenancy SCHEMA_BINDING, networking SCHEMA_BINDING)) AS BEGIN LET t = USE MODULE tenancy.application(schema => bindings.tenancy); LET n = USE MODULE networking.application(schema => bindings.networking, tenancy => t); END; LET control = USE MODULE application(bindings => ROW(tenancy => SCHEMA_BINDING('tenancy'), networking => SCHEMA_BINDING('networking'))); EXPORT TARGET sql AS SQL OF control INTO '../../.local/build/app.sql';"
+      },
+      {
+        "path": "apps/app/tenancy/state.transit",
+        "text": "CREATE PUBLIC TABLE tenants (id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL);"
+      },
+      {
+        "path": "apps/app/tenancy/guards.transit",
+        "text": "CREATE GUARD require_tenant(tenants_tbl TABLE(id BIGINT PRIMARY KEY, active BOOLEAN NOT NULL), tenant_id BIGINT) AS BEGIN LET found = SELECT active FROM tenants_tbl WHERE id = tenant_id; REQUIRE found IS NOT NULL AND found.active ELSE 'Inactive'; END;"
+      },
+      {
+        "path": "apps/app/tenancy/build.transit",
+        "text": "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN BIND SCHEMA tenancy TO schema; DECLARE FROM './state.transit'; DECLARE FROM './guards.transit'; EXPORT TABLE tenants; EXPORT GUARD require_tenant; END;"
+      },
+      {
+        "path": "apps/app/networking/flow.transit",
+        "text": "CREATE PUBLIC QUEUE net_requests (id BIGINT NOT NULL, tenant_id BIGINT NOT NULL); CREATE PUBLIC TABLE networks (id BIGINT PRIMARY KEY, tenant_id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW process_net FROM QUEUE net_requests AS req AS BEGIN CHECK GUARD tenancy.require_tenant(tenants, req.tenant_id); BEGIN ATOMIC INSERT INTO networks VALUES (req.id, req.tenant_id) ON CONFLICT (id) DO ASSERT SAME ROW; END; END;"
+      },
+      {
+        "path": "apps/app/networking/build.transit",
+        "text": "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit'; EXPORT MODULE application(schema SCHEMA_BINDING, tenancy MODULE OF tenancy_build.application) AS BEGIN BIND SCHEMA networking TO schema; USE MODULE tenancy; DECLARE FROM './flow.transit'; END;"
+      }
+    ],
+    "parse": true,
+    "compile": "build",
+    "steps": 4
+  },
+  {
+    "name": "diamond-composition-tests",
+    "source": "IMPORT MODULE app FROM './app/build.transit'; EXPORT TARGET app_tests = app.tests;",
+    "files": [
+      {
+        "path": "app/build.transit",
+        "text": "IMPORT MODULE tenancy FROM './tenancy/build.transit'; EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN LET t = USE MODULE tenancy.application(schema => schema); EXPORT TABLE t.tenants AS tenants; END; LET control = USE MODULE application(schema => SCHEMA_BINDING('tenancy')); EXPORT TARGET tests AS TESTS OF control USING SUITES (tenancy.tests);"
+      },
+      {
+        "path": "app/tenancy/state.transit",
+        "text": "CREATE PUBLIC TABLE tenants (id BIGINT PRIMARY KEY);"
+      },
+      {
+        "path": "app/tenancy/build.transit",
+        "text": "EXPORT MODULE application(schema SCHEMA_BINDING) AS BEGIN BIND SCHEMA tenancy TO schema; DECLARE FROM './state.transit'; EXPORT TABLE tenants; END; EXPORT TEST SUITE tests FROM './tenancy.test.transit';"
+      },
+      {
+        "path": "app/tenancy/tenancy.test.transit",
+        "text": "TEST 'suite case' USING MODULES (platform) AS BEGIN ASSERT COMMAND (INSERT INTO tenants VALUES (1)) MATCHED 1 CHANGED 1; ASSERT ROWS (SELECT id FROM tenants) EQUAL ((1)); END;"
+      }
+    ],
+    "parse": true,
+    "compile": "test_suite",
+    "cases": 1
   }
 ]
