@@ -10,6 +10,9 @@ pub const Kind = union(enum) {
     integer,
     text,
     boolean,
+    uuid,
+    timestamptz,
+    binary,
     identifier,
     type,
     schema_binding,
@@ -22,7 +25,7 @@ pub const Kind = union(enum) {
     queue: []const Column,
 };
 pub const Parameter = struct { name: []const u8, kind: Kind };
-pub const ScalarType = enum { bigint, text, boolean };
+pub const ScalarType = enum { bigint, text, boolean, uuid, timestamptz, binary };
 pub const TypeRef = union(enum) { scalar: ScalarType, named: Name };
 pub const Column = struct { name: []const u8, type: TypeRef, nullable: bool = true, primary: bool = false, collation: []const u8 = "none" };
 pub const Constructor = struct { name: []const u8, fields: []const Parameter };
@@ -35,6 +38,9 @@ pub const Expr = struct {
         integer: i64,
         text: []const u8,
         boolean: bool,
+        uuid: []const u8,
+        timestamptz: []const u8,
+        bytes: []const u8,
         identifier: []const u8,
         schema_binding: []const u8,
         type: ScalarType,
@@ -100,6 +106,7 @@ pub const Definition = struct {
     suite_path: ?[]const u8 = null,
     suites: []const SuiteRef = &.{},
     target_options: []const TargetOption = &.{},
+    schema: ?[]const u8 = null,
 };
 pub const Import = struct { alias: []const u8, package: ?[]const u8, path: []const u8, span: Span };
 pub const Dependency = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, span: Span };
@@ -226,31 +233,68 @@ pub fn parseReported(a: std.mem.Allocator, text: []const u8, location: *usize, f
     };
 }
 fn isCreateTemplate(self: *const Self) bool {
-    if (self.index + 2 >= self.tokens.len) return false;
+    if (self.index + 1 >= self.tokens.len) return false;
     const second = self.tokens[self.index + 1];
+    if (second.kind != .word) return false;
+    if (std.ascii.eqlIgnoreCase(self.text[second.start..second.end], "SCHEMA")) return true;
+    if (self.index + 2 >= self.tokens.len) return false;
     const third = self.tokens[self.index + 2];
-    if (second.kind != .word or third.kind != .word) return false;
+    if (third.kind != .word) return false;
     if (!std.ascii.eqlIgnoreCase(self.text[second.start..second.end], "PUBLIC")) return false;
     const kw = self.text[third.start..third.end];
     return std.ascii.eqlIgnoreCase(kw, "TABLE") or std.ascii.eqlIgnoreCase(kw, "STREAM") or
         std.ascii.eqlIgnoreCase(kw, "QUEUE") or std.ascii.eqlIgnoreCase(kw, "DATAFLOW");
 }
-fn parseMigrationClause(self: *Self) !Migration {
+fn parseMigrationClause(self: *Self, allow_shorthand: bool) !Migration {
     try self.require("FROM");
     const basis = if (self.take("EMPTY")) null else try self.string();
-    if (!self.take("FOR")) {
+    var database: []const u8 = undefined;
+    var schema: []const u8 = undefined;
+    if (self.take("FOR")) {
+        try self.require("DATABASE");
+        database = try self.string();
+        if (self.take("SCHEMA")) {
+            schema = try self.string();
+        } else if (allow_shorthand) {
+            schema = try self.a.dupe(u8, "public");
+        } else {
+            try self.require("SCHEMA");
+            unreachable;
+        }
+    } else if (allow_shorthand) {
+        database = try self.a.dupe(u8, "transit");
+        schema = try self.a.dupe(u8, "public");
+    } else {
         self.failExpected("'FOR DATABASE <db> SCHEMA <schema>' in migration target");
         if (self.report) |r| r.addNote(null, null, "migration targets require explicit 'FOR DATABASE <db> SCHEMA <schema> VERSION <ver> NAME <name>' bindings", .{});
         return error.InvalidSourceSyntax;
     }
-    try self.require("DATABASE");
-    const database = try self.string();
-    try self.require("SCHEMA");
-    const schema = try self.string();
     try self.require("VERSION");
-    const version = try self.string();
-    try self.require("NAME");
-    return .{ .basis = basis, .database = database, .schema = schema, .version = version, .name = try self.string() };
+    const version_span = self.currentSpan();
+    const raw_version = try self.string();
+    if (self.take("NAME")) {
+        return .{ .basis = basis, .database = database, .schema = schema, .version = raw_version, .name = try self.string() };
+    }
+    if (!allow_shorthand) {
+        try self.require("NAME");
+        unreachable;
+    }
+    const dash = std.mem.indexOfScalar(u8, raw_version, '-') orelse 0;
+    if (dash == 0 or dash + 1 >= raw_version.len) {
+        self.location.* = version_span.start;
+        if (self.report) |r| {
+            r.setSpan(self.file_index, version_span.start, version_span.end);
+            r.setHeadline("expected 'VERSION <ver> NAME <name>' or combined 'VERSION ''<ver>-<name>'''", .{});
+        }
+        return error.InvalidMigrationVersion;
+    }
+    return .{
+        .basis = basis,
+        .database = database,
+        .schema = schema,
+        .version = try self.a.dupe(u8, raw_version[0..dash]),
+        .name = try self.a.dupe(u8, raw_version[dash + 1 ..]),
+    };
 }
 fn parseExportTarget(self: *Self, start: u32) !Definition {
     const name = try self.identifier();
@@ -272,7 +316,7 @@ fn parseExportTarget(self: *Self, start: u32) !Definition {
     if (self.take("MIGRATIONS")) {
         try self.require("OF");
         const instance_name = try self.identifier();
-        const migration = try self.parseMigrationClause();
+        const migration = try self.parseMigrationClause(true);
         const output_path = if (self.take("INTO")) try self.string() else null;
         try self.require(";");
         return .{ .name = name, .public = true, .kind = .migration_target, .parameters = &.{}, .body = &.{}, .span = self.span(start), .migration = migration, .target_of = instance_name, .output_path = output_path };
@@ -356,13 +400,18 @@ fn parseCreateDefinition(self: *Self, start: u32) !Definition {
         }
         return error.UnsupportedSourceDeclaration;
     };
-    const name = try self.identifier();
+    var def_schema: ?[]const u8 = null;
+    const name = if (kind == .function or kind == .guard or kind == .procedure) blk: {
+        const qn = try self.parseTwoPartName();
+        def_schema = qn.qualifier;
+        break :blk qn.member;
+    } else try self.identifier();
     const parameters = if (kind == .module or kind == .interface or kind == .function or kind == .guard or kind == .procedure) try self.parseParameters(false) else &.{};
     const return_type: ?TypeRef = if (kind == .function or (kind == .procedure and self.is("RETURNS"))) blk: {
         try self.require("RETURNS");
         break :blk try self.typeRef();
     } else null;
-    const migration: ?Migration = if (kind == .migration_target) try self.parseMigrationClause() else null;
+    const migration: ?Migration = if (kind == .migration_target) try self.parseMigrationClause(false) else null;
     var domain: ?Domain = null;
     var constructors: std.ArrayList(Constructor) = .empty;
     var program: ?Template.Syntax = null;
@@ -396,43 +445,55 @@ fn parseCreateDefinition(self: *Self, start: u32) !Definition {
         try self.require(")");
     } else if (kind == .function or kind == .guard or kind == .procedure) {
         try self.require("AS");
-        const begin_span = self.currentSpan();
-        try self.require("BEGIN");
-        if (kind == .procedure) {
-            if (!self.take("ATOMIC")) {
+        if (kind == .guard and self.is("REQUIRE")) {
+            const req_begin = self.index;
+            var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
+            const frame = (try script.next()) orelse {
+                self.failExpected("';'");
+                return error.InvalidSourceSyntax;
+            };
+            while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
+            const req_end: u32 = if (self.index < self.tokens.len) self.tokens[self.index].start else @intCast(self.text.len);
+            program = try Template.parseGuardRequiresReported(self.a, self.text, self.tokens[req_begin..self.index], req_end, self.location, self.report);
+        } else {
+            const begin_span = self.currentSpan();
+            try self.require("BEGIN");
+            if (kind == .procedure) {
+                if (!self.take("ATOMIC")) {
+                    const sp = self.currentSpan();
+                    if (self.report) |r| r.setSpan(self.file_index, sp.start, sp.end);
+                    return error.ProcedureOutsideAtomic;
+                }
+            } else if (self.is("ATOMIC")) {
                 const sp = self.currentSpan();
                 if (self.report) |r| r.setSpan(self.file_index, sp.start, sp.end);
-                return error.ProcedureOutsideAtomic;
+                return if (kind == .function) error.ImpureSourceFunction else error.MutationInsideGuard;
             }
-        } else if (self.is("ATOMIC")) {
-            const sp = self.currentSpan();
-            if (self.report) |r| r.setSpan(self.file_index, sp.start, sp.end);
-            return if (kind == .function) error.ImpureSourceFunction else error.MutationInsideGuard;
+            const body_begin = self.index;
+            var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
+            const frame = (try script.next()) orelse {
+                self.failExpected("'END'");
+                if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
+                return error.InvalidSourceSyntax;
+            };
+            while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
+            if (self.index == body_begin) {
+                self.failExpected("'END'");
+                return error.InvalidSourceSyntax;
+            }
+            const end_token = self.tokens[self.index - 1];
+            if (!std.ascii.eqlIgnoreCase(self.text[end_token.start..end_token.end], "END")) {
+                self.failExpected("'END'");
+                if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
+                return error.InvalidSourceSyntax;
+            }
+            program = try Template.parseHelperReported(self.a, self.text, self.tokens[body_begin .. self.index - 1], end_token.start, switch (kind) {
+                .function => .function,
+                .guard => .guard,
+                .procedure => .procedure,
+                else => unreachable,
+            }, return_type != null, self.location, self.report);
         }
-        const body_begin = self.index;
-        var script: f.SqlScript.Compiler = .{ .scan = .{ .text = self.text, .position = start } };
-        const frame = (try script.next()) orelse {
-            self.failExpected("'END'");
-            if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
-            return error.InvalidSourceSyntax;
-        };
-        while (self.index < self.tokens.len and self.tokens[self.index].end <= frame.end) self.index += 1;
-        if (self.index == body_begin) {
-            self.failExpected("'END'");
-            return error.InvalidSourceSyntax;
-        }
-        const end_token = self.tokens[self.index - 1];
-        if (!std.ascii.eqlIgnoreCase(self.text[end_token.start..end_token.end], "END")) {
-            self.failExpected("'END'");
-            if (self.report) |r| r.addNote(self.file_index, begin_span, "'BEGIN' block opened here", .{});
-            return error.InvalidSourceSyntax;
-        }
-        program = try Template.parseHelperReported(self.a, self.text, self.tokens[body_begin .. self.index - 1], end_token.start, switch (kind) {
-            .function => .function,
-            .guard => .guard,
-            .procedure => .procedure,
-            else => unreachable,
-        }, return_type != null, self.location, self.report);
     }
     const body: []const Statement = if (kind == .interface or kind == .domain or kind == .variant or kind == .function or kind == .guard or kind == .procedure) &.{} else blk: {
         try self.require("AS");
@@ -448,7 +509,7 @@ fn parseCreateDefinition(self: *Self, start: u32) !Definition {
         break :blk result;
     };
     try self.require(";");
-    return .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(self.a), .return_type = return_type, .program = program, .migration = migration };
+    return .{ .name = name, .public = public, .kind = kind, .parameters = parameters, .body = body, .span = self.span(start), .domain = domain, .constructors = try constructors.toOwnedSlice(self.a), .return_type = return_type, .program = program, .migration = migration, .schema = def_schema };
 }
 fn currentSpan(self: *const Self) SourceDiagnostic.Span {
     const end_pos: u32 = @intCast(self.text.len);
@@ -549,11 +610,14 @@ fn scalarType(self: *Self) !ScalarType {
     if (self.take("BIGINT")) return .bigint;
     if (self.take("TEXT")) return .text;
     if (self.take("BOOLEAN")) return .boolean;
-    self.failExpected("scalar type ('BIGINT', 'TEXT' or 'BOOLEAN')");
+    if (self.take("UUID")) return .uuid;
+    if (self.take("TIMESTAMPTZ")) return .timestamptz;
+    if (self.take("BINARY")) return .binary;
+    self.failExpected("scalar type ('BIGINT', 'TEXT', 'BOOLEAN', 'UUID', 'TIMESTAMPTZ' or 'BINARY')");
     return error.UnsupportedSourceType;
 }
 fn typeRef(self: *Self) !TypeRef {
-    if (self.is("BIGINT") or self.is("TEXT") or self.is("BOOLEAN")) return .{ .scalar = try self.scalarType() };
+    if (self.is("BIGINT") or self.is("TEXT") or self.is("BOOLEAN") or self.is("UUID") or self.is("TIMESTAMPTZ") or self.is("BINARY")) return .{ .scalar = try self.scalarType() };
     return .{ .named = try self.parseName() };
 }
 fn tableSignature(self: *Self) ![]const Column {
@@ -645,7 +709,7 @@ fn parseParameters(self: *Self, require_non_empty: bool) anyerror![]const Parame
             }
             return error.DuplicateSourceName;
         };
-        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("SCHEMA_BINDING")) .schema_binding else if (self.take("MODULE")) (if (self.takeKeywordBeforeName("OF")) .{ .module_of = try self.parseName() } else .{ .module = try self.parseName() }) else if (self.takeSignature("ROW")) .{ .row = try self.parseParameters(true) } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else if (self.takeSignature("STREAM")) .{ .stream = try self.tableSignature() } else if (self.takeSignature("QUEUE")) .{ .queue = try self.tableSignature() } else .{ .named = try self.parseName() };
+        const kind: Kind = if (self.take("BIGINT")) .integer else if (self.take("TEXT")) .text else if (self.take("BOOLEAN")) .boolean else if (self.take("UUID")) .uuid else if (self.take("TIMESTAMPTZ")) .timestamptz else if (self.take("BINARY")) .binary else if (self.take("IDENTIFIER")) .identifier else if (self.take("TYPE")) .type else if (self.take("SCHEMA_BINDING")) .schema_binding else if (self.take("MODULE")) (if (self.takeKeywordBeforeName("OF")) .{ .module_of = try self.parseName() } else .{ .module = try self.parseName() }) else if (self.takeSignature("ROW")) .{ .row = try self.parseParameters(true) } else if (self.take("TABLE")) .{ .table = try self.tableSignature() } else if (self.takeSignature("STREAM")) .{ .stream = try self.tableSignature() } else if (self.takeSignature("QUEUE")) .{ .queue = try self.tableSignature() } else .{ .named = try self.parseName() };
         try result.append(self.a, .{ .name = parameter_name, .kind = kind });
         if (self.take(")")) break;
         try self.require(",");
@@ -1063,7 +1127,7 @@ fn expression(self: *Self, minimum: u8) anyerror!*Expr {
             .scalar => |scalar| .{ .type = scalar },
             .named => |name| .{ .named_type = name },
         };
-    } else if (self.take("TRUE")) .{ .boolean = true } else if (self.take("FALSE")) .{ .boolean = false } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .string) .{ .text = try self.string() } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .number) blk: {
+    } else if (self.take("TRUE")) .{ .boolean = true } else if (self.take("FALSE")) .{ .boolean = false } else if (self.index + 1 < self.tokens.len and self.tokens[self.index + 1].kind == .string and self.take("UUID")) .{ .uuid = try self.string() } else if (self.index + 1 < self.tokens.len and self.tokens[self.index + 1].kind == .string and (self.take("TIMESTAMPTZ") or self.take("TIMESTAMP"))) .{ .timestamptz = try self.string() } else if (self.index + 1 < self.tokens.len and self.tokens[self.index + 1].kind == .string and self.take("X")) .{ .bytes = try self.string() } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .string) .{ .text = try self.string() } else if (self.index < self.tokens.len and self.tokens[self.index].kind == .number) blk: {
         const token = self.tokens[self.index];
         self.index += 1;
         break :blk .{ .integer = try std.fmt.parseInt(i64, self.text[token.start..token.end], 10) };

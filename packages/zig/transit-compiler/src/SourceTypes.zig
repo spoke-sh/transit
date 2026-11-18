@@ -15,6 +15,9 @@ pub const Scalar = struct {
             .bigint => "BIGINT",
             .text => "TEXT",
             .boolean => "BOOLEAN",
+            .uuid => "UUID",
+            .timestamptz => "TIMESTAMPTZ",
+            .binary => "BINARY",
         };
     }
     pub fn physical(self: Scalar) f.Types.Type {
@@ -22,6 +25,9 @@ pub const Scalar = struct {
             .bigint => .int64,
             .text => .utf8,
             .boolean => .boolean,
+            .uuid => .uuid,
+            .timestamptz => .{ .timestamp = .utc },
+            .binary => .binary,
         };
     }
     pub fn hash(self: Scalar, graph: Graph, into: *std.crypto.hash.sha2.Sha256) void {
@@ -32,12 +38,14 @@ pub const Scalar = struct {
         } else Graph.hashPart(into, "scalar");
     }
 };
-pub const Primitive = union(enum) { integer: i64, text: []const u8, boolean: bool };
+pub const Primitive = union(enum) { integer: i64, text: []const u8, boolean: bool, uuid: []const u8, timestamptz: []const u8, binary: []const u8 };
+pub const FieldDomain = struct { name: []const u8, domain: ?Graph.Ref = null, fields: []const FieldDomain = &.{} };
 pub const ResourceKind = enum { table, stream, queue };
 pub const Table = struct {
     name: []const u8,
     schema: f.TableSchema.Schema,
     domains: []const ?Graph.Ref,
+    nested_domains: []const []const FieldDomain = &.{},
     owner: usize,
     kind: ResourceKind = .table,
     log: ?f.LogDdl.Configured = null,
@@ -58,6 +66,9 @@ pub const Value = union(enum) {
     integer: i64,
     text: []const u8,
     boolean: bool,
+    uuid: []const u8,
+    timestamptz: []const u8,
+    binary: []const u8,
     identifier: []const u8,
     schema_binding: []const u8,
     type: Scalar,
@@ -76,6 +87,9 @@ pub const Value = union(enum) {
             .integer => .{ .base = .bigint },
             .text => .{ .base = .text },
             .boolean => .{ .base = .boolean },
+            .uuid => .{ .base = .uuid },
+            .timestamptz => .{ .base = .timestamptz },
+            .binary => .{ .base = .binary },
             .nominal => |v| v.type,
             .symbolic => |v| v,
             else => null,
@@ -86,6 +100,9 @@ pub const Value = union(enum) {
             .integer => |v| .{ .integer = v },
             .text => |v| .{ .text = v },
             .boolean => |v| .{ .boolean = v },
+            .uuid => |v| .{ .uuid = v },
+            .timestamptz => |v| .{ .timestamptz = v },
+            .binary => |v| .{ .binary = v },
             .nominal => |v| v.value,
             else => error.SourceTypeMismatch,
         };
@@ -109,6 +126,9 @@ pub fn field(graph: Graph, file: usize, kind: s.Kind) !Scalar {
         .integer => .{ .base = .bigint },
         .text => .{ .base = .text },
         .boolean => .{ .base = .boolean },
+        .uuid => .{ .base = .uuid },
+        .timestamptz => .{ .base = .timestamptz },
+        .binary => .{ .base = .binary },
         .named => |name| try domain(graph, try graph.resolve(file, name)),
         else => error.UnsupportedVariantField,
     };
@@ -169,7 +189,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             into.update(&bytes);
         },
         .boolean => |v| into.update(&.{@intFromBool(v)}),
-        .text, .identifier, .schema_binding => |v| Graph.hashPart(into, v),
+        .text, .uuid, .timestamptz, .binary, .identifier, .schema_binding => |v| Graph.hashPart(into, v),
         .type, .symbolic => |v| v.hash(graph, into),
         .nominal => |v| {
             v.type.hash(graph, into);

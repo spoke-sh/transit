@@ -42,6 +42,9 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
         .boolean => |value| .{ .boolean = value },
         .integer => |value| .{ .integer = value },
         .text => |value| .{ .text = value },
+        .bytes => |value| .{ .binary = value.bytes },
+        .uuid => |value| .{ .uuid = value },
+        .timestamp => |value| .{ .timestamp = value },
         .name => |name| try self.host.lookup(self.host.context, name),
         .field => |field| try (try self.expression(field.base, depth + 1)).field(field.name),
         .call => |call| blk: {

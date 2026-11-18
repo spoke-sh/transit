@@ -246,6 +246,9 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
         .boolean => Value.public(.boolean),
         .integer => Value.public(.integer),
         .text => Value.public(.text),
+        .bytes => Value.public(.binary),
+        .uuid => Value.public(.uuid),
+        .timestamp => Value.public(.timestamp),
         .name => |name| blk: {
             for (self.symbols.items) |symbol| if (std.mem.eql(u8, symbol.name, name)) break :blk symbol.value;
             for (self.columns) |column| if (std.mem.eql(u8, column.name, name)) break :blk column.value;

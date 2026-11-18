@@ -47,7 +47,7 @@ def parse(source):
             return
         rule = parser.ruleNames[node.getRuleIndex()]
         if rule == 'definition' and (node.FUNCTION() or node.GUARD() or node.PROCEDURE()):
-            bounds(node.sourceName(), False, None)
+            bounds(node.helperName(), False, None)
             bounds(node.parameters(), False, None)
             if node.sourceType():
                 bounds(node.sourceType(), False, None)
@@ -61,7 +61,7 @@ def parse(source):
             elif node.GUARD():
                 if node.ATOMIC():
                     raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic guard')
-                bounds(node.programBlock(), False, 'guard')
+                bounds(node.programBlock() if node.BEGIN() else node.guardRequires(), False, 'guard')
             else:
                 if node.ATOMIC():
                     raise Refusal(offsets[node.ATOMIC().symbol.start], 'atomic function')
@@ -169,7 +169,9 @@ def parse(source):
             kind = helper
         else:
             kind = 'rows' if rows else result[0]['text'].lower()
-            if kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
+            if kind == 'create' and result[1]['text'] == 'SCHEMA':
+                kind = 'create_schema'
+            elif kind == 'create' and result[2]['text'] in ('STREAM', 'QUEUE'):
                 kind += '_' + result[2]['text'].lower()
             elif kind == 'create' and result[2]['text'] == 'DATAFLOW':
                 kind = 'program'
@@ -204,6 +206,12 @@ def parse(source):
             value = {'integer': int(ctx.INTEGER().getText())}
         elif ctx.NAME() and ctx.STRING():
             value = {'identifier': string(ctx.STRING())}
+        elif ctx.UUID() and ctx.STRING():
+            value = {'uuid': string(ctx.STRING())}
+        elif (ctx.TIMESTAMPTZ() or ctx.TIMESTAMP()) and ctx.STRING():
+            value = {'timestamptz': string(ctx.STRING())}
+        elif ctx.X() and ctx.STRING():
+            value = {'bytes': string(ctx.STRING())}
         elif ctx.SCHEMA_BINDING() and ctx.STRING():
             value = {'schema_binding': string(ctx.STRING())}
         elif ctx.ROW() and ctx.namedArgument():
@@ -353,6 +361,23 @@ def parse(source):
         basis = None if mc.EMPTY() else strings.pop(0)
         return dict(zip(('basis', 'database', 'schema', 'version', 'name'), [basis, *strings]))
 
+    def export_migration_clause(emc):
+        if emc is None:
+            return None
+        strings = [string(token) for token in emc.STRING()]
+        basis = None if emc.EMPTY() else strings.pop(0)
+        database = strings.pop(0) if emc.FOR() else 'transit'
+        schema = strings.pop(0) if emc.SCHEMA() else 'public'
+        raw_ver = strings.pop(0)
+        if emc.NAME():
+            version, mig_name = raw_ver, strings.pop(0)
+        else:
+            dash = raw_ver.find('-')
+            if dash <= 0 or dash + 1 >= len(raw_ver):
+                raise Refusal(offsets[emc.STRING()[-1].symbol.start], 'migration version-name')
+            version, mig_name = raw_ver[:dash], raw_ver[dash + 1:]
+        return {'basis': basis, 'database': database, 'schema': schema, 'version': version, 'name': mig_name}
+
     definitions = []
     for definition in root.definition():
         domain = None
@@ -366,6 +391,7 @@ def parse(source):
         suite_path = None
         suites = []
         target_options = []
+        def_schema = None
         if definition.EXPORT():
             def_name = definition.sourceName().getText().lower()
             if definition.MODULE():
@@ -392,7 +418,7 @@ def parse(source):
                 elif etb.MIGRATIONS():
                     def_kind = 'migration_target'
                     target_of = etb.sourceName(0).getText().lower()
-                    mig = migration_clause(etb.migrationClause())
+                    mig = export_migration_clause(etb.exportMigrationClause())
                     output_path = string(etb.STRING()) if etb.INTO() else None
                 else:
                     def_kind = 'test_target'
@@ -400,7 +426,12 @@ def parse(source):
                     suites = [{'path': string(sr.STRING())} if sr.STRING() else {'symbol': name(sr.helperName())} for sr in etb.suiteRef()]
                     target_options = [{'name': to.sourceName().getText().lower(), 'value': expr(to.expression())} for to in etb.targetOption()]
         else:
-            def_name = definition.sourceName().getText().lower()
+            if definition.FUNCTION() or definition.GUARD() or definition.PROCEDURE():
+                qn = name(definition.helperName())
+                def_schema = qn['qualifier']
+                def_name = qn['member']
+            else:
+                def_name = definition.sourceName().getText().lower()
             if definition.DOMAIN():
                 domain = {'base': definition.sourceBaseType().getText().lower(), 'identity': string(definition.STRING())}
                 if not 1 <= len(domain['identity'].encode()) <= 128:
@@ -414,7 +445,7 @@ def parse(source):
                 raw_ret = definition.sourceType()
                 return_type = {'scalar': raw_ret.getText().lower()} if raw_ret.sourceBaseType() else {'named': name(raw_ret)}
             program = (template(definition.functionBody(), helper='function_body') if definition.FUNCTION() else
-                       template(definition.programBlock(), helper='guard_body') if definition.GUARD() else
+                       (template(definition.programBlock(), helper='guard_body') if definition.BEGIN() else template(definition.guardRequires(), helper='guard_requires')) if definition.GUARD() else
                        template(definition.procedureBody(), helper='procedure_body') if definition.PROCEDURE() else None)
             mig = migration_clause(definition.migrationClause()) if definition.MIGRATION() else None
             def_kind = ('domain' if domain else 'variant' if constructors else
@@ -429,7 +460,8 @@ def parse(source):
                             'span': span(definition), 'domain': domain, 'constructors': constructors,
                             'return_type': return_type, 'program': program, 'migration': mig,
                             'target_of': target_of, 'target_ref': target_ref, 'output_path': output_path,
-                            'suite_path': suite_path, 'suites': suites, 'target_options': target_options})
+                            'suite_path': suite_path, 'suites': suites, 'target_options': target_options,
+                            'schema': def_schema})
 
     def import_node(item):
         if item.sourceNameWithoutModule():

@@ -45,6 +45,14 @@ fn raw(self: Self) []const u8 {
 fn word(self: Self, expected: []const u8) bool {
     return if (self.token) |token| token.kind == .word and std.ascii.eqlIgnoreCase(self.raw(), expected) else false;
 }
+fn nextIsString(self: Self) bool {
+    var lookahead = self.scan;
+    while (lookahead.next() catch return false) |tok| {
+        if (tok.kind == .space or tok.kind == .comment) continue;
+        return tok.kind == .string;
+    }
+    return false;
+}
 fn takeWord(self: *Self, expected: []const u8) !bool {
     if (!self.word(expected)) return false;
     try self.advance();
@@ -178,6 +186,23 @@ fn primary(self: *Self) anyerror!*a.Expression {
         result = try self.node(start, .{ .text_cast = value });
     } else if (try self.takeWord("ROW")) {
         result = try self.node(start, .{ .row = try self.arguments() });
+    } else if (self.nextIsString() and (self.word("UUID") or self.word("TIMESTAMP") or self.word("TIMESTAMPTZ") or self.word("X"))) {
+        const is_uuid = self.word("UUID");
+        const is_hex = self.word("X");
+        try self.advance();
+        const literal = try self.quoted(.string);
+        if (is_uuid) {
+            const atom = try @import("Types.zig").Semantics.bind(literal, .uuid);
+            result = try self.node(start, .{ .uuid = atom.uuid });
+        } else if (is_hex) {
+            if (literal.len % 2 != 0) return error.InvalidBinaryLiteral;
+            const bytes = try self.allocator.alloc(u8, literal.len / 2);
+            _ = std.fmt.hexToBytes(bytes, literal) catch return error.InvalidBinaryLiteral;
+            result = try self.node(start, .{ .bytes = .{ .bytes = bytes } });
+        } else {
+            const atom = try @import("Types.zig").Semantics.bind(literal, .{ .timestamp = .utc });
+            result = try self.node(start, .{ .timestamp = atom.timestamp });
+        }
     } else {
         const token = self.token orelse return error.InvalidSqlSyntax;
         switch (token.kind) {

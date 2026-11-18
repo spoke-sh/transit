@@ -8,24 +8,27 @@ sourceImport: IMPORT (MODULE FROM | MODULE sourceName FROM | sourceNameWithoutMo
 dependency: DEPENDENCY sourceName FROM STRING REVISION STRING (SUBDIRECTORY STRING)? SEMI;
 defaultTarget: EXPORT DEFAULT TARGET sourceName SEMI;
 migrationClause: FROM (EMPTY | STRING) FOR DATABASE STRING SCHEMA STRING VERSION STRING NAME STRING;
+exportMigrationClause: FROM (EMPTY | STRING) (FOR DATABASE STRING (SCHEMA STRING)?)? VERSION STRING (NAME STRING)?;
 definition
     : CREATE PUBLIC? (MODULE sourceName parameters AS BEGIN body END
         | DOMAIN sourceName AS sourceBaseType IDENTITY STRING
         | VARIANT sourceName AS LPAREN variantConstructor (COMMA variantConstructor)* RPAREN
         | INTERFACE sourceName parameters
-        | FUNCTION sourceName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
-        | GUARD sourceName parameters AS BEGIN ATOMIC? programBlock END
-        | PROCEDURE sourceName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
+        | FUNCTION helperName parameters RETURNS sourceType AS BEGIN ATOMIC? functionBody END
+        | GUARD helperName parameters AS (BEGIN ATOMIC? programBlock END | guardRequires)
+        | PROCEDURE helperName parameters (RETURNS sourceType)? AS BEGIN ATOMIC? procedureBody END
         | MIGRATION TARGET sourceName migrationClause AS BEGIN body END
         | TEST? TARGET sourceName AS BEGIN body END) SEMI
     | EXPORT (MODULE sourceName parameters AS BEGIN body END
         | TEST SUITE sourceName FROM STRING
         | TARGET sourceName exportTargetBody) SEMI
     ;
+guardRequires: guardRequireItem (COMMA guardRequireItem)*;
+guardRequireItem: REQUIRE programExpression ELSE STRING;
 exportTargetBody
     : EQ sourceName DOT sourceName
     | AS SQL OF sourceName (INTO STRING)?
-    | AS MIGRATIONS OF sourceName migrationClause (INTO STRING)?
+    | AS MIGRATIONS OF sourceName exportMigrationClause (INTO STRING)?
     | AS TESTS OF sourceName USING SUITES LPAREN suiteRef (COMMA suiteRef)* RPAREN
       (WITH LPAREN targetOption (COMMA targetOption)* RPAREN)?
     ;
@@ -36,14 +39,16 @@ functionBody: RETURN programExpression SEMI | programInstruction+;
 parameters: LPAREN (parameter (COMMA parameter)*)? RPAREN;
 rowParameters: LPAREN parameter (COMMA parameter)* RPAREN;
 parameter: sourceName parameterKind;
-parameterKind: BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TYPE | SCHEMA_BINDING
+parameterKind: BIGINT | TEXT | BOOLEAN | UUID | TIMESTAMPTZ | BINARY | IDENTIFIER_KIND | TYPE | SCHEMA_BINDING
     | MODULE OF? sourceQualifiedName
     | ROW rowParameters
     | (TABLE | STREAM | QUEUE) LPAREN signatureColumn (COMMA signatureColumn)* RPAREN | sourceParameterName;
-sourceBaseType: BIGINT | TEXT | BOOLEAN;
-sourceParameterName: parameterHead (DOT sourceName (DOT sourceName)?)?;
+sourceBaseType: BIGINT | TEXT | BOOLEAN | UUID | TIMESTAMPTZ | BINARY;
+sourceParameterName: parameterHead (DOT sourceName (DOT sourceName)?)?
+    | sourceBaseType DOT sourceName (DOT sourceName)?;
 parameterHead: referenceTypeHead | TRUE | FALSE | NOT;
-sourceTypeName: typeHead (DOT sourceName (DOT sourceName)?)?;
+sourceTypeName: typeHead (DOT sourceName (DOT sourceName)?)?
+    | sourceBaseType DOT sourceName (DOT sourceName)?;
 typeHead: referenceTypeHead | MODULE | TABLE | IDENTIFIER_KIND | SCHEMA_BINDING | TYPE | TRUE | FALSE | NOT;
 sourceType: sourceBaseType | sourceTypeName;
 signatureColumn: sourceName sourceType nullability? (PRIMARY KEY)? (COLLATE sourceName)?;
@@ -86,6 +91,9 @@ sourceAdd: sourceMultiply ((PLUS | MINUS) sourceMultiply)*;
 sourceMultiply: sourceUnary (STAR sourceUnary)*;
 sourceUnary: MINUS sourceUnary | NOT sourceUnary | sourceAtom;
 sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
+    | UUID STRING
+    | (TIMESTAMPTZ | TIMESTAMP) STRING
+    | X STRING
     | SCHEMA_BINDING LPAREN STRING RPAREN
     | SCHEMA_BINDING (DOT sourceName (DOT sourceName)? (LPAREN callArguments? RPAREN)?)?
     | ROW LPAREN namedArgument (COMMA namedArgument)* RPAREN
@@ -95,21 +103,23 @@ sourceAtom: INTEGER | STRING | TRUE | FALSE | NAME STRING
 
 // Delivered public resource profile, with syntax before schema binding.
 tableTemplate: simpleTemplate | sourceProgram;
-simpleTemplate: CREATE PUBLIC (TABLE | STREAM | QUEUE) identifier LPAREN tableElement (COMMA tableElement)* RPAREN
+simpleTemplate: CREATE SCHEMA identifier
+    | CREATE PUBLIC (TABLE | STREAM | QUEUE) qualifiedName LPAREN tableElement (COMMA tableElement)* RPAREN
     | PRODUCE INTO streamOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
     | ENQUEUE INTO queueOperand (LPAREN identifier (COMMA identifier)* RPAREN)? VALUES mutationRow (COMMA mutationRow)*
     | sourceProgramControl
     | CONSUME (STAR | columnReference outputAlias? (COMMA columnReference outputAlias?)*) FROM streamOperand (AS identifier)? whereClause? limitClause?
     | mutationStatement | sourceSelect;
-streamOperand: streamHole | plainIdentifier;
-queueOperand: queueHole | plainIdentifier;
+streamOperand: streamHole | plainIdentifier (DOT identifier)?;
+queueOperand: queueHole | plainIdentifier (DOT identifier)?;
 streamHole: DOLLAR sourceName;
 queueHole: DOLLAR sourceName;
-tableOperand: tableHole | programName;
+tableOperand: tableHole | programQualifiedName;
 tableHole: DOLLAR sourceName;
-programResourceName: identifierHole | programName;
-programQueue: queueHole | programName;
-programStream: streamHole | programName;
+programResourceName: identifierHole | programQualifiedName;
+programQueue: queueHole | programQualifiedName;
+programStream: streamHole | programQualifiedName;
+programQualifiedName: programName (DOT programName)?;
 sourceProgram: CREATE PUBLIC DATAFLOW programResourceName FROM QUEUE programQueue AS programName
     (WHERE programExpression)? AS BEGIN programBlock (ON FAILURE programName programBlock)? END;
 sourceProgramControl: AUTHORIZE DATAFLOW programResourceName AS ROLE CURRENT_ROLE
@@ -138,14 +148,15 @@ programAdd: programUnary ((PLUS | MINUS) programUnary)*;
 // recursion. Ordered-expression precedence is checked by the ordinary binder.
 programUnary: NOT programUnary | MINUS programUnary | programPrimary;
 programPrimary: (LPAREN programExpression RPAREN | valueHole | NULL_ | TRUE | FALSE | INTEGER | STRING
+    | (UUID | TIMESTAMP | TIMESTAMPTZ | X) STRING
     | CASE WHEN programExpression THEN programExpression ELSE programExpression END
     | CAST LPAREN programExpression AS TEXT RPAREN
     | ROW programArguments | programAtomName (DOT programName programArguments | programArguments)?) (DOT programName)*;
 programName: sourceName | QUOTED_IDENTIFIER;
 programAtomName: typeWordOrdinary | STREAM | QUEUE | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
-    | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE | QUOTED_IDENTIFIER;
-sourceSelect: SELECT selection FROM identifier sourceTableAlias? whereClause? limitClause?
-    | SELECT aggregateSelection FROM LPAREN SELECT projection FROM identifier sourceTableAlias?
+    | DOUBLE | CHARACTER | BIGINT | TEXT | BOOLEAN | UUID | TIMESTAMPTZ | BINARY | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE | QUOTED_IDENTIFIER;
+sourceSelect: SELECT selection FROM qualifiedName sourceTableAlias? whereClause? limitClause?
+    | SELECT aggregateSelection FROM LPAREN SELECT projection FROM qualifiedName sourceTableAlias?
       whereClause? limitClause? RPAREN AS identifier;
 sourceTableAlias: AS identifier | sourceImplicitAlias;
 sourceImplicitAlias: identifierHole | legacyIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
@@ -175,14 +186,17 @@ aggregateSelection: (COUNT LPAREN (STAR | sourceScalar) RPAREN | SUM LPAREN sour
 columnConstraint
     : nullability | DEFAULT literal | PRIMARY KEY | COLLATE collation
     | ROUNDING identifier | METRIC identifier
-    | TIMEZONE sourceString TZDB sourceString TZIF X sourceString;
-// Foreign keys require catalog resolution outside this source profile.
-tableConstraint: (CONSTRAINT identifier)? checkConstraint;
+    | TIMEZONE sourceString TZDB sourceString TZIF X sourceString
+    | (CONSTRAINT identifier)? (checkConstraint | columnReferencesConstraint)
+    ;
+tableConstraint: (CONSTRAINT identifier)? (checkConstraint | foreignKeyConstraint);
 
-identifier: identifierHole | plainIdentifier;
-plainIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
+columnIdentifier: identifierHole | plainColumnIdentifier;
+plainColumnIdentifier: settingIdentifier | STREAMS | QUEUES | SNAPSHOT | CURRENT | PROJECTING
     | DATAFLOW | REVISION | AUTHORIZE | ACTIVATE | SUSPEND | RESUME | REFRESH | RETIRE | sourceKeyword;
-sourceKeyword: MIGRATION | MIGRATIONS | EMPTY | VERSION | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | TESTS | SUITE | SUITES | SQL | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | DECLARE | BIND | VIEW | PROFILE | REFERENCE | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
+plainIdentifier: plainColumnIdentifier | CONSTRAINT | CHECK | FOREIGN | REFERENCES;
+identifier: identifierHole | plainIdentifier;
+sourceKeyword: MIGRATION | MIGRATIONS | EMPTY | VERSION | DOMAIN | VARIANT | IDENTITY | EXPORT | MATCH | WHEN | USING | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE | MODULE | INTERFACE | FUNCTION | GUARD | PROCEDURE | RETURNS | RETURN | CALL | TARGET | TEST | TESTS | SUITE | SUITES | SQL | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME | BIGINT | TEXT | BOOLEAN | TIMESTAMPTZ | IDENTIFIER_KIND | SCHEMA_BINDING | DECLARE | BIND | VIEW | PROFILE | REFERENCE | LET | REQUIRE | ATOMIC | DO | SAME | FAILURE | CASE | CAST | WORKFLOW | COMPLETED | REFUSED | WITHIN | OBSERVATIONS;
 // Keep the inherited logical type/literal productions; holes extend their sites.
 dataType: typeHole | sourceDataType;
 sourceDataType
@@ -214,11 +228,11 @@ sourceNameWithoutModule: referenceHeadWithoutModule | TYPE | TRUE | FALSE | NOT;
 referenceHead: referenceHeadWithoutModule | MODULE;
 referenceHeadWithoutModule: plainReferenceHeadWithoutModule | ROW | SCHEMA_BINDING;
 plainReferenceHead: plainReferenceHeadWithoutModule | MODULE;
-plainReferenceHeadWithoutModule: plainReferenceTypeHead | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | TABLE;
+plainReferenceHeadWithoutModule: plainReferenceTypeHead | BIGINT | TEXT | BOOLEAN | UUID | TIMESTAMPTZ | BINARY | IDENTIFIER_KIND | TABLE;
 referenceTypeHead: plainReferenceTypeHead | ROW;
 plainReferenceTypeHead: typeWord | STRUCT | UNION | LIST | ARRAY | MAP | RANGE | MULTIRANGE | VECTOR
     | DOUBLE | CHARACTER;
-sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE;
+sourceWord: typeWord | BIGINT | TEXT | BOOLEAN | UUID | TIMESTAMPTZ | BINARY | IDENTIFIER_KIND | SCHEMA_BINDING | MODULE | TABLE;
 typeWord: typeWordWithoutLogs | STREAM | QUEUE;
 typeWordWithoutLogs: typeWordOrdinary | NULL_ | CASE | CAST;
 typeWordOrdinary: IDENTIFIER | MIGRATION | MIGRATIONS | EMPTY | VERSION | FOR | AT | DECIMAL_ADD | DECIMAL_SUBTRACT | DECIMAL_MULTIPLY | DECIMAL_DIVIDE
@@ -239,11 +253,11 @@ typeWordOrdinary: IDENTIFIER | MIGRATION | MIGRATIONS | EMPTY | VERSION | FOR | 
     | ALTER | DROP | ADD | COLUMN | RENAME | RESTRICT | DEFAULT | PRIMARY | COLLATE | ROUNDING
     | METRIC | TIMEZONE | TZDB | TZIF | UTF8_BINARY | ASCII_CI | EBCDIC_CP037 | EBCDIC_037_PAD
     | EBCDIC_1047_NOPAD | KEY | PUT | GET | KEYS | ABSENT | PRESENT | IF | EXISTS | DATA | OPTIONAL
-    | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | UUID | JSON | INTERVAL | PRECISION | VARYING
+    | WITHOUT | ZONE | X | DATE | TIME | TIMESTAMP | JSON | INTERVAL | PRECISION | VARYING
     | INSERT | UPDATE | DELETE | SET | VALUES | CREATE | CONNECTION | CONNECTIONS | SOURCE | SOURCES
     | SINK | SINKS | TABLES | DOCUMENT | KV | TO | FROM | INTO | WITH | GRANT | REVOKE | ON
     | SHOW | STORAGE | DESCRIBE | SECRET | AS | OF | FOR | SNAPSHOT | PROJECTING | CURRENT
-    | INT64 | BOOL | UTF8 | BINARY | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
+    | INT64 | BOOL | UTF8 | IMPORT | DEPENDENCY | SUBDIRECTORY | PACKAGE | FILE
     | INTERFACE | TARGET | TEST | TESTS | SUITE | SUITES | SQL | USE | MODULES | ASSERT | ROWS | COMMAND | STATEMENT | EQUAL
     | MATCHED | CHANGED | FAILS | END | THEN | ELSE | NAME
     | DECLARE | BIND | VIEW | PROFILE | REFERENCE
@@ -275,6 +289,7 @@ NAME: 'NAME';
 BIGINT: 'BIGINT';
 TEXT: 'TEXT';
 BOOLEAN: 'BOOLEAN';
+TIMESTAMPTZ: 'TIMESTAMPTZ';
 IDENTIFIER_KIND: 'IDENTIFIER';
 USING: 'USING';
 DOLLAR: '$';

@@ -643,7 +643,7 @@ fn argumentDepth(self: *Self, file: usize, kind: s.Kind, value: Value, depth: us
             if (std.meta.activeTag(value) != @field(std.meta.Tag(Value), @tagName(tag))) return error.SourceTypeMismatch;
             try types.signature(self.graph, file, columns, @field(value, @tagName(tag)), &self.context);
         },
-        .integer, .text, .boolean => {
+        .integer, .text, .boolean, .uuid, .timestamptz, .binary => {
             if (!types.Scalar.eql(try types.field(self.graph, file, kind), value.scalar() orelse return error.SourceTypeMismatch)) return error.SourceTypeMismatch;
         },
         .module => |name| {
@@ -1274,6 +1274,43 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
         .integer => |value| .{ .integer = value },
         .text => |value| .{ .text = value },
         .boolean => |value| .{ .boolean = value },
+        .uuid => |value| blk: {
+            _ = f.Types.Semantics.bind(value, .uuid) catch {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid UUID literal '{s}'", .{value});
+                }
+                return error.InvalidSourceOperand;
+            };
+            break :blk .{ .uuid = value };
+        },
+        .timestamptz => |value| blk: {
+            _ = f.Types.Semantics.bind(value, .{ .timestamp = .utc }) catch {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid TIMESTAMPTZ literal '{s}'", .{value});
+                }
+                return error.InvalidSourceOperand;
+            };
+            break :blk .{ .timestamptz = value };
+        },
+        .bytes => |value| blk: {
+            if (value.len % 2 != 0) {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid hexadecimal BINARY literal (odd nibble count)", .{});
+                }
+                return error.InvalidSourceOperand;
+            }
+            for (value) |ch| if (!std.ascii.isHex(ch)) {
+                if (self.report) |r| {
+                    r.setSpan(file, expr.span.start, expr.span.end);
+                    r.setHeadline("invalid hexadecimal BINARY literal", .{});
+                }
+                return error.InvalidSourceOperand;
+            };
+            break :blk .{ .binary = try std.ascii.allocLowerString(self.a, value) };
+        },
         .type => |value| .{ .type = .{ .base = value } },
         .named_type => |name| .{ .type = try types.resolve(self.graph, file, .{ .named = name }) },
         .construct => |call| try self.construct(file, call, bindings, depth),
@@ -1333,6 +1370,9 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
                     .integer => |v| v == r.integer,
                     .boolean => |v| v == r.boolean,
                     .text => |v| std.mem.eql(u8, v, r.text),
+                    .uuid => |v| std.mem.eql(u8, &(f.Types.Semantics.bind(v, .uuid) catch unreachable).uuid, &(f.Types.Semantics.bind(r.uuid, .uuid) catch unreachable).uuid),
+                    .timestamptz => |v| (f.Types.Semantics.bind(v, .{ .timestamp = .utc }) catch unreachable).timestamp == (f.Types.Semantics.bind(r.timestamptz, .{ .timestamp = .utc }) catch unreachable).timestamp,
+                    .binary => |v| std.ascii.eqlIgnoreCase(v, r.binary),
                 };
                 break :blk .{ .boolean = if (value.op == .equal) equal else !equal };
             }
@@ -1362,6 +1402,9 @@ fn expression(self: *Self, file: usize, expr: *const s.Expr, bindings: []const B
                 .integer => std.math.order(left.integer, right.integer),
                 .text => std.mem.order(u8, left.text, right.text),
                 .boolean => std.math.order(@intFromBool(left.boolean), @intFromBool(right.boolean)),
+                .uuid => std.mem.order(u8, &(f.Types.Semantics.bind(left.uuid, .uuid) catch unreachable).uuid, &(f.Types.Semantics.bind(right.uuid, .uuid) catch unreachable).uuid),
+                .timestamptz => std.math.order((f.Types.Semantics.bind(left.timestamptz, .{ .timestamp = .utc }) catch unreachable).timestamp, (f.Types.Semantics.bind(right.timestamptz, .{ .timestamp = .utc }) catch unreachable).timestamp),
+                .binary => std.mem.order(u8, left.binary, right.binary),
                 else => return error.SourceTypeMismatch,
             };
             break :blk .{ .boolean = switch (value.op) {
@@ -1403,7 +1446,7 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
     if (!self.scratch.reset(.retain_capacity)) return error.OutOfMemory;
     const scratch = self.scratch.allocator();
     const log_statement = switch (template.kind) {
-        .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
+        .create_schema, .create_stream, .create_queue, .produce, .enqueue, .consume, .program, .control => true,
         else => false,
     };
     var type_sites: std.ArrayList(usize) = .empty;
@@ -1428,7 +1471,7 @@ fn emitStatement(self: *Self, file: usize, span: s.Span, template: s.Template.Sy
         var result = resource_checked.?;
         result.program = try @import("ProgramAnnotations.zig").check(scratch, self.a, self.graph, &self.catalog, analysis.parsed.program, &analysis.bound, raw, sites.items, origins.items, obligations.items, &self.context, &self.work, self.limits.work);
         break :blk result;
-    } else if (template.kind == .control) resource_checked.? else try Operands.check(scratch, self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
+    } else if (template.kind == .control or template.kind == .create_schema) resource_checked.? else try Operands.check(scratch, self.a, self.graph, &self.catalog, raw, sites.items, self.symbolic, &self.context);
     self.context = .{};
     if (log_statement and self.symbolic and !is_create) _ = try self.catalog.check(raw, at);
     if (!log_statement) try Catalog.verifyTypeOperands(scratch, raw, type_sites.items, at);
@@ -1582,11 +1625,12 @@ fn expand(text: []const u8, tokens: []const s.Token, bindings: []const Binding, 
     var writer: BoundedBuffer = .{ .allocator = buffer_allocator, .limit = limit };
     var i: usize = 0;
     var parameter: usize = 0;
-    if (tokenIs(text, tokens[0], "CREATE")) {
+    const create_schema = tokens.len >= 2 and tokenIs(text, tokens[0], "CREATE") and tokenIs(text, tokens[1], "SCHEMA");
+    if (tokenIs(text, tokens[0], "CREATE") and !create_schema) {
         if (tokens.len < 4 or !tokenIs(text, tokens[1], "PUBLIC")) return error.RuntimePrivateOrUnsupportedDeclaration;
     }
     while (i < tokens.len) : (i += 1) {
-        if (i == 1 and tokenIs(text, tokens[0], "CREATE")) continue;
+        if (i == 1 and tokenIs(text, tokens[0], "CREATE") and !create_schema) continue;
         const token = tokens[i];
         const raw = text[token.start..token.end];
         const joined = s.Template.joinsLexeme(text, tokens, i);
@@ -1643,11 +1687,26 @@ pub fn writeValue(writer: *BoundedBuffer, value: Value) !void {
         .integer => |number| try writer.print("{d}", .{number}),
         .boolean => |boolean| try writer.writeAll(if (boolean) "TRUE" else "FALSE"),
         .text => |text| try quoted(writer, text, '\''),
+        .uuid => |v| {
+            try writer.writeAll("UUID ");
+            try quoted(writer, v, '\'');
+        },
+        .timestamptz => |v| {
+            try writer.writeAll("TIMESTAMP ");
+            try quoted(writer, v, '\'');
+        },
+        .binary => |v| {
+            try writer.writeAll("X");
+            try quoted(writer, v, '\'');
+        },
         .identifier => |name| try quoted(writer, name, '"'),
         .type => |kind| try writer.writeAll(switch (kind.base) {
             .bigint => "BIGINT",
             .text => "TEXT",
             .boolean => "BOOLEAN",
+            .uuid => "UUID",
+            .timestamptz => "TIMESTAMPTZ",
+            .binary => "BINARY",
         }),
         .nominal => |v| switch (v.value) {
             inline else => |payload, tag| try writeValue(writer, @unionInit(Value, @tagName(tag), payload)),

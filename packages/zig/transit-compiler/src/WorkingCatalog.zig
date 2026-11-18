@@ -17,6 +17,16 @@ pub fn check(self: *Self, sql: []const u8, location: *f.Sql.Location) ![32]u8 {
     if (parser.word("CREATE")) {
         var header = parser;
         try header.requireWord("CREATE");
+        if (header.word("SCHEMA")) {
+            var auth = try f.AuthorizationSql.compile(self.scratch, sql, location);
+            defer auth.deinit();
+            if (auth.statement != .create_schema or auth.statement.create_schema.owner != .current_role)
+                return error.UnsupportedBuildStatement;
+            var hash = std.crypto.hash.sha2.Sha256.init(.{});
+            hash.update("transit.source.schema.v1\x00");
+            hash.update(auth.statement.create_schema.name);
+            return hash.finalResult();
+        }
         if (header.word("DATAFLOW")) {
             const checked = try @import("ProgramCheck.zig").check(self, sql, location);
             try self.unused(checked.name);

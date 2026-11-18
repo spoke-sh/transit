@@ -122,7 +122,7 @@ fn definition(self: Self, def: s.Definition) !void {
     }
     try writer.writeAll("CREATE ");
     if (def.public) try writer.writeAll("PUBLIC ");
-    try writer.print("{s} {s}", .{ switch (def.kind) {
+    try writer.print("{s} ", .{switch (def.kind) {
         .module => "MODULE",
         .interface => "INTERFACE",
         .target => "TARGET",
@@ -134,7 +134,8 @@ fn definition(self: Self, def: s.Definition) !void {
         .guard => "GUARD",
         .procedure => "PROCEDURE",
         .target_alias, .test_suite => unreachable,
-    }, def.name });
+    }});
+    if (def.schema) |s_name| try writer.print("{s}.{s}", .{ s_name, def.name }) else try writer.writeAll(def.name);
     if (def.kind == .module or def.kind == .interface or def.kind == .function or def.kind == .guard or def.kind == .procedure) {
         try writer.writeByte('(');
         for (def.parameters, 0..) |param, n| {
@@ -169,13 +170,18 @@ fn definition(self: Self, def: s.Definition) !void {
         }
         try writer.writeByte(')');
     } else if (def.program) |prog| {
-        try writer.writeAll(if (def.kind == .procedure) " AS BEGIN ATOMIC\n" else " AS BEGIN\n");
-        if (prog.tokens.len != 0) {
-            try self.indent(1);
+        if (prog.kind == .guard_requires) {
+            try writer.writeAll(" AS ");
             try self.template(prog);
-            try writer.writeByte('\n');
+        } else {
+            try writer.writeAll(if (def.kind == .procedure) " AS BEGIN ATOMIC\n" else " AS BEGIN\n");
+            if (prog.tokens.len != 0) {
+                try self.indent(1);
+                try self.template(prog);
+                try writer.writeByte('\n');
+            }
+            try writer.writeAll("END");
         }
-        try writer.writeAll("END");
     } else if (def.kind != .interface) {
         try writer.writeAll(" AS BEGIN\n");
         try self.body(def.body, 1);
@@ -210,6 +216,18 @@ fn expr(self: Self, value: *s.Expr, depth: usize, parent: u8, right: bool) anyer
         .integer => |v| try self.w.print("{d}", .{v}),
         .text => |v| try self.string(v),
         .boolean => |v| try self.w.writeAll(if (v) "TRUE" else "FALSE"),
+        .uuid => |v| {
+            try self.w.writeAll("UUID ");
+            try self.string(v);
+        },
+        .timestamptz => |v| {
+            try self.w.writeAll("TIMESTAMP ");
+            try self.string(v);
+        },
+        .bytes => |v| {
+            try self.w.writeAll("X ");
+            try self.string(v);
+        },
         .identifier => |v| {
             try self.w.writeAll("NAME ");
             try self.string(v);
@@ -219,11 +237,7 @@ fn expr(self: Self, value: *s.Expr, depth: usize, parent: u8, right: bool) anyer
             try self.string(v);
             try self.w.writeByte(')');
         },
-        .type => |v| try self.w.print("TYPE {s}", .{switch (v) {
-            .bigint => "BIGINT",
-            .text => "TEXT",
-            .boolean => "BOOLEAN",
-        }}),
+        .type => |v| try self.w.print("TYPE {s}", .{scalarName(v)}),
         .reference => |v| try self.name(v),
         .named_type => |v| {
             try self.w.writeAll("TYPE ");
@@ -453,6 +467,9 @@ fn scalarName(value: s.ScalarType) []const u8 {
         .bigint => "BIGINT",
         .text => "TEXT",
         .boolean => "BOOLEAN",
+        .uuid => "UUID",
+        .timestamptz => "TIMESTAMPTZ",
+        .binary => "BINARY",
     };
 }
 fn kind(self: Self, value: s.Kind) anyerror!void {
@@ -460,6 +477,9 @@ fn kind(self: Self, value: s.Kind) anyerror!void {
         .integer => try self.w.writeAll("BIGINT"),
         .text => try self.w.writeAll("TEXT"),
         .boolean => try self.w.writeAll("BOOLEAN"),
+        .uuid => try self.w.writeAll("UUID"),
+        .timestamptz => try self.w.writeAll("TIMESTAMPTZ"),
+        .binary => try self.w.writeAll("BINARY"),
         .identifier => try self.w.writeAll("IDENTIFIER"),
         .type => try self.w.writeAll("TYPE"),
         .schema_binding => try self.w.writeAll("SCHEMA_BINDING"),

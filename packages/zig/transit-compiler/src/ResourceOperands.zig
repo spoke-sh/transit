@@ -18,6 +18,7 @@ pub fn check(template: s.Syntax, bindings: []const types.Binding) !Operands.Chec
             .queue => if (value != .queue and value != .identifier) return error.SourceTypeMismatch,
             .table => if (value != .table and value != .identifier) return error.SourceTypeMismatch,
             .value, .operand => if (value != .integer and value != .text and value != .boolean and
+                value != .uuid and value != .timestamptz and value != .binary and
                 !(value == .nominal and template.kind != .control) and
                 !(template.kind == .program and (value == .table or value == .stream or value == .queue or value == .identifier))) return error.UnsupportedLogOperand,
         }

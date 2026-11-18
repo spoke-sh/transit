@@ -93,8 +93,12 @@ const Validator = struct {
     fn expression(self: *Validator, value: *const a.Expression, depth: usize) anyerror!void {
         try self.node(value.id, value.span, depth);
         switch (value.value) {
-            .null, .boolean, .integer => {},
+            .null, .boolean, .integer, .uuid, .timestamp => {},
             .text => |literal| try self.text(literal, false),
+            .bytes => |literal| {
+                self.text_bytes = try std.math.add(usize, self.text_bytes, literal.bytes.len);
+                if (self.text_bytes > a.max_source_bytes) return error.ProgramTooComplex;
+            },
             .name => |name| try self.text(name, true),
             .field => |field| {
                 try self.expression(field.base, depth + 1);

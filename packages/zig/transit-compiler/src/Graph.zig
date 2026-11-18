@@ -32,22 +32,31 @@ pub fn initReported(a: std.mem.Allocator, sources: []const Source, file_at: *usi
         if (dependency_count > 256) return error.SourceDependencyLimit;
         for (files[i].definitions, 0..) |definition, j| {
             offset.* = definition.span.start;
-            for (files[i].definitions[0..j]) |prior| if (std.mem.eql(u8, definition.name, prior.name)) {
-                if (report) |r| {
-                    r.setSpan(i, definition.span.start, definition.span.end);
-                    r.setHeadline("duplicate declaration of '{s}'", .{definition.name});
-                    r.addNote(i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' first declared here", .{prior.name});
+            for (files[i].definitions[0..j]) |prior| {
+                const same_schema = if (definition.schema) |s_name|
+                    (if (prior.schema) |p_schema| std.mem.eql(u8, s_name, p_schema) else false)
+                else
+                    prior.schema == null;
+                if (same_schema and std.mem.eql(u8, definition.name, prior.name)) {
+                    if (report) |r| {
+                        r.setSpan(i, definition.span.start, definition.span.end);
+                        r.setHeadline("duplicate declaration of '{s}'", .{definition.name});
+                        r.addNote(i, .{ .start = prior.span.start, .end = prior.span.end }, "'{s}' first declared here", .{prior.name});
+                    }
+                    return error.DuplicateSourceName;
                 }
-                return error.DuplicateSourceName;
-            };
-            for (files[i].imports) |import| if (std.mem.eql(u8, definition.name, import.alias)) {
-                if (report) |r| {
-                    r.setSpan(i, definition.span.start, definition.span.end);
-                    r.setHeadline("declaration '{s}' conflicts with import alias", .{definition.name});
-                    r.addNote(i, .{ .start = import.span.start, .end = import.span.end }, "import alias '{s}' declared here", .{import.alias});
+            }
+            for (files[i].imports) |import| {
+                const conflicts = if (definition.schema) |s_name| std.mem.eql(u8, s_name, import.alias) else std.mem.eql(u8, definition.name, import.alias);
+                if (conflicts) {
+                    if (report) |r| {
+                        r.setSpan(i, definition.span.start, definition.span.end);
+                        r.setHeadline("declaration '{s}' conflicts with import alias", .{definition.name});
+                        r.addNote(i, .{ .start = import.span.start, .end = import.span.end }, "import alias '{s}' declared here", .{import.alias});
+                    }
+                    return error.DuplicateSourceName;
                 }
-                return error.DuplicateSourceName;
-            };
+            }
         }
         for (files[i].imports, 0..) |import, j| {
             offset.* = import.span.start;
@@ -459,24 +468,39 @@ pub fn resolve(self: Self, file: usize, name: s.Name) !Ref {
 }
 pub fn resolveReported(self: Self, file: usize, name: s.Name, report: ?*SourceDiagnostic.Report) !Ref {
     if (name.constructor != null) return error.InvalidSourceName;
-    var target = file;
     if (name.qualifier) |qualifier| {
-        target = for (self.files[file].imports) |import| {
+        var saw_local_schema = false;
+        for (self.files[file].definitions, 0..) |definition, i| {
+            if (definition.schema) |s_name| if (std.mem.eql(u8, s_name, qualifier)) {
+                saw_local_schema = true;
+                if (std.mem.eql(u8, name.member, definition.name)) return .{ .file = file, .definition = i };
+            };
+        }
+        if (saw_local_schema) {
+            if (report) |r| r.setHeadline("unknown symbol '{s}'", .{name.member});
+            return error.UnknownSourceSymbol;
+        }
+        const target = for (self.files[file].imports) |import| {
             if (std.mem.eql(u8, qualifier, import.alias)) break try self.imported(file, import);
         } else {
             if (report) |r| r.setHeadline("unknown import alias '{s}'", .{qualifier});
             return error.UnknownImport;
         };
-    }
-    for (self.files[target].definitions, 0..) |definition, i| if (std.mem.eql(u8, name.member, definition.name)) {
-        if (name.qualifier != null and !definition.public) {
-            if (report) |r| {
-                r.setHeadline("symbol '{s}' in '{s}' is private", .{ name.member, name.qualifier.? });
-                r.addNote(target, .{ .start = definition.span.start, .end = definition.span.end }, "'{s}' declared without 'PUBLIC' here", .{definition.name});
+        for (self.files[target].definitions, 0..) |definition, i| if (definition.schema == null and std.mem.eql(u8, name.member, definition.name)) {
+            if (!definition.public) {
+                if (report) |r| {
+                    r.setHeadline("symbol '{s}' in '{s}' is private", .{ name.member, qualifier });
+                    r.addNote(target, .{ .start = definition.span.start, .end = definition.span.end }, "'{s}' declared without 'PUBLIC' here", .{definition.name});
+                }
+                return error.PrivateSourceSymbol;
             }
-            return error.PrivateSourceSymbol;
-        }
-        return .{ .file = target, .definition = i };
+            return .{ .file = target, .definition = i };
+        };
+        if (report) |r| r.setHeadline("unknown symbol '{s}'", .{name.member});
+        return error.UnknownSourceSymbol;
+    }
+    for (self.files[file].definitions, 0..) |definition, i| if (definition.schema == null and std.mem.eql(u8, name.member, definition.name)) {
+        return .{ .file = file, .definition = i };
     };
     if (report) |r| r.setHeadline("unknown symbol '{s}'", .{name.member});
     return error.UnknownSourceSymbol;
