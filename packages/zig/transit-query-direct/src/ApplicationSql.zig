@@ -123,7 +123,7 @@ fn expression(self: *Self, value: *const a.Expression) anyerror!void {
         },
         .text_cast => |operand| try self.expression(operand),
         .row => |items| for (items) |item| try self.expression(item),
-        .null, .boolean, .integer, .text, .name => {},
+        .null, .boolean, .integer, .text, .bytes, .uuid, .timestamp, .name => {},
     }
 }
 fn block(self: *Self, body: []const a.Instruction) anyerror!void {

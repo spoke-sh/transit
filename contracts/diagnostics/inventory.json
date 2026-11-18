@@ -13256,38 +13256,43 @@
     },
     "packages/zig/transit-compiler/src/CatalogDiff.zig": {
       "errors": {
-        "DuplicateMigrationBinding": 2,
+        "DuplicateMigrationBinding": 4,
         "IncompatibleMigrationBasis": 1,
-        "InvalidMigrationBasis": 3,
+        "InvalidMigrationBasis": 5,
         "InvalidMigrationVersion": 3,
-        "MigrationBasisMismatch": 15,
+        "MigrationBasisMismatch": 20,
         "MigrationHistoryChanged": 1,
         "MigrationHistoryLimit": 4,
         "MigrationNamespaceMismatch": 1,
-        "MigrationStepLimit": 3,
-        "MigrationTransformRequired": 7,
+        "MigrationStepLimit": 4,
+        "MigrationTransformRequired": 8,
         "MigrationVersionOrder": 1,
         "MissingMigrationBasis": 1,
         "MissingMigrationTarget": 1,
-        "OutOfMemory": 3,
-        "UnsupportedMigrationDefinition": 2,
-        "UnsupportedMigrationHistory": 5
+        "OutOfMemory": 7,
+        "UnknownBuildTable": 1,
+        "UnsupportedMigrationDefinition": 5,
+        "UnsupportedMigrationHistory": 7
       },
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "FkResolver.lookup()": "<inferred>",
+        "FkResolver.lookupQualified()": "<inferred>",
         "build()": "<inferred>",
         "create()": "<inferred>",
         "equivalent()": "<inferred>",
         "fileName()": "<inferred>",
+        "parseCreateSchema()": "<inferred>",
         "replay()": "<inferred>",
         "statement()": "<inferred>",
-        "table()": "<inferred>"
+        "table()": "<inferred>",
+        "writeQuotedIdent()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 45,
-        "catch": 4
+        "try": 56,
+        "catch": 9
       },
       "imports": [
         "Compiler.zig",
@@ -13307,13 +13312,13 @@
         "BuildWorkLimit": 2,
         "ConflictingModuleInstance": 1,
         "DuplicateSourceMatchArm": 1,
-        "DuplicateSourceName": 11,
+        "DuplicateSourceName": 13,
         "DuplicateTestCase": 1,
         "EmptyBuildTarget": 1,
         "EmptyTestCase": 1,
         "EmptyTestTarget": 1,
         "ExportOutsideModule": 4,
-        "ForeignTableExport": 4,
+        "ForeignTableExport": 8,
         "InvalidBuildBudget": 1,
         "InvalidCatalogName": 2,
         "InvalidCompilerIdentity": 1,
@@ -13333,14 +13338,15 @@
         "NonExhaustiveSourceMatch": 1,
         "NotModuleConstructor": 6,
         "OutOfMemory": 6,
-        "RuntimePrivateOrUnsupportedDeclaration": 2,
+        "ReferenceOnlyTableAccess": 7,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
         "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
         "SourceDepthLimit": 11,
-        "SourceExportLimit": 3,
+        "SourceExportLimit": 4,
         "SourceFileLimit": 1,
         "SourceImportCycle": 2,
-        "SourceTypeMismatch": 44,
+        "SourceTypeMismatch": 47,
         "TestActionLimit": 2,
         "TestAssertionOutsideCase": 2,
         "TestCaseLimit": 1,
@@ -13353,6 +13359,7 @@
         "TestRowsRequired": 1,
         "TestStatementOutsideCase": 1,
         "UnknownBuildProgram": 1,
+        "UnknownColumn": 1,
         "UnknownSourceExport": 3,
         "UnknownSourceOperand": 3,
         "UnknownSourceSymbol": 4,
@@ -13395,6 +13402,7 @@
         "freshBinding()": "<inferred>",
         "invoke()": "anyerror",
         "match()": "<inferred>",
+        "mergeInstanceSchemas()": "<inferred>",
         "mergeModuleExport()": "<inferred>",
         "projectField()": "<inferred>",
         "quoted()": "<inferred>",
@@ -13418,7 +13426,7 @@
       },
       "open_error_set_uses": 10,
       "propagation": {
-        "try": 210,
+        "try": 241,
         "catch": 29
       },
       "imports": [
@@ -13608,7 +13616,8 @@
     "packages/zig/transit-compiler/src/ProgramCheck.zig": {
       "errors": {
         "ApplicationHostUnavailable": 3,
-        "InvalidCatalogName": 1,
+        "DuplicateProgramResource": 1,
+        "InvalidCatalogName": 2,
         "ProgramTooComplex": 1,
         "SourceTypeMismatch": 1,
         "UnsupportedBuildProgramDependency": 1,
@@ -13624,7 +13633,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 24,
+        "try": 25,
         "catch": 0
       },
       "imports": [
@@ -13651,16 +13660,17 @@
         "ProcedureHasNoResult": 1,
         "ProgramTypeMismatch": 3,
         "RecursiveSourceCall": 5,
+        "ReferenceOnlyTableAccess": 7,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
         "SourceArgumentCount": 2,
         "SourceDepthLimit": 8,
         "SourceParameterLimit": 1,
-        "SourceTypeMismatch": 23,
+        "SourceTypeMismatch": 37,
         "UnexpectedProcedureReturn": 3,
         "UnknownProgramField": 1,
         "UnknownProgramResource": 2,
         "UnknownProgramVariable": 1,
-        "UnknownSourceExport": 2,
+        "UnknownSourceExport": 3,
         "UnknownSourceOperand": 3,
         "UnsupportedLogOperand": 1,
         "UnsupportedNominalColumn": 1,
@@ -13700,9 +13710,11 @@
         "emitHoistedLet()": "<inferred>",
         "emitOriginalToken()": "<inferred>",
         "emitParamClosure()": "<inferred>",
+        "emitQualifiedName()": "<inferred>",
         "emitQuotedIdentifier()": "<inferred>",
         "emitQuotedRaw()": "<inferred>",
         "emitResourceOperand()": "<inferred>",
+        "emitTableRef()": "<inferred>",
         "emitValueHole()": "<inferred>",
         "emitWordToken()": "<inferred>",
         "expandFunctionCall()": "anyerror",
@@ -13726,7 +13738,8 @@
         "sliceCallArguments()": "<inferred>",
         "unwrapCore()": "<inferred>",
         "validateAll()": "<inferred>",
-        "validateFragmentHelpers()": "<inferred>",
+        "validateFragmentBodies()": "<inferred>",
+        "validateFragmentCallGraph()": "<inferred>",
         "validateHelperBody()": "<inferred>",
         "validateHelperBody().check_fn.run()": "<inferred>",
         "validateHelperRowFields()": "anyerror",
@@ -13737,8 +13750,8 @@
       },
       "open_error_set_uses": 10,
       "propagation": {
-        "try": 417,
-        "catch": 15
+        "try": 434,
+        "catch": 26
       },
       "imports": [
         "Compiler.zig",
@@ -13756,6 +13769,7 @@
     },
     "packages/zig/transit-compiler/src/ResourceOperands.zig": {
       "errors": {
+        "ReferenceOnlyTableAccess": 2,
         "SourceTypeMismatch": 5,
         "UnknownSourceOperand": 1,
         "UnsupportedLogOperand": 1
@@ -13855,6 +13869,7 @@
         "ProgramTooDeep": 2,
         "ProgramTypeMismatch": 1,
         "RecursiveSourceCall": 2,
+        "ReferenceOnlyTableAccess": 2,
         "RepositoryCredentialsForbidden": 1,
         "RepositoryRevisionMismatch": 1,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
@@ -13877,7 +13892,9 @@
         "UndeclaredDependency": 1,
         "UndeclaredOverride": 1,
         "UnexpectedProcedureReturn": 2,
+        "UnexportedModuleResource": 2,
         "UnknownBuildProgram": 1,
+        "UnknownBuildSchema": 1,
         "UnknownBuildTable": 1,
         "UnknownColumn": 2,
         "UnknownImport": 1,
@@ -13978,6 +13995,7 @@
           "variant",
           "row",
           "table",
+          "reference_table",
           "stream",
           "queue",
           "instance",
@@ -13997,7 +14015,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 18,
+        "try": 19,
         "catch": 0
       },
       "imports": [
@@ -14339,9 +14357,11 @@
         "InvalidRowWidth": 1,
         "InvalidSourceOperand": 3,
         "InvalidSourceTypeOperand": 1,
-        "SourceDomainMismatch": 2,
+        "ReferenceOnlyTableAccess": 3,
+        "SourceDomainMismatch": 3,
         "SourceTableBindingMismatch": 1,
         "SourceTypeMismatch": 4,
+        "UnexportedModuleResource": 2,
         "UnsupportedBuildStatement": 2,
         "UnsupportedLogOperand": 1,
         "UnsupportedNominalColumn": 2,
@@ -14356,6 +14376,8 @@
       "error_sets": {},
       "error_returns": {
         "check()": "<inferred>",
+        "checkReferenceAccess()": "<inferred>",
+        "checkResourceAccess()": "<inferred>",
         "consume()": "<inferred>",
         "declaration()": "<inferred>",
         "insert()": "<inferred>",
@@ -14367,7 +14389,7 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 62,
+        "try": 70,
         "catch": 0
       },
       "imports": [
@@ -14382,11 +14404,12 @@
     },
     "packages/zig/transit-compiler/src/WorkingCatalog.zig": {
       "errors": {
-        "ConflictingModuleInstance": 2,
+        "ConflictingModuleInstance": 3,
         "InvalidSourceTypeOperand": 1,
         "SourceTypeMismatch": 4,
         "UnboundBuildParameter": 3,
         "UnknownBuildProgram": 1,
+        "UnknownBuildSchema": 1,
         "UnknownBuildTable": 1,
         "UnsupportedBuildLogConfiguration": 1,
         "UnsupportedBuildProgramControl": 1,
@@ -14395,23 +14418,30 @@
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
+        "FkContext.lookup()": "<inferred>",
+        "FkContext.lookupQualified()": "<inferred>",
         "check()": "<inferred>",
         "createLog()": "<inferred>",
         "find()": "<inferred>",
+        "findQualified()": "<inferred>",
         "findResource()": "<inferred>",
+        "findResourceQualified()": "<inferred>",
         "querySchema()": "<inferred>",
+        "requireSchema()": "<inferred>",
         "unused()": "<inferred>",
         "verifyTypeOperands()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 64,
+        "try": 78,
         "catch": 1
       },
       "imports": [
         "Graph.zig",
         "ProgramCheck.zig",
+        "SourceDiagnostic.zig",
         "SourceTypes.zig",
+        "TypedOperands.zig",
         "std",
         "transit_fuze",
         "transit_protocol"

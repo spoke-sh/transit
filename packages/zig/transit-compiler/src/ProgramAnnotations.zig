@@ -65,7 +65,7 @@ pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph
     const obligation_used = try scratch.alloc(bool, obligations.len);
     @memset(obligation_used, false);
     var self: Self = .{ .scratch = scratch, .output = output, .graph = graph, .catalog = catalog, .bound = bound, .sql = sql, .sites = sites, .origins = origins, .obligations = obligations, .used = used, .obligation_used = obligation_used, .context = context, .work = work, .work_limit = work_limit };
-    const input = try catalog.findResource(program.queue);
+    const input = try catalog.findResourceQualified(program.queue_schema, program.queue);
     const input_record = try self.record(input);
     try self.symbols.append(scratch, .{ .name = program.input, .value = input_record });
     try self.event(.acquire, null, 0, input, &.{});
@@ -277,7 +277,7 @@ fn condition(self: *Self, input: *const a.Expression) !void {
     try self.ordinary(try self.expression(input), input.span.start);
 }
 fn select(self: *Self, input: a.Select) !Value {
-    const resource = try self.catalog.findResource(input.target);
+    const resource = try self.catalog.findResourceQualified(input.schema, input.target);
     const record_ = try self.record(resource);
     const before = self.columns;
     self.columns = record_.fields;
@@ -301,8 +301,8 @@ fn event(self: *Self, kind: @FieldType(Event, "kind"), id: ?a.Id, offset: usize,
     }
     try self.events.append(self.output, .{ .kind = kind, .node = id, .source_offset = self.origin(offset), .resource = if (resource) |value| value.name else null, .columns = columns });
 }
-fn write(self: *Self, target: []const u8, expressions: []const *a.Expression) !*const types.Table {
-    const resource = try self.catalog.findResource(target);
+fn write(self: *Self, schema: ?[]const u8, target: []const u8, expressions: []const *a.Expression) !*const types.Table {
+    const resource = try self.catalog.findResourceQualified(schema, target);
     if (expressions.len != resource.domains.len) return error.SourceTypeMismatch;
     for (expressions, resource.domains, resource.schema.columns) |input, expected, column| {
         const actual = try self.expression(input);
@@ -332,7 +332,7 @@ fn block(self: *Self, instructions: []const a.Instruction) anyerror!void {
                 };
                 try self.symbols.append(self.scratch, .{ .name = binding.name, .value = value });
                 try self.node(id, offset, "binding", value);
-                const resource = if (binding.value == .select) try self.catalog.findResource(binding.value.select.target) else null;
+                const resource = if (binding.value == .select) try self.catalog.findResourceQualified(binding.value.select.schema, binding.value.select.target) else null;
                 try self.event(if (resource != null) .read else .let, id, offset, resource, &.{});
             },
             .require => |input| {
@@ -357,8 +357,8 @@ fn block(self: *Self, instructions: []const a.Instruction) anyerror!void {
                 self.symbols.shrinkRetainingCapacity(count);
                 try self.event(.branch_end, id, offset, null, &.{});
             },
-            .insert => |input| try self.event(.insert, id, offset, try self.write(input.target, input.values), input.values),
-            .append => |input| try self.event(.append, id, offset, try self.write(input.target, input.values), input.values),
+            .insert => |input| try self.event(.insert, id, offset, try self.write(input.target_schema, input.target, input.values), input.values),
+            .append => |input| try self.event(.append, id, offset, try self.write(input.target_schema, input.target, input.values), input.values),
             else => return error.ApplicationHostUnavailable,
         }
     }

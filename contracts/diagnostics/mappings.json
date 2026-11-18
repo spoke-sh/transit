@@ -6285,6 +6285,46 @@
           "code": "application.source.type",
           "category": "binding"
         },
+        "ReferenceOnlyTableAccess": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "InvalidForeignKeyArity": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignKeyTargetMismatch": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignKeyTargetNotUniqueKey": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "IncompatibleForeignKeyColumnType": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignKeySetNullRequiresNullableColumn": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignKeyResolutionRequired": {
+          "code": "application.source.type",
+          "category": "binding"
+        },
+        "ForeignKeyIndexEnforcementUnavailable": {
+          "code": "application.source.unsupported",
+          "category": "unsupported"
+        },
+        "InvalidForeignKeyAction": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
+        "DuplicateForeignKeyColumn": {
+          "code": "application.source.syntax",
+          "category": "syntax"
+        },
         "InvalidParameterType": {
           "code": "application.source.type",
           "category": "binding"
@@ -6405,7 +6445,15 @@
           "code": "application.source.import",
           "category": "binding"
         },
+        "UnknownBuildSchema": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
         "UnknownBuildTable": {
+          "code": "application.source.import",
+          "category": "binding"
+        },
+        "UnexportedModuleResource": {
           "code": "application.source.import",
           "category": "binding"
         },
