@@ -26,6 +26,7 @@ THEOREMS = {
     'guard_reorder_non_equivalent',
     'procedure_inline_atomic',
     'procedure_return_substitution',
+    'module_instance_dag_sharing',
 }
 DOMAINS = {'machine': 'example.machine-id', 'site': 'example.site-id'}
 
@@ -166,7 +167,7 @@ def main():
             'lean_executable': capture.identity(Path(shutil.which('lean')).resolve()),
             'inputs': {path: capture.identity(ROOT / path) for path in (
                 'tests/query/application_source/types.py', 'tests/query/application_source/program_types.py', 'tests/query/application_source/driver.zig',
-                'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/ProgramLowering.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
+                'packages/zig/transit-compiler/src/Compiler.zig', 'packages/zig/transit-compiler/src/Graph.zig', 'packages/zig/transit-compiler/src/ProgramLowering.zig', 'packages/zig/transit-compiler/src/Syntax.zig',
                 'packages/zig/transit-compiler/src/SourceTypes.zig', 'packages/zig/transit-compiler/src/ProgramAnnotations.zig', 'packages/zig/transit-compiler/src/TypedOperands.zig')}}
     capture.write_json(destination / 'evidence.json', meta)
     print(f'typed source evidence: {destination}', flush=True)
