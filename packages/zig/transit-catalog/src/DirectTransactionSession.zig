@@ -13,16 +13,22 @@ pub const State = struct {
     settlement: d.Operation,
     last_statement: u64 = 0,
     statement: ?W.StatementWork = null,
+    batch: ?c.DirectTransactionRequest.StagedBatch = null,
     last_control: u64 = 0,
     control: ?c.DirectTransactionSavepoint.Request = null,
     command: ?c.DirectTransactionControl.Command = null,
 
+    pub fn hasPendingWork(self: State) bool {
+        return self.statement != null or self.batch != null or self.control != null;
+    }
+
     pub fn validate(self: State) !void {
         try self.begin.validate();
         try self.begin.key.connection.owner(self.settlement);
+        const pending_slots: u8 = @as(u8, @intFromBool(self.statement != null)) + @intFromBool(self.batch != null) + @intFromBool(self.control != null);
         if (std.meta.eql(self.begin.operation, self.settlement) or
             self.last_statement > self.begin.limits.statements or self.last_control > self.begin.limits.statements or
-            (self.statement != null and self.control != null)) return error.InvalidTransactionSession;
+            pending_slots > 1) return error.InvalidTransactionSession;
         const identity: p.Transaction.Identity = .{ .begin = self.begin.operation, .branch = self.begin.key.connection.branch };
         if (self.statement) |work| {
             try work.validate();
@@ -33,6 +39,24 @@ pub const State = struct {
             };
             if (std.meta.eql(operation, self.settlement) or !std.meta.eql(value.transaction, identity) or value.sequence != try std.math.add(u64, self.last_statement, 1) or
                 value.sequence > self.begin.limits.statements) return error.InvalidTransactionSession;
+            if (work == .log and work.log.work == .queue_transfer and std.meta.eql(work.log.work.queue_transfer.destination.operation, self.settlement))
+                return error.InvalidTransactionSession;
+        }
+        if (self.batch) |*batch| {
+            batch.validate(self.begin.key.connection) catch return error.InvalidTransactionSession;
+            const first = batch.entries[0].?;
+            if (!std.meta.eql(first.statement().transaction, identity) or batch.firstSequence() != try std.math.add(u64, self.last_statement, 1) or
+                batch.lastSequence() > self.begin.limits.statements) return error.InvalidTransactionSession;
+            for (0..batch.count) |idx| {
+                const entry = batch.entries[idx].?;
+                const operation = switch (entry) {
+                    .state => |request| request.binding.identity,
+                    .log => |request| request.work.operation(),
+                };
+                if (std.meta.eql(operation, self.settlement)) return error.InvalidTransactionSession;
+                if (entry == .log and entry.log.work == .queue_transfer and std.meta.eql(entry.log.work.queue_transfer.destination.operation, self.settlement))
+                    return error.InvalidTransactionSession;
+            }
         }
         if (self.control) |value| {
             try value.validate();
@@ -42,7 +66,7 @@ pub const State = struct {
     }
 };
 
-pub const Event = enum { original, statement, statement_complete, control, control_complete, settlement };
+pub const Event = enum { original, statement, statement_complete, batch, batch_complete, control, control_complete, settlement };
 /// Receives the previous and proposed state; reject a stale previous basis.
 /// Must durably retain the proposed state before returning. A failed save prevents dispatch
 /// or cursor advancement. Callbacks may not reenter this session. Begin's target
@@ -62,12 +86,20 @@ pub const Write = union(enum) {
             .log => |value| value.work.operation(),
         };
     }
+    fn batchWrite(self: Write) c.DirectTransactionRequest.BatchWrite {
+        return switch (self) {
+            .table => |value| .{ .table = value },
+            .kv => |value| .{ .kv = value },
+            .log => |value| .{ .log = .{ .work = value.work, .payload = value.payload } },
+        };
+    }
 };
 pub const Action = union(enum) {
     begin,
     acquire,
     inspect,
     write: Write,
+    write_batch: []const Write,
     advance: u16,
     savepoint: struct { operation: d.Operation, action: @FieldType(c.DirectTransactionSavepoint.Request, "action"), steps: u16 = 8 },
     settle: struct { command: c.DirectTransactionControl.Command, steps: u16 = 8 },
@@ -87,13 +119,18 @@ pub const Result = union(enum) {
     acquired: c.DirectTransaction.Acquired,
     status: c.DirectTransactionControl.Status,
     statement: W.StatementCompletion,
+    batch: c.DirectTransactionRequest.BatchSummary,
     savepoint: c.DirectTransactionSavepoint.Result,
     recovered: ?c.DirectTransactionRequest.Recovery,
     /// A verified completion survives a failure to checkpoint local progress.
     /// The saved pending request remains the only permitted resume identity.
     checkpoint_failed: struct {
         cause: anyerror,
-        completion: union(enum) { statement: W.StatementCompletion, savepoint: c.DirectTransactionSavepoint.Result },
+        completion: union(enum) {
+            statement: W.StatementCompletion,
+            batch: c.DirectTransactionRequest.BatchSummary,
+            savepoint: c.DirectTransactionSavepoint.Result,
+        },
     },
 };
 
@@ -106,7 +143,7 @@ fn checkpoint(self: Self, next: State, event: Event) !void {
     self.state.* = next;
 }
 fn ready(self: Self, client: c.DirectTableClient) !c.DirectTransactionControl.Status {
-    if (self.state.statement != null or self.state.control != null) return error.TransactionSessionPending;
+    if (self.state.hasPendingWork()) return error.TransactionSessionPending;
     if (self.state.command != null) return error.TransactionSessionSettling;
     const status = try (Tx{ .catalog = client }).inspect(self.state.begin.key);
     try writable(status);
@@ -127,10 +164,25 @@ pub fn apply(self: Self, client: c.DirectTableClient, action: Action) !Result {
         .inspect => return .{ .status = try tx.inspect(key) },
         .write => |work| {
             if (std.meta.eql(work.operation(), self.state.settlement)) return error.TransactionIdentityConflict;
+            if (work == .log and work.log.work == .queue_transfer and std.meta.eql(work.log.work.queue_transfer.destination.operation, self.state.settlement))
+                return error.TransactionIdentityConflict;
             const status = try self.ready(client);
             var next = self.state.*;
             next.statement = try prepare(client, key, status, work);
             try self.checkpoint(next, .statement);
+            return self.resumePending(client, 8);
+        },
+        .write_batch => |items| {
+            if (items.len == 0 or items.len > c.DirectTransactionRequest.max_batch) return error.InvalidTransactionWork;
+            for (items) |work| {
+                const bw = work.batchWrite();
+                if (std.meta.eql(bw.operation(), self.state.settlement)) return error.TransactionIdentityConflict;
+                if (bw.destinationOperation()) |dest| if (std.meta.eql(dest, self.state.settlement)) return error.TransactionIdentityConflict;
+            }
+            const status = try self.ready(client);
+            var next = self.state.*;
+            next.batch = try prepareBatch(client, key, status, items);
+            try self.checkpoint(next, .batch);
             return self.resumePending(client, 8);
         },
         .advance => |steps| return self.resumePending(client, steps),
@@ -147,7 +199,7 @@ pub fn apply(self: Self, client: c.DirectTableClient, action: Action) !Result {
             try stepsValid(value.steps);
             // An abort may close uncertain work. A commit must first observe
             // the saved statement/control result; it cannot skip that prefix.
-            if (value.command == .commit and (self.state.statement != null or self.state.control != null))
+            if (value.command == .commit and self.state.hasPendingWork())
                 return error.TransactionSessionPending;
             if (self.state.command == .abort and value.command == .commit) return error.TransactionSessionSettling;
             var next = self.state.*;
@@ -175,6 +227,15 @@ fn resumePending(self: Self, client: c.DirectTableClient, steps: u16) !Result {
         self.checkpoint(next, .statement_complete) catch |err|
             return .{ .checkpoint_failed = .{ .cause = err, .completion = .{ .statement = result } } };
         return .{ .statement = result };
+    }
+    if (self.state.batch) |batch| {
+        const summary = try executeBatch(client, key, batch);
+        var next = self.state.*;
+        next.last_statement = summary.last_sequence;
+        next.batch = null;
+        self.checkpoint(next, .batch_complete) catch |err|
+            return .{ .checkpoint_failed = .{ .cause = err, .completion = .{ .batch = summary } } };
+        return .{ .batch = summary };
     }
     if (self.state.control) |request| {
         const result = try tx.savepoint(key, request, steps);
@@ -212,6 +273,16 @@ pub fn prepare(client: c.DirectTableClient, key: c.DirectClientToken.Key, status
         .log => |value| .{ .log = try tx.stageLog(key, status.revision, sequence, value.work, value.payload) },
     };
 }
+pub fn prepareBatch(client: c.DirectTableClient, key: c.DirectClientToken.Key, status: c.DirectTransactionControl.Status, items: []const Write) !c.DirectTransactionRequest.StagedBatch {
+    try writable(status);
+    if (status.begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (items.len == 0 or items.len > c.DirectTransactionRequest.max_batch) return error.InvalidTransactionWork;
+    const sequence = try std.math.add(u64, status.last_statement, 1);
+    if (try std.math.add(u64, sequence, items.len - 1) > status.begin.limits.statements) return error.TransactionStatementLimit;
+    var encoded: [c.DirectTransactionRequest.max_batch]c.DirectTransactionRequest.BatchWrite = undefined;
+    for (items, 0..) |item, idx| encoded[idx] = item.batchWrite();
+    return (Tx{ .catalog = client }).stageBatch(key, status.revision, sequence, encoded[0..items.len]);
+}
 pub fn prepareSavepoint(status: c.DirectTransactionControl.Status, operation: d.Operation, action: @FieldType(c.DirectTransactionSavepoint.Request, "action")) !c.DirectTransactionSavepoint.Request {
     try writable(status);
     if (status.last_control >= status.begin.limits.statements or (action == .create and status.savepoints >= status.begin.limits.savepoints))
@@ -237,4 +308,10 @@ pub fn execute(client: c.DirectTableClient, key: c.DirectClientToken.Key, work: 
     };
     try result.validate();
     return result;
+}
+pub fn executeBatch(client: c.DirectTableClient, key: c.DirectClientToken.Key, batch: c.DirectTransactionRequest.StagedBatch) !c.DirectTransactionRequest.BatchSummary {
+    try batch.validate(key.connection);
+    const summary = try (Tx{ .catalog = client }).executeBatch(key, batch);
+    try summary.validate();
+    return summary;
 }

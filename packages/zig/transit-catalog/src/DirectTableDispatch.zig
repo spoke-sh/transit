@@ -223,10 +223,18 @@ fn applySelected(comptime action_tag: std.meta.Tag(w.Action), allocator: std.mem
                         defer if (payload) |bytes| catalog.allocator.free(bytes);
                         break :staged .{ .staged_log = try catalog.stageTransactionLog(value.key, value.basis, value.sequence, value.work, payload, policy) };
                     },
+                    .stage_batch => |value| staged_batch: {
+                        var batch: c.DirectTransactionRequest.StagedBatch = .{};
+                        try catalog.stageTransactionBatch(value.key, value.basis, value.sequence, value.items, policy, &batch);
+                        var items: [c.DirectTransactionRequest.max_batch]c.DirectTransactionWorkspace.StatementWork = undefined;
+                        const active = try batch.copyTo(&items);
+                        break :staged_batch .{ .staged_batch = .{ .items = try allocator.dupe(c.DirectTransactionWorkspace.StatementWork, active) } };
+                    },
                     .log_statement => |value| .{ .log_statement = if (value.execute) try catalog.executeTransactionLog(value.key, value.request, policy) else try catalog.admitTransactionLog(value.key, value.request, policy) },
                     .log_outcome => |value| .{ .log_statement = try catalog.transactionLogOutcome(value.key, value.request, policy) },
                     .statement => |value| .{ .statement = if (value.execute) try catalog.executeTransactionStatement(value.key, value.request, policy) else try catalog.admitTransactionStatement(value.key, value.request, policy) },
                     .statement_outcome => |value| .{ .statement = try catalog.transactionStatementOutcome(value.key, value.request, policy) },
+                    .batch => |value| .{ .batch = try catalog.executeTransactionBatch(value.key, value.items, policy) },
                     .savepoint_outcome => |value| .{ .savepoint_outcome = try catalog.transactionSavepointOutcome(value.key, value.request, policy) },
                     .savepoint => |value| .{ .savepoint = try catalog.transactionSavepoint(value.key, value.request, value.steps, policy) },
                     .advance => |value| .{ .status = try catalog.resumeTransaction(value.key, value.steps, policy) },

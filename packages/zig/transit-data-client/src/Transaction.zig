@@ -53,7 +53,7 @@ pub fn privateClient(self: *Self, client: c.DirectTableClient) !c.DirectTableCli
     if (self.busy.swap(true, .acquire)) return error.Busy;
     defer self.busy.store(false, .release);
     try self.state.validate();
-    if (self.state.statement != null or self.state.control != null) return error.TransactionSessionPending;
+    if (self.state.hasPendingWork()) return error.TransactionSessionPending;
     if (self.state.command != null) return error.TransactionSessionSettling;
     return Session.privateClient(client, self.state.begin.key);
 }

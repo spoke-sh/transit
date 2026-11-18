@@ -12745,3 +12745,73 @@ test "authorized catalog object selection and TXI1 log calls enforce least privi
     const settled2 = (try catalog.transactionCall(call_commit2_key, 16, true, false, access.policy())).?.settled;
     try t.expectEqual(.aborted, settled2.observation.decided.outcome);
 }
+
+test "transaction batch execution publishes one workspace commit, replays lost replies, and stops at first rejection" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    var access: Access = .{};
+    var binding: c.DirectClientToken.Binding = undefined;
+    var first_batch: [2]c.DirectTransactionWorkspace.StatementWork = undefined;
+    var rejected_batch: [3]c.DirectTransactionWorkspace.StatementWork = undefined;
+    for (0..2) |restart| {
+        var wal = try s.LocalWal.LocalWal.openDiskWithOptions(t.allocator, t.io, tmp.dir, "wal", .{});
+        defer wal.deinit();
+        var objects = try s.LocalSegmentStore.LocalSegmentStore.openDiskAt(t.allocator, t.io, tmp.dir, "objects");
+        defer objects.deinit();
+        var catalog = try owner(&wal, &objects);
+        defer catalog.deinit();
+        if (restart == 0) {
+            try catalog.initialize(access.policy());
+            binding = try selectedTransaction(&catalog, &access, 2);
+            _ = try catalog.acquireTransaction(binding.key, access.policy());
+            first_batch[0] = .{ .state = try workspaceRequest(&catalog, &access, binding.key, 10, 1, 600) };
+            first_batch[1] = .{ .state = try workspaceRequest(&catalog, &access, binding.key, 11, 2, 601) };
+            const before = catalog.store.root.next_lsn;
+            catalog.store.lose_reply = true;
+            try t.expectError(error.LostAcknowledgement, catalog.executeTransactionBatch(binding.key, &first_batch, access.policy()));
+            try t.expectEqual(before + 1, catalog.store.root.next_lsn);
+        } else {
+            const before = catalog.store.root;
+            const summary = try catalog.executeTransactionBatch(binding.key, &first_batch, access.policy());
+            try t.expectEqualDeep(before, catalog.store.root);
+            try t.expectEqual(@as(u8, 2), summary.evaluated_count);
+            try t.expectEqual(@as(u8, 2), summary.provisional_count);
+            try t.expectEqual(@as(u64, 1), summary.first_sequence);
+            try t.expectEqual(@as(u64, 2), summary.last_sequence);
+            try t.expectEqual(@as(u64, 2), summary.rows_affected);
+            try t.expect(summary.rejection == null);
+
+            // Second batch: item 0 inserts a new key (provisional), item 1 duplicates PK 600 (rejected), item 2 is skipped.
+            rejected_batch[0] = .{ .state = try workspaceRequest(&catalog, &access, binding.key, 10, 3, 602) };
+            var dup = try workspaceRequest(&catalog, &access, binding.key, 10, 4, 603);
+            {
+                const object = dup.binding.target;
+                const state = try catalog.transactionTableState(binding.key, object, access.policy());
+                const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 600 } } }};
+                const dup_req: s.TableDmlIntent.Request = .{
+                    .binding = dup.binding,
+                    .interpretation = state.root.declared(),
+                    .changes = &.{.{ .put = .{ .row = .{ .identity = try s.TableDmlIntent.insertIdentity(dup.binding.identity, 0), .cells = &cells }, .expect = .absent } }},
+                    .ingestion = .bulk,
+                };
+                dup.intent = try s.TableDmlIntent.stage(t.allocator, catalog.data_objects, dup_req);
+            }
+            rejected_batch[1] = .{ .state = dup };
+            rejected_batch[2] = .{ .state = try workspaceRequest(&catalog, &access, binding.key, 11, 5, 604) };
+            const pre_reject = catalog.store.root.next_lsn;
+            const rejected_summary = try catalog.executeTransactionBatch(binding.key, &rejected_batch, access.policy());
+            try t.expectEqual(pre_reject + 1, catalog.store.root.next_lsn);
+            try t.expectEqual(@as(u8, 2), rejected_summary.evaluated_count);
+            try t.expectEqual(@as(u8, 1), rejected_summary.provisional_count);
+            try t.expectEqual(@as(u64, 4), rejected_summary.last_sequence);
+            try t.expectEqual(@as(u64, 4), rejected_summary.rejection.?.statement.sequence);
+            // Replay of the same partial-rejected batch returns the identical summary with zero WAL writes.
+            const after_reject = catalog.store.root;
+            try t.expectEqualDeep(rejected_summary, try catalog.executeTransactionBatch(binding.key, &rejected_batch, access.policy()));
+            try t.expectEqualDeep(after_reject, catalog.store.root);
+            // Item 0 (op 602) survived into the workspace, while item 2 (op 604) never executed.
+            try t.expectEqual(@as(u64, 2), (try catalog.transactionTableState(binding.key, rejected_batch[0].state.binding.target, access.policy())).root.live_rows);
+            try t.expectEqual(@as(u64, 1), (try catalog.transactionTableState(binding.key, rejected_batch[2].state.binding.target, access.policy())).root.live_rows);
+        }
+    }
+}

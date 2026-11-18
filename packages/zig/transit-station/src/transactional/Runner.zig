@@ -271,7 +271,7 @@ const Journal = struct {
                 self.loaded.head.pending.?.phase = .staging;
             },
             .settlement => self.loaded.head.pending.?.phase = .committing,
-            .control, .control_complete => return error.ActorSavepointUnsupported,
+            .batch, .batch_complete, .control, .control_complete => return error.ActorSavepointUnsupported,
         }
         self.loaded.head.pending.?.next_statement = std.math.cast(u16, state.last_statement) orelse return error.TurnCapacity;
         self.loaded.head.pending.?.statement = state.statement;
