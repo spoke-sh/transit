@@ -473,4 +473,10 @@ test "intra-package relative './' and '../' imports resolve while escapes and ex
         .{ .path = "build.transit", .text = "IMPORT bad FROM './node_modules/../lib.transit';" },
         .{ .path = "lib.transit", .text = "CREATE PUBLIC MODULE M() AS BEGIN END;" },
     }, .{ .compiler_revision = "test" });
+
+    const basis = try c.Graph.resolveWorkspaceSubpath(std.testing.allocator, "apps/platform/build.transit", "../../.transit/build/platform/abc/basis.json");
+    defer std.testing.allocator.free(basis);
+    try std.testing.expectEqualStrings(".transit/build/platform/abc/basis.json", basis);
+    try std.testing.expectError(error.InvalidSourcePath, c.Graph.resolveWorkspaceSubpath(std.testing.allocator, "apps/platform/build.transit", "../../../outside/basis.json"));
+    try std.testing.expectError(error.ExcludedSourcePath, c.Graph.resolveWorkspaceSubpath(std.testing.allocator, "build.transit", ".git/config"));
 }

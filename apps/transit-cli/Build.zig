@@ -45,6 +45,7 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     defer {
         workspace.sources = sources.sources.items;
         workspace.resolutions = sources.resolutions.items;
+        if (workspace.selected_target == null and !options.target_explicit) workspace.selected_target = sources.entry_default;
     }
     const resolved = try sources.load();
     if (options.fetch) return report(init.io, a, options.json, .{ .ok = true, .action = "fetch", .dependencies = sources.resolutions.items.len }, "Dependencies verified; transit.lock published.\n");
@@ -52,13 +53,15 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
     var identity = std.crypto.hash.sha2.Sha256.init(.{});
     identity.update(&resolved);
     identity.update(&executable);
-    const target = try std.ascii.allocLowerString(a, options.target);
-    const product = try c.compile(init.gpa, sources.sources.items, .{ .entry = std.fs.path.basename(entry_path), .target = target, .compiler_revision = version.revision, .resolution_digest = identity.finalResult(), .report = compiler_report }, &diagnostic.envelope);
+    const requested_target = try std.ascii.allocLowerString(a, options.target);
+    const product = try c.compile(init.gpa, sources.sources.items, .{ .entry = std.fs.path.basename(entry_path), .target = requested_target, .target_explicit = options.target_explicit, .compiler_revision = version.revision, .resolution_digest = identity.finalResult(), .report = compiler_report }, &diagnostic.envelope);
     defer product.deinit();
+    const target = try a.dupe(u8, product.selected_target);
+    workspace.selected_target = target;
     const compiler_hex = std.fmt.bytesToHex(&executable, .lower);
     var migration_context: c.SourceDiagnostic.Context = .{};
     const migration: ?Migration.Prepared = if (product.migration != null) Migration.prepare(a, init.io, root, product, &compiler_hex, &migration_context) catch |err| {
-        diagnostic.envelope = c.SourceDiagnostic.input(err, product.migration.?.basis orelse options.entry, "synthesize Table migration", null);
+        diagnostic.envelope = c.SourceDiagnostic.input(err, product.migration_basis_path orelse product.migration.?.basis orelse options.entry, "synthesize Table migration", null);
         migration_context.apply(&diagnostic.envelope.?);
         compiler_report.reset();
         compiler_report.finalize(err, migration_context);
@@ -81,7 +84,7 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch_parent: std.mem
             return order == .lt or order == .eq and std.mem.lessThan(u8, left.path, right.path);
         }
     }.less);
-    const provenance = try p.Json.valueAlloc(a, .{ .format = c.Compiler.format, .definition = Sources.definition, .complete = true, .compiler_revision = version.revision, .compiler_digest = @as([]const u8, &compiler_hex), .entry = std.fs.path.basename(entry_path), .target = target, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .limits = c.Compiler.Limits{}, .sources = source_ids.items, .dependencies = sources.resolutions.items, .steps = product.steps, .migration = if (migration) |value| .{ .basis_digest = c.CatalogDiff.hash(value.basis), .prior_digest = value.prior_digest, .database = value.result.basis.database, .schema = value.result.basis.schema, .steps = value.result.steps, .sql_digest = c.CatalogDiff.hash(value.result.sql) } else null });
+    const provenance = try p.Json.valueAlloc(a, .{ .format = c.Compiler.format, .definition = Sources.definition, .complete = true, .compiler_revision = version.revision, .compiler_digest = @as([]const u8, &compiler_hex), .entry = std.fs.path.basename(entry_path), .target = target, .declared_output = product.declared_output_path, .input_digest = @as([]const u8, &input_hex), .sql_digest = @as([]const u8, &sql_hex), .limits = c.Compiler.Limits{}, .sources = source_ids.items, .dependencies = sources.resolutions.items, .steps = product.steps, .migration = if (migration) |value| .{ .basis_digest = c.CatalogDiff.hash(value.basis), .prior_digest = value.prior_digest, .database = value.result.basis.database, .schema = value.result.basis.schema, .steps = value.result.steps, .sql_digest = c.CatalogDiff.hash(value.result.sql) } else null });
     if (provenance.len > 64 * 1024 * 1024) return error.BuildProvenanceLimit;
     const out = if (options.out) |selected| try std.fs.path.resolve(a, &.{ cwd, selected }) else try std.fmt.allocPrint(a, "{s}/.transit/build/{s}/{s}", .{ root_path, target, input_hex });
     const reused = publish(init.io, a, out, product.sql, provenance, migration, options.out == null) catch |err| {

@@ -25,6 +25,7 @@ resolutions: std.ArrayList(Resolution) = .empty,
 pins: []const Pin = &.{},
 source_bytes: usize = 0,
 entries: usize = 0,
+entry_default: ?[]const u8 = null,
 links: std.ArrayList(struct { package: []const u8, path: []const u8 }) = .empty,
 
 pub fn load(self: *Self) ![32]u8 {
@@ -80,6 +81,9 @@ fn visitSource(self: *Self, index: usize, visited: *[256]u8, depth: usize) anyer
         self.diagnostic.* = c.Compiler.project(err, c.Compiler.locationSpan(source, span), null, null);
         return err;
     };
+    if (index == 0 and file.defaults.len == 1) {
+        self.entry_default = try self.a.dupe(u8, file.defaults[0].name);
+    }
     for (file.dependencies) |dep| self.resolve(dep) catch |err| {
         const dep_span: c.SourceDiagnostic.Span = .{ .start = dep.span.start, .end = dep.span.end };
         if (self.report) |r| {

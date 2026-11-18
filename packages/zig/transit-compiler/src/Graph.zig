@@ -189,6 +189,15 @@ pub fn selectedPath(path: []const u8) !void {
 /// package root. `.` and intra-package `..` normalize; escaping the package
 /// root, leading `/`, empty segments or traversing an excluded component fails.
 pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    return resolveSubpath(a, base_file, raw_path, true);
+}
+/// Resolve a relative workspace artifact or basis subpath against `base_file`'s
+/// directory while permitting `.transit` cache paths and forbidding `.git` or
+/// escaping the workspace root.
+pub fn resolveWorkspaceSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {
+    return resolveSubpath(a, base_file, raw_path, false);
+}
+fn resolveSubpath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8, comptime forbid_excluded: bool) ![]const u8 {
     if (raw_path.len == 0 or raw_path.len > 512 or !std.unicode.utf8ValidateSlice(raw_path) or std.mem.indexOfAny(u8, raw_path, "\\\x00\r\n") != null or raw_path[0] == '/') return error.InvalidSourcePath;
     var stack: [64][]const u8 = undefined;
     var len: usize = 0;
@@ -196,7 +205,7 @@ pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_pa
         var base_parts = std.mem.splitScalar(u8, base_file[0..slash], '/');
         while (base_parts.next()) |part| {
             if (part.len == 0) return error.InvalidSourcePath;
-            if (excludedComponent(part)) return error.ExcludedSourcePath;
+            if (if (forbid_excluded) excludedComponent(part) else std.mem.eql(u8, part, ".git")) return error.ExcludedSourcePath;
             if (len == stack.len) return error.SourceDepthLimit;
             stack[len] = part;
             len += 1;
@@ -205,7 +214,7 @@ pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_pa
     var parts = std.mem.splitScalar(u8, raw_path, '/');
     while (parts.next()) |part| {
         if (part.len == 0) return error.InvalidSourcePath;
-        if (excludedComponent(part)) return error.ExcludedSourcePath;
+        if (if (forbid_excluded) excludedComponent(part) else std.mem.eql(u8, part, ".git")) return error.ExcludedSourcePath;
         if (std.mem.eql(u8, part, ".")) continue;
         if (std.mem.eql(u8, part, "..")) {
             if (len == 0) return error.InvalidSourcePath;
@@ -230,7 +239,7 @@ pub fn resolvePackageSubpath(a: std.mem.Allocator, base_file: []const u8, raw_pa
         @memcpy(out[pos..][0..part.len], part);
         pos += part.len;
     }
-    try selectedPath(out);
+    if (forbid_excluded) try selectedPath(out) else try validPath(out);
     return out;
 }
 pub fn resolveSourcePath(a: std.mem.Allocator, base_file: []const u8, raw_path: []const u8) ![]const u8 {

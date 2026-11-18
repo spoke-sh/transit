@@ -265,7 +265,7 @@
       },
       "open_error_set_uses": 1,
       "propagation": {
-        "try": 46,
+        "try": 47,
         "catch": 9
       },
       "imports": [
@@ -444,7 +444,7 @@
       },
       "open_error_set_uses": 9,
       "propagation": {
-        "try": 112,
+        "try": 113,
         "catch": 30
       },
       "imports": [
@@ -13262,6 +13262,7 @@
         "InvalidCompilerIdentity": 1,
         "InvalidDataflowTransition": 1,
         "InvalidInstanceName": 1,
+        "InvalidMigrationBasisPath": 1,
         "InvalidModuleInterface": 1,
         "InvalidParameterType": 1,
         "InvalidSourceName": 1,
@@ -13274,7 +13275,7 @@
         "NestedTestCase": 1,
         "NonExhaustiveSourceMatch": 1,
         "NotModuleConstructor": 6,
-        "OutOfMemory": 5,
+        "OutOfMemory": 6,
         "RuntimePrivateOrUnsupportedDeclaration": 2,
         "SourceArgumentCount": 4,
         "SourceBytesLimit": 2,
@@ -13452,6 +13453,8 @@
         "resolvePackageSubpath()": "<inferred>",
         "resolveReported()": "<inferred>",
         "resolveSourcePath()": "<inferred>",
+        "resolveSubpath()": "<inferred>",
+        "resolveWorkspaceSubpath()": "<inferred>",
         "selectedPath()": "<inferred>",
         "treeDigest()": "<inferred>",
         "validPackage()": "<inferred>",
@@ -13464,7 +13467,7 @@
       },
       "open_error_set_uses": 4,
       "propagation": {
-        "try": 25,
+        "try": 26,
         "catch": 10
       },
       "imports": [

@@ -216,6 +216,7 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     self.test_mode = options.mode == .test_suite;
     const target_name = try self.selectTargetName(entry, options);
     result.selected_target = target_name;
+    if (self.report) |r| r.setTarget(target_name);
     self.context = .{ .name = target_name };
     const target = self.resolveTarget(entry, target_name) catch |err| {
         if (err == error.UnknownSourceSymbol) {
@@ -252,7 +253,7 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
         return error.WrongSourceTargetKind;
     }
     if (definition.output_path) |raw_out| {
-        result.declared_output_path = Graph.resolvePackageSubpath(a, sources[target.file].path, raw_out) catch |err| {
+        result.declared_output_path = Graph.resolveWorkspaceSubpath(a, sources[target.file].path, raw_out) catch |err| {
             if (self.report) |r| {
                 r.setSpan(target.file, definition.span.start, definition.span.end);
                 r.setHeadline("target output path '{s}' must stay confined within the workspace root", .{raw_out});
@@ -263,12 +264,13 @@ fn run(self: *Self, result: *Product, options: Options) !*Product {
     if (definition.migration) |mig| {
         result.migration = mig;
         if (mig.basis) |raw_basis| {
-            result.migration_basis_path = Graph.resolvePackageSubpath(a, sources[target.file].path, raw_basis) catch |err| {
+            result.migration_basis_path = Graph.resolveWorkspaceSubpath(a, sources[target.file].path, raw_basis) catch |err| {
+                if (err == error.OutOfMemory) return err;
                 if (self.report) |r| {
                     r.setSpan(target.file, definition.span.start, definition.span.end);
                     r.setHeadline("migration basis path '{s}' must stay confined within the workspace root", .{raw_basis});
                 }
-                return err;
+                return error.InvalidMigrationBasisPath;
             };
         }
     }
