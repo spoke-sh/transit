@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/spoke-sh/transitc",
-  "revision": "a729acca1d3dda114a1f72fafac9c37cee84f4da",
+  "revision": "caf43d596bba71801da799a6031c224105e22427",
   "paths": [
     "build.zig",
     "build.zig.zon",
@@ -19,7 +19,7 @@
     "README.md": "ab39e0248d36a5fe108bda44339a38dd65e44c1d4e28c57b580bbbc61d0c43bc",
     "apps/transitc-cli/README.md": "455326d1fcf4e8e19ef4299e3bab352fcca4f5e36ae3f0968c00ee9683435b8f",
     "apps/transitc-cli/src/main.zig": "fcd8b2ccb05a3f3c5f94e4dcd3d857c67789684812fa4467c7832acc182da6d6",
-    "build.zig": "130cc16c7be1c58fc48840b5eb1b32c429a0a188082379ec5cb9efa423a939cf",
+    "build.zig": "9556e5539bc7530eb7b1056f6af315d73d7c8d444b4526698c7a8bc6e7a09cc9",
     "build.zig.zon": "9f2e90dfb8b50b5049e807a9a636fe7a0b0cbe5727f33d0ab6577e3739045793",
     "contracts/APPLICATION_SOURCE_V1.md": "871879b86053b308140c256665fbc9bb8102a8334937daa08c3fb422d8191bf7",
     "contracts/TEST_HOST_V1.md": "8bbf1f3ba955e3938d89a922bc19158f69549f2d08bcae2a7a8a748a7e426292",
@@ -117,7 +117,7 @@
     "tests/fixtures/application-typed-targets/routing.transit": "084db372b2db47208b5140408ed9eb2e6db62cf784b3faf5eed6b0e2abb53729",
     "tests/fixtures/application-typed-targets/rows.transit": "dff07aaf23b82ba884c0860f630890aac31651528c8356c599f36eb276baee6f",
     "tests/fixtures/application-typed-targets/types.transit": "8ddaac164176c3e5bc7459ae8bde7b20dd4a6b0a34237d58350ef98f41e26590",
-    "tests/integration/README.md": "c1f0c7dcfddf21bf4bc9a7931da4acbe98b10d6e55c5fb14b8b04c4433ee37a0",
+    "tests/integration/README.md": "2b9462d1dc19ff1093e43d8b169555741828fbc64630e9b806dcfe19fdabaf20",
     "tests/integration/execute_sql.py": "7762bb605655a92dffa11dcad93786b703dab00be990661f3c398d30d87532dc",
     "tests/integration/fixtures/application/build.transit": "d116bfcaf9a28e2998ff489ff3a5a7066da91fe50b7a407eac53af17f3ae4610",
     "tests/integration/fixtures/application/rows.transit": "e78d563cec6e68c3dad76339dd440aae3886226be59b7fc5db6bd946a0805da5",

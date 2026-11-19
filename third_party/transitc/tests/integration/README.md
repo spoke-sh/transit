@@ -132,6 +132,7 @@ state removed on every handled path. This complements the runtime's native host
 fault/authority tests; it does not replace them.
 
 The CLI uses its build-time host default even when the runtime schedule denies
-PATH and configuration. A source build should set `-Dtest-runtime=FILE` or build
-inside the default shell. A runtime override must be compatible and is reported;
+PATH and configuration. A source build should set `-Dtest-runtime=FILE`;
+`just build` passes the pinned shell's host as that explicit build option.
+A runtime override must be compatible and is reported;
 it does not establish qualification for another runtime or storage profile.
