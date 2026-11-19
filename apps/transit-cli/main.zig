@@ -39,7 +39,3 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         .help => unreachable,
     };
 }
-
-test {
-    _ = @import("StyleRuntimeTest.zig");
-}

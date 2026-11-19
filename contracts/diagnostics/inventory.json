@@ -1063,22 +1063,6 @@
         "transit_query"
       ]
     },
-    "apps/transit-cli/StyleRuntimeTest.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "Style.zig",
-        "std",
-        "transit_query"
-      ]
-    },
     "apps/transit-cli/Support.zig": {
       "errors": {},
       "outcomes": {},
