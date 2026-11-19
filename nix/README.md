@@ -473,9 +473,14 @@ historical budgets retain the original inventory identities.
 All lanes reuse a compiler/dependency cache keyed by the locked toolchain and
 Zig manifests. The first selected SDK lane writes it (`sdks-conformance` for a
 full run), including the C++ standard library when compiled by its proofs.
-`ZIG_LOCAL_PKG_DIR` points Zig at the restored `.cache/ci-zig/p` directory;
+`ZIG_LOCAL_PKG_DIR` uses the relative `.cache/ci-zig/p` path;
 `ZIG_GLOBAL_CACHE_DIR` alone does not select the package directory in the pinned
-compiler. Clean qualification uses the same layout inside its isolated clone.
+compiler. Relative paths are required for nested path dependencies in fetched
+packages. Nested SDK builds own their package directories and reuse verified
+tarballs through the shared global cache. Clean qualification uses `zig-pkg`
+inside each isolated build directory. The runtime source-boundary proof also
+isolates the global cache so lazy package tarballs cannot affect its read-only
+dependency-store checks.
 Before native checks, `just ci::dependencies` fetches missing pinned packages
 with bounded transport retries, retaining each attempt's diagnostics. Compiler
 and test failures are not retried. The cache holds fetched packages and global

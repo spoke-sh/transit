@@ -243,7 +243,11 @@ def main():
     assert len(select([], 'push')['native_matrix']['include']) == 3
     assert next(step for step in steps if step.get('name') == 'Download immutable native publications')['if'] == 'inputs.native_bundle'
     assert next(step for step in steps if step.get('name') == 'Run ${{ inputs.lane }} checks')['if'] == "inputs.native_family == ''"
-    assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == "${{ github.workspace }}/.cache/ci-zig/p"
+    assert execution["env"]["ZIG_LOCAL_PKG_DIR"] == ".cache/ci-zig/p"
+    for definition in (workflow, yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())):
+        for job in definition['jobs'].values():
+            if package_directory := job.get('env', {}).get('ZIG_LOCAL_PKG_DIR'):
+                assert package_directory == '.cache/ci-zig/p'
     package_cache = next(step for step in steps if step.get("id") == "zig-cache")
     assert package_cache["with"]["key"].startswith("zig-v3-")
     reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")

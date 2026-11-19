@@ -36,7 +36,7 @@ def main():
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith('TRANSIT_') and key not in {'CI_NATIVE_BUNDLE_DIR', 'CI_FEEDBACK_TASK', 'ZIG_GLOBAL_CACHE_DIR', 'ZIG_LOCAL_PKG_DIR'}}
         shell = ['nix', 'develop', '.#ci-bindings', '--command', 'env', f'TMPDIR={scratch}',
-                 f'ZIG_GLOBAL_CACHE_DIR={root / "zig"}', f'ZIG_LOCAL_PKG_DIR={root / "zig/p"}']
+                 f'ZIG_GLOBAL_CACHE_DIR={root / "zig"}', 'ZIG_LOCAL_PKG_DIR=zig-pkg']
         preparation = {}
         run([*shell, 'just', 'ci::dependencies'], cwd=checkout, env=environment,
             log=destination / 'prepare.log', result=preparation).check_returncode()
