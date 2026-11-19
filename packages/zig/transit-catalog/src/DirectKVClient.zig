@@ -174,6 +174,56 @@ pub fn applyObserved(output: *std.heap.ArenaAllocator, client: c.DirectTableClie
     return .{ .result = result, .policy_revision = response.value.policy_revision };
 }
 
+/// Derive the accepted row revision for one `put` ordinal from its verified KV
+/// mutation receipt without issuing a follow-up `get` round-trip.
+pub fn putRevision(mutation: K.Mutation, receipt: c.storage.TablePartition.Evidence, ordinal: usize) !c.fuze.TableRow.Identity {
+    if (!std.meta.eql(mutation.binding, receipt.binding)) return error.DataIdentityConflict;
+    if (receipt.resulting.kind != .kv or receipt.transaction != null or receipt.outcome.matched > mutation.changes.len or
+        receipt.outcome.affected > mutation.changes.len or ordinal >= mutation.changes.len) return error.InvalidKVResponse;
+    if (mutation.changes[ordinal] != .put) return error.InvalidKVOperation;
+    return c.storage.TableDmlIntent.insertIdentity(mutation.binding.identity, @intCast(ordinal));
+}
+
+pub fn singlePutRevision(mutation: K.Mutation, receipt: c.storage.TablePartition.Evidence) !c.fuze.TableRow.Identity {
+    if (mutation.changes.len != 1 or receipt.outcome.affected != 1) return error.InvalidKVResponse;
+    return putRevision(mutation, receipt, 0);
+}
+
+test "singlePutRevision matches KVPartition row identity and rejects mismatched receipts" {
+    const t = std.testing;
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const scope: d.Scope = .{ .realm = 1, .resource = 2, .catalog = 3 };
+    const object: d.Object = .{ .scope = scope, .branch = 1, .object = 7 };
+    const spec: c.storage.KVDeclaration.Spec = .{ .value_type = .binary, .nullable = false };
+    const changes = [_]c.storage.KVPartition.Change{.{ .put = .{ .key = "head", .value = .{ .value = .{ .atom = .{ .bytes = "v1" } } }, .expect = .absent } }};
+    const mutation = try prepareMutation(&output, .{
+        .definition = c.protocol.Growth.current_definition,
+        .identity = .{ .scope = scope, .principal = 0, .operation = 42 },
+        .target = object,
+        .action = .insert,
+        .expected_definition = .{ .object = object, .revision = 1, .digest = @splat(5) },
+        .expected_data = null,
+        .intent = undefined,
+    }, spec, &changes);
+    var columns: [2]c.fuze.TableSchema.Column = undefined;
+    const lowered = try c.storage.KVPartition.lower(output.allocator(), spec.schema(object.object, &columns), mutation.binding, &changes);
+    const receipt: c.storage.TablePartition.Evidence = .{
+        .binding = mutation.binding,
+        .resulting = .{ .kind = .kv, .interpretation = mutation.binding.expected_definition.?, .content = .{ .bytes = 64, .sha256 = @splat(5) }, .schema_fingerprint = @splat(6), .retired = false },
+        .outcome = .{ .position = .{ .partition = 7, .next_lsn = 2 }, .matched = 1, .affected = 1, .live_rows = 1 },
+        .transaction = null,
+    };
+    const derived = try singlePutRevision(mutation, receipt);
+    try t.expectEqualDeep(lowered[0].put.row.identity, derived);
+    var unapplied = receipt;
+    unapplied.outcome.affected = 0;
+    try t.expectError(error.InvalidKVResponse, singlePutRevision(mutation, unapplied));
+    var foreign = receipt;
+    foreign.binding.identity.operation += 1;
+    try t.expectError(error.DataIdentityConflict, singlePutRevision(mutation, foreign));
+}
+
 fn localRowCloneSchedule(allocator: std.mem.Allocator) !void {
     var output: std.heap.ArenaAllocator = .init(allocator);
     defer output.deinit();

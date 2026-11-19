@@ -39,7 +39,7 @@ pub const Result = union(enum) {
 /// allocator. Neither allocator may die while its returned values are live.
 pub fn apply(state: c.DirectTransactionSession.State, client: c.DirectTableClient, output: *std.heap.ArenaAllocator, action: Action, owner: ?Owner) !Result {
     try state.validate();
-    if (state.statement != null or state.control != null) return error.TransactionSessionPending;
+    if (state.hasPendingWork()) return error.TransactionSessionPending;
     if (state.command != null) return error.TransactionSessionSettling;
     if (!std.meta.eql(state.begin.key.connection, client.connection)) return error.CatalogIdentityConflict;
     return switch (action) {

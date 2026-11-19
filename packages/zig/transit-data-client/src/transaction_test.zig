@@ -152,3 +152,57 @@ test "private reads preserve local exclusivity scope and control admission" {
     const control = try context.callTransaction(replacement, &transaction, .{ .settle = .{ .command = .abort } });
     try t.expectEqual(error.InjectedJournalFailure, control.value.failure.cause);
 }
+
+test "transaction journal reopens staged batches and refuses reads or commits while a batch is pending" {
+    var tmp = t.tmpDir(.{});
+    defer tmp.cleanup();
+    const state = initial();
+    const identity = try Recovery.key(state.begin);
+    const object: c.protocol.DataLifecycle.Object = .{ .scope = connection.scope, .branch = 1, .object = 11 };
+    const basis: c.protocol.DataLifecycle.Position = .{ .partition = 3, .next_lsn = 9 };
+    const tx_id: c.protocol.Transaction.Identity = .{ .begin = state.begin.operation, .branch = 1 };
+    const first: c.DirectTransactionWorkspace.StatementWork = .{ .state = .{
+        .statement = .{ .transaction = tx_id, .sequence = 1, .intent = @splat(21) },
+        .basis = basis,
+        .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = connection.scope, .principal = 5, .operation = 30 }, .target = object, .action = .insert, .expected_definition = .{ .object = object, .revision = 1, .digest = @splat(2) }, .expected_data = null, .intent = @splat(21) },
+        .intent = .{ .bytes = 64, .sha256 = @splat(22) },
+    } };
+    const second: c.DirectTransactionWorkspace.StatementWork = .{ .state = .{
+        .statement = .{ .transaction = tx_id, .sequence = 2, .intent = @splat(23) },
+        .basis = basis,
+        .binding = .{ .definition = c.protocol.Growth.current_definition, .identity = .{ .scope = connection.scope, .principal = 5, .operation = 31 }, .target = object, .action = .insert, .expected_definition = .{ .object = object, .revision = 1, .digest = @splat(2) }, .expected_data = null, .intent = @splat(23) },
+        .intent = .{ .bytes = 64, .sha256 = @splat(24) },
+    } };
+    const batch = try c.DirectTransactionRequest.StagedBatch.fromSlice(&.{ first, second });
+    {
+        var store = try data.LocalRecoveryStore.open(t.allocator, t.io, tmp.dir, "batch-tx", .{ .record_bytes = 16384 });
+        defer store.deinit();
+        var recovery = try Recovery.init(t.allocator, &store);
+        defer recovery.deinit();
+        var transaction = try recovery.create(state);
+        defer transaction.deinit();
+        var next = state;
+        next.batch = batch;
+        try transaction.journal.save(transaction.journal.context, state, next, .batch);
+    }
+    var store = try data.LocalRecoveryStore.open(t.allocator, t.io, tmp.dir, "batch-tx", .{ .record_bytes = 16384 });
+    defer store.deinit();
+    var recovery = try Recovery.init(t.allocator, &store);
+    defer recovery.deinit();
+    var transaction = try recovery.load(identity);
+    defer transaction.deinit();
+    try t.expectEqualDeep(batch, transaction.state.batch.?);
+    var context = try data.Context.init(t.allocator, t.io, .{ .catalogs = 2, .active = .{ .data = 1, .control = 1 } });
+    defer {
+        context.close(.none) catch unreachable;
+        context.deinit() catch unreachable;
+    }
+    const handle = try context.openCatalog(.{ .url = "http://127.0.0.1:1", .connection = connection, .timeout_ms = 100 }, @splat(1));
+    var output: std.heap.ArenaAllocator = .init(t.allocator);
+    defer output.deinit();
+    const pending_read = try context.readTransaction(handle, &transaction, &output, .{ .kv = .{ .object = object, .key = "k" } });
+    try t.expectEqual(error.TransactionSessionPending, pending_read.value.failure.cause);
+    const pending_commit = try context.callTransaction(handle, &transaction, .{ .settle = .{ .command = .commit } });
+    try t.expectEqual(error.TransactionSessionPending, pending_commit.value.failure.cause);
+    try t.expect(!pending_commit.mutationAttempted());
+}

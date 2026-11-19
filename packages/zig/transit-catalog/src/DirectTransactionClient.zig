@@ -36,6 +36,16 @@ pub fn stageKV(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataL
 pub fn stageLog(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, work: c.DirectTransactionLogWork.Work, payload: ?c.DirectTableProtocol.Binary) !c.DirectTransactionLogWork.Request {
     return (try self.call(.{ .stage_log = .{ .key = key, .basis = basis, .sequence = sequence, .work = work, .payload = payload } })).staged_log;
 }
+pub fn stageBatch(self: Self, key: c.DirectClientToken.Key, basis: c.protocol.DataLifecycle.Position, sequence: u64, items: []const w.BatchWrite) !w.StagedBatch {
+    const response = try self.callResponse(.{ .stage_batch = .{ .key = key, .basis = basis, .sequence = sequence, .items = items } });
+    defer response.deinit();
+    return w.StagedBatch.fromSlice(response.value.result.transaction.staged_batch.items);
+}
+pub fn executeBatch(self: Self, key: c.DirectClientToken.Key, batch: w.StagedBatch) !w.BatchSummary {
+    var items: [w.max_batch]c.DirectTransactionWorkspace.StatementWork = undefined;
+    const active = try batch.copyTo(&items);
+    return (try self.call(.{ .batch = .{ .key = key, .items = active } })).batch;
+}
 pub fn admitLog(self: Self, key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request) !?c.DirectTransactionLogWork.Outcome {
     return (try self.call(.{ .log_statement = .{ .key = key, .request = request, .execute = false } })).log_statement;
 }
@@ -69,6 +79,12 @@ pub fn settle(self: Self, key: c.DirectClientToken.Key, operation: c.protocol.Da
     return (try self.call(.{ .settle = .{ .key = key, .operation = operation, .command = command, .steps = steps } })).status;
 }
 fn call(self: Self, request: w.Request) !w.Result {
+    const response = try self.callResponse(request);
+    defer response.deinit();
+    // Non-batch Result variants contain only owned fixed-size values.
+    return response.value.result.transaction;
+}
+fn callResponse(self: Self, request: w.Request) !c.DirectTableClient.OwnedResponse {
     try request.validate();
     var original = request.key().connection;
     if (request == .recover) {
@@ -78,14 +94,11 @@ fn call(self: Self, request: w.Request) !w.Result {
     if (!std.meta.eql(original, self.catalog.connection)) return error.CatalogIdentityConflict;
     var caller = self.catalog;
     caller.transaction = null;
-    const response = caller.call(.{ .transaction = request }) catch |err| {
+    return caller.call(.{ .transaction = request }) catch |err| {
         // Preserve the native commit constraint as a typed refusal. Transport
         // timeout/EOF cannot establish expiry or decide the original attempt.
         if (err == error.Rejected and caller.service.last_rejection == .DeadlineExpired)
             return error.TransactionDeadlineElapsed;
         return err;
     };
-    defer response.deinit();
-    // Result contains only owned fixed-size values, no response-arena slices.
-    return response.value.result.transaction;
 }

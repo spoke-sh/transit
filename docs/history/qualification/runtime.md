@@ -9,6 +9,30 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Batched actor turns, claim-read closure and collection pressure — 2026-11-18
+
+At committed source `8dc5df3e1d88f527add7e02755658dacb909665b` (shared definition
+`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`), the private
+transactional Station runner and local-node storage owner add:
+
+- Batched turn publication (`Runner.publish` over `Transaction.write_batch`),
+  `KV.singlePutRevision` progress writes without readback round-trips, cached
+  same-revision `TableReader` reuse, and recoverable inbox claim payload-read
+  closure (`Runner.releaseClaimRead` and `transit_data_client.QueueClaimRelease`),
+  verified across all 18 installed fault/restart schedules in
+  [`transactional.zig`](../../../tests/runtime/station/transactional.zig)
+  (including `SIGKILL` node restart after `releaseClaimRead` with `.QueryExpired`
+  refusal on released claim pages while preserving original receipts).
+- A combined actor-population, competing `LocalQueueTransfers` DLQ worker and
+  `DirectStorageGraph` mark-grace-sweep collection schedule in
+  [`local_catalog_policy_test.zig`](../../../apps/transit-node/local_catalog_policy_test.zig)
+  exercising >4 Tables, >4 Streams and >4 Queues across two-slot resident log
+  owner pools, partial `Queue.open` `StorageQuota` recovery, saturated `data`
+  pool isolation with unstarved `control` inspection and `collection` sweeps,
+  reclamation of closed `SOR1`, aborted `TXR1` and closed `#419` `Capture`
+  chunks, and survival of retained `SOR1`, uncommitted `TXR1` batched writes,
+  published `#419` `Capture` streams, active Queue claims and DLQ transfers.
+
 ## Private transactional Station behavior — 2026-11-12
 
 At source `5d7e0fd19264009c91f92ceca7676da4895b3fd2`, the private

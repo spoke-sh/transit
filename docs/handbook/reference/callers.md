@@ -42,10 +42,14 @@ attempt does not establish acceptance. The data client's optional
 persist original submissions and command evidence on Linux. Receipt-storage
 failure remains separate from a known command outcome. The KV adapter saves exact
 mutations before dispatch and observes their original binding under current rights.
-Neither adapter resubmits work when an outcome is missing.
+`QueueClaimRelease` similarly persists explicit Queue claim payload-read release
+operations before dispatch and observes or resumes their original receipts
+independently of lease settlement. None of these adapters resubmit work without
+an explicit saved identity.
 
 The data client's [shared transaction API](../../../packages/zig/transit-data-client/README.md#shared-transactions)
-owns typed statement sequencing, savepoints, durable request checkpoints and
+owns single-statement and bounded 1–16 statement (`write_batch`) sequencing,
+savepoints, durable request checkpoints and
 bounded settlement over the database transaction owner. Ordinary callers use
 `Context.callTransaction` and an explicit journal; `TransactionRecovery` provides
 a local-file adapter. Station supplies an actor journal above the same API.

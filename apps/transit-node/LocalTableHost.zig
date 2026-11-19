@@ -36,6 +36,8 @@ tables: [stripe_count]std.Io.Mutex = @splat(.init),
 /// their hint too; the resolved object/partition must still match at open.
 /// Collision causes full recovery, never a limit on durable Table population.
 table_recovery: [stripe_count]?c.storage.TablePartition.RecoveryState = @splat(null),
+stream_recovery: [stripe_count]?c.storage.StreamPartition.RecoveryState = @splat(null),
+queue_recovery: [stripe_count]?c.storage.QueuePartition.RecoveryState = @splat(null),
 residents: [request_owners]ResidentSlot = @splat(.{}),
 control_residents: [2]ResidentSlot = @splat(.{}),
 /// Retained caches and owner work have a separate aggregate bound from parsed
@@ -284,9 +286,13 @@ noinline fn executeWriteAttempt(
     can_retry: bool,
 ) !Service.Result(format) {
     const saved_table_recoveries = self.table_recovery;
+    const saved_stream_recoveries = self.stream_recovery;
+    const saved_queue_recoveries = self.queue_recovery;
     return service.executeResultRef(format, arena, output_allocator, request) catch |err| {
         if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and can_retry) {
             self.table_recovery = saved_table_recoveries;
+            self.stream_recovery = saved_stream_recoveries;
+            self.queue_recovery = saved_queue_recoveries;
         }
         return err;
     };
@@ -314,8 +320,12 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
     var options = self.options;
     if (write) {
         options.table_recoveries = &self.table_recovery;
+        options.stream_recoveries = &self.stream_recovery;
+        options.queue_recoveries = &self.queue_recovery;
     } else if (stripe(request.action)) |slot| {
         options.table_recovery = &self.table_recovery[slot];
+        options.stream_recovery = &self.stream_recovery[slot];
+        options.queue_recovery = &self.queue_recovery[slot];
     }
     // Storage owners contain no request pointers and can serve any free lane.
     // Their count is bounded independently of the durable Table population.
@@ -352,6 +362,8 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         const attempt_arena = if (attempt == 0) arena else &scratch;
         const can_retry = attempt + 1 < 16;
         const saved_table_recovery = if (options.table_recovery) |slot| slot.* else null;
+        const saved_stream_recovery = if (options.stream_recovery) |slot| slot.* else null;
+        const saved_queue_recovery = if (options.queue_recovery) |slot| slot.* else null;
         const outcome = if (options.table_recoveries != null)
             self.executeWriteAttempt(format, &service, attempt_arena, output_allocator, request, can_retry)
         else
@@ -359,6 +371,8 @@ fn executeSingle(self: *Self, comptime format: Service.Output, io: std.Io, engin
         return outcome catch |err| {
             if ((err == error.AuthorizationChanged or err == error.TransactionAuthorityChanged or err == error.StaleStorageEpoch) and can_retry) {
                 if (options.table_recovery) |slot| slot.* = saved_table_recovery;
+                if (options.stream_recovery) |slot| slot.* = saved_stream_recovery;
+                if (options.queue_recovery) |slot| slot.* = saved_queue_recovery;
                 continue;
             }
             if (err == error.StreamWaitPending or err == error.QueueWaitPending) discard_on_error = false;

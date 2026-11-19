@@ -15,29 +15,30 @@ durable service work concerns Station calls, behaviors and effect consumers;
 it must not make ordinary serving depend on Station. Share neutral transaction,
 history and recovery owners, with Station adapters above that boundary.
 
-The [completion implementation plan, 2026-11-12](streams-queues-runtime-completion.md)
-assesses remaining work at `main` revision `6552747cf58a81cab0c60ad5c39e8e1568e9a007`.
-It first extracts a shared higher-level database transaction API and makes
-Station a consumer, with the private runner retained as a thin qualification
-fixture. Shared lifecycle/resource/cost qualification precedes durable services,
-effects and the public consumer cutover, alongside
-Table commit/latency work and final qualification at one revision. Its estimate
-is 15–21 review units and 19–32 engineer-weeks before integration contingency;
-M7's Document participant is a separate dependency. M6 remains **In Progress**.
-
-The plan's [initial shared API extraction](streams-queues-runtime-completion.md#b-extract-the-shared-transaction-api-and-migrate-station-to-it)
-now provides a database-owned caller lifecycle, owned data transaction contexts
-and a local recovery adapter. The private Station runner consumes it; ordinary
-data callers exercise the same API without Station, and SQL/program owners reuse
-its neutral helpers. This delivers the first extraction slice, with public
-runtime migration, batching and matched cost qualification still open.
-
-After [PR #451](https://github.com/spoke-sh/transit/pull/451), the
-[read ownership slice](transaction-read-ownership.md) implements owned Table/KV
-transaction reads through the shared data API, including Station adapter
-migration, workspace invalidation, current authorization and local reader
-lifetimes with scoped installed evidence. Batching and shared-path cost
-optimization follow; public service replacement remains later work.
+The [completion implementation plan, 2026-11-18](streams-queues-runtime-completion.md)
+refreshes remaining closeout work at `main` revision `c1f2680d9` after
+[PR #451](https://github.com/spoke-sh/transit/pull/451) (shared transaction
+session and data-client lifecycle), [PR #452](https://github.com/spoke-sh/transit/pull/452)
+([owned Table/KV transaction reads](transaction-read-ownership.md)), server
+delivery/Station controller ownership ([#460](https://github.com/spoke-sh/transit/pull/460)),
+standalone `transit-node` retirement ([#463](https://github.com/spoke-sh/transit/pull/463)),
+[M13 serving separation](13-declarative-serving-and-reactive-dataflows.md)
+([#464](https://github.com/spoke-sh/transit/pull/464)) and Ursula removal with
+MinIO S3 tiering ([#467](https://github.com/spoke-sh/transit/pull/467)). With
+Units `A` and `B` delivered at `8dc5df3e1` (12-profile
+[Stream/Queue baseline](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18),
+actor/DLQ/GC pressure schedule, shared 1–16 statement `stage_batch`/`batch`
+writes, `QueueClaimRelease` / `Runner.releaseClaimRead`, and a 49.9% median /
+56.6% p95 private Station turn-latency reduction to `6,018.2 ms` / `8,355.6 ms`),
+it orders the remaining closeout across two parallelizable tracks—Track 1 (`C`–`F`:
+authenticated calls/replies, timers/names/supervision,
+connector/Query/courier migration, and public 11-SDK/example/Board cutover with
+legacy `GenServer`/`Turn` deletion) and Track 2 (`G`: single-WAL Table
+token/commit composition, `TRUNCATE TABLE`, and `19 ms` `INSERT` / `10–20 ms`
+warm `SELECT` targets)—followed by single-revision qualification (`H`). Its
+remaining estimate is 11–15 review units and 12–21.5 direct engineer-weeks
+(~15–27 with contingency), excluding implementing M7's `DocumentPartition`
+(`C4`/`C5`/`C7`) itself. M6 remains **In Progress**.
 
 The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)
 records **Batch 5: one private transactional Station behavior**. The native

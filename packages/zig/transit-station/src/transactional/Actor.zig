@@ -88,6 +88,7 @@ pub const Pending = struct {
     draft: ?Turn.Draft,
     next_statement: u16,
     statement: ?c.DirectTransactionWorkspace.StatementWork,
+    batch: ?c.DirectTransactionRequest.StagedBatch = null,
     failed: bool,
 };
 pub const Head = struct {
@@ -99,13 +100,20 @@ pub const Head = struct {
     blocked: bool,
     retired: bool,
     pending: ?Pending,
+    claim_release: ?p.QueueRead.Release = null,
 
     pub fn initial(digest: [32]u8) Head {
-        return .{ .definition = p.Growth.current_definition, .actor = digest, .initialized = false, .next_turn = 1, .completed = 0, .blocked = false, .retired = false, .pending = null };
+        return .{ .definition = p.Growth.current_definition, .actor = digest, .initialized = false, .next_turn = 1, .completed = 0, .blocked = false, .retired = false, .pending = null, .claim_release = null };
     }
     pub fn validate(self: Head, actor: Declaration, allocator: std.mem.Allocator) !void {
         if (self.definition != p.Growth.current_definition) return error.IncompatibleDefinition;
         if (!std.mem.eql(u8, &self.actor, &try actor.digest(allocator)) or self.next_turn == 0 or self.completed >= self.next_turn) return error.ActorIdentityConflict;
+        if (self.claim_release) |release| {
+            try release.validate();
+            if (self.pending != null or !std.meta.eql(release.claim.claim.target, actor.inbox) or
+                !std.meta.eql(release.operation.scope, actor.connection.scope))
+                return error.ActorIdentityConflict;
+        }
         if (self.pending) |work| {
             try work.begin.validate();
             try work.commit.validate();
@@ -138,9 +146,16 @@ pub const Head = struct {
                 try source.validate();
                 if (!std.meta.eql(source.target, actor.inbox)) return error.ActorIdentityConflict;
             }
+            if (work.statement != null and work.batch != null) return error.ActorIdentityConflict;
             if (work.statement) |statement| {
                 try statement.validate();
                 if (!std.meta.eql(statement.statement().transaction.begin, work.begin.operation) or statement.statement().sequence != work.next_statement + 1)
+                    return error.ActorIdentityConflict;
+            }
+            if (work.batch) |*batch| {
+                batch.validate(connection) catch return error.ActorIdentityConflict;
+                if (!std.meta.eql(batch.entries[0].?.statement().transaction.begin, work.begin.operation) or
+                    batch.firstSequence() != work.next_statement + 1 or batch.lastSequence() > actor.transaction.statements)
                     return error.ActorIdentityConflict;
             }
             if (work.next_statement > actor.transaction.statements) return error.TurnCapacity;

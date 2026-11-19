@@ -234,13 +234,25 @@ pub fn apply(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog: *c.
         var owned_options = options;
         owned_options.clock = null;
         owned_options.control = .{ .log = catalog.store.log, .objects = catalog.store.objects };
-        slot.* = .{ .initialization = initial, .owner = try Stream.open(catalog.allocator, catalog.data_log, catalog.data_objects, initial, current.guard, owned_options) };
+        const opened = try Stream.open(catalog.allocator, catalog.data_log, catalog.data_objects, initial, current.guard, owned_options);
+        slot.* = .{ .initialization = initial, .owner = opened };
     }
     const owner = &slot.*.?.owner;
+    const recovery_slot = catalog.streamRecoverySlot(request.target().interpretation.object.object);
+    defer if (recovery_slot) |s_slot| {
+        if (owner.recoveryState()) |known| {
+            if (s_slot.* == null or !std.meta.eql(s_slot.*.?.root.initialization, known.root.initialization) or s_slot.*.?.root.next_lsn <= known.root.next_lsn)
+                s_slot.* = known;
+        } else |_| {}
+    };
     owner.options.clock = environment.clock;
     defer owner.options.clock = null;
     if (!owner.ready or try owner.log.tail(initial.partition) != owner.root.next_lsn) {
-        const recovered = try owner.recoverStep(current.guard, environment.recovery_steps);
+        const prior: ?Stream.RecoveryState = if (recovery_slot) |s_slot|
+            if (s_slot.*) |known| (if (std.meta.eql(known.root.initialization, initial)) known else null) else null
+        else
+            null;
+        const recovered = try owner.recoverStepSince(current.guard, environment.recovery_steps, prior);
         if (!recovered.complete) return .{ .recovering = recovered };
     }
     // A retained group pin does not preserve acquire rights. Resolve its real

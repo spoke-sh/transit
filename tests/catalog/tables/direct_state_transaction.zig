@@ -433,6 +433,114 @@ pub fn verify(init: std.process.Init, client: c.DirectTableClient, path: []const
         try t.expectEqual(@as(u64, 1), table_after.value.result.lookup.?.row_count);
         try t.expectEqual(@as(u64, 3), (try Stream.apply(&output, client, .{ .observe = logs.stream })).cut.next);
         try t.expectEqual(@as(u64, 2), (try Queue.apply(&output, client, .{ .observe = logs.queue })).cut.next);
+        try verifyBatchAndClaimRelease(init, client, saved, logs, held_lease, &store);
+    }
+}
+
+fn verifyBatchAndClaimRelease(init: std.process.Init, client: c.DirectTableClient, saved: Saved, logs: Logs, held_lease: p.StreamQueue.Lease, store: *data.LocalRecoveryStore) !void {
+    var caller = try callerFor(init, client);
+    defer caller.deinit();
+    var output: std.heap.ArenaAllocator = .init(init.gpa);
+    defer output.deinit();
+
+    // Recoverable QueueClaimRelease closes logs.claim's payload-read dependency
+    // after replay inspection is complete, and persists its verified receipt.
+    {
+        var adapter = try data.QueueClaimRelease.init(init.gpa, store, .{});
+        defer adapter.deinit();
+        const release: p.QueueRead.Release = .{ .operation = operation(client, 642400), .claim = logs.claim };
+        const id = try data.QueueClaimRelease.key(release.operation);
+        const saved_attempt = try adapter.save(client.connection, release);
+        try t.expectEqualSlices(u8, &id, &saved_attempt.key);
+        const pre_observed = try adapter.observe(caller.context, caller.handle, &output, id, .refuse);
+        try t.expect(pre_observed.outcome.value == .result and pre_observed.outcome.value.result.operation == null);
+        const resumed = try adapter.resumeSaved(caller.context, caller.handle, &output, id, .refuse);
+        try t.expect(resumed.persistence_failure == null);
+        try t.expect(resumed.outcome.value.result.operation.?.release.accepted.next_lsn > logs.claim.accepted.next_lsn);
+        var loaded = try adapter.load(init.gpa, id);
+        defer loaded.deinit();
+        try t.expectEqualDeep(release, loaded.release());
+        try t.expect(loaded.receipt != null and loaded.receipt.? == .release);
+        try t.expectError(error.Conflict, Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = logs.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }));
+        try t.expectEqual(p.ErrorCode.QueryExpired, client.service.last_rejection.?);
+    }
+
+    // Mixed Table + KV + Stream + Queue `.write_batch` with lost-reply recovery.
+    var key = saved.key;
+    key.token = @splat(11);
+    const targets = [_]p.Transaction.Target{
+        .{ .object = saved.object, .kind = .kv, .partition = null },
+        .{ .object = saved.table_statement.binding.target, .kind = .table, .partition = null },
+        .{ .object = logs.stream.interpretation.object, .kind = .stream, .partition = 0 },
+        .{ .object = logs.queue.interpretation.object, .kind = .queue, .partition = 0 },
+    };
+    var batch_id: data.LocalRecoveryStore.Key = undefined;
+    {
+        var recovery = try data.TransactionRecovery.init(init.gpa, store);
+        defer recovery.deinit();
+        var batch_tx = try recovery.create(.{
+            .begin = .{ .key = key, .fingerprint = @splat(12), .operation = operation(client, 642410), .namespace = 1, .mode = .serializable, .deadline = null, .execution = null, .selection = .{ .explicit_objects = &targets }, .limits = c.DirectTransaction.default_limits, .budget = .{} },
+            .settlement = operation(client, 642419),
+        });
+        defer batch_tx.deinit();
+        batch_id = recovery.identity.?;
+        _ = try caller.call(&batch_tx, .begin);
+        _ = try caller.call(&batch_tx, .acquire);
+        var insert = try c.DirectTablePreparedDml.prepare(init.gpa, client, 1, "INSERT INTO atomic_rows (id) VALUES ($1)", .transit, null);
+        defer insert.deinit();
+        var table_work = try insert.bind(init.gpa, client, 642411, &.{.{ .signed = 108 }}, .bulk, null);
+        defer table_work.deinit();
+        var kv_binding = saved.kv_statement.binding;
+        kv_binding.identity = operation(client, 642412);
+        const kv_mutation = try KV.prepareMutation(&output, kv_binding, spec, &.{.{ .put = .{ .key = "batched", .value = .{ .value = .{ .atom = .{ .bytes = &payload } } }, .expect = .absent } }});
+        var stream_buf: [8192]u8 = undefined;
+        const stream_op = operation(client, 642413);
+        const stream_bytes = try appendPayload(logs.stream, stream_op, .stream, &stream_buf);
+        const writes = [_]Transaction.Write{
+            .{ .table = table_work.parsed.value.work },
+            .{ .kv = kv_mutation },
+            .{ .log = .{ .work = .{ .append = .{ .target = logs.stream, .operation = stream_op, .kind = .stream, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(stream_bytes) } }, .payload = try c.DirectTableProtocol.Binary.encode(output.allocator(), stream_bytes) } },
+            .{ .log = .{ .work = .{ .queue_ack = .{ .operation = operation(client, 642414), .lease = held_lease, .action = .ack } } } },
+        };
+        // Note: operation 642016 is the proxy's injected lost-reply operation ID in direct_table_service.py;
+        // here we inject a local checkpoint failure on `.batch_complete` to verify reopen + `.advance` replay!
+        const BatchFault = struct {
+            journal: Transaction.Journal,
+            tripped: bool = false,
+            fn save(raw: *anyopaque, prev: Transaction.State, next: Transaction.State, ev: Transaction.Event) !void {
+                const self: *@This() = @ptrCast(@alignCast(raw));
+                if (!self.tripped and ev == .batch_complete) {
+                    self.tripped = true;
+                    return error.InjectedBatchCheckpointFailure;
+                }
+                try self.journal.save(self.journal.context, prev, next, ev);
+            }
+        };
+        var fault: BatchFault = .{ .journal = batch_tx.journal };
+        batch_tx.journal = .{ .context = &fault, .save = BatchFault.save };
+        const interrupted = try caller.call(&batch_tx, .{ .write_batch = &writes });
+        try t.expect(interrupted == .checkpoint_failed);
+        try t.expectEqual(error.InjectedBatchCheckpointFailure, interrupted.checkpoint_failed.cause);
+        try t.expectEqual(@as(u8, 4), interrupted.checkpoint_failed.completion.batch.provisional_count);
+    }
+    {
+        var recovery = try data.TransactionRecovery.init(init.gpa, store);
+        defer recovery.deinit();
+        var reopened = try recovery.load(batch_id);
+        defer reopened.deinit();
+        try t.expect(reopened.state.batch != null);
+        const summary = (try caller.call(&reopened, .{ .advance = 8 })).batch;
+        try t.expectEqual(@as(u8, 4), summary.evaluated_count);
+        try t.expectEqual(@as(u8, 4), summary.provisional_count);
+        try t.expectEqual(@as(u64, 2), summary.rows_affected);
+        try t.expectEqual(@as(u64, 1), summary.log_appended_rows);
+        try t.expectEqual(@as(u64, 1), summary.log_settled_acks);
+        try t.expect(summary.rejection == null);
+        const settled = (try caller.call(&reopened, .{ .settle = .{ .command = .commit, .steps = 16 } })).status;
+        try t.expect(settled.cleanup_complete);
+        try t.expectEqual(.committed, settled.observation.decided.outcome);
+        try t.expectEqualSlices(u8, &payload, (try KV.apply(&output, client, .{ .get = .{ .object = saved.object, .key = "batched" } })).value.value.?.value.atom.bytes);
+        try t.expectEqual(@as(u64, 4), (try Stream.apply(&output, client, .{ .observe = logs.stream })).cut.next);
     }
 }
 

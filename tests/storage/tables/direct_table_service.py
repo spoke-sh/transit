@@ -781,12 +781,22 @@ def run(node, caller, mode="tables", *artifacts):
                 return
             if mode == "log-baseline":
                 from performance.storage.log_runtime import exercise
-                def baseline_restart():
+                def baseline_restart(maintenance=False, flush=False):
                     nonlocal authority
                     stopped = stop(authority)
                     authority = None
                     if stopped['forced_kill'] or stopped['exit_code'] not in (0, -15):
                         raise RuntimeError(f"Baseline owner did not stop under its restart profile: {stopped}")
+                    if maintenance:
+                        settings["maintenance"] = {"principal": 0, "seed_file": str(seed), "interval_ms": 5, "operation_timeout_ms": 2000}
+                        settings["storage"] = {"maintenance": {"collection_every_records": 1_000_000_000,
+                                                               "flush": {"enabled": flush, **({"rows": 1} if flush else {})},
+                                                               "archive": {"enabled": flush},
+                                                               "compact": False}}
+                    else:
+                        settings.pop("maintenance", None)
+                        settings.pop("storage", None)
+                    config.write_text(json.dumps(settings))
                     authority = start()
                     return stopped
                 exercise(node, caller, root, profile, url, artifacts[0],

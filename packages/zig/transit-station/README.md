@@ -103,15 +103,18 @@ execution prerequisite, so an old generation cannot publish delayed progress or
 claim work after takeover.
 
 A turn saves its original token, BEGIN, input claim and commit operation before
-dispatch. It acquires one input and then a common transaction cut. The handler
+dispatch. Control-row mutations derive their committed KV revision directly from
+the insert identity without a follow-up readback round-trip. It acquires one input and then a common transaction cut. The handler
 gets private KV reads/writes, typed Table primary-key reads and Table DML, plus
 journal/output builders. Table statements stage in the shared private workspace
-before subsequent handler reads; KV reads see buffered writes. Original statement
+before subsequent handler reads, and consecutive handler Table lookups at the
+same workspace revision reuse the open `TableReader` and validated schema; KV reads see buffered writes. Original statement
 work is retained before execution. Binary input, KV and output data use owned
 base64 envelopes in retained progress. No handler receives a signer, settlement
 handle or external effect dispatcher; this is not a native-code sandbox.
 
-The input ACK, state mutations, one replay entry and output intents publish in
+The completed draft's buffered KV mutations, one replay entry, output intents
+and input ACK stage and execute together through `write_batch` before settling in
 one ordinary transaction. The frozen native condition and original Queue claim
 are independent decision requirements. Journal attribution joins the original
 transaction receipt; an application row alone proves no actor origin. `advance`
@@ -126,7 +129,9 @@ disposition only after a proved abort. `stop` leaves unresolved work for recover
 Queue lease expiry cannot clear a block; `retryBlocked` is an explicit authorized
 choice after settlement. Permanent native retirement continues to fence all new
 work. Recovery cancellation closes a missing original claim, while accepted claim
-payload retention and lease settlement retain their separate owner semantics.
+payload retention and lease settlement retain their separate owner semantics;
+call `Runner.releaseClaimRead(turn, claim)` to persist and dispatch explicit
+Queue claim payload-read closure after a settled turn's post-turn inspection ends.
 
 One runner has one active actor, a 64 MiB allocator ceiling, reusable scratch and
 output arenas, a 128 KiB progress-record ceiling, and a 64 KiB handler-data ceiling.

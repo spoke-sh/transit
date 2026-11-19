@@ -16,6 +16,9 @@ key: p.Ed25519.KeyPair,
 /// The owner still authenticates the claim and checks current policy on every
 /// request. Rotation rejects this epoch; no refresh or replay is implicit.
 credential_epoch: ?u64 = null,
+/// Optional caller-owned slot populated from the first verified direct response
+/// when no explicit epoch, delegation or borrow is active.
+observed_epoch: ?*?u64 = null,
 /// When present, key authenticates this delegation's executor. The connection
 /// still identifies its original caller and selected role.
 delegation: ?c.DirectReadDelegation = null,
@@ -343,7 +346,8 @@ pub fn signed(self: Self, action: w.Action, nonce: [16]u8) !w.Request {
     const input: w.Request.Input = .{ .definition = p.Growth.current_definition, .connection = self.connection, .nonce = nonce, .action = action, .delegation = self.delegation, .closure = self.closure, .borrow = self.borrow, .lease = self.lease, .transaction = self.transaction, .execution = if (self.execution) |value| value.condition() else null };
     const authority: wire.AuthorizationClient = .{ .transport = self.authority, .realm = self.connection.scope.realm, .principal = if (self.borrow) |borrow| borrow.binding.executor else if (self.delegation) |delegation| delegation.binding.executor else self.connection.principal, .role = if (self.delegation != null) null else self.connection.role, .key = self.key };
     const context = try w.Request.context(input, self.allocator);
-    const proof = if (self.credential_epoch) |epoch|
+    const known_epoch = self.credential_epoch orelse if (self.delegation == null and self.borrow == null and self.observed_epoch != null) self.observed_epoch.?.* else null;
+    const proof = if (known_epoch) |epoch|
         try p.Authorization.Proof.sign(.{ .definition = p.Growth.current_definition, .realm = authority.realm, .principal = authority.principal, .credential_epoch = epoch, .role = authority.role, .audience = self.connection.audience, .context = context }, self.key)
     else
         (try authority.proof(self.connection.audience, context)).signed;
@@ -370,6 +374,9 @@ pub fn call(self: Self, action: w.Action) !OwnedResponse {
     const response = OwnedResponse.init(parsed);
     errdefer response.deinit();
     try validateResponseRef(arena.allocator(), &request, &response.value);
+    if (self.credential_epoch == null and self.delegation == null and self.borrow == null) {
+        if (self.observed_epoch) |slot| slot.* = response.value.subject.credential_epoch;
+    }
     return response;
 }
 

@@ -14,6 +14,7 @@ const Original = struct {
 const Progress = struct {
     last_statement: u64,
     statement: ?c.DirectTransactionWorkspace.StatementWork,
+    batch: ?c.DirectTransactionRequest.StagedBatch = null,
     last_control: u64,
     control: ?c.DirectTransactionSavepoint.Request,
     command: ?c.DirectTransactionControl.Command,
@@ -56,7 +57,7 @@ fn journal(self: *Self) Transaction.Journal {
 pub fn create(self: *Self, state: Transaction.State) !Transaction {
     if (self.identity != null) return error.RecoveryAdapterBound;
     try state.validate();
-    if (state.last_statement != 0 or state.statement != null or state.last_control != 0 or state.control != null or state.command != null)
+    if (state.last_statement != 0 or state.hasPendingWork() or state.last_control != 0 or state.command != null)
         return error.InvalidTransactionSession;
     const identity = try key(state.begin);
     _ = try self.store.insert(identity, try self.encode(original(state)));
@@ -77,6 +78,7 @@ pub fn load(self: *Self, identity: Store.Key) !Transaction {
         defer progress.deinit();
         state.last_statement = progress.value.last_statement;
         state.statement = progress.value.statement;
+        state.batch = progress.value.batch;
         state.last_control = progress.value.last_control;
         state.control = progress.value.control;
         state.command = progress.value.command;
@@ -106,5 +108,5 @@ fn save(raw: *anyopaque, previous: Transaction.State, state: Transaction.State, 
 }
 
 fn progressOf(state: Transaction.State) Progress {
-    return .{ .last_statement = state.last_statement, .statement = state.statement, .last_control = state.last_control, .control = state.control, .command = state.command };
+    return .{ .last_statement = state.last_statement, .statement = state.statement, .batch = state.batch, .last_control = state.last_control, .control = state.control, .command = state.command };
 }

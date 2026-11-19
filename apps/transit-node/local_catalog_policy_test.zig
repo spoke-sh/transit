@@ -3441,3 +3441,438 @@ fn sourceCaptureReadSchedule(service: *@import("LocalTableService.zig"), owner_r
     open_operation.operation += 1;
     (try dispatch(service, .{ .capture_read = .{ .close = .{ .handle = original.handle, .operation = open_operation } } })).deinit();
 }
+
+test "actor population, competing queue transfers and live roots survive concurrent collection under data pressure" {
+    try dataSchedule(actorPopulationCollectionSchedule);
+}
+
+fn actorPopulationCollectionSchedule(service: *@import("LocalTableService.zig"), owner_role: u64) !void {
+    const w = c.DirectTableProtocol;
+    const Capture = c.DirectSourceCapture;
+    const Host = @import("LocalTableHost.zig");
+    const Transfers = @import("LocalQueueTransfers.zig");
+    const config = service.configuration;
+    const scope = config.scope;
+    const connection: w.Connection = .{ .scope = scope, .branch = 1, .audience = config.audience, .principal = 101, .role = null };
+    var arena: std.heap.ArenaAllocator = .init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const Clock = struct {
+        now: u64 = 1000,
+        fn read(raw: *anyopaque) !@import("transit_core").Time.Sample {
+            return .{ .unix_ms = @as(*@This(), @ptrCast(@alignCast(raw))).now, .error_ms = 5 };
+        }
+    };
+    var clock: Clock = .{};
+    const previous_clock = service.engine.clock;
+    defer service.engine.clock = previous_clock;
+    service.engine.clock = .{ .context = &clock, .read = Clock.read };
+
+    const Setup = struct {
+        const columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+        const pk_columns = [_]c.fuze.TableSchema.Column{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }};
+        fn tableSchema(object: u64) c.fuze.TableSchema.Schema {
+            return .{ .object = object, .revision = 1, .next_column = 2, .columns = &pk_columns, .primary_key = &.{1} };
+        }
+        fn logSchema(object: u64) c.fuze.TableSchema.Schema {
+            return .{ .object = object, .revision = 1, .next_column = 2, .columns = &columns, .primary_key = &.{} };
+        }
+        fn op(configuration: D.Configuration, id: u64) p.DataLifecycle.Operation {
+            return .{ .scope = configuration.scope, .principal = 101, .operation = id };
+        }
+        fn createTable(current: *@import("LocalTableService.zig"), role: u64, object: u64, name: []const u8) !w.Definition {
+            var local: std.heap.ArenaAllocator = .init(t.allocator);
+            defer local.deinit();
+            const schema = tableSchema(object);
+            const intent: D.Intent = .{ .kind = .table, .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .schema = schema, .owner = role } } };
+            const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = op(current.configuration, object), .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(local.allocator()) };
+            var encoded: [8192]u8 = undefined;
+            (try dispatch(current, .{ .admit_ddl = .{ .binding = binding, .namespace = 1, .name = name, .action = .{ .create = .{ .owner = role, .schema = try w.Binary.encode(local.allocator(), try schema.encode(&encoded)) } } } })).deinit();
+            (try dispatch(current, .{ .operation = .{ .binding = binding, .command = .execute, .steps = 8 } })).deinit();
+            const metadata = try dispatch(current, .{ .lookup = .{ .namespace = 1, .name = name } });
+            errdefer metadata.deinit();
+            const out = try t.allocator.dupe(u8, metadata.value.result.lookup.?.schema.base64);
+            var def = metadata.value.result.lookup.?;
+            def.schema = .{ .base64 = out };
+            metadata.deinit();
+            return def;
+        }
+        fn createQueue(current: *@import("LocalTableService.zig"), role: u64, object: u64, name: []const u8, destination: ?p.DataLifecycle.Definition) !c.DirectLog.Definition {
+            var local: std.heap.ArenaAllocator = .init(t.allocator);
+            defer local.deinit();
+            const intent: c.DirectLog.Intent = .{ .kind = .queue, .namespace = 1, .name = try .init(name), .action = .{ .create = .{
+                .owner = role,
+                .schema = logSchema(object),
+                .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .queue = .{ .ordering = .unordered, .key_column = null, .lease_ms = 100, .maximum_lease_ms = 300_000, .maximum_attempts = 1, .backoff = .{ .initial_ms = 0, .maximum_ms = 0, .multiplier = 1 }, .dead_letter = destination } } },
+                .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 16 },
+            } } };
+            const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = op(current.configuration, object), .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(local.allocator()) };
+            (try dispatch(current, .{ .log_admit = try c.DirectLogProtocol.Ddl.encode(local.allocator(), .{ .binding = binding, .intent = intent }) })).deinit();
+            const response = try dispatch(current, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+            defer response.deinit();
+            return response.value.result.log_operation.operation.resulting.?;
+        }
+        fn createStream(current: *@import("LocalTableService.zig"), role: u64, object: u64, name: []const u8, schema: c.fuze.TableSchema.Schema) !c.DirectLog.Definition {
+            var local: std.heap.ArenaAllocator = .init(t.allocator);
+            defer local.deinit();
+            const intent: c.DirectLog.Intent = .{ .kind = .stream, .namespace = 1, .name = try .init(name), .action = .{ .create = .{
+                .owner = role,
+                .schema = schema,
+                .configuration = .{ .partitioning = .{ .count = 1, .key_column = null, .hash = .sha256_64 }, .retention = .{ .max_age_ms = null }, .policy = .{ .stream = .{ .compact_key_column = null, .timestamp_column = null } } },
+                .limits = .{ .append_rows = 128, .append_bytes = 1024 * 1024, .claim_rows = 16, .read_rows = 128, .read_bytes = 1024 * 1024, .active_leases = 64, .waiters = 64, .timer_steps = 16 },
+            } } };
+            const binding: p.DataLifecycle.Binding = .{ .definition = g.current_definition, .identity = op(current.configuration, object), .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try intent.digest(local.allocator()) };
+            (try dispatch(current, .{ .log_admit = try c.DirectLogProtocol.Ddl.encode(local.allocator(), .{ .binding = binding, .intent = intent }) })).deinit();
+            const response = try dispatch(current, .{ .log_operation = .{ .binding = binding, .command = .execute, .steps = 32 } });
+            defer response.deinit();
+            return response.value.result.log_operation.operation.resulting.?;
+        }
+        fn createSourceObj(current: *@import("LocalTableService.zig"), role: u64, object: u64, name: []const u8, payload: c.SourceDeclaration.Payload) !c.DirectSource.State {
+            const value: c.DirectSource.Intent = .{ .kind = std.meta.activeTag(payload), .namespace = 1, .name = try .init(name), .action = .{ .create = .{ .owner = role, .payload = payload } } };
+            const request: c.DirectSource.Request = .{ .intent = value, .binding = .{ .definition = g.current_definition, .identity = op(current.configuration, object), .target = .{ .scope = current.configuration.scope, .branch = 1, .object = object }, .action = .create, .expected_definition = null, .expected_data = null, .intent = try value.digest(t.allocator) } };
+            (try dispatch(current, .{ .source = .{ .declaration = .{ .request = request, .command = .reserve, .steps = 1 } } })).deinit();
+            const result = try dispatch(current, .{ .source = .{ .declaration = .{ .request = request, .command = .execute, .steps = 32 } } });
+            defer result.deinit();
+            return result.value.result.source.observation.operation.resulting.?;
+        }
+        fn signedCheckpoint(current: *Engine) !g.SignedRequest {
+            return g.sign(.{ .realm = 42, .principal = 0, .sequence = (try current.principal(0)).sequence + 1, .command = .checkpoint }, try key(17));
+        }
+    };
+
+    // Declare >4 Tables, >4 Queues (+ DLQ) and >4 Streams so Resident's 4-slot
+    // Table/Stream/Queue caches evict and reload under stripe recovery hints.
+    var tables: [5]w.Definition = undefined;
+    var table_opened: usize = 0;
+    defer for (tables[0..table_opened]) |item| t.allocator.free(item.schema.base64);
+    for (&tables, 0..) |*slot, idx| {
+        var name_buf: [32]u8 = undefined;
+        slot.* = try Setup.createTable(service, owner_role, 400 + idx, try std.fmt.bufPrint(&name_buf, "actor_state_{d}", .{idx}));
+        table_opened += 1;
+    }
+    const dlq = try Setup.createQueue(service, owner_role, 410, "actor_dlq", null);
+    var queues: [5]c.DirectLog.Definition = undefined;
+    for (&queues, 0..) |*slot, idx| {
+        var name_buf: [32]u8 = undefined;
+        slot.* = try Setup.createQueue(service, owner_role, 411 + idx, try std.fmt.bufPrint(&name_buf, "actor_queue_{d}", .{idx}), dlq.stored.declaration.interpretation);
+    }
+    var capture_ddl = try c.fuze.LogDdl.compile(t.allocator, "CREATE STREAM actor_captures (capture_id UUID NOT NULL, source_sequence UINT64 NOT NULL, observed_at TIMESTAMPTZ NOT NULL, http_status INTEGER NOT NULL, body_ref BINARY NOT NULL, body_bytes UINT64 NOT NULL, body_sha256 BINARY NOT NULL)", .transit, null);
+    defer capture_ddl.deinit();
+    const capture_stream = try Setup.createStream(service, owner_role, 420, "actor_captures", try capture_ddl.statement.action.create.bind(420));
+    var streams: [4]c.DirectLog.Definition = undefined;
+    for (&streams, 0..) |*slot, idx| {
+        var name_buf: [32]u8 = undefined;
+        slot.* = try Setup.createStream(service, owner_role, 421 + idx, try std.fmt.bufPrint(&name_buf, "actor_stream_{d}", .{idx}), Setup.logSchema(421 + idx));
+    }
+    const upstream = try Setup.createSourceObj(service, owner_role, 430, "actor_upstream", .{ .connection = .{ .endpoint = "https://example.com" } });
+    const source_decl = try Setup.createSourceObj(service, owner_role, 431, "actor_feed", .{ .source = .{ .connection = upstream.declaration.interpretation, .destination = capture_stream.stored.declaration.interpretation, .executor = 99, .http = .{ .method = .GET, .path = "/events", .poll_interval_ms = 1000, .request_timeout_ms = 500, .response_max_bytes = 4 * 1024 * 1024 }, .columns = .{ 1, 2, 3, 4, 5, 6, 7 } } });
+
+    var control_store: backend.DataStore = .{ .backend = service.engine.journal.backend, .control = true };
+    var data_store: backend.DataStore = .{ .backend = service.engine.journal.backend };
+    var catalog = try D.init(t.allocator, config, control_store.log(), control_store.objects(), data_store.log(), data_store.objects(), service.options);
+    defer catalog.deinit();
+    try catalog.recover();
+
+    var admission: @import("DirectStorageMemory.zig") = undefined;
+    try admission.init(t.allocator, .{ .admission = .{ .data_bytes = 64 * 1024 * 1024, .control_bytes = 8 * 1024 * 1024 } });
+    defer admission.deinit();
+
+    var host: Host = .{ .configuration = config, .registrar = service.registrar, .options = service.options, .recovery = try catalog.recoveryState(), .admission = &admission };
+    host.resident_memory.attach(&admission);
+    defer host.deinit();
+
+    const HostAdapter = struct {
+        host: *Host,
+        engine: *Engine,
+        configuration: D.Configuration,
+        control: bool = false,
+        fn execute(self: *@This(), scratch: *std.heap.ArenaAllocator, output: std.mem.Allocator, request: w.Request) ![]const u8 {
+            return self.host.executeMeasured(self.engine.journal.backend.io, self.engine, scratch, output, request, self.control, null);
+        }
+    };
+    var adapter: HostAdapter = .{ .host = &host, .engine = service.engine, .configuration = config };
+
+    // Populate >4 Streams and >4 Queues through LocalTableHost so Resident
+    // rotates slots and records stripe recovery hints across all owners.
+    var log_buf: [4096]u8 = undefined;
+    for (streams, 0..) |stream_def, idx| {
+        const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = stream_def.stored.declaration.interpretation, .partition = 0 };
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(500 + idx) } } }};
+        const op_id = Setup.op(config, 91000 + idx);
+        const payload = try c.storage.LogBatch.encode(Setup.logSchema(421 + idx), op_id, .stream, &.{.{ .cells = &cells }}, &log_buf);
+        (try dispatch(&adapter, .{ .stream = .{ .mutate = .{ .work = .{ .append = .{ .target = target, .operation = op_id, .kind = .stream, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = try w.Binary.encode(alloc, payload) } } })).deinit();
+    }
+    for (queues, 0..) |queue_def, idx| {
+        const target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = queue_def.stored.declaration.interpretation, .partition = 0 };
+        const cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = @intCast(700 + idx) } } }};
+        const op_id = Setup.op(config, 91100 + idx);
+        const payload = try c.storage.LogBatch.encode(Setup.logSchema(411 + idx), op_id, .queue, &.{.{ .cells = &cells, .visible_ms = 0 }}, &log_buf);
+        (try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .enqueue = .{ .target = target, .operation = op_id, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(payload) } }, .payload = try w.Binary.encode(alloc, payload) } } })).deinit();
+    }
+
+    // Hold an active claim selection on actor_queue_0 across GC, and exhaust
+    // actor_queue_1's single delivery attempt so DLQ transfer becomes eligible.
+    const q0_target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = queues[0].stored.declaration.interpretation, .partition = 0 };
+    const q0_claimed = try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = q0_target, .operation = Setup.op(config, 91200), .maximum = 1, .lease_ms = 180_000, .predicate = null } }, .payload = null } } });
+    defer q0_claimed.deinit();
+    const active_claim = q0_claimed.value.result.queue.operation.?.claim;
+
+    const q1_target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = queues[1].stored.declaration.interpretation, .partition = 0 };
+    const q1_claimed = try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = q1_target, .operation = Setup.op(config, 91201), .maximum = 1, .lease_ms = 100, .predicate = null } }, .payload = null } } });
+    defer q1_claimed.deinit();
+    const q1_page = try dispatch(&adapter, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = q1_claimed.value.result.queue.operation.?.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer q1_page.deinit();
+    (try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .settle = .{ .operation = Setup.op(config, 91202), .lease = q1_page.value.result.queue.page.rows[0].lease.original, .action = .{ .nack = .{ .visible_ms = 0 } } } }, .payload = null } } })).deinit();
+    clock.now = 1020;
+
+    // Stage two SOR1 owned originals: retain index 0, close index 1.
+    var sor_refs: [2]c.DirectRecord.Reference = undefined;
+    for (&sor_refs, 0..) |*sor_ref, idx| {
+        const tok: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(96), .token = @splat(@intCast(idx + 1)) };
+        const bytes = try w.Binary.encode(alloc, if (idx == 0) "actor sor live" else "actor sor closed");
+        const encoded = try c.DirectOwnedRecord.encode(alloc, tok, 17, bytes);
+        sor_ref.* = try c.DirectRecord.reference(tok.scope(), c.DirectOwnedRecord.format, encoded);
+        const stage_req: c.DirectOwnedRecord.Stage = .{ .binding = .{ .key = tok, .fingerprint = @splat(17), .budget = .{ .bytes = 64 * 1024 }, .intent = .{ .external = .{ .connection = connection, .namespace = 1, .operation = 92000 + idx, .record = sor_ref.* } } }, .format = 17, .bytes = bytes };
+        const staged = try dispatch(&adapter, .{ .client_progress = .{ .stage_original = stage_req } });
+        defer staged.deinit();
+        const ctrl: c.DirectOwnedRecord.Control = .{ .key = tok, .expected = staged.value.result.client_progress.state.?.revision };
+        (try dispatch(&adapter, .{ .client_progress = if (idx == 0) .{ .retain_original = ctrl } else .{ .close_original = ctrl } })).deinit();
+    }
+
+    // Open two transactions: abort tx_aborted (reclaiming its TXR1) and leave
+    // tx_live open with a TXR1 record and a provisional .stage_batch + .batch
+    // spanning actor_state_0, actor_state_4 and actor_queue_4 across GC.
+    var tx_refs: [2]c.DirectRecord.Reference = undefined;
+    const tx_aborted_tok: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(97), .token = @splat(1) };
+    const tx_live_tok: c.DirectClientToken.Key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(97), .token = @splat(2) };
+    const explicit_targets = [_]p.Transaction.Target{
+        .{ .object = tables[0].interpretation.interpretation.object, .kind = .table, .partition = null },
+        .{ .object = tables[4].interpretation.interpretation.object, .kind = .table, .partition = null },
+        .{ .object = queues[4].stored.declaration.interpretation.object, .kind = .queue, .partition = 0 },
+    };
+    for ([_]c.DirectClientToken.Key{ tx_aborted_tok, tx_live_tok }, 0..) |tok, idx| {
+        const selection: @FieldType(c.DirectTransactionRequest.Begin, "selection") = .{ .explicit_objects = &explicit_targets };
+        (try dispatch(&adapter, .{ .transaction = .{ .begin = .{ .key = tok, .fingerprint = @splat(82), .operation = Setup.op(config, 93000 + idx), .namespace = 1, .mode = .serializable, .selection = selection, .limits = c.DirectTransaction.default_limits, .deadline = null, .execution = null, .budget = .{} } } })).deinit();
+        (try dispatch(&adapter, .{ .transaction = .{ .acquire = tok } })).deinit();
+        const guarded = try c.DirectRecord.encodeGuarded(alloc, connection, &.{tables[0].interpretation.interpretation.object}, if (idx == 0) "txr aborted" else "txr live");
+        const rec_req: c.DirectRecord.Request = .{ .stage_transaction = .{ .transaction = tok, .format = c.DirectRecord.guarded_bit | 17, .bytes = try w.Binary.encode(alloc, guarded) } };
+        const staged_rec = try dispatch(&adapter, .{ .record = rec_req });
+        defer staged_rec.deinit();
+        tx_refs[idx] = staged_rec.value.result.record.reference;
+    }
+    for (0..8) |_| {
+        const settled = try dispatch(&adapter, .{ .transaction = .{ .settle = .{ .key = tx_aborted_tok, .operation = Setup.op(config, 93010), .command = .abort, .steps = 32 } } });
+        defer settled.deinit();
+        if (settled.value.result.transaction.status.cleanup_complete) break;
+    } else return error.FixtureBudget;
+
+    {
+        var plan_0 = try c.fuze.TableDml.compile(alloc, "INSERT INTO actor_state_0 VALUES (10)", "actor_state_0", Setup.tableSchema(400), null);
+        defer plan_0.deinit();
+        var intent_0 = try c.DirectTableIntent.fromDml(alloc, connection, tables[0], 93100, plan_0.plan, .bulk);
+        defer intent_0.deinit();
+        var plan_4 = try c.fuze.TableDml.compile(alloc, "INSERT INTO actor_state_4 VALUES (40)", "actor_state_4", Setup.tableSchema(404), null);
+        defer plan_4.deinit();
+        var intent_4 = try c.DirectTableIntent.fromDml(alloc, connection, tables[4], 93101, plan_4.plan, .bulk);
+        defer intent_4.deinit();
+        const q4_target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = queues[4].stored.declaration.interpretation, .partition = 0 };
+        const outbox_op = Setup.op(config, 93102);
+        const outbox_cells = [_]c.fuze.Types.Values.Cell{.{ .value = .{ .atom = .{ .signed = 999 } } }};
+        const outbox_payload = try c.storage.LogBatch.encode(Setup.logSchema(415), outbox_op, .queue, &.{.{ .cells = &outbox_cells, .visible_ms = 0 }}, &log_buf);
+        const status = try dispatch(&adapter, .{ .transaction = .{ .inspect = tx_live_tok } });
+        defer status.deinit();
+        const batch_items = [_]c.DirectTransactionRequest.BatchWrite{
+            .{ .table = intent_0.parsed.value.work },
+            .{ .table = intent_4.parsed.value.work },
+            .{ .log = .{ .work = .{ .append = .{ .target = q4_target, .operation = outbox_op, .kind = .queue, .producer = null, .rows = 1, .payload = c.storage.LogBatch.content(outbox_payload) } }, .payload = try w.Binary.encode(alloc, outbox_payload) } },
+        };
+        const staged_batch = try dispatch(&adapter, .{ .transaction = .{ .stage_batch = .{ .key = tx_live_tok, .basis = status.value.result.transaction.status.revision, .sequence = 1, .items = &batch_items } } });
+        defer staged_batch.deinit();
+        const executed_batch = try dispatch(&adapter, .{ .transaction = .{ .batch = .{ .key = tx_live_tok, .items = staged_batch.value.result.transaction.staged_batch.items } } });
+        defer executed_batch.deinit();
+        try t.expectEqual(@as(u8, 3), executed_batch.value.result.transaction.batch.provisional_count);
+        try t.expect(executed_batch.value.result.transaction.batch.rejection == null);
+    }
+
+    // Publish one #419 SOURCE capture into actor_captures and close a second
+    // unpublished candidate capture before collection.
+    const cap_digest: [32]u8 = @splat(91);
+    var cap_policy = try Policy.init(service.engine, config, try proof(service.engine, cap_digest), cap_digest, null);
+    var body: [65537]u8 = undefined;
+    for (&body, 0..) |*byte, i| byte.* = @truncate(i *% 73 +% 19);
+    var body_hash: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(&body, &body_hash, .{});
+    const cap_op = Setup.op(config, 94000);
+    const descriptor: Capture.Descriptor = .{
+        .key = .{ .definition = g.current_definition, .connection = connection, .account = @splat(98), .token = @splat(1) },
+        .operation = cap_op,
+        .namespace = 1,
+        .evidence = .{ .definition = g.current_definition, .poll = .{ .definition = g.current_definition, .source = source_decl.declaration.interpretation, .operation = cap_op, .capture_id = @splat(1), .sequence = 1, .control_epoch = 1, .due_ms = 100, .state = .captured }, .connection = upstream.declaration.interpretation, .destination = capture_stream.stored.declaration.interpretation, .columns = .{ 1, 2, 3, 4, 5, 6, 7 }, .attempt = .{ .scope = scope, .principal = 99, .operation = 94100 }, .exchange = .{ .bytes = 200, .sha256 = @splat(1) }, .terminal = .{ .bytes = 100, .sha256 = @splat(2) }, .verifier = source_decl.declaration.interpretation, .observed_at_ms = 200, .http_status = 200, .body = .{ .bytes = body.len, .sha256 = body_hash } },
+        .budget = .{ .bytes = 32 * 1024 * 1024 },
+        .limits = .{ .work_bytes = 128 * 1024 * 1024, .work_pages = 100000 },
+    };
+    const CaptureHost = struct {
+        policy: D.Policy,
+        expected: p.SourceCapture.Evidence,
+        fn verify(raw: *anyopaque, evidence: p.SourceCapture.Evidence) !void {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            if (!std.meta.eql(self.expected, evidence)) return error.SourceOriginalUnverified;
+        }
+        fn guard(raw: *anyopaque, allocator: std.mem.Allocator, required: a.Guard, evidence: p.SourceCapture.Evidence) !c.storage.PublicationGuard {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            try verify(raw, evidence);
+            return self.policy.make_guard(self.policy.context, allocator, required, null);
+        }
+    };
+    var cap_host: CaptureHost = .{ .policy = cap_policy.policy(), .expected = descriptor.evidence };
+    var cap_admission: Capture.Admission = .{};
+    const cap_authority: Capture.Authority = .{ .context = &cap_host, .admission = &cap_admission, .verify_original = CaptureHost.verify, .make_guard = CaptureHost.guard };
+    try catalog.recover();
+    var cap_obs = try catalog.captureReserve(descriptor, cap_policy.policy(), cap_authority);
+    var offset: usize = 0;
+    while (offset < body.len) {
+        const chunk = body[offset..@min(body.len, offset + Capture.storage.chunk_bytes)];
+        cap_obs = try catalog.captureUpload(.{ .control = .{ .key = descriptor.key, .expected = cap_obs.revision }, .chunk = .{ .offset = offset, .content = c.storage.LogBatch.content(chunk) }, .bytes = chunk }, cap_policy.policy(), cap_authority);
+        offset += chunk.len;
+    }
+    var verifier = try Capture.Verifier.init(descriptor.key, &cap_admission);
+    defer verifier.deinit();
+    while (!verifier.done) cap_obs = try catalog.captureVerify(&verifier, .{ .bytes = Capture.storage.chunk_bytes, .pages = 64 }, cap_policy.policy(), cap_authority);
+    var cap_out_key = descriptor.key;
+    cap_out_key.token = @splat(2);
+    const cap_plan: c.DirectSourcePublication = .{ .definition = g.current_definition, .candidate = descriptor.key, .key = cap_out_key, .reference = .{ .definition = g.current_definition, .candidate = try descriptor.key.digest(), .destination = descriptor.evidence.destination, .manifest = cap_obs.state.manifest.? }, .namespace = 1, .operation = Setup.op(config, 94001), .append = Setup.op(config, 94002), .settlement = Setup.op(config, 94003), .limits = .{ .resident_bytes = 8 * 1024 * 1024, .workspace_bytes = 16 * 1024 * 1024, .participants = 1, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 * 1024 } };
+    cap_obs = try catalog.capturePublish(cap_plan, cap_policy.policy(), cap_authority);
+    while (cap_obs.state.phase == .publishing) cap_obs = try catalog.captureAdvance(cap_plan.candidate, .commit, 8, cap_policy.policy(), cap_authority);
+
+    var closed_desc = descriptor;
+    closed_desc.key.token = @splat(3);
+    closed_desc.operation = Setup.op(config, 94010);
+    closed_desc.evidence.poll.operation = closed_desc.operation;
+    closed_desc.evidence.poll.capture_id = @splat(2);
+    closed_desc.evidence.poll.sequence = 2;
+    closed_desc.evidence.attempt.operation = 94101;
+    cap_host.expected = closed_desc.evidence;
+    var closed_obs = try catalog.captureReserve(closed_desc, cap_policy.policy(), cap_authority);
+    const first_chunk: Capture.storage.Chunk = .{ .offset = 0, .content = c.storage.LogBatch.content(body[0..Capture.storage.chunk_bytes]) };
+    closed_obs = try catalog.captureUpload(.{ .control = .{ .key = closed_desc.key, .expected = closed_obs.revision }, .chunk = first_chunk, .bytes = body[0..Capture.storage.chunk_bytes] }, cap_policy.policy(), cap_authority);
+    closed_obs = try catalog.captureClose(.{ .key = closed_desc.key, .expected = closed_obs.revision }, cap_policy.policy(), cap_authority);
+    try t.expectEqual(.closed, closed_obs.state.phase);
+
+    // Admit DLQ transfer via worker_a, then saturate the shared data pool and
+    // verify both control inspection and physical GC proceed unstarved.
+    host.queue_transfers = .{ .principal = 101, .key = try key(29), .role = null, .account = @splat(42), .limits = .{ .resident_bytes = 16 * 1024 * 1024, .workspace_bytes = 1024 * 1024, .participants = 2, .statements = 1, .savepoints = 1 }, .budget = .{ .bytes = 16 * 1024 } };
+    var transfer_budget: c.fuze.MemoryBudget = .{ .parent = t.allocator, .limit = 32 * 1024 * 1024 };
+    var worker_a: Transfers = .{};
+    defer worker_a.deinit();
+    var worker_b: Transfers = .{};
+    defer worker_b.deinit();
+    for (0..64) |_| {
+        _ = try worker_a.step(transfer_budget.allocator(), &host, service.engine, try Setup.signedCheckpoint(service.engine));
+        try catalog.recoverSince(host.recovery);
+        if ((try catalog.store.queueTransferPending(null)).entries[0] != null) break;
+    } else return error.FixtureBudget;
+
+    {
+        const retained_data = admission.data.used.load(.acquire);
+        const held_data = try admission.allocator(false).alloc(u8, admission.data.limit - retained_data);
+        defer admission.allocator(false).free(held_data);
+        try t.expectError(error.StorageQuota, dispatch(&adapter, .{ .lookup = .{ .namespace = 1, .name = "actor_state_0" } }));
+        // Leave enough headroom to create Resident + DirectCatalog (~1 MiB),
+        // then fail inside DirectQueue.open (~14 MiB) to exercise partial-open cleanup.
+        const held_rest = try admission.allocator(false).alloc(u8, admission.data.limit - admission.data.used.load(.acquire) - 2 * 1024 * 1024);
+        defer admission.allocator(false).free(held_rest);
+        try t.expectError(error.StorageQuota, dispatch(&adapter, .{ .queue = .{ .observe = q0_target } }));
+        try t.expect(admission.data.refusals.load(.acquire) > 0);
+        adapter.control = true;
+        defer adapter.control = false;
+        const inspected_live = try dispatch(&adapter, .{ .transaction = .{ .inspect = tx_live_tok } });
+        defer inspected_live.deinit();
+        const live_status = inspected_live.value.result.transaction.status;
+        try t.expect(live_status.acquired and live_status.last_statement == 3 and live_status.observation == .not_observed);
+        try t.expect(admission.control.used.load(.acquire) > 0);
+        const owner = service.engine.journal.backend;
+        const previous_quota = owner.collection_quota;
+        owner.collection_quota = &admission.collection;
+        defer owner.collection_quota = previous_quota;
+        try collectDirect(service.engine, &catalog);
+    }
+    clock.now = @max(clock.now, service.engine.head.time_floor_ms);
+
+    // Competing DLQ transfer workers converge on the single staged transfer and
+    // complete cleanup across the multi-slot Resident Queue cache.
+    for (0..256) |step_idx| {
+        const chosen = if (step_idx % 2 == 0) &worker_a else &worker_b;
+        _ = try chosen.step(transfer_budget.allocator(), &host, service.engine, try Setup.signedCheckpoint(service.engine));
+        try catalog.recoverSince(host.recovery);
+        if ((try catalog.store.queueTransferPending(null)).entries[0] == null) break;
+    } else return error.FixtureBudget;
+
+    // Swept closed artifacts are gone while live SOR1, live TXR1, published
+    // Capture, active Queue claim and DLQ destination message survive intact.
+    var key_buf: [96]u8 = undefined;
+    try t.expect(try data_store.objects().head(try c.DirectRecord.key(sor_refs[0], &key_buf)) != null);
+    try t.expect(try data_store.objects().head(try c.DirectRecord.key(sor_refs[1], &key_buf)) == null);
+    try t.expect(try data_store.objects().head(try c.DirectRecord.key(tx_refs[0], &key_buf)) == null);
+    try t.expect(try data_store.objects().head(try c.DirectRecord.key(tx_refs[1], &key_buf)) != null);
+    try t.expect(try data_store.objects().head(try Capture.Manifest.key(cap_plan.reference.manifest, &key_buf)) != null);
+    try t.expect(try data_store.objects().head(try Capture.storage.key(try descriptor.key.digest(), first_chunk, &key_buf)) != null);
+    try t.expect(try data_store.objects().head(try Capture.storage.key(try closed_desc.key.digest(), first_chunk, &key_buf)) == null);
+
+    (try dispatch(&adapter, .{ .record = .{ .read = sor_refs[0] } })).deinit();
+    (try dispatch(&adapter, .{ .record = .{ .read = tx_refs[1] } })).deinit();
+
+    // Commit tx_live after GC and verify its batched Table + Queue mutations!
+    for (0..8) |_| {
+        const settled = try dispatch(&adapter, .{ .transaction = .{ .settle = .{ .key = tx_live_tok, .operation = Setup.op(config, 93200), .command = .commit, .steps = 64 } } });
+        defer settled.deinit();
+        if (settled.value.result.transaction.status.cleanup_complete) {
+            try t.expectEqual(.committed, settled.value.result.transaction.status.observation.decided.outcome);
+            break;
+        }
+    } else return error.FixtureBudget;
+    for ([_][]const u8{ "actor_state_0", "actor_state_4" }) |table_name| {
+        const looked = try dispatch(&adapter, .{ .lookup = .{ .namespace = 1, .name = table_name } });
+        defer looked.deinit();
+        try t.expectEqual(@as(u64, 1), looked.value.result.lookup.?.row_count);
+    }
+
+    // Active claim readback works after GC, then explicit release closes it.
+    const active_page = try dispatch(&adapter, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = active_claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } });
+    defer active_page.deinit();
+    try t.expectEqual(@as(usize, 1), active_page.value.result.queue.page.rows.len);
+    (try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .settle = .{ .operation = Setup.op(config, 91210), .lease = active_page.value.result.queue.page.rows[0].lease.original, .action = .ack } }, .payload = null } } })).deinit();
+    (try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .release = .{ .operation = Setup.op(config, 91211), .claim = active_claim } }, .payload = null } } })).deinit();
+    try t.expectError(error.QueueReadReleased, dispatch(&adapter, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = active_claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } } }));
+
+    // DLQ destination delivered the exhausted actor_queue_1 message (701).
+    const dlq_target: p.StreamQueue.Partition = .{ .definition = g.current_definition, .interpretation = dlq.stored.declaration.interpretation, .partition = 0 };
+    const dlq_claim = try dispatch(&adapter, .{ .queue = .{ .mutate = .{ .work = .{ .claim = .{ .target = dlq_target, .operation = Setup.op(config, 91300), .maximum = 2, .lease_ms = 100, .predicate = null } }, .payload = null } } });
+    defer dlq_claim.deinit();
+    try t.expectEqual(@as(u32, 1), dlq_claim.value.result.queue.operation.?.claim.rows);
+    const dlq_page = try dispatch(&adapter, .{ .queue = .{ .page = .{ .cursor = .{ .receipt = dlq_claim.value.result.queue.operation.?.claim, .next = 0 }, .limits = .{ .rows = 2, .encoded_bytes = 8192 } } } });
+    defer dlq_page.deinit();
+    const dlq_bytes = try dlq_page.value.result.queue.page.rows[0].encoded.decode(t.allocator, c.fuze.TableRow.max_bytes);
+    defer t.allocator.free(dlq_bytes);
+    var dlq_row = try c.fuze.TableRow.decode(t.allocator, Setup.logSchema(410), dlq_bytes);
+    defer dlq_row.deinit();
+    try t.expectEqual(@as(i128, 701), dlq_row.row().cells[0].value.atom.signed);
+
+    // Published #419 capture remains readable over the signed service boundary.
+    const cap_opened = try dispatch(&adapter, .{ .capture_read = .{ .open = .{ .reference = cap_plan.reference, .operation = Setup.op(config, 95000) } } });
+    defer cap_opened.deinit();
+    var cap_cursor = cap_opened.value.result.capture_read.opened;
+    var read_offset: usize = 0;
+    while (true) {
+        const cap_page = try dispatch(&adapter, .{ .capture_read = .{ .next = cap_cursor } });
+        defer cap_page.deinit();
+        const slice = try cap_page.value.result.capture_read.page.bytes.decode(t.allocator, Capture.storage.chunk_bytes);
+        defer t.allocator.free(slice);
+        try t.expectEqualSlices(u8, body[read_offset..][0..slice.len], slice);
+        read_offset += slice.len;
+        cap_cursor = cap_page.value.result.capture_read.page.next;
+        if (cap_page.value.result.capture_read.page.complete) break;
+    }
+    try t.expectEqual(body.len, read_offset);
+    (try dispatch(&adapter, .{ .capture_read = .{ .close = .{ .handle = cap_opened.value.result.capture_read.opened.handle, .operation = Setup.op(config, 95001) } } })).deinit();
+}

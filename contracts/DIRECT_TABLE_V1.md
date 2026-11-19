@@ -2313,6 +2313,17 @@ payloads, immutable indexes and private segment staging; resident limits cover
 the temporary owner and evaluation. Memory, storage and authorization refusal
 leave already accepted work available for recovery or explicit abort.
 
+Callers that assemble up to 16 consecutive Table, KV and Stream/Queue writes
+against one observed workspace `basis` can stage them in one exchange through
+`transaction.stage_batch` (`key`, `basis`, `sequence` and `items`, returning
+`staged_batch`) and evaluate them together through `transaction.batch` (`key`
+and staged `items`, returning `BatchSummary`). Every item keeps its own
+operation identity and consecutive statement sequence; evaluation proceeds in
+order, stops at the first typed statement rejection while preserving earlier
+provisional workspace updates in the prefix, and publishes the resulting
+workspace head in one catalog commit under a shared policy epoch. Retrying the
+exact staged batch after a lost reply returns the same `BatchSummary`.
+
 One common transaction decision publishes surviving Table/KV mutations, appends
 and settlements. Preparation retains exact action directories, original pins,
 predecessors and successors behind each owner's barrier. Commit rechecks current

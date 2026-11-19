@@ -62,6 +62,212 @@ pub const Recover = struct {
         }
     }
 };
+pub const max_batch = 16;
+
+pub const BatchWrite = union(enum) {
+    table: c.DirectTableIntent.Work,
+    kv: c.DirectKV.Mutation,
+    log: struct { work: c.DirectTransactionLogWork.Work, payload: ?c.DirectTableProtocol.Binary },
+
+    pub fn operation(self: BatchWrite) d.Operation {
+        return switch (self) {
+            .table => |value| value.binding().identity,
+            .kv => |value| value.binding.identity,
+            .log => |value| value.work.operation(),
+        };
+    }
+    pub fn destinationOperation(self: BatchWrite) ?d.Operation {
+        return if (self == .log and self.log.work == .queue_transfer) self.log.work.queue_transfer.destination.operation else null;
+    }
+    pub fn validate(self: BatchWrite, connection: c.DirectTableProtocol.Connection) !void {
+        switch (self) {
+            .table => |value| {
+                if (value == .ddl) return error.InvalidTransactionWork;
+                try connection.binding(value.binding());
+            },
+            .kv => |value| try connection.binding(value.binding),
+            .log => |value| {
+                try value.work.validate();
+                if ((value.work.appendPayload() != null) != (value.payload != null)) return error.InvalidTransactionWork;
+                try connection.owner(value.work.operation());
+                if (value.work == .queue_transfer) {
+                    const dest = value.work.queue_transfer.destination.operation;
+                    try connection.owner(dest);
+                    if (std.meta.eql(dest, value.work.operation())) return error.TransactionIdentityConflict;
+                }
+            },
+        }
+    }
+};
+
+fn pushDistinctOperation(seen: *[2 * max_batch]d.Operation, count: *usize, candidate: d.Operation) !void {
+    for (seen[0..count.*]) |prior| {
+        if (std.meta.eql(prior, candidate)) return error.TransactionIdentityConflict;
+    }
+    seen[count.*] = candidate;
+    count.* += 1;
+}
+
+pub fn validateBatchItems(connection: c.DirectTableProtocol.Connection, items: []const c.DirectTransactionWorkspace.StatementWork) !void {
+    if (items.len == 0 or items.len > max_batch) return error.InvalidTransactionWork;
+    const first = items[0];
+    try first.validate();
+    const first_basis = switch (first) {
+        inline else => |value| value.basis,
+    };
+    const tx_id = first.statement().transaction;
+    try connection.owner(tx_id.begin);
+    var seen: [2 * max_batch]d.Operation = undefined;
+    var seen_count: usize = 0;
+    for (items, 0..) |item, idx| {
+        if (idx > 0) try item.validate();
+        const expected_sequence = try std.math.add(u64, first.statement().sequence, idx);
+        const basis = switch (item) {
+            inline else => |value| value.basis,
+        };
+        if (!std.meta.eql(item.statement().transaction, tx_id) or item.statement().sequence != expected_sequence or !std.meta.eql(basis, first_basis))
+            return error.InvalidTransactionWork;
+        const primary = switch (item) {
+            .state => |request| request.binding.identity,
+            .log => |request| request.work.operation(),
+        };
+        try connection.owner(primary);
+        if (std.meta.eql(primary, tx_id.begin)) return error.TransactionIdentityConflict;
+        try pushDistinctOperation(&seen, &seen_count, primary);
+        if (item == .log and item.log.work == .queue_transfer) {
+            const dest = item.log.work.queue_transfer.destination.operation;
+            try connection.owner(dest);
+            if (std.meta.eql(dest, tx_id.begin)) return error.TransactionIdentityConflict;
+            try pushDistinctOperation(&seen, &seen_count, dest);
+        }
+    }
+}
+
+pub const StageBatch = struct {
+    pub const json_schema_sequence_bounds = .{ .items = max_batch };
+    key: c.DirectClientToken.Key,
+    basis: d.Position,
+    sequence: u64,
+    items: []const BatchWrite,
+
+    pub fn validate(self: StageBatch) !void {
+        try self.key.validate();
+        try self.basis.validate();
+        if (self.basis.next_lsn == 0 or self.sequence == 0 or self.items.len == 0 or self.items.len > max_batch)
+            return error.InvalidTransactionWork;
+        _ = try std.math.add(u64, self.sequence, self.items.len - 1);
+        var seen: [2 * max_batch]d.Operation = undefined;
+        var seen_count: usize = 0;
+        for (self.items) |item| {
+            try item.validate(self.key.connection);
+            try pushDistinctOperation(&seen, &seen_count, item.operation());
+            if (item.destinationOperation()) |dest| try pushDistinctOperation(&seen, &seen_count, dest);
+        }
+    }
+};
+
+pub const ExecuteBatch = struct {
+    pub const json_schema_sequence_bounds = .{ .items = max_batch };
+    key: c.DirectClientToken.Key,
+    items: []const c.DirectTransactionWorkspace.StatementWork,
+
+    pub fn validate(self: ExecuteBatch) !void {
+        try self.key.validate();
+        try validateBatchItems(self.key.connection, self.items);
+    }
+};
+
+/// Self-contained caller checkpoint for up to `max_batch` staged statements.
+/// Unused entries are always null so structural equality is deterministic.
+pub const StagedBatch = struct {
+    entries: [max_batch]?c.DirectTransactionWorkspace.StatementWork = @splat(null),
+    count: u8 = 0,
+
+    pub fn fromSlice(items: []const c.DirectTransactionWorkspace.StatementWork) !StagedBatch {
+        if (items.len == 0 or items.len > max_batch) return error.InvalidTransactionWork;
+        var result: StagedBatch = .{ .count = @intCast(items.len) };
+        for (items, 0..) |item, idx| result.entries[idx] = item;
+        return result;
+    }
+    pub fn copyTo(self: *const StagedBatch, out: *[max_batch]c.DirectTransactionWorkspace.StatementWork) ![]const c.DirectTransactionWorkspace.StatementWork {
+        if (self.count == 0 or self.count > max_batch) return error.InvalidTransactionWork;
+        for (0..self.count) |idx| out[idx] = self.entries[idx] orelse return error.InvalidTransactionWork;
+        return out[0..self.count];
+    }
+    pub fn firstSequence(self: *const StagedBatch) u64 {
+        return self.entries[0].?.statement().sequence;
+    }
+    pub fn lastSequence(self: *const StagedBatch) u64 {
+        return self.entries[self.count - 1].?.statement().sequence;
+    }
+    pub fn validate(self: *const StagedBatch, connection: c.DirectTableProtocol.Connection) !void {
+        if (self.count == 0 or self.count > max_batch) return error.InvalidTransactionWork;
+        for (self.count..max_batch) |idx| if (self.entries[idx] != null) return error.InvalidTransactionWork;
+        var items: [max_batch]c.DirectTransactionWorkspace.StatementWork = undefined;
+        const active = try self.copyTo(&items);
+        try validateBatchItems(connection, active);
+    }
+    pub fn jsonStringify(self: StagedBatch, out: *std.json.Stringify) std.Io.Writer.Error!void {
+        if (self.count == 0 or self.count > max_batch) return error.WriteFailed;
+        try out.beginArray();
+        for (0..self.count) |idx| {
+            const entry = self.entries[idx] orelse return error.WriteFailed;
+            try c.protocol.Json.write(entry, out);
+        }
+        try out.endArray();
+    }
+    pub fn jsonParse(allocator: std.mem.Allocator, source: anytype, options: std.json.ParseOptions) std.json.ParseError(@TypeOf(source.*))!StagedBatch {
+        const value = try std.json.innerParse(std.json.Value, allocator, source, options);
+        return jsonParseFromValue(allocator, value, options);
+    }
+    pub fn jsonParseFromValue(allocator: std.mem.Allocator, source: std.json.Value, options: std.json.ParseOptions) std.json.ParseFromValueError!StagedBatch {
+        c.protocol.Json.validateShape([]const c.DirectTransactionWorkspace.StatementWork, source) catch return error.UnexpectedToken;
+        const items = try std.json.innerParseFromValue([]const c.DirectTransactionWorkspace.StatementWork, allocator, source, options);
+        defer allocator.free(items);
+        return fromSlice(items) catch return error.LengthMismatch;
+    }
+};
+
+pub const BatchRejection = struct {
+    statement: x.Statement,
+    reason: union(enum) {
+        state: @FieldType(@FieldType(c.storage.TableWorkspace.Outcome, "rejected"), "reason"),
+        log: c.DirectTransactionLogWork.Outcome.Reason,
+    },
+    pub fn validate(self: BatchRejection) !void {
+        try self.statement.validate();
+    }
+};
+
+pub const BatchSummary = struct {
+    first_sequence: u64,
+    last_sequence: u64,
+    evaluated_count: u8,
+    provisional_count: u8,
+    rows_matched: u64,
+    rows_affected: u64,
+    log_appended_rows: u64,
+    log_settled_acks: u64,
+    log_advanced_offsets: u64,
+    log_transfers: u64,
+    rejection: ?BatchRejection,
+
+    pub fn validate(self: BatchSummary) !void {
+        if (self.first_sequence == 0 or self.evaluated_count == 0 or self.evaluated_count > max_batch)
+            return error.InvalidTransactionWork;
+        if (self.last_sequence != try std.math.add(u64, self.first_sequence, self.evaluated_count - 1))
+            return error.InvalidTransactionWork;
+        if (self.rejection) |rejected| {
+            try rejected.validate();
+            if (self.provisional_count + 1 != self.evaluated_count or rejected.statement.sequence != self.last_sequence)
+                return error.InvalidTransactionWork;
+        } else if (self.provisional_count != self.evaluated_count) {
+            return error.InvalidTransactionWork;
+        }
+        if (self.rows_affected > self.rows_matched) return error.InvalidTransactionWork;
+    }
+};
+
 pub const Recovery = struct { status: c.DirectTransactionControl.Status, input: ?c.DirectQueue.Receipt };
 pub const Request = union(enum) {
     recover: Recover,
@@ -73,10 +279,12 @@ pub const Request = union(enum) {
     stage: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTableIntent.Work },
     stage_kv: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectKV.Mutation },
     stage_log: struct { key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, work: c.DirectTransactionLogWork.Work, payload: ?c.DirectTableProtocol.Binary },
+    stage_batch: StageBatch,
     log_statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request, execute: bool },
     log_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionLogWork.Request },
     statement: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request, execute: bool },
     statement_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionWorkspace.Request },
+    batch: ExecuteBatch,
     savepoint_outcome: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request },
     savepoint: struct { key: c.DirectClientToken.Key, request: c.DirectTransactionSavepoint.Request, steps: u16 },
     advance: struct { key: c.DirectClientToken.Key, steps: u16 },
@@ -85,7 +293,7 @@ pub const Request = union(enum) {
         return switch (self) {
             inline .begin, .recover => |value| value.key,
             inline .acquire, .inspect, .call_outcome => |value| value,
-            inline .stage, .stage_kv, .stage_log, .log_statement, .log_outcome, .statement, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
+            inline .stage, .stage_kv, .stage_log, .stage_batch, .log_statement, .log_outcome, .statement, .batch, .settle, .advance, .savepoint, .statement_outcome, .savepoint_outcome, .call => |value| value.key,
         };
     }
     pub fn validate(self: Request) !void {
@@ -112,6 +320,8 @@ pub const Request = union(enum) {
                 if (value.basis.next_lsn == 0 or value.sequence == 0 or (value.work.appendPayload() != null) != (value.payload != null)) return error.InvalidTransactionWork;
                 try value.key.connection.owner(value.work.operation());
             },
+            .stage_batch => |value| try value.validate(),
+            .batch => |value| try value.validate(),
             inline .statement, .statement_outcome, .log_statement, .log_outcome => |value| {
                 try value.request.validate();
                 try value.key.connection.owner(value.request.statement.transaction.begin);
@@ -147,8 +357,13 @@ pub const Result = union(enum) {
     acquired: c.DirectTransaction.Acquired,
     staged: c.DirectTransactionWorkspace.Request,
     staged_log: c.DirectTransactionLogWork.Request,
+    staged_batch: struct {
+        pub const json_schema_sequence_bounds = .{ .items = max_batch };
+        items: []const c.DirectTransactionWorkspace.StatementWork,
+    },
     log_statement: ?c.DirectTransactionLogWork.Outcome,
     statement: ?c.storage.TableWorkspace.Outcome,
+    batch: BatchSummary,
     status: c.DirectTransactionControl.Status,
     savepoint: c.DirectTransactionSavepoint.Result,
     savepoint_outcome: ?c.DirectTransactionSavepoint.Result,
@@ -163,8 +378,10 @@ pub fn validateResult(request: Request, result: Result) !void {
         .inspect, .settle, .advance => .status,
         .stage, .stage_kv => .staged,
         .stage_log => .staged_log,
+        .stage_batch => .staged_batch,
         .log_statement, .log_outcome => .log_statement,
         .statement, .statement_outcome => .statement,
+        .batch => .batch,
         .savepoint_outcome => .savepoint_outcome,
         .savepoint => .savepoint,
     };
@@ -215,6 +432,27 @@ pub fn validateResult(request: Request, result: Result) !void {
                 !std.meta.eql(value.work, request.stage_log.work)) return error.InvalidTableResponse;
             try request.key().connection.owner(value.statement.transaction.begin);
         },
+        .staged_batch => |value| {
+            const items = value.items;
+            if (items.len != request.stage_batch.items.len or items.len == 0 or items.len > max_batch) return error.InvalidTableResponse;
+            validateBatchItems(request.key().connection, items) catch return error.InvalidTableResponse;
+            for (request.stage_batch.items, items, 0..) |input, staged, index| {
+                const sequence = std.math.add(u64, request.stage_batch.sequence, index) catch return error.InvalidTableResponse;
+                switch (input) {
+                    .table, .kv => {
+                        if (staged != .state) return error.InvalidTableResponse;
+                        const binding = if (input == .table) input.table.binding() else input.kv.binding;
+                        binding.requireSame(staged.state.binding) catch return error.InvalidTableResponse;
+                        if (!std.meta.eql(staged.state.basis, request.stage_batch.basis) or staged.state.statement.sequence != sequence) return error.InvalidTableResponse;
+                    },
+                    .log => |log_input| {
+                        if (staged != .log) return error.InvalidTableResponse;
+                        if (!std.meta.eql(staged.log.basis, request.stage_batch.basis) or staged.log.statement.sequence != sequence or
+                            !std.meta.eql(staged.log.work, log_input.work)) return error.InvalidTableResponse;
+                    },
+                }
+            }
+        },
         .log_statement => |outcome| {
             const original = if (request == .log_statement) request.log_statement.request else request.log_outcome.request;
             if (outcome) |value| {
@@ -226,6 +464,18 @@ pub fn validateResult(request: Request, result: Result) !void {
             if (outcome) |value| switch (value) {
                 inline else => |found| if (!std.meta.eql(found.statement, original.statement)) return error.InvalidTableResponse,
             } else if (request == .statement and request.statement.execute) return error.InvalidTableResponse;
+        },
+        .batch => |value| {
+            value.validate() catch return error.InvalidTableResponse;
+            if (value.evaluated_count > request.batch.items.len or value.first_sequence != request.batch.items[0].statement().sequence)
+                return error.InvalidTableResponse;
+            if (value.rejection) |rejected| {
+                const failed = request.batch.items[value.evaluated_count - 1];
+                if (!std.meta.eql(rejected.statement, failed.statement()) or (failed == .state) != (rejected.reason == .state))
+                    return error.InvalidTableResponse;
+            } else if (value.evaluated_count != request.batch.items.len) {
+                return error.InvalidTableResponse;
+            }
         },
         .savepoint_outcome => |observed| if (observed) |value| {
             try value.validate();

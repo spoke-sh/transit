@@ -235,10 +235,19 @@ fn verify(init: std.process.Init, client: c.DirectTableClient, saved: Saved, ind
     } else try t.expect(caseMissingBegin(saved.case));
     const receipt = (try Queue.apply(&output, client, .{ .operation = .{ .claim = claim } })).operation;
     if (receipt) |found| if (found == .claim) {
-        const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = found.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
-        try t.expectEqual(@as(usize, 1), page.rows.len);
-        try t.expectEqualDeep(enqueue, page.rows[0].operation);
-        try t.expectEqual(@as(p.QueueRead.State, if (expected) .acked else .acquired), page.rows[0].lease.state);
+        if (saved.case == .large) {
+            const release: p.QueueRead.Release = .{ .operation = Actor.operation(saved.actor.connection, digest, turn, "claim-release", 0), .claim = found.claim };
+            const released = (try Queue.apply(&output, client, .{ .operation = .{ .release = release } })).operation.?;
+            try t.expect(released == .release);
+            try released.release.requireRelease(release);
+            try t.expectError(error.Conflict, Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = found.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } }));
+            try t.expectEqual(p.ErrorCode.QueryExpired, client.service.last_rejection.?);
+        } else {
+            const page = (try Queue.apply(&output, client, .{ .page = .{ .cursor = .{ .receipt = found.claim, .next = 0 }, .limits = .{ .rows = 1, .encoded_bytes = 8192 } } })).page;
+            try t.expectEqual(@as(usize, 1), page.rows.len);
+            try t.expectEqualDeep(enqueue, page.rows[0].operation);
+            try t.expectEqual(@as(p.QueueRead.State, if (expected) .acked else .acquired), page.rows[0].lease.state);
+        }
     };
 }
 fn emit(init: std.process.Init, out: *std.Io.Writer, data: anytype) !void {
@@ -378,6 +387,15 @@ pub fn run(init: std.process.Init, client: c.DirectTableClient, admin: anytype, 
                 result = try runner.advance(.{ .context = &body, .run = Body.run });
             }
             try t.expectEqual(if (committed(case)) Runner.Result.committed else Runner.Result.blocked, result);
+            if (case == .large) {
+                var verify_output: std.heap.ArenaAllocator = .init(init.gpa);
+                defer verify_output.deinit();
+                const digest = try saved.actor.digest(init.gpa);
+                const claim: p.StreamQueue.Claim = .{ .target = saved.actor.inbox, .operation = Actor.operation(saved.actor.connection, digest, 1, "claim", 0), .maximum = 1, .lease_ms = saved.actor.lease_ms, .predicate = saved.actor.predicate };
+                const found = (try Queue.apply(&verify_output, selected, .{ .operation = .{ .claim = claim } })).operation.?.claim;
+                const first_release = try runner.releaseClaimRead(1, found);
+                try t.expectEqualDeep(first_release, try runner.releaseClaimRead(1, found));
+            }
         }
         try t.expectEqual(@as(usize, 1), body.calls);
     }

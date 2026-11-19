@@ -7,6 +7,28 @@ Current semantics belong to the [transaction reference](../../handbook/reference
 [direct Table contract](../../../contracts/DIRECT_TABLE_V1.md). This record keeps
 finite models, component recovery and installed histories separate.
 
+## Shared multi-statement batching and claim-read closure — 2026-11-18
+
+At committed source `8dc5df3e1d88f527add7e02755658dacb909665b` (shared definition
+`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`),
+[`DirectTransactionSession`](../../../packages/zig/transit-catalog/src/DirectTransactionSession.zig)
+and [`transit-data-client`](../../../packages/zig/transit-data-client/README.md#shared-transactions)
+add bounded 1–16 statement staging (`stage_batch`) and execution (`batch`) across
+mixed Table, direct KV and Stream/Queue writes, `TransactionRecovery`
+`StagedBatch` checkpoints, and `QueueClaimRelease` recoverable claim payload-read
+closure with zero Station imports:
+
+- `just test direct-state-transaction` and `just test direct-mixed-transaction`
+  pass over HTTP and disk restarts, verifying mixed `.write_batch` staging,
+  injected `checkpoint_failed` reload and idempotent `.advance` resume without
+  re-staging, deterministic partial-prefix stop on provisional rejection, and
+  `QueueClaimRelease` pre-dispatch persistence, `observe` receipt recording and
+  post-release `QueryExpired` enforcement.
+- Package suites (`transit-catalog`, `transit-data-client`, `transit-memory`) and
+  `just test station-transaction` pass, sharing one production batching and
+  claim-release implementation across standalone callers and the private Station
+  runner.
+
 ## Shared owned transaction reads — 2026-11-12
 
 The question is whether an ordinary data caller can read private Table/KV state

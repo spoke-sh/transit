@@ -9,6 +9,7 @@ pub const LocalRecoveryStore = @import("LocalRecoveryStore.zig");
 pub const sql = @import("transit_sql_client");
 pub const SqlRecovery = @import("SqlRecovery.zig");
 pub const KVRecovery = @import("KVRecovery.zig");
+pub const QueueClaimRelease = @import("QueueClaimRelease.zig");
 pub const Transaction = @import("Transaction.zig");
 pub const TransactionRead = @import("TransactionRead.zig");
 pub const TransactionRecovery = @import("TransactionRecovery.zig");
@@ -23,6 +24,7 @@ test {
     _ = LocalRecoveryStore;
     _ = SqlRecovery;
     _ = KVRecovery;
+    _ = QueueClaimRelease;
     _ = Transaction;
     _ = TransactionRecovery;
     _ = DirectMigration;

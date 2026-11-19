@@ -7,27 +7,40 @@ small correctness check; it establishes no tail percentile. `--repeat 100`
 provides enough observations to report p99. Run measurements separately from
 builds, fault suites and other load on the same host.
 
-| Profile | Payloads per append/enqueue | Ordering | Claim maximum |
-| --- | --- | --- | --- |
-| 1 | Stream, 1 | offset | — |
-| 2 | Stream, 128 | offset | — |
-| 3 | Queue, 1 | unordered | 1 |
-| 4 | Queue, 128 | unordered | 16 |
-| 5 | Queue, 128 | `key_fifo`, 64 keys | 16 |
-| 6 | Queue, 128 | `key_fifo`, 1 key | 16 |
+| Profile | Mode | Payloads per append/enqueue | Ordering | Claim / concurrency |
+| --- | --- | --- | --- | --- |
+| 1 | `hot` | Stream, 1 | offset | — |
+| 2 | `hot` | Stream, 128 | offset | — |
+| 3 | `hot` | Queue, 1 | unordered | claim max 1 |
+| 4 | `hot` | Queue, 128 | unordered | claim max 16 |
+| 5 | `hot` | Queue, 128 | `key_fifo`, 64 keys | claim max 16 |
+| 6 | `hot` | Queue, 128 | `key_fifo`, 1 key | claim max 16 |
+| 7 | `sealed_segment` | Stream, 128 | offset | post-seal `.tseg` read |
+| 8 | `consumer_group` | Stream, 1 | offset | durable offset commit |
+| 9 | `delayed_visibility` | Queue, 1 | unordered | `visible_ms` timer wait, claim max 1 |
+| 10 | `wait_wakeup` | Queue, 1 | unordered | concurrent enqueue wakeup, claim max 1 |
+| 11 | `lease_expiry` | Queue, 1 | unordered | expired-lease reclaim, claim max 1 |
+| 12 | `concurrent_load` | Queue, 2 | `key_fifo`, 64 keys | 2 concurrent workers, claim max 1 |
 
 Each schema contains an int64 offset, a deterministic 128-byte binary payload
-and an int64 entity key. Runs use one sequential caller, one logical partition,
-unlimited retention, 60-second leases, at most 64 active leases and one resident
-page per native page cache. The catalog and log owners have separate configured
-caches; the caller records their compiled defaults under `owner_budgets` in each
-phase, including index-work, tail and Queue candidate/scheduling bounds. These
-are configuration limits, not measured memory use. Restart must preserve them.
-The report also records the actual native cache, server timeout and configured
-clock-error allowance from the private node configuration. This fixture starts
-the bare node without automatic maintenance. Its 10,000-ms clock allowance
-governs the local Stream/Queue time envelope; it does not extend the 60-second
-lease or the caller's 30-second timeout.
+and an int64 entity key. Profiles 1 through 11 use one measured caller (with a
+concurrent producer thread supplying wakeups in Profile 10) and Profile 12 uses
+two concurrent consumer workers over 64 affinity keys within the bare node's
+four-lane HTTP data admission ceiling. Runs use one logical
+partition, unlimited retention, 60-second leases (except the short initial
+expired leases prepared before Profile 11), at most 64 active leases and one
+resident page per native page cache. The catalog and log owners have separate
+configured caches; the caller records their compiled defaults under
+`owner_budgets` in each phase, including index-work, tail and Queue
+candidate/scheduling bounds. These are configuration limits, not measured memory
+use. Restart must preserve them. The report also records the actual native cache,
+server timeout and configured clock-error allowance from the private node
+configuration. Measured phases run the bare node without automatic maintenance:
+Profile 7 seals pre-populated Stream WAL rows into verified `.tseg` segments and
+restarts before timing cold-owner segment reads, and Profile 11 expires prepared
+short leases through maintenance and restarts before timing post-expiry reclaim.
+Its 10,000-ms clock allowance governs the local Stream/Queue time envelope; it
+does not extend the 60-second lease or the caller's 30-second timeout.
 The node stores accepted history on local disk. The driver copies
 matching ReleaseSafe binaries before creating a private installation and uses
 the public signed client directly, without the fault proxy in the measured path.
@@ -81,11 +94,11 @@ byte deltas around each phase; these include setup/recovery work within that
 phase and are not per-call attribution. Storage IOPS, CPU cycles and server
 allocation counts remain explicitly unmeasured.
 
-This first driver supplies sequential hot reads and original-selection restart
-readback. Sealed/cold reads, consumer-group offset commits, delayed visibility,
-wait wakeups, lease-expiry recovery and offered-load concurrency require their
-own added profiles before the full M6 baseline gate is complete. Station handler
-turns use a separate workload and are not inferred from these measurements.
+The 12 profiles cover sequential hot Stream and Queue paths, sealed `.tseg`
+segment reads, consumer-group offset commits, delayed visibility, wait wakeups,
+expired-lease reclaim, 2-worker offered-load concurrency, and original-selection
+restart readback across all modes. Station handler turns use a separate workload
+and are not inferred from these measurements.
 
 Reporting controls run in the fast profile through
 `tests/performance/storage/log_runtime_test.py`. Real installed measurements have

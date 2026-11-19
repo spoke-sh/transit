@@ -46,6 +46,10 @@ pub const Options = struct {
     /// Optional disposable prefix array indexed by `object % len`, used when
     /// the caller holds exclusive directory access across all Table stripes.
     table_recoveries: ?[]?P.RecoveryState = null,
+    stream_recovery: ?*?s.StreamPartition.RecoveryState = null,
+    stream_recoveries: ?[]?s.StreamPartition.RecoveryState = null,
+    queue_recovery: ?*?s.QueuePartition.RecoveryState = null,
+    queue_recoveries: ?[]?s.QueuePartition.RecoveryState = null,
     /// Optional bounded live-owner slot. The host serializes borrowing, binds
     /// its provider/allocator lifetime and destroys it before storage replacement.
     table_owner: ?*?CachedTable = null,
@@ -4300,6 +4304,433 @@ fn evaluateTransactionLogStatement(self: *Self, definition: L.Definition, select
     return null;
 }
 
+/// Stage up to `max_batch` consecutive private statements against one observed
+/// workspace basis without committing intermediate catalog WAL publications.
+pub fn stageTransactionBatch(self: *Self, key: c.DirectClientToken.Key, basis: d.Position, sequence: u64, items: []const c.DirectTransactionRequest.BatchWrite, policy: Policy, out: *c.DirectTransactionRequest.StagedBatch) !void {
+    try (c.DirectTransactionRequest.StageBatch{ .key = key, .basis = basis, .sequence = sequence, .items = items }).validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.stageTransactionBatchBounded(progress, basis, sequence, items, policy, out) catch |err|
+        return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn stageTransactionBatchBounded(self: *Self, progress: c.DirectClientToken.Progress, basis: d.Position, sequence: u64, items: []const c.DirectTransactionRequest.BatchWrite, policy: Policy, out: *c.DirectTransactionRequest.StagedBatch) !void {
+    const head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    const begin = head.acquired.cut.begin;
+    if (begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (try std.math.add(u64, sequence, items.len - 1) > begin.limits.statements) return error.TransactionStatementLimit;
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending != null) return error.TransactionStatementPending;
+    if (sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    if (!std.meta.eql(basis, head.revision)) return error.TransactionReadChanged;
+    for (items) |item| {
+        if (std.meta.eql(item.operation(), begin.identity.begin)) return error.TransactionIdentityConflict;
+        if (item.destinationOperation()) |dest| if (std.meta.eql(dest, begin.identity.begin)) return error.TransactionIdentityConflict;
+    }
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
+    var epoch: ?P.Guard.Fence = null;
+    var scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer scratch.deinit();
+    var staged: c.DirectTransactionRequest.StagedBatch = .{ .count = @intCast(items.len) };
+    for (items, 0..) |item, idx| {
+        _ = scratch.reset(.retain_capacity);
+        const seq = sequence + idx;
+        switch (item) {
+            .table, .kv => {
+                const work: TransactionStateWork = if (item == .table) .{ .table = item.table } else .{ .kv = item.kv };
+                const binding = switch (work) {
+                    .table => |value| value.binding(),
+                    .kv => |value| value.binding,
+                };
+                try progress.receipt.binding.key.connection.binding(binding);
+                const state = try self.transactionTableStateBounded(progress, binding.target, policy);
+                if ((state.root.kind == .kv) != (work == .kv)) return error.CatalogKindMismatch;
+                var declaration = try s.TableDeclaration.load(scratch.allocator(), self.data_objects, state.root.declared());
+                defer declaration.deinit();
+                const native: s.TableDmlIntent.Request = switch (work) {
+                    .table => |value| switch (value) {
+                        .ddl => unreachable,
+                        inline .rows, .statement => |v| try v.native(scratch.allocator()),
+                    },
+                    .kv => |value| blk: {
+                        try value.validate(scratch.allocator());
+                        const spec = (try s.KVDeclaration.fromPhysical(declaration.definition)).spec;
+                        const changes = try value.decodeChanges(scratch.allocator(), spec);
+                        break :blk .{ .binding = binding, .interpretation = state.root.declared(), .changes = try s.KVPartition.lower(scratch.allocator(), declaration.schema.schema, binding, changes), .ingestion = .bulk };
+                    },
+                };
+                if (native.ingestion != .bulk) return error.InvalidTransactionWorkspace;
+                if (!std.meta.eql(native.interpretation, state.root.declared())) return error.TableDefinitionChanged;
+                var view = try self.transactionView(binding.target);
+                defer view.deinit();
+                try self.original(policy, binding);
+                var write_fence: CutFence = .{ .underlying = try self.transactionStateGuard(scratch.allocator(), &view, try transactionWriteAccess(binding.action), binding.prerequisite, policy), .epoch = &epoch };
+                try check(write_fence.guard());
+                const result: TransactionWorkspace.Request = .{ .basis = head.revision, .statement = .{ .transaction = begin.identity, .sequence = seq, .intent = native.binding.intent }, .binding = native.binding, .intent = try s.TableDmlIntent.stage(scratch.allocator(), staging.objects(), native) };
+                try result.validate();
+                try check(write_fence.guard());
+                staged.entries[idx] = .{ .state = result };
+            },
+            .log => |log_item| {
+                const work = log_item.work;
+                if (work == .append and work.append.capture != null and self.capture_owner == null) return error.SourceCaptureOperationRequired;
+                try work.validate();
+                try self.authenticateTransactionLog(work);
+                const payload = if (log_item.payload) |encoded| try encoded.decode(scratch.allocator(), s.LogTransactionActions.max_payload_bytes) else null;
+                const write = try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), work.access(), policy);
+                const read = if (work == .queue_transfer) try self.logAuthorization(scratch.allocator(), work.kind(), work.target(), .read, policy) else write;
+                var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
+                var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
+                try check(read_fence.guard());
+                try check(write_fence.guard());
+                const selected = try self.transactionLogSources(begin, head.acquired.cut.sources, work);
+                const source = selected.source;
+                var transfer_access = try self.transactionTransferAccess(scratch.allocator(), work, policy, &epoch);
+                const request: TransactionLogWork.Request = .{ .statement = .{ .transaction = begin.identity, .sequence = seq, .intent = try work.digest() }, .basis = basis, .guard = source.guard.log, .work = work };
+                try request.validate();
+                {
+                    var view = try self.transactionLogView(read.definition, work.target().partition, read_fence.guard());
+                    defer view.deinit();
+                    const frozen = try view.inspect(source.pin, read_fence.guard());
+                    if (!std.meta.eql(try frozen.guard(), source.guard.log)) return error.InvalidTransactionCut;
+                    _ = try view.basis();
+                    if (work == .queue_transfer) try view.validateTransferPayload(work.queue_transfer, read_fence.guard()) else try view.validatePayload(work, payload);
+                }
+                if (transfer_access) |*access| try self.validateTransactionTransfer(selected.destination.?, access, work, payload, false);
+                try TransactionLogWork.stagePayload(staging.objects(), work, payload);
+                try check(read_fence.guard());
+                try check(write_fence.guard());
+                if (transfer_access) |*access| try access.checkCurrent();
+                staged.entries[idx] = .{ .log = request };
+            },
+        }
+    }
+    out.* = staged;
+}
+
+fn recordBatchCompletion(summary: *c.DirectTransactionRequest.BatchSummary, stored: TransactionWorkspace.StatementCompletion) !bool {
+    summary.evaluated_count += 1;
+    switch (stored) {
+        .state => |completed| {
+            summary.last_sequence = completed.request.statement.sequence;
+            switch (completed.outcome) {
+                .provisional => |provisional| {
+                    summary.provisional_count += 1;
+                    summary.rows_matched = try std.math.add(u64, summary.rows_matched, provisional.matched);
+                    summary.rows_affected = try std.math.add(u64, summary.rows_affected, provisional.affected);
+                    return true;
+                },
+                .rejected => |rejected| {
+                    summary.rejection = .{ .statement = rejected.statement, .reason = .{ .state = rejected.reason } };
+                    return false;
+                },
+            }
+        },
+        .log => |completed| {
+            summary.last_sequence = completed.request.statement.sequence;
+            switch (completed.outcome) {
+                .provisional => |provisional| {
+                    summary.provisional_count += 1;
+                    switch (provisional.proposed) {
+                        .append => |append| summary.log_appended_rows = try std.math.add(u64, summary.log_appended_rows, append.rows),
+                        .stream_offset => summary.log_advanced_offsets = try std.math.add(u64, summary.log_advanced_offsets, 1),
+                        .queue_ack => summary.log_settled_acks = try std.math.add(u64, summary.log_settled_acks, 1),
+                        .queue_transfer => summary.log_transfers = try std.math.add(u64, summary.log_transfers, 1),
+                    }
+                    return true;
+                },
+                .rejected => |rejected| {
+                    summary.rejection = .{ .statement = rejected.statement, .reason = .{ .log = rejected.reason } };
+                    return false;
+                },
+            }
+        },
+    }
+}
+
+/// Evaluate up to `max_batch` consecutive staged statements in memory and
+/// commit the resulting private workspace head in one catalog WAL publication.
+/// Stops at the first typed statement rejection while preserving earlier
+/// provisional workspace updates in the batch.
+pub fn executeTransactionBatch(self: *Self, key: c.DirectClientToken.Key, items: []const TransactionWorkspace.StatementWork, policy: Policy) !c.DirectTransactionRequest.BatchSummary {
+    try (c.DirectTransactionRequest.ExecuteBatch{ .key = key, .items = items }).validate();
+    const progress = (try self.clientProgress(.{ .inspect = key }, policy)).state orelse return error.ClientOperationMissing;
+    if (progress.receipt.binding.intent != .transaction) return error.TransactionOperationRequired;
+    try self.requireTransactionMutation(progress.receipt);
+    var memory: c.fuze.MemoryBudget = .{ .parent = self.allocator, .limit = @intCast(progress.receipt.binding.intent.transaction.begin.limits.resident_bytes) };
+    const parent = self.allocator;
+    const retained = self.options.table_owner;
+    self.options.table_owner = null;
+    self.allocator = memory.allocator();
+    defer {
+        self.allocator = parent;
+        self.options.table_owner = retained;
+        std.debug.assert(memory.used == 0);
+    }
+    return self.executeTransactionBatchBounded(progress, items, policy) catch |err|
+        return if (err == error.OutOfMemory and memory.exhausted) error.TransactionMemoryLimit else err;
+}
+
+fn executeTransactionBatchBounded(self: *Self, progress: c.DirectClientToken.Progress, items: []const TransactionWorkspace.StatementWork, policy: Policy) !c.DirectTransactionRequest.BatchSummary {
+    var head = try TransactionWorkspace.recover(self.allocator, self.data_objects, progress);
+    const begin = head.acquired.cut.begin;
+    const first_sequence = items[0].statement().sequence;
+    if (!std.meta.eql(items[0].statement().transaction, begin.identity)) return error.TransactionIdentityConflict;
+    var guards_arena = std.heap.ArenaAllocator.init(self.allocator);
+    defer guards_arena.deinit();
+    var item_scratch = std.heap.ArenaAllocator.init(self.allocator);
+    defer item_scratch.deinit();
+    var epoch: ?P.Guard.Fence = null;
+    var db_fence: CutFence = .{ .underlying = try self.guard(guards_arena.allocator(), policy, null, null, .database), .epoch = &epoch };
+    try check(db_fence.guard());
+
+    const PreparedStateItem = struct {
+        source: @FieldType(s.TransactionDirectory.Entry, "source"),
+        interpretation: s.TableDeclaration.Stored,
+        read: CutFence,
+        write: CutFence,
+    };
+    const PreparedLogItem = struct {
+        definition: L.Definition,
+        selected: TransactionLogSources,
+        read: CutFence,
+        write: CutFence,
+        transfer: ?TransactionTransferAccess,
+    };
+    const PreparedItem = union(enum) { state: PreparedStateItem, log: PreparedLogItem };
+    var prepared: [c.DirectTransactionRequest.max_batch]PreparedItem = undefined;
+    {
+        var sources = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .sources, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+        defer sources.deinit();
+        try sources.restore(head.acquired.cut.sources);
+        for (items, 0..) |item, idx| {
+            _ = item_scratch.reset(.retain_capacity);
+            switch (item) {
+                .state => |request| {
+                    var access = try self.transactionSnapshotAccess(guards_arena.allocator(), request.binding.target, begin.identity.begin, policy);
+                    defer access.view.deinit();
+                    var read_fence: CutFence = .{ .underlying = access.current, .epoch = &epoch };
+                    try check(read_fence.guard());
+                    try self.original(policy, request.binding);
+                    var write_fence: CutFence = .{ .underlying = try self.transactionStateGuard(guards_arena.allocator(), &access.view, try transactionWriteAccess(request.binding.action), request.binding.prerequisite, policy), .epoch = &epoch };
+                    try check(write_fence.guard());
+                    const source = (try sources.get(s.TableTransaction.target(access.view.table.root)) orelse return error.TransactionObjectNotSelected).source;
+                    var frozen = try access.view.table.inspectSnapshot(self.allocator, source.pin, read_fence.guard());
+                    defer frozen.deinit();
+                    if (!std.meta.eql((try source.guard.requirePagedState()), transactionTableGuard(frozen.root))) return error.InvalidTransactionCut;
+                    prepared[idx] = .{ .state = .{ .source = source, .interpretation = frozen.root.declared(), .read = read_fence, .write = write_fence } };
+                },
+                .log => |request| {
+                    const write = try self.logAuthorization(guards_arena.allocator(), request.work.kind(), request.work.target(), request.work.access(), policy);
+                    const read = if (request.work == .queue_transfer) try self.logAuthorization(guards_arena.allocator(), request.work.kind(), request.work.target(), .read, policy) else write;
+                    var read_fence: CutFence = .{ .underlying = read.guard, .epoch = &epoch };
+                    var write_fence: CutFence = .{ .underlying = write.guard, .epoch = &epoch };
+                    try check(read_fence.guard());
+                    try check(write_fence.guard());
+                    const transfer_access = try self.transactionTransferAccess(guards_arena.allocator(), request.work, policy, &epoch);
+                    const target: p.Transaction.Target = .{ .object = request.work.target().interpretation.object, .kind = if (request.work.kind() == .stream) .stream else .queue, .partition = request.work.target().partition };
+                    const source = (try sources.get(target) orelse return error.TransactionObjectNotSelected).source;
+                    if (source.guard != .log or !std.meta.eql(source.guard.log, request.guard)) return error.InvalidTransactionCut;
+                    const destination = if (request.work == .queue_transfer) try transactionTransferSource(&sources, request.work) else null;
+                    prepared[idx] = .{ .log = .{ .definition = read.definition, .selected = .{ .source = source, .destination = destination }, .read = read_fence, .write = write_fence, .transfer = transfer_access } };
+                },
+            }
+        }
+    }
+
+    var staging: TransactionWorkspace.Staging = .{ .underlying = self.data_objects, .used = head.charged_bytes, .limit = begin.limits.workspace_bytes };
+    var index = try s.TreeStore.init(self.allocator, staging.objects(), self.options.resident_pages);
+    defer index.deinit();
+    const record_scope = progress.receipt.binding.key.scope();
+    var summary: c.DirectTransactionRequest.BatchSummary = .{
+        .first_sequence = first_sequence,
+        .last_sequence = first_sequence,
+        .evaluated_count = 0,
+        .provisional_count = 0,
+        .rows_matched = 0,
+        .rows_affected = 0,
+        .log_appended_rows = 0,
+        .log_settled_acks = 0,
+        .log_advanced_offsets = 0,
+        .log_transfers = 0,
+        .rejection = null,
+    };
+
+    if (try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, first_sequence, record_scope, TransactionWorkspace.statement_format)) |first_stored| {
+        for (items, 0..) |item, idx| {
+            const stored = if (idx == 0) first_stored else (try TransactionWorkspace.get(TransactionWorkspace.StatementCompletion, self.allocator, &index, head.statements, first_sequence + idx, record_scope, TransactionWorkspace.statement_format) orelse return error.TransactionStatementConflict);
+            try stored.validate();
+            if (!std.meta.eql(stored.request(), item)) return error.TransactionStatementConflict;
+            if (!try recordBatchCompletion(&summary, stored)) break;
+        }
+        for (prepared[0..items.len]) |*prepared_item| switch (prepared_item.*) {
+            .state => |*state_item| {
+                try check(state_item.read.guard());
+                try check(state_item.write.guard());
+            },
+            .log => |*log_item| {
+                try check(log_item.read.guard());
+                try check(log_item.write.guard());
+                if (log_item.transfer) |*access| try access.checkCurrent();
+            },
+        };
+        try check(db_fence.guard());
+        try summary.validate();
+        return summary;
+    }
+
+    if (begin.mode == .read_only) return error.ReadOnlyTransaction;
+    if (try std.math.add(u64, first_sequence, items.len - 1) > begin.limits.statements) return error.TransactionStatementLimit;
+    if (head.pending_control != null) return error.TransactionControlPending;
+    if (head.pending != null) return error.TransactionStatementPending;
+    if (first_sequence != head.last_statement + 1) return error.TransactionStatementConflict;
+    const first_basis = switch (items[0]) {
+        inline else => |value| value.basis,
+    };
+    if (!std.meta.eql(first_basis, head.revision)) return error.TransactionReadChanged;
+
+    const original_objects = self.data_objects;
+    defer self.data_objects = original_objects;
+    for (items, prepared[0..items.len]) |item, *prepared_item| {
+        _ = item_scratch.reset(.retain_capacity);
+        switch (item) {
+            .state => |request| {
+                self.data_objects = original_objects;
+                const state_item = &prepared_item.state;
+                var intent = try s.TableDmlIntent.load(self.allocator, self.data_objects, request.intent);
+                defer intent.deinit();
+                try request.binding.requireSame(intent.request.binding);
+                if (intent.request.ingestion != .bulk or !std.meta.eql(intent.request.interpretation, state_item.interpretation))
+                    return error.InvalidTransactionWorkspace;
+                staging.used = try std.math.add(u64, staging.used, request.intent.bytes);
+                if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
+                try c.OperationBinding.claimTransactionStatement(self.allocator, self.data_objects, request);
+                var view = try self.transactionView(request.binding.target);
+                defer view.deinit();
+                const previous = try TransactionWorkspace.get(s.TableWorkspace.State, self.allocator, &index, head.tables, request.binding.target.object, record_scope, TransactionWorkspace.table_format);
+                view.table.objects = staging.objects();
+                var evaluator = try s.TableWorkspace.init(self.allocator, &view.table, begin, state_item.source.pin, previous, state_item.read.guard());
+                defer evaluator.deinit();
+                const outcome = try evaluator.execute(request.statement, intent.request, state_item.write.guard());
+                const next_table = evaluator.state();
+                try next_table.validate();
+                const table_record = try TransactionWorkspace.stage(staging.objects(), record_scope, TransactionWorkspace.table_format, next_table);
+                head.tables = try TransactionWorkspace.put(&index, head.tables, request.binding.target.object, table_record, self.options.index_work_bytes);
+                const completed: TransactionWorkspace.StatementCompletion = .{ .state = .{ .request = request, .outcome = outcome } };
+                try completed.validate();
+                const result_record = try TransactionWorkspace.stage(staging.objects(), record_scope, TransactionWorkspace.statement_format, completed);
+                head.statements = try TransactionWorkspace.put(&index, head.statements, request.statement.sequence, result_record, self.options.index_work_bytes);
+                head.last_statement = request.statement.sequence;
+                try check(state_item.read.guard());
+                try check(state_item.write.guard());
+                if (!try recordBatchCompletion(&summary, completed)) break;
+            },
+            .log => |request| {
+                const log_item = &prepared_item.log;
+                self.data_objects = staging.objects();
+                const payload = try TransactionLogWork.loadPayload(self.allocator, self.data_objects, request.work);
+                defer if (payload) |bytes| self.allocator.free(bytes);
+                const target = (p.Transaction.Guard{ .log = request.guard }).target();
+                try self.authenticateTransactionLog(request.work);
+                {
+                    var view = try self.transactionLogView(log_item.definition, target.partition.?, log_item.read.guard());
+                    defer view.deinit();
+                    const frozen = try view.inspect(log_item.selected.source.pin, log_item.read.guard());
+                    if (!std.meta.eql(try frozen.guard(), request.guard)) return error.InvalidTransactionCut;
+                    _ = try view.basis();
+                    if (request.work == .queue_transfer) try view.validateTransferPayload(request.work.queue_transfer, log_item.read.guard()) else try view.validatePayload(request.work, payload);
+                }
+                if (log_item.transfer) |*access| try self.validateTransactionTransfer(log_item.selected.destination.?, access, request.work, payload, false);
+                staging.used = try std.math.add(u64, staging.used, if (payload) |bytes| bytes.len else 0);
+                if (staging.used > staging.limit) return error.TransactionWorkspaceLimit;
+                // OperationBinding claims go to the underlying data_objects store, just
+                // like admitTransactionLog (which already redirected self.data_objects
+                // to staging.objects(), metering immutable reservation bytes too!).
+                try c.OperationBinding.claimTransactionLogStatement(self.allocator, self.data_objects, request);
+                const prior = references: {
+                    var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+                    defer logs.deinit();
+                    if (head.logs) |directory| try logs.restore(directory);
+                    const source_previous = if (try logs.get(target)) |found| found.participant.log.actions else null;
+                    const destination_previous: ?p.Transaction.Directory = if (log_item.selected.destination) |destination_source| blk: {
+                        break :blk if (try logs.get(destination_source.guard.target())) |found| found.participant.log.actions else null;
+                    } else null;
+                    break :references .{ .source = source_previous, .destination = destination_previous };
+                };
+                const previous = prior.source;
+                const directory = sealed: {
+                    var actions = try s.LogTransactionActions.init(self.allocator, self.data_objects, begin.identity, request.guard, begin.limits.statements, begin.limits.workspace_bytes, self.options.resident_pages, self.options.index_work_bytes);
+                    defer actions.deinit();
+                    if (previous) |value| try actions.restore(value);
+                    const action_entry = request.work.entry(request.statement);
+                    if (action_entry.offset_progress) |issued| try actions.putOffset(action_entry.work, issued) else try actions.put(action_entry.work, if (request.work == .queue_transfer) null else payload);
+                    break :sealed try actions.seal();
+                };
+                var destination: ?TransactionTransferAdvance = null;
+                const outcome: TransactionLogWork.Outcome = evaluated: {
+                    destination = self.evaluateTransactionLogStatement(log_item.definition, log_item.selected, prior.destination, &log_item.transfer, request, begin, directory, payload, log_item.write.guard()) catch |err| {
+                        const reason: TransactionLogWork.Outcome.Reason = switch (err) {
+                            error.TransactionConflict => .conflict,
+                            error.QueueLeaseExpired => .lease_expired,
+                            error.QueueLeaseFenced => .lease_fenced,
+                            error.LogProducerConflict => .producer_conflict,
+                            error.LogOffsetConflict, error.LogGroupFenced => .offset_conflict,
+                            else => return err,
+                        };
+                        break :evaluated .{ .rejected = .{ .statement = request.statement, .reason = reason } };
+                    };
+                    break :evaluated .{ .provisional = .{ .statement = request.statement, .proposed = TransactionLogWork.Summary.proposed(request.work) } };
+                };
+                if (outcome == .provisional) {
+                    var logs = try s.TransactionDirectory.init(self.allocator, self.data_objects, begin.identity, .participants, begin.limits.participants, self.options.resident_pages, self.options.index_work_bytes);
+                    defer logs.deinit();
+                    if (head.logs) |value| try logs.restore(value);
+                    try logs.advanceLog(request.guard, previous, directory);
+                    if (destination) |next| try logs.advanceLog(next.guard, next.previous, next.directory);
+                    head.logs = try logs.seal();
+                }
+                const completed: TransactionWorkspace.StatementCompletion = .{ .log = .{ .request = request, .outcome = outcome } };
+                try completed.validate();
+                const result_record = try TransactionWorkspace.stage(staging.objects(), record_scope, TransactionWorkspace.statement_format, completed);
+                head.statements = try TransactionWorkspace.put(&index, head.statements, request.statement.sequence, result_record, self.options.index_work_bytes);
+                head.last_statement = request.statement.sequence;
+                try check(log_item.read.guard());
+                try check(log_item.write.guard());
+                if (log_item.transfer) |*access| try access.checkCurrent();
+                if (!try recordBatchCompletion(&summary, completed)) break;
+            },
+        }
+    }
+    self.data_objects = original_objects;
+    head.pending = null;
+    for (prepared[0..items.len]) |*prepared_item| switch (prepared_item.*) {
+        .state => |*state_item| {
+            try check(state_item.read.guard());
+            try check(state_item.write.guard());
+        },
+        .log => |*log_item| {
+            try check(log_item.read.guard());
+            try check(log_item.write.guard());
+            if (log_item.transfer) |*access| try access.checkCurrent();
+        },
+    };
+    try self.publishTransactionWorkspace(progress, &head, &staging, db_fence.guard());
+    try check(db_fence.guard());
+    try summary.validate();
+    return summary;
+}
+
 pub fn publishTransactionWorkspace(self: *Self, prior: c.DirectClientToken.Progress, head: *TransactionWorkspace.Head, staging: *TransactionWorkspace.Staging, current: P.Guard) !void {
     // Reserve the fixed metadata ceiling before staging. This conservative
     // charge includes header growth without a self-referential byte count.
@@ -4850,6 +5281,18 @@ fn transactionView(self: *Self, object: d.Object) !View {
 
 fn transactionLogView(self: *Self, definition: L.Definition, ordinal: u32, guard_value: P.Guard) !c.DirectTransactionLog {
     return c.DirectTransactionLog.open(self.allocator, self, definition, ordinal, guard_value, self.options.logs);
+}
+
+pub fn streamRecoverySlot(self: *const Self, object: u64) ?*?s.StreamPartition.RecoveryState {
+    if (self.options.stream_recovery) |slot| return slot;
+    if (self.options.stream_recoveries) |slots| return &slots[@intCast(object % slots.len)];
+    return null;
+}
+
+pub fn queueRecoverySlot(self: *const Self, object: u64) ?*?s.QueuePartition.RecoveryState {
+    if (self.options.queue_recovery) |slot| return slot;
+    if (self.options.queue_recoveries) |slots| return &slots[@intCast(object % slots.len)];
+    return null;
 }
 
 fn publishTransactionControl(self: *Self, progress: *c.DirectClientToken.Progress, control: *TransactionControl.State, guard_value: P.Guard) !void {
