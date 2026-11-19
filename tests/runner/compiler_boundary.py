@@ -5,7 +5,9 @@ import subprocess
 from runner.paths import ROOT
 
 assert not (ROOT / 'third_party/transitc').exists(), 'Compiler sources belong in transitc'
-assert not (ROOT / 'packages/zig/transit-compiler').exists(), 'Remove compiler adapters from Transit'
+legacy = ROOT / 'packages/zig/transit-compiler'
+# Existing checkouts may retain ignored Zig caches after the source package moves.
+assert not (legacy / 'build.zig.zon').exists() and not (legacy / 'src').exists(), 'Remove compiler adapters from Transit'
 for name in subprocess.check_output(['git', 'ls-files', '-z', '--', 'apps', 'packages', 'build'], cwd=ROOT, text=True).split('\0'):
     if not name:
         continue
