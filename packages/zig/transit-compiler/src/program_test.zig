@@ -530,3 +530,48 @@ fn returningAllocations(allocator: std.mem.Allocator) !void {
 test "returning calls release every failed allocation" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, returningAllocations, .{});
 }
+
+test "UUID TIMESTAMPTZ BINARY domains guard requires and ROW helper parameters compile and enforce nominal domains" {
+    const typed_src =
+        "CREATE DOMAIN OrgId AS UUID IDENTITY 'platform.org_id'; " ++
+        "CREATE DOMAIN Digest AS BINARY IDENTITY 'platform.digest'; " ++
+        "CREATE GUARD tenancy.require_scope(scope ROW(id UUID, org_id OrgId, rev BIGINT), expected_org OrgId) AS " ++
+        "REQUIRE scope IS NOT NULL ELSE 'MissingScope', " ++
+        "REQUIRE scope.org_id = expected_org AND scope.rev >= 1 ELSE 'InvalidScope'; " ++
+        "CREATE FUNCTION tenancy.bump_rev(meta ROW(rev BIGINT, hash Digest)) RETURNS BIGINT AS BEGIN RETURN meta.rev + 1; END; " ++
+        "CREATE PROCEDURE networking.save_audit(audits TABLE(id UUID PRIMARY KEY, org_id OrgId NOT NULL, hash Digest NOT NULL, at TIMESTAMPTZ NOT NULL, rev BIGINT NOT NULL), " ++
+        "entry ROW(id UUID, org_id OrgId), hash Digest, at TIMESTAMPTZ, rev BIGINT) AS BEGIN ATOMIC " ++
+        "INSERT INTO audits VALUES (entry.id, entry.org_id, hash, at, rev) ON CONFLICT (id) DO ASSERT SAME ROW; END; " ++
+        "CREATE MODULE App(org_ty TYPE, hash_ty TYPE, seed_org OrgId, seed_hash Digest, seed_at TIMESTAMPTZ) AS BEGIN " ++
+        "CREATE PUBLIC TABLE scopes (id UUID PRIMARY KEY, org_id $org_ty NOT NULL, rev BIGINT NOT NULL); " ++
+        "CREATE PUBLIC TABLE audits (id UUID PRIMARY KEY, org_id $org_ty NOT NULL, hash $hash_ty NOT NULL, at TIMESTAMPTZ NOT NULL, rev BIGINT NOT NULL); " ++
+        "CREATE PUBLIC QUEUE jobs (id UUID NOT NULL, org_id $org_ty NOT NULL, hash $hash_ty NOT NULL, at TIMESTAMPTZ NOT NULL); " ++
+        "INSERT INTO scopes VALUES (UUID '11111111-1111-1111-1111-111111111111', $seed_org, 1); " ++
+        "CREATE PUBLIC DATAFLOW worker FROM QUEUE jobs AS job AS BEGIN " ++
+        "LET found = SELECT id, org_id, rev FROM scopes WHERE id = job.id; " ++
+        "CHECK GUARD tenancy.require_scope(found, job.org_id); " ++
+        "LET next = tenancy.bump_rev(ROW(1, job.hash)); " ++
+        "BEGIN ATOMIC CALL networking.save_audit(audits, ROW(job.id, job.org_id), job.hash, job.at, next); END; " ++
+        "END; END; " ++
+        "CREATE TARGET default AS BEGIN " ++
+        "USE App(TYPE OrgId, TYPE Digest, OrgId(UUID '22222222-2222-2222-2222-222222222222'), Digest(X'cafebabe'), TIMESTAMPTZ '2026-11-18T12:00:00Z'); " ++
+        "END;";
+    var diagnostic: ?p.Diagnostic = null;
+    const product = try c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = typed_src }}, .{ .compiler_revision = "scalars-row" }, &diagnostic);
+    defer product.deinit();
+    try std.testing.expectEqual(@as(usize, 5), product.steps.len);
+
+    // Passing a raw UUID inside ROW(...) where OrgId is expected in ROW(id UUID, org_id OrgId) must fail with SourceDomainMismatch.
+    const bad_domain_src =
+        "CREATE DOMAIN OrgId AS UUID IDENTITY 'platform.org_id'; " ++
+        "CREATE GUARD check_row(entry ROW(id UUID, org_id OrgId)) AS REQUIRE entry IS NOT NULL ELSE 'Missing'; " ++
+        "CREATE MODULE App() AS BEGIN " ++
+        "CREATE PUBLIC QUEUE jobs (id UUID NOT NULL); " ++
+        "CREATE PUBLIC DATAFLOW worker FROM QUEUE jobs AS job AS BEGIN " ++
+        "CHECK GUARD check_row(ROW(job.id, UUID '22222222-2222-2222-2222-222222222222')); " ++
+        "END; END; " ++
+        "CREATE TARGET default AS BEGIN USE App(); END;";
+    var bad_diag: ?p.Diagnostic = null;
+    try std.testing.expectError(error.SourceDomainMismatch, c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = bad_domain_src }}, .{ .compiler_revision = "bad-row-domain" }, &bad_diag));
+    try bad_diag.?.validate();
+}

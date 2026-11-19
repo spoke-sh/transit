@@ -6,6 +6,7 @@ const sql = @import("Sql.zig");
 const Parser = @import("SqlTyped.zig");
 const TableDdl = @import("TableDdl.zig");
 const Schema = @import("TableSchema.zig");
+const Reference = @import("SqlReference.zig");
 const PerfectHash = @import("PerfectHash.zig");
 
 pub const Profile = p.DocumentDeclaration.Profile;
@@ -48,6 +49,7 @@ pub const Statement = union(enum) {
 
 pub const Target = struct {
     kind: std.meta.Tag(Statement),
+    schema_name: ?[]const u8 = null,
     name: []const u8,
 };
 
@@ -63,7 +65,8 @@ pub fn targetDialect(allocator: std.mem.Allocator, text: []const u8, location: ?
         if (kind == .create) try parser.requireWord("NOT");
         try parser.requireWord("EXISTS");
     }
-    return .{ .kind = kind, .name = try parser.named(if (kind == .create) .proposed else .source) };
+    const ref = try Reference.source(&parser, if (kind == .create) .proposed else .source);
+    return .{ .kind = kind, .schema_name = ref.qualifier, .name = ref.name };
 }
 
 pub const Owned = struct {
@@ -76,6 +79,7 @@ pub const Owned = struct {
 };
 
 pub const Inspection = struct {
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     describe: bool,
 };
@@ -87,9 +91,9 @@ pub fn inspection(parser: Parser) !?Inspection {
     if (!show and !describe) return null;
     if (!try header.takeWord("DOCUMENT")) return null;
     if (header.token.tag == .eof or header.token.tag == .semi) return null;
-    const name = try header.named(.source);
+    const ref = try Reference.source(&header, .source);
     try header.finish();
-    return .{ .name = name, .describe = describe };
+    return .{ .schema_name = ref.qualifier, .name = ref.name, .describe = describe };
 }
 
 const OptionTag = enum { profile, retention };
@@ -123,16 +127,17 @@ pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?Ba
                 try parser.requireWord("NOT");
                 try parser.requireWord("EXISTS");
             }
-            const name = try parser.named(.proposed);
-            const table: TableDdl.Create = if (parser.token.tag == .left)
-                try TableDdl.columnDefinitions(&parser, name, if_not_exists)
+            const ref = try Reference.source(&parser, .proposed);
+            var table: TableDdl.Create = if (parser.token.tag == .left)
+                try TableDdl.columnDefinitions(&parser, ref.name, if_not_exists)
             else
                 .{
-                    .name = name,
+                    .name = ref.name,
                     .if_not_exists = if_not_exists,
                     .columns = &default_columns,
                     .primary_key = &default_primary_key,
                 };
+            table.schema_name = ref.qualifier;
             if (table.foreign_keys.len != 0) return error.UnsupportedTableConstraint;
             _ = try table.bind(1);
             var policy: Policy = .{};
@@ -142,7 +147,7 @@ pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?Ba
             break :blk .{ .create = .{ .table = table, .policy = policy } };
         },
         .alter => blk: {
-            const name = try parser.named(.source);
+            const ref = try Reference.source(&parser, .source);
             const current = basis orelse return error.DocumentNotFound;
             if (try parser.takeWord("SET")) {
                 const policy = try bindOptions(current.policy, try parseOptions(&parser));
@@ -150,7 +155,8 @@ pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?Ba
                 break :blk .{
                     .alter = .{
                         .table = .{
-                            .name = name,
+                            .schema_name = ref.qualifier,
+                            .name = ref.name,
                             .object = current.schema.object,
                             .schema = try current.schema.fingerprint(),
                             .action = .{ .columns = .{ .integrity = copied.schema } },
@@ -159,7 +165,8 @@ pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?Ba
                     },
                 };
             }
-            const syntax = try TableDdl.alterBody(&parser, name, current.schema);
+            var syntax = try TableDdl.alterBody(&parser, ref.name, current.schema);
+            syntax.schema_name = ref.qualifier;
             const bound = try syntax.bind(a, current.schema, location, null);
             break :blk .{
                 .alter = .{
@@ -171,13 +178,14 @@ pub fn compileDialect(allocator: std.mem.Allocator, text: []const u8, basis: ?Ba
         .drop => blk: {
             const if_exists = try parser.takeWord("IF");
             if (if_exists) try parser.requireWord("EXISTS");
-            const name = try parser.named(.source);
+            const ref = try Reference.source(&parser, .source);
             if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
             _ = try parser.takeWord("RESTRICT");
             if (basis == null and !if_exists) return error.DocumentNotFound;
             break :blk .{
                 .drop = .{
-                    .name = name,
+                    .schema_name = ref.qualifier,
+                    .name = ref.name,
                     .if_exists = if_exists,
                     .object = if (basis) |value| value.schema.object else null,
                     .schema = if (basis) |value| try value.schema.fingerprint() else null,

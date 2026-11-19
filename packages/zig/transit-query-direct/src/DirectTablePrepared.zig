@@ -28,9 +28,15 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, client: c.DirectTableCli
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     var location: f.Sql.Location = .{};
-    const name = try f.TableSelect.targetDialect(arena.allocator(), text, &location, dialect);
-    const metadata = (try lookupPreparedMetadata(arena.allocator(), client, namespace, name, access, snapshot)) orelse
-        return prepareView(allocator, client, namespace, name, text, dialect, detail, access, snapshot, projection);
+    const ref = try f.TableSelect.targetReferenceDialect(arena.allocator(), text, &location, dialect);
+    const target_namespace = if (ref.qualifier) |s_name| (if (snapshot) |cut| blk: {
+        const res = try c.DirectHistory.call(client, .{ .namespace = .{ .snapshot = cut, .name = try .init(s_name) } });
+        defer res.deinit();
+        break :blk (res.value.result.historical_catalog.namespace orelse return error.HistoricalObjectNotSelected).id;
+    } else try client.resolveSchema(s_name, namespace)) else namespace;
+    const name = ref.name;
+    const metadata = (try lookupPreparedMetadata(arena.allocator(), client, target_namespace, name, access, snapshot)) orelse
+        return prepareView(allocator, client, target_namespace, name, text, dialect, detail, access, snapshot, projection);
     var binding = try c.DirectTableBinding.init(client.connection, metadata);
     binding.catalog = snapshot;
     if (snapshot != null or access != .inspect) _ = try binding.require(client, access);

@@ -1064,9 +1064,33 @@
   },
   {
     "name": "migration-missing-for-database",
-    "source": "EXPORT TARGET m AS MIGRATIONS OF app FROM EMPTY VERSION '0001' NAME 'init';",
+    "source": "CREATE MIGRATION TARGET m FROM EMPTY VERSION '0001' NAME 'init' AS BEGIN END;",
     "parse": false,
     "at": "VERSION"
+  },
+  {
+    "name": "export-migration-bad-version-shorthand",
+    "source": "EXPORT TARGET m AS MIGRATIONS OF app FROM EMPTY VERSION '0001';",
+    "parse": false,
+    "at": "'0001'"
+  },
+  {
+    "name": "fk-missing-not-enforced",
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE child (id BIGINT PRIMARY KEY, parent_id BIGINT REFERENCES parent(id)); END;",
+    "parse": false,
+    "at": ");"
+  },
+  {
+    "name": "unique-constraint-refused",
+    "source": "CREATE MODULE m() AS BEGIN CREATE PUBLIC TABLE t (id BIGINT PRIMARY KEY, email TEXT UNIQUE); END;",
+    "parse": false,
+    "at": "UNIQUE"
+  },
+  {
+    "name": "create-schema-authorization-refused",
+    "source": "CREATE MODULE m() AS BEGIN CREATE SCHEMA tenancy AUTHORIZATION admin; END;",
+    "parse": false,
+    "at": "AUTHORIZATION"
   },
   {
     "name": "unqualified-target-alias",
@@ -1147,5 +1171,15 @@
     "parse": true,
     "compile": "test_suite",
     "cases": 1
+  },
+  {
+    "name": "scalars-uuid-timestamptz-binary-and-shorthand-migration",
+    "source": "CREATE DOMAIN OrgId AS UUID IDENTITY 'platform.org_id'; CREATE DOMAIN EventAt AS TIMESTAMPTZ IDENTITY 'platform.event_at'; CREATE DOMAIN Digest AS BINARY IDENTITY 'platform.digest'; CREATE VARIANT Payload AS (Hashed(id OrgId, at EventAt, hash Digest), Raw(raw UUID, ts TIMESTAMPTZ, bytes BINARY)); EXPORT MODULE app(org OrgId, cutoff TIMESTAMPTZ, seed BINARY) AS BEGIN CREATE SCHEMA tenancy; CREATE PUBLIC TABLE events (id UUID PRIMARY KEY, created_at TIMESTAMPTZ NOT NULL, hash BINARY NOT NULL); INSERT INTO events VALUES ($org, $cutoff, $seed); END; LET inst = USE MODULE app(org => OrgId(UUID '11111111-1111-1111-1111-111111111111'), cutoff => TIMESTAMPTZ '2026-11-18T12:00:00Z', seed => X'deadbeef'); EXPORT TARGET mig AS MIGRATIONS OF inst FROM EMPTY VERSION '0001-platform';",
+    "parse": true
+  },
+  {
+    "name": "guard-requires-and-row-helper-parameters",
+    "source": "CREATE DOMAIN OrgId AS UUID IDENTITY 'platform.org_id'; CREATE GUARD tenancy.require_scope(scope ROW(id UUID, org_id OrgId, rev BIGINT), expected_org OrgId, min_rev BIGINT) AS REQUIRE scope IS NOT NULL ELSE 'MissingScope', REQUIRE scope.org_id = expected_org AND scope.rev >= min_rev ELSE 'ForbiddenScope'; CREATE FUNCTION tenancy.next_rev(scope ROW(id UUID, rev BIGINT)) RETURNS BIGINT AS BEGIN RETURN scope.rev + 1; END; CREATE PROCEDURE networking.record_audit(audits TABLE(id UUID PRIMARY KEY, org_id OrgId NOT NULL, payload BINARY NOT NULL, recorded_at TIMESTAMPTZ NOT NULL), item ROW(id UUID, org_id OrgId), payload BINARY, recorded_at TIMESTAMPTZ) AS BEGIN ATOMIC INSERT INTO audits VALUES (item.id, item.org_id, payload, recorded_at) ON CONFLICT (id) DO ASSERT SAME ROW; END;",
+    "parse": true
   }
 ]

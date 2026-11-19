@@ -3,7 +3,7 @@ import copy
 import itertools
 import json
 import subprocess
-from query.sql.reference import ROOT, CACHE, tree, identifier
+from query.sql.reference import ROOT, CACHE, tree, identifier, qualified_name
 from query.sql.table_reference import ALIASES, create, column, data_type, literal, schema_bytes
 
 TYPES=dict(INT64='int64',BOOL='boolean',UTF8='utf8',BINARY='binary')
@@ -19,24 +19,25 @@ def expected(case):
     if extension.createTable():
         value=create(case['sql']); value['schema_hex']=schema_bytes(value['schema']).hex(); return value
     if extension.alterTable():
-        ctx=extension.alterTable(); names=[identifier(n) for n in ctx.identifier()]
+        ctx=extension.alterTable(); qn=ctx.qualifiedName(); names=[identifier(n) for n in ctx.identifier()]
         schema=copy.deepcopy(create(case['basis'])['schema']); renamed=None
-        if ctx.RENAME() and len(names)==2: renamed=names[1]
+        if ctx.RENAME() and len(names)==1: renamed=names[0]
         else:
             schema['revision']=str(int(schema['revision'])+1)
             if ctx.ADD():
                 value,primary=column(ctx.columnDef(),int(schema['next_column'])); assert not primary
                 schema['columns'].append(value); schema['next_column']=str(int(schema['next_column'])+1)
             else:
-                selected=next(c for c in schema['columns'] if c['name']==names[1])
-                if ctx.RENAME(): selected['name']=names[2]
+                selected=next(c for c in schema['columns'] if c['name']==names[0])
+                if ctx.RENAME(): selected['name']=names[1]
                 elif ctx.TYPE(): selected['type'],selected['max_characters']=data_type(ctx.dataType())
                 elif ctx.DEFAULT(): selected['default']=literal(ctx.literal(),selected['type']) if ctx.SET() else None
                 elif ctx.NOT(): selected['nullable']=bool(ctx.DROP())
                 else: assert ctx.DROP(); schema['columns'].remove(selected)
-        return dict(kind='alter',name=names[0],rename=renamed,schema=schema)
+        schema_name, table_name = qualified_name(qn)
+        return dict(kind='alter',schema_name=schema_name,name=table_name,rename=renamed,schema=schema)
     if extension.dropTable():
-        ctx=extension.dropTable(); return dict(kind='drop',name=identifier(ctx.identifier()),if_exists=bool(ctx.IF()),object=7 if case.get('basis') else None)
+        ctx=extension.dropTable(); schema_name, table_name = qualified_name(ctx.qualifiedName()); return dict(kind='drop',schema_name=schema_name,name=table_name,if_exists=bool(ctx.IF()),object=7 if case.get('basis') else None)
     ctx=extension.createKv() or extension.createDocument(); assert ctx
     kind='kv' if extension.createKv() else 'document'; name=identifier(ctx.identifier())
     typ=TYPES[ctx.dataType().getText().upper()] if kind=='kv' else None

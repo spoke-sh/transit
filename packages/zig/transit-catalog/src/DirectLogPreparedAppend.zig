@@ -15,9 +15,10 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     var scratch: std.heap.ArenaAllocator = .init(allocator);
     defer scratch.deinit();
     const target = try f.LogAppendSql.target(scratch.allocator(), text, dialect, location);
-    const response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = target.source.name } });
+    const target_namespace = try client.resolveSchema(target.source.qualifier, namespace);
+    const response = try client.call(.{ .log_lookup = .{ .namespace = target_namespace, .name = target.source.name } });
     defer response.deinit();
-    return init(allocator, client.connection, namespace, text, response.value.result.log_lookup orelse return error.CatalogNameNotFound, dialect, location);
+    return init(allocator, client.connection, target_namespace, text, response.value.result.log_lookup orelse return error.CatalogNameNotFound, dialect, location);
 }
 
 /// Pure preparation against a verified explicit descriptor. The owning caller

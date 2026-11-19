@@ -34,6 +34,9 @@ fn literal(expression: *const a.Expression, expected: f.Types.Type) !?f.Types.Se
         .null => null,
         .boolean => |value| .{ .boolean = value },
         .text => |value| .{ .bytes = value },
+        .bytes => |value| if (expected == .binary) .{ .bytes = value.bytes } else error.ProgramTypeMismatch,
+        .uuid => |value| if (expected == .uuid) .{ .uuid = value } else error.ProgramTypeMismatch,
+        .timestamp => |value| if (expected == .timestamp and expected.timestamp == .utc) .{ .timestamp = value } else error.ProgramTypeMismatch,
         .integer => |value| try integer(value, expected),
         .unary => |value| if (value.operator == .negate and value.operand.value == .integer)
             try integer(try std.math.negate(value.operand.value.integer), expected)

@@ -111,7 +111,7 @@ def literal(ctx, typ):
 
 def column(ctx, identity):
     typ, bound=data_type(ctx.dataType())
-    result=dict(id=str(identity),name=identifier(ctx.identifier()),type=typ,nullable=True,default=None,max_characters=bound,encoding='plain',collation='none',
+    result=dict(id=str(identity),name=identifier(ctx.columnIdentifier()),type=typ,nullable=True,default=None,max_characters=bound,encoding='plain',collation='none',
                 semantics=dict(rounding=None, metric=None, timezone=None, spatial=None))
     primary=False
     for constraint in ctx.columnConstraint():
@@ -126,7 +126,9 @@ def column(ctx, identity):
 
 
 def create(sql):
+    from query.sql.reference import qualified_name
     ctx=tree(sql).extensionStatement().createTable(); assert ctx
+    schema_name, table_name = qualified_name(ctx.qualifiedName())
     columns=[]; keys=[]
     for item in ctx.tableElement():
         if item.columnDef():
@@ -138,7 +140,7 @@ def create(sql):
     schema=dict(definition=json.loads((ROOT/'contracts/transit-v1.schema.json').read_text())['x-transit']['definition'], object='7',revision='1',next_column=str(len(columns)+1),columns=columns,
                 primary_key=[next(c['id'] for c in columns if c['name']==key) for key in keys],
                 integrity=dict(next_id=1, checks=[], foreign_keys=[]))
-    return dict(kind='table',name=identifier(ctx.identifier()),if_not_exists=bool(ctx.IF()),schema=schema)
+    return dict(kind='table',schema_name=schema_name,name=table_name,if_not_exists=bool(ctx.IF()),schema=schema)
 
 
 def schema_bytes(schema):

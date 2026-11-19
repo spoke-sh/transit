@@ -17,16 +17,17 @@ create_owner: ?u64,
 pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Self {
     var compiled = try f.LogDdl.compile(allocator, text, dialect, location);
     errdefer compiled.deinit();
-    var result: Self = .{ .connection = client.connection, .namespace = namespace, .compiled = compiled, .definition = null, .schema = null, .configured = null, .create_owner = null };
+    const target_namespace = try client.resolveSchema(compiled.statement.schema_name, namespace);
+    var result: Self = .{ .connection = client.connection, .namespace = target_namespace, .compiled = compiled, .definition = null, .schema = null, .configured = null, .create_owner = null };
     errdefer if (result.schema) |*schema| schema.deinit();
     var scratch = std.heap.ArenaAllocator.init(allocator);
     defer scratch.deinit();
     const syntax = compiled.statement;
     if (syntax.action == .create) {
-        result.create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
+        result.create_owner = (try client.require(.{ .namespace = target_namespace, .target = null, .access = .create_table })).role;
         result.configured = try syntax.configure(null, try syntax.action.create.bind(1));
     } else {
-        const response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = syntax.name } });
+        const response = try client.call(.{ .log_lookup = .{ .namespace = target_namespace, .name = syntax.name } });
         defer response.deinit();
         const metadata = response.value.result.log_lookup orelse return error.CatalogNameNotFound;
         if (metadata.declaration.kind() != syntax.kind) return error.CatalogKindMismatch;
@@ -38,7 +39,10 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
         .unchanged => {},
         .clear => configured.configuration.policy.queue.dead_letter = null,
         .name => |name| {
-            const response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = name } });
+            const dot = std.mem.indexOfScalar(u8, name, '.');
+            const dlq_ns = if (dot) |idx| try client.resolveSchema(name[0..idx], namespace) else target_namespace;
+            const dlq_name = if (dot) |idx| name[idx + 1 ..] else name;
+            const response = try client.call(.{ .log_lookup = .{ .namespace = dlq_ns, .name = dlq_name } });
             defer response.deinit();
             const destination = response.value.result.log_lookup orelse return error.InvalidQueueDestination;
             if (destination.declaration.kind() != .queue) return error.InvalidQueueDestination;

@@ -3,6 +3,7 @@
 const std = @import("std");
 const Sql = @import("Sql.zig");
 const Parser = @import("SqlTyped.zig");
+const Reference = @import("SqlReference.zig");
 const Types = @import("Types.zig");
 
 pub const ValueType = enum(u8) {
@@ -56,6 +57,7 @@ pub const Spec = struct {
 };
 
 pub const Statement = struct {
+    schema_name: ?[]const u8 = null,
     name: []const u8,
     action: union(enum) {
         create: struct { if_not_exists: bool = false, spec: Spec, native_binding: ?@import("NativeBinding.zig").Kind = null },
@@ -73,7 +75,7 @@ pub const Owned = struct {
     }
 };
 
-pub const Inspection = struct { name: []const u8, describe: bool };
+pub const Inspection = struct { schema_name: ?[]const u8 = null, name: []const u8, describe: bool };
 
 /// Pure named-KV inspection syntax. The name belongs to the parser allocator;
 /// definition lookup and current disclosure authority remain with the service.
@@ -85,9 +87,9 @@ pub fn inspection(parser: Parser) !?Inspection {
     if (!try header.takeWord("KV")) return null;
     // DESCRIBE kv can still name a Table with that contextual name.
     if (header.token.tag == .eof or header.token.tag == .semi) return null;
-    const name = try header.named(.source);
+    const ref = try Reference.source(&header, .source);
     try header.finish();
-    return .{ .name = name, .describe = describe };
+    return .{ .schema_name = ref.qualifier, .name = ref.name, .describe = describe };
 }
 
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dialect, location: ?*Sql.Location) !Owned {
@@ -103,7 +105,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
                 try parser.requireWord("NOT");
                 try parser.requireWord("EXISTS");
             }
-            const name = try parser.named(.proposed);
+            const ref = try Reference.source(&parser, .proposed);
             try parser.require(.left);
             const data_type = try parser.dataType();
             if (data_type.max_characters != null) return error.UnsupportedKVValueType;
@@ -116,25 +118,25 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, dialect: Sql.Dial
             try parser.finish();
             const spec: Spec = .{ .value_type = value_type, .nullable = nullability.value, .fields = if (data_type.type == .structure) data_type.type.structure else &.{} };
             try spec.validate();
-            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = spec, .native_binding = native_binding } } } };
+            return .{ .arena = arena, .statement = .{ .schema_name = ref.qualifier, .name = ref.name, .action = .{ .create = .{ .if_not_exists = if_not_exists, .spec = spec, .native_binding = native_binding } } } };
         },
         .alter => {
             if (parser.word("IF")) return error.UnsupportedConstruct;
-            const name = try parser.named(.source);
+            const ref = try Reference.source(&parser, .source);
             try parser.requireWord("RENAME");
             try parser.requireWord("TO");
             const renamed = try parser.named(.proposed);
             try parser.finish();
-            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .rename = renamed } } };
+            return .{ .arena = arena, .statement = .{ .schema_name = ref.qualifier, .name = ref.name, .action = .{ .rename = renamed } } };
         },
         .drop => {
             const if_exists = try parser.takeWord("IF");
             if (if_exists) try parser.requireWord("EXISTS");
-            const name = try parser.named(.source);
+            const ref = try Reference.source(&parser, .source);
             if (try parser.takeWord("CASCADE")) return error.UnsupportedCascade;
             _ = try parser.takeWord("RESTRICT");
             try parser.finish();
-            return .{ .arena = arena, .statement = .{ .name = name, .action = .{ .drop = .{ .if_exists = if_exists } } } };
+            return .{ .arena = arena, .statement = .{ .schema_name = ref.qualifier, .name = ref.name, .action = .{ .drop = .{ .if_exists = if_exists } } } };
         },
     }
 }

@@ -67,7 +67,8 @@
     "SELECT i.* FROM items i WHERE i.id > $1 ORDER BY i.id LIMIT $2",
     "SELECT t.* FROM t JOIN u ON t.k=u.k",
     "SELECT r.* FROM t l LEFT JOIN u r ON l.k=r.k",
-    "SELECT \"I\".* FROM \"Items\" \"I\" LEFT JOIN \"Items\" \"Other\" ON \"I\".id=\"Other\".id"
+    "SELECT \"I\".* FROM \"Items\" \"I\" LEFT JOIN \"Items\" \"Other\" ON \"I\".id=\"Other\".id",
+    "SELECT a.id, b.name FROM tenancy.organizations AS a JOIN networking.networks AS b ON a.id = b.org_id"
   ],
   "reject": [
     "SELECT *, u.v FROM t JOIN u ON t.k=u.k",

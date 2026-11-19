@@ -33,6 +33,19 @@ pub fn unqualified(parser: *Parser, role: Parser.NameRole) !Self {
     const name = try parser.named(role);
     return .{ .name = name, .span = .{ .start = start, .end = parser.previous_end } };
 }
+pub fn source(parser: *Parser, role: Parser.NameRole) !Self {
+    const first = try unqualified(parser, role);
+    if (!try parser.take(.dot)) return first;
+    if (parser.boundary()) |editor| editor.qualifier = .init(first.name);
+    var target = try unqualified(parser, role);
+    target.qualifier = first.name;
+    target.qualifier_span = first.span;
+    return target;
+}
+pub fn deinit(self: Self, allocator: std.mem.Allocator) void {
+    if (self.qualifier) |qualifier| allocator.free(qualifier);
+    allocator.free(self.name);
+}
 pub fn parse(parser: *Parser) !Self {
     const first = try unqualified(parser, .column);
     if (!try parser.take(.dot)) return first;

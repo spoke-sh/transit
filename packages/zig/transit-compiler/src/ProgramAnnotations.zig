@@ -21,12 +21,20 @@ pub const Event = struct {
 };
 /// Internal evidence only. Step.jsonStringify never persists this projection.
 pub const Evidence = struct { nodes: []const Node, events: []const Event };
+pub const RowField = struct {
+    name: []const u8,
+    expected: Expected,
+};
+pub const Expected = union(enum) {
+    scalar: types.Scalar,
+    row: []const RowField,
+};
 pub const Obligation = struct {
     target: union(enum) {
         binding: []const u8,
         span: struct { start: usize, end: usize },
     },
-    expected: types.Scalar,
+    expected: Expected,
     name: []const u8,
 };
 const Value = struct { domain: ?Graph.Ref = null, fields: []const Named = &.{} };
@@ -57,7 +65,7 @@ pub fn check(scratch: std.mem.Allocator, output: std.mem.Allocator, graph: Graph
     const obligation_used = try scratch.alloc(bool, obligations.len);
     @memset(obligation_used, false);
     var self: Self = .{ .scratch = scratch, .output = output, .graph = graph, .catalog = catalog, .bound = bound, .sql = sql, .sites = sites, .origins = origins, .obligations = obligations, .used = used, .obligation_used = obligation_used, .context = context, .work = work, .work_limit = work_limit };
-    const input = try catalog.findResource(program.queue);
+    const input = try catalog.findResourceQualified(program.queue_schema, program.queue);
     const input_record = try self.record(input);
     try self.symbols.append(scratch, .{ .name = program.input, .value = input_record });
     try self.event(.acquire, null, 0, input, &.{});
@@ -92,9 +100,20 @@ fn origin(self: Self, offset: usize) usize {
 fn domain(self: Self, ref: ?Graph.Ref) ?[]const u8 {
     return if (ref) |value| self.graph.getDefinition(value).domain.?.identity else null;
 }
+fn convertNested(scratch: std.mem.Allocator, items: []const types.FieldDomain) anyerror![]const Named {
+    if (items.len == 0) return &.{};
+    const out = try scratch.alloc(Named, items.len);
+    for (items, out) |item, *slot| {
+        slot.* = .{ .name = item.name, .value = .{ .domain = item.domain, .fields = try convertNested(scratch, item.fields) } };
+    }
+    return out;
+}
 fn record(self: *Self, resource: *const types.Table) !Value {
     const fields = try self.scratch.alloc(Named, resource.domains.len);
-    for (resource.schema.columns, resource.domains, fields) |column, annotation, *item| item.* = .{ .name = column.name, .value = .{ .domain = annotation } };
+    for (resource.schema.columns, resource.domains, fields, 0..) |column, annotation, *item, idx| {
+        const nested = if (idx < resource.nested_domains.len) try convertNested(self.scratch, resource.nested_domains[idx]) else &.{};
+        item.* = .{ .name = column.name, .value = .{ .domain = annotation, .fields = nested } };
+    }
     return .{ .fields = fields };
 }
 fn field(value: Value, name: []const u8) Value {
@@ -137,20 +156,51 @@ fn project(self: *Self, value: Value, physical_: a.Types.Value, depth: usize) an
     }
     return .{ .kind = physical_.kind, .nullable = physical_.nullable, .domain = self.domain(value.domain), .fields = fields };
 }
+fn checkExpected(self: *Self, expected: Expected, name: []const u8, actual: Value, physical_: a.Types.Value, offset: usize) anyerror!void {
+    switch (expected) {
+        .scalar => |want_scalar| {
+            const want_kind: a.Types.Kind = switch (want_scalar.base) {
+                .bigint => .integer,
+                .text => .text,
+                .boolean => .boolean,
+                .uuid => .uuid,
+                .timestamptz => .timestamp,
+                .binary => .binary,
+            };
+            if (physical_.kind != .null and physical_.kind != want_kind) {
+                self.context.* = .{ .offset = offset, .name = name, .expected = want_scalar.label(self.graph), .actual = @tagName(physical_.kind) };
+                return error.ProgramTypeMismatch;
+            }
+            if (!std.meta.eql(want_scalar.domain, actual.domain) or (want_scalar.domain == null and nominal(actual))) {
+                self.context.* = .{ .offset = offset, .name = name, .expected = want_scalar.label(self.graph), .actual = self.domain(actual.domain) orelse @tagName(physical_.kind) };
+                return error.SourceDomainMismatch;
+            }
+        },
+        .row => |want_fields| {
+            if (physical_.kind == .null) return;
+            if (physical_.kind != .record) {
+                self.context.* = .{ .offset = offset, .name = name, .expected = "ROW", .actual = @tagName(physical_.kind) };
+                return error.ProgramTypeMismatch;
+            }
+            const positional = physical_.fields.len > 0 and physical_.fields[0].name.len == 0;
+            if (positional and physical_.fields.len != want_fields.len) {
+                self.context.* = .{ .offset = offset, .name = name, .expected = "ROW", .actual = @tagName(physical_.kind) };
+                return error.ProgramTypeMismatch;
+            }
+            for (want_fields, 0..) |rf, idx| {
+                const phys_field = if (positional) physical_.fields[idx] else blk: {
+                    for (physical_.fields) |pf| if (std.mem.eql(u8, pf.name, rf.name)) break :blk pf;
+                    self.context.* = .{ .offset = offset, .name = rf.name, .expected = rf.name, .actual = "missing field" };
+                    return error.ProgramTypeMismatch;
+                };
+                const act_field = if (positional and idx < actual.fields.len) actual.fields[idx].value else field(actual, rf.name);
+                try self.checkExpected(rf.expected, rf.name, act_field, phys_field.value, offset);
+            }
+        },
+    }
+}
 fn checkObligation(self: *Self, ob: Obligation, actual: Value, physical_: a.Types.Value, offset: usize) !void {
-    const want_kind: a.Types.Kind = switch (ob.expected.base) {
-        .bigint => .integer,
-        .text => .text,
-        .boolean => .boolean,
-    };
-    if (physical_.kind != .null and physical_.kind != want_kind) {
-        self.context.* = .{ .offset = offset, .name = ob.name, .expected = ob.expected.label(self.graph), .actual = @tagName(physical_.kind) };
-        return error.ProgramTypeMismatch;
-    }
-    if (!std.meta.eql(ob.expected.domain, actual.domain) or (ob.expected.domain == null and nominal(actual))) {
-        self.context.* = .{ .offset = offset, .name = ob.name, .expected = ob.expected.label(self.graph), .actual = self.domain(actual.domain) orelse @tagName(physical_.kind) };
-        return error.SourceDomainMismatch;
-    }
+    return self.checkExpected(ob.expected, ob.name, actual, physical_, offset);
 }
 fn node(self: *Self, id: a.Id, offset: usize, kind: []const u8, value: Value) !void {
     try self.nodes.append(self.output, .{ .id = id, .source_offset = self.origin(offset), .kind = kind, .type = try self.project(value, try self.physical(id), 0) });
@@ -159,7 +209,7 @@ fn expression(self: *Self, input: *const a.Expression) anyerror!Value {
     self.context.* = .{ .offset = input.span.start };
     try self.tick();
     var value: Value = switch (input.value) {
-        .null, .boolean, .integer, .text => .{},
+        .null, .boolean, .integer, .text, .bytes, .uuid, .timestamp => .{},
         .name => |name| blk: {
             // Match the shared binder's lexical-before-column precedence.
             for (self.symbols.items) |symbol| if (std.mem.eql(u8, symbol.name, name)) break :blk symbol.value;
@@ -227,7 +277,7 @@ fn condition(self: *Self, input: *const a.Expression) !void {
     try self.ordinary(try self.expression(input), input.span.start);
 }
 fn select(self: *Self, input: a.Select) !Value {
-    const resource = try self.catalog.findResource(input.target);
+    const resource = try self.catalog.findResourceQualified(input.schema, input.target);
     const record_ = try self.record(resource);
     const before = self.columns;
     self.columns = record_.fields;
@@ -251,8 +301,8 @@ fn event(self: *Self, kind: @FieldType(Event, "kind"), id: ?a.Id, offset: usize,
     }
     try self.events.append(self.output, .{ .kind = kind, .node = id, .source_offset = self.origin(offset), .resource = if (resource) |value| value.name else null, .columns = columns });
 }
-fn write(self: *Self, target: []const u8, expressions: []const *a.Expression) !*const types.Table {
-    const resource = try self.catalog.findResource(target);
+fn write(self: *Self, schema: ?[]const u8, target: []const u8, expressions: []const *a.Expression) !*const types.Table {
+    const resource = try self.catalog.findResourceQualified(schema, target);
     if (expressions.len != resource.domains.len) return error.SourceTypeMismatch;
     for (expressions, resource.domains, resource.schema.columns) |input, expected, column| {
         const actual = try self.expression(input);
@@ -282,7 +332,7 @@ fn block(self: *Self, instructions: []const a.Instruction) anyerror!void {
                 };
                 try self.symbols.append(self.scratch, .{ .name = binding.name, .value = value });
                 try self.node(id, offset, "binding", value);
-                const resource = if (binding.value == .select) try self.catalog.findResource(binding.value.select.target) else null;
+                const resource = if (binding.value == .select) try self.catalog.findResourceQualified(binding.value.select.schema, binding.value.select.target) else null;
                 try self.event(if (resource != null) .read else .let, id, offset, resource, &.{});
             },
             .require => |input| {
@@ -307,8 +357,8 @@ fn block(self: *Self, instructions: []const a.Instruction) anyerror!void {
                 self.symbols.shrinkRetainingCapacity(count);
                 try self.event(.branch_end, id, offset, null, &.{});
             },
-            .insert => |input| try self.event(.insert, id, offset, try self.write(input.target, input.values), input.values),
-            .append => |input| try self.event(.append, id, offset, try self.write(input.target, input.values), input.values),
+            .insert => |input| try self.event(.insert, id, offset, try self.write(input.target_schema, input.target, input.values), input.values),
+            .append => |input| try self.event(.append, id, offset, try self.write(input.target_schema, input.target, input.values), input.values),
             else => return error.ApplicationHostUnavailable,
         }
     }

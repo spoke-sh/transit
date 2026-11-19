@@ -271,7 +271,9 @@ test "general Table continuations come from selected production grammar and actu
     try fixture(allocator, "SHOW STORAGE ", &.{"FOR"}, &.{ "TABLES", "\"identifier\"" });
     try fixture(allocator, "CREATE ", &.{"TABLE"}, &.{"SELECT"});
     try fixture(allocator, "CREATE TABLE people (name VAR", &.{"VARCHAR"}, &.{"VARBINARY"});
-    try fixture(allocator, "CREATE TABLE people (name TEXT ", &.{ "NOT", "NULL", "DEFAULT", "PRIMARY" }, &.{ "UNIQUE", "CHECK", "REFERENCES" });
+    try fixture(allocator, "CREATE TABLE people (name TEXT ", &.{ "NOT", "NULL", "DEFAULT", "CHECK" }, &.{"UNIQUE"});
+    try fixture(allocator, "CREATE TABLE people (name TEXT PRI", &.{"PRIMARY"}, &.{"UNIQUE"});
+    try fixture(allocator, "CREATE TABLE people (name TEXT REF", &.{"REFERENCES"}, &.{"UNIQUE"});
     try fixture(allocator, "ALTER TABLE people ", &.{ "RENAME", "ADD", "DROP", "ALTER" }, &.{"CASCADE"});
     try fixture(allocator, "ALTER TABLE people DROP COLUMN dis", &.{"\"display_name\""}, &.{"\"identifier\""});
     try fixture(allocator, "DROP TABLE people ", &.{"RESTRICT"}, &.{"CASCADE"});

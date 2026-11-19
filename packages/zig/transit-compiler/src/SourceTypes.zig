@@ -15,6 +15,9 @@ pub const Scalar = struct {
             .bigint => "BIGINT",
             .text => "TEXT",
             .boolean => "BOOLEAN",
+            .uuid => "UUID",
+            .timestamptz => "TIMESTAMPTZ",
+            .binary => "BINARY",
         };
     }
     pub fn physical(self: Scalar) f.Types.Type {
@@ -22,6 +25,9 @@ pub const Scalar = struct {
             .bigint => .int64,
             .text => .utf8,
             .boolean => .boolean,
+            .uuid => .uuid,
+            .timestamptz => .{ .timestamp = .utc },
+            .binary => .binary,
         };
     }
     pub fn hash(self: Scalar, graph: Graph, into: *std.crypto.hash.sha2.Sha256) void {
@@ -32,13 +38,19 @@ pub const Scalar = struct {
         } else Graph.hashPart(into, "scalar");
     }
 };
-pub const Primitive = union(enum) { integer: i64, text: []const u8, boolean: bool };
+pub const Primitive = union(enum) { integer: i64, text: []const u8, boolean: bool, uuid: []const u8, timestamptz: []const u8, binary: []const u8 };
+pub const FieldDomain = struct { name: []const u8, domain: ?Graph.Ref = null, fields: []const FieldDomain = &.{} };
+pub const SchemaBinding = struct { logical: []const u8, concrete: []const u8 };
+pub const ReferenceTable = struct { table: *const Table, columns: []const []const u8 };
 pub const ResourceKind = enum { table, stream, queue };
 pub const Table = struct {
+    schema_name: []const u8 = "public",
     name: []const u8,
     schema: f.TableSchema.Schema,
     domains: []const ?Graph.Ref,
+    nested_domains: []const []const FieldDomain = &.{},
     owner: usize,
+    encapsulated: bool = false,
     kind: ResourceKind = .table,
     log: ?f.LogDdl.Configured = null,
     pub fn value(self: *const Table) Value {
@@ -51,13 +63,26 @@ pub const Table = struct {
 };
 pub const Export = struct { name: []const u8, value: Value };
 pub const HelperKind = enum { function, guard, procedure };
-pub const Helper = struct { kind: HelperKind, ref: Graph.Ref, bindings: []const Binding = &.{} };
-pub const ModuleInstance = struct { constructor: ?Graph.Ref = null, exports: []const Export };
+pub const Helper = struct {
+    kind: HelperKind,
+    ref: Graph.Ref,
+    bindings: []const Binding = &.{},
+    owner: usize = 0,
+    schemas: []const SchemaBinding = &.{},
+};
+pub const ModuleInstance = struct {
+    constructor: ?Graph.Ref = null,
+    exports: []const Export,
+    schemas: []const SchemaBinding = &.{},
+};
 pub const Variant = struct { definition: Graph.Ref, constructor: usize, fields: []const Value };
 pub const Value = union(enum) {
     integer: i64,
     text: []const u8,
     boolean: bool,
+    uuid: []const u8,
+    timestamptz: []const u8,
+    binary: []const u8,
     identifier: []const u8,
     schema_binding: []const u8,
     type: Scalar,
@@ -67,6 +92,7 @@ pub const Value = union(enum) {
     variant: Variant,
     row: []const Export,
     table: *const Table,
+    reference_table: ReferenceTable,
     stream: *const Table,
     queue: *const Table,
     instance: ModuleInstance,
@@ -76,6 +102,9 @@ pub const Value = union(enum) {
             .integer => .{ .base = .bigint },
             .text => .{ .base = .text },
             .boolean => .{ .base = .boolean },
+            .uuid => .{ .base = .uuid },
+            .timestamptz => .{ .base = .timestamptz },
+            .binary => .{ .base = .binary },
             .nominal => |v| v.type,
             .symbolic => |v| v,
             else => null,
@@ -86,6 +115,9 @@ pub const Value = union(enum) {
             .integer => |v| .{ .integer = v },
             .text => |v| .{ .text = v },
             .boolean => |v| .{ .boolean = v },
+            .uuid => |v| .{ .uuid = v },
+            .timestamptz => |v| .{ .timestamptz = v },
+            .binary => |v| .{ .binary = v },
             .nominal => |v| v.value,
             else => error.SourceTypeMismatch,
         };
@@ -109,6 +141,9 @@ pub fn field(graph: Graph, file: usize, kind: s.Kind) !Scalar {
         .integer => .{ .base = .bigint },
         .text => .{ .base = .text },
         .boolean => .{ .base = .boolean },
+        .uuid => .{ .base = .uuid },
+        .timestamptz => .{ .base = .timestamptz },
+        .binary => .{ .base = .binary },
         .named => |name| try domain(graph, try graph.resolve(file, name)),
         else => error.UnsupportedVariantField,
     };
@@ -142,7 +177,7 @@ pub fn validate(graph: Graph, a: std.mem.Allocator, file_at: *usize, offset: *us
     };
 }
 pub fn signature(graph: Graph, file: usize, columns: []const s.Column, table: *const Table, context: *@import("SourceDiagnostic.zig").Context) !void {
-    if (columns.len != table.schema.columns.len or table.schema.integrity.checks.len != 0 or table.schema.integrity.foreign_keys.len != 0) return error.TableInterfaceMismatch;
+    if (columns.len != table.schema.columns.len or table.schema.integrity.checks.len != 0) return error.TableInterfaceMismatch;
     var key: usize = 0;
     for (columns, table.schema.columns, table.domains) |expected, actual, actual_domain| {
         const ty = try resolve(graph, file, expected.type);
@@ -169,7 +204,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             into.update(&bytes);
         },
         .boolean => |v| into.update(&.{@intFromBool(v)}),
-        .text, .identifier, .schema_binding => |v| Graph.hashPart(into, v),
+        .text, .uuid, .timestamptz, .binary, .identifier, .schema_binding => |v| Graph.hashPart(into, v),
         .type, .symbolic => |v| v.hash(graph, into),
         .nominal => |v| {
             v.type.hash(graph, into);
@@ -196,6 +231,7 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
             try hashValue(item.value, graph, into, depth + 1);
         },
         .table, .stream, .queue => |table| {
+            Graph.hashPart(into, table.schema_name);
             Graph.hashPart(into, table.name);
             into.update(&try table.schema.fingerprint());
             for (table.schema.columns, table.domains) |column, ref| {
@@ -203,8 +239,19 @@ pub fn hashValue(value: Value, graph: Graph, into: *std.crypto.hash.sha2.Sha256,
                 if (ref) |d| (try domain(graph, d)).hash(graph, into) else Graph.hashPart(into, "raw");
             }
         },
+        .reference_table => |ref_tbl| {
+            Graph.hashPart(into, "reference_table");
+            Graph.hashPart(into, ref_tbl.table.schema_name);
+            Graph.hashPart(into, ref_tbl.table.name);
+            into.update(&try ref_tbl.table.schema.fingerprint());
+            for (ref_tbl.columns) |col| Graph.hashPart(into, col);
+        },
         .instance => |inst| {
             if (inst.constructor) |ctor| try hashValue(.{ .module = ctor }, graph, into, depth + 1);
+            for (inst.schemas) |sb| {
+                Graph.hashPart(into, sb.logical);
+                Graph.hashPart(into, sb.concrete);
+            }
             for (inst.exports) |item| {
                 Graph.hashPart(into, item.name);
                 try hashValue(item.value, graph, into, depth + 1);
@@ -220,6 +267,11 @@ pub fn sameSpecialization(left: []const Binding, right: []const Binding) bool {
     for (left, right) |l, r| if (!sameValue(l.value, r.value, 0)) return false;
     return true;
 }
+fn sameSchemas(left: []const SchemaBinding, right: []const SchemaBinding) bool {
+    if (left.len != right.len) return false;
+    for (left, right) |l, r| if (!std.mem.eql(u8, l.logical, r.logical) or !std.mem.eql(u8, l.concrete, r.concrete)) return false;
+    return true;
+}
 fn sameValue(left: Value, right: Value, depth: usize) bool {
     if (depth >= 64) return false;
     if (left.scalar()) |kind| return if (right.scalar()) |other| Scalar.eql(kind, other) else false;
@@ -229,8 +281,13 @@ fn sameValue(left: Value, right: Value, depth: usize) bool {
         .schema_binding => |v| std.mem.eql(u8, v, right.schema_binding),
         .type => |v| Scalar.eql(v, right.type),
         .module => |v| std.meta.eql(v, right.module),
-        .helper => |v| v.kind == right.helper.kind and std.meta.eql(v.ref, right.helper.ref),
+        .helper => |v| v.kind == right.helper.kind and std.meta.eql(v.ref, right.helper.ref) and v.owner == right.helper.owner and sameSchemas(v.schemas, right.helper.schemas),
         inline .table, .stream, .queue => |v, tag| v == @field(right, @tagName(tag)),
+        .reference_table => |v| blk: {
+            if (v.table != right.reference_table.table or v.columns.len != right.reference_table.columns.len) break :blk false;
+            for (v.columns, right.reference_table.columns) |l, r| if (!std.mem.eql(u8, l, r)) break :blk false;
+            break :blk true;
+        },
         .variant => |v| blk: {
             if (!std.meta.eql(v.definition, right.variant.definition) or v.constructor != right.variant.constructor or v.fields.len != right.variant.fields.len) break :blk false;
             for (v.fields, right.variant.fields) |l, r| if (!sameValue(l, r, depth + 1)) break :blk false;
@@ -242,7 +299,7 @@ fn sameValue(left: Value, right: Value, depth: usize) bool {
             break :blk true;
         },
         .instance => |inst| blk: {
-            if (!std.meta.eql(inst.constructor, right.instance.constructor) or inst.exports.len != right.instance.exports.len) break :blk false;
+            if (!std.meta.eql(inst.constructor, right.instance.constructor) or !sameSchemas(inst.schemas, right.instance.schemas) or inst.exports.len != right.instance.exports.len) break :blk false;
             for (inst.exports, right.instance.exports) |l, r| if (!std.mem.eql(u8, l.name, r.name) or !sameValue(l.value, r.value, depth + 1)) break :blk false;
             break :blk true;
         },

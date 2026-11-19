@@ -168,3 +168,77 @@ test "migration allocation failures leave no partial result" {
         try std.testing.expectEqual(failing.allocated_bytes, failing.freed_bytes);
     }
 }
+
+test "multi-schema AS MIGRATIONS OF synthesizes CREATE SCHEMA NOT ENFORCED foreign keys and qualified ADD COLUMN" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var context: c.SourceDiagnostic.Context = .{};
+    var diagnostic: ?p.Diagnostic = null;
+
+    const v1_source =
+        \\CREATE DOMAIN EnvId AS UUID IDENTITY 'platform.env_id';
+        \\EXPORT MODULE app(t_schema SCHEMA_BINDING, n_schema SCHEMA_BINDING, env_ty TYPE) AS BEGIN
+        \\  BIND SCHEMA tenancy TO t_schema;
+        \\  BIND SCHEMA networking TO n_schema;
+        \\  CREATE SCHEMA tenancy;
+        \\  CREATE SCHEMA networking;
+        \\  CREATE PUBLIC TABLE tenancy.environments (id $env_ty PRIMARY KEY, label TEXT NOT NULL);
+        \\  CREATE PUBLIC TABLE networking.networks (
+        \\    id UUID PRIMARY KEY,
+        \\    env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED
+        \\  );
+        \\END;
+        \\LET control = USE MODULE app(
+        \\  t_schema => SCHEMA_BINDING('tenancy'),
+        \\  n_schema => SCHEMA_BINDING('networking'),
+        \\  env_ty => TYPE EnvId
+        \\);
+        \\EXPORT TARGET initial_migrations AS MIGRATIONS OF control FROM EMPTY VERSION '0001-platform';
+    ;
+    const one = try c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = v1_source }}, .{ .compiler_revision = "mig-multi", .target = "initial_migrations" }, &diagnostic);
+    defer one.deinit();
+    const first = try d.build(a, one, null, &.{}, compiler, &context);
+    try std.testing.expectEqual(@as(usize, 4), first.steps);
+    try std.testing.expectEqualStrings("0001-platform.sql", first.files[0].path);
+    try std.testing.expectEqual(@as(usize, 3), first.basis.schemas.len);
+    try std.testing.expect(std.mem.indexOf(u8, first.sql, "CREATE SCHEMA \"tenancy\";") != null);
+    try std.testing.expect(std.mem.indexOf(u8, first.sql, "REFERENCES \"tenancy\" . ENVIRONMENTS") != null);
+
+    // v2 adds a trailing nullable column to tenancy.environments (parent of FK!) AND a new schema 'deployments' + table
+    const v2_source =
+        \\CREATE DOMAIN EnvId AS UUID IDENTITY 'platform.env_id';
+        \\EXPORT MODULE app(t_schema SCHEMA_BINDING, n_schema SCHEMA_BINDING, d_schema SCHEMA_BINDING, env_ty TYPE) AS BEGIN
+        \\  BIND SCHEMA tenancy TO t_schema;
+        \\  BIND SCHEMA networking TO n_schema;
+        \\  BIND SCHEMA deployments TO d_schema;
+        \\  CREATE SCHEMA tenancy;
+        \\  CREATE SCHEMA networking;
+        \\  CREATE SCHEMA deployments;
+        \\  CREATE PUBLIC TABLE tenancy.environments (id $env_ty PRIMARY KEY, label TEXT NOT NULL, region TEXT);
+        \\  CREATE PUBLIC TABLE networking.networks (
+        \\    id UUID PRIMARY KEY,
+        \\    env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED
+        \\  );
+        \\  CREATE PUBLIC TABLE deployments.instances (
+        \\    id UUID PRIMARY KEY,
+        \\    net_id UUID NOT NULL REFERENCES networking.networks(id) ON DELETE RESTRICT NOT ENFORCED
+        \\  );
+        \\END;
+        \\LET control = USE MODULE app(
+        \\  t_schema => SCHEMA_BINDING('tenancy'),
+        \\  n_schema => SCHEMA_BINDING('networking'),
+        \\  d_schema => SCHEMA_BINDING('deployments'),
+        \\  env_ty => TYPE EnvId
+        \\);
+        \\EXPORT TARGET next_migrations AS MIGRATIONS OF control FROM 'prior/basis.json' VERSION '0002-deployments';
+    ;
+    const two = try c.compile(std.testing.allocator, &.{.{ .path = "build.transit", .text = v2_source }}, .{ .compiler_revision = "mig-multi", .target = "next_migrations" }, &diagnostic);
+    defer two.deinit();
+    const second = try d.build(a, two, first.basis, first.files, compiler, &context);
+    try std.testing.expectEqual(@as(usize, 3), second.steps);
+    try std.testing.expectEqualStrings("0002-deployments.sql", second.files[1].path);
+    try std.testing.expect(std.mem.indexOf(u8, second.sql, "CREATE SCHEMA \"deployments\";") != null);
+    try std.testing.expect(std.mem.indexOf(u8, second.sql, "ALTER TABLE \"tenancy\".\"environments\" ADD COLUMN REGION TEXT;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, second.sql, "CREATE TABLE \"deployments\" . INSTANCES") != null);
+}

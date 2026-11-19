@@ -57,20 +57,25 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
     for (clients, self.syntax.targets, 0..) |client, target, i| {
         if (!std.meta.eql(client.transaction, clients[0].transaction) or !std.meta.eql(client.connection, clients[0].connection) or client.service != clients[0].service or client.authority != clients[0].authority or !std.mem.eql(u8, &client.key.public_key.bytes, &clients[0].key.public_key.bytes)) return error.RelationalCallerChanged;
         if (snapshot != null and client.transaction != null) return error.UnsupportedHistoricalTransaction;
+        const target_namespace = if (target.schema) |s_name| (if (snapshot) |cut| blk: {
+            const res = try c.DirectHistory.call(client, .{ .namespace = .{ .snapshot = cut, .name = try .init(s_name) } });
+            defer res.deinit();
+            break :blk (res.value.result.historical_catalog.namespace orelse return error.HistoricalObjectNotSelected).id;
+        } else try client.resolveSchema(s_name, namespace)) else namespace;
         if (target.stream_slice) |slice| {
             if (lifetime != .interactive) return error.UnsupportedManagedTable;
             if (snapshot != null) return error.CatalogKindMismatch;
             if (projection != null) return error.UnsupportedSchemaProjection;
             if (client.transaction != null) return error.UnsupportedLogTransaction;
-            const log_response = try client.call(.{ .log_lookup = .{ .namespace = namespace, .name = target.name } });
+            const log_response = try client.call(.{ .log_lookup = .{ .namespace = target_namespace, .name = target.name } });
             defer log_response.deinit();
             const metadata = log_response.value.result.log_lookup orelse {
-                const table_response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+                const table_response = try client.call(.{ .lookup = .{ .namespace = target_namespace, .name = target.name } });
                 defer table_response.deinit();
                 return if (table_response.value.result.lookup != null) error.CatalogKindMismatch else error.CatalogNameNotFound;
             };
             if (metadata.declaration.kind() != .stream) return error.CatalogKindMismatch;
-            if (metadata.declaration.stored.retired or metadata.declaration.properties.namespace != namespace) return error.CatalogDefinitionChanged;
+            if (metadata.declaration.stored.retired or metadata.declaration.properties.namespace != target_namespace) return error.CatalogDefinitionChanged;
             if (slice.partition >= metadata.declaration.stored.declaration.configuration.partitioning.count) return error.InvalidLogPartition;
             const timestamp_column = metadata.declaration.stored.declaration.configuration.policy.stream.timestamp_column;
             if (slice.timestamp != null and timestamp_column == null) return error.StreamTimestampUnavailable;
@@ -101,7 +106,7 @@ pub fn prepareProjectedAt(allocator: std.mem.Allocator, clients: []const c.Direc
             self.sources[i] = .{ .alias = target.alias, .realm = connection.scope.realm, .resource = connection.scope.resource, .catalog = connection.scope.catalog, .owner = connection.audience, .schema = self.schemas[i].?.schema };
             continue;
         }
-        const response = if (snapshot) |cut| try c.DirectHistory.resolve(client, cut, namespace, target.name, access == .read) else try client.call(.{ .lookup = .{ .namespace = namespace, .name = target.name } });
+        const response = if (snapshot) |cut| try c.DirectHistory.resolve(client, cut, target_namespace, target.name, access == .read) else try client.call(.{ .lookup = .{ .namespace = target_namespace, .name = target.name } });
         defer response.deinit();
         const metadata: c.DirectTableProtocol.Definition = if (snapshot != null) blk: {
             const source = response.value.result.historical_catalog.source;
@@ -186,7 +191,7 @@ pub fn fromRetained(allocator: std.mem.Allocator, client: c.DirectTableClient, n
         if (target.stream_slice != null) return error.UnsupportedManagedTable;
         try binding.validate();
         if (!std.meta.eql(binding.connection, client.connection)) return error.RelationalCallerChanged;
-        if (namespace != binding.namespace or !std.mem.eql(u8, binding.name.slice(), target.name) or !std.meta.eql(snapshot.object, binding.interpretation.interpretation.object)) return error.RelationalSourceChanged;
+        if ((target.schema == null and namespace != binding.namespace) or !std.mem.eql(u8, binding.name.slice(), target.name) or !std.meta.eql(snapshot.object, binding.interpretation.interpretation.object)) return error.RelationalSourceChanged;
         const response = try client.call(.{ .snapshot = snapshot });
         defer response.deinit();
         const source = response.value.result.snapshot;

@@ -780,7 +780,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
     try self.current();
     switch (prepared.*) {
         .native => |*statement| {
-            if (statement.namespace != self.namespace) return error.CatalogIdentityConflict;
+            if (!std.meta.eql(statement.connection, self.table.connection) or statement.namespace == 0) return error.CatalogIdentityConflict;
             try self.fresh(g.Statement.validate, .{ statement, &self.table });
             // Revalidating a retained handle checks its definition and rights,
             // not the data frontier observed at preparation. A later execution
@@ -793,7 +793,7 @@ pub fn validate(self: *Self, prepared: *Prepared) !void {
         .managed => |*managed| try g.ManagedOperations.validate(self, managed),
         .captured => |*captured| try g.CapturedOperations.validateResult(self, captured),
         .workload => |*value| {
-            if (value.reference.namespace != self.namespace or self.source != null) return error.CatalogIdentityConflict;
+            if (!std.meta.eql(value.reference.connection, self.table.connection) or value.reference.namespace == 0 or self.source != null) return error.CatalogIdentityConflict;
             _ = try value.open(self.table);
         },
         .inspection => |*inspection| try self.fresh(Inspection.validate, .{ inspection, self }),
@@ -859,7 +859,7 @@ fn openWorkloadResult(self: *Self, statement: *Prepared, values: []const ?f.Type
         if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
         break :blk state.receipt.binding.intent.workload;
     };
-    if (reference.namespace != self.namespace or self.source != null or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
+    if (reference.namespace != statement.native.namespace or self.source != null or !std.meta.eql(reference.connection, self.table.connection)) return error.CatalogIdentityConflict;
     const prepared = try self.allocator.create(Prepared);
     errdefer self.allocator.destroy(prepared);
     if (retained_intent) |intent| {
@@ -1093,7 +1093,8 @@ pub fn validateWireCompletion(self: *Self, prepared: *Prepared, completion: g.re
     try self.current();
     if (completion.operation) |operation| {
         if (!std.mem.eql(u8, &operation.account, &self.runtime.execution.configuration.account)) return error.InvalidWireCompletion;
-        const observed = try self.fresh(g.DatabaseRuntime.status, .{ self.runtime, self.allocator, &self.observer, &self.table, self.namespace, operation.id });
+        const expected_ns: u64 = if (prepared.* == .native) prepared.native.namespace else 0;
+        const observed = try self.fresh(g.DatabaseRuntime.status, .{ self.runtime, self.allocator, &self.observer, &self.table, expected_ns, operation.id });
         const verified = try observed.completion();
         if (verified.kind != completion.kind or verified.outcome != completion.outcome or !std.meta.eql(verified.counts, completion.counts) or !std.meta.eql(verified.operation, completion.operation) or !std.meta.eql(verified.workload, completion.workload)) return error.InvalidWireCompletion;
     } else switch (prepared.*) {

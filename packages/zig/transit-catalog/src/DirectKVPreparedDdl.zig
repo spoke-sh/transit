@@ -35,13 +35,14 @@ fn storageSpec(spec: f.KVDdl.Spec) s.KVDeclaration.Spec {
 pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namespace: u64, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Self {
     var compiled = try f.KVDdl.compile(allocator, text, dialect, location);
     errdefer compiled.deinit();
+    const target_namespace = try client.resolveSchema(compiled.statement.schema_name, namespace);
     var definition: ?c.DirectKV.Definition = null;
     var create_owner: ?u64 = null;
     const syntax = compiled.statement;
     if (syntax.action == .create) {
-        create_owner = (try client.require(.{ .namespace = namespace, .target = null, .access = .create_table })).role;
+        create_owner = (try client.require(.{ .namespace = target_namespace, .target = null, .access = .create_table })).role;
     } else {
-        const response = try client.call(.{ .kv_lookup = .{ .namespace = namespace, .name = syntax.name } });
+        const response = try client.call(.{ .kv_lookup = .{ .namespace = target_namespace, .name = syntax.name } });
         defer response.deinit();
         if (response.value.result.kv_lookup) |found| {
             definition = found;
@@ -57,7 +58,7 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     hash.update(text);
     return .{
         .connection = client.connection,
-        .namespace = namespace,
+        .namespace = target_namespace,
         .compiled = compiled,
         .definition = definition,
         .conditional_intent = hash.finalResult(),

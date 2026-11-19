@@ -42,6 +42,9 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
         .boolean => |value| .{ .boolean = value },
         .integer => |value| .{ .integer = value },
         .text => |value| .{ .text = value },
+        .bytes => |value| .{ .binary = value.bytes },
+        .uuid => |value| .{ .uuid = value },
+        .timestamp => |value| .{ .timestamp = value },
         .name => |name| try self.host.lookup(self.host.context, name),
         .field => |field| try (try self.expression(field.base, depth + 1)).field(field.name),
         .call => |call| blk: {
@@ -51,6 +54,8 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
                 // This operand names an exact bound resource, not a LET value.
                 value.* = if (call.function == .current_revision and index == 0 and argument.value == .name)
                     .{ .text = argument.value.name }
+                else if (call.function == .current_revision and index == 0 and argument.value == .field and argument.value.field.base.value == .name)
+                    .{ .text = try std.fmt.allocPrint(self.scratch, "{s}\x00{s}", .{ argument.value.field.base.value.name, argument.value.field.name }) }
                 else
                     try self.expression(argument, depth + 1);
             }

@@ -133,6 +133,20 @@ pub const Report = struct {
                 error.UnknownSourceExport => if (context.name) |n| self.setHeadline("module instance has no export named '{s}'", .{n}) else self.setHeadline("unknown module export", .{}),
                 error.UnknownSourceOperand => if (context.name) |n| self.setHeadline("unbound template parameter '${s}'", .{n}) else self.setHeadline("unbound '$parameter' in SQL template", .{}),
                 error.UnknownBuildTable => if (context.name) |n| self.setHeadline("unknown resource '{s}' in proposed catalog", .{n}) else self.setHeadline("unknown Table, Stream or Queue in proposed catalog", .{}),
+                error.UnknownBuildSchema => if (context.name) |n| self.setHeadline("unknown schema '{s}' in proposed catalog", .{n}) else self.setHeadline("unknown schema in proposed catalog (declare 'CREATE SCHEMA' before creating objects in it)", .{}),
+                error.UnexportedModuleResource => {
+                    if (context.name) |n| self.setHeadline("resource '{s}' is owned by another module and was not exported into this scope", .{n}) else self.setHeadline("resource is owned by another module and was not exported into this scope", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "export the resource with 'EXPORT TABLE' or 'EXPORT REFERENCE TABLE' and import its owning module", .{});
+                },
+                error.ReferenceOnlyTableAccess => {
+                    if (context.column) |col|
+                        self.setHeadline("column '{s}' is not exposed by 'EXPORT REFERENCE TABLE'", .{col})
+                    else if (context.name) |n|
+                        self.setHeadline("table '{s}' was exported via 'EXPORT REFERENCE TABLE' for foreign-key references only", .{n})
+                    else
+                        self.setHeadline("'EXPORT REFERENCE TABLE' grants foreign-key target identity only, not row reads or DML", .{});
+                    if (self.notes[0] == null) self.addNote(null, null, "use 'EXPORT TABLE' when cross-module row reads or mutations are intended", .{});
+                },
                 error.UnknownBuildProgram => if (context.name) |n| self.setHeadline("unknown dataflow program '{s}'", .{n}) else self.setHeadline("unknown dataflow program in proposed catalog", .{}),
                 error.UndeclaredDependency => if (context.name) |n| self.setHeadline("import references undeclared dependency package '{s}'", .{n}) else self.setHeadline("import references an undeclared dependency package", .{}),
                 error.SourceImportCycle => self.setHeadline("import cycle detected between '.transit' files", .{}),
@@ -438,6 +452,16 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "ConflictingModuleInstance", .type },
     .{ "DuplicateSourceMatchArm", .type },
     .{ "ForeignTableExport", .type },
+    .{ "ReferenceOnlyTableAccess", .type },
+    .{ "InvalidForeignKeyArity", .type },
+    .{ "ForeignKeyTargetMismatch", .type },
+    .{ "ForeignKeyTargetNotUniqueKey", .type },
+    .{ "IncompatibleForeignKeyColumnType", .type },
+    .{ "ForeignKeySetNullRequiresNullableColumn", .type },
+    .{ "ForeignKeyResolutionRequired", .type },
+    .{ "ForeignKeyIndexEnforcementUnavailable", .capability },
+    .{ "InvalidForeignKeyAction", .syntax },
+    .{ "DuplicateForeignKeyColumn", .syntax },
     .{ "InvalidParameterType", .type },
     .{ "InvalidRowWidth", .type },
     .{ "MissingRequiredField", .type },
@@ -468,7 +492,9 @@ const families = std.StaticStringMap(Family).initComptime(.{
     .{ "EmptyTestCase", .target },
     .{ "InvalidDomainIdentity", .domain },
     .{ "UnknownBuildProgram", .import },
+    .{ "UnknownBuildSchema", .import },
     .{ "UnknownBuildTable", .import },
+    .{ "UnexportedModuleResource", .import },
     .{ "UnknownSourceExport", .import },
     .{ "UnknownSourceOperand", .import },
     .{ "UnknownVariantConstructor", .import },
@@ -528,6 +554,8 @@ pub fn project(err: anyerror, at: ?d.Location, call: ?d.Location, instance: ?[]c
         error.MissingRequiredField, error.NullNotAllowed => "A required column is missing or NULL. Supply a non-null value for each required destination column, preserving its declared source domain.",
         error.UnsupportedNominalColumn => "A nominal column must be NOT NULL and cannot have a DEFAULT or participate in a CHECK constraint. Supply explicitly typed values and use an explicit runtime guard for additional validation.",
         error.UnsupportedNominalOperation => "This operation cannot preserve a source domain. Use direct assignments, same-domain equality/inequality or null tests; keep arithmetic, ordering, casts and function arguments on ordinary scalar fields.",
+        error.ReferenceOnlyTableAccess => "This Table was exported with EXPORT REFERENCE TABLE, which grants foreign-key target identity only. It cannot be queried, mutated or passed as a full TABLE(...) parameter; export with EXPORT TABLE if full access is intended.",
+        error.UnexportedModuleResource => "This catalog object belongs to another module and was not exported into the current scope. Export it from its owning module and pass or USE MODULE that instance explicitly.",
         else => selected.message,
     };
     var result = d.init(selected.code, selected.category, selected.stage, .not_submitted, .local_before_dispatch, message) catch unreachable;

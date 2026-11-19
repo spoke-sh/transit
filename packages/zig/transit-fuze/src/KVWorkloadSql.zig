@@ -17,7 +17,7 @@ pub const Target = struct {
     kind: Kind,
     source: Reference,
     pub fn deinit(self: Target, allocator: std.mem.Allocator) void {
-        allocator.free(self.source.name);
+        self.source.deinit(allocator);
     }
 };
 
@@ -28,18 +28,18 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
     var parser = try Parser.initDialect(allocator, text, location, true, dialect);
     if (try parser.takeWord("PUT")) {
         try parser.requireWord("INTO");
-        return .{ .kind = .put, .source = try Reference.unqualified(&parser, .source) };
+        return .{ .kind = .put, .source = try Reference.source(&parser, .source) };
     }
     if (try parser.takeWord("GET")) {
         try parser.requireWord("FROM");
-        return .{ .kind = .get, .source = try Reference.unqualified(&parser, .source) };
+        return .{ .kind = .get, .source = try Reference.source(&parser, .source) };
     }
     if (try parser.takeWord("DELETE")) {
         if (!try parser.takeWord("FROM")) return null;
         if (parser.token.tag != .word and parser.token.tag != .quoted) return null;
-        const source = try Reference.unqualified(&parser, .source);
+        const source = try Reference.source(&parser, .source);
         if (parser.word("KEY") or parser.word("KEYS")) return .{ .kind = .delete, .source = source };
-        allocator.free(source.name);
+        source.deinit(allocator);
         return null;
     }
     return null;
@@ -188,7 +188,7 @@ pub const PreparedWrite = struct {
         var parameters: std.ArrayList(f.TableDmlPrepared.Parameter) = .empty;
         if (try parser.takeWord("PUT")) {
             try parser.requireWord("INTO");
-            const source = try Reference.unqualified(&parser, .source);
+            const source = try Reference.source(&parser, .source);
             if (try parser.takeWord("KEY")) {
                 const key = try KeyOperand.parse(&parser, &parameters);
                 try parser.requireWord("VALUE");
@@ -217,7 +217,7 @@ pub const PreparedWrite = struct {
         }
         if (try parser.takeWord("DELETE")) {
             try parser.requireWord("FROM");
-            const source = try Reference.unqualified(&parser, .source);
+            const source = try Reference.source(&parser, .source);
             if (try parser.takeWord("KEY")) {
                 const key = try KeyOperand.parse(&parser, &parameters);
                 try parser.finish();
@@ -316,7 +316,7 @@ pub const PreparedGet = struct {
         var parser = try Parser.initDialect(a, try a.dupe(u8, text), location, true, dialect);
         try parser.requireWord("GET");
         try parser.requireWord("FROM");
-        const source = try Reference.unqualified(&parser, .source);
+        const source = try Reference.source(&parser, .source);
         try parser.requireWord("KEY");
         var parameters: std.ArrayList(f.TableDmlPrepared.Parameter) = .empty;
         const key = try KeyOperand.parse(&parser, &parameters);

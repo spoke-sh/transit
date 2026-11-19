@@ -49,6 +49,11 @@ def identifier(ctx):
     return text[1:-1].replace('""', '"') if text.startswith('"') else text.lower()
 
 
+def qualified_name(ctx):
+    names = [identifier(i) for i in ctx.identifier()]
+    return (None, names[0]) if len(names) == 1 else (names[0], names[1])
+
+
 def column(ctx):
     names = [identifier(i) for i in ctx.identifier()]
     return [None, names[0]] if len(names) == 1 else names
@@ -148,11 +153,18 @@ def antlr_ast(sql, *, template=False):
     names = ctx.identifier()
     target = relational.relationalTarget() if relational else None
     alias = target.relationalAlias() if target else ctx.sourceAlias()
-    return {'source': identifier(target.identifier()) if target else identifier(names[0]), 'source_alias': identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else None,
+    if target:
+        source_name = qualified_name(target.qualifiedName())[1]
+    elif template:
+        source_name = identifier(names[0])
+    else:
+        source_name = qualified_name(ctx.qualifiedName())[1]
+    inner_alias = identifier(names[1]) if template and len(names) > 1 else (identifier(names) if not template and not relational else None)
+    return {'source': source_name, 'source_alias': identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else None,
             'output_alias': identifier(aggregate.outputAlias().identifier()) if aggregate and aggregate.outputAlias() else None,
             'selection': selection, 'predicate': predicate,
             'limit': outer, 'input': None if selected or relational else {
-                'projection': projection(ctx.projection()), 'limit': inner, 'alias': identifier(names[1])}}
+                'projection': projection(ctx.projection()), 'limit': inner, 'alias': inner_alias}}
 
 
 def pg_ast(sql):

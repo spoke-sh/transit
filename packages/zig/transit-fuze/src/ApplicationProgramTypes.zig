@@ -24,11 +24,19 @@ const effect_value: Value = .{ .kind = .record, .fields = &.{
     .{ .name = "body", .value = .{ .kind = .protected_json, .protected = true } },
 } };
 pub const Resource = struct {
+    schema: ?[]const u8 = null,
     name: []const u8,
     kind: enum { table, document, kv, stream, queue, sink },
     fields: []const Field,
     key: []const []const u8 = &.{},
 };
+
+pub fn sameResource(a_schema: ?[]const u8, a_name: []const u8, b_schema: ?[]const u8, b_name: []const u8) bool {
+    if (!std.mem.eql(u8, a_name, b_name)) return false;
+    if (a_schema == null and b_schema == null) return true;
+    if (a_schema == null or b_schema == null) return false;
+    return std.mem.eql(u8, a_schema.?, b_schema.?);
+}
 pub const Use = struct {
     resource: u16,
     read: bool = false,
@@ -99,14 +107,15 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
     const owned_resources = try arena.allocator().alloc(Resource, resources.len);
     for (resources, owned_resources) |source, *target| {
         target.* = source;
+        target.schema = if (source.schema) |s| try arena.allocator().dupe(u8, s) else null;
         target.name = try arena.allocator().dupe(u8, source.name);
         target.fields = try cloneFields(arena.allocator(), source.fields, 0);
     }
     var self: Self = .{ .allocator = arena.allocator(), .resources = owned_resources, .values = values, .location = location };
     for (resources, 0..) |candidate, index| for (resources[0..index]) |prior| {
-        if (std.mem.eql(u8, candidate.name, prior.name)) return error.DuplicateProgramResource;
+        if (sameResource(candidate.schema, candidate.name, prior.schema, prior.name)) return error.DuplicateProgramResource;
     };
-    const queue = try self.resource(program.queue, .queue, .{ .resource = 0, .read = true, .consume = true });
+    const queue = try self.resource(program.queue_schema, program.queue, .queue, .{ .resource = 0, .read = true, .consume = true });
     try self.define(program.input, .{ .kind = .record, .fields = queue.fields });
     self.requirements.value(.{ .kind = .record, .fields = queue.fields });
     if (program.deadline != null) self.requirements.features.insert(.deadline);
@@ -132,7 +141,7 @@ pub fn bind(allocator: std.mem.Allocator, program: ast.Program, resources: []con
         try self.block(failure.instructions);
     }
     if (self.requirements.features.contains(.effects) or self.requirements.features.contains(.deadline))
-        _ = try self.resource(program.queue, .queue, .{ .resource = 0, .observe_time = true });
+        _ = try self.resource(program.queue_schema, program.queue, .queue, .{ .resource = 0, .observe_time = true });
     for (values) |selected| if (selected) |value_| self.requirements.value(value_);
     return .{ .arena = arena, .input = .{ .kind = .record, .fields = queue.fields }, .values = values, .uses = try self.uses.toOwnedSlice(self.allocator), .native = self.native, .requirements = self.requirements };
 }
@@ -148,8 +157,8 @@ fn cloneFields(allocator: std.mem.Allocator, fields: []const Field, depth: usize
     }
     return result;
 }
-fn resource(self: *Self, name: []const u8, kind: ?@FieldType(Resource, "kind"), usage: Use) !Resource {
-    for (self.resources, 0..) |candidate, index| if (std.mem.eql(u8, name, candidate.name)) {
+fn resource(self: *Self, schema: ?[]const u8, name: []const u8, kind: ?@FieldType(Resource, "kind"), usage: Use) !Resource {
+    for (self.resources, 0..) |candidate, index| if (sameResource(schema, name, candidate.schema, candidate.name)) {
         if (kind) |expected| if (candidate.kind != expected) return error.ProgramResourceKindMismatch;
         for (self.uses.items) |*prior| if (prior.resource == index) {
             prior.read = prior.read or usage.read;
@@ -214,7 +223,7 @@ fn record(self: *Self, resource_: Resource, nullable: bool) !Value {
     return .{ .kind = .record, .fields = fields, .nullable = nullable };
 }
 fn select(self: *Self, query: ast.Select) !Value {
-    const source = try self.resource(query.target, null, .{ .resource = 0, .read = true });
+    const source = try self.resource(query.schema, query.target, null, .{ .resource = 0, .read = true });
     if (source.kind != .table and source.kind != .document) return error.ProgramResourceKindMismatch;
     const previous = self.columns;
     self.columns = source.fields;
@@ -237,6 +246,9 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
         .boolean => Value.public(.boolean),
         .integer => Value.public(.integer),
         .text => Value.public(.text),
+        .bytes => Value.public(.binary),
+        .uuid => Value.public(.uuid),
+        .timestamp => Value.public(.timestamp),
         .name => |name| blk: {
             for (self.symbols.items) |symbol| if (std.mem.eql(u8, symbol.name, name)) break :blk symbol.value;
             for (self.columns) |column| if (std.mem.eql(u8, column.name, name)) break :blk column.value;
@@ -312,8 +324,16 @@ fn expression(self: *Self, node: *const ast.Expression) anyerror!Value {
 fn call(self: *Self, function: ast.Function, arguments: []const *ast.Expression) !Value {
     self.requirements.functions.insert(function);
     if (function == .current_revision) {
-        if (arguments.len != 2 or arguments[0].value != .name) return error.ProgramArgumentMismatch;
-        _ = try self.resource(arguments[0].value.name, .document, .{ .resource = 0, .read = true, .guard = true });
+        if (arguments.len != 2) return error.ProgramArgumentMismatch;
+        const doc_ref: ast.QualifiedName = switch (arguments[0].value) {
+            .name => |n| .{ .name = n },
+            .field => |f_ref| switch (f_ref.base.value) {
+                .name => |s_name| .{ .schema = s_name, .name = f_ref.name },
+                else => return error.ProgramArgumentMismatch,
+            },
+            else => return error.ProgramArgumentMismatch,
+        };
+        _ = try self.resource(doc_ref.schema, doc_ref.name, .document, .{ .resource = 0, .read = true, .guard = true });
         try public(try self.expression(arguments[1]));
         return .{ .kind = .binary, .nullable = true };
     }
@@ -446,14 +466,14 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 const value = switch (binding.value) {
                     .expression => |node| try self.expression(node),
                     .get => |get| blk: {
-                        const target = try self.resource(get.target, .kv, .{ .resource = 0, .read = true });
+                        const target = try self.resource(get.schema, get.target, .kv, .{ .resource = 0, .read = true });
                         try requireKind(try self.expression(get.key), .binary);
                         break :blk try self.record(target, true);
                     },
                     .select => |query| try self.select(query),
                     .effect => |effect| blk: {
                         self.requirements.features.insert(.effects);
-                        _ = try self.resource(effect.sink, .sink, .{ .resource = 0, .dispatch = true });
+                        _ = try self.resource(effect.sink_schema, effect.sink, .sink, .{ .resource = 0, .dispatch = true });
                         try requireKind(try self.expression(effect.identity), .uuid);
                         try requireKind(try self.expression(effect.guard), .boolean);
                         const fields = switch (effect.request) {
@@ -484,7 +504,7 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 self.symbols.shrinkRetainingCapacity(count);
             },
             .put => |put| {
-                const target = try self.resource(put.target, .kv, .{ .resource = 0, .write = true });
+                const target = try self.resource(put.target_schema, put.target, .kv, .{ .resource = 0, .write = true });
                 try requireKind(try self.expression(put.key), .binary);
                 const value = try self.expression(put.value);
                 if (value.kind != .record) return error.ProgramTypeMismatch;
@@ -502,19 +522,19 @@ fn block(self: *Self, instructions: []const ast.Instruction) anyerror!void {
                 if (put.expected == .revision) try requireKind(try self.expression(put.expected.revision), .binary);
             },
             .insert => |insert| {
-                const target = try self.resource(insert.target, .table, .{ .resource = 0, .read = true, .write = true });
+                const target = try self.resource(insert.target_schema, insert.target, .table, .{ .resource = 0, .read = true, .write = true });
                 if (insert.values.len != target.fields.len or insert.conflict_columns.len != target.key.len) return error.ProgramTypeMismatch;
                 for (target.key, insert.conflict_columns) |expected, actual| if (!std.mem.eql(u8, expected, actual)) return error.ProgramTypeMismatch;
                 for (target.fields, insert.values) |expected, actual| try stored(expected.value, try self.expression(actual), false);
             },
             .append => |append| {
-                const target = try self.resource(append.target, if (append.kind == .queue) .queue else .stream, .{ .resource = 0, .write = true });
+                const target = try self.resource(append.target_schema, append.target, if (append.kind == .queue) .queue else .stream, .{ .resource = 0, .write = true });
                 if (append.values.len != target.fields.len) return error.ProgramTypeMismatch;
                 for (target.fields, append.values) |expected, actual| try stored(expected.value, try self.expression(actual), append.kind == .queue);
             },
             .handoff => |handoff| {
                 self.requirements.features.insert(.handoff);
-                _ = try self.resource(handoff.queue, .queue, .{ .resource = 0, .write = true });
+                _ = try self.resource(handoff.queue_schema, handoff.queue, .queue, .{ .resource = 0, .write = true });
                 try requireKind(try self.expression(handoff.request), .capability);
                 try requireKind(try self.expression(handoff.effect), .uuid);
             },
@@ -648,4 +668,32 @@ test "application program types bound left-associated expression depth" {
     var parsed = try ast.parse(t.allocator, source.written(), null);
     defer parsed.deinit();
     try t.expectError(error.ProgramTooDeep, bind(t.allocator, parsed.program, &test_resources, null));
+}
+
+test "application program types distinguish cross-schema resources with shared leaf names" {
+    const t = std.testing;
+    var parsed = try ast.parse(t.allocator,
+        \\CREATE DATAFLOW networking.reconcile FROM QUEUE networking.jobs AS job AS BEGIN
+        \\  LET dep = SELECT id, state FROM deployments.operations WHERE id = job.id;
+        \\  LET pub_op = SELECT id, bundle FROM publication.operations WHERE id = job.id;
+        \\  BEGIN ATOMIC
+        \\    INSERT INTO deployments.operations VALUES (job.id, 'ready') ON CONFLICT (id) DO ASSERT SAME ROW;
+        \\    PRODUCE INTO publication.events VALUES (job.id);
+        \\  END;
+        \\END;
+    , null);
+    defer parsed.deinit();
+    try t.expectEqualStrings("networking", parsed.program.schema.?);
+    try t.expectEqualStrings("reconcile", parsed.program.name);
+    try t.expectEqualStrings("networking", parsed.program.queue_schema.?);
+    try t.expectEqualStrings("jobs", parsed.program.queue);
+    const cross_resources = [_]Resource{
+        .{ .schema = "networking", .name = "jobs", .kind = .queue, .fields = &.{.{ .name = "id", .value = Value.public(.uuid) }} },
+        .{ .schema = "deployments", .name = "operations", .kind = .table, .fields = &.{ .{ .name = "id", .value = Value.public(.uuid) }, .{ .name = "state", .value = Value.public(.text) } }, .key = &.{"id"} },
+        .{ .schema = "publication", .name = "operations", .kind = .table, .fields = &.{ .{ .name = "id", .value = Value.public(.uuid) }, .{ .name = "bundle", .value = Value.public(.text) } }, .key = &.{"id"} },
+        .{ .schema = "publication", .name = "events", .kind = .stream, .fields = &.{.{ .name = "id", .value = Value.public(.uuid) }} },
+    };
+    var bound = try bind(t.allocator, parsed.program, &cross_resources, null);
+    defer bound.deinit();
+    try t.expectEqual(@as(usize, 4), bound.uses.len);
 }

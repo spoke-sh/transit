@@ -106,17 +106,20 @@ Every runtime branch is checked. A domain annotation does not prove that a sende
 is authorized or a referenced row exists; use a lookup and REQUIRE or `CHECK GUARD`
 for existence. Ordinary SQL still receives scalar columns and values.
 
-This profile rejects runtime-private storage, multi-schema `CREATE SCHEMA` and
-schema-qualified `schema.object` DDL/DML, `CREATE VIEW`, `EXPORT REFERENCE TABLE`,
+This profile supports multi-schema `CREATE SCHEMA` and `BIND SCHEMA` specialization,
+schema-qualified `schema.object` DDL/DML/queries, `EXPORT REFERENCE TABLE`
+foreign-key-only exports, catalog-tracked `REFERENCES ... NOT ENFORCED` foreign
+keys, and admitted `BIGINT`, `TEXT`, `BOOLEAN`, `UUID`, `TIMESTAMPTZ` and `BINARY`
+scalars/domains alongside `ROW(...)` helper signatures. It rejects runtime-private storage, `CREATE VIEW`, enforced foreign keys,
 stored runtime or privileged procedures, option profiles, runtime variant dispatch,
-protected effects, COMMAND programs and unsupported Table/query forms. Table migration targets synthesize new Tables and safe trailing column
-additions against an explicit offline basis. `CREATE MIGRATION TARGET` and
+protected effects, COMMAND programs and unsupported Table/query forms. Table migration targets synthesize new schemas, new Tables and safe trailing column
+additions (including `NOT ENFORCED` foreign keys) against an explicit offline basis. `CREATE MIGRATION TARGET` and
 `EXPORT TARGET ... AS MIGRATIONS OF ...` name the prior basis (or `EMPTY`),
-required `FOR DATABASE ... SCHEMA ... VERSION ... NAME ...` bindings and optional
+`FOR DATABASE ... SCHEMA ... VERSION ... NAME ...` (or shorthand `VERSION '<ver>-<name>'`) bindings and optional
 `INTO '<path>'` metadata. Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
 and publish a reviewable `migrations/` directory without applying it. The
 [source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
-defines the syntax and limits. Broader migration kinds and multi-schema/view/serving
+defines the syntax and limits. Broader migration kinds and view/serving
 extensions remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
 

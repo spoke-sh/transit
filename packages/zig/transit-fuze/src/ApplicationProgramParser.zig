@@ -45,6 +45,14 @@ fn raw(self: Self) []const u8 {
 fn word(self: Self, expected: []const u8) bool {
     return if (self.token) |token| token.kind == .word and std.ascii.eqlIgnoreCase(self.raw(), expected) else false;
 }
+fn nextIsString(self: Self) bool {
+    var lookahead = self.scan;
+    while (lookahead.next() catch return false) |tok| {
+        if (tok.kind == .space or tok.kind == .comment) continue;
+        return tok.kind == .string;
+    }
+    return false;
+}
 fn takeWord(self: *Self, expected: []const u8) !bool {
     if (!self.word(expected)) return false;
     try self.advance();
@@ -76,6 +84,11 @@ fn name(self: *Self) ![]const u8 {
     for (result) |*byte| byte.* = std.ascii.toLower(byte.*);
     try self.advance();
     return result;
+}
+fn qualifiedName(self: *Self) !a.QualifiedName {
+    const first = try self.name();
+    if (!try self.take('.')) return .{ .name = first };
+    return .{ .schema = first, .name = try self.name() };
 }
 fn quoted(self: *Self, kind: input.Kind) ![]const u8 {
     const token = self.token orelse return error.InvalidSqlSyntax;
@@ -173,6 +186,23 @@ fn primary(self: *Self) anyerror!*a.Expression {
         result = try self.node(start, .{ .text_cast = value });
     } else if (try self.takeWord("ROW")) {
         result = try self.node(start, .{ .row = try self.arguments() });
+    } else if (self.nextIsString() and (self.word("UUID") or self.word("TIMESTAMP") or self.word("TIMESTAMPTZ") or self.word("X"))) {
+        const is_uuid = self.word("UUID");
+        const is_hex = self.word("X");
+        try self.advance();
+        const literal = try self.quoted(.string);
+        if (is_uuid) {
+            const atom = try @import("Types.zig").Semantics.bind(literal, .uuid);
+            result = try self.node(start, .{ .uuid = atom.uuid });
+        } else if (is_hex) {
+            if (literal.len % 2 != 0) return error.InvalidBinaryLiteral;
+            const bytes = try self.allocator.alloc(u8, literal.len / 2);
+            _ = std.fmt.hexToBytes(bytes, literal) catch return error.InvalidBinaryLiteral;
+            result = try self.node(start, .{ .bytes = .{ .bytes = bytes } });
+        } else {
+            const atom = try @import("Types.zig").Semantics.bind(literal, .{ .timestamp = .utc });
+            result = try self.node(start, .{ .timestamp = atom.timestamp });
+        }
     } else {
         const token = self.token orelse return error.InvalidSqlSyntax;
         switch (token.kind) {
@@ -246,15 +276,15 @@ fn select(self: *Self) !a.Select {
         columns = try values.toOwnedSlice(self.allocator);
     }
     try self.requireWord("FROM");
-    const target = try self.name();
+    const target = try self.qualifiedName();
     const predicate = if (try self.takeWord("WHERE")) try self.expression() else null;
-    return .{ .target = target, .columns = columns, .predicate = predicate };
+    return .{ .schema = target.schema, .target = target.name, .columns = columns, .predicate = predicate };
 }
 fn effect(self: *Self) !a.Effect {
     if (self.atomic_depth != 0) return error.EffectInsideAtomic;
     try self.requireWord("EXECUTE");
     try self.requireWord("SINK");
-    const sink = try self.name();
+    const sink = try self.qualifiedName();
     try self.requireWord("EFFECT");
     const identity = try self.expression();
     try self.requireWord("GUARD");
@@ -267,16 +297,16 @@ fn effect(self: *Self) !a.Effect {
     try self.requireWord("REPLAY");
     try self.requireWord("OBSERVE");
     try self.requireWord("ONLY");
-    return .{ .sink = sink, .identity = identity, .guard = guard, .request = request };
+    return .{ .sink_schema = sink.schema, .sink = sink.name, .identity = identity, .guard = guard, .request = request };
 }
 fn binding(self: *Self) !a.Binding {
     const variable = try self.name();
     try self.require('=');
     const value: @FieldType(a.Binding, "value") = if (try self.takeWord("GET")) blk: {
         try self.requireWord("FROM");
-        const target = try self.name();
+        const target = try self.qualifiedName();
         try self.requireWord("KEY");
-        break :blk .{ .get = .{ .target = target, .key = try self.expression() } };
+        break :blk .{ .get = .{ .schema = target.schema, .target = target.name, .key = try self.expression() } };
     } else if (self.word("SELECT")) .{ .select = try self.select() } else if (self.word("EXECUTE")) .{ .effect = try self.effect() } else .{ .expression = try self.expression() };
     return .{ .name = variable, .value = value };
 }
@@ -364,7 +394,7 @@ fn instruction(self: *Self) anyerror!a.Instruction {
     } else if (try self.takeWord("PUT")) blk: {
         if (self.atomic_depth == 0) return error.MutationOutsideAtomic;
         try self.requireWord("INTO");
-        const target = try self.name();
+        const target = try self.qualifiedName();
         try self.requireWord("KEY");
         const key = try self.expression();
         try self.requireWord("VALUE");
@@ -376,11 +406,11 @@ fn instruction(self: *Self) anyerror!a.Instruction {
             try self.require('=');
             break :expected .{ .revision = try self.expression() };
         };
-        break :blk .{ .put = .{ .target = target, .key = key, .value = value, .fields = fields_, .expected = expected } };
+        break :blk .{ .put = .{ .target_schema = target.schema, .target = target.name, .key = key, .value = value, .fields = fields_, .expected = expected } };
     } else if (try self.takeWord("INSERT")) blk: {
         if (self.atomic_depth == 0) return error.MutationOutsideAtomic;
         try self.requireWord("INTO");
-        const target = try self.name();
+        const target = try self.qualifiedName();
         try self.requireWord("VALUES");
         const values = try self.arguments();
         try self.requireWord("ON");
@@ -390,22 +420,22 @@ fn instruction(self: *Self) anyerror!a.Instruction {
         try self.requireWord("ASSERT");
         try self.requireWord("SAME");
         try self.requireWord("ROW");
-        break :blk .{ .insert = .{ .target = target, .values = values, .conflict_columns = columns } };
+        break :blk .{ .insert = .{ .target_schema = target.schema, .target = target.name, .values = values, .conflict_columns = columns } };
     } else if (self.word("PRODUCE") or self.word("ENQUEUE")) blk: {
         if (self.atomic_depth == 0) return error.MutationOutsideAtomic;
         const stream = self.word("PRODUCE");
         try self.advance();
         try self.requireWord("INTO");
-        const target = try self.name();
+        const target = try self.qualifiedName();
         try self.requireWord("VALUES");
-        break :blk .{ .append = .{ .kind = if (stream) .stream else .queue, .target = target, .values = try self.arguments() } };
+        break :blk .{ .append = .{ .kind = if (stream) .stream else .queue, .target_schema = target.schema, .target = target.name, .values = try self.arguments() } };
     } else if (try self.takeWord("HANDOFF")) blk: {
         if (self.atomic_depth == 0) return error.MutationOutsideAtomic;
         const request = try self.expression();
         try self.requireWord("TO");
-        const queue = try self.name();
+        const queue = try self.qualifiedName();
         try self.requireWord("EFFECT");
-        break :blk .{ .handoff = .{ .request = request, .queue = queue, .effect = try self.expression() } };
+        break :blk .{ .handoff = .{ .request = request, .queue_schema = queue.schema, .queue = queue.name, .effect = try self.expression() } };
     } else if (try self.takeWord("RESPOND")) blk: {
         if (try self.takeWord("ERROR")) {
             try self.requireWord("TO");
@@ -425,10 +455,10 @@ fn instruction(self: *Self) anyerror!a.Instruction {
 fn program(self: *Self) !a.Program {
     try self.requireWord("CREATE");
     try self.requireWord("DATAFLOW");
-    const program_name = try self.name();
+    const program_name = try self.qualifiedName();
     try self.requireWord("FROM");
     try self.requireWord("QUEUE");
-    const queue = try self.name();
+    const queue = try self.qualifiedName();
     try self.requireWord("AS");
     const variable = try self.name();
     const predicate = if (try self.takeWord("WHERE")) try self.expression() else null;
@@ -469,5 +499,16 @@ fn program(self: *Self) !a.Program {
     };
     _ = try self.take(';');
     if (self.token != null) return error.UnsupportedConstruct;
-    return .{ .name = program_name, .queue = queue, .input = variable, .predicate = predicate, .deadline = deadline, .body = body, .failure = failure, .nodes = self.nodes };
+    return .{
+        .schema = program_name.schema,
+        .name = program_name.name,
+        .queue_schema = queue.schema,
+        .queue = queue.name,
+        .input = variable,
+        .predicate = predicate,
+        .deadline = deadline,
+        .body = body,
+        .failure = failure,
+        .nodes = self.nodes,
+    };
 }

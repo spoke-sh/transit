@@ -11,7 +11,7 @@ fn header(parser: *Parser) !Reference {
     try parser.requireWord("OFFSET");
     try parser.requireWord("ON");
     try parser.requireWord("STREAM");
-    return Reference.unqualified(parser, .source);
+    return Reference.source(parser, .source);
 }
 pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dialect, location: ?*f.Sql.Location) !Reference {
     var parser = try Parser.initDialect(allocator, text, location, true, dialect);

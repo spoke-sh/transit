@@ -120,14 +120,30 @@ pub fn targetDialect(allocator: std.mem.Allocator, text: []const u8, location: ?
     var parser = try Parser.initDialect(allocator, text, location, true, dialect);
     return targetParsed(&parser);
 }
-fn targetParsed(parser: *Parser) ![]const u8 {
+pub fn targetReference(allocator: std.mem.Allocator, text: []const u8) !Reference {
+    return targetReferenceDiagnostic(allocator, text, null);
+}
+pub fn targetReferenceDiagnostic(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location) !Reference {
+    var parser = try Parser.init(allocator, text, location);
+    return targetReferenceParsed(&parser);
+}
+pub fn targetReferenceDialect(allocator: std.mem.Allocator, text: []const u8, location: ?*sql.Location, dialect: sql.Dialect) !Reference {
+    var parser = try Parser.initDialect(allocator, text, location, true, dialect);
+    return targetReferenceParsed(&parser);
+}
+fn targetReferenceParsed(parser: *Parser) !Reference {
     const selection = try Selection.parse(parser);
     if (selection.aggregate == .rows and parser.token.tag == .left) return error.UnsupportedConstruct;
     if (selection.aggregate != .rows and try parser.take(.left)) {
         const inner = try Selection.parse(parser);
         if (inner.aggregate != .rows) return error.UnsupportedConstruct;
     }
-    return parser.named(.source);
+    return Reference.source(parser, .source);
+}
+fn targetParsed(parser: *Parser) ![]const u8 {
+    const ref = try targetReferenceParsed(parser);
+    if (ref.qualifier) |qualifier| parser.allocator.free(qualifier);
+    return ref.name;
 }
 /// Header-only qualifier discovery for authorized editor metadata.
 pub fn targetQualifier(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
@@ -137,8 +153,9 @@ pub fn targetQualifier(allocator: std.mem.Allocator, text: []const u8) ![]const 
     if (selection.aggregate != .rows and try parser.take(.left)) {
         _ = try Selection.parse(&parser);
     }
-    const name = try parser.name();
-    return alias(&parser, name);
+    const source = try Reference.source(&parser, .source);
+    if (source.qualifier) |qualifier| allocator.free(qualifier);
+    return alias(&parser, source.name);
 }
 fn clauseWord(word: []const u8) bool {
     inline for (.{ "JOIN", "INNER", "LEFT", "OUTER", "RIGHT", "FULL", "CROSS", "NATURAL", "GROUP", "HAVING", "ORDER" }) |reserved| {
@@ -209,7 +226,7 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
     if (derived and outer.aggregate == .rows) return error.UnsupportedConstruct;
     const selection = if (derived) try Selection.parse(parser) else outer;
     if (derived and selection.aggregate != .rows) return error.UnsupportedConstruct;
-    const subject = try Reference.unqualified(parser, .source);
+    const subject = try Reference.source(parser, .source);
     const qualifier = try alias(parser, subject.name);
     var result: Syntax = .{ .selection = selection, .subject = subject, .qualifier = qualifier };
     if (try parser.takeWord("WHERE")) result.predicate = try predicate.syntax(parser, hints, qualifier, error.UnsupportedConstruct);
@@ -239,7 +256,7 @@ pub fn syntax(parser: *Parser, hints: ?t.Type) !Syntax {
 pub fn rowHeader(parser: *Parser) !Syntax {
     if ((parser.word("COUNT") or parser.word("SUM")) and (try parser.lexer.peek()).tag == .left) return error.UnsupportedAggregate;
     const selection = try Selection.rows(parser);
-    const subject = try Reference.unqualified(parser, .source);
+    const subject = try Reference.source(parser, .source);
     const qualifier = if (try parser.takeWord("AS")) try parser.name() else subject.name;
     return .{ .selection = selection, .subject = subject, .qualifier = qualifier };
 }

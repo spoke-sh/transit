@@ -1,4 +1,5 @@
 //! One durable statement dispatch boundary for sessions and migrations.
+const std = @import("std");
 const g = @import("root.zig");
 const api = g.session_protocol;
 
@@ -26,7 +27,7 @@ pub fn admitReviewed(host: *g.Session, prepared: *g.Session.Prepared, values: []
 
 pub fn status(host: *g.Session, ref: g.SessionOperations.Reference) !api.Operation {
     return switch (ref.kind) {
-        .table, .transaction, .workload => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, host.namespace, ref.id }),
+        .table, .transaction, .workload => try host.fresh(g.DatabaseRuntime.status, .{ host.runtime, host.allocator, &host.observer, &host.table, @as(u64, 0), ref.id }),
         .connector => try g.SourceOperations.status(host, ref.id),
         .dataflow => try g.ManagedOperations.status(host, ref.id),
         .configuration => try g.ConfigurationOperations.status(host, ref.id),
@@ -56,7 +57,7 @@ pub fn prepareResult(host: *g.Session, ref: g.SessionOperations.Reference) !g.Se
             const state = try source.operation(ref.id);
             if (state.receipt.binding.intent != .workload) return error.InvalidSqlOperationReference;
             const original = state.receipt.binding.intent.workload;
-            if (original.namespace != host.namespace) return error.SqlOperationBindingChanged;
+            if (!std.meta.eql(original.connection, host.table.connection) or original.namespace == 0 or host.source != null) return error.SqlOperationBindingChanged;
             break :blk .{ .workload = try g.database.WorkloadRead.Prepared.init(host.table, original) };
         },
         .captured => .{ .captured = try g.CapturedOperations.prepareResult(host, ref.id) },

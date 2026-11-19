@@ -167,8 +167,8 @@ test "operator traits count 256 collated columns without overflow" {
 
 test "standards ledger unsupported declarations match the production compiler" {
     const cases = .{
-        .{ "F491", "CREATE TABLE t (id BIGINT CHECK (id > 0))", error.UnsupportedTableConstraint },
-        .{ "F492", "CREATE TABLE t (id BIGINT REFERENCES parent(id))", error.UnsupportedTableConstraint },
+        .{ "F491", "CREATE TABLE t (id BIGINT CHECK (id > 0 OR id < 0))", error.UnsupportedCheckExpression },
+        .{ "F492", "CREATE TABLE t (id BIGINT REFERENCES parent(id))", error.ForeignKeyIndexEnforcementUnavailable },
         .{ "X001-RANGE", "CREATE TABLE t (span RANGE<BOOLEAN>)", error.UnsupportedRangeSubtype },
         .{ "X002-VECTOR", "CREATE TABLE t (embedding VECTOR(3, FLOAT64))", error.InvalidTypeParameters },
     };
@@ -197,9 +197,13 @@ fn compilerAccepts(case: StandardsLedger.CompilerCase) !bool {
                     const columns = try arena.dupe(f.TableSchema.Column, &.{.{ .id = 1, .name = "id", .type = .int64, .nullable = false }});
                     return .{ .schema = .{ .object = 7, .revision = 1, .next_column = 2, .columns = columns, .primary_key = &.{1} }, .definition = .{ .object = .{ .scope = .{ .realm = 1, .resource = 1, .catalog = 1 }, .branch = 1, .object = 7 }, .revision = 1, .digest = @splat(4) } };
                 }
+                fn lookupQualified(ctx: *anyopaque, arena: std.mem.Allocator, schema: ?[]const u8, name: []const u8) !f.TableDdl.ForeignKey.Resolver.Parent {
+                    if (schema) |s| if (!std.mem.eql(u8, s, "tenancy")) return error.UnknownTable;
+                    return lookup(ctx, arena, name);
+                }
             };
             var context: u8 = 0;
-            var compiled = f.TableDdl.compileWithForeignKeys(testing.allocator, case.sql, null, null, .transit, .{ .context = &context, .lookup = Parent.lookup }) catch |err| {
+            var compiled = f.TableDdl.compileWithForeignKeys(testing.allocator, case.sql, null, null, .transit, .{ .context = &context, .lookup = Parent.lookup, .lookup_qualified = Parent.lookupQualified }) catch |err| {
                 if (err == error.OutOfMemory) return err;
                 return false;
             };

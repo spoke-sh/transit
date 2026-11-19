@@ -42,22 +42,29 @@ fn manager(host: *g.Session) M {
 /// Native name acceptance selects the control object. Publisher token accounts
 /// only recover its declaration; their lookup order cannot choose its kind.
 pub fn program(host: *g.Session, name: c.TableAuthority.Name) !?std.json.Parsed(A.Declaration) {
-    const named = try namedObject(host, name) orelse return null;
+    return programNamespace(host, host.namespace, name);
+}
+pub fn programInSchema(host: *g.Session, schema_name: ?[]const u8, name: c.TableAuthority.Name) !?std.json.Parsed(A.Declaration) {
+    const target_ns = try host.table.resolveSchema(schema_name, host.namespace);
+    return programNamespace(host, target_ns, name);
+}
+pub fn programNamespace(host: *g.Session, namespace: u64, name: c.TableAuthority.Name) !?std.json.Parsed(A.Declaration) {
+    const named = try namedObject(host, namespace, name) orelse return null;
     const application: A = .{ .client = host.table };
-    const found = try application.find(host.namespace, name) orelse return null;
+    const found = try application.find(namespace, name) orelse return null;
     if (!std.meta.eql(named, found.value.object)) {
         found.deinit();
         return null;
     }
     return found;
 }
-fn namedObject(host: *g.Session, name: c.TableAuthority.Name) !?p.DataLifecycle.Object {
-    const response = try host.table.call(.{ .kv_lookup = .{ .namespace = host.namespace, .name = name.slice() } });
+fn namedObject(host: *g.Session, namespace: u64, name: c.TableAuthority.Name) !?p.DataLifecycle.Object {
+    const response = try host.table.call(.{ .kv_lookup = .{ .namespace = namespace, .name = name.slice() } });
     defer response.deinit();
     return if (response.value.result.kv_lookup) |value| value.interpretation.interpretation.object else null;
 }
 fn requireNamed(host: *g.Session, value: M.Declaration) !void {
-    const named = try namedObject(host, value.name) orelse return error.CatalogNameNotFound;
+    const named = try namedObject(host, value.namespace, value.name) orelse return error.CatalogNameNotFound;
     if (!std.meta.eql(named, value.object)) return error.DataflowIdentityConflict;
 }
 pub fn requireProfile(host: *g.Session) !void {
@@ -69,23 +76,30 @@ pub fn validate(host: *g.Session, prepared: *const Prepared) !void {
     const m = manager(host);
     switch (prepared.statement) {
         .create => |value| {
-            _ = try m.prepare(host.namespace, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
+            if (value.output_schema) |*out_s| {
+                const out_ns = try host.table.resolveSchema(out_s.slice(), host.namespace);
+                if (out_ns != target_ns) return error.UnsupportedManagedTable;
+            }
+            _ = try m.prepare(target_ns, value.name.slice(), 0, 1, value.output.slice(), value.sql, host.readOptions());
         },
         .program => |value| {
-            _ = try host.table.require(.{ .namespace = host.namespace, .target = null, .access = .create_table });
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
+            _ = try host.table.require(.{ .namespace = target_ns, .target = null, .access = .create_table });
             const declared = try g.direct.ApplicationSql.prepare(host.table, host.namespace, 0, 1, value.sql);
             declared.deinit();
         },
         .control => |value| {
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
             const application: A = .{ .client = host.table };
-            if (try program(host, value.name)) |declared| {
+            if (try programNamespace(host, target_ns, value.name)) |declared| {
                 defer declared.deinit();
                 if ((value.command == .authorize) != (value.role != null) or value.command == .refresh) return error.InvalidDataflowTransition;
                 _ = try application.inspect(declared.value);
                 return;
             }
             if (value.role != null) return error.InvalidDataflowTransition;
-            const declared = try m.find(host.namespace, value.name) orelse return error.CatalogNameNotFound;
+            const declared = try m.find(target_ns, value.name) orelse return error.CatalogNameNotFound;
             defer declared.deinit();
             try requireNamed(host, declared.value);
             _ = try m.inspect(declared.value);
@@ -135,14 +149,20 @@ pub fn admitReviewed(host: *g.Session, prepared: *const Prepared, token: api.Tok
     const m = manager(host);
     const action: @FieldType(Request, "action") = switch (prepared.statement) {
         .create => |value| blk: {
-            if (try namedObject(host, value.name) != null) return error.ManagedTableNameConflict;
-            const declared = try m.prepare(host.namespace, value.name.slice(), object, operation, value.output.slice(), value.sql, host.readOptions());
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
+            if (value.output_schema) |*out_s| {
+                const out_ns = try host.table.resolveSchema(out_s.slice(), host.namespace);
+                if (out_ns != target_ns) return error.UnsupportedManagedTable;
+            }
+            if (try namedObject(host, target_ns, value.name) != null) return error.ManagedTableNameConflict;
+            const declared = try m.prepare(target_ns, value.name.slice(), object, operation, value.output.slice(), value.sql, host.readOptions());
             if (guard) |expected| try expected.require(declared, null, host.allocator);
             break :blk .{ .publish = declared };
         },
         .program => |value| blk: {
             if (guard != null) return error.UnsupportedProgramMigration;
-            if (try namedObject(host, value.name) != null) return error.ManagedTableNameConflict;
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
+            if (try namedObject(host, target_ns, value.name) != null) return error.ManagedTableNameConflict;
             const declared = try g.direct.ApplicationSql.prepare(host.table, host.namespace, object, operation, value.sql);
             defer declared.deinit();
             const copy = try p.Json.valueAlloc(arena.allocator(), declared.value);
@@ -150,19 +170,20 @@ pub fn admitReviewed(host: *g.Session, prepared: *const Prepared, token: api.Tok
             break :blk .{ .publish_program = parsed.value };
         },
         .control => |value| blk: {
+            const target_ns = try host.table.resolveSchema(if (value.schema) |*s| s.slice() else null, host.namespace);
             const application: A = .{ .client = host.table };
-            if (try program(host, value.name)) |declared| {
+            if (try programNamespace(host, target_ns, value.name)) |declared| {
                 defer declared.deinit();
                 if (guard != null) return error.UnsupportedProgramMigration;
                 const copy = try p.Json.valueAlloc(arena.allocator(), declared.value);
                 const parsed = try p.Json.parseFromSlice(A.Declaration, arena.allocator(), copy);
                 const observation = try application.inspect(parsed.value);
-                const role = if (value.role) |selected| try c.DirectAuthorizationSql.resolveRole(host.table, host.namespace, selected, .{}) else null;
+                const role = if (value.role) |selected| try c.DirectAuthorizationSql.resolveRole(host.table, target_ns, selected, .{}) else null;
                 const saved = try application.prepareControl(parsed.value, .{ .definition = p.Growth.current_definition, .operation = .{ .scope = host.table.connection.scope, .principal = host.table.connection.principal, .operation = operation }, .target = try parsed.value.interpretation(host.allocator), .expected = observation.head.control, .command = value.command }, role);
                 defer host.allocator.free(saved);
                 break :blk .{ .control_program = .{ .declaration = parsed.value, .saved = try c.DirectTableProtocol.Binary.encode(arena.allocator(), saved) } };
             }
-            const declared = try m.find(host.namespace, value.name) orelse return error.CatalogNameNotFound;
+            const declared = try m.find(target_ns, value.name) orelse return error.CatalogNameNotFound;
             // Parsed strings must outlive request serialization below.
             const copy = try p.Json.valueAlloc(arena.allocator(), declared.value);
             declared.deinit();

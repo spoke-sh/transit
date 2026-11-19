@@ -133,7 +133,7 @@ pub fn init(scope: q.ApplicationExecution.Context, request: R.Reference, instruc
     if (entry.value != .let or entry.value.let.value != .effect or
         !std.mem.eql(u8, entry.value.let.value.effect.sink, sink)) return error.InvalidApplicationEffect;
     var selected: ?d.Definition = null;
-    for (scope.declaration.resources) |resource| if (std.mem.eql(u8, resource.name().slice(), sink)) {
+    for (scope.declaration.resources) |resource| if (a.Types.sameResource(resource.schemaSlice(), resource.name().slice(), entry.value.let.value.effect.sink_schema, sink)) {
         if (resource.value != .sink) return error.ProgramResourceKindMismatch;
         selected = resource.interpretation();
     };

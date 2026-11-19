@@ -174,7 +174,13 @@ pub const Owned = struct {
         self.* = undefined;
     }
 };
-pub const Target = struct { kind: std.meta.Tag(Action), name: []const u8, span: Parser.Literal.Span };
+pub const Target = struct {
+    kind: std.meta.Tag(Action),
+    schema_name: ?[]const u8 = null,
+    name: []const u8,
+    span: Parser.Literal.Span,
+    qualifier_span: ?Parser.Literal.Span = null,
+};
 fn header(parser: *Parser) !Target {
     const kind: std.meta.Tag(Action) = if (try parser.takeWord("INSERT")) blk: {
         try parser.requireWord("INTO");
@@ -183,8 +189,8 @@ fn header(parser: *Parser) !Target {
         try parser.requireWord("FROM");
         break :blk .delete;
     } else return error.UnsupportedStatement;
-    const source = try Reference.unqualified(parser, .source);
-    return .{ .kind = kind, .name = source.name, .span = source.span };
+    const source = try Reference.source(parser, .source);
+    return .{ .kind = kind, .schema_name = source.qualifier, .name = source.name, .span = source.span, .qualifier_span = source.qualifier_span };
 }
 /// Header inspection supplies a name for authorized resolution, not admission.
 pub fn target(allocator: std.mem.Allocator, text: []const u8) !Target {

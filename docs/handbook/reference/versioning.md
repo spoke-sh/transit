@@ -108,9 +108,14 @@ do not qualify the replacement; record newly executed evidence with the cutover.
 ## Current native definition
 
 The current shared definition is
-`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`.
+`f311e893f8d2f4c21f426790172fadfebe7eb2364615eb1566c09f11d39bb0bb`.
 
-This definition binds the native storage owner, optional immutable object tier,
+This definition binds multi-schema ordered `ApplicationProgram` declarations and
+`ApplicationBinding` resource descriptors (optional `schema` qualification on
+programs, instructions, controls and cross-schema dependencies, plus typed
+`UUID`/`TIMESTAMP`/binary program literals) together with multi-schema
+`transit_table_basis_v1` migration bases (`schemas` and per-table `schema`
+bindings). It also binds the native storage owner, optional immutable object tier,
 required nullable tier observations and removal of Ursula configuration. Retired
 remote generations retain permanent empty envelopes that fence delayed PUTs.
 Retained

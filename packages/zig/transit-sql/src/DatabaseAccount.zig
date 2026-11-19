@@ -70,8 +70,12 @@ pub const Configuration = struct {
     }
 };
 
+pub fn sameCatalog(a: Binding, b: Binding) bool {
+    return a.resource == b.resource and a.catalog == b.catalog and a.owner == b.owner and a.role == b.role and a.source_executor == b.source_executor and a.namespace > 0 and a.namespace <= p.max_counter and b.namespace > 0 and b.namespace <= p.max_counter;
+}
 pub fn admittedBinding(self: Self, binding: Binding) !void {
     for (self.configuration.bindings) |candidate| if (std.meta.eql(candidate, binding)) return;
+    for (self.configuration.bindings) |candidate| if (sameCatalog(candidate, binding)) return;
     return error.GatewayCatalogDenied;
 }
 pub fn operation(self: Self, source: *g.Client.Source, id: u64) !g.OperationRecords.Operation {
@@ -81,11 +85,17 @@ pub fn operationFromState(self: Self, state: c.DirectClientToken.Progress) !g.Op
     const reference = state.receipt.binding.intent;
     if (reference == .external) return error.InvalidSqlOperationReference;
     const connection = reference.connection();
+    const ref_ns = reference.namespace();
+    if (ref_ns == 0 or ref_ns > p.max_counter) return error.GatewayCatalogDenied;
     const binding: Binding = for (self.configuration.bindings) |candidate| {
-        if (candidate.resource == connection.scope.resource and candidate.catalog == connection.scope.catalog and candidate.owner == connection.audience and candidate.namespace == reference.namespace() and candidate.role == connection.role) break candidate;
+        if (candidate.resource == connection.scope.resource and candidate.catalog == connection.scope.catalog and candidate.owner == connection.audience and candidate.namespace == ref_ns and candidate.role == connection.role) break candidate;
+    } else for (self.configuration.bindings) |candidate| {
+        if (candidate.resource == connection.scope.resource and candidate.catalog == connection.scope.catalog and candidate.owner == connection.audience and candidate.role == connection.role) break candidate;
     } else return error.GatewayCatalogDenied;
-    try self.admittedBinding(binding);
-    return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .resource = binding.resource, .catalog = binding.catalog, .owner = binding.owner, .namespace = binding.namespace, .role_present = @intFromBool(binding.role != null), .role = binding.role orelse 0, .phase = if (state.pending) .ready else .terminal, .cancel = @intFromBool(state.cancel) };
+    var effective = binding;
+    effective.namespace = ref_ns;
+    try self.admittedBinding(effective);
+    return .{ .id = state.id(), .nonce = state.receipt.binding.key.token, .resource = effective.resource, .catalog = effective.catalog, .owner = effective.owner, .namespace = effective.namespace, .role_present = @intFromBool(effective.role != null), .role = effective.role orelse 0, .phase = if (state.pending) .ready else .terminal, .cancel = @intFromBool(state.cancel) };
 }
 
 test "SOURCE executor binding is explicit and participates in account identity" {

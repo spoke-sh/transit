@@ -28,7 +28,12 @@ pub const Sink = struct {
         return .{ .definition = p.Growth.current_definition, .object = self.stored.interpretation.object, .revision = self.stored.interpretation.revision, .properties = self.stored.properties, .owner = self.stored.owner, .payload = .{ .sink = self.profile } };
     }
 };
+schema: ?c.TableAuthority.Name = null,
 value: union(enum) { table: Table, kv: KV, log: c.DirectLogProtocol.Definition, sink: Sink },
+
+pub fn schemaSlice(self: *const Self) ?[]const u8 {
+    return if (self.schema) |*s| s.slice() else null;
+}
 
 pub fn table(value: w.Definition) Self {
     return .{ .value = .{ .table = .{ .stored = value.interpretation, .schema = value.schema, .properties = .{
@@ -82,6 +87,7 @@ pub fn kind(self: Self) @FieldType(a.Types.Resource, "kind") {
     };
 }
 pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connection) !void {
+    if (self.schema) |s| try s.validate();
     try connection.validate();
     try connection.object(self.interpretation().object);
     switch (self.value) {
@@ -135,7 +141,12 @@ pub fn validate(self: Self, allocator: std.mem.Allocator, connection: w.Connecti
 /// definition: those are observations of an invocation's actual reads.
 pub fn resource(self: Self, output: std.mem.Allocator, connection: w.Connection) !a.Types.Resource {
     try self.validate(output, connection);
-    var result: a.Types.Resource = .{ .name = try output.dupe(u8, self.name().slice()), .kind = self.kind(), .fields = undefined };
+    var result: a.Types.Resource = .{
+        .schema = if (self.schema) |*s| try output.dupe(u8, s.slice()) else null,
+        .name = try output.dupe(u8, self.name().slice()),
+        .kind = self.kind(),
+        .fields = undefined,
+    };
     if (self.value == .sink) {
         result.fields = &.{};
         return result;

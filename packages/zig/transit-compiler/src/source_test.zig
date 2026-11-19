@@ -427,3 +427,194 @@ test "composition diagnostics reject unknown named args duplicate schema binding
     try t.expectEqualStrings("application.source.unsupported", diagnostic.?.code.slice());
     try t.expect(std.mem.indexOf(u8, report.headline().?, "verify_replay") != null);
 }
+
+const multi_schema_tenancy_types =
+    \\CREATE PUBLIC DOMAIN EnvId AS UUID IDENTITY 'platform.env_id';
+    \\CREATE PUBLIC DOMAIN WrongId AS UUID IDENTITY 'platform.wrong_id';
+;
+
+const multi_schema_tenancy_state =
+    \\CREATE SCHEMA tenancy;
+    \\CREATE PUBLIC TABLE tenancy.environments (id $env_ty PRIMARY KEY, code TEXT NOT NULL);
+    \\CREATE PUBLIC TABLE tenancy.internal_secrets (id UUID PRIMARY KEY, hash BINARY NOT NULL);
+;
+
+const multi_schema_tenancy_build =
+    \\IMPORT types FROM '../types.transit';
+    \\EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE) AS BEGIN
+    \\  BIND SCHEMA tenancy TO schema;
+    \\  DECLARE FROM './state.transit';
+    \\  EXPORT REFERENCE TABLE tenancy.environments(id);
+    \\END;
+;
+
+const multi_schema_networking_deps =
+    \\CREATE SCHEMA networking;
+    \\CREATE PUBLIC TABLE networking.networks (
+    \\  id UUID PRIMARY KEY,
+    \\  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,
+    \\  label TEXT NOT NULL
+    \\);
+    \\CREATE PUBLIC TABLE networking.attachments (
+    \\  network_id UUID PRIMARY KEY,
+    \\  consumer_id UUID NOT NULL
+    \\);
+    \\CREATE PROCEDURE networking.attach_consumer(net_id UUID, consumer_id UUID) AS BEGIN ATOMIC
+    \\  INSERT INTO networking.attachments VALUES (net_id, consumer_id) ON CONFLICT (network_id) DO ASSERT SAME ROW;
+    \\END;
+;
+
+const multi_schema_networking_build =
+    \\IMPORT types FROM '../types.transit';
+    \\IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';
+    \\EXPORT MODULE application(
+    \\  schema SCHEMA_BINDING,
+    \\  env_ty TYPE,
+    \\  tenancy MODULE OF tenancy_build.application
+    \\) AS BEGIN
+    \\  BIND SCHEMA networking TO schema;
+    \\  USE MODULE tenancy;
+    \\  DECLARE FROM './deps.transit';
+    \\  EXPORT REFERENCE TABLE networking.networks(id);
+    \\  EXPORT PROCEDURE networking.attach_consumer;
+    \\END;
+;
+
+const multi_schema_deployments_flow =
+    \\CREATE SCHEMA deployments;
+    \\CREATE PUBLIC TABLE deployments.instances (
+    \\  id UUID PRIMARY KEY,
+    \\  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,
+    \\  net_id UUID NOT NULL REFERENCES networking.networks(id) ON DELETE RESTRICT NOT ENFORCED
+    \\);
+    \\CREATE PUBLIC QUEUE deployments.requests (id UUID NOT NULL, env_id $env_ty NOT NULL, net_id UUID NOT NULL);
+    \\CREATE PUBLIC DATAFLOW deployments.provision FROM QUEUE deployments.requests AS req AS BEGIN
+    \\  BEGIN ATOMIC
+    \\    INSERT INTO deployments.instances VALUES (req.id, req.env_id, req.net_id) ON CONFLICT (id) DO ASSERT SAME ROW;
+    \\    CALL networking.attach_consumer(req.net_id, req.id);
+    \\  END;
+    \\END;
+    \\AUTHORIZE DATAFLOW deployments.provision AS ROLE CURRENT_ROLE;
+    \\ACTIVATE DATAFLOW deployments.provision;
+;
+
+const multi_schema_deployments_build =
+    \\IMPORT types FROM '../types.transit';
+    \\IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';
+    \\IMPORT MODULE networking_build FROM '../networking/build.transit';
+    \\EXPORT MODULE application(
+    \\  schema SCHEMA_BINDING,
+    \\  env_ty TYPE,
+    \\  tenancy MODULE OF tenancy_build.application,
+    \\  networking MODULE OF networking_build.application
+    \\) AS BEGIN
+    \\  BIND SCHEMA deployments TO schema;
+    \\  USE MODULE tenancy;
+    \\  USE MODULE networking;
+    \\  DECLARE FROM './flow.transit';
+    \\END;
+;
+
+test "BIND SCHEMA specializes disjoint module instances and enforces EXPORT REFERENCE TABLE and module encapsulation" {
+    const t = std.testing;
+    const root_build =
+        \\IMPORT types FROM './types.transit';
+        \\IMPORT MODULE tenancy FROM './tenancy/build.transit';
+        \\IMPORT MODULE networking FROM './networking/build.transit';
+        \\IMPORT MODULE deployments FROM './deployments/build.transit';
+        \\EXPORT MODULE stack(t_schema SCHEMA_BINDING, n_schema SCHEMA_BINDING, d_schema SCHEMA_BINDING) AS BEGIN
+        \\  LET t = USE MODULE tenancy.application(schema => t_schema, env_ty => TYPE types.EnvId);
+        \\  LET n = USE MODULE networking.application(schema => n_schema, env_ty => TYPE types.EnvId, tenancy => t);
+        \\  LET d = USE MODULE deployments.application(schema => d_schema, env_ty => TYPE types.EnvId, tenancy => t, networking => n);
+        \\END;
+        \\CREATE TARGET default AS BEGIN
+        \\  USE stack(SCHEMA_BINDING('tenant_alpha'), SCHEMA_BINDING('net_alpha'), SCHEMA_BINDING('dep_alpha'));
+        \\  USE stack(SCHEMA_BINDING('tenant_beta'), SCHEMA_BINDING('net_beta'), SCHEMA_BINDING('dep_beta'));
+        \\END;
+    ;
+    const files = [_]c.Source{
+        .{ .path = "build.transit", .text = root_build },
+        .{ .path = "types.transit", .text = multi_schema_tenancy_types },
+        .{ .path = "tenancy/state.transit", .text = multi_schema_tenancy_state },
+        .{ .path = "tenancy/build.transit", .text = multi_schema_tenancy_build },
+        .{ .path = "networking/deps.transit", .text = multi_schema_networking_deps },
+        .{ .path = "networking/build.transit", .text = multi_schema_networking_build },
+        .{ .path = "deployments/flow.transit", .text = multi_schema_deployments_flow },
+        .{ .path = "deployments/build.transit", .text = multi_schema_deployments_build },
+    };
+    var diagnostic: ?p.Diagnostic = null;
+    const product = try c.compile(t.allocator, &files, .{ .compiler_revision = "multi-schema-ok" }, &diagnostic);
+    defer product.deinit();
+    try t.expect(std.mem.indexOf(u8, product.sql, "CREATE SCHEMA \"tenant_alpha\"") != null);
+    try t.expect(std.mem.indexOf(u8, product.sql, "CREATE SCHEMA \"tenant_beta\"") != null);
+    try t.expect(std.mem.indexOf(u8, product.sql, "REFERENCES \"tenant_alpha\" . ENVIRONMENTS") != null);
+    try t.expect(std.mem.indexOf(u8, product.sql, "REFERENCES \"tenant_beta\" . ENVIRONMENTS") != null);
+    try t.expect(std.mem.indexOf(u8, product.sql, "INSERT INTO \"net_alpha\".\"attachments\"") != null);
+    try t.expect(std.mem.indexOf(u8, product.sql, "INSERT INTO \"net_beta\".\"attachments\"") != null);
+
+    // Negative capability & encapsulation checks:
+    const NegCase = struct { bad_flow: []const u8, expected: anyerror };
+    const neg_cases = [_]NegCase{
+        // 1. Direct SELECT on EXPORT REFERENCE TABLE -> ReferenceOnlyTableAccess
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; SELECT id FROM tenancy.environments;",
+            .expected = error.ReferenceOnlyTableAccess,
+        },
+        // 2. Direct INSERT on EXPORT REFERENCE TABLE -> ReferenceOnlyTableAccess
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; INSERT INTO tenancy.environments VALUES (UUID '11111111-1111-1111-1111-111111111111', 'x');",
+            .expected = error.ReferenceOnlyTableAccess,
+        },
+        // 3. DATAFLOW SELECT on EXPORT REFERENCE TABLE -> ReferenceOnlyTableAccess
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; CREATE PUBLIC QUEUE deployments.requests (id UUID NOT NULL); " ++
+                "CREATE PUBLIC DATAFLOW deployments.bad FROM QUEUE deployments.requests AS req AS BEGIN " ++
+                "LET found = SELECT id FROM tenancy.environments WHERE id = req.id; END;",
+            .expected = error.ReferenceOnlyTableAccess,
+        },
+        // 4. FK referencing an unexported column ('code') of EXPORT REFERENCE TABLE -> ReferenceOnlyTableAccess
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; CREATE PUBLIC TABLE deployments.bad (" ++
+                "id UUID PRIMARY KEY, code TEXT NOT NULL REFERENCES tenancy.environments(code) NOT ENFORCED);",
+            .expected = error.ReferenceOnlyTableAccess,
+        },
+        // 5. Accessing an unexported internal table ('networking.attachments') -> UnexportedModuleResource
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; SELECT network_id FROM networking.attachments;",
+            .expected = error.UnexportedModuleResource,
+        },
+        // 6. FK referencing an unexported internal table ('tenancy.internal_secrets') -> UnexportedModuleResource
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; CREATE PUBLIC TABLE deployments.bad (" ++
+                "id UUID PRIMARY KEY, sec_id UUID NOT NULL REFERENCES tenancy.internal_secrets(id) NOT ENFORCED);",
+            .expected = error.UnexportedModuleResource,
+        },
+        // 7. Nominal domain mismatch across REFERENCES (raw UUID vs EnvId) -> SourceDomainMismatch
+        .{
+            .bad_flow = "CREATE SCHEMA deployments; CREATE PUBLIC TABLE deployments.bad (" ++
+                "id UUID PRIMARY KEY, env_id UUID NOT NULL REFERENCES tenancy.environments(id) NOT ENFORCED);",
+            .expected = error.SourceDomainMismatch,
+        },
+        // 8. Creating a table in an undeclared schema -> UnknownBuildSchema
+        .{
+            .bad_flow = "CREATE PUBLIC TABLE missing_ns.items (id UUID PRIMARY KEY);",
+            .expected = error.UnknownBuildSchema,
+        },
+    };
+    for (neg_cases) |nc| {
+        var report: c.SourceDiagnostic.Report = .{};
+        var neg_diag: ?p.Diagnostic = null;
+        const bad_files = [_]c.Source{
+            .{ .path = "build.transit", .text = root_build },
+            .{ .path = "types.transit", .text = multi_schema_tenancy_types },
+            .{ .path = "tenancy/state.transit", .text = multi_schema_tenancy_state },
+            .{ .path = "tenancy/build.transit", .text = multi_schema_tenancy_build },
+            .{ .path = "networking/deps.transit", .text = multi_schema_networking_deps },
+            .{ .path = "networking/build.transit", .text = multi_schema_networking_build },
+            .{ .path = "deployments/flow.transit", .text = nc.bad_flow },
+            .{ .path = "deployments/build.transit", .text = multi_schema_deployments_build },
+        };
+        try t.expectError(nc.expected, c.compile(t.allocator, &bad_files, .{ .compiler_revision = "multi-schema-neg", .report = &report }, &neg_diag));
+        try neg_diag.?.validate();
+    }
+}

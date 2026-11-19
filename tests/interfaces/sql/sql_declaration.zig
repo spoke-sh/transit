@@ -33,14 +33,14 @@ fn emit(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !
         .create => |value| {
             const created = try value.bind(7);
             var buffer: [f.TableSchema.max_bytes]u8 = undefined;
-            try std.json.Stringify.value(.{ .index = index, .kind = "table", .name = value.name, .if_not_exists = value.if_not_exists, .schema = try f.TableSchemaJson.foreign(init.arena, created), .schema_hex = try hex(init.arena.allocator(), try created.encode(&buffer)) }, .{}, out);
+            try std.json.Stringify.value(.{ .index = index, .kind = "table", .schema_name = value.schema_name, .name = value.name, .if_not_exists = value.if_not_exists, .schema = try f.TableSchemaJson.foreign(init.arena, created), .schema_hex = try hex(init.arena.allocator(), try created.encode(&buffer)) }, .{}, out);
         },
         .alter => |value| {
             var columns: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
             const changed = if (value.action == .columns) (try f.TableEvolution.apply(schema.?, value.action.columns, &columns)).after else schema.?;
-            try std.json.Stringify.value(.{ .index = index, .kind = "alter", .name = value.name, .rename = if (value.action == .rename_table) value.action.rename_table else @as(?[]const u8, null), .schema = try f.TableSchemaJson.foreign(init.arena, changed) }, .{}, out);
+            try std.json.Stringify.value(.{ .index = index, .kind = "alter", .schema_name = value.schema_name, .name = value.name, .rename = if (value.action == .rename_table) value.action.rename_table else @as(?[]const u8, null), .schema = try f.TableSchemaJson.foreign(init.arena, changed) }, .{}, out);
         },
-        .drop => |value| try std.json.Stringify.value(.{ .index = index, .kind = "drop", .name = value.name, .if_exists = value.if_exists, .object = value.object }, .{}, out),
+        .drop => |value| try std.json.Stringify.value(.{ .index = index, .kind = "drop", .schema_name = value.schema_name, .name = value.name, .if_exists = value.if_exists, .object = value.object }, .{}, out),
     }
 }
 fn emitLog(init: std.process.Init, out: *std.Io.Writer, case: Case, index: usize) !void {

@@ -23,14 +23,15 @@ pub fn prepare(allocator: std.mem.Allocator, client: c.DirectTableClient, namesp
     defer scratch.deinit();
     const selected = (try f.KVWorkloadSql.target(scratch.allocator(), text, dialect, location)) orelse return error.UnsupportedStatement;
     if (selected.kind != .get) return error.UnsupportedStatement;
-    const response = try client.call(.{ .kv_lookup = .{ .namespace = namespace, .name = selected.source.name } });
+    const target_namespace = try client.resolveSchema(selected.source.qualifier, namespace);
+    const response = try client.call(.{ .kv_lookup = .{ .namespace = target_namespace, .name = selected.source.name } });
     defer response.deinit();
     var definition = response.value.result.kv_lookup orelse return error.CatalogNameNotFound;
     const prepared = try f.KVWorkloadSql.PreparedGet.init(allocator, text, fuzeSpec(definition.spec), dialect, location);
     definition.spec.fields = prepared.spec.fields;
     return .{
         .connection = client.connection,
-        .namespace = namespace,
+        .namespace = target_namespace,
         .definition = definition,
         .prepared = prepared,
     };

@@ -15,7 +15,12 @@ const ProgramCheck = @import("ProgramCheck.zig");
 const CallOrigin = Operands.CallOrigin;
 const Symbol = struct { original: []const u8, emitted: []const u8 };
 const ResourceBinding = struct { name: []const u8, table: *const types.Table };
-const ResolvedCallee = struct { ref: Graph.Ref, bindings: []const types.Binding = &.{} };
+const ResolvedCallee = struct {
+    ref: Graph.Ref,
+    bindings: []const types.Binding = &.{},
+    owner: usize = 0,
+    schemas: []const types.SchemaBinding = &.{},
+};
 
 const ArgClosure = struct {
     file: usize,
@@ -26,10 +31,13 @@ const ArgClosure = struct {
 
 const FnParam = struct {
     name: []const u8,
-    expected: types.Scalar,
+    expected: Annotations.Expected,
     closure: ArgClosure,
     hoisted: ?[]const u8 = null,
 };
+
+const RowFieldVar = struct { name: []const u8, emitted: []const u8 };
+const RowVar = struct { original: []const u8, fields: []const RowFieldVar };
 
 const Env = struct {
     file: usize,
@@ -37,8 +45,11 @@ const Env = struct {
     mode: enum { dataflow, function, guard, procedure } = .dataflow,
     rename_locals: bool = false,
     return_binding: ?[]const u8 = null,
+    owner: usize = 0,
+    schemas: []const types.SchemaBinding = &.{},
     bindings: []const types.Binding = &.{},
     symbols: std.ArrayList(Symbol) = .empty,
+    row_vars: []const RowVar = &.{},
     resources: []const ResourceBinding = &.{},
     fn_params: []const FnParam = &.{},
     call: ?CallOrigin = null,
@@ -77,11 +88,12 @@ pub fn validateAll(compiler: *Compiler) !void {
         for (def.parameters) |param| {
             compiler.context = .{ .name = param.name };
             switch (param.kind) {
-                .integer, .text, .boolean => {},
+                .integer, .text, .boolean, .uuid, .timestamptz, .binary => {},
                 .named => |name| {
                     const ref = try graph.resolve(file_idx, name);
                     if (graph.getDefinition(ref).kind != .domain) return error.InvalidParameterType;
                 },
+                .row => |fields| try validateHelperRowFields(graph, file_idx, fields, 0),
                 .table => |cols| {
                     if (def.kind == .function) return error.InvalidParameterType;
                     try validateSignatureColumns(graph, file_idx, cols, .table);
@@ -94,7 +106,7 @@ pub fn validateAll(compiler: *Compiler) !void {
                     if (def.kind != .procedure) return error.InvalidParameterType;
                     try validateSignatureColumns(graph, file_idx, cols, .queue);
                 },
-                .identifier, .type, .schema_binding, .module, .module_of, .row => return error.InvalidParameterType,
+                .identifier, .type, .schema_binding, .module, .module_of => return error.InvalidParameterType,
             }
         }
         if (def.return_type) |return_type| {
@@ -132,7 +144,7 @@ pub fn validateAll(compiler: *Compiler) !void {
     compiler.context = .{};
 }
 
-pub fn validateFragmentHelpers(compiler: *Compiler, frag_file: usize, bindings: []const types.Binding) !void {
+pub fn validateFragmentCallGraph(compiler: *Compiler, frag_file: usize, bindings: []const types.Binding) !void {
     const graph = compiler.graph;
     const defs = graph.files[frag_file].definitions;
     var has_helper = false;
@@ -154,13 +166,68 @@ pub fn validateFragmentHelpers(compiler: *Compiler, frag_file: usize, bindings: 
     @memset(heights, 0);
     for (defs, 0..) |def, def_idx| {
         if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
-        _ = try visitCallGraph(compiler, base_offsets, visited, heights, .{ .ref = .{ .file = frag_file, .definition = def_idx }, .bindings = bindings }, 0);
+        _ = try visitCallGraph(compiler, base_offsets, visited, heights, .{ .ref = .{ .file = frag_file, .definition = def_idx }, .bindings = bindings, .owner = compiler.owner, .schemas = compiler.activeSchemas() }, 0);
     }
+    compiler.context = .{};
+}
+
+pub fn validateFragmentBodies(compiler: *Compiler, frag_file: usize, bindings: []const types.Binding) !void {
+    const defs = compiler.graph.files[frag_file].definitions;
     for (defs, 0..) |def, def_idx| {
         if (def.kind != .function and def.kind != .guard and def.kind != .procedure) continue;
         try validateHelperBody(compiler, .{ .file = frag_file, .definition = def_idx }, bindings);
     }
     compiler.context = .{};
+}
+
+fn validateHelperRowFields(graph: Graph, file: usize, fields: []const s.Parameter, depth: usize) anyerror!void {
+    if (depth >= 16) return error.SourceDepthLimit;
+    for (fields) |field| {
+        switch (field.kind) {
+            .integer, .text, .boolean, .uuid, .timestamptz, .binary => {},
+            .named => |name| {
+                const ref = try graph.resolve(file, name);
+                if (graph.getDefinition(ref).kind != .domain) return error.InvalidParameterType;
+            },
+            .row => |nested| try validateHelperRowFields(graph, file, nested, depth + 1),
+            else => return error.InvalidParameterType,
+        }
+    }
+}
+
+const HelperRowParam = struct {
+    typ: f.Types.Type,
+    domains: []const types.FieldDomain,
+    expected: Annotations.Expected,
+};
+
+fn buildHelperRowParam(scratch: std.mem.Allocator, out_alloc: std.mem.Allocator, graph: Graph, file: usize, fields: []const s.Parameter, depth: usize) anyerror!HelperRowParam {
+    if (depth >= 16) return error.SourceDepthLimit;
+    const struct_fields = try scratch.alloc(f.Types.Field, fields.len);
+    const domain_fields = try scratch.alloc(types.FieldDomain, fields.len);
+    const expected_fields = try out_alloc.alloc(Annotations.RowField, fields.len);
+    for (fields, 0..) |field, idx| {
+        switch (field.kind) {
+            .integer, .text, .boolean, .uuid, .timestamptz, .binary, .named => {
+                const scalar_ty = try parameterScalar(graph, file, field.kind);
+                struct_fields[idx] = .{ .name = field.name, .type = scalar_ty.physical(), .nullable = false };
+                domain_fields[idx] = .{ .name = field.name, .domain = scalar_ty.domain };
+                expected_fields[idx] = .{ .name = field.name, .expected = .{ .scalar = scalar_ty } };
+            },
+            .row => |nested| {
+                const sub = try buildHelperRowParam(scratch, out_alloc, graph, file, nested, depth + 1);
+                struct_fields[idx] = .{ .name = field.name, .type = sub.typ, .nullable = true };
+                domain_fields[idx] = .{ .name = field.name, .fields = sub.domains };
+                expected_fields[idx] = .{ .name = field.name, .expected = sub.expected };
+            },
+            else => return error.InvalidParameterType,
+        }
+    }
+    return .{
+        .typ = .{ .structure = struct_fields },
+        .domains = domain_fields,
+        .expected = .{ .row = expected_fields },
+    };
 }
 
 fn validateSignatureColumns(graph: Graph, file: usize, cols: []const s.Column, kind: types.ResourceKind) !void {
@@ -244,7 +311,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
         if (def.kind != .function and tokenWord(text, tokens[i], "CHECK") and i + 1 < tokens.len and tokenWord(text, tokens[i + 1], "GUARD")) {
             const call_offset = tokens[i].start;
             i += 2;
-            const target = try parseCalleeRef(compiler, ref.file, current.bindings, text, tokens, &i, .guard, call_offset);
+            const target = try parseCalleeRef(compiler, ref.file, current.bindings, current.schemas, text, tokens, &i, .guard, call_offset);
             height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                 if (err == error.RecursiveSourceCall) {
                     compiler.file = ref.file;
@@ -259,7 +326,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
             if (next_after_name < tokens.len and tokenSymbol(text, tokens[next_after_name], '(')) {
                 const call_offset = tokens[i].start;
                 i += 1;
-                const target = try parseCalleeRef(compiler, ref.file, current.bindings, text, tokens, &i, .procedure, call_offset);
+                const target = try parseCalleeRef(compiler, ref.file, current.bindings, current.schemas, text, tokens, &i, .procedure, call_offset);
                 height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                     if (err == error.RecursiveSourceCall) {
                         compiler.file = ref.file;
@@ -276,7 +343,7 @@ fn visitCallGraph(compiler: *Compiler, base_offsets: []const usize, visited: []u
         {
             const call_offset = tokens[i].start;
             var cursor = i;
-            const target = try resolveQualifiedFunction(compiler, ref.file, current.bindings, text, tokens, &cursor, call_offset);
+            const target = try resolveQualifiedFunction(compiler, ref.file, current.bindings, current.schemas, text, tokens, &cursor, call_offset);
             i = cursor - 1;
             height = @max(height, 1 + (visitCallGraph(compiler, base_offsets, visited, heights, target, depth + 1) catch |err| {
                 if (err == error.RecursiveSourceCall) {
@@ -319,14 +386,17 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
     compiler.context = .{};
 
     var temp_catalog: Catalog = .{ .output = scratch, .scratch = scratch };
+    try temp_catalog.schemas.appendSlice(scratch, compiler.catalog.schemas.items);
+    try temp_catalog.entries.appendSlice(scratch, compiler.catalog.entries.items);
     var in_cols: std.ArrayList(f.TableSchema.Column) = .empty;
     var in_domains: std.ArrayList(?Graph.Ref) = .empty;
+    var in_nested: std.ArrayList([]const types.FieldDomain) = .empty;
     var res_bindings: std.ArrayList(ResourceBinding) = .empty;
-    var object_id: u64 = 2;
+    var object_id: u64 = compiler.catalog.entries.items.len + 2;
 
     for (def.parameters) |param| {
         switch (param.kind) {
-            .integer, .text, .boolean, .named => {
+            .integer, .text, .boolean, .uuid, .timestamptz, .binary, .named => {
                 const scalar_ty = try parameterScalar(graph, ref.file, param.kind);
                 try in_cols.append(scratch, .{
                     .id = in_cols.items.len + 1,
@@ -335,9 +405,22 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
                     .nullable = false,
                 });
                 try in_domains.append(scratch, scalar_ty.domain);
+                try in_nested.append(scratch, &.{});
+            },
+            .row => |fields| {
+                const row_param = try buildHelperRowParam(scratch, scratch, graph, ref.file, fields, 0);
+                try in_cols.append(scratch, .{
+                    .id = in_cols.items.len + 1,
+                    .name = param.name,
+                    .type = row_param.typ,
+                    .nullable = true,
+                });
+                try in_domains.append(scratch, null);
+                try in_nested.append(scratch, row_param.domains);
             },
             inline .table, .stream, .queue => |cols, tag| {
-                const table = try buildSyntheticTable(scratch, graph, ref.file, object_id, param.name, cols, switch (tag) {
+                const synth_name = try std.fmt.allocPrint(scratch, "__transit$tbl_{s}", .{param.name});
+                const table = try buildSyntheticTable(scratch, graph, ref.file, object_id, synth_name, cols, switch (tag) {
                     .table => .table,
                     .stream => .stream,
                     .queue => .queue,
@@ -353,6 +436,7 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
     if (in_cols.items.len == 0) {
         try in_cols.append(scratch, .{ .id = 1, .name = "__unused", .type = .int64, .nullable = false });
         try in_domains.append(scratch, null);
+        try in_nested.append(scratch, &.{});
     }
     const queue_schema: f.TableSchema.Schema = .{
         .object = 1,
@@ -366,6 +450,7 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
         .name = "__transit$in",
         .schema = queue_schema,
         .domains = try in_domains.toOwnedSlice(scratch),
+        .nested_domains = try in_nested.toOwnedSlice(scratch),
         .owner = 0,
         .kind = .queue,
         .log = .{ .configuration = f.LogDdl.defaults(.queue), .limits = f.LogDdl.default_limits },
@@ -402,12 +487,14 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
             else => unreachable,
         },
         .rename_locals = true,
+        .owner = compiler.owner,
+        .schemas = compiler.activeSchemas(),
         .bindings = bindings,
         .resources = res_bindings.items,
     };
     for (def.parameters) |param| {
         switch (param.kind) {
-            .integer, .text, .boolean, .named => {
+            .integer, .text, .boolean, .uuid, .timestamptz, .binary, .named, .row => {
                 const hygienic = try lowerer.freshHygienic(param.name);
                 try env.symbols.append(scratch, .{ .original = param.name, .emitted = hygienic });
                 try lowerer.emitFixed("LET", origin_base);
@@ -434,13 +521,12 @@ fn validateHelperBody(compiler: *Compiler, ref: Graph.Ref, bindings: []const typ
             try lowerer.emitFixed(";", origin_base);
             try obligations.append(scratch, .{
                 .target = .{ .binding = ret_var },
-                .expected = ret_scalar,
+                .expected = .{ .scalar = ret_scalar },
                 .name = def.name,
             });
         },
         .guard => {
-            var idx: usize = 0;
-            try lowerer.lowerBlock(&env, body_tokens, &idx, false, 0);
+            try lowerer.lowerGuardProgram(&env, def.program.?, 0);
         },
         .procedure => {
             if (def.return_type != null) env.return_binding = try lowerer.freshHygienic("ret");
@@ -506,6 +592,8 @@ pub fn lowerProgram(
         .file = file,
         .mode = .dataflow,
         .rename_locals = rename_locals,
+        .owner = compiler.owner,
+        .schemas = compiler.activeSchemas(),
         .bindings = bindings,
     };
 
@@ -597,8 +685,18 @@ fn parameterScalar(graph: Graph, file: usize, kind: s.Kind) !types.Scalar {
         .integer => .{ .base = .bigint },
         .text => .{ .base = .text },
         .boolean => .{ .base = .boolean },
+        .uuid => .{ .base = .uuid },
+        .timestamptz => .{ .base = .timestamptz },
+        .binary => .{ .base = .binary },
         .named => |name| try types.domain(graph, try graph.resolve(file, name)),
         else => error.InvalidParameterType,
+    };
+}
+
+fn parameterExpected(scratch: std.mem.Allocator, out_alloc: std.mem.Allocator, graph: Graph, file: usize, kind: s.Kind) !Annotations.Expected {
+    return switch (kind) {
+        .row => |fields| (try buildHelperRowParam(scratch, out_alloc, graph, file, fields, 0)).expected,
+        else => .{ .scalar = try parameterScalar(graph, file, kind) },
     };
 }
 
@@ -710,6 +808,10 @@ fn emitResourceOperand(self: *Self, env: *const Env, tokens: []const s.Token, i:
         const start = self.writer.len();
         const resolved_name: []const u8 = switch (value) {
             .identifier => |ident| ident,
+            .reference_table => {
+                self.setError(env, tok.start);
+                return error.ReferenceOnlyTableAccess;
+            },
             .table => |tbl| if (role == .table) tbl.name else {
                 self.setError(env, tok.start);
                 return error.SourceTypeMismatch;
@@ -737,16 +839,204 @@ fn emitResourceOperand(self: *Self, env: *const Env, tokens: []const s.Token, i:
     }
     const decoded = try self.decodeProgramName(text, tok);
     i.* += 1;
+    if (i.* + 1 < tokens.len and tokenSymbol(text, tokens[i.*], '.') and (tokens[i.* + 1].kind == .word or tokens[i.* + 1].kind == .quoted)) {
+        const member_tok = tokens[i.* + 1];
+        const member_decoded = try self.decodeProgramName(text, member_tok);
+        i.* += 2;
+        if (role != .identifier) {
+            for (env.bindings) |b| if (std.mem.eql(u8, b.name, decoded) and b.value == .instance) {
+                for (b.value.instance.exports) |exported| if (std.mem.eql(u8, exported.name, member_decoded)) {
+                    const tbl = switch (exported.value) {
+                        .reference_table => {
+                            self.setError(env, tok.start);
+                            return error.ReferenceOnlyTableAccess;
+                        },
+                        .table => |t_val| if (role == .table) t_val else {
+                            self.setError(env, tok.start);
+                            return error.SourceTypeMismatch;
+                        },
+                        .stream => |t_val| if (role == .stream) t_val else {
+                            self.setError(env, tok.start);
+                            return error.SourceTypeMismatch;
+                        },
+                        .queue => |t_val| if (role == .queue) t_val else {
+                            self.setError(env, tok.start);
+                            return error.SourceTypeMismatch;
+                        },
+                        else => {
+                            self.setError(env, tok.start);
+                            return error.SourceTypeMismatch;
+                        },
+                    };
+                    try self.emitTableRef(tbl, self.makeOrigin(env, tok.start));
+                    return if (std.mem.eql(u8, tbl.schema_name, "public")) tbl.name else try std.fmt.allocPrint(self.scratch, "{s}.{s}", .{ tbl.schema_name, tbl.name });
+                };
+                self.setError(env, member_tok.start);
+                self.compiler.context = .{ .name = member_decoded };
+                return error.UnknownSourceExport;
+            };
+            const concrete = Compiler.resolveSchemaName(env.schemas, decoded);
+            const expected_kind: types.ResourceKind = switch (role) {
+                .table => .table,
+                .stream => .stream,
+                .queue => .queue,
+                .identifier => unreachable,
+            };
+            const entry = self.catalog.findResourceQualified(concrete, member_decoded) catch |err| {
+                self.setError(env, tok.start);
+                return err;
+            };
+            if (entry.kind != expected_kind) {
+                self.setError(env, tok.start);
+                return error.SourceTypeMismatch;
+            }
+            Operands.checkResourceAccess(env.owner, env.bindings, entry, &self.compiler.context) catch |err| {
+                self.setError(env, tok.start);
+                return err;
+            };
+            try self.emitTableRef(entry, self.makeOrigin(env, tok.start));
+            return if (std.mem.eql(u8, entry.schema_name, "public")) entry.name else try std.fmt.allocPrint(self.scratch, "{s}.{s}", .{ entry.schema_name, entry.name });
+        }
+        const concrete = Compiler.resolveSchemaName(env.schemas, decoded);
+        if (std.mem.eql(u8, concrete, "public")) {
+            try self.emitQuotedIdentifier(member_decoded, self.makeOrigin(env, member_tok.start));
+            return member_decoded;
+        }
+        try self.emitQualifiedName(concrete, member_decoded, self.makeOrigin(env, tok.start));
+        return try std.fmt.allocPrint(self.scratch, "{s}.{s}", .{ concrete, member_decoded });
+    }
     if (env.helper != null and role != .identifier) {
         for (env.resources) |res| if (std.mem.eql(u8, res.name, decoded)) {
-            try self.emitQuotedIdentifier(res.table.name, self.makeOrigin(env, tok.start));
+            try self.emitTableRef(res.table, self.makeOrigin(env, tok.start));
             return res.table.name;
         };
+        for (env.bindings) |b| if (std.mem.eql(u8, b.name, decoded)) {
+            switch (b.value) {
+                .reference_table => {
+                    self.setError(env, tok.start);
+                    return error.ReferenceOnlyTableAccess;
+                },
+                .table => |tbl| if (role == .table) {
+                    try self.emitTableRef(tbl, self.makeOrigin(env, tok.start));
+                    return tbl.name;
+                } else {
+                    self.setError(env, tok.start);
+                    return error.SourceTypeMismatch;
+                },
+                .stream => |tbl| if (role == .stream) {
+                    try self.emitTableRef(tbl, self.makeOrigin(env, tok.start));
+                    return tbl.name;
+                } else {
+                    self.setError(env, tok.start);
+                    return error.SourceTypeMismatch;
+                },
+                .queue => |tbl| if (role == .queue) {
+                    try self.emitTableRef(tbl, self.makeOrigin(env, tok.start));
+                    return tbl.name;
+                } else {
+                    self.setError(env, tok.start);
+                    return error.SourceTypeMismatch;
+                },
+                else => {},
+            }
+        };
+        if (env.owner != 0) {
+            if (self.catalog.findResourceQualified("public", decoded) catch null) |entry| {
+                const expected_kind: types.ResourceKind = switch (role) {
+                    .table => .table,
+                    .stream => .stream,
+                    .queue => .queue,
+                    .identifier => unreachable,
+                };
+                if (entry.owner == env.owner and entry.kind == expected_kind) {
+                    try self.emitTableRef(entry, self.makeOrigin(env, tok.start));
+                    return entry.name;
+                }
+            }
+        }
         self.setError(env, tok.start);
         return error.UnknownProgramResource;
     }
+    if (role != .identifier) {
+        for (env.bindings) |b| if (std.mem.eql(u8, b.name, decoded)) {
+            switch (b.value) {
+                .reference_table => if ((self.catalog.findResourceQualified("public", decoded) catch null) == null) {
+                    self.setError(env, tok.start);
+                    return error.ReferenceOnlyTableAccess;
+                },
+                .table, .stream, .queue => |tbl| if (!std.mem.eql(u8, tbl.schema_name, "public")) {
+                    const expected_kind: types.ResourceKind = switch (role) {
+                        .table => .table,
+                        .stream => .stream,
+                        .queue => .queue,
+                        .identifier => unreachable,
+                    };
+                    if (tbl.kind != expected_kind) {
+                        self.setError(env, tok.start);
+                        return error.SourceTypeMismatch;
+                    }
+                    try self.emitTableRef(tbl, self.makeOrigin(env, tok.start));
+                    return try std.fmt.allocPrint(self.scratch, "{s}.{s}", .{ tbl.schema_name, tbl.name });
+                },
+                else => {},
+            }
+        };
+        if (self.catalog.findResourceQualified("public", decoded) catch null) |entry| {
+            Operands.checkResourceAccess(env.owner, env.bindings, entry, &self.compiler.context) catch |err| {
+                self.setError(env, tok.start);
+                return err;
+            };
+        }
+    }
     try self.emitOriginalToken(env, text, tokens, i.* - 1);
     return decoded;
+}
+
+fn emitQualifiedName(self: *Self, schema_name: []const u8, member: []const u8, origin: Operands.Origin) !void {
+    if (self.writer.len() != 0) try self.writer.writeByte(' ');
+    const start = self.writer.len();
+    try Compiler.quoted(&self.writer, schema_name, '"');
+    try self.writer.writeByte('.');
+    try Compiler.quoted(&self.writer, member, '"');
+    var rec = origin;
+    rec.start = start;
+    rec.end = self.writer.len();
+    try self.origins.append(self.output, rec);
+}
+
+fn emitTableRef(self: *Self, table: *const types.Table, origin: Operands.Origin) !void {
+    if (!std.mem.eql(u8, table.schema_name, "public")) {
+        return self.emitQualifiedName(table.schema_name, table.name, origin);
+    }
+    return self.emitQuotedIdentifier(table.name, origin);
+}
+
+fn lowerGuardProgram(self: *Self, env: *Env, prog: s.Template.Syntax, depth: usize) anyerror!void {
+    if (prog.kind == .guard_body) {
+        var cursor: usize = 0;
+        return self.lowerBlock(env, prog.tokens, &cursor, false, depth);
+    }
+    const text = self.compiler.graph.sources[env.file].text;
+    const tokens = prog.tokens;
+    var i: usize = 0;
+    while (i < tokens.len) {
+        try self.compiler.tick();
+        const mark = self.beginHoistScope();
+        var hoisted: Hoisted = .{ .writer = .{ .allocator = self.scratch, .limit = self.writer.limit } };
+        self.hoist = &hoisted;
+        defer self.hoist = null;
+        try self.requireEmitWord(env, tokens, &i, "REQUIRE");
+        try self.lowerExpression(env, tokens, &i, 0, true, depth + 1);
+        try self.requireEmitWord(env, tokens, &i, "ELSE");
+        try self.emitOriginalToken(env, text, tokens, i);
+        i += 1;
+        try self.emitFixed(";", self.makeOrigin(env, tokens[i - 1].start));
+        self.hoist = null;
+        try self.applyHoist(mark, &hoisted);
+        if (i < tokens.len and tokenSymbol(text, tokens[i], ',')) {
+            i += 1;
+        } else break;
+    }
 }
 
 fn lowerBlock(self: *Self, env: *Env, tokens: []const s.Token, i: *usize, atomic: bool, depth: usize) anyerror!void {
@@ -785,7 +1075,7 @@ fn lowerBlock(self: *Self, env: *Env, tokens: []const s.Token, i: *usize, atomic
             if (i.* != tokens.len) return error.UnexpectedProcedureReturn;
             try self.obligations.append(self.output, .{
                 .target = .{ .binding = binding },
-                .expected = try types.resolve(self.compiler.graph, env.file, helper.return_type.?),
+                .expected = .{ .scalar = try types.resolve(self.compiler.graph, env.file, helper.return_type.?) },
                 .name = helper.name,
             });
             continue;
@@ -1031,7 +1321,7 @@ fn helperKindMatches(actual: types.HelperKind, expected: s.Template.HelperKind) 
     };
 }
 
-fn resolveBoundHelper(compiler: *Compiler, file: usize, bindings: []const types.Binding, name: s.Name, expected_kind: s.Template.HelperKind, call_offset: usize) !?ResolvedCallee {
+fn resolveBoundHelper(compiler: *Compiler, file: usize, bindings: []const types.Binding, schemas: []const types.SchemaBinding, name: s.Name, expected_kind: s.Template.HelperKind, call_offset: usize) !?ResolvedCallee {
     if (name.qualifier) |qualifier| {
         for (bindings) |b| if (std.mem.eql(u8, b.name, qualifier)) {
             if (b.value != .instance) {
@@ -1046,13 +1336,32 @@ fn resolveBoundHelper(compiler: *Compiler, file: usize, bindings: []const types.
                     compiler.context = .{ .name = name.member, .expected = @tagName(expected_kind), .actual = if (exported.value == .helper) @tagName(exported.value.helper.kind) else @tagName(exported.value) };
                     return error.SourceTypeMismatch;
                 }
-                return .{ .ref = exported.value.helper.ref, .bindings = exported.value.helper.bindings };
+                const h = exported.value.helper;
+                return .{ .ref = h.ref, .bindings = h.bindings, .owner = h.owner, .schemas = h.schemas };
             };
             compiler.file = file;
             compiler.offset = call_offset;
             compiler.context = .{ .name = name.member };
             return error.UnknownSourceExport;
         };
+        if (Compiler.hasSchemaBinding(schemas, qualifier)) {
+            var idx = bindings.len;
+            while (idx > 0) {
+                idx -= 1;
+                const b = bindings[idx];
+                if (!std.mem.eql(u8, b.name, name.member)) continue;
+                if (b.value == .helper) {
+                    if (!helperKindMatches(b.value.helper.kind, expected_kind)) {
+                        compiler.file = file;
+                        compiler.offset = call_offset;
+                        compiler.context = .{ .name = b.name, .expected = @tagName(expected_kind), .actual = @tagName(b.value.helper.kind) };
+                        return error.SourceTypeMismatch;
+                    }
+                    const h = b.value.helper;
+                    return .{ .ref = h.ref, .bindings = h.bindings, .owner = h.owner, .schemas = h.schemas };
+                }
+            }
+        }
         return null;
     }
     var idx = bindings.len;
@@ -1068,13 +1377,14 @@ fn resolveBoundHelper(compiler: *Compiler, file: usize, bindings: []const types.
                 compiler.context = .{ .name = b.name, .expected = @tagName(expected_kind), .actual = @tagName(b.value.helper.kind) };
                 return error.SourceTypeMismatch;
             }
-            return .{ .ref = b.value.helper.ref, .bindings = b.value.helper.bindings };
+            const h = b.value.helper;
+            return .{ .ref = h.ref, .bindings = h.bindings, .owner = h.owner, .schemas = h.schemas };
         }
     }
     return null;
 }
 
-fn parseCalleeRef(compiler: *Compiler, file: usize, bindings: []const types.Binding, text: []const u8, tokens: []const s.Token, i: *usize, expected_kind: s.Template.HelperKind, call_offset: usize) !ResolvedCallee {
+fn parseCalleeRef(compiler: *Compiler, file: usize, bindings: []const types.Binding, schemas: []const types.SchemaBinding, text: []const u8, tokens: []const s.Token, i: *usize, expected_kind: s.Template.HelperKind, call_offset: usize) !ResolvedCallee {
     const first = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.*].start..tokens[i.*].end]);
     i.* += 1;
     var name: s.Name = .{ .member = first };
@@ -1084,7 +1394,7 @@ fn parseCalleeRef(compiler: *Compiler, file: usize, bindings: []const types.Bind
         i.* += 1;
         name = .{ .qualifier = first, .member = second };
     }
-    if (try resolveBoundHelper(compiler, file, bindings, name, expected_kind, call_offset)) |bound| return bound;
+    if (try resolveBoundHelper(compiler, file, bindings, schemas, name, expected_kind, call_offset)) |bound| return bound;
     const ref = compiler.graph.resolve(file, name) catch |err| {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1102,10 +1412,10 @@ fn parseCalleeRef(compiler: *Compiler, file: usize, bindings: []const types.Bind
         compiler.context = .{ .name = def.name, .expected = @tagName(expected_kind), .actual = @tagName(def.kind) };
         return error.SourceTypeMismatch;
     }
-    return .{ .ref = ref };
+    return .{ .ref = ref, .owner = compiler.owner, .schemas = schemas };
 }
 
-fn resolveQualifiedFunction(compiler: *Compiler, file: usize, bindings: []const types.Binding, text: []const u8, tokens: []const s.Token, i: *usize, call_offset: usize) !ResolvedCallee {
+fn resolveQualifiedFunction(compiler: *Compiler, file: usize, bindings: []const types.Binding, schemas: []const types.SchemaBinding, text: []const u8, tokens: []const s.Token, i: *usize, call_offset: usize) !ResolvedCallee {
     if (tokens[i.*].kind != .word or tokens[i.* + 2].kind != .word) {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1114,7 +1424,7 @@ fn resolveQualifiedFunction(compiler: *Compiler, file: usize, bindings: []const 
     const qualifier = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.*].start..tokens[i.*].end]);
     const member = try std.ascii.allocLowerString(compiler.scratch.allocator(), text[tokens[i.* + 2].start..tokens[i.* + 2].end]);
     i.* += 3;
-    if (try resolveBoundHelper(compiler, file, bindings, .{ .qualifier = qualifier, .member = member }, .function, call_offset)) |bound| return bound;
+    if (try resolveBoundHelper(compiler, file, bindings, schemas, .{ .qualifier = qualifier, .member = member }, .function, call_offset)) |bound| return bound;
     const ref = compiler.graph.resolve(file, .{ .qualifier = qualifier, .member = member }) catch |err| {
         compiler.file = file;
         compiler.offset = call_offset;
@@ -1127,15 +1437,15 @@ fn resolveQualifiedFunction(compiler: *Compiler, file: usize, bindings: []const 
         compiler.context = .{ .name = def.name, .expected = "function", .actual = @tagName(def.kind) };
         return error.SourceTypeMismatch;
     }
-    return .{ .ref = ref };
+    return .{ .ref = ref, .owner = compiler.owner, .schemas = schemas };
 }
 
 fn resolveLocalFunction(compiler: *Compiler, file: usize, bindings: []const types.Binding, raw: []const u8, call_offset: usize) !?ResolvedCallee {
     const lower = try std.ascii.allocLowerString(compiler.scratch.allocator(), raw);
-    if (try resolveBoundHelper(compiler, file, bindings, .{ .member = lower }, .function, call_offset)) |bound| return bound;
+    if (try resolveBoundHelper(compiler, file, bindings, &.{}, .{ .member = lower }, .function, call_offset)) |bound| return bound;
     for (compiler.graph.files[file].definitions, 0..) |def, idx| {
-        if (std.mem.eql(u8, def.name, lower)) {
-            if (def.kind == .function) return .{ .ref = .{ .file = file, .definition = idx } };
+        if (def.schema == null and std.mem.eql(u8, def.name, lower)) {
+            if (def.kind == .function) return .{ .ref = .{ .file = file, .definition = idx }, .owner = compiler.owner, .schemas = compiler.activeSchemas() };
             if (std.meta.stringToEnum(f.ApplicationProgram.Function, lower) == null) {
                 compiler.file = file;
                 compiler.offset = call_offset;
@@ -1194,7 +1504,7 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         return error.MutationOutsideAtomic;
     }
     const text = self.compiler.graph.sources[caller_env.file].text;
-    const resolved_callee = parseCalleeRef(self.compiler, caller_env.file, caller_env.bindings, text, tokens, i, kind, call_offset) catch |err| {
+    const resolved_callee = parseCalleeRef(self.compiler, caller_env.file, caller_env.bindings, caller_env.schemas, text, tokens, i, kind, call_offset) catch |err| {
         if (caller_env.call) |prior| self.compiler.call_site = Compiler.location(self.compiler.graph.sources[prior.file], prior.offset);
         return err;
     };
@@ -1213,11 +1523,14 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
 
     const outer_call: CallOrigin = caller_env.call orelse .{ .file = caller_env.file, .offset = call_offset };
     var res_bindings: std.ArrayList(ResourceBinding) = .empty;
+    var row_vars: std.ArrayList(RowVar) = .empty;
     var callee_env: Env = .{
         .file = callee_ref.file,
         .helper = callee_ref,
         .mode = if (kind == .guard) .guard else .procedure,
         .rename_locals = true,
+        .owner = resolved_callee.owner,
+        .schemas = resolved_callee.schemas,
         .bindings = resolved_callee.bindings,
         .call = outer_call,
         .return_binding = if (callee.return_type != null) result_binding orelse try self.freshHygienic("ret") else null,
@@ -1242,7 +1555,95 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
                 self.compiler.context = .{};
                 try res_bindings.append(self.scratch, .{ .name = param.name, .table = bound_table });
             },
-            .integer, .text, .boolean, .named => {
+            .row => |fields| {
+                const caller_text = self.compiler.graph.sources[caller_env.file].text;
+                if (arg_tokens.len >= 3 and tokenWord(caller_text, arg_tokens[0], "ROW") and tokenSymbol(caller_text, arg_tokens[1], '(')) {
+                    var row_cursor: usize = 1;
+                    const row_args = try self.sliceCallArguments(caller_env, arg_tokens, &row_cursor);
+                    if (row_cursor != arg_tokens.len or row_args.len != fields.len) {
+                        self.setError(caller_env, arg_offset);
+                        self.compiler.context = .{ .name = param.name };
+                        return error.ProgramTypeMismatch;
+                    }
+                    const field_vars = try self.scratch.alloc(RowFieldVar, fields.len);
+                    for (fields, row_args, 0..) |f_param, f_tokens, f_idx| {
+                        const f_offset = if (f_tokens.len > 0) f_tokens[0].start else arg_offset;
+                        const expected_f = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, f_param.kind);
+                        const f_hygienic = try self.freshHygienic(f_param.name);
+                        const mark = self.beginHoistScope();
+                        var hoisted: Hoisted = .{ .writer = .{ .allocator = self.scratch, .limit = self.writer.limit } };
+                        self.hoist = &hoisted;
+                        const f_origin = self.makeOrigin(caller_env, f_offset);
+                        try self.emitFixed("LET", f_origin);
+                        try self.emitQuotedRaw(f_hygienic, f_origin);
+                        try self.emitFixed("=", f_origin);
+                        var cursor: usize = 0;
+                        try self.lowerExpression(caller_env, f_tokens, &cursor, 0, true, depth + 1);
+                        try self.emitFixed(";", f_origin);
+                        self.hoist = null;
+                        try self.applyHoist(mark, &hoisted);
+                        try self.obligations.append(self.output, .{
+                            .target = .{ .binding = f_hygienic },
+                            .expected = expected_f,
+                            .name = f_param.name,
+                        });
+                        field_vars[f_idx] = .{ .name = f_param.name, .emitted = f_hygienic };
+                    }
+                    try row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+                } else if (arg_tokens.len == 1 and arg_tokens[0].kind == .word and blk: {
+                    const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+                    for (caller_env.row_vars) |rv| if (std.ascii.eqlIgnoreCase(arg_ident, rv.original)) break :blk true;
+                    break :blk false;
+                }) {
+                    const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+                    const caller_rv = for (caller_env.row_vars) |rv| {
+                        if (std.ascii.eqlIgnoreCase(arg_ident, rv.original)) break rv;
+                    } else unreachable;
+                    if (caller_rv.fields.len != fields.len) {
+                        self.setError(caller_env, arg_offset);
+                        self.compiler.context = .{ .name = param.name };
+                        return error.ProgramTypeMismatch;
+                    }
+                    const field_vars = try self.scratch.alloc(RowFieldVar, fields.len);
+                    for (fields, caller_rv.fields, 0..) |f_param, c_field, f_idx| {
+                        if (!std.mem.eql(u8, f_param.name, c_field.name)) {
+                            self.setError(caller_env, arg_offset);
+                            self.compiler.context = .{ .name = param.name };
+                            return error.ProgramTypeMismatch;
+                        }
+                        const expected_f = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, f_param.kind);
+                        try self.obligations.append(self.output, .{
+                            .target = .{ .binding = c_field.emitted },
+                            .expected = expected_f,
+                            .name = f_param.name,
+                        });
+                        field_vars[f_idx] = .{ .name = f_param.name, .emitted = c_field.emitted };
+                    }
+                    try row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+                } else {
+                    const expected_row = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, param.kind);
+                    const hygienic = try self.freshHygienic(param.name);
+                    const mark = self.beginHoistScope();
+                    var hoisted: Hoisted = .{ .writer = .{ .allocator = self.scratch, .limit = self.writer.limit } };
+                    self.hoist = &hoisted;
+                    const arg_origin = self.makeOrigin(caller_env, arg_offset);
+                    try self.emitFixed("LET", arg_origin);
+                    try self.emitQuotedRaw(hygienic, arg_origin);
+                    try self.emitFixed("=", arg_origin);
+                    var cursor: usize = 0;
+                    try self.lowerExpression(caller_env, arg_tokens, &cursor, 0, true, depth + 1);
+                    try self.emitFixed(";", arg_origin);
+                    self.hoist = null;
+                    try self.applyHoist(mark, &hoisted);
+                    try self.obligations.append(self.output, .{
+                        .target = .{ .binding = hygienic },
+                        .expected = expected_row,
+                        .name = param.name,
+                    });
+                    try callee_env.symbols.append(self.scratch, .{ .original = param.name, .emitted = hygienic });
+                }
+            },
+            .integer, .text, .boolean, .uuid, .timestamptz, .binary, .named => {
                 const expected_scalar = try parameterScalar(self.compiler.graph, callee_ref.file, param.kind);
                 const hygienic = try self.freshHygienic(param.name);
                 const mark = self.beginHoistScope();
@@ -1259,7 +1660,7 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
                 try self.applyHoist(mark, &hoisted);
                 try self.obligations.append(self.output, .{
                     .target = .{ .binding = hygienic },
-                    .expected = expected_scalar,
+                    .expected = .{ .scalar = expected_scalar },
                     .name = param.name,
                 });
                 try callee_env.symbols.append(self.scratch, .{ .original = param.name, .emitted = hygienic });
@@ -1268,8 +1669,13 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
         }
     }
     callee_env.resources = res_bindings.items;
-    var body_cursor: usize = 0;
-    try self.lowerBlock(&callee_env, callee.program.?.tokens, &body_cursor, atomic, depth + 1);
+    callee_env.row_vars = row_vars.items;
+    if (kind == .guard) {
+        try self.lowerGuardProgram(&callee_env, callee.program.?, depth + 1);
+    } else {
+        var body_cursor: usize = 0;
+        try self.lowerBlock(&callee_env, callee.program.?.tokens, &body_cursor, atomic, depth + 1);
+    }
 }
 
 fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []const s.Token, expected_kind: types.ResourceKind, arg_offset: usize) !*const types.Table {
@@ -1283,6 +1689,10 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
             return error.UnknownSourceOperand;
         };
         switch (val) {
+            .reference_table => {
+                self.setError(caller_env, arg_offset);
+                return error.ReferenceOnlyTableAccess;
+            },
             .table => |tbl| {
                 if (expected_kind != .table) {
                     self.setError(caller_env, arg_offset);
@@ -1313,6 +1723,10 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
                     self.setError(caller_env, arg_offset);
                     return error.SourceTypeMismatch;
                 }
+                Operands.checkResourceAccess(caller_env.owner, caller_env.bindings, entry, &self.compiler.context) catch |err| {
+                    self.setError(caller_env, arg_offset);
+                    return err;
+                };
                 return entry;
             },
             else => {
@@ -1331,6 +1745,10 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
             }
             for (b.value.instance.exports) |exported| if (std.mem.eql(u8, exported.name, mem)) {
                 return switch (exported.value) {
+                    .reference_table => {
+                        self.setError(caller_env, arg_offset);
+                        return error.ReferenceOnlyTableAccess;
+                    },
                     .table => |tbl| if (expected_kind == .table) tbl else blk: {
                         self.setError(caller_env, arg_offset);
                         break :blk error.SourceTypeMismatch;
@@ -1353,6 +1771,20 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
             self.compiler.context = .{ .name = mem };
             return error.UnknownSourceExport;
         };
+        const concrete = Compiler.resolveSchemaName(caller_env.schemas, qual);
+        const entry = self.catalog.findResourceQualified(concrete, mem) catch |err| {
+            self.setError(caller_env, arg_offset);
+            return err;
+        };
+        if (entry.kind != expected_kind) {
+            self.setError(caller_env, arg_offset);
+            return error.SourceTypeMismatch;
+        }
+        Operands.checkResourceAccess(caller_env.owner, caller_env.bindings, entry, &self.compiler.context) catch |err| {
+            self.setError(caller_env, arg_offset);
+            return err;
+        };
+        return entry;
     }
     if (arg_tokens.len == 1 and (arg_tokens[0].kind == .word or arg_tokens[0].kind == .quoted)) {
         const decoded = try self.decodeProgramName(text, arg_tokens[0]);
@@ -1364,6 +1796,34 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
                 }
                 return res.table;
             };
+        }
+        for (caller_env.bindings) |b| if (std.mem.eql(u8, b.name, decoded)) {
+            switch (b.value) {
+                .reference_table => {
+                    self.setError(caller_env, arg_offset);
+                    return error.ReferenceOnlyTableAccess;
+                },
+                .table => |tbl| return if (expected_kind == .table) tbl else {
+                    self.setError(caller_env, arg_offset);
+                    return error.SourceTypeMismatch;
+                },
+                .stream => |tbl| return if (expected_kind == .stream) tbl else {
+                    self.setError(caller_env, arg_offset);
+                    return error.SourceTypeMismatch;
+                },
+                .queue => |tbl| return if (expected_kind == .queue) tbl else {
+                    self.setError(caller_env, arg_offset);
+                    return error.SourceTypeMismatch;
+                },
+                else => {},
+            }
+        };
+        if (caller_env.helper != null) {
+            if (caller_env.owner != 0) {
+                if (self.catalog.findResourceQualified("public", decoded) catch null) |entry| {
+                    if (entry.owner == caller_env.owner and entry.kind == expected_kind) return entry;
+                }
+            }
             self.setError(caller_env, arg_offset);
             return error.UnknownProgramResource;
         }
@@ -1375,6 +1835,10 @@ fn resolveResourceArgument(self: *Self, caller_env: *const Env, arg_tokens: []co
             self.setError(caller_env, arg_offset);
             return error.SourceTypeMismatch;
         }
+        Operands.checkResourceAccess(caller_env.owner, caller_env.bindings, entry, &self.compiler.context) catch |err| {
+            self.setError(caller_env, arg_offset);
+            return err;
+        };
         return entry;
     }
     self.setError(caller_env, arg_offset);
@@ -1412,7 +1876,7 @@ fn emitValueHole(self: *Self, env: *const Env, tokens: []const s.Token, i: *usiz
         return error.UnknownSourceOperand;
     };
     switch (value) {
-        .integer, .text, .boolean, .nominal => {},
+        .integer, .text, .boolean, .uuid, .timestamptz, .binary, .nominal => {},
         .table, .stream, .queue, .identifier => {
             self.setError(env, dollar_tok.start);
             return error.UnsupportedLogOperand;
@@ -1560,9 +2024,10 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
     const fn_params = try self.scratch.alloc(FnParam, callee.parameters.len);
     var unused_indices: std.ArrayList(usize) = .empty;
 
+    var fn_row_vars: std.ArrayList(RowVar) = .empty;
     for (callee.parameters, arg_slices, 0..) |param, arg_tokens, p_idx| {
         const arg_offset = if (arg_tokens.len > 0) arg_tokens[0].start else call_offset;
-        const expected = try parameterScalar(self.compiler.graph, callee_ref.file, param.kind);
+        const expected = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, param.kind);
         const closure: ArgClosure = .{
             .file = caller_env.file,
             .tokens = arg_tokens,
@@ -1570,7 +2035,59 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
             .call = caller_env.call,
         };
         const uses = countParamUses(callee_text, expr_tokens, param.name);
-        const effective_uses = if (has_unused and ret_scalar.domain != null and !self.in_queue_predicate) uses * 2 else uses;
+        const duplicate_branch = ret_scalar.domain != null or ret_scalar.base == .uuid or ret_scalar.base == .timestamptz or ret_scalar.base == .binary;
+        const effective_uses = if (has_unused and duplicate_branch and !self.in_queue_predicate) uses * 2 else uses;
+        const caller_text = self.compiler.graph.sources[caller_env.file].text;
+        if (param.kind == .row and arg_tokens.len >= 3 and tokenWord(caller_text, arg_tokens[0], "ROW") and tokenSymbol(caller_text, arg_tokens[1], '(')) {
+            if (!hoistable or self.hoist == null) {
+                self.setError(caller_env, arg_offset);
+                return error.InvalidQueuePredicate;
+            }
+            var row_cursor: usize = 1;
+            const row_args = try self.sliceCallArguments(caller_env, arg_tokens, &row_cursor);
+            if (row_cursor != arg_tokens.len or row_args.len != param.kind.row.len) {
+                self.setError(caller_env, arg_offset);
+                return error.ProgramTypeMismatch;
+            }
+            const field_vars = try self.scratch.alloc(RowFieldVar, param.kind.row.len);
+            for (param.kind.row, row_args, 0..) |f_param, f_tokens, f_idx| {
+                const f_offset = if (f_tokens.len > 0) f_tokens[0].start else arg_offset;
+                const expected_f = try parameterExpected(self.scratch, self.scratch, self.compiler.graph, callee_ref.file, f_param.kind);
+                const f_hygienic = try self.freshHygienic(f_param.name);
+                try self.emitHoistedLet(caller_env, f_hygienic, expected_f, f_param.name, f_tokens, f_offset, depth + 1);
+                field_vars[f_idx] = .{ .name = f_param.name, .emitted = f_hygienic };
+            }
+            try fn_row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+            fn_params[p_idx] = .{ .name = "", .expected = expected, .closure = closure, .hoisted = null };
+            continue;
+        }
+        if (param.kind == .row and arg_tokens.len == 1 and arg_tokens[0].kind == .word) {
+            const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+            for (caller_env.row_vars) |caller_rv| if (std.ascii.eqlIgnoreCase(arg_ident, caller_rv.original)) {
+                if (caller_rv.fields.len != param.kind.row.len) {
+                    self.setError(caller_env, arg_offset);
+                    return error.ProgramTypeMismatch;
+                }
+                const field_vars = try self.scratch.alloc(RowFieldVar, param.kind.row.len);
+                for (param.kind.row, caller_rv.fields, 0..) |f_param, c_field, f_idx| {
+                    if (!std.mem.eql(u8, f_param.name, c_field.name)) {
+                        self.setError(caller_env, arg_offset);
+                        return error.ProgramTypeMismatch;
+                    }
+                    const expected_f = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, f_param.kind);
+                    try self.obligations.append(self.output, .{
+                        .target = .{ .binding = c_field.emitted },
+                        .expected = expected_f,
+                        .name = f_param.name,
+                    });
+                    field_vars[f_idx] = .{ .name = f_param.name, .emitted = c_field.emitted };
+                }
+                try fn_row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+                fn_params[p_idx] = .{ .name = "", .expected = expected, .closure = closure, .hoisted = null };
+                break;
+            };
+            if (fn_row_vars.items.len > 0 and std.mem.eql(u8, fn_row_vars.items[fn_row_vars.items.len - 1].original, param.name)) continue;
+        }
         var hoisted_name: ?[]const u8 = null;
         if (effective_uses > 1 and closureIsImpure(self.compiler.graph, closure, 0)) {
             if (!hoistable or self.hoist == null) {
@@ -1595,7 +2112,10 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
         .helper = callee_ref,
         .mode = .function,
         .rename_locals = true,
+        .owner = resolved_callee.owner,
+        .schemas = resolved_callee.schemas,
         .bindings = resolved_callee.bindings,
+        .row_vars = fn_row_vars.items,
         .fn_params = fn_params,
         .call = outer_call,
     };
@@ -1616,7 +2136,7 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
             try self.emitFixed("IS NULL AND", call_origin);
         }
         try self.emitFixed("FALSE THEN", call_origin);
-        if (ret_scalar.domain != null) {
+        if (ret_scalar.domain != null or ret_scalar.base == .uuid or ret_scalar.base == .timestamptz or ret_scalar.base == .binary) {
             try self.emitFixed("(", call_origin);
             var dup_cursor: usize = 0;
             try self.lowerExpression(&fn_env, expr_tokens, &dup_cursor, 0, false, depth + 1);
@@ -1626,6 +2146,7 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
                 .bigint => "0",
                 .text => "''",
                 .boolean => "FALSE",
+                .uuid, .timestamptz, .binary => unreachable,
             }, call_origin);
         }
         try self.emitFixed("ELSE (", call_origin);
@@ -1639,7 +2160,7 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
     try self.emitFixed(")", call_origin);
 }
 
-fn emitHoistedLet(self: *Self, caller_env: *const Env, h_name: []const u8, expected: types.Scalar, param_name: []const u8, arg_tokens: []const s.Token, arg_offset: usize, depth: usize) !void {
+fn emitHoistedLet(self: *Self, caller_env: *const Env, h_name: []const u8, expected: Annotations.Expected, param_name: []const u8, arg_tokens: []const s.Token, arg_offset: usize, depth: usize) !void {
     const hoist = self.hoist.?;
     var sub: Self = .{
         .compiler = self.compiler,
@@ -1821,13 +2342,18 @@ fn lowerPrimary(self: *Self, env: *const Env, tokens: []const s.Token, i: *usize
         try self.requireEmitWord(env, tokens, i, "AS");
         try self.requireEmitWord(env, tokens, i, "TEXT");
         try self.requireEmitSymbol(env, tokens, i, ")");
+    } else if (i.* + 1 < tokens.len and tokens[i.* + 1].kind == .string and (tokenWord(text, tok, "UUID") or tokenWord(text, tok, "TIMESTAMP") or tokenWord(text, tok, "TIMESTAMPTZ") or tokenWord(text, tok, "X"))) {
+        try self.emitOriginalToken(env, text, tokens, i.*);
+        i.* += 1;
+        try self.emitOriginalToken(env, text, tokens, i.*);
+        i.* += 1;
     } else if (tok.kind == .number or tok.kind == .string) {
         try self.emitOriginalToken(env, text, tokens, i.*);
         i.* += 1;
     } else {
         const raw = text[tok.start..tok.end];
         if (i.* + 3 < tokens.len and tokenSymbol(text, tokens[i.* + 1], '.') and tokenSymbol(text, tokens[i.* + 3], '(')) {
-            const callee_ref = resolveQualifiedFunction(self.compiler, env.file, env.bindings, text, tokens, i, tok.start) catch |err| {
+            const callee_ref = resolveQualifiedFunction(self.compiler, env.file, env.bindings, env.schemas, text, tokens, i, tok.start) catch |err| {
                 if (env.call) |prior| self.compiler.call_site = Compiler.location(self.compiler.graph.sources[prior.file], prior.offset);
                 return err;
             };
@@ -1876,7 +2402,40 @@ fn lowerPrimary(self: *Self, env: *const Env, tokens: []const s.Token, i: *usize
             }
             i.* += 1;
             if (tok.kind == .word) {
-                for (env.fn_params) |fp| if (std.mem.eql(u8, fp.name, decoded)) {
+                for (env.row_vars) |rv| if (std.mem.eql(u8, rv.original, decoded)) {
+                    if (i.* + 1 < tokens.len and tokenSymbol(text, tokens[i.*], '.')) {
+                        i.* += 1;
+                        const field_tok = tokens[i.*];
+                        const field_name = try self.decodeProgramName(text, field_tok);
+                        i.* += 1;
+                        for (rv.fields) |fv| if (std.mem.eql(u8, fv.name, field_name)) {
+                            try self.emitQuotedRaw(fv.emitted, self.makeOrigin(env, tok.start));
+                            while (i.* < tokens.len and tokenSymbol(text, tokens[i.*], '.')) {
+                                try self.requireEmitSymbol(env, tokens, i, ".");
+                                try self.emitOriginalToken(env, text, tokens, i.*);
+                                i.* += 1;
+                            }
+                            return;
+                        };
+                        self.setError(env, field_tok.start);
+                        return error.UnknownProgramField;
+                    }
+                    if (i.* < tokens.len and tokenWord(text, tokens[i.*], "IS")) {
+                        i.* += 1;
+                        const not_null = i.* < tokens.len and tokenWord(text, tokens[i.*], "NOT");
+                        if (not_null) i.* += 1;
+                        if (i.* >= tokens.len or !tokenWord(text, tokens[i.*], "NULL")) {
+                            self.setError(env, tok.start);
+                            return error.InvalidSourceSyntax;
+                        }
+                        i.* += 1;
+                        try self.emitFixed(if (not_null) "TRUE" else "FALSE", self.makeOrigin(env, tok.start));
+                        return;
+                    }
+                    self.setError(env, tok.start);
+                    return error.ProgramTypeMismatch;
+                };
+                for (env.fn_params) |fp| if (fp.name.len != 0 and std.mem.eql(u8, fp.name, decoded)) {
                     try self.emitParamClosure(fp, self.makeOrigin(env, tok.start), hoistable, depth + 1);
                     while (i.* < tokens.len and tokenSymbol(text, tokens[i.*], '.')) {
                         try self.requireEmitSymbol(env, tokens, i, ".");

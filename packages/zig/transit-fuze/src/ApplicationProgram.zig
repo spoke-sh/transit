@@ -61,6 +61,9 @@ pub const Expression = struct {
         boolean: bool,
         integer: i64,
         text: []const u8,
+        bytes: Values.Hex,
+        uuid: [16]u8,
+        timestamp: i64,
         name: []const u8,
         field: struct { base: *Expression, name: []const u8 },
         call: struct { function: Function, arguments: []const *Expression },
@@ -72,13 +75,16 @@ pub const Expression = struct {
     },
 };
 pub const Field = struct { name: []const u8, value: *Expression };
-pub const Read = struct { target: []const u8, key: *Expression };
+pub const QualifiedName = struct { schema: ?[]const u8 = null, name: []const u8 };
+pub const Read = struct { schema: ?[]const u8 = null, target: []const u8, key: *Expression };
 pub const Select = struct {
+    schema: ?[]const u8 = null,
     target: []const u8,
     columns: ?[]const []const u8,
     predicate: ?*Expression,
 };
 pub const Effect = struct {
+    sink_schema: ?[]const u8 = null,
     sink: []const u8,
     identity: *Expression,
     guard: *Expression,
@@ -109,21 +115,24 @@ pub const Instruction = struct {
         atomic: []const Instruction,
         conditional: struct { condition: *Expression, yes: []const Instruction, no: []const Instruction },
         put: struct {
+            target_schema: ?[]const u8 = null,
             target: []const u8,
             key: *Expression,
             value: *Expression,
             fields: []const Field,
             expected: union(enum) { absent, revision: *Expression },
         },
-        insert: struct { target: []const u8, values: []const *Expression, conflict_columns: []const []const u8 },
-        append: struct { kind: enum { stream, queue }, target: []const u8, values: []const *Expression },
-        handoff: struct { request: *Expression, queue: []const u8, effect: *Expression },
+        insert: struct { target_schema: ?[]const u8 = null, target: []const u8, values: []const *Expression, conflict_columns: []const []const u8 },
+        append: struct { kind: enum { stream, queue }, target_schema: ?[]const u8 = null, target: []const u8, values: []const *Expression },
+        handoff: struct { request: *Expression, queue_schema: ?[]const u8 = null, queue: []const u8, effect: *Expression },
         respond: Response,
         respond_error: struct { request: *Expression, failure: []const u8, profile: []const u8 },
     },
 };
 pub const Program = struct {
+    schema: ?[]const u8 = null,
     name: []const u8,
+    queue_schema: ?[]const u8 = null,
     queue: []const u8,
     input: []const u8,
     predicate: ?*Expression,

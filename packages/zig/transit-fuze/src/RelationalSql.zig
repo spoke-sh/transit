@@ -52,12 +52,17 @@ pub const StreamSlice = struct {
     }
 };
 pub const Target = struct {
+    schema: ?[]const u8 = null,
     name: []const u8,
     alias: []const u8,
     stream_slice: ?StreamSlice = null,
 
     pub fn jsonStringify(self: Target, jw: anytype) !void {
         try jw.beginObject();
+        if (self.schema) |schema| {
+            try jw.objectField("schema");
+            try jw.write(schema);
+        }
         try jw.objectField("name");
         try jw.write(self.name);
         try jw.objectField("alias");
@@ -89,6 +94,10 @@ pub fn requiredDialect(text: []const u8, dialect: sql.Dialect) !bool {
         if (token.tag == .right and depth != 0) depth -= 1;
         if (selection and token.tag == .comma and depth == 0) comma = true;
         if (token.tag != .word) {
+            if (source == .tail and token.tag == .dot) {
+                source = .target;
+                continue;
+            }
             if (source == .target or source == .alias) source = if (token.tag == .quoted) .tail else .done;
             continue;
         }
@@ -640,7 +649,7 @@ fn target(parser: *Parser) !Target {
         parser.annotate(.function);
         try parser.advance();
         try parser.require(.left);
-        const name = try parser.named(.source);
+        const ref = try Reference.source(parser, .source);
         try parser.require(.comma);
         try parser.requireWord("PARTITION");
         if (parser.token.tag == .minus) return error.InvalidStreamSliceBounds;
@@ -671,12 +680,12 @@ fn target(parser: *Parser) !Target {
         }
         try parser.require(.right);
         try slice.validate();
-        const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else name;
-        return .{ .name = name, .alias = alias, .stream_slice = slice };
+        const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else ref.name;
+        return .{ .schema = ref.qualifier, .name = ref.name, .alias = alias, .stream_slice = slice };
     }
-    const name = try parser.named(.source);
-    const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else name;
-    return .{ .name = name, .alias = alias };
+    const ref = try Reference.source(parser, .source);
+    const alias = if (try parser.takeWord("AS")) try parser.name() else if (parser.token.tag == .quoted or (parser.token.tag == .word and !sql.isReserved(parser.token.text) and !clauseWord(parser.token.text))) try parser.name() else ref.name;
+    return .{ .schema = ref.qualifier, .name = ref.name, .alias = alias };
 }
 fn parseUnsignedOffset(parser: *Parser) !u64 {
     if (parser.token.tag == .minus) return error.InvalidStreamSliceBounds;

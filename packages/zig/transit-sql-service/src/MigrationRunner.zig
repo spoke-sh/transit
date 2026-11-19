@@ -115,11 +115,12 @@ fn classifyStatement(
                 .create, .program => .create_dataflow,
                 .control => .control_dataflow,
             },
-            .object_name = try allocator.dupe(u8, switch (managed.statement) {
-                .create => |v| v.name.slice(),
-                .program => |v| v.name.slice(),
-                .control => |v| v.name.slice(),
-            }),
+            .object_name = switch (managed.statement) {
+                inline .create, .program, .control => |v| if (v.schema) |*s|
+                    try std.fmt.allocPrint(allocator, "{s}.{s}", .{ s.slice(), v.name.slice() })
+                else
+                    try allocator.dupe(u8, v.name.slice()),
+            },
             .sql = try allocator.dupe(u8, stmt_sql),
             .line = pos.line,
             .column = pos.column,
@@ -143,7 +144,7 @@ fn classifyStatement(
                 .alter => .alter_table,
                 .drop => .drop_table,
             },
-            .object_name = try allocator.dupe(u8, target.name),
+            .object_name = if (target.schema_name) |s| try std.fmt.allocPrint(allocator, "{s}.{s}", .{ s, target.name }) else try allocator.dupe(u8, target.name),
             .sql = try allocator.dupe(u8, stmt_sql),
             .line = pos.line,
             .column = pos.column,
@@ -184,7 +185,7 @@ fn classifyStatement(
                 .update => .update_rows,
                 .delete => .delete_rows,
             },
-            .object_name = try allocator.dupe(u8, target.name),
+            .object_name = if (target.schema_name) |s| try std.fmt.allocPrint(allocator, "{s}.{s}", .{ s, target.name }) else try allocator.dupe(u8, target.name),
             .sql = try allocator.dupe(u8, stmt_sql),
             .line = pos.line,
             .column = pos.column,
@@ -258,45 +259,139 @@ pub fn checkTarget(assertion: M.TargetAssertion, actual: M.ObservedTarget) ?stru
     return null;
 }
 
-fn lookupLiveSchema(allocator: std.mem.Allocator, client: *c.DirectTableClient, namespace: u64, name: []const u8) !?f.TableSchema.Schema {
-    const response = try client.call(.{ .lookup = .{ .namespace = namespace, .name = name } });
+pub const QualifiedObject = struct {
+    schema: ?[]const u8,
+    name: []const u8,
+};
+
+pub fn splitObjectName(object_name: []const u8) QualifiedObject {
+    if (std.mem.indexOfScalar(u8, object_name, '.')) |dot| {
+        return .{ .schema = object_name[0..dot], .name = object_name[dot + 1 ..] };
+    }
+    return .{ .schema = null, .name = object_name };
+}
+
+fn sameTableObject(default_schema: []const u8, left: []const u8, right: []const u8) bool {
+    const l = splitObjectName(left);
+    const r = splitObjectName(right);
+    return std.mem.eql(u8, l.schema orelse default_schema, r.schema orelse default_schema) and std.mem.eql(u8, l.name, r.name);
+}
+
+pub const LiveTable = struct {
+    schema: f.TableSchema.Schema,
+    definition: p.DataLifecycle.Definition,
+};
+
+fn lookupLiveTable(allocator: std.mem.Allocator, client: *c.DirectTableClient, default_schema: []const u8, default_namespace: u64, object_name: []const u8) !?LiveTable {
+    const split = splitObjectName(object_name);
+    const ns = if (split.schema) |s| (if (std.mem.eql(u8, s, default_schema)) default_namespace else client.resolveSchema(s, default_namespace) catch |err| switch (err) {
+        error.CatalogSchemaMissing => return null,
+        else => return err,
+    }) else default_namespace;
+    const response = try client.call(.{ .lookup = .{ .namespace = ns, .name = split.name } });
     defer response.deinit();
     const metadata = response.value.result.lookup orelse return null;
     const raw = try metadata.schema.decode(allocator, f.TableSchema.max_bytes);
     const decoded = try f.TableSchema.decode(allocator, raw);
-    return decoded.schema;
+    return .{ .schema = decoded.schema, .definition = metadata.interpretation.interpretation };
 }
 
 pub const WorkingSchemas = struct {
     allocator: std.mem.Allocator,
     client: *c.DirectTableClient,
+    default_schema: []const u8 = "public",
     namespace: u64,
-    live_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
-    working_entries: std.StringHashMapUnmanaged(?f.TableSchema.Schema) = .empty,
+    live_entries: std.StringHashMapUnmanaged(?LiveTable) = .empty,
+    working_entries: std.StringHashMapUnmanaged(?LiveTable) = .empty,
     producers: std.StringHashMapUnmanaged(p.Migration.StepIdentity) = .empty,
     current: p.Migration.StepIdentity = undefined,
+    next_synthetic_object: u64 = 1_000_000,
 
-    fn getLive(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
-        if (self.live_entries.get(name)) |cached| return cached;
-        const live = try lookupLiveSchema(self.allocator, self.client, self.namespace, name);
-        const owned_name = try self.allocator.dupe(u8, name);
-        try self.live_entries.put(self.allocator, owned_name, live);
+    pub const ForeignContext = struct {
+        schemas: *WorkingSchemas,
+        table_schema: ?[]const u8,
+        pub fn resolver(self: *ForeignContext) f.SqlForeignKey.Resolver {
+            return .{ .context = self, .lookup = lookupUnqualified, .lookup_qualified = lookupQualified };
+        }
+        fn lookupUnqualified(ctx: *anyopaque, allocator: std.mem.Allocator, name: []const u8) !f.SqlForeignKey.Resolver.Parent {
+            return lookupQualified(ctx, allocator, null, name);
+        }
+        fn lookupQualified(ctx: *anyopaque, _: std.mem.Allocator, parent_schema: ?[]const u8, name: []const u8) !f.SqlForeignKey.Resolver.Parent {
+            const self: *ForeignContext = @ptrCast(@alignCast(ctx));
+            const effective = parent_schema orelse self.table_schema;
+            const found = (try self.schemas.getEntryParts(effective, name)) orelse return error.TableNotFound;
+            return .{ .schema = found.schema, .definition = found.definition };
+        }
+    };
+
+    pub fn foreignContext(self: *WorkingSchemas, table_schema: ?[]const u8) ForeignContext {
+        return .{ .schemas = self, .table_schema = table_schema };
+    }
+
+    fn canonicalKey(self: *WorkingSchemas, schema_opt: ?[]const u8, name: []const u8) ![]u8 {
+        return std.fmt.allocPrint(self.allocator, "{s}\x00{s}", .{ schema_opt orelse self.default_schema, name });
+    }
+
+    fn canonicalForObject(self: *WorkingSchemas, object_name: []const u8) ![]u8 {
+        const split = splitObjectName(object_name);
+        return self.canonicalKey(split.schema, split.name);
+    }
+
+    fn syntheticDefinition(self: *WorkingSchemas, schema: f.TableSchema.Schema) !p.DataLifecycle.Definition {
+        const obj_id = self.next_synthetic_object;
+        self.next_synthetic_object += 1;
+        return .{
+            .object = .{ .scope = self.client.connection.scope, .branch = self.client.connection.branch, .object = obj_id },
+            .revision = 1,
+            .digest = try DM.logicalFingerprint(schema),
+        };
+    }
+
+    fn getLiveEntry(self: *WorkingSchemas, object_name: []const u8) !?LiveTable {
+        const key = try self.canonicalForObject(object_name);
+        if (self.live_entries.get(key)) |cached| return cached;
+        const live = try lookupLiveTable(self.allocator, self.client, self.default_schema, self.namespace, object_name);
+        try self.live_entries.put(self.allocator, key, live);
         return live;
     }
 
-    pub fn get(self: *WorkingSchemas, name: []const u8) !?f.TableSchema.Schema {
-        if (self.working_entries.get(name)) |cached| return cached;
-        return self.getLive(name);
+    fn getLive(self: *WorkingSchemas, object_name: []const u8) !?f.TableSchema.Schema {
+        return if (try self.getLiveEntry(object_name)) |entry| entry.schema else null;
     }
 
-    fn put(self: *WorkingSchemas, name: []const u8, schema: ?f.TableSchema.Schema) !void {
-        try self.producers.put(self.allocator, try self.allocator.dupe(u8, name), self.current);
-        if (self.working_entries.getPtr(name)) |slot| {
-            slot.* = schema;
+    pub fn getEntryParts(self: *WorkingSchemas, schema_opt: ?[]const u8, name: []const u8) !?LiveTable {
+        const key = try self.canonicalKey(schema_opt, name);
+        if (self.working_entries.get(key)) |cached| return cached;
+        const obj_name = if (schema_opt) |s| try std.fmt.allocPrint(self.allocator, "{s}.{s}", .{ s, name }) else name;
+        return self.getLiveEntry(obj_name);
+    }
+
+    pub fn getParts(self: *WorkingSchemas, schema_opt: ?[]const u8, name: []const u8) !?f.TableSchema.Schema {
+        return if (try self.getEntryParts(schema_opt, name)) |entry| entry.schema else null;
+    }
+
+    pub fn getEntry(self: *WorkingSchemas, object_name: []const u8) !?LiveTable {
+        const split = splitObjectName(object_name);
+        return self.getEntryParts(split.schema, split.name);
+    }
+
+    pub fn get(self: *WorkingSchemas, object_name: []const u8) !?f.TableSchema.Schema {
+        return if (try self.getEntry(object_name)) |entry| entry.schema else null;
+    }
+
+    pub fn getProducer(self: *WorkingSchemas, object_name: []const u8) !?p.Migration.StepIdentity {
+        const key = try self.canonicalForObject(object_name);
+        return self.producers.get(key);
+    }
+
+    fn putEntry(self: *WorkingSchemas, object_name: []const u8, entry: ?LiveTable) !void {
+        const key = try self.canonicalForObject(object_name);
+        try self.producers.put(self.allocator, key, self.current);
+        if (self.working_entries.getPtr(key)) |slot| {
+            slot.* = entry;
             return;
         }
-        const owned_name = try self.allocator.dupe(u8, name);
-        try self.working_entries.put(self.allocator, owned_name, schema);
+        try self.working_entries.put(self.allocator, key, entry);
     }
 };
 
@@ -309,6 +404,7 @@ fn hasLaterAppliedDdl(
     recorded: []const DM.VersionEntry,
     current_source_idx: usize,
     current_step_idx: usize,
+    default_schema: []const u8,
     object_name: []const u8,
 ) bool {
     for (sources[current_source_idx..], current_source_idx..) |src, src_idx| {
@@ -319,7 +415,7 @@ fn hasLaterAppliedDdl(
             if (step.owner == .schema_ddl and
                 (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table) and
                 isStepApplied(step.state) and
-                std.mem.eql(u8, step.object_name, object_name))
+                sameTableObject(default_schema, step.object_name, object_name))
             {
                 return true;
             }
@@ -444,6 +540,7 @@ fn buildPlanReport(
     var schemas: WorkingSchemas = .{
         .allocator = allocator,
         .client = table,
+        .default_schema = context.schema,
         .namespace = context.namespace,
     };
 
@@ -606,7 +703,8 @@ fn buildPlanReport(
                             computations.plan(parsed, &report, schemas.current, context.session.readOptions()) catch |err| break :blk err;
                         } else if (!step_already_applied) {
                             if (g.database.ManagedSql.inspect(allocator, parsed.sql, context.dialect) catch |err| break :blk err) |inspection| {
-                                if (inspection.revision == null and computations.values.contains(inspection.name.slice())) break :blk null;
+                                const insp_key = if (inspection.schema) |*s| try std.fmt.allocPrint(allocator, "{s}.{s}", .{ s.slice(), inspection.name.slice() }) else inspection.name.slice();
+                                if (inspection.revision == null and computations.values.contains(insp_key)) break :blk null;
                             }
                             const prepared = context.session.prepare(parsed.sql) catch |err| break :blk err;
                             defer context.session.destroy(prepared);
@@ -652,19 +750,26 @@ fn buildPlanReport(
                 .schema_ddl => {
                     switch (parsed.effect) {
                         .create_table => {
-                            var compiled = try f.TableDdl.compileDialect(allocator, parsed.sql, null, null, context.dialect);
+                            const split = splitObjectName(parsed.object_name);
+                            var fk_ctx = schemas.foreignContext(split.schema);
+                            var compiled = try f.TableDdl.compileWithForeignKeys(allocator, parsed.sql, null, null, context.dialect, fk_ctx.resolver());
                             defer compiled.deinit();
                             const create = compiled.statement.create;
-                            const desired_schema = try (try create.bind(1)).clone(allocator);
-                            const expected_fp = try DM.logicalFingerprint(desired_schema.schema);
-                            report.expected_schema_sha256 = expected_fp;
 
                             if (step_already_applied) {
-                                try schemas.put(parsed.object_name, desired_schema.schema);
-                                if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, parsed.object_name)) {
-                                    if (try schemas.getLive(parsed.object_name)) |live| {
-                                        report.observed_schema_sha256 = try DM.logicalFingerprint(live);
-                                        const recon = try DM.reconcileCreate(live, create);
+                                const live_entry = try schemas.getLiveEntry(parsed.object_name);
+                                const recorded_def: ?p.DataLifecycle.Definition = report.object_definition orelse if (live_entry) |le| le.definition else null;
+                                const bind_obj = if (recorded_def) |d| d.object.object else 1;
+                                var desired_schema = try (try create.bind(bind_obj)).clone(allocator);
+                                if (recorded_def) |d| desired_schema.schema.revision = d.revision;
+                                const expected_fp = try DM.logicalFingerprint(desired_schema.schema);
+                                report.expected_schema_sha256 = expected_fp;
+                                const stored_def = recorded_def orelse try schemas.syntheticDefinition(desired_schema.schema);
+                                try schemas.putEntry(parsed.object_name, .{ .schema = desired_schema.schema, .definition = stored_def });
+                                if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, context.schema, parsed.object_name)) {
+                                    if (live_entry) |live| {
+                                        report.observed_schema_sha256 = try DM.logicalFingerprint(live.schema);
+                                        const recon = try DM.reconcileCreate(live.schema, create);
                                         switch (recon) {
                                             .satisfied => report.state = .already_satisfied,
                                             .drift => |detail| {
@@ -714,10 +819,12 @@ fn buildPlanReport(
                                     report.observed_schema_sha256 = expected_fp;
                                     report.state = .already_satisfied;
                                 }
-                            } else if (try schemas.get(parsed.object_name)) |existing| {
-                                const observed_fp = try DM.logicalFingerprint(existing);
+                            } else if (try schemas.getEntry(parsed.object_name)) |existing| {
+                                const desired_schema = try (try create.bind(existing.schema.object)).clone(allocator);
+                                report.expected_schema_sha256 = try DM.logicalFingerprint(desired_schema.schema);
+                                const observed_fp = try DM.logicalFingerprint(existing.schema);
                                 report.observed_schema_sha256 = observed_fp;
-                                const recon = try DM.reconcileCreate(existing, create);
+                                const recon = try DM.reconcileCreate(existing.schema, create);
                                 switch (recon) {
                                     .satisfied => {
                                         if (create.if_not_exists) {
@@ -769,16 +876,22 @@ fn buildPlanReport(
                                     },
                                 }
                             } else {
+                                const preview_schema = try (try create.bind(1)).clone(allocator);
+                                const synth_def = try schemas.syntheticDefinition(preview_schema.schema);
+                                const desired_schema = try (try create.bind(synth_def.object.object)).clone(allocator);
+                                report.expected_schema_sha256 = try DM.logicalFingerprint(desired_schema.schema);
                                 report.state = .will_apply;
                                 has_will_apply = true;
-                                try schemas.put(parsed.object_name, desired_schema.schema);
+                                try schemas.putEntry(parsed.object_name, .{ .schema = desired_schema.schema, .definition = synth_def });
                             }
                         },
                         .alter_table => {
-                            const current = try schemas.get(parsed.object_name);
+                            const current = try schemas.getEntry(parsed.object_name);
                             if (current) |existing| {
-                                report.observed_schema_sha256 = try DM.logicalFingerprint(existing);
-                                var compiled = f.TableDdl.compileDialect(allocator, parsed.sql, existing, null, context.dialect) catch |err| {
+                                const split = splitObjectName(parsed.object_name);
+                                var fk_ctx = schemas.foreignContext(split.schema);
+                                report.observed_schema_sha256 = try DM.logicalFingerprint(existing.schema);
+                                var compiled = f.TableDdl.compileWithForeignKeys(allocator, parsed.sql, existing.schema, null, context.dialect, fk_ctx.resolver()) catch |err| {
                                     report.state = .already_diverged;
                                     report.diagnostic_code = "migration.alter_compile_failed";
                                     report.diagnostic_message = try std.fmt.allocPrint(
@@ -800,21 +913,27 @@ fn buildPlanReport(
                                 switch (compiled.statement.alter.action) {
                                     .columns => |change| {
                                         var cols_buf: [f.TableSchema.max_columns]f.TableSchema.Column = undefined;
-                                        const transition = try f.TableEvolution.apply(existing, change, &cols_buf);
-                                        const next_owned = try transition.after.clone(allocator);
-                                        report.expected_schema_sha256 = try DM.logicalFingerprint(next_owned.schema);
-                                        try schemas.put(parsed.object_name, next_owned.schema);
+                                        const transition = try f.TableEvolution.apply(existing.schema, change, &cols_buf);
+                                        var next_owned = try transition.after.clone(allocator);
+                                        const expected_fp = try DM.logicalFingerprint(next_owned.schema);
+                                        report.expected_schema_sha256 = expected_fp;
+                                        const next_def: p.DataLifecycle.Definition = if (step_already_applied and report.object_definition != null)
+                                            report.object_definition.?
+                                        else
+                                            .{ .object = existing.definition.object, .revision = next_owned.schema.revision, .digest = expected_fp };
+                                        next_owned.schema.revision = next_def.revision;
+                                        try schemas.putEntry(parsed.object_name, .{ .schema = next_owned.schema, .definition = next_def });
                                     },
                                     .rename_table => |new_name| {
-                                        report.expected_schema_sha256 = try DM.logicalFingerprint(existing);
-                                        try schemas.put(parsed.object_name, null);
-                                        try schemas.put(new_name, existing);
-                                        target_after_alter = new_name;
+                                        report.expected_schema_sha256 = try DM.logicalFingerprint(existing.schema);
+                                        target_after_alter = if (split.schema) |s| try std.fmt.allocPrint(allocator, "{s}.{s}", .{ s, new_name }) else new_name;
+                                        try schemas.putEntry(parsed.object_name, null);
+                                        try schemas.putEntry(target_after_alter, existing);
                                     },
                                 }
                                 if (step_already_applied) {
                                     report.state = .already_satisfied;
-                                    if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, target_after_alter)) {
+                                    if (!hasLaterAppliedDdl(request.sources, recorded, source_idx, idx, context.schema, target_after_alter)) {
                                         if (try schemas.getLive(target_after_alter)) |live| {
                                             const observed_fp = try DM.logicalFingerprint(live);
                                             report.observed_schema_sha256 = observed_fp;
@@ -884,7 +1003,7 @@ fn buildPlanReport(
                             var compiled = try f.TableDdl.compileDialect(allocator, parsed.sql, current, null, context.dialect);
                             defer compiled.deinit();
                             if (step_already_applied) {
-                                try schemas.put(parsed.object_name, null);
+                                try schemas.putEntry(parsed.object_name, null);
                                 report.state = .already_satisfied;
                             } else if (current == null) {
                                 if (compiled.statement.drop.if_exists) {
@@ -908,7 +1027,7 @@ fn buildPlanReport(
                                 report.observed_schema_sha256 = try DM.logicalFingerprint(current.?);
                                 report.state = .will_apply;
                                 has_will_apply = true;
-                                try schemas.put(parsed.object_name, null);
+                                try schemas.putEntry(parsed.object_name, null);
                             }
                         },
                         .create_schema, .alter_schema, .drop_schema => {
@@ -925,9 +1044,10 @@ fn buildPlanReport(
                 .data_transform => {
                     const current = try schemas.get(parsed.object_name);
                     if (current) |existing| {
+                        const split = splitObjectName(parsed.object_name);
                         report.observed_schema_sha256 = try DM.logicalFingerprint(existing);
                         report.expected_schema_sha256 = report.observed_schema_sha256;
-                        var compiled = f.TableDml.compile(allocator, parsed.sql, parsed.object_name, existing, null) catch |err| {
+                        var compiled = f.TableDml.compile(allocator, parsed.sql, split.name, existing, null) catch |err| {
                             report.state = .already_diverged;
                             report.diagnostic_code = "migration.dml_compile_failed";
                             report.diagnostic_message = try std.fmt.allocPrint(
@@ -986,9 +1106,9 @@ fn buildPlanReport(
                 },
             }
             if (report.owner == .schema_ddl and report.state == .already_satisfied and report.object_definition == null and (report.effect == .create_table or report.effect == .alter_table)) {
-                const response = try table.call(.{ .lookup = .{ .namespace = context.namespace, .name = report.object_name } });
-                defer response.deinit();
-                if (response.value.result.lookup) |metadata| report.object_definition = metadata.interpretation.interpretation;
+                if (try lookupLiveTable(allocator, table, context.schema, context.namespace, report.object_name)) |live| {
+                    report.object_definition = live.definition;
+                }
             }
             step_reports[idx] = report;
         }
@@ -1145,14 +1265,15 @@ fn planWorkingQuery(allocator: std.mem.Allocator, schemas: *WorkingSchemas, cont
             .resource = connection.scope.resource,
             .catalog = connection.scope.catalog,
             .owner = connection.audience,
-            .schema = try schemas.get(target.name) orelse return error.TableNotFound,
+            .schema = try schemas.getParts(target.schema, target.name) orelse return error.TableNotFound,
         };
         _ = try syntax.bind(sources[0..syntax.targets.len], .interactive, context.session.readOptions().budgets, null);
     } else {
-        const name = try f.TableSelect.target(allocator, text);
-        const schema = try schemas.get(name) orelse return error.TableNotFound;
+        var ref = try f.TableSelect.targetReference(allocator, text);
+        defer ref.deinit(allocator);
+        const schema = try schemas.getParts(ref.qualifier, ref.name) orelse return error.TableNotFound;
         var fields: [f.TableSchema.max_columns]f.Types.Field = undefined;
-        var compiled = try f.TableSelect.compile(allocator, text, name, try schema.rowType(&fields), @splat(1), null);
+        var compiled = try f.TableSelect.compile(allocator, text, ref.name, try schema.rowType(&fields), @splat(1), null);
         defer compiled.deinit();
     }
 }
@@ -1359,7 +1480,7 @@ fn verifyVersionSteps(
         if (step.owner == .schema_ddl and (step.effect == .create_table or step.effect == .alter_table or step.effect == .drop_table)) {
             var modified_later = false;
             for (version.steps[idx + 1 ..]) |later| {
-                if (later.owner == .schema_ddl and std.mem.eql(u8, later.object_name, step.object_name)) {
+                if (later.owner == .schema_ddl and sameTableObject(context.schema, later.object_name, step.object_name)) {
                     modified_later = true;
                     break;
                 }
@@ -1369,7 +1490,7 @@ fn verifyVersionSteps(
                     for (later_ver.steps) |later_step| {
                         if (later_step.owner == .schema_ddl and
                             (later_step.state == .applied or later_step.state == .verified or later_step.state == .already_satisfied) and
-                            std.mem.eql(u8, later_step.object_name, step.object_name))
+                            sameTableObject(context.schema, later_step.object_name, step.object_name))
                         {
                             modified_later = true;
                             break :outer;
@@ -1381,9 +1502,9 @@ fn verifyVersionSteps(
                 step.state = .verified;
                 continue;
             }
-            const live = try lookupLiveSchema(allocator, table, context.namespace, step.object_name);
+            const live_entry = try lookupLiveTable(allocator, table, context.schema, context.namespace, step.object_name);
             if (step.effect == .drop_table) {
-                if (live != null) {
+                if (live_entry != null) {
                     step.state = .already_diverged;
                     step.diagnostic_code = "migration.verify_failed";
                     step.diagnostic_message = try std.fmt.allocPrint(allocator, "Table '{s}' still exists after DROP TABLE", .{step.object_name});
@@ -1393,8 +1514,8 @@ fn verifyVersionSteps(
                 step.state = .verified;
                 continue;
             }
-            if (live) |schema| {
-                const observed_fp = try DM.logicalFingerprint(schema);
+            if (live_entry) |live| {
+                const observed_fp = try DM.logicalFingerprint(live.schema);
                 step.observed_schema_sha256 = observed_fp;
                 if (step.expected_schema_sha256) |expected_fp| {
                     if (!std.mem.eql(u8, &expected_fp, &observed_fp)) {

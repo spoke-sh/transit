@@ -591,7 +591,7 @@ fn managedStep(self: *Self) !bool {
             if (original.phase == .reserved or original.phase == .closed) continue;
             if (self.managed_work) {
                 if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
-                if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, entry.receipt.binding.intent.external.namespace)) continue;
+                if (!std.meta.eql(entry.receipt.binding.key.connection, caller.connection) or entry.receipt.binding.intent.external.namespace == 0) continue;
                 const token = entry.receipt.binding.key;
                 const selected = self.claim(token.token);
                 if (!selected.tryLock()) {
@@ -610,9 +610,10 @@ fn managedStep(self: *Self) !bool {
                 return true;
             }
             if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidManagedTableRecord;
+            if (!std.meta.eql(entry.receipt.binding.key.connection, caller.connection)) continue;
             const declared = try manager.load(M.Declaration, entry.receipt.binding.intent.external.record, M.declaration_format);
             defer declared.deinit();
-            if (!g.Client.hasConnectionNamespace(bindings, self.managed_route, declared.value.namespace)) continue;
+            if (declared.value.namespace == 0) continue;
             self.managedOne(manager, declared.value, entry) catch |err| {
                 if (err == error.Canceled or err == error.Cancelled) return err;
                 self.direct_work_failure.store(@intFromError(err), .release);
@@ -675,7 +676,7 @@ fn applicationStep(self: *Self) !bool {
             const original = entry.original orelse return error.InvalidDirectRecord;
             if (original.phase == .reserved or original.phase == .closed) continue;
             if (entry.receipt.binding.intent != .external or entry.receipt.binding.intent.external.record.format != c.DirectOwnedRecord.format) return error.InvalidDirectRecord;
-            if (!g.Client.hasConnectionNamespace(bindings, self.application_route, entry.receipt.binding.intent.external.namespace)) continue;
+            if (!std.meta.eql(entry.receipt.binding.key.connection, caller.connection) or entry.receipt.binding.intent.external.namespace == 0) continue;
             if (self.application_work) {
                 const slot_idx: u6 = @truncate(std.hash.Wyhash.hash(0, &entry.receipt.binding.key.token));
                 if ((self.application_waiting_mask & (@as(u64, 1) << slot_idx)) != 0 and
@@ -767,7 +768,7 @@ fn applicationOne(self: *Self, manager: g.direct.ManagedApplication, entry: c.Di
         // typed invocation callers may select another partition; discovery
         // must never silently execute only partition zero of a larger Queue.
         for (declared.value.resources) |resource| {
-            if (!std.mem.eql(u8, resource.name().slice(), declared.value.program.queue)) continue;
+            if (!g.direct.fuze.ApplicationProgram.Types.sameResource(resource.schemaSlice(), resource.name().slice(), declared.value.program.queue_schema, declared.value.program.queue)) continue;
             if (resource.value != .log or resource.value.log.declaration.stored.declaration.configuration.partitioning.count != 1) return error.InvalidLogPartitioning;
         }
         const owner: g.direct.ApplicationInvocation = .{ .manager = manager };
@@ -1095,7 +1096,7 @@ pub fn submitPreparedRetained(self: *Self, allocator: std.mem.Allocator, observe
 }
 fn requireRoute(state: c.DirectClientToken.Progress, table: *c.DirectTableClient, namespace: u64) !void {
     const intent = state.receipt.binding.intent;
-    if (!std.meta.eql(intent.connection(), table.connection) or intent.namespace() != namespace) return error.GatewayCatalogDenied;
+    if (!std.meta.eql(intent.connection(), table.connection) or intent.namespace() == 0 or (namespace != 0 and intent.namespace() != namespace)) return error.GatewayCatalogDenied;
 }
 fn foreground(self: *Self, observer: *g.Client, table: *c.DirectTableClient, state: c.DirectClientToken.Progress, deadline: Deadline, retained_kv: ?*const c.DirectKVIntent) !?g.Terminal {
     const intent = state.receipt.binding.intent;

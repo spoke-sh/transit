@@ -6,7 +6,7 @@ const SourceDiagnostic = @import("SourceDiagnostic.zig");
 const Token = f.SqlInput.CompilerScan.Token;
 pub const Role = enum { identifier, type, value, operand, table, stream, queue };
 pub const Hole = struct { name: []const u8, role: Role, start: u32, end: u32 };
-pub const Kind = enum { create, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue, consume, program, control, function_body, guard_body, procedure_body };
+pub const Kind = enum { create, create_schema, insert, update, delete, select, rows, create_stream, create_queue, produce, enqueue, consume, program, control, function_body, guard_body, guard_requires, procedure_body };
 pub const HelperKind = enum { function, guard, procedure };
 const BlockMode = enum { dataflow, function, guard, procedure };
 pub const Syntax = struct { kind: Kind, tokens: []const Token, holes: []const Hole };
@@ -117,6 +117,21 @@ pub fn parseHelperReported(a: std.mem.Allocator, text: []const u8, tokens: []con
     }
     return .{ .kind = kind, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
 }
+pub fn parseGuardRequiresReported(a: std.mem.Allocator, text: []const u8, tokens: []const Token, end: u32, location: *usize, report: ?*SourceDiagnostic.Report) !Syntax {
+    var self: Self = .{ .a = a, .text = text, .tokens = tokens, .end = end, .location = location, .report = report, .allow_holes = false };
+    while (true) {
+        try self.require("REQUIRE");
+        try self.programExpression(0);
+        try self.require("ELSE");
+        try self.string();
+        if (!self.take(",")) break;
+    }
+    if (self.i != tokens.len) {
+        self.failUnexpectedTail();
+        return self.invalid();
+    }
+    return .{ .kind = .guard_requires, .tokens = tokens, .holes = try self.holes.toOwnedSlice(a) };
+}
 fn currentSpan(self: *const Self) SourceDiagnostic.Span {
     return if (self.i < self.tokens.len) .{ .start = self.tokens[self.i].start, .end = self.tokens[self.i].end } else .{ .start = self.end, .end = self.end };
 }
@@ -222,6 +237,10 @@ fn name(self: *Self) !void {
     self.i += 1;
 }
 fn reference(self: *Self) !void {
+    try self.name();
+    if (self.take(".")) try self.name();
+}
+fn qualifiedName(self: *Self) !void {
     try self.name();
     if (self.take(".")) try self.name();
 }
@@ -447,6 +466,42 @@ fn check(self: *Self) !void {
     try self.require(")");
     if (self.take("NOT")) try self.require("VALID");
 }
+fn referencesClause(self: *Self) !void {
+    try self.require("REFERENCES");
+    try self.qualifiedName();
+    try self.require("(");
+    try self.name();
+    while (self.take(",")) try self.name();
+    try self.require(")");
+    while (self.take("ON")) {
+        if (!self.take("DELETE") and !self.take("UPDATE")) return self.invalid();
+        if (self.take("NO")) {
+            try self.require("ACTION");
+        } else if (self.take("SET")) {
+            try self.require("NULL");
+        } else if (!self.take("RESTRICT") and !self.take("CASCADE")) {
+            return self.invalid();
+        }
+    }
+    if (!self.take("NOT") or !self.take("ENFORCED")) {
+        if (self.report) |r| if (r.headline_len == 0) {
+            const sp = self.currentSpan();
+            r.setSpan(null, sp.start, sp.end);
+            r.setHeadline("enforced foreign key constraints are not yet available in storage runtime", .{});
+            r.addNote(null, null, "append 'NOT ENFORCED' for catalog-tracked foreign keys until M11 index enforcement lands", .{});
+        };
+        return self.invalid();
+    }
+}
+fn foreignKey(self: *Self) !void {
+    try self.require("FOREIGN");
+    try self.require("KEY");
+    try self.require("(");
+    try self.name();
+    while (self.take(",")) try self.name();
+    try self.require(")");
+    return self.referencesClause();
+}
 fn tableElement(self: *Self) !void {
     if (self.take("PRIMARY")) {
         try self.require("KEY");
@@ -457,9 +512,20 @@ fn tableElement(self: *Self) !void {
     }
     if (self.take("CONSTRAINT")) {
         try self.name();
+        if (self.is("FOREIGN")) return self.foreignKey();
         return self.check();
     }
+    if (self.is("FOREIGN")) return self.foreignKey();
     if (self.is("CHECK")) return self.check();
+    if (self.is("UNIQUE")) {
+        if (self.report) |r| if (r.headline_len == 0) {
+            const sp = self.currentSpan();
+            r.setSpan(null, sp.start, sp.end);
+            r.setHeadline("'UNIQUE' secondary index constraints are not yet available in storage runtime", .{});
+            r.addNote(null, null, "omit 'UNIQUE' until M11 secondary index enforcement lands", .{});
+        };
+        return self.invalid();
+    }
     try self.name();
     try self.dataType();
     while (true) {
@@ -472,6 +538,21 @@ fn tableElement(self: *Self) !void {
             try self.require("TZIF");
             try self.require("X");
             try self.string();
+        } else if (self.take("CONSTRAINT")) {
+            try self.name();
+            if (self.is("REFERENCES")) try self.referencesClause() else try self.check();
+        } else if (self.is("CHECK")) {
+            try self.check();
+        } else if (self.is("REFERENCES")) {
+            try self.referencesClause();
+        } else if (self.is("UNIQUE")) {
+            if (self.report) |r| if (r.headline_len == 0) {
+                const sp = self.currentSpan();
+                r.setSpan(null, sp.start, sp.end);
+                r.setHeadline("'UNIQUE' secondary index constraints are not yet available in storage runtime", .{});
+                r.addNote(null, null, "omit 'UNIQUE' until M11 secondary index enforcement lands", .{});
+            };
+            return self.invalid();
         } else break;
     }
 }
@@ -547,7 +628,7 @@ fn select(self: *Self) !void {
         try self.require("SELECT");
         if (try self.selection()) return self.invalid();
     }
-    try self.name();
+    try self.qualifiedName();
     if (self.take("AS")) try self.name() else if (self.is("$") or self.tag(.quoted) or (self.tag(.word) and !f.Sql.isReserved(self.raw()) and !self.clauseWord())) try self.name();
     if (self.take("WHERE")) try self.predicate();
     if (self.take("LIMIT")) try self.unsigned();
@@ -594,7 +675,10 @@ fn helperName(self: *Self) !void {
     if (self.take(".")) try self.sourceWordName();
 }
 fn resourceName(self: *Self, role: Role) !void {
-    if (!try self.hole(role)) try self.programName();
+    if (!try self.hole(role)) {
+        try self.programName();
+        if (self.take(".")) try self.programName();
+    }
 }
 fn programArguments(self: *Self) anyerror!void {
     try self.require("(");
@@ -625,6 +709,8 @@ fn programPrimary(self: *Self) anyerror!void {
         try self.require("AS");
         try self.require("TEXT");
         try self.require(")");
+    } else if (self.i + 1 < self.tokens.len and self.tokens[self.i + 1].kind == .string and (self.take("UUID") or self.take("TIMESTAMP") or self.take("TIMESTAMPTZ") or self.take("X"))) {
+        self.i += 1;
     } else if (self.tag(.number) or self.tag(.string)) {
         self.i += 1;
     } else {
@@ -802,8 +888,21 @@ fn program(self: *Self) !Kind {
 }
 fn statement(self: *Self) !Kind {
     if (self.take("CREATE")) {
+        if (self.take("SCHEMA")) {
+            try self.name();
+            if (self.is("AUTHORIZATION")) {
+                if (self.report) |r| if (r.headline_len == 0) {
+                    const sp = self.currentSpan();
+                    r.setSpan(null, sp.start, sp.end);
+                    r.setHeadline("schema 'AUTHORIZATION' owner bindings are not yet supported in .transit templates", .{});
+                    r.addNote(null, null, "omit 'AUTHORIZATION ...' until runtime role/setting bindings land", .{});
+                };
+                return error.RuntimePrivateOrUnsupportedDeclaration;
+            }
+            return .create_schema;
+        }
         if (!self.take("PUBLIC")) {
-            self.failExpected("'PUBLIC' after 'CREATE'");
+            self.failExpected("'PUBLIC' or 'SCHEMA' after 'CREATE'");
             if (self.report) |r| r.addNote(null, null, "resources in .transit modules and targets must be declared 'CREATE PUBLIC TABLE|STREAM|QUEUE|DATAFLOW'", .{});
             return error.RuntimePrivateOrUnsupportedDeclaration;
         }
@@ -812,7 +911,7 @@ fn statement(self: *Self) !Kind {
             self.failExpected("'TABLE', 'STREAM', 'QUEUE' or 'DATAFLOW' after 'CREATE PUBLIC'");
             return error.RuntimePrivateOrUnsupportedDeclaration;
         };
-        try self.name();
+        try self.qualifiedName();
         try self.require("(");
         try self.tableElement();
         while (self.take(",")) try self.tableElement();
@@ -835,7 +934,7 @@ fn statement(self: *Self) !Kind {
         const stream = self.take("PRODUCE");
         if (!stream) try self.require("ENQUEUE");
         try self.require("INTO");
-        if (!try self.hole(if (stream) .stream else .queue)) try self.name();
+        if (!try self.hole(if (stream) .stream else .queue)) try self.qualifiedName();
         if (self.take("(")) {
             try self.name();
             while (self.take(",")) try self.name();
@@ -847,7 +946,7 @@ fn statement(self: *Self) !Kind {
     }
     if (self.take("INSERT")) {
         try self.require("INTO");
-        try self.name();
+        try self.qualifiedName();
         if (self.take("(")) {
             try self.name();
             while (self.take(",")) try self.name();
@@ -858,7 +957,7 @@ fn statement(self: *Self) !Kind {
         return .insert;
     }
     if (self.take("UPDATE")) {
-        try self.name();
+        try self.qualifiedName();
         try self.require("SET");
         while (true) {
             try self.reference();
@@ -871,7 +970,7 @@ fn statement(self: *Self) !Kind {
     }
     if (self.take("DELETE")) {
         try self.require("FROM");
-        try self.name();
+        try self.qualifiedName();
         if (self.take("WHERE")) try self.predicate();
         return .delete;
     }
@@ -886,11 +985,20 @@ fn statement(self: *Self) !Kind {
             if (!self.take(",")) break;
         };
         try self.require("FROM");
-        if (!try self.hole(.stream)) try self.name();
+        if (!try self.hole(.stream)) try self.qualifiedName();
         if (self.take("AS")) try self.name();
         if (self.take("WHERE")) try self.predicate();
         if (self.take("LIMIT")) try self.unsigned();
         return .consume;
+    }
+    if (self.is("GRANT") or self.is("REVOKE")) {
+        if (self.report) |r| if (r.headline_len == 0) {
+            const sp = self.currentSpan();
+            r.setSpan(null, sp.start, sp.end);
+            r.setHeadline("authorization '{s}' statements are not yet supported in .transit templates", .{self.raw()});
+            r.addNote(null, null, "runtime role and setting grants belong to deployment authorization policy", .{});
+        };
+        return error.UnsupportedBuildStatement;
     }
     if (self.report) |r| if (r.headline_len == 0) {
         var buf: [96]u8 = undefined;

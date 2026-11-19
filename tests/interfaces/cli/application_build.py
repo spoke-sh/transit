@@ -581,7 +581,8 @@ def install_modular_programs(fixture, sql):
     head_a = await_head(fixture, 'modular_orders_a', lambda h: h['completed'] + h['refused'] >= 1)['observation']['head']
     assert (head_a['completed'], head_a['refused']) == (1, 0), head_a
     fixture.console('\n'.join(lines[27:31]))
-    head_a = await_head(fixture, 'modular_orders_a', lambda h: h['completed'] + h['refused'] >= 5)['observation']['head']
+    for terminal_count in range(2, 6):
+        head_a = await_head(fixture, 'modular_orders_a', lambda h, expected=terminal_count: h['completed'] + h['refused'] >= expected)['observation']['head']
     assert (head_a['completed'], head_a['refused']) == (1, 4), head_a
     await_head(fixture, 'modular_orders_a', lambda h: h['pending'] is not None and h['attempt'] == 6)
     fixture.console('SUSPEND DATAFLOW modular_orders_a;')
@@ -1241,6 +1242,360 @@ def workspace_composition_journey(cli, temporary):
             print(f'Private failed workspace composition execution: {fixture.root}', file=sys.stderr)
 
 
+def multi_schema_platform_journey(cli, temporary):
+    root = temporary / 'multi-schema-platform'
+    source(root, 'build.transit', (
+        "IMPORT MODULE apps FROM './apps/build.transit';\n"
+        "EXPORT TARGET platform_sql = apps.platform_sql;\n"
+        "EXPORT TARGET platform_migrations = apps.platform_migrations;\n"
+        "EXPORT DEFAULT TARGET platform_sql;\n"
+    ))
+    source(root, 'apps/build.transit', (
+        "IMPORT MODULE platform FROM './platform/build.transit';\n"
+        "EXPORT TARGET platform_sql = platform.sql;\n"
+        "EXPORT TARGET platform_migrations = platform.migrations;\n"
+    ))
+    source(root, 'apps/platform/shared/types.transit', (
+        "CREATE PUBLIC DOMAIN EnvId AS UUID IDENTITY 'platform.env-id';\n"
+        "CREATE PUBLIC FUNCTION format_tag(meta ROW(region TEXT, active BOOLEAN)) RETURNS TEXT AS BEGIN\n"
+        "  RETURN CASE WHEN meta.active THEN meta.region ELSE 'disabled' END;\n"
+        "END;\n"
+    ))
+    tenancy_state_v1 = (
+        "CREATE SCHEMA tenancy;\n"
+        "CREATE PUBLIC TABLE tenancy.environments (\n"
+        "  id $env_ty PRIMARY KEY,\n"
+        "  tenant_code TEXT NOT NULL,\n"
+        "  active BOOLEAN NOT NULL,\n"
+        "  secret_note TEXT NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC TABLE tenancy.audit_internal (id BIGINT PRIMARY KEY, note TEXT NOT NULL);\n"
+    )
+    source(root, 'apps/platform/tenancy/state.transit', tenancy_state_v1)
+    source(root, 'apps/platform/tenancy/guards.transit', (
+        "IMPORT types FROM '../shared/types.transit';\n"
+        "CREATE GUARD tenancy.require_scope(scope ROW(expected_tenant TEXT, actual_tenant TEXT, active BOOLEAN)) AS\n"
+        "  REQUIRE scope.active ELSE 'InactiveEnvironment',\n"
+        "  REQUIRE scope.actual_tenant = scope.expected_tenant ELSE 'TenantMismatch';\n"
+        "CREATE GUARD tenancy.require_environment(env_id types.EnvId, expected_tenant TEXT) AS BEGIN\n"
+        "  LET found = SELECT tenant_code, active FROM tenancy.environments WHERE id = env_id;\n"
+        "  REQUIRE found IS NOT NULL ELSE 'MissingEnvironment';\n"
+        "  CHECK GUARD tenancy.require_scope(ROW(expected_tenant, found.tenant_code, found.active));\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/tenancy/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE) AS BEGIN\n"
+        "  BIND SCHEMA tenancy TO schema;\n"
+        "  USE MODULE types;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './guards.transit';\n"
+        "  EXPORT REFERENCE TABLE tenancy.environments(id, tenant_code);\n"
+        "  EXPORT GUARD tenancy.require_environment;\n"
+        "  EXPORT GUARD tenancy.require_scope;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/networking/state.transit', (
+        "CREATE SCHEMA networking;\n"
+        "CREATE PUBLIC TABLE networking.networks (\n"
+        "  id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  cidr TEXT NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC TABLE networking.attachments (\n"
+        "  net_id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL,\n"
+        "  tag TEXT NOT NULL\n"
+        ");\n"
+    ))
+    source(root, 'apps/platform/networking/procedures.transit', (
+        "IMPORT types FROM '../shared/types.transit';\n"
+        "CREATE PROCEDURE networking.attach_consumer(\n"
+        "  net_id BIGINT,\n"
+        "  env_id types.EnvId,\n"
+        "  meta ROW(region TEXT, active BOOLEAN)\n"
+        ") RETURNS TEXT AS BEGIN ATOMIC\n"
+        "  LET net = SELECT cidr FROM networking.networks WHERE id = net_id;\n"
+        "  REQUIRE net IS NOT NULL ELSE 'MissingNetwork';\n"
+        "  LET tag = types.format_tag(meta);\n"
+        "  INSERT INTO networking.attachments VALUES (net_id, env_id, tag) ON CONFLICT (net_id) DO ASSERT SAME ROW;\n"
+        "  RETURN tag;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/networking/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE, tenancy MODULE OF tenancy_build.application) AS BEGIN\n"
+        "  BIND SCHEMA networking TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './procedures.transit';\n"
+        "  EXPORT REFERENCE TABLE networking.networks(id);\n"
+        "  EXPORT PROCEDURE networking.attach_consumer;\n"
+        "END;\n"
+    ))
+    deployments_state = (
+        "CREATE SCHEMA deployments;\n"
+        "CREATE PUBLIC TABLE deployments.releases (\n"
+        "  id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  net_id BIGINT NOT NULL REFERENCES networking.networks(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  deployed_at TIMESTAMPTZ NOT NULL,\n"
+        "  digest BINARY NOT NULL,\n"
+        "  tag TEXT NOT NULL\n"
+        ");\n"
+    )
+    source(root, 'apps/platform/deployments/state.transit', deployments_state)
+    source(root, 'apps/platform/deployments/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "IMPORT MODULE networking_build FROM '../networking/build.transit';\n"
+        "EXPORT MODULE application(\n"
+        "  schema SCHEMA_BINDING,\n"
+        "  env_ty TYPE,\n"
+        "  tenancy MODULE OF tenancy_build.application,\n"
+        "  networking MODULE OF networking_build.application\n"
+        ") AS BEGIN\n"
+        "  BIND SCHEMA deployments TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  USE MODULE networking;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  EXPORT TABLE deployments.releases;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/operations/state.transit', (
+        "CREATE SCHEMA operations;\n"
+        "CREATE PUBLIC TABLE operations.heartbeats (\n"
+        "  release_id BIGINT PRIMARY KEY REFERENCES deployments.releases(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  checked_at TIMESTAMPTZ NOT NULL\n"
+        ");\n"
+    ))
+    source(root, 'apps/platform/operations/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "IMPORT MODULE deployments_build FROM '../deployments/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, deployments MODULE OF deployments_build.application) AS BEGIN\n"
+        "  BIND SCHEMA operations TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE deployments;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  EXPORT TABLE operations.heartbeats;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/billing/state.transit', (
+        "CREATE SCHEMA billing;\n"
+        "CREATE PUBLIC TABLE billing.ledgers (\n"
+        "  id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  units BIGINT NOT NULL CHECK (units >= 0)\n"
+        ");\n"
+    ))
+    source(root, 'apps/platform/billing/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE, tenancy MODULE OF tenancy_build.application) AS BEGIN\n"
+        "  BIND SCHEMA billing TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  EXPORT TABLE billing.ledgers;\n"
+        "END;\n"
+    ))
+    source(root, 'apps/platform/ingress/flow.transit', (
+        "CREATE SCHEMA ingress;\n"
+        "CREATE PUBLIC QUEUE ingress.deploy_requests (\n"
+        "  release_id BIGINT NOT NULL,\n"
+        "  env_id $env_ty NOT NULL,\n"
+        "  tenant_code TEXT NOT NULL,\n"
+        "  net_id BIGINT NOT NULL,\n"
+        "  region TEXT NOT NULL,\n"
+        "  deployed_at TIMESTAMPTZ NOT NULL,\n"
+        "  digest BINARY NOT NULL,\n"
+        "  units BIGINT NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC STREAM ingress.deploy_events (release_id BIGINT NOT NULL, tag TEXT NOT NULL);\n"
+        "CREATE PUBLIC DATAFLOW ingress.provision_release FROM QUEUE ingress.deploy_requests AS req AS BEGIN\n"
+        "  CHECK GUARD tenancy.require_environment(req.env_id, req.tenant_code);\n"
+        "  BEGIN ATOMIC\n"
+        "    LET tag = CALL networking.attach_consumer(req.net_id, req.env_id, ROW(req.region, TRUE));\n"
+        "    INSERT INTO deployments.releases VALUES (req.release_id, req.env_id, req.net_id, req.deployed_at, req.digest, tag) ON CONFLICT (id) DO ASSERT SAME ROW;\n"
+        "    INSERT INTO operations.heartbeats VALUES (req.release_id, req.deployed_at) ON CONFLICT (release_id) DO ASSERT SAME ROW;\n"
+        "    INSERT INTO billing.ledgers VALUES (req.release_id, req.env_id, req.units) ON CONFLICT (id) DO ASSERT SAME ROW;\n"
+        "    PRODUCE INTO ingress.deploy_events VALUES (req.release_id, tag);\n"
+        "  END;\n"
+        "END;\n"
+        "AUTHORIZE DATAFLOW ingress.provision_release AS ROLE CURRENT_ROLE;\n"
+        "ACTIVATE DATAFLOW ingress.provision_release;\n"
+    ))
+    source(root, 'apps/platform/ingress/build.transit', (
+        "IMPORT MODULE types FROM '../shared/types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "IMPORT MODULE networking_build FROM '../networking/build.transit';\n"
+        "IMPORT MODULE deployments_build FROM '../deployments/build.transit';\n"
+        "IMPORT MODULE operations_build FROM '../operations/build.transit';\n"
+        "IMPORT MODULE billing_build FROM '../billing/build.transit';\n"
+        "EXPORT MODULE application(\n"
+        "  schema SCHEMA_BINDING,\n"
+        "  env_ty TYPE,\n"
+        "  tenancy MODULE OF tenancy_build.application,\n"
+        "  networking MODULE OF networking_build.application,\n"
+        "  deployments MODULE OF deployments_build.application,\n"
+        "  operations MODULE OF operations_build.application,\n"
+        "  billing MODULE OF billing_build.application\n"
+        ") AS BEGIN\n"
+        "  BIND SCHEMA ingress TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  USE MODULE networking;\n"
+        "  USE MODULE deployments;\n"
+        "  USE MODULE operations;\n"
+        "  USE MODULE billing;\n"
+        "  DECLARE FROM './flow.transit';\n"
+        "END;\n"
+    ))
+
+    def write_platform_build(mig_basis='EMPTY', mig_version='0001-platform'):
+        source(root, 'apps/platform/build.transit', (
+            "IMPORT MODULE types FROM './shared/types.transit';\n"
+            "IMPORT MODULE tenancy FROM './tenancy/build.transit';\n"
+            "IMPORT MODULE networking FROM './networking/build.transit';\n"
+            "IMPORT MODULE deployments FROM './deployments/build.transit';\n"
+            "IMPORT MODULE operations FROM './operations/build.transit';\n"
+            "IMPORT MODULE billing FROM './billing/build.transit';\n"
+            "IMPORT MODULE ingress FROM './ingress/build.transit';\n"
+            "EXPORT MODULE schema_tables() AS BEGIN\n"
+            "  LET t = USE MODULE tenancy.application(schema => SCHEMA_BINDING('tenancy'), env_ty => TYPE types.EnvId);\n"
+            "  LET n = USE MODULE networking.application(schema => SCHEMA_BINDING('networking'), env_ty => TYPE types.EnvId, tenancy => t);\n"
+            "  LET d = USE MODULE deployments.application(schema => SCHEMA_BINDING('deployments'), env_ty => TYPE types.EnvId, tenancy => t, networking => n);\n"
+            "  LET o = USE MODULE operations.application(schema => SCHEMA_BINDING('operations'), deployments => d);\n"
+            "  LET b = USE MODULE billing.application(schema => SCHEMA_BINDING('billing'), env_ty => TYPE types.EnvId, tenancy => t);\n"
+            "END;\n"
+            "EXPORT MODULE full_platform() AS BEGIN\n"
+            "  LET t = USE MODULE tenancy.application(schema => SCHEMA_BINDING('tenancy'), env_ty => TYPE types.EnvId);\n"
+            "  LET n = USE MODULE networking.application(schema => SCHEMA_BINDING('networking'), env_ty => TYPE types.EnvId, tenancy => t);\n"
+            "  LET d = USE MODULE deployments.application(schema => SCHEMA_BINDING('deployments'), env_ty => TYPE types.EnvId, tenancy => t, networking => n);\n"
+            "  LET o = USE MODULE operations.application(schema => SCHEMA_BINDING('operations'), deployments => d);\n"
+            "  LET b = USE MODULE billing.application(schema => SCHEMA_BINDING('billing'), env_ty => TYPE types.EnvId, tenancy => t);\n"
+            "  LET i = USE MODULE ingress.application(schema => SCHEMA_BINDING('ingress'), env_ty => TYPE types.EnvId, tenancy => t, networking => n, deployments => d, operations => o, billing => b);\n"
+            "END;\n"
+            "LET tables_only = USE MODULE schema_tables();\n"
+            "LET control = USE MODULE full_platform();\n"
+            "EXPORT TARGET sql AS SQL OF control INTO '../../.local/build/platform/application.sql';\n"
+            f"EXPORT TARGET migrations AS MIGRATIONS OF tables_only FROM {mig_basis} VERSION '{mig_version}' INTO '../../.local/build/platform/migrations';\n"
+        ))
+
+    write_platform_build()
+    mig_v1 = cli_build(cli, root, '--target', 'platform_migrations')
+    assert mig_v1['target'] == 'platform_migrations' and mig_v1['statements'] == 12, mig_v1
+    v1_dir = Path(mig_v1['directory'])
+    v1_sql = (v1_dir / 'migrations/0001-platform.sql').read_text()
+    for s_name in ('tenancy', 'networking', 'deployments', 'operations', 'billing'):
+        assert f'CREATE SCHEMA "{s_name}"' in v1_sql, v1_sql
+
+    # Negative capability & FK controls before v2 evolution.
+    for mutated, expected_cause in (
+        (deployments_state + "SELECT id FROM tenancy.environments;\n", 'ReferenceOnlyTableAccess'),
+        (deployments_state.replace('REFERENCES tenancy.environments(id)', 'REFERENCES tenancy.environments(secret_note)'), 'ReferenceOnlyTableAccess'),
+        (deployments_state + "SELECT id FROM tenancy.audit_internal;\n", 'UnexportedModuleResource'),
+    ):
+        source(root, 'apps/platform/deployments/state.transit', mutated)
+        refused = cli_build(cli, root, '--check', expected=1)
+        assert any(f and f['field'] == 'native_cause' and f['value'] == {'text': expected_cause} for f in refused['facts']), refused
+    source(root, 'apps/platform/deployments/state.transit', deployments_state.replace(' NOT ENFORCED', '', 1))
+    omitted_fk = subprocess.run([str(cli), 'build', '--check', '--color', 'off'], cwd=root,
+                                capture_output=True, text=True, timeout=60, env={'PATH': '/unavailable'}, preexec_fn=offline)
+    assert omitted_fk.returncode == 1 and "note: append 'NOT ENFORCED' for catalog-tracked foreign keys" in omitted_fk.stderr, omitted_fk.stderr
+    source(root, 'apps/platform/deployments/state.transit', deployments_state)
+
+    # Evolve v2: add a nullable column on parent table tenancy.environments without invalidating child FKs.
+    v1_basis_rel = '../../' + str(v1_dir.relative_to(root) / 'basis.json')
+    source(root, 'apps/platform/tenancy/state.transit',
+           tenancy_state_v1.replace('secret_note TEXT NOT NULL\n', 'secret_note TEXT NOT NULL,\n  region TEXT\n'))
+    write_platform_build(mig_basis=f"'{v1_basis_rel}'", mig_version='0002-platform')
+    mig_v2 = cli_build(cli, root, '--target', 'platform_migrations')
+    assert mig_v2['statements'] == 1, mig_v2
+    v2_dir = Path(mig_v2['directory'])
+    v2_delta = (v2_dir / 'migrations/0002-platform.sql').read_text()
+    assert 'ALTER TABLE "tenancy"."environments" ADD COLUMN REGION TEXT;' in v2_delta, v2_delta
+
+    built_sql = cli_build(cli, root, '--target', 'platform_sql')
+    app_lines = (Path(built_sql['directory']) / 'application.sql').read_text().splitlines()
+    assert len(app_lines) == 18, app_lines
+
+    fixture = Fixture(cli)
+    fixture.use_private_runtime()
+    passed = False
+    try:
+        fixture.start()
+        fixture.ready()
+        migrations = fixture.root / 'migrations'
+        shutil.copytree(v1_dir / 'migrations', migrations)
+
+        def migrate(action, *args, expected=0):
+            result = subprocess.run([fixture.cli, 'migrate', action, '--format', 'json', *map(str, args)],
+                                    cwd=fixture.root, env=fixture.environment, text=True, capture_output=True, timeout=90)
+            assert result.returncode == expected, (action, result.stdout, result.stderr)
+            return json.loads(result.stdout)
+
+        assert migrate('apply', '--dir', migrations)['outcome'] == 'applied'
+        shutil.copy2(v2_dir / 'migrations/0002-platform.sql', migrations)
+        assert migrate('apply', '--dir', migrations)['outcome'] == 'applied'
+        assert migrate('verify', '--dir', migrations)['outcome'] == 'verified'
+        shutil.rmtree(root)
+
+        shown_schemas = [row['schema'] for row in records(fixture.console('SHOW SCHEMAS;')[-1])]
+        for s_name in ('public', 'tenancy', 'networking', 'deployments', 'operations', 'billing'):
+            assert s_name in shown_schemas, shown_schemas
+
+        # Runtime NOT ENFORCED cross-schema FK catalog dependency protection.
+        fixture.console('DROP TABLE tenancy.environments RESTRICT;', expected=1)
+        fixture.console('DROP SCHEMA tenancy RESTRICT;', expected=1)
+
+        # Install the 6th schema ('ingress') Queue, Stream and cross-schema Dataflow.
+        ingress_lines = app_lines[12:]
+        assert ingress_lines[0].startswith('CREATE SCHEMA "ingress"')
+        fixture.console(
+            '\n'.join(ingress_lines[:3]) + '\n'
+            "ALTER QUEUE ingress.deploy_requests SET (lease_duration = '120s', max_lease_duration = '120s');\n"
+            + '\n'.join(ingress_lines[3:])
+        )
+        env_ok = '550e8400-e29b-41d4-a716-446655440000'
+        fixture.console(
+            f"INSERT INTO tenancy.environments VALUES (UUID '{env_ok}', 'acme', TRUE, 'sealed', 'us-west');\n"
+            f"INSERT INTO networking.networks VALUES (10, UUID '{env_ok}', '10.0.0.0/16');"
+        )
+        fixture.console(
+            f"ENQUEUE INTO ingress.deploy_requests VALUES (501, UUID '{env_ok}', 'acme', 10, 'us-west-2', TIMESTAMP '2026-06-01T12:00:00Z', X'CAFE', 42);"
+        )
+        first = await_head(fixture, 'ingress.provision_release', lambda h: h['completed'] >= 1)['observation']['head']
+        assert (first['completed'], first['refused']) == (1, 0), first
+        fixture.console(
+            f"ENQUEUE INTO ingress.deploy_requests VALUES (502, UUID '{env_ok}', 'wrong-tenant', 10, 'us-west-2', TIMESTAMP '2026-06-01T12:01:00Z', X'BEEF', 10);"
+        )
+        head = await_head(fixture, 'ingress.provision_release', lambda h: h['refused'] >= 1)['observation']['head']
+        assert (head['completed'], head['refused']) == (1, 1), head
+
+        env_hex = env_ok.replace('-', '')
+        releases = records(fixture.console('SELECT id, env_id, net_id, tag FROM deployments.releases;')[-1])
+        assert releases == [{'id': '501', 'env_id': env_hex, 'net_id': '10', 'tag': 'us-west-2'}], releases
+        attachments = records(fixture.console('SELECT net_id, env_id, tag FROM networking.attachments;')[-1])
+        assert attachments == [{'net_id': '10', 'env_id': env_hex, 'tag': 'us-west-2'}], attachments
+        heartbeats = records(fixture.console('SELECT release_id FROM operations.heartbeats;')[-1])
+        assert heartbeats == [{'release_id': '501'}], heartbeats
+        ledgers = records(fixture.console('SELECT id, units FROM billing.ledgers;')[-1])
+        assert ledgers == [{'id': '501', 'units': '42'}], ledgers
+        events = records(fixture.console('CONSUME release_id, tag FROM ingress.deploy_events;')[-1])
+        assert events == [{'release_id': '501', 'tag': 'us-west-2'}], events
+        passed = True
+    finally:
+        fixture.cleanup()
+        if passed:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f'Private failed multi-schema platform execution: {fixture.root}', file=sys.stderr)
+
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-build-') as temporary:
@@ -1253,6 +1608,8 @@ def main():
         migration_journey(cli, Path(temporary))
         print('Application build: workspace module-instance DAG and delegated targets', flush=True)
         workspace_composition_journey(cli, Path(temporary))
+        print('Application build: 6-schema reference exports, migrations and cross-schema dataflow', flush=True)
+        multi_schema_platform_journey(cli, Path(temporary))
         print('Application build: generated ordinary fixture', flush=True)
         generated = execute_program(cli, sql, typed_sql, queue_sql)
         print('Application build: generated typed Queue fixture', flush=True)

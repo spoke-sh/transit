@@ -132,9 +132,9 @@ pub const StreamFramer = struct {
                 if (token.isWord(kind)) self.compound = true;
             }
         }
-        // A finite query owns its contextual aliases. Once AS SELECT starts
-        // that query, a later AS begin cannot open a compound declaration.
-        if (self.compound and !self.body and self.after_as and token.isWord("SELECT")) self.compound = false;
+        // A finite query or guard expression list owns its contextual words.
+        // Once AS SELECT or AS REQUIRE starts, a later AS begin cannot open a body.
+        if (self.compound and !self.body and self.after_as and (token.isWord("SELECT") or token.isWord("REQUIRE"))) self.compound = false;
         if (self.body and self.instruction_start and token.isWord("TEST")) self.test_header = true;
         const opens_body = self.compound and (!self.body or self.test_header) and self.after_as and token.isWord("BEGIN");
         if (opens_body) {

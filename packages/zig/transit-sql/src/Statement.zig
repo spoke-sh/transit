@@ -251,7 +251,23 @@ fn prepareInner(allocator: std.mem.Allocator, client: *c.DirectTableClient, name
             _ = try g.Type.admit(field, dialect, .result, wire_failure);
         };
     }
-    var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .namespace = namespace, .dialect = dialect, .inspection = profile == .inspection, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
+    const target_namespace: u64 = switch (plan) {
+        .select => |value| value.binding.namespace,
+        .dml => |value| value.binding.namespace,
+        .ddl => |value| value.namespace,
+        .document_ddl => |value| value.namespace,
+        .kv_ddl => |value| value.namespace,
+        .kv_write => |value| value.namespace,
+        .kv_get => |value| value.namespace,
+        .log_ddl => |value| value.namespace,
+        .log_append => |value| value.definition.properties.namespace,
+        .log_consume => |value| value.definition.properties.namespace,
+        .log_claim => |value| value.definition.properties.namespace,
+        .log_settlement => |value| value.definition.properties.namespace,
+        .log_offset => |value| value.definition.properties.namespace,
+        .relational, .namespace_change => namespace,
+    };
+    var result: Self = .{ .allocator = allocator, .text = owned, .connection = client.connection, .namespace = target_namespace, .dialect = dialect, .inspection = profile == .inspection, .plan = plan, .output = if (output) |schema| try schema.clone(allocator) else null };
     errdefer if (result.output) |*schema| schema.deinit();
     if (profile == .wire) for (result.parameters(), 1..) |parameter, index| {
         var buffer: [20]u8 = undefined;

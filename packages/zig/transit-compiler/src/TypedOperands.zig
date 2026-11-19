@@ -34,11 +34,74 @@ fn at(self: *Self, span: Span) ?types.Value {
     };
     return null;
 }
+fn fullSpan(qualifier_span: ?Span, leaf_span: Span) Span {
+    return .{ .start = if (qualifier_span) |qs| qs.start else leaf_span.start, .end = leaf_span.end };
+}
 fn target(self: *Self, span: Span, table: *const types.Table) !void {
     if (self.at(span)) |value| switch (value) {
         .table, .stream, .queue => |resource| if (resource != table) return error.SourceTableBindingMismatch,
+        .reference_table => return error.ReferenceOnlyTableAccess,
         else => {},
     };
+}
+
+fn findExportedCapability(bindings: []const types.Binding, entry: *const types.Table, saw_ref: *bool) ?types.Value {
+    for (bindings) |b| {
+        switch (b.value) {
+            .table, .stream, .queue => |res| if (res == entry) return b.value,
+            .reference_table => |ref_tbl| if (ref_tbl.table == entry) {
+                saw_ref.* = true;
+            },
+            .instance => |inst| for (inst.exports) |exp| switch (exp.value) {
+                .table, .stream, .queue => |res| if (res == entry) return exp.value,
+                .reference_table => |ref_tbl| if (ref_tbl.table == entry) {
+                    saw_ref.* = true;
+                },
+                else => {},
+            },
+            else => {},
+        }
+    }
+    return null;
+}
+
+pub fn checkResourceAccess(owner: usize, bindings: []const types.Binding, entry: *const types.Table, context: *Context) !void {
+    if (owner == 0 or !entry.encapsulated or entry.owner == owner) return;
+    var saw_ref = false;
+    if (findExportedCapability(bindings, entry, &saw_ref) != null) return;
+    context.* = .{ .name = entry.name };
+    return if (saw_ref) error.ReferenceOnlyTableAccess else error.UnexportedModuleResource;
+}
+
+pub fn checkReferenceAccess(owner: usize, bindings: []const types.Binding, entry: *const types.Table, target_columns: @FieldType(f.SqlForeignKey.Syntax, "target_columns"), span: ?Span, context: *Context) !void {
+    if (owner == 0 or !entry.encapsulated or entry.owner == owner) return;
+    var saw_ref = false;
+    if (findExportedCapability(bindings, entry, &saw_ref) != null) return;
+    var matched_ref: ?types.ReferenceTable = null;
+    for (bindings) |b| switch (b.value) {
+        .reference_table => |ref_tbl| if (ref_tbl.table == entry) {
+            matched_ref = ref_tbl;
+            break;
+        },
+        .instance => |inst| for (inst.exports) |exp| if (exp.value == .reference_table and exp.value.reference_table.table == entry) {
+            matched_ref = exp.value.reference_table;
+            break;
+        },
+        else => {},
+    };
+    const ref_tbl = matched_ref orelse {
+        context.* = .{ .offset = if (span) |sp| sp.start else 0, .end = if (span) |sp| sp.end else 0, .name = entry.name };
+        return error.UnexportedModuleResource;
+    };
+    for (target_columns) |col_ref| {
+        const allowed = for (ref_tbl.columns) |exported_col| {
+            if (std.mem.eql(u8, exported_col, col_ref.name)) break true;
+        } else false;
+        if (!allowed) {
+            context.* = .{ .offset = col_ref.span.start, .end = col_ref.span.end, .name = entry.name, .column = col_ref.name };
+            return error.ReferenceOnlyTableAccess;
+        }
+    }
 }
 fn scalar(self: *Self, span: Span, table: *const types.Table, column: usize, role: @FieldType(Operand, "role")) !void {
     const expected = table.domains[column];
@@ -106,8 +169,9 @@ fn parameters(self: *Self, expected: []const f.Types.Type) !void {
     };
     if (index != expected.len) return error.InvalidSourceOperand;
 }
-fn declaration(self: *Self, output: std.mem.Allocator, catalog: *Catalog, create: f.TableDdl.Create) !*const types.Table {
-    const table = try catalog.findResource(create.name);
+fn declaration(self: *Self, output: std.mem.Allocator, catalog: *Catalog, owner: usize, bindings: []const types.Binding, schema_name: ?[]const u8, create: f.TableDdl.Create) !*const types.Table {
+    const target_schema = schema_name orelse create.schema_name orelse "public";
+    const table = try catalog.findResourceQualified(target_schema, create.name);
     const domains = try output.alloc(?Graph.Ref, create.columns.len);
     @memset(domains, null);
     for (create.columns, create.column_type_spans, 0..) |column, span, i| {
@@ -118,6 +182,28 @@ fn declaration(self: *Self, output: std.mem.Allocator, catalog: *Catalog, create
             if (domains[i] != null) {
                 if (column.nullable or column.default != null) return error.UnsupportedNominalColumn;
                 for (create.integrity.checks) |constraint| if (constraint.referencesColumn(column.id)) return error.UnsupportedNominalColumn;
+            }
+        }
+    }
+    for (create.foreign_keys) |fk| {
+        const parent_schema = fk.target_schema orelse target_schema;
+        const parent = try catalog.findQualified(parent_schema, fk.target);
+        try checkReferenceAccess(owner, bindings, parent, fk.target_columns, fk.target_span, self.context);
+        for (fk.local_columns, fk.target_columns) |local_ref, remote_ref| {
+            const local_idx = try local_ref.resolve(create.name, create.columns, null);
+            const remote_idx = try remote_ref.resolve(parent.name, parent.schema.columns, null);
+            const child_dom = domains[local_idx];
+            const parent_dom = parent.domains[remote_idx];
+            if (!std.meta.eql(child_dom, parent_dom)) {
+                self.context.* = .{
+                    .offset = local_ref.span.start,
+                    .end = local_ref.span.end,
+                    .name = table.name,
+                    .column = create.columns[local_idx].name,
+                    .expected = if (parent_dom) |ref| self.graph.getDefinition(ref).domain.?.identity else @tagName(parent.schema.columns[remote_idx].type),
+                    .actual = if (child_dom) |ref| self.graph.getDefinition(ref).domain.?.identity else @tagName(create.columns[local_idx].type),
+                };
+                return error.SourceDomainMismatch;
             }
         }
     }
@@ -176,7 +262,7 @@ fn consume(self: *Self, table: *const types.Table, prepared: *const f.LogConsume
     try self.parameters(prepared.parameterTypes());
 }
 
-pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, sql: []const u8, sites: []const Site, symbolic: bool, context: *Context) !Checked {
+pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, catalog: *Catalog, owner: usize, bindings: []const types.Binding, sql: []const u8, sites: []const Site, symbolic: bool, context: *Context) !Checked {
     const used = try a.alloc(bool, sites.len);
     @memset(used, false);
     var self: Self = .{ .a = a, .sites = sites, .used = used, .graph = graph, .context = context };
@@ -189,40 +275,43 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
             var log = try f.LogDdl.compile(a, sql, .transit, null);
             defer log.deinit();
             if (log.statement.action != .create) return error.UnsupportedBuildStatement;
-            checked_table = try self.declaration(output, catalog, log.statement.action.create);
+            checked_table = try self.declaration(output, catalog, owner, bindings, log.statement.schema_name, log.statement.action.create);
         } else {
             const input = try f.TableDdl.syntax(&parser, null);
             try parser.finish();
             if (input != .create) return error.UnsupportedBuildStatement;
-            checked_table = try self.declaration(output, catalog, input.create);
+            checked_table = try self.declaration(output, catalog, owner, bindings, input.create.schema_name, input.create);
         }
     } else if (parser.word("PRODUCE") or parser.word("ENQUEUE")) {
         const selected = try f.LogAppendSql.target(a, sql, .transit, null);
-        const table = try catalog.findResource(selected.source.name);
+        const table = try catalog.findResourceQualified(selected.source.qualifier, selected.source.name);
+        try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
         if (!std.mem.eql(u8, @tagName(table.kind), @tagName(selected.kind))) return error.SourceTypeMismatch;
         self.context.* = .{ .name = table.name };
-        try self.target(selected.source.span, table);
+        try self.target(fullSpan(selected.source.qualifier_span, selected.source.span), table);
         var prepared = try f.LogAppendSql.Prepared.init(a, sql, table.schema, .transit, null);
         defer prepared.deinit();
         try self.insert(prepared.template.syntax.action.insert, table);
         try self.parameters(prepared.parameterTypes());
     } else if (parser.word("CONSUME")) {
         const selected = try f.LogConsumeSql.target(a, sql, .transit, null);
-        const table = try catalog.findResource(selected.name);
+        const table = try catalog.findResourceQualified(selected.qualifier, selected.name);
+        try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
         if (table.kind != .stream) return error.SourceTypeMismatch;
         self.context.* = .{ .name = table.name };
-        try self.target(selected.span, table);
+        try self.target(fullSpan(selected.qualifier_span, selected.span), table);
         var prepared = try f.LogConsumeSql.Prepared.init(a, sql, table.schema, .transit, null);
         defer prepared.deinit();
         try self.consume(table, &prepared);
     } else if (parser.word("SELECT")) {
         const input = try f.TableSelect.syntax(&parser, null);
         try parser.finish();
-        const table = try catalog.find(input.subject.name);
+        const table = try catalog.findQualified(input.subject.qualifier, input.subject.name);
+        try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
-        try self.target(input.subject.span, table);
+        try self.target(fullSpan(input.subject.qualifier_span, input.subject.span), table);
         const nominal_projection = try self.selection(input.selection, table, input.qualifier);
         // Raw derived projections keep ordinary semantics; carrying annotations
         // through a derived alias needs an explicit typed projection contract.
@@ -237,9 +326,10 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
     } else {
         const input = try f.TableDml.syntax(&parser, null);
         try parser.finish();
-        const table = try catalog.find(input.subject.name);
+        const table = try catalog.findQualified(input.subject.schema_name, input.subject.name);
+        try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
-        try self.target(input.subject_span, table);
+        try self.target(fullSpan(input.subject.qualifier_span, input.subject_span), table);
         switch (input.action) {
             .insert => |input_| try self.insert(input_, table),
             .update => |assignments| for (assignments) |assignment| {

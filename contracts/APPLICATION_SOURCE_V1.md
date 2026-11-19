@@ -59,7 +59,8 @@ AS BEGIN
 END;
 ```
 
-Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `IDENTIFIER`, `TYPE`, `SCHEMA_BINDING`,
+Parameters are `BIGINT`, `TEXT`, `BOOLEAN`, `UUID`, `TIMESTAMPTZ`, `BINARY`,
+`IDENTIFIER`, `TYPE`, `SCHEMA_BINDING`,
 `ROW(field kind, ...)`, `MODULE interface_name`, `MODULE [OF] constructor_name`,
 named domains/variants or exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
 signatures. Module interfaces describe ordered parameter types; parameter
@@ -75,19 +76,27 @@ module-instance bindings (`LET inst = USE [MODULE] constructor(arguments);` at
 file top level or inside a module body) evaluate a constructor once into an
 immutable module-instance value whose DDL statements emit at most once across a
 diamond dependency DAG; `USE MODULE inst;` brings `inst`'s exported resources and
-helpers (`EXPORT TABLE|STREAM|QUEUE name [AS alias];`,
-`EXPORT FUNCTION|GUARD|PROCEDURE name [AS alias];`) into lexical scope without
+helpers (`EXPORT TABLE|STREAM|QUEUE [schema.]name [AS alias];`,
+`EXPORT REFERENCE TABLE [schema.]name(col, ...) [AS alias];`,
+`EXPORT FUNCTION|GUARD|PROCEDURE [schema.]name [AS alias];`) into lexical scope without
 re-executing `inst`'s body, and `inst.export_name` resolves exported handles and
 callable helpers across `MODULE OF` parameters. `DECLARE FROM '<path>';`
 lexically includes statements from a sibling or child fragment file under the
 enclosing module's scope; loose statements in directly imported module files
-reject. `SCHEMA_BINDING('<name>')` and `BIND SCHEMA <alias> TO <expr>;` validate
-compile-time schema-binding values in the current single-catalog profile without
-installing multi-schema runtime namespaces (`CREATE SCHEMA` and schema-qualified
-`schema.object` SQL DDL/DML remain outside this slice). `EXPORT VIEW`,
-`EXPORT DATAFLOW`, `EXPORT PROFILE` and `EXPORT REFERENCE TABLE` parse for
-actionable diagnostics and reject at compile time (`UnsupportedSourceExport`)
-until their runtime catalog and serving owners land.
+reject. `SCHEMA_BINDING('<name>')` and `BIND SCHEMA <alias> TO <expr>;` bind
+logical module schema names to concrete SQL schema names across `CREATE SCHEMA`,
+schema-qualified `schema.object` DDL/DML/queries, cross-schema `DATAFLOW`
+dependencies and helper bodies; instantiating the same module constructor under
+distinct `SCHEMA_BINDING` values emits disjoint schema-qualified catalogs.
+`EXPORT REFERENCE TABLE` exposes foreign-key target identity over the listed
+columns only (re-exports may preserve or narrow the column subset and cannot
+widen it or convert a reference export into `EXPORT TABLE`; querying, mutating
+or passing a reference-only export as a `TABLE(...)` parameter rejects with
+`ReferenceOnlyTableAccess`). Unexported resources declared inside an imported
+module remain encapsulated (`UnexportedModuleResource`). `EXPORT VIEW`,
+`EXPORT DATAFLOW` and `EXPORT PROFILE` parse for actionable diagnostics and
+reject at compile time (`UnsupportedSourceExport`) until their runtime catalog
+and serving owners land.
 
 `EXPORT TARGET` supports workspace delegation and composition-backed targets:
 - `EXPORT TARGET name = alias.target;` forwards a build, migration or test target
@@ -95,8 +104,11 @@ until their runtime catalog and serving owners land.
 - `EXPORT TARGET name AS SQL OF instance [INTO '<path>'];` emits the ordered SQL
   of a top-level `LET` module instance.
 - `EXPORT TARGET name AS MIGRATIONS OF instance FROM (EMPTY | '<basis>') FOR DATABASE '<db>' SCHEMA '<schema>' VERSION '<ver>' NAME '<name>' [INTO '<path>'];`
-  synthesizes an explicit-basis Table migration for `instance` (omitting `FOR DATABASE`
-  rejects with a dedicated diagnostic note).
+  (or shorthand `EXPORT TARGET name AS MIGRATIONS OF instance [FROM '<basis>'] VERSION '<ver>-<name>' [INTO '<path>'];`,
+  which defaults `FROM EMPTY` and `FOR DATABASE 'transit' SCHEMA 'public'` and splits
+  `<ver>-<name>` on the first `-` or `_`) synthesizes an explicit-basis multi-schema
+  Table migration for `instance` (an explicit `FOR SCHEMA` without `FOR DATABASE`
+  still rejects with a dedicated diagnostic note).
 - `EXPORT TARGET name AS TESTS OF instance USING SUITES (alias.suite, './file.test.transit', ...);`
   composes `EXPORT TEST SUITE` exports and suite files over fresh per-case
   instantiations of `instance`; `TEST '...' USING MODULES (<local_alias>)` binds
@@ -110,7 +122,8 @@ remains the default cache location unless `--out` is passed on the CLI.
 Compile-time expressions
 include parameter references, module and instance references, `ROW(field => expr, ...)`
 literals and `.field` projections, `SCHEMA_BINDING('name')`, signed integer/text/Boolean
-literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN`, named type operands and constructors, parentheses, checked
+literals, `UUID '...'`, `TIMESTAMPTZ '...'` / `TIMESTAMP '...'` and `X'...'` binary
+literals, `NAME 'identifier'`, `TYPE BIGINT|TEXT|BOOLEAN|UUID|TIMESTAMPTZ|BINARY`, named type operands and constructors, parentheses, checked
 integer `+`, `-`, `*`, comparisons and Boolean AND/OR/NOT. Conditional bodies use
 `IF expression THEN ... [ELSE ...] END IF;`. Conditions must be Boolean.
 Expressions have no ambient environment, time, random, database or effect access.
@@ -159,14 +172,18 @@ positional parameters are not part of this fully bound target profile.
 
 ## Executable target
 
-The target supports CREATE TABLE, literal INSERT/UPDATE/DELETE and finite
-single-Table SELECT through Fuze's typed Table owners. It also supports CREATE
-STREAM/QUEUE and literal PRODUCE/ENQUEUE through the shared log owners. Resources are explicitly
+The target supports `CREATE SCHEMA [IF NOT EXISTS]`, schema-qualified and
+unqualified `CREATE TABLE` (including catalog-tracked `REFERENCES ... NOT ENFORCED`
+foreign keys against local, `EXPORT TABLE` or `EXPORT REFERENCE TABLE` parent
+keys; omitting `NOT ENFORCED` rejects explicitly because runtime foreign-key
+enforcement is not part of this profile), literal INSERT/UPDATE/DELETE and finite single-Table SELECT through
+Fuze's typed Table owners. It also supports schema-qualified `CREATE STREAM/QUEUE`
+and literal PRODUCE/ENQUEUE through the shared log owners. Resources are explicitly
 PUBLIC in source, with ordinary runtime permissions; PUBLIC is erased before
 runtime SQL preparation and grants no access. CHECK/key/type/predicate restrictions
-are those of the shared owners. Views, foreign-key resolution, ALTER/DROP,
-multi-source queries, stored runtime procedures, effects, COMMAND programs, deadlines,
-publication and migration synthesis reject. No unsupported declaration is omitted.
+are those of the shared owners. Views, enforced foreign keys, ALTER/DROP,
+multi-source queries, stored runtime procedures, effects, COMMAND programs, deadlines
+and serving publication reject. No unsupported declaration is omitted.
 
 Log declarations use the ordinary single-partition defaults, including unlimited
 retention. Explicit configuration, dead-letter destinations,
@@ -218,26 +235,29 @@ program binder.
 Source helpers compose into public Queue programs without adding stored runtime
 procedures, functions or sidecars:
 
-- `CREATE [PUBLIC] FUNCTION name(params) RETURNS type AS BEGIN RETURN expr; END;`
-  accepts `BIGINT`, `TEXT`, `BOOLEAN` and nominal domain parameters and return
+- `CREATE [PUBLIC] FUNCTION [schema.]name(params) RETURNS type AS BEGIN RETURN expr; END;`
+  accepts `BIGINT`, `TEXT`, `BOOLEAN`, `UUID`, `TIMESTAMPTZ`, `BINARY`, `ROW(...)`
+  and nominal domain parameters and scalar/domain return
   types. Bodies are validated through Fuze's deterministic `ScalarProgram` owner
   and preserve five-state evaluation, checked arithmetic and nominal domains;
   clock, random, database, capability, secret and effect operations reject
   (`ImpureSourceFunction`). When an impure caller argument (such as `RANDOM_TOKEN`)
   binds to a parameter referenced more than once, lowering hoists a single
   hygienic `LET` binding before substituting the call.
-- `CREATE [PUBLIC] GUARD name(params) AS BEGIN ... END;` accepts scalar, nominal
+- `CREATE [PUBLIC] GUARD [schema.]name(params) AS BEGIN ... END;` (or shorthand
+  `CREATE [PUBLIC] GUARD [schema.]name(params) AS REQUIRE ..., ...;`) accepts
+  scalar, `ROW(...)`, nominal
   domain and exact `TABLE(...)` parameters. Invoking `CHECK GUARD [alias.]name(args);`
   expands ordered `LET` bindings (including zero-or-one Table lookups), `IF`
   branches, nested `CHECK GUARD` calls and `REQUIRE ... ELSE 'Code'` checks in
   exact lexical sequence, registering every referenced Table in the program's
   dependency set. Mutations and procedure calls inside guards reject
   (`MutationInsideGuard`).
-- `CREATE [PUBLIC] PROCEDURE name(params) [RETURNS type] AS BEGIN ATOMIC ... END;` accepts
-  scalar, nominal domain and exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
+- `CREATE [PUBLIC] PROCEDURE [schema.]name(params) [RETURNS type] AS BEGIN ATOMIC ... END;` accepts
+  scalar, `ROW(...)`, nominal domain and exact `TABLE(...)`, `STREAM(...)` and `QUEUE(...)`
   parameters. Statement-form `CALL [alias.]name(args);` is valid only inside an
   enclosing `BEGIN ATOMIC` block (`ProcedureOutsideAtomic`). A procedure with
-  `RETURNS BIGINT|TEXT|BOOLEAN|domain` must end with one top-level `RETURN expr;`;
+  `RETURNS BIGINT|TEXT|BOOLEAN|UUID|TIMESTAMPTZ|BINARY|domain` must end with one top-level `RETURN expr;`;
   early or branch returns reject. Every successful path reaches that expression.
   `LET res = CALL [alias.]name(args);` binds its result inside the caller's atomic
   block. A void procedure cannot supply a value. Arguments and the return
@@ -319,7 +339,7 @@ CREATE PUBLIC DOMAIN SiteId AS BIGINT IDENTITY 'example.site-id';
 CREATE PUBLIC VARIANT Target AS (Machine(id MachineId), Site(id SiteId));
 ```
 
-A domain wraps BIGINT, TEXT or BOOLEAN. Its identity is 1–128 UTF-8 bytes,
+A domain wraps BIGINT, TEXT, BOOLEAN, UUID, TIMESTAMPTZ or BINARY. Its identity is 1–128 UTF-8 bytes,
 compared exactly; its definition fixes the base type. Import the original public
 declaration to share a domain. Independent declarations with the same identity
 reject, even with equal base types. Paths, aliases and physical representations
@@ -354,7 +374,7 @@ export without re-instantiation. An instance has at most 64 unique exports.
 A typed Table parameter can also forward its existing handle through `EXPORT TABLE rows AS alias;`.
 A parameter such as `rows TABLE(id MachineId PRIMARY KEY)` requires an exact
 ordered column/key/nullability/collation signature. Signature columns use the
-three scalar types or nominal domains, with optional NULL/NOT NULL, PRIMARY KEY
+six admitted scalar types (`BIGINT`, `TEXT`, `BOOLEAN`, `UUID`, `TIMESTAMPTZ`, `BINARY`) or nominal domains, with optional NULL/NOT NULL, PRIMARY KEY
 and COLLATE clauses. Omitted collation matches the native `none` descriptor;
 explicit collation must match exactly. Runtime schema limits also apply. Defaults, CHECK constraints
 and other semantic column options cannot be hidden by a smaller signature.
@@ -387,8 +407,8 @@ and scalar assignment/predicate operands before final SQL emission. It is not a
 persisted IR, additional authority or mandatory runtime sidecar. The current
 native definition, lock and artifact formats are unchanged.
 
-The [typed-target specification](application-source/TypedTarget.lean) proves twelve
-scoped laws across four fragments: nominal substitution, selection from a
+The [typed-target specification](application-source/TypedTarget.lean) proves fourteen
+scoped laws across five fragments: nominal substitution, selection from a
 checked total arm table and ordered action preservation for one scalar payload
 per constructor and Table inserts; record projection under substitution, ordered
 program substitution and domain erasure preserving event order and bindings;
@@ -397,10 +417,14 @@ guard-sequence refusal preservation (`guard_sequence_refusal`), guard-reordering
 non-equivalence (`guard_reorder_non_equivalent`), hygienic inline atomic
 procedure expansion preserving single-decision rollback
 (`procedure_inline_atomic`) and post-commit value return substitution
-(`procedure_return_substitution`); and diamond module-instance DAG sharing
+(`procedure_return_substitution`); diamond module-instance DAG sharing
 (`module_instance_dag_sharing`), proving single-DDL emission, nominal domain
 preservation across exported handles and strict non-equivalence against
-per-consumer constructor re-instantiation whenever DDL is non-empty. Exact source types, well-typed environments and
+per-consumer constructor re-instantiation whenever DDL is non-empty; and
+schema-binding isolation (`schema_binding_isolation`) together with reference
+export non-escalation (`reference_export_non_escalation`), proving disjoint
+schema-qualified DDL under distinct `SCHEMA_BINDING` arguments and non-widening
+foreign-key-only capability projection across `EXPORT REFERENCE TABLE` chains. Exact source types, well-typed environments and
 signatures are premises; de Bruijn variables express capture-free substitution.
 The program trace and atomic-procedure fragments assume ordinary physical typing
 and well-formed execution; they do not model nullable lookup execution or prove
@@ -516,19 +540,23 @@ not select a connection or authorize a live destination. Review the build, then
 use `transit migrate plan --dir OUTPUT/migrations --database transit --schema public`
 and apply the resulting saved plan through the ordinary migration owner.
 
-`CatalogDiff` accepts new Tables, unchanged Tables and trailing column additions
-admitted by `TableEvolution.canProject`. It compares complete schema descriptors,
+`CatalogDiff` accepts new schemas (`CREATE SCHEMA`), new Tables, unchanged
+Tables and trailing column additions admitted by `TableEvolution.canProject`
+across single-schema and multi-schema targets, including catalog-tracked
+`NOT ENFORCED` foreign keys. It compares complete `(schema, table)` descriptors,
 including keys, defaults, codecs, collations, interpretation rules, CHECK
-constraints and source nominal identities. It never guesses renames from source
+constraints, `NOT ENFORCED` foreign-key descriptors and source nominal identities. It never guesses renames from source
 paths or similar names. Drops, reordering, type/nominal changes, rewrites, changed
 constraints and additions requiring validation or a data transform refuse with
-the affected object. Foreign keys and other resource/statement kinds reject.
+the affected object. Enforced foreign keys and non-Table/non-Schema resource or statement kinds reject.
 Explicit data transforms remain reviewed ordinary SQL migrations; this first
 synthesis profile cannot reconstruct a history containing such transforms.
 
 The versioned offline basis has required `format = transit_table_basis_v1`,
 current native `definition`, compiler executable digest (`compiler`), `database`,
-`schema`, `tables` and `history` fields. Each Table records its canonical CREATE
+`schema`, `schemas`, `tables` and `history` fields. `schemas` records the ordered
+non-`public` schemas declared by the target, and each Table records its target
+`schema`, canonical CREATE
 SQL, explicit name, column names/nominal identities, full normalized definition
 digest and the existing migration logical fingerprint. The full digest uses the
 shared Table schema codec with object/revision fixed to 1; column and constraint

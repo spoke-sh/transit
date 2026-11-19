@@ -6,7 +6,7 @@ corpus includes clause/alias boundaries, mixed aggregates and Boolean precedence
 import json
 import subprocess
 import sys
-from query.sql.reference import ROOT, CACHE, generate, tree, identifier, column
+from query.sql.reference import ROOT, CACHE, generate, tree, identifier, column, qualified_name
 
 
 def instruction(op, column=None, value=None):
@@ -61,9 +61,13 @@ def antlr(sql):
     ctx = tree(sql, 'relationalQuery').relationalSelect()
 
     def source(target):
-        name = identifier(target.identifier() or target.streamSliceTarget().identifier())
+        qn = target.qualifiedName() or target.streamSliceTarget().qualifiedName()
+        schema_name, name = qualified_name(qn)
         alias = target.relationalAlias()
-        return dict(name=name, alias=identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else name)
+        result = dict(name=name, alias=identifier(alias.identifier() or alias.relationalImplicitAlias()) if alias else name)
+        if schema_name:
+            result['schema'] = schema_name
+        return result
 
     def string(token):
         return token.getText()[1:-1].replace("''", "'")
@@ -155,7 +159,10 @@ def postgres(sql):
 
     def source(value):
         var = value['RangeVar']
-        return dict(name=var['relname'], alias=var.get('alias', {}).get('aliasname', var['relname']))
+        result = dict(name=var['relname'], alias=var.get('alias', {}).get('aliasname', var['relname']))
+        if var.get('schemaname'):
+            result['schema'] = var['schemaname']
+        return result
 
     def scalar_tree(value):
         if 'ColumnRef' in value: return ('column', col(value))

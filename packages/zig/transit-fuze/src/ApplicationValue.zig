@@ -163,7 +163,7 @@ pub const Value = union(enum) {
 };
 
 const Secret = struct { reference: Reference, revision: Hex };
-const Hex = struct {
+pub const Hex = struct {
     bytes: []const u8,
     pub fn jsonStringify(self: Hex, out: *std.json.Stringify) std.Io.Writer.Error!void {
         if (self.bytes.len > 1024 * 1024) return error.WriteFailed;
