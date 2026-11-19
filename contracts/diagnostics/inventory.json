@@ -44926,7 +44926,7 @@
     },
     "packages/zig/transit-station/src/transactional/Actor.zig": {
       "errors": {
-        "ActorIdentityConflict": 12,
+        "ActorIdentityConflict": 16,
         "IncompatibleDefinition": 2,
         "InvalidActorDeclaration": 3,
         "TurnCapacity": 1
@@ -44953,8 +44953,8 @@
       },
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 21,
-        "catch": 0
+        "try": 22,
+        "catch": 1
       },
       "imports": [
         "Turn.zig",
@@ -44965,14 +44965,15 @@
     "packages/zig/transit-station/src/transactional/Runner.zig": {
       "errors": {
         "ActorDependencyUnresolved": 1,
-        "ActorIdentityConflict": 10,
+        "ActorIdentityConflict": 11,
         "ActorInputUnavailable": 1,
         "ActorNotInitialized": 1,
-        "ActorProgressConflict": 2,
-        "ActorProgressUnresolved": 5,
+        "ActorProgressConflict": 3,
+        "ActorProgressUnresolved": 8,
         "ActorSavepointUnsupported": 1,
-        "ActorStatementRefused": 1,
+        "ActorStatementRefused": 2,
         "HandlerStopped": 2,
+        "InvalidQueueReadRelease": 1,
         "TurnCapacity": 2
       },
       "outcomes": {
@@ -45011,17 +45012,20 @@
         "Reader.row()": "<inferred>",
         "Reader.table()": "<inferred>",
         "advance()": "<inferred>",
-        "append()": "<inferred>",
         "bootstrap()": "<inferred>",
         "cellActor()": "<inferred>",
         "cellBytes()": "<inferred>",
         "finish()": "<inferred>",
+        "finishClaimRelease()": "<inferred>",
         "init()": "<inferred>",
         "inspect()": "<inferred>",
         "load()": "<inferred>",
         "point()": "<inferred>",
+        "prepareAppend()": "<inferred>",
         "publish()": "<inferred>",
         "recover()": "<inferred>",
+        "releaseClaimRead()": "<inferred>",
+        "requireBatch()": "<inferred>",
         "requireStatement()": "<inferred>",
         "retryBlocked()": "<inferred>",
         "save()": "<inferred>"
