@@ -12,6 +12,15 @@
         ]
       },
       {
+        "id": "compiler-frontend-distribution",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tasks/compiler_frontend.py"
+        ]
+      },
+      {
         "id": "package-versions",
         "phase": "tooling",
         "command": [
