@@ -8,14 +8,14 @@ const help =
     \\       transitc test [options]
     \\       transitc --help | --version
     \\
-    \\Compile .transit source into verified SQL without connecting to a database.
+    \\Build verified SQL artifacts or run application tests in isolated databases.
     \\
     \\Options:
     \\  -f FILE                 Build entry (default: build.transit)
     \\  --target NAME           Select a declared target
-    \\  --out DIRECTORY         Publish to a new explicit directory
-    \\  --check                 Check without publishing artifacts
-    \\  --fetch                 Fetch pinned dependencies and publish transit.lock
+    \\  --out DIRECTORY         Publish to a new explicit directory (build only)
+    \\  --check                 Check without publishing artifacts (build only)
+    \\  --fetch                 Fetch dependencies and publish transit.lock (build only)
     \\  --override NAME=DIR     Explicit local dependency override
     \\  --format text|json      Diagnostic and result format (default: text)
     \\  --color auto|off|on     Human diagnostic color (default: auto)
@@ -24,7 +24,7 @@ const help =
     \\
     \\Ordinary builds resolve dependencies offline. Only --fetch accesses repositories.
     \\Tests compile the complete suite, then run isolated cases through the Transit host.
-    \\Test options exclude --out, --check and --fetch; the default test target is tests.
+    \\Tests select 'tests' or the entry's unique test target unless --target is supplied.
     \\
 ;
 pub fn main(init: std.process.Init) !void {

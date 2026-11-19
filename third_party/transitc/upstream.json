@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/spoke-sh/transitc",
-  "revision": "cd85d0d02f101308c6d0928bb9be5c46e57d06f8",
+  "revision": "a729acca1d3dda114a1f72fafac9c37cee84f4da",
   "paths": [
     "build.zig",
     "build.zig.zon",
@@ -18,7 +18,7 @@
     "NOTICE.md": "e4362ac3a165f93fbe89014b2d875a99b36643458d5ec78a9a76411ecc887e13",
     "README.md": "ab39e0248d36a5fe108bda44339a38dd65e44c1d4e28c57b580bbbc61d0c43bc",
     "apps/transitc-cli/README.md": "455326d1fcf4e8e19ef4299e3bab352fcca4f5e36ae3f0968c00ee9683435b8f",
-    "apps/transitc-cli/src/main.zig": "74ed5433436e786d07c69d8c2e24a89fd2dbbb3cd6d232e51b2dfa7beef142ad",
+    "apps/transitc-cli/src/main.zig": "fcd8b2ccb05a3f3c5f94e4dcd3d857c67789684812fa4467c7832acc182da6d6",
     "build.zig": "130cc16c7be1c58fc48840b5eb1b32c429a0a188082379ec5cb9efa423a939cf",
     "build.zig.zon": "9f2e90dfb8b50b5049e807a9a636fe7a0b0cbe5727f33d0ab6577e3739045793",
     "contracts/APPLICATION_SOURCE_V1.md": "871879b86053b308140c256665fbc9bb8102a8334937daa08c3fb422d8191bf7",
