@@ -199,7 +199,8 @@ fn applyOriginal(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog:
         var owned_options = options;
         owned_options.clock = null;
         owned_options.control = .{ .log = catalog.store.log, .objects = catalog.store.objects };
-        slot.* = .{ .initialization = initial, .owner = try Queue.open(catalog.allocator, catalog.data_log, catalog.data_objects, initial, current.guard, owned_options) };
+        const opened = try Queue.open(catalog.allocator, catalog.data_log, catalog.data_objects, initial, current.guard, owned_options);
+        slot.* = .{ .initialization = initial, .owner = opened };
     }
     const owner = &slot.*.?.owner;
     const recovery_slot = catalog.queueRecoverySlot(request.target().interpretation.object.object);

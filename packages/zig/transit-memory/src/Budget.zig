@@ -13,6 +13,9 @@ pub fn allocator(self: *Self) std.mem.Allocator {
     return .{ .ptr = self, .vtable = &.{ .alloc = alloc, .resize = resize, .remap = remap, .free = free } };
 }
 fn permits(self: *Self, previous: usize, next: usize) bool {
+    // Shrinking or in-place non-growth during errdefer cleanup cannot fail
+    // quota admission and must not erase an earlier growth exhaustion signal.
+    if (next <= previous) return true;
     // Classify the failing allocation, not an earlier refused resize followed
     // by a successful fallback. Parent OOM is not configured budget exhaustion.
     self.exhausted = false;
@@ -20,12 +23,12 @@ fn permits(self: *Self, previous: usize, next: usize) bool {
         self.exhausted = true;
         return false;
     }
-    if (next > previous) if (self.quota) |quota| {
+    if (self.quota) |quota| {
         quota.reserve(next - previous) catch {
             self.exhausted = true;
             return false;
         };
-    };
+    }
     return true;
 }
 fn rollback(self: *Self, previous: usize, next: usize) void {

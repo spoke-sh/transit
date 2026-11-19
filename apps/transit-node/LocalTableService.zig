@@ -34,11 +34,11 @@ pub const Resident = struct {
     table: ?D.CachedTable = null,
     extra_tables: [3]?D.CachedTable = @splat(null),
     stream: ?c.DirectStream.Cached = null,
-    extra_streams: [3]?c.DirectStream.Cached = @splat(null),
+    extra_streams: [1]?c.DirectStream.Cached = @splat(null),
     queue: ?c.DirectQueue.Cached = null,
-    extra_queues: [3]?c.DirectQueue.Cached = @splat(null),
-    next_extra_stream: u2 = 0,
-    next_extra_queue: u2 = 0,
+    extra_queues: [1]?c.DirectQueue.Cached = @splat(null),
+    next_extra_stream: u1 = 0,
+    next_extra_queue: u1 = 0,
 
     // Cold initialization must not reserve a full catalog on every I/O worker's
     // hot request stack, including requests that already have a resident owner.
