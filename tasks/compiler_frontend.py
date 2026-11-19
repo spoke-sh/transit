@@ -8,7 +8,7 @@ import subprocess
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGES = ('transit-sql-frontend', 'transit-protocol', 'transit-memory', 'transit-spatial')
+PACKAGES = ('transit-sql-frontend', 'transit-protocol', 'transit-memory', 'transit-spatial', 'transit-test-protocol')
 OUTPUT = ROOT / 'build/artifacts/transit-sql-frontend.tar.gz'
 FINGERPRINT = '0xe6c548dd0390d0b7'
 
@@ -20,7 +20,7 @@ def archive():
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    inline for (.{ "transit_sql_frontend", "transit_protocol", "transit_memory", "transit_spatial" }) |name| {
+    inline for (.{ "transit_sql_frontend", "transit_protocol", "transit_memory", "transit_spatial", "transit_test_protocol" }) |name| {
         b.modules.put(b.allocator, name, b.dependency(name, .{ .target = target, .optimize = optimize }).module(name)) catch @panic("out of memory");
     }
 }
