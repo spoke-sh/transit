@@ -1,10 +1,10 @@
 //! Physical input columns for a finite Table plan. Column identities, names,
 //! codecs and collations remain those of the exact original declaration.
 const std = @import("std");
-const table = @import("TableSchema.zig");
+const table = @import("transit_sql_frontend").TableSchema;
 const logical = @import("LogicalQuery.zig");
-const types = @import("Types.zig");
-const collations = @import("QueryCollations.zig");
+const types = @import("transit_sql_frontend").Types;
+const collations = @import("transit_sql_frontend").QueryCollations;
 const Self = @This();
 
 indices: [table.max_columns]u8 = undefined,

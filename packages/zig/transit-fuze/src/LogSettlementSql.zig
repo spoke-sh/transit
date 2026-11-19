@@ -4,7 +4,7 @@ const std = @import("std");
 const f = @import("root.zig");
 const p = @import("transit_protocol");
 const Parser = f.SqlTyped;
-const Reference = @import("SqlReference.zig");
+const Reference = @import("transit_sql_frontend").SqlReference;
 const Atom = f.Types.Values.Atom;
 pub const Kind = enum { ack, nack, extend };
 pub const Target = struct { kind: Kind, source: Reference };
@@ -23,7 +23,7 @@ pub fn target(allocator: std.mem.Allocator, text: []const u8, dialect: f.Sql.Dia
     return header(&parser);
 }
 
-const Operand = @import("LogReadSql.zig").TypedOperand;
+const Operand = @import("transit_sql_frontend").LogReadSql.TypedOperand;
 
 pub const Bound = struct { lease: p.StreamQueue.Lease, action: @FieldType(p.StreamQueue.Settlement, "action") };
 pub const Prepared = struct {
@@ -110,7 +110,7 @@ pub const Prepared = struct {
         };
         const action: @FieldType(p.StreamQueue.Settlement, "action") = if (self.extension) |operand| blk: {
             errdefer operand.at(diagnostic);
-            const duration = try @import("LogReadSql.zig").leaseDuration((try operand.bind(values, diagnostic)).bytes);
+            const duration = try @import("transit_sql_frontend").LogReadSql.leaseDuration((try operand.bind(values, diagnostic)).bytes);
             break :blk .{ .extend = .{ .expires_ms = std.math.add(u64, lease.expires_ms, duration) catch return error.InvalidLogLeaseDuration } };
         } else if (self.target.kind == .nack) .{ .nack = .{ .visible_ms = if (self.visible) |operand| blk: {
             errdefer operand.at(diagnostic);

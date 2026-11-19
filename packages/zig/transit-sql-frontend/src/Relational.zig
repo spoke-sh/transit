@@ -783,7 +783,3 @@ fn digest(bytes: []const u8) [32]u8 {
     std.crypto.hash.sha2.Sha256.hash(bytes, &result, .{});
     return result;
 }
-
-test {
-    _ = @import("relational_test.zig");
-}

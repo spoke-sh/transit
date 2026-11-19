@@ -71,9 +71,9 @@ retained failure or qualify the current HEAD from those earlier results.
 
 | Boundary | Current bound and source | Planning consequence |
 | --- | --- | --- |
-| Interactive editor draft | 4,096 bytes in [SqlInput](../../packages/zig/transit-fuze/src/SqlInput.zig) | This is an editor bound, not the executable statement limit |
-| Executable SQL/program statement | 1 MiB in [Sql](../../packages/zig/transit-fuze/src/Sql.zig), shared by SqlInput and [ApplicationProgram](../../packages/zig/transit-fuze/src/ApplicationProgram.zig) | Test expanded helpers against this bound; do not plan another 4 KiB-to-64 KiB cutover |
-| Migration source file | 2 MiB in [SqlScript](../../packages/zig/transit-fuze/src/SqlScript.zig), shared by [Migration](../../packages/zig/transit-sql-protocol/src/Migration.zig) and its client | Preserve original-byte checksums and incremental framing; do not reduce it to the former 1 MiB proposal |
+| Interactive editor draft | 4,096 bytes in [SqlInput](../../packages/zig/transit-sql-frontend/src/SqlInput.zig) | This is an editor bound, not the executable statement limit |
+| Executable SQL/program statement | 1 MiB in [Sql](../../packages/zig/transit-sql-frontend/src/Sql.zig), shared by SqlInput and [ApplicationProgram](../../packages/zig/transit-sql-frontend/src/ApplicationProgram.zig) | Test expanded helpers against this bound; do not plan another 4 KiB-to-64 KiB cutover |
+| Migration source file | 2 MiB in [SqlScript](../../packages/zig/transit-sql-frontend/src/SqlScript.zig), shared by [Migration](../../packages/zig/transit-sql-protocol/src/Migration.zig) and its client | Preserve original-byte checksums and incremental framing; do not reduce it to the former 1 MiB proposal |
 | Migration steps | 64 per version in Migration and [DirectMigration](../../packages/zig/transit-catalog/src/DirectMigration.zig) | Measure and qualify the proposed 256-step extension separately |
 | Compiler | 256 files, 16 MiB aggregate source, depth 64, 100,000 evaluation steps, 64 MiB allocation budget, 8 MiB SQL output | Whole-program state and output remain bounded separately from reusable statement scratch |
 | Test runner | 128 cases, 1,024 actions/case, 30 seconds/case, 256 MiB host allocations and separately 256 MiB temporary storage | Preserve accounting and joined cleanup; these quotas are not total process RSS or benchmark targets |

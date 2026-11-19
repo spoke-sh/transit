@@ -1,7 +1,7 @@
 /-
 Formal specification of multi-version Table schema evolution and physical-to-logical
 projection (ADD COLUMN, DROP COLUMN, and compaction segment rewrite), per
-packages/zig/transit-fuze/src/TableSchemaProjection.zig (SCHEMA-PROJ-01).
+packages/zig/transit-sql-frontend/src/TableSchemaProjection.zig (SCHEMA-PROJ-01).
 -/
 
 abbrev ColId := Nat

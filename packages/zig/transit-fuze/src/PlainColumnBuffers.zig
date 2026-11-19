@@ -1,8 +1,8 @@
 //! Canonical aligned Arrow value buffers inside qualified plain TCP1 pages.
 //! State/detail streams retain the complete cell; Arrow validity alone does not.
 const std = @import("std");
-const t = @import("Types.zig");
-const s = @import("TableSchema.zig");
+const t = @import("transit_sql_frontend").Types;
+const s = @import("transit_sql_frontend").TableSchema;
 const a = @import("zarrow");
 pub const alignment = 64;
 test {

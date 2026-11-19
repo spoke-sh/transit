@@ -1365,7 +1365,7 @@ Out-of-range values reject instead of rounding or underflowing to zero. RLE and
 dictionary distinguish floating zero signs because compression must preserve
 stored bytes even though SQL equality treats those zeros as equal.
 
-[`Ebcdic037`](../../../packages/zig/transit-fuze/src/Ebcdic037.zig) uses the full
+[`Ebcdic037`](../../../packages/zig/transit-sql-frontend/src/Ebcdic037.zig) uses the full
 [Unicode-hosted CP037 table 2.00](https://www.unicode.org/Public/MAPPINGS/VENDORS/MICSFT/EBCDIC/CP037.TXT),
 including controls and Latin-1 scalars. Encoding iterates UTF-8 codepoints;
 reinterpreting UTF-8 bytes as Latin-1 would corrupt accented text. CP037 has a

@@ -1,7 +1,7 @@
 //! Frozen discovery bindings. Restore requires already acquired matching source
 //! handles and rechecks current authority; it never opens a path or refetches.
 const std = @import("std");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const source = @import("FileSource.zig");
 pub const max_bytes = 32768;
 pub fn encode(binding: *const source.Binding, output: []u8) ![]const u8 {

@@ -4,6 +4,7 @@
     .version = "0.0.1",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transit_sql_frontend = .{ .path = "packages/zig/transit-sql-frontend" },
         .transit_sdk = .{ .path = "sdks/zig", .lazy = true },
         .transit_station_app = .{ .path = "packages/zig/transit-station-app" },
         .transit_http_server = .{ .path = "packages/zig/transit-http-server" },

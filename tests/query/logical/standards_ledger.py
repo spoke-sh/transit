@@ -14,7 +14,7 @@ import re
 LEDGER = ROOT / 'contracts/sql/standards-ledger.json'
 ZIG_LEDGER = ROOT / 'packages/zig/transit-fuze/src/StandardsLedger.zig'
 ZIG_DATA = ROOT / 'packages/zig/transit-fuze/src/StandardsLedgerData.zig'
-ZIG_TRAITS = ROOT / 'packages/zig/transit-fuze/src/OperatorTraits.zig'
+ZIG_TRAITS = ROOT / 'packages/zig/transit-sql-frontend/src/OperatorTraits.zig'
 PUBLIC = ROOT / 'docs/handbook/reference/sql/grammar-surface.md'
 START = '<!-- standards-ledger:start -->'
 END = '<!-- standards-ledger:end -->'

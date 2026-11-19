@@ -166,7 +166,3 @@ fn convert(cell: Cell, from: t.Type, to: t.Type) !Cell {
     if (!try castSupported(from, to) or cell != .value or cell.value != .atom) return error.UnsupportedSchemaConversion;
     return .{ .value = .{ .atom = try t.Semantics.cast(cell.value.atom, from, to, .reject) } };
 }
-
-test {
-    _ = @import("table_evolution_test.zig");
-}

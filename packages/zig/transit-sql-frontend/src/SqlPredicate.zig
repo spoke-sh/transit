@@ -1,16 +1,16 @@
 //! Owned postfix syntax with compact literal spans. The statement byte budget
 //! bounds the literal pool; each instruction does not reserve a maximum string.
 const sql = @import("Sql.zig");
-const m = @import("Unified.zig");
+
 const Self = @This();
-pub const max_instructions = m.PredicateProgram.max_instructions;
-pub const max_bytes = m.Codec.max_plan_bytes;
+pub const max_instructions = @import("PredicateMachine.zig").max_instructions;
+pub const max_bytes = @import("Finite.zig").max_plan_bytes;
 pub const Span = struct { start: u16, len: u16 };
 pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Span, binary: Span };
 pub const Atom = union(enum) {
     all,
     state: @FieldType(sql.PredicateAtom, "state"),
-    compare: struct { column: sql.Column, op: m.Plan.Comparison, literal: Literal },
+    compare: struct { column: sql.Column, op: @import("Finite.zig").Comparison, literal: Literal },
 };
 pub const Instruction = union(enum) { atom: Atom, negate, conjunction, disjunction };
 instructions: [max_instructions]Instruction = @splat(.negate),

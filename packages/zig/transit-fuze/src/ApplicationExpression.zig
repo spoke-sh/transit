@@ -3,7 +3,7 @@
 //! The host records observations under the instruction's original identity.
 const std = @import("std");
 const a = @import("ApplicationProgram.zig");
-pub const Value = @import("ApplicationValue.zig").Value;
+pub const Value = @import("transit_sql_frontend").ApplicationValue.Value;
 const Self = @This();
 pub const Operation = union(enum) {
     function: a.Function,
@@ -92,7 +92,7 @@ fn expression(self: Self, node: *const a.Expression, depth: usize) anyerror!Valu
         },
         .row => |values| blk: {
             if (values.len > a.max_arguments) return error.ProgramTooComplex;
-            const fields = try self.scratch.alloc(@import("ApplicationValue.zig").Field, values.len);
+            const fields = try self.scratch.alloc(@import("transit_sql_frontend").ApplicationValue.Field, values.len);
             for (values, fields) |value, *field| field.* = .{ .name = "", .value = try self.expression(value, depth + 1) };
             break :blk .{ .record = fields };
         },

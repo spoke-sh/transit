@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const codec = @import("RelationalCodec.zig");
-const columns = [_]@import("TableSchema.zig").Column{ .{ .id = 1, .name = "key", .type = .int64 }, .{ .id = 2, .name = "value", .type = .int64 } };
+const columns = [_]@import("transit_sql_frontend").TableSchema.Column{ .{ .id = 1, .name = "key", .type = .int64 }, .{ .id = 2, .name = "value", .type = .int64 } };
 const sources = [_]r.Source{
     .{ .alias = "l", .realm = 1, .resource = 101, .catalog = 9, .owner = 7, .schema = .{ .object = 11, .revision = 1, .next_column = 3, .columns = &columns } },
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 3, .columns = &columns } },

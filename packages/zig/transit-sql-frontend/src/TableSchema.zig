@@ -483,7 +483,3 @@ fn stored(cell: v.Cell) anyerror!void {
         },
     }
 }
-
-test {
-    _ = @import("table_schema_test.zig");
-}

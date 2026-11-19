@@ -77,7 +77,3 @@ pub fn row(self: Self, values: []const Cell, output: []Cell) ![]const Cell {
     try self.logical.validateRow(result);
     return result;
 }
-
-test {
-    _ = @import("table_schema_projection_test.zig");
-}

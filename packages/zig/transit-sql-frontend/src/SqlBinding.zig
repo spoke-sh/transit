@@ -166,7 +166,7 @@ pub fn literalValue(self: ?*Self, value: sql.Literal) void {
             detail.literal_len = 4;
             detail.literal_truncated = false;
         },
-        inline .utf8, .binary => |text, tag| supplied(self, @unionInit(@import("Unified.zig").Scalar, @tagName(tag), text.slice())),
-        inline else => |scalar, tag| supplied(self, @unionInit(@import("Unified.zig").Scalar, @tagName(tag), scalar)),
+        inline .utf8, .binary => |text, tag| supplied(self, @unionInit(@import("Scalar.zig").Scalar, @tagName(tag), text.slice())),
+        inline else => |scalar, tag| supplied(self, @unionInit(@import("Scalar.zig").Scalar, @tagName(tag), scalar)),
     }
 }

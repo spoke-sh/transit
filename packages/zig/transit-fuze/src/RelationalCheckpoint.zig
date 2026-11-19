@@ -1,10 +1,10 @@
 //! Exact resumable operator state. The host publishes this record together with
 //! its group root, consumed input and output coverage; bytes alone grant nothing.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const Index = @import("RelationalIndex.zig");
-const values = @import("RelationalValues.zig");
+const values = @import("transit_sql_frontend").RelationalValues;
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const fixed_bytes = 8192;
@@ -123,8 +123,8 @@ pub fn validate(self: Self, bound: r.Bound) !void {
         }
         try checkKey(failure.group, plan);
     }
-    var fields: [r.max_outputs]@import("Types.zig").Field = undefined;
-    var schema_bytes: [@import("Types.zig").max_encoding_bytes]u8 = undefined;
+    var fields: [r.max_outputs]@import("transit_sql_frontend").Types.Field = undefined;
+    var schema_bytes: [@import("transit_sql_frontend").Types.max_encoding_bytes]u8 = undefined;
     const size = (try (try plan.outputSchema(&fields)).encode(&schema_bytes)).len;
     if (self.result_bytes < size) return error.InvalidRelationalCheckpoint;
     const minimum = std.math.mul(u64, self.result_rows, plan.outputs.len * 5) catch return error.InvalidRelationalCheckpoint;

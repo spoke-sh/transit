@@ -1,7 +1,7 @@
 //! Bounded structural Table templates. No catalog, dummy bindings or evaluation.
 //! Fuze owns scanning, reserved SQL names and later type/statement preparation.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const SourceDiagnostic = @import("SourceDiagnostic.zig");
 const Token = f.SqlInput.CompilerScan.Token;
 pub const Role = enum { identifier, type, value, operand, table, stream, queue };

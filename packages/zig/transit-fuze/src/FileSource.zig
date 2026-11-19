@@ -2,12 +2,12 @@
 //! Discovery and each execution pass bind exact digests/options; failed prefixes
 //! never gain completion. This module performs no filesystem/network operations.
 const std = @import("std");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const framing = @import("FileFraming.zig");
 const inference = @import("Inference.zig");
 const values = types.Values;
-pub const BudgetDiagnostic = @import("BudgetDiagnostic.zig");
-pub const ValueDiagnostic = @import("FileValueDiagnostic.zig");
+pub const BudgetDiagnostic = @import("transit_sql_frontend").BudgetDiagnostic;
+pub const ValueDiagnostic = @import("transit_sql_frontend").FileValueDiagnostic;
 pub const definition = "transit.fuze.source.v1.2026-09-30";
 pub const Mode = enum(u8) { explicit, sampled, full, raw };
 pub const Mismatch = enum(u8) { fail, type_error };

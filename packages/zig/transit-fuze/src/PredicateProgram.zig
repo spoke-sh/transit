@@ -3,7 +3,7 @@
 //! during use. Owned stores instructions inline; literal bytes remain borrowed.
 const m = @import("Unified.zig");
 const Self = @This();
-const machine = @import("PredicateMachine.zig");
+const machine = @import("transit_sql_frontend").PredicateMachine;
 
 /// Limits expression work, never retained source or result cardinality.
 pub const max_instructions = machine.max_instructions;

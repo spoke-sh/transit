@@ -1,7 +1,7 @@
 //! Bounded group/row identities and immutable post-aggregation ordering keys.
 const std = @import("std");
-const r = @import("Relational.zig");
-const v = @import("RelationalValues.zig");
+const r = @import("transit_sql_frontend").Relational;
+const v = @import("transit_sql_frontend").RelationalValues;
 const Self = @This();
 pub const Pair = struct { left: r.RowIdentity, right: ?r.RowIdentity };
 pair: ?Pair = null,
@@ -90,7 +90,7 @@ pub fn order(a: Self, b: Self, plan: r.Plan) !std.math.Order {
     }
     return pairOrder(a.pair.?, b.pair.?);
 }
-pub fn orderValue(a: v.Value, b: v.Value, column: @import("TableSchema.zig").Column, direction: r.Direction, nulls: r.NullOrder) !std.math.Order {
+pub fn orderValue(a: v.Value, b: v.Value, column: @import("transit_sql_frontend").TableSchema.Column, direction: r.Direction, nulls: r.NullOrder) !std.math.Order {
     if (a == null) return if (b == null) .eq else if (nulls == .first) .lt else .gt;
     if (b == null) return if (nulls == .first) .gt else .lt;
     const result = try v.order(a, b, column);

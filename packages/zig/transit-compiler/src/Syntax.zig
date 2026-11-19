@@ -1,6 +1,6 @@
 //! Source syntax only. File and repository I/O stay with the caller.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const SourceDiagnostic = @import("SourceDiagnostic.zig");
 pub const Template = @import("Template.zig");
 pub const Token = f.SqlInput.CompilerScan.Token;

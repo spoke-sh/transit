@@ -1,10 +1,10 @@
 const std = @import("std");
-const s = @import("TableSchema.zig");
-const t = @import("Types.zig");
+const s = @import("transit_sql_frontend").TableSchema;
+const t = @import("transit_sql_frontend").Types;
 const v = t.Values;
-const TableEvolution = @import("TableEvolution.zig");
-const TableSchemaProjection = @import("TableSchemaProjection.zig");
-const TableConstraints = @import("TableConstraints.zig");
+const TableEvolution = @import("transit_sql_frontend").TableEvolution;
+const TableSchemaProjection = @import("transit_sql_frontend").TableSchemaProjection;
+const TableConstraints = @import("transit_sql_frontend").TableConstraints;
 
 test "persisted integrity preserves NOT VALID checks across binary and neutral schemas" {
     const testing = std.testing;
@@ -22,12 +22,12 @@ test "persisted integrity preserves NOT VALID checks across binary and neutral s
     try testing.expectEqual(@as(u32, 8), restored.schema.integrity.next_id);
     try testing.expect(!restored.schema.integrity.checks[0].validated);
     try testing.expectError(error.CheckConstraintViolation, restored.schema.validateWrite(&previous));
-    const json = try @import("TableSchemaJson.zig").encode(testing.allocator, restored.schema);
+    const json = try @import("transit_sql_frontend").TableSchemaJson.encode(testing.allocator, restored.schema);
     defer testing.allocator.free(json);
-    var neutral = try @import("TableSchemaJson.zig").decode(testing.allocator, json);
+    var neutral = try @import("transit_sql_frontend").TableSchemaJson.decode(testing.allocator, json);
     defer neutral.deinit();
     try testing.expectEqual(try schema.fingerprint(), try neutral.schema.fingerprint());
-    const plan: @import("TableDml.zig").Plan = .{ .name = "balances", .schema = neutral.schema, .action = .{ .insert = &.{&previous} } };
+    const plan: @import("transit_sql_frontend").TableDml.Plan = .{ .name = "balances", .schema = neutral.schema, .action = .{ .insert = &.{&previous} } };
     try testing.expectError(error.CheckConstraintViolation, plan.validate());
 }
 
@@ -47,14 +47,14 @@ test "persisted integrity rejects reused identities malformed literals and false
 
 test "CHECK SQL binds later columns and keeps integrity identities through evolution" {
     const testing = std.testing;
-    const ddl = @import("TableDdl.zig");
+    const ddl = @import("transit_sql_frontend").TableDdl;
     var created = try ddl.compile(testing.allocator, "CREATE TABLE limits (CONSTRAINT ordered CHECK (low <= high AND low >= 0), low BIGINT, high BIGINT)", null, null);
     defer created.deinit();
     const schema = try created.statement.create.bind(20);
     try schema.validateWrite(&.{ .{ .value = .{ .atom = .{ .signed = 1 } } }, .{ .value = .{ .atom = .{ .signed = 2 } } } });
     try testing.expectError(error.CheckConstraintViolation, schema.validateWrite(&.{ .{ .value = .{ .atom = .{ .signed = 3 } } }, .{ .value = .{ .atom = .{ .signed = 2 } } } }));
     var columns: [s.max_columns]s.Column = undefined;
-    const evolution = @import("TableEvolution.zig");
+    const evolution = @import("transit_sql_frontend").TableEvolution;
     try testing.expectError(error.ColumnReferencedByCheckConstraint, evolution.apply(schema, .{ .drop = 1 }, &columns));
     var added = try ddl.compile(testing.allocator, "ALTER TABLE limits ADD CONSTRAINT ceiling CHECK (high < 100) NOT VALID", schema, null);
     defer added.deinit();
@@ -315,7 +315,7 @@ test "ALTER TABLE evolution classifier separates lazy projection from online pha
 
 test "staged foreign key SQL freezes parent definitions and requires explicit non-enforcement" {
     const testing = std.testing;
-    const ddl = @import("TableDdl.zig");
+    const ddl = @import("transit_sql_frontend").TableDdl;
     const Fixture = struct {
         fn lookup(_: *anyopaque, _: std.mem.Allocator, name: []const u8) !ddl.ForeignKey.Resolver.Parent {
             try testing.expectEqualStrings("parent", name);
@@ -339,9 +339,9 @@ test "staged foreign key SQL freezes parent definitions and requires explicit no
     var restored = try s.decode(testing.allocator, try schema.encode(&bytes));
     defer restored.deinit();
     try testing.expectEqualDeep(fk, restored.schema.integrity.foreign_keys[0]);
-    const json = try @import("TableSchemaJson.zig").encode(testing.allocator, schema);
+    const json = try @import("transit_sql_frontend").TableSchemaJson.encode(testing.allocator, schema);
     defer testing.allocator.free(json);
-    var neutral = try @import("TableSchemaJson.zig").decode(testing.allocator, json);
+    var neutral = try @import("transit_sql_frontend").TableSchemaJson.decode(testing.allocator, json);
     defer neutral.deinit();
     try testing.expectEqualDeep(fk, neutral.schema.integrity.foreign_keys[0]);
     var altered = try ddl.compileWithForeignKeys(testing.allocator, "ALTER TABLE child ADD CONSTRAINT another FOREIGN KEY (parent_id) REFERENCES parent (id) NOT ENFORCED", schema, null, .transit, resolver);

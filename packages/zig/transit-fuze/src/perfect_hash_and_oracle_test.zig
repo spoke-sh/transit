@@ -1,11 +1,11 @@
 const std = @import("std");
-const Collation = @import("Collation.zig");
-const PerfectHash = @import("PerfectHash.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const PerfectHash = @import("transit_sql_frontend").PerfectHash;
 const SearchOracle = @import("SearchOracle.zig");
-const Sql = @import("Sql.zig");
-const TableSchema = @import("TableSchema.zig");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
+const Sql = @import("transit_sql_frontend").Sql;
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
 const memory = @import("transit_memory");
 
 test "A2 collation 4-byte sort prefix and canonical length soundness across all profiles" {

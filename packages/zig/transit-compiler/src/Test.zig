@@ -1,6 +1,6 @@
 //! Pure test products. SQL carries database semantics; expectations are runner controls.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const p = @import("transit_protocol");
 pub const max_cases = 128;
 pub const max_actions = 1024;

@@ -1,6 +1,6 @@
 //! Proposed schemas only. No live catalog, authorization or execution authority.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const types = @import("SourceTypes.zig");
 const p = @import("transit_protocol");
 pub const Entry = types.Table;

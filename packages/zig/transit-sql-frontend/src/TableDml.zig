@@ -398,7 +398,3 @@ fn update(parser: *Parser, hints: ?s.Schema, name: []const u8) ![]const Assignme
     }
     return assignments.toOwnedSlice(parser.allocator);
 }
-
-test {
-    _ = @import("table_dml_test.zig");
-}

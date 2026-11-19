@@ -4,5 +4,5 @@ pub const Location = struct { source: usize, record: u64, byte: u64, prefix_byte
 row: u64,
 /// Original validation boundary; pull adapters validate complete rows.
 boundary: u64,
-identity: ?@import("TableRow.zig").Identity = null,
+identity: ?@import("transit_sql_frontend").TableRow.Identity = null,
 location: ?Location = null,

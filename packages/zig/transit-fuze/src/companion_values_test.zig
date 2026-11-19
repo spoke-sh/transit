@@ -1,6 +1,6 @@
 const std = @import("std");
-const types = @import("Types.zig");
-const json = @import("LogicalJson.zig");
+const types = @import("transit_sql_frontend").Types;
+const json = @import("transit_sql_frontend").LogicalJson;
 const t = std.testing;
 
 test "companion declaration failures retain structured binding diagnostics" {
@@ -12,8 +12,8 @@ test "companion declaration failures retain structured binding diagnostics" {
         .{ "CREATE TABLE bad (v VECTOR(1,FLOAT16) DEFAULT '[70000]')", "sql.invalid_vector_value", error.InvalidVectorValue },
     };
     inline for (cases) |case| {
-        var location: @import("Sql.zig").Location = .{};
-        try t.expectError(case[2], @import("TableDdl.zig").compile(t.allocator, case[0], null, &location));
+        var location: @import("transit_sql_frontend").Sql.Location = .{};
+        try t.expectError(case[2], @import("transit_sql_frontend").TableDdl.compile(t.allocator, case[0], null, &location));
         const diagnostic = @import("SqlDiagnostic.zig").tableDdl(case[0], case[2], location) orelse return error.MissingDiagnostic;
         const structured = try diagnostic.structured();
         try t.expectEqualStrings(case[1], structured.code.slice());
@@ -75,10 +75,10 @@ test "companion values agree with independent canonical range and vector fixture
         try t.expectEqual(try types.Operations.hash(case.field, decoded.cell), try types.Operations.hash(case.field, copied));
         const roundtrip = try json.foreignCell(allocator, decoded.cell, case.field.type);
         try t.expectEqualStrings(try std.json.Stringify.valueAlloc(allocator, case.cell, .{}), try std.json.Stringify.valueAlloc(allocator, roundtrip, .{}));
-        const column: @import("TableSchema.zig").Column = .{ .id = 1, .name = "value", .type = case.field.type, .nullable = false };
-        const schema: @import("TableSchema.zig").Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{column} };
-        const row: @import("TableRow.zig").Row = .{ .identity = .{ .origin = 1, .operation = 2, .ordinal = 0 }, .cells = &.{neutral} };
-        const stored = try @import("TableRow.zig").decodeInto(allocator, schema, try row.encode(schema, &bytes));
+        const column: @import("transit_sql_frontend").TableSchema.Column = .{ .id = 1, .name = "value", .type = case.field.type, .nullable = false };
+        const schema: @import("transit_sql_frontend").TableSchema.Schema = .{ .object = 1, .revision = 1, .next_column = 2, .columns = &.{column} };
+        const row: @import("transit_sql_frontend").TableRow.Row = .{ .identity = .{ .origin = 1, .operation = 2, .ordinal = 0 }, .cells = &.{neutral} };
+        const stored = try @import("transit_sql_frontend").TableRow.decodeInto(allocator, schema, try row.encode(schema, &bytes));
         try t.expect(try types.Operations.eql(case.field, neutral, stored.row().cells[0]));
         const page = try @import("PhysicalCodecs.zig").encodeColumnPage(allocator, column, &.{neutral}, &bytes);
         const read = try @import("PhysicalCodecs.zig").decodeColumnPage(allocator, column, page);
@@ -111,7 +111,7 @@ test "companion values agree with independent canonical range and vector fixture
 test "companion SQL declarations bind normalized stored values and reject incompatible layouts" {
     var arena: std.heap.ArenaAllocator = .init(t.allocator);
     defer arena.deinit();
-    const Parser = @import("SqlTyped.zig");
+    const Parser = @import("transit_sql_frontend").SqlTyped;
     const cases = .{
         .{ "RANGE<BIGINT>", "'[1,3]'", "[1,4)" },
         .{ "MULTIRANGE<DECIMAL(5,2)>", "'{[1.00,2.00),[2.00,3.00]}'", "{[1.00,3.00]}" },
@@ -128,7 +128,7 @@ test "companion SQL declarations bind normalized stored values and reject incomp
         try value.validate(.{ .name = "value", .type = descriptor }, .{});
         var display: [128]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&display);
-        try @import("LogicalDisplay.zig").cell(&writer, value, descriptor);
+        try @import("transit_sql_frontend").LogicalDisplay.cell(&writer, value, descriptor);
         try t.expectEqualStrings(case[2], writer.buffered());
     }
     var parser = try Parser.init(arena.allocator(), "RANGE<FLOAT64>", null);

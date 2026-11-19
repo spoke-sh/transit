@@ -1,7 +1,7 @@
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
-const table = @import("TableSchema.zig");
+const table = @import("transit_sql_frontend").TableSchema;
 const t = std.testing;
 const columns = [_]table.Column{
     .{ .id = 1, .name = "key", .type = .int64 },
@@ -267,7 +267,7 @@ test "mixed signed width joins preserve values nulls and matches across checkpoi
     basis[0].schema = try inputs[0].schema.fingerprint();
     for ([_][]const u8{ "JOIN", "LEFT JOIN" }) |join| {
         var text: [256]u8 = undefined;
-        var syntax = try @import("RelationalSql.zig").parse(t.allocator, try std.fmt.bufPrint(&text, "SELECT * FROM lefts l {s} rights r ON r.key = l.key", .{join}), null);
+        var syntax = try @import("transit_sql_frontend").RelationalSql.parse(t.allocator, try std.fmt.bufPrint(&text, "SELECT * FROM lefts l {s} rights r ON r.key = l.key", .{join}), null);
         defer syntax.deinit();
         const plan = try syntax.bind(&inputs, .captured, base().budgets, null);
         const bound: r.Bound = .{ .plan = plan, .cuts = &basis };
@@ -516,12 +516,12 @@ test "ungrouped ORDER BY with NULLS FIRST LAST and LIMIT preserves pair tiebreak
     try t.expectEqual(expected_keys.len, seen);
 }
 
-fn scalar(value: ?i64) @import("RelationalValues.zig").Value {
+fn scalar(value: ?i64) @import("transit_sql_frontend").RelationalValues.Value {
     return if (value) |integer| .{ .integer = integer } else null;
 }
 
 test "relational scalar groups decimal sums and ordered records survive every checkpoint" {
-    const v = @import("RelationalValues.zig");
+    const v = @import("transit_sql_frontend").RelationalValues;
     const ScalarInput = struct {
         rows: []const e.Row,
         pub fn validate(_: *@This(), bound: r.Bound) !void {
@@ -535,7 +535,7 @@ test "relational scalar groups decimal sums and ordered records survive every ch
             return null;
         }
     };
-    const cases = [_]struct { kind: @import("Types.zig").Type, first: v.Literal, second: v.Literal }{
+    const cases = [_]struct { kind: @import("transit_sql_frontend").Types.Type, first: v.Literal, second: v.Literal }{
         .{ .kind = .boolean, .first = .{ .boolean = false }, .second = .{ .boolean = true } },
         .{ .kind = .uint64, .first = .{ .unsigned = 9223372036854775808 }, .second = .{ .unsigned = std.math.maxInt(u64) } },
         .{ .kind = .float64, .first = .{ .float = -1.25 }, .second = .{ .float = 2.5 } },
@@ -612,9 +612,9 @@ test "relational scalar groups decimal sums and ordered records survive every ch
 }
 
 test "relational scalar projection sorts after filtering and retains the source failure frontier" {
-    const types = @import("Types.zig");
-    const sql = @import("RelationalSql.zig");
-    const cols = [_]@import("TableSchema.zig").Column{
+    const types = @import("transit_sql_frontend").Types;
+    const sql = @import("transit_sql_frontend").RelationalSql;
+    const cols = [_]@import("transit_sql_frontend").TableSchema.Column{
         .{ .id = 1, .name = "keep", .type = .boolean },
         .{ .id = 2, .name = "a", .type = .{ .decimal = .{ .precision = 8, .scale = 2 } } },
         .{ .id = 3, .name = "b", .type = .{ .decimal = .{ .precision = 8, .scale = 2 } } },
@@ -681,10 +681,10 @@ test "relational scalar projection sorts after filtering and retains the source 
         }
     }
 }
-fn number(value: @import("RelationalValues.zig").Value) ?i64 {
+fn number(value: @import("transit_sql_frontend").RelationalValues.Value) ?i64 {
     return if (value) |present| present.integer else null;
 }
-fn expectNumbers(expected: []const ?i64, actual: []const @import("RelationalValues.zig").Value) !void {
+fn expectNumbers(expected: []const ?i64, actual: []const @import("transit_sql_frontend").RelationalValues.Value) !void {
     try t.expectEqual(expected.len, actual.len);
     for (expected, actual) |a, b| try t.expectEqual(a, number(b));
 }

@@ -488,6 +488,7 @@ packages:
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-storage && zig build test
     cd packages/zig/transit-spatial && zig build test
+    cd packages/zig/transit-sql-frontend && zig build test
     cd packages/zig/transit-compiler && zig build test
     cd packages/zig/transit-test && zig build test
     cd packages/zig/transit-fuze && zig build test

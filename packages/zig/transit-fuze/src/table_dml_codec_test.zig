@@ -1,8 +1,8 @@
 const std = @import("std");
 const t = std.testing;
-const d = @import("TableDml.zig");
-const c = @import("TableDmlCodec.zig");
-const s = @import("TableSchema.zig");
+const d = @import("transit_sql_frontend").TableDml;
+const c = @import("transit_sql_frontend").TableDmlCodec;
+const s = @import("transit_sql_frontend").TableSchema;
 const schema: s.Schema = .{ .object = 10, .revision = 1, .next_column = 3, .columns = &.{ .{ .id = 1, .name = "id", .type = .int64, .nullable = false }, .{ .id = 2, .name = "value", .type = .int64 } }, .primary_key = &.{1} };
 fn roundtrip(allocator: std.mem.Allocator, bytes: []const u8, fingerprint: [32]u8) !void {
     var decoded = try c.decode(allocator, schema, bytes);
@@ -105,7 +105,7 @@ test "independent compact DML bytes bind defaults Unicode and original schema" {
     try t.expectEqual(.null, row[3]);
 }
 test "compact DML recursively owns schema payloads and quoted names" {
-    var created = try @import("TableDdl.zig").compile(t.allocator, "CREATE TABLE \"人\" (\"識別\" INT PRIMARY KEY, payload STRUCT(n INT32 NOT NULL, xs LIST(TEXT)), amount DECIMAL(18,2), date DATE)", null, null);
+    var created = try @import("transit_sql_frontend").TableDdl.compile(t.allocator, "CREATE TABLE \"人\" (\"識別\" INT PRIMARY KEY, payload STRUCT(n INT32 NOT NULL, xs LIST(TEXT)), amount DECIMAL(18,2), date DATE)", null, null);
     defer created.deinit();
     var plan = try d.compile(t.allocator, "INSERT INTO \"人\" VALUES (1, STRUCT(2, LIST('one',NULL)), 12.50, DATE '2000-02-29')", "人", try created.statement.create.bind(31), null);
     defer plan.deinit();

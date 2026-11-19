@@ -577,6 +577,4 @@ test {
     _ = Values;
     _ = Json;
     _ = Operations;
-    _ = @import("types_test.zig");
-    _ = @import("companion_values_test.zig");
 }

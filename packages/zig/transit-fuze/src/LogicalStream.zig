@@ -2,7 +2,7 @@
 //! until the source owner atomically publishes them with its adapter cursor.
 const std = @import("std");
 const q = @import("LogicalQuery.zig");
-const t = @import("Types.zig");
+const t = @import("transit_sql_frontend").Types;
 const arrow = @import("LogicalArrow.zig");
 const Cancellation = @import("execute.zig").Cancellation;
 pub const max_rows = arrow.max_rows;

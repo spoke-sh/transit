@@ -1,8 +1,8 @@
 const std = @import("std");
 const e = std.testing;
-const Parser = @import("SqlTyped.zig");
-const sql = @import("Sql.zig");
-const t = @import("Types.zig");
+const Parser = @import("transit_sql_frontend").SqlTyped;
+const sql = @import("transit_sql_frontend").Sql;
+const t = @import("transit_sql_frontend").Types;
 
 test "unbound literal syntax retains nested source spans and exact text until binding" {
     var arena: std.heap.ArenaAllocator = .init(e.allocator);

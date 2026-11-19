@@ -3,6 +3,11 @@
 Fuze's Zig-native query library, exported as `transit_fuze`. It runs in callers;
 it has no Transit authority, storage, network or deployment dependency.
 
+The [shared SQL frontend](../transit-sql-frontend/README.md) owns pure syntax,
+logical types, typed binding and schema evolution. Fuze reexports those same
+types and composes them with query and program execution. Source compilers use
+the frontend directly without importing Arrow or a scan executor.
+
 Fuze executes finite typed filter, projection, limit, count and checked integer
 sum over caller-authorized source batches. Aggregates update bounded state
 without materializing discarded row projections. It has no storage, credentials or

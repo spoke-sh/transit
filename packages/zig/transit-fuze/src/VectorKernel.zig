@@ -1,11 +1,11 @@
 //! Bound column operators. Inputs borrow validated source/physical buffers;
 //! outcomes retain lane order and never publish progress or acquire authority.
 const std = @import("std");
-const t = @import("Types.zig");
+const t = @import("transit_sql_frontend").Types;
 const q = @import("LogicalQuery.zig");
-const finite = @import("Finite.zig");
+const finite = @import("transit_sql_frontend").Finite;
 const rows = @import("ColumnRows.zig");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 pub const StringValue = @import("StringVector.zig").Value;
 pub const cpu = @import("VectorCpu.zig");
 pub const Outcome = union(enum) { truth: finite.Truth, type_error, conflict };
@@ -132,7 +132,7 @@ pub const View = union(enum) {
         };
     }
 };
-pub fn scalar(value: @import("Scalar.zig").Scalar) t.Values.Atom {
+pub fn scalar(value: @import("transit_sql_frontend").Scalar.Scalar) t.Values.Atom {
     return switch (value) {
         .int64 => |v| .{ .signed = v },
         .uint64 => |v| .{ .unsigned = v },

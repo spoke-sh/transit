@@ -1,7 +1,7 @@
 /-
 Formal specification of Fuze's 5-state Cell lattice (value, null, missing,
 type_error, conflict) and 3-valued Kleene/SQL predicate evaluation, per
-packages/zig/transit-fuze/src/Types.zig and TablePredicate.zig (FUZE-CELL-01,
+packages/zig/transit-sql-frontend/src/Types.zig and TablePredicate.zig (FUZE-CELL-01,
 FUZE-PRED-01).
 -/
 

@@ -3,7 +3,7 @@
 Pure, bounded compilation of `.transit` modules to ordinary SQL. The
 [application source contract](../../../contracts/APPLICATION_SOURCE_V1.md) owns
 syntax, visibility, supported statements and limits. The package depends on
-Fuze's public typed statement owners, the protocol's diagnostics and the memory
+the shared SQL frontend's public typed statement owners, the protocol's diagnostics and the memory
 budget allocator. It has no filesystem, network, catalog service or execution
 access.
 

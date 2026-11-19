@@ -1,5 +1,7 @@
 //! Shared finite predicate and ordered aggregate semantics. Storage/source
 //! profiles own binding and layouts; missing/null/error/conflict rules are one.
+pub const max_source_columns = 8;
+pub const max_plan_bytes = 8192;
 const std = @import("std");
 pub const Truth = @import("PredicateTruth.zig").Truth;
 pub const Aggregate = enum(u8) { rows = 0, count = 1, sum = 2, count_values = 3 };

@@ -1,5 +1,6 @@
 //! Immutable schema-owned TZif rules. Loading checks the complete selected
 //! version/name/content digest once; row evaluation borrows the loaded rules.
+pub const utc_fixture = @embedFile("timezone-fixtures/utc.tzif");
 const std = @import("std");
 const tz = @import("Timezone.zig");
 pub const Descriptor = struct {

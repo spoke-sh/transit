@@ -1,6 +1,6 @@
 //! Check source annotations against the owning Fuze syntax before erasure.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const Graph = @import("Graph.zig");
 const types = @import("SourceTypes.zig");
 const Catalog = @import("WorkingCatalog.zig");

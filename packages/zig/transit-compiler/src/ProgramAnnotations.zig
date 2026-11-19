@@ -1,7 +1,7 @@
 //! Source-domain obligations over an already bound ordinary program. Physical
 //! kinds, nullable reads, scopes, capabilities and execution remain Fuze-owned.
 const std = @import("std");
-const a = @import("transit_fuze").ApplicationProgram;
+const a = @import("transit_sql_frontend").ApplicationProgram;
 const Graph = @import("Graph.zig");
 const types = @import("SourceTypes.zig");
 const Operands = @import("TypedOperands.zig");

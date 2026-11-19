@@ -450,7 +450,3 @@ fn childType(expected: ?t.Type, comptime constructor: []const u8, index: usize) 
         else => null,
     };
 }
-
-test {
-    _ = @import("sql_typed_test.zig");
-}

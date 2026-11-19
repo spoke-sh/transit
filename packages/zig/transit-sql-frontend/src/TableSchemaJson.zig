@@ -112,7 +112,3 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !s.Owned {
     const schema = try native(&arena, parsed.value);
     return .{ .arena = arena, .schema = schema };
 }
-
-test {
-    _ = @import("table_schema_json_test.zig");
-}

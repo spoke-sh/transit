@@ -3,8 +3,8 @@ const std = @import("std");
 const f = @import("root.zig");
 const p = @import("transit_protocol");
 const Parser = f.SqlTyped;
-const Reference = @import("SqlReference.zig");
-const Operand = @import("LogReadSql.zig").TypedOperand;
+const Reference = @import("transit_sql_frontend").SqlReference;
+const Operand = @import("transit_sql_frontend").LogReadSql.TypedOperand;
 
 fn header(parser: *Parser) !Reference {
     try parser.requireWord("COMMIT");

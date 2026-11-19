@@ -304,8 +304,3 @@ pub fn compileSemantics(allocator: std.mem.Allocator, text: []const u8, name: []
     const plan = try input.bind(alloc, name, descriptor.type, basis, location);
     return .{ .arena = arena, .descriptor = descriptor, .name = input.subject.name, .plan = plan };
 }
-
-test {
-    _ = @import("table_select_test.zig");
-    _ = @import("scalar_query_test.zig");
-}

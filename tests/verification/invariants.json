@@ -762,7 +762,7 @@
       "claim": "Complete single-Table SQL lowers to the existing typed plan without silently dropping clauses or truncating unbounded selection",
       "owner": "contracts/sql/README.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Sql.zig",
+        "packages/zig/transit-sql-frontend/src/Sql.zig",
         "packages/zig/transit-fuze/src/UnifiedSql.zig",
         "tests/query/sql/sql_driver.zig",
         "tests/query/sql/reference.py",
@@ -1510,11 +1510,11 @@
       "claim": "Offline KV/Document definitions preserve typed intent without publication; Table declarations use the shared general DDL and schema owner",
       "owner": "contracts/STATE_DECLARATION_V1.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Declaration.zig",
-        "packages/zig/transit-fuze/src/Sql.zig",
+        "packages/zig/transit-sql-frontend/src/Declaration.zig",
+        "packages/zig/transit-sql-frontend/src/Sql.zig",
         "tests/interfaces/sql/sql_declaration.zig",
         "tests/query/sql/declarations.py",
-        "packages/zig/transit-fuze/src/TableDdl.zig",
+        "packages/zig/transit-sql-frontend/src/TableDdl.zig",
         "packages/zig/transit-fuze/src/declaration_test.zig"
       ],
       "profile": "state-declaration-v1/offline",
@@ -2537,9 +2537,9 @@
       "claim": "Fuze 5-state Cell lattice and 3-valued Kleene/SQL predicates preserve error dominance, IS NOT DISTINCT FROM reflexivity and WHERE filter equivalence",
       "owner": "docs/handbook/reference/queries.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Types.zig",
-        "packages/zig/transit-fuze/src/PredicateTruth.zig",
-        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
+        "packages/zig/transit-sql-frontend/src/Types.zig",
+        "packages/zig/transit-sql-frontend/src/PredicateTruth.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalPredicate.zig",
         "contracts/sql/FuzeCell.lean",
         "tests/query/sql/rewrites.py"
       ],
@@ -2562,7 +2562,7 @@
       "claim": "Multi-version Table schema evolution and physical-to-logical projection preserve historical values across ADD COLUMN, DROP COLUMN and compaction segment rewrite",
       "owner": "docs/handbook/reference/tables.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/TableSchemaProjection.zig",
+        "packages/zig/transit-sql-frontend/src/TableSchemaProjection.zig",
         "contracts/sql/SchemaProjection.lean",
         "tests/query/sql/rewrites.py"
       ],
@@ -2584,7 +2584,7 @@
       "claim": "Collation sort keys form a total preorder, 4-byte Umbra prefixes reflect strict inequality and segment zone-map min/max pruning is sound",
       "owner": "docs/handbook/reference/queries.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-sql-frontend/src/Collation.zig",
         "packages/zig/transit-storage/src/OrderedKeyIndex.zig",
         "contracts/sql/CollationOrder.lean",
         "tests/query/sql/rewrites.py"
@@ -2684,7 +2684,7 @@
       "claim": "Admitted EBCDIC comparison, equality hashing, sort keys, prefixes and encoded filtering preserve the declared PAD or NO PAD semantics",
       "owner": "contracts/FUZE_TYPES_V1.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Collation.zig",
+        "packages/zig/transit-sql-frontend/src/Collation.zig",
         "packages/zig/transit-fuze/src/query_collation_test.zig",
         "packages/zig/transit-fuze/src/perfect_hash_and_oracle_test.zig",
         "tests/storage/tables/direct_table_service.py"

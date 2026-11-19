@@ -72,7 +72,7 @@ SELECT * FROM employees;
 Source inspection at `d6cc22663` explains why creation can succeed in psql while
 the read returns `Operation is outside the selected SQL profile`:
 
-- [SQL aliases](../../packages/zig/transit-fuze/src/SqlTypes.zig) resolve `INT`
+- [SQL aliases](../../packages/zig/transit-sql-frontend/src/SqlTypes.zig) resolve `INT`
   to int32 and `VARCHAR` to UTF-8; decimal retains its precision and scale.
 - [WireType](../../packages/zig/transit-sql-protocol/src/WireType.zig) admits
   only int64, uint64, float64, Boolean, UTF-8 and binary. Both int32 and decimal

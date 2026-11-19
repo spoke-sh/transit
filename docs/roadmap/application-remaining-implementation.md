@@ -174,7 +174,7 @@ Split implementation into three reviewable units:
    Add finite Table-dataflow/view and Document adapters separately as their
    exact target profiles are established.
 2. **Ordered program checking and emission.** Reuse
-   [ApplicationProgram](../../packages/zig/transit-fuze/src/ApplicationProgram.zig)
+   [ApplicationProgram](../../packages/zig/transit-sql-frontend/src/ApplicationProgram.zig)
    and its pure binding semantics for LET, reads, REQUIRE, IF, atomic mutations,
    appends and public failure handlers. Carry nominal annotations through every
    new operand path; reject unsupported combinations before erasure. Preserve

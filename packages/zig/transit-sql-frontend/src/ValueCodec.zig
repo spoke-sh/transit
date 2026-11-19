@@ -406,8 +406,6 @@ test "capability handles have exact native bytes and cannot become public values
     const nested: types.Type = .{ .structure = &.{.{ .name = "requests", .type = .{ .list = .{ .type = &.capability } }, .nullable = true }} };
     try t.expectError(error.ProtectedProgramValue, @import("LogicalDisplay.zig").cell(&writer, .null, nested));
     try t.expectError(error.ProtectedProgramValue, @import("LogicalJson.zig").foreignCell(t.allocator, .null, nested));
-    var workspace: [64]u8 = undefined;
-    try t.expectError(error.ProtectedProgramValue, @import("LogicalArrow.zig").encode(nested, &.{}, &workspace, &output));
 }
 
 test "neutral recursive cells preserve states and owned bytes through allocation failure" {

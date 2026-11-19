@@ -3,7 +3,7 @@
   "scope": "Every checked parser rule, nested choice and optional/repetition 0/1/2 boundary; actual public compiler profiles and finite reviewed negative cases. Lexer token boundaries have separate explicit cases. This does not execute an authority.",
   "profiles": {
     "relational": {
-      "source": "packages/zig/transit-fuze/src/RelationalSql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/RelationalSql.zig",
       "contract": "contracts/RELATIONAL_V1.md",
       "behavior": "Pure Table relational parsing and exact schema binding, including EXPLAIN prefix routing; no source capture or execution."
     },
@@ -18,12 +18,12 @@
       "behavior": "Pure typed template construction; no implicit execution or binding."
     },
     "mutation": {
-      "source": "packages/zig/transit-fuze/src/TableDml.zig",
+      "source": "packages/zig/transit-sql-frontend/src/TableDml.zig",
       "contract": "contracts/TABLE_DML_V1.md",
       "behavior": "Pure schema-bound general typed DML compilation; stored uniqueness and atomic publication have separate runtime proofs."
     },
     "declaration": {
-      "source": "packages/zig/transit-fuze/src/Declaration.zig",
+      "source": "packages/zig/transit-sql-frontend/src/Declaration.zig",
       "contract": "contracts/STATE_DECLARATION_V1.md",
       "behavior": "Offline KV/Document definition compilation; no publication."
     },
@@ -33,12 +33,12 @@
       "behavior": "Offline complete application parsing and graph validation; no publication."
     },
     "table_ddl": {
-      "source": "packages/zig/transit-fuze/src/TableDdl.zig",
+      "source": "packages/zig/transit-sql-frontend/src/TableDdl.zig",
       "contract": "contracts/TABLE_DDL_V1.md",
       "behavior": "General Table CREATE/ALTER/DROP compilation with explicit captured schema; no authority or publication."
     },
     "authorization": {
-      "source": "packages/zig/transit-fuze/src/AuthorizationSql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/AuthorizationSql.zig",
       "contract": "contracts/AUTHORIZATION_V1.md",
       "behavior": "Pure selected role/schema/privilege parsing. Native identity resolution, current authorization and durable publication have separate owners and proofs."
     },
@@ -53,22 +53,22 @@
       "behavior": "Pure shared transaction-control parser. No admission, private statement execution or durable decision."
     },
     "log_ddl": {
-      "source": "packages/zig/transit-fuze/src/LogDdl.zig",
+      "source": "packages/zig/transit-sql-frontend/src/LogDdl.zig",
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure Stream/Queue CREATE/ALTER/DROP compilation, including CREATE policy binding. ALTER policy evolution, current authority and publication have separate checks."
     },
     "log_inspection": {
-      "source": "packages/zig/transit-fuze/src/LogDdl.zig",
+      "source": "packages/zig/transit-sql-frontend/src/LogDdl.zig",
       "contract": "contracts/STREAM_V1.md",
       "behavior": "Pure named Stream/Queue SHOW/DESCRIBE syntax used by the SQL service. No definition lookup or disclosure."
     },
     "log_append": {
-      "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
       "contract": "contracts/sql/README.md",
       "behavior": "Standalone typed Stream/Queue append preparation and literal metadata binding; no upload, routing, admission or execution."
     },
     "log_consume": {
-      "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+      "source": "packages/zig/transit-sql-frontend/src/LogConsumeSql.zig",
       "contract": "contracts/sql/README.md",
       "behavior": "Pure typed projection, predicate, binary native assignment and wait preparation; no source capture, admission, waiting or offset settlement."
     },
@@ -88,7 +88,7 @@
       "behavior": "Pure shared declaration/control parsing with finite relational syntax, including EXPLAIN prefix routing. No metadata lookup, authorization, publication or execution."
     },
     "table_query": {
-      "source": "packages/zig/transit-fuze/src/TableSelect.zig",
+      "source": "packages/zig/transit-sql-frontend/src/TableSelect.zig",
       "contract": "contracts/TABLE_QUERY_V1.md",
       "behavior": "Pure scalar SELECT compilation against an explicit logical Table schema and its exact semantic descriptors; no acquisition or execution."
     },

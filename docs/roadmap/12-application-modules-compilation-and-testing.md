@@ -304,7 +304,7 @@ executable SQL:
   Zig parser, including embedded SQL operands, precedence, block boundaries and
   diagnostics. ANTLR remains a verification dependency, not a runtime parser.
 - **Block-aware lexical splitting and application-sized file bounds:**
-  Upgrade [`SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig) and
+  Upgrade [`SqlInput.zig`](../../packages/zig/transit-sql-frontend/src/SqlInput.zig) and
   [`MigrationRunner.splitStatements`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig)
   to track compound lexical block depth across `BEGIN [ATOMIC] ... [ON FAILURE ...] END`,
   `CASE ... END [CASE]`, `IF ... THEN ... [ELSIF ...] [ELSE ...] END IF`, and
@@ -534,7 +534,7 @@ contract and checked grammar agree.
 
 ### `P0` — Source/build contracts, compilation stages and block-aware scanning
 
-**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-fuze/src/SqlInput.zig`](../../packages/zig/transit-fuze/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).
+**Owners:** [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-sql-frontend/src/SqlInput.zig`](../../packages/zig/transit-sql-frontend/src/SqlInput.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig), [`packages/zig/transit-sql-client/src/MigrationClient.zig`](../../packages/zig/transit-sql-client/src/MigrationClient.zig), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig).
 
 Source syntax and the typed core belong to
 [`APPLICATION_SOURCE_V1`](../../contracts/APPLICATION_SOURCE_V1.md) and
@@ -609,7 +609,7 @@ Source syntax and the typed core belong to
 
 ### `P1` — Recursive module resolution, package locks and encapsulation
 
-**Owners:** [`contracts/DECLARATIVE_CATALOG_V1.md`](../../contracts/DECLARATIVE_CATALOG_V1.md), [`packages/zig/transit-catalog/src/DirectNamespace.zig`](../../packages/zig/transit-catalog/src/DirectNamespace.zig), [`packages/zig/transit-catalog/src/DirectCatalogDependencies.zig`](../../packages/zig/transit-catalog/src/DirectCatalogDependencies.zig), [`packages/zig/transit-fuze/src/SqlBinding.zig`](../../packages/zig/transit-fuze/src/SqlBinding.zig).
+**Owners:** [`contracts/DECLARATIVE_CATALOG_V1.md`](../../contracts/DECLARATIVE_CATALOG_V1.md), [`packages/zig/transit-catalog/src/DirectNamespace.zig`](../../packages/zig/transit-catalog/src/DirectNamespace.zig), [`packages/zig/transit-catalog/src/DirectCatalogDependencies.zig`](../../packages/zig/transit-catalog/src/DirectCatalogDependencies.zig), [`packages/zig/transit-sql-frontend/src/SqlBinding.zig`](../../packages/zig/transit-sql-frontend/src/SqlBinding.zig).
 
 1. **Resolve local and repository modules through one typed graph:**
    - Implement child build imports, module-valued parameters/exports, package
@@ -635,7 +635,7 @@ Source syntax and the typed core belong to
 
 ### `P2` — Compile-time `PROFILE`, `FUNCTION`, `GUARD` and inline `PROCEDURE` lowering
 
-**Owners:** [`contracts/sql/TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4), [`packages/zig/transit-fuze/src/SqlLowering.zig`](../../packages/zig/transit-fuze/src/SqlLowering.zig), [`packages/zig/transit-fuze/src/ScalarProgram.zig`](../../packages/zig/transit-fuze/src/ScalarProgram.zig), [`packages/zig/transit-catalog/src/DeclarativeIngress.zig`](../../packages/zig/transit-catalog/src/DeclarativeIngress.zig).
+**Owners:** [`contracts/sql/TransitExtensions.g4`](../../contracts/sql/TransitExtensions.g4), [`packages/zig/transit-fuze/src/SqlLowering.zig`](../../packages/zig/transit-fuze/src/SqlLowering.zig), [`packages/zig/transit-sql-frontend/src/ScalarProgram.zig`](../../packages/zig/transit-sql-frontend/src/ScalarProgram.zig), [`packages/zig/transit-catalog/src/DeclarativeIngress.zig`](../../packages/zig/transit-catalog/src/DeclarativeIngress.zig).
 
 1. **Implement `CREATE PROFILE ... FOR SOURCE | SINK | PUBLICATION` and `USING PROFILE`:**
    - Parse and validate typed option profiles, resolve `USING PROFILE <name>`
@@ -673,7 +673,7 @@ Source syntax and the typed core belong to
 
 ### `P3` — Whole-program checking, SQL emission and `transit build`
 
-**Owners:** [`packages/zig/transit-fuze/src/SqlCheck.zig`](../../packages/zig/transit-fuze/src/SqlCheck.zig), [`packages/zig/transit-catalog/`](../../packages/zig/transit-catalog), [`apps/transit-cli/`](../../apps/transit-cli). Source I/O and resolution belong to tooling; shared compiler semantics remain independent of Station.
+**Owners:** [`packages/zig/transit-sql-frontend/src/SqlCheck.zig`](../../packages/zig/transit-sql-frontend/src/SqlCheck.zig), [`packages/zig/transit-catalog/`](../../packages/zig/transit-catalog), [`apps/transit-cli/`](../../apps/transit-cli). Source I/O and resolution belong to tooling; shared compiler semantics remain independent of Station.
 
 1. **Build the multi-file working catalog and symbol table:**
    - Extend `transit-compiler`'s in-memory `WorkingCatalog`, using shared Fuze and

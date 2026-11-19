@@ -1,9 +1,9 @@
 const std = @import("std");
 const t = std.testing;
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
-const table = @import("TableSchema.zig");
-const values = @import("RelationalValues.zig");
+const table = @import("transit_sql_frontend").TableSchema;
+const values = @import("transit_sql_frontend").RelationalValues;
 
 const Sources = struct {
     rows: [2][]const e.Row,

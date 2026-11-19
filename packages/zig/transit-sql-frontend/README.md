@@ -1,0 +1,22 @@
+# Transit SQL frontend
+
+`transit_sql_frontend` owns the pure SQL syntax, logical value/type contracts,
+scalar and program binding, Table schema evolution, and ordered SQL verification
+shared by Fuze and offline source compilers. It was separated from `transit-fuze`
+without changing SQL syntax, limits, encodings or the current contract definition.
+
+Direct dependencies are `transit-memory`, `transit-protocol` and `transit-spatial`.
+The frontend has no Arrow, query scan, storage, filesystem, service or network
+dependency. Callers supply bytes, schemas, allocators and explicit bounds. Parsing
+or binding establishes neither runtime authorization nor successful execution.
+
+Fuze reexports these public types to keep one module identity for existing
+consumers. Its `ApplicationProgram` facade adds expression/cursor execution;
+`LogicalQuery` adds the pull executor. Those runtime composition helpers and
+cross-component Arrow tests remain with Fuze. Shared finite-column and plan-byte
+limits live here and are consumed by both sides.
+
+Run `zig build test` inside this package with the pinned development shell. Tests
+exercise pure parsing, codecs, logical semantics, type checking and allocation
+ownership. Run the Fuze and compiler suites as well when changing shared owners.
+These checks do not qualify a storage provider or live service.

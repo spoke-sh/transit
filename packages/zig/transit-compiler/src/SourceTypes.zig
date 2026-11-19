@@ -1,6 +1,6 @@
 //! Source-only types and values. No native identity or authorization is minted.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const s = @import("Syntax.zig");
 const Graph = @import("Graph.zig");
 pub const Scalar = struct {

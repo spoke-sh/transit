@@ -1,7 +1,7 @@
 //! Bind a public-data program against proposed resources using the runtime's
 //! pure types. No native identity, permission or activation is established.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const p = @import("transit_protocol");
 const a = f.ApplicationProgram;
 const Catalog = @import("WorkingCatalog.zig");

@@ -6,24 +6,26 @@
       "profile": "Finite SQL, prepared parameters, literal Table mutations, offline state declarations and cursor assistance, general Table schemas and DDL compilation, typed Table DML and logical predicates, int64 finite relational SQL, standalone Stream/Queue append preparation, standalone Stream consumption preparation, bounded ordered Queue program parsing and typed resource binding",
       "owners": [
         "packages/zig/transit-fuze/src/Sql*.zig",
+        "packages/zig/transit-sql-frontend/src/Sql*.zig",
         "packages/zig/transit-fuze/src/Prepared.zig",
-        "packages/zig/transit-fuze/src/Declaration.zig",
-        "packages/zig/transit-fuze/src/TableDdl.zig",
-        "packages/zig/transit-fuze/src/TableSchema.zig",
-        "packages/zig/transit-fuze/src/TableEvolution.zig",
-        "packages/zig/transit-fuze/src/TableDml.zig",
-        "packages/zig/transit-fuze/src/TableSelect.zig",
-        "packages/zig/transit-fuze/src/LogicalPrepared.zig",
-        "packages/zig/transit-fuze/src/RelationalSql.zig",
-        "packages/zig/transit-fuze/src/AuthorizationSql.zig",
-        "packages/zig/transit-fuze/src/LogAppendSql.zig",
-        "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+        "packages/zig/transit-sql-frontend/src/Declaration.zig",
+        "packages/zig/transit-sql-frontend/src/TableDdl.zig",
+        "packages/zig/transit-sql-frontend/src/TableSchema.zig",
+        "packages/zig/transit-sql-frontend/src/TableEvolution.zig",
+        "packages/zig/transit-sql-frontend/src/TableDml.zig",
+        "packages/zig/transit-sql-frontend/src/TableSelect.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalPrepared.zig",
+        "packages/zig/transit-sql-frontend/src/RelationalSql.zig",
+        "packages/zig/transit-sql-frontend/src/AuthorizationSql.zig",
+        "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
+        "packages/zig/transit-sql-frontend/src/LogConsumeSql.zig",
         "packages/zig/transit-fuze/src/LogClaimSql.zig",
-        "packages/zig/transit-fuze/src/LogReadSql.zig",
+        "packages/zig/transit-sql-frontend/src/LogReadSql.zig",
         "packages/zig/transit-fuze/src/LogSettlementSql.zig",
         "packages/zig/transit-fuze/src/ApplicationProgram*.zig",
-        "packages/zig/transit-fuze/src/ApplicationPredicate.zig",
-        "packages/zig/transit-fuze/src/NativeBinding.zig"
+        "packages/zig/transit-sql-frontend/src/ApplicationProgram*.zig",
+        "packages/zig/transit-sql-frontend/src/ApplicationPredicate.zig",
+        "packages/zig/transit-sql-frontend/src/NativeBinding.zig"
       ],
       "exclude": [
         "packages/zig/transit-fuze/src/SqlCodes.zig",
@@ -56,11 +58,11 @@
           "name": "relational SQL binds shared three-valued predicates and precise unknown names"
         },
         {
-          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
           "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
         },
         {
-          "source": "packages/zig/transit-fuze/src/LogConsumeSql.zig",
+          "source": "packages/zig/transit-sql-frontend/src/LogConsumeSql.zig",
           "name": "log consume SQL owns typed projection predicate group and wait operands"
         },
         {
@@ -72,21 +74,21 @@
           "name": "companion declaration failures retain structured binding diagnostics"
         },
         {
-          "source": "packages/zig/transit-fuze/src/ApplicationProgram.zig",
+          "source": "packages/zig/transit-sql-frontend/src/ApplicationProgram.zig",
           "name": "application program rejects unsafe boundaries and incomplete effects"
         },
         {
-          "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+          "source": "packages/zig/transit-sql-frontend/src/ApplicationProgramTypes.zig",
           "name": "application program types reject protected disclosure and invalid bindings"
         },
         {
-          "source": "packages/zig/transit-fuze/src/SqlScript.zig",
+          "source": "packages/zig/transit-sql-frontend/src/SqlScript.zig",
           "name": "script framing keeps transaction controls separate and rejects incomplete tails"
         }
       ],
       "exceptions": [
         {
-          "source": "packages/zig/transit-fuze/src/TableEvolution.zig",
+          "source": "packages/zig/transit-sql-frontend/src/TableEvolution.zig",
           "cause": "IncompatibleSchemaProjection",
           "disposition": "control_flow",
           "reason": "canProject consumes this sentinel to return false for edits requiring the existing validation/rewrite path. It does not classify a submitted SQL outcome or suppress a row-conversion failure.",
@@ -98,7 +100,7 @@
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/TableDml.zig",
+          "source": "packages/zig/transit-sql-frontend/src/TableDml.zig",
           "cause": "WriteFailed",
           "disposition": "control_flow",
           "reason": "Typed intent encoding retries the small scratch buffer with the bounded value envelope. A full-envelope failure projects MutationBatchTooLarge; scratch exhaustion is not a transport or SQL syntax failure.",
@@ -110,7 +112,7 @@
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/Sql.zig",
+          "source": "packages/zig/transit-sql-frontend/src/Sql.zig",
           "cause": "IncompleteSql",
           "disposition": "control_flow",
           "reason": "Only the synthetic cursor token with an active assistance sink produces this sentinel; hint collection consumes it without executing SQL.",
@@ -122,7 +124,7 @@
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/SqlInput.zig",
+          "source": "packages/zig/transit-sql-frontend/src/SqlInput.zig",
           "cause": "InvalidSqlCursor",
           "disposition": "mapped_boundary",
           "reason": "Editor cursor failure is an observational input error, separate from a submitted SQL statement or result cursor.",
@@ -134,13 +136,13 @@
               "name": "editor and typed predicate failures keep their own meaning without overriding uncertain submission"
             },
             {
-              "source": "packages/zig/transit-fuze/src/SqlInput.zig",
+              "source": "packages/zig/transit-sql-frontend/src/SqlInput.zig",
               "name": "cursor ranges replace whole tokens and reject split UTF-8 or protected lexical context"
             }
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/TableSchema.zig",
+          "source": "packages/zig/transit-sql-frontend/src/TableSchema.zig",
           "cause": "WriteFailed",
           "disposition": "control_flow",
           "reason": "The fixed default-value encoding buffer catches WriteFailed and reports TableSchemaTooLarge before a compiled schema is returned. Caller-owned codec output buffers remain a separate pure encoding boundary.",
@@ -152,37 +154,37 @@
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
           "cause": "InvalidWorkloadProjection",
           "disposition": "internal_invariant",
           "reason": "The adapter supplied a native operation kind inconsistent with the already compiled append. This is an internal binding invariant, not a SQL-input or accepted-work outcome; projection refuses it before any dispatch.",
           "tests": [
             {
-              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
               "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
             }
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+          "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
           "cause": "TableSchemaChanged",
           "disposition": "internal_invariant",
           "reason": "The adapter supplied a native binding with a different schema from the already compiled append. This internal binding invariant refuses projection before any dispatch; it does not reinterpret accepted work or classify a native outcome.",
           "tests": [
             {
-              "source": "packages/zig/transit-fuze/src/LogAppendSql.zig",
+              "source": "packages/zig/transit-sql-frontend/src/LogAppendSql.zig",
               "name": "log append SQL owns typed row metadata parameters and frozen RETURNING"
             }
           ]
         },
         {
-          "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+          "source": "packages/zig/transit-sql-frontend/src/ApplicationProgramTypes.zig",
           "cause": "ApplicationHostUnavailable",
           "disposition": "control_flow",
           "reason": "The runtime compares complete typed program requirements with its installed host before acquiring input. This readiness refusal parks the original; parsing and type binding do not call this check, and it cannot classify SQL syntax or an accepted transaction outcome.",
           "tests": [
             {
-              "source": "packages/zig/transit-fuze/src/ApplicationProgramTypes.zig",
+              "source": "packages/zig/transit-sql-frontend/src/ApplicationProgramTypes.zig",
               "name": "application host requirements include unreachable branches and failure continuations"
             },
             {
@@ -4362,18 +4364,18 @@
         "tests/query/files/operations/FileQuery.zig",
         "packages/zig/transit-fuze/src/FileFraming.zig",
         "packages/zig/transit-fuze/src/FileQuery.zig",
-        "packages/zig/transit-fuze/src/LogicalQuery.zig",
-        "packages/zig/transit-fuze/src/LogicalPredicate.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalQuery.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalPredicate.zig",
         "packages/zig/transit-fuze/src/FileSource.zig",
-        "packages/zig/transit-fuze/src/BoundedJson.zig",
-        "packages/zig/transit-fuze/src/DescriptorJson.zig",
+        "packages/zig/transit-sql-frontend/src/BoundedJson.zig",
+        "packages/zig/transit-sql-frontend/src/DescriptorJson.zig",
         "packages/zig/transit-fuze/src/Inference.zig",
-        "packages/zig/transit-fuze/src/JsonDiagnostic.zig",
+        "packages/zig/transit-sql-frontend/src/JsonDiagnostic.zig",
         "packages/zig/transit-fuze/src/LogicalArrow.zig",
         "packages/zig/transit-fuze/src/LogicalCodec.zig",
-        "packages/zig/transit-fuze/src/LogicalJson.zig",
-        "packages/zig/transit-fuze/src/Types.zig",
-        "packages/zig/transit-fuze/src/ValueCodec.zig",
+        "packages/zig/transit-sql-frontend/src/LogicalJson.zig",
+        "packages/zig/transit-sql-frontend/src/Types.zig",
+        "packages/zig/transit-sql-frontend/src/ValueCodec.zig",
         "packages/zig/transit-fuze/src/Batch.zig",
         "packages/zig/transit-fuze/src/BatchExecution.zig",
         "packages/zig/transit-fuze/src/VectorCpu.zig"

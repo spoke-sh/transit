@@ -2,9 +2,9 @@
 //! atomically publishes the returned root with operator/input progress.
 //! Allocation uses the host's bounded workspace; storage and authority are external.
 const std = @import("std");
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
-const values = @import("RelationalValues.zig");
+const values = @import("transit_sql_frontend").RelationalValues;
 const native = @import("transit_protocol").Growth;
 const Self = @This();
 pub const max_height = 94;
@@ -185,7 +185,7 @@ fn checkGroup(self: Self, group: e.Group) !void {
                 if ((state.values == 0) != (state.sum == null)) return error.InvalidRelationalGroup;
                 if (state.sum) |sum| {
                     const kind = (try self.plan.resolveColumn(column)).type;
-                    @import("Types.zig").Semantics.validate(if (kind == .decimal) .{ .decimal = sum } else .{ .signed = sum }, kind) catch return error.InvalidRelationalGroup;
+                    @import("transit_sql_frontend").Types.Semantics.validate(if (kind == .decimal) .{ .decimal = sum } else .{ .signed = sum }, kind) catch return error.InvalidRelationalGroup;
                 }
             },
         }

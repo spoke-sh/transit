@@ -526,10 +526,6 @@ fn drop(parser: *Parser) !@FieldType(Syntax, "drop") {
     return .{ .schema_name = ref.qualifier, .name = ref.name, .if_exists = if_exists };
 }
 
-test {
-    _ = @import("table_ddl_test.zig");
-}
-
 test "column type source spans preserve ordinary schema identity" {
     const text = "CREATE TABLE items (id BIGINT PRIMARY KEY, note TEXT COLLATE UTF8_BINARY)";
     var parsed = try compile(std.testing.allocator, text, null, null);

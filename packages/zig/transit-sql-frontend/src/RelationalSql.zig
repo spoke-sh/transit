@@ -716,7 +716,3 @@ fn resolve(reference: Reference, sources: []const r.Source, location: ?*sql.Loca
         return err;
     };
 }
-
-test {
-    _ = @import("relational_sql_test.zig");
-}

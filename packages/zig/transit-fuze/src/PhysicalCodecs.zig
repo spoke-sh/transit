@@ -1,11 +1,11 @@
 //! Composable pure-Zig physical codecs (analytical and enterprise/mainframe)
 //! with 5-state cell preservation (`value`, `null`, `missing`, `type_error`, `conflict`).
 const std = @import("std");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const TableSchema = @import("TableSchema.zig");
-const Ebcdic = @import("Ebcdic037.zig");
-const Collation = @import("Collation.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const Ebcdic = @import("transit_sql_frontend").Ebcdic037;
+const Collation = @import("transit_sql_frontend").Collation;
 const ColumnPredicate = @import("ColumnPredicate.zig");
 pub const PlainBuffers = @import("PlainColumnBuffers.zig");
 
@@ -178,8 +178,8 @@ pub fn decodeComp4(bytes: []const u8, expected: Types.Type) Values.Cell {
     return numericCellFromSigned(signed_val, expected);
 }
 
-pub const encodeIbmHfp64 = @import("IbmHfp.zig").encode64;
-pub const decodeIbmHfp = @import("IbmHfp.zig").decode;
+pub const encodeIbmHfp64 = @import("transit_sql_frontend").IbmHfp.encode64;
+pub const decodeIbmHfp = @import("transit_sql_frontend").IbmHfp.decode;
 
 /// CP037 -> UTF-8; the output may need twice the source byte length.
 pub const decodeEbcdic037 = Ebcdic.decode;

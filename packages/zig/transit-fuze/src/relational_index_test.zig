@@ -1,9 +1,9 @@
 const std = @import("std");
 const t = std.testing;
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const Index = @import("RelationalIndex.zig");
-const columns = [_]@import("TableSchema.zig").Column{.{ .id = 1, .name = "k", .type = .int64 }};
+const columns = [_]@import("transit_sql_frontend").TableSchema.Column{.{ .id = 1, .name = "k", .type = .int64 }};
 const sources = [_]r.Source{.{ .alias = "t", .realm = 1, .resource = 101, .catalog = 9, .owner = 7, .schema = .{ .object = 11, .revision = 1, .next_column = 2, .columns = &columns } }};
 const plan: r.Plan = .{ .sources = &sources, .group_by = &.{.{ .source = 0, .id = 1 }}, .outputs = &.{.{ .name = "n", .expression = .count_all }}, .lifetime = .captured, .budgets = .{ .resident_bytes = Index.resident_bytes, .spill_bytes = 1 << 30, .result_bytes = 1 << 20, .output_rows = 10000, .work_steps = 1000000, .source_pins = 1 } };
 fn cut() ![1]r.Cut {

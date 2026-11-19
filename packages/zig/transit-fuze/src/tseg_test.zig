@@ -1,9 +1,9 @@
 const std = @import("std");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const TableSchema = @import("TableSchema.zig");
-const TableRow = @import("TableRow.zig");
-const Collation = @import("Collation.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const TableRow = @import("transit_sql_frontend").TableRow;
+const Collation = @import("transit_sql_frontend").Collation;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 const TDel = @import("TDel.zig");
 const TSeg = @import("TSeg.zig");
@@ -275,7 +275,7 @@ test "VectorKernel: bindCollation evaluates predicates using declared collation"
     } };
     var out: [1]VectorKernel.Outcome = undefined;
     atom_ci.run(atom_ci, view, 0, &out);
-    try std.testing.expectEqual(@import("Finite.zig").Truth.true_value, out[0].truth);
+    try std.testing.expectEqual(@import("transit_sql_frontend").Finite.Truth.true_value, out[0].truth);
 }
 
 test "segment readers reject foreign definition, interpretation and deletion ownership" {

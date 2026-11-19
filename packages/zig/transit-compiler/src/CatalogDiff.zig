@@ -1,7 +1,7 @@
 //! Pure migration synthesis over explicit immutable Table history. The caller
 //! owns a bounded arena and verified input buffers; no filesystem or live catalog.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const p = @import("transit_protocol");
 const Compiler = @import("Compiler.zig");
 const Context = @import("SourceDiagnostic.zig").Context;

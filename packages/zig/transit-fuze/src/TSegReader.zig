@@ -4,11 +4,11 @@
 //! No authorization, pin acquisition, cache or async task is owned here.
 const std = @import("std");
 const TSeg = @import("TSeg.zig");
-const TableSchema = @import("TableSchema.zig");
-const Values = @import("Values.zig");
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const Values = @import("transit_sql_frontend").Values;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 const ColumnPredicate = @import("ColumnPredicate.zig");
-const PredicateMachine = @import("PredicateMachine.zig");
+const PredicateMachine = @import("transit_sql_frontend").PredicateMachine;
 const Self = @This();
 
 pub const Source = struct {
@@ -403,7 +403,7 @@ const OutcomeAtom = struct {
     pub fn validateShape(self: OutcomeAtom) !void {
         if (self.instruction >= ColumnPredicate.Program.max_instructions) return error.InvalidPredicateProgram;
     }
-    pub fn truth(self: OutcomeAtom, row: OutcomeRow) !@import("Finite.zig").Truth {
+    pub fn truth(self: OutcomeAtom, row: OutcomeRow) !@import("transit_sql_frontend").Finite.Truth {
         return row.columns[self.instruction].?[row.row].truth();
     }
 };

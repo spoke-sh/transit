@@ -1,10 +1,10 @@
 const std = @import("std");
 const t = std.testing;
-const r = @import("Relational.zig");
+const r = @import("transit_sql_frontend").Relational;
 const e = @import("RelationalExecution.zig");
 const Output = @import("RelationalOutput.zig");
 const Delta = @import("RelationalDelta.zig");
-const columns = [_]@import("TableSchema.zig").Column{.{ .id = 1, .name = "v", .type = .int64, .nullable = true }};
+const columns = [_]@import("transit_sql_frontend").TableSchema.Column{.{ .id = 1, .name = "v", .type = .int64, .nullable = true }};
 const sources = [_]r.Source{
     .{ .alias = "l", .realm = 1, .resource = 101, .catalog = 9, .owner = 7, .schema = .{ .object = 11, .revision = 1, .next_column = 2, .columns = &columns } },
     .{ .alias = "r", .realm = 1, .resource = 202, .catalog = 9, .owner = 7, .schema = .{ .object = 22, .revision = 1, .next_column = 2, .columns = &columns } },

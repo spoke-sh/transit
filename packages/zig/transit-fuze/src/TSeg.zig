@@ -3,11 +3,11 @@
 //! collation-aware zone maps, Bloom filters and a sorted primary-key directory.
 //! Binary search applies after reading that directory; it is not a paged B-tree.
 const std = @import("std");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
-const TableSchema = @import("TableSchema.zig");
-const TableRow = @import("TableRow.zig");
-const Collation = @import("Collation.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
+const TableSchema = @import("transit_sql_frontend").TableSchema;
+const TableRow = @import("transit_sql_frontend").TableRow;
+const Collation = @import("transit_sql_frontend").Collation;
 const PhysicalCodecs = @import("PhysicalCodecs.zig");
 const TDel = @import("TDel.zig");
 

@@ -83,7 +83,7 @@ test "scalar plan codec owns nested instructions and rejects old definitions and
 
 test "scalar SQL retains exact timezone metadata and refuses missing or mismatched rules" {
     const time_schema: f.Types.Type = .{ .structure = &.{.{ .name = "ts", .type = .{ .timestamp = .utc } }} };
-    const rules = try f.PinnedTimezone.Descriptor.init("iana-2025b", "Etc/UTC", @embedFile("timezone-fixtures/utc.tzif"));
+    const rules = try f.PinnedTimezone.Descriptor.init("iana-2025b", "Etc/UTC", f.PinnedTimezone.utc_fixture);
     const text = "SELECT ts AT TIME ZONE 'Etc/UTC' AS local, TIME_BUCKET(ts,1000000,'Etc/UTC') AS bucket, LOCAL_TO_UTC(ts AT TIME ZONE 'Etc/UTC','Etc/UTC',REJECT) AS original, TIME_BUCKET(LOCAL_TO_UTC(ts AT TIME ZONE 'Etc/UTC','Etc/UTC',REJECT),1000000,'Etc/UTC') AS nested_bucket FROM events";
     try t.expectError(error.MissingColumnSemantics, f.TableSelect.compile(t.allocator, text, "events", time_schema, @splat(8), null));
     var query = try f.TableSelect.compileSemantics(t.allocator, text, "events", time_schema, @splat(8), null, null, &.{.{ .timezone = rules }});
@@ -176,8 +176,8 @@ test "scalar range ordering and vector metrics bind exact logical operands" {
     defer query.deinit();
     var x: [8]u8 align(64) = .{ 0, 0, 0x80, 0x3f, 0, 0, 0, 0x40 }; // 1, 2
     var y: [8]u8 align(64) = .{ 0, 0, 0x80, 0x40, 0, 0, 0xc0, 0x40 }; // 4, 6
-    const lower: @import("RangeValue.zig").Value = .{ .lower = .{ .value = .{ .signed = 1 }, .inclusive = true }, .upper = .{ .value = .{ .signed = 3 }, .inclusive = false } };
-    const upper: @import("RangeValue.zig").Value = .{ .lower = .{ .value = .{ .signed = 3 }, .inclusive = true }, .upper = null };
+    const lower: @import("transit_sql_frontend").RangeValue.Value = .{ .lower = .{ .value = .{ .signed = 1 }, .inclusive = true }, .upper = .{ .value = .{ .signed = 3 }, .inclusive = false } };
+    const upper: @import("transit_sql_frontend").RangeValue.Value = .{ .lower = .{ .value = .{ .signed = 3 }, .inclusive = true }, .upper = null };
     var work: f.ScalarProgram.Workspace = .{};
     try query.plan.scalars.prepare(input.structure, &work);
     const result = try query.plan.materialize(&.{ .{ .value = .{ .range = lower } }, .{ .value = .{ .range = upper } }, .{ .value = .{ .vector = &x } }, .{ .value = .{ .vector = &y } } }, &work);
@@ -237,7 +237,7 @@ test "scalar SQL corresponds to independent decimal and instruction byte oracles
 }
 
 test "prepared scalar timezone plans own artifacts after preparation and binding close" {
-    var artifacts: [@embedFile("timezone-fixtures/utc.tzif").len]u8 = @embedFile("timezone-fixtures/utc.tzif").*;
+    var artifacts: [f.PinnedTimezone.utc_fixture.len]u8 = f.PinnedTimezone.utc_fixture.*;
     const input: f.Types.Type = .{ .structure = &.{.{ .name = "ts", .type = .{ .timestamp = .utc } }} };
     const rules = try f.PinnedTimezone.Descriptor.init("iana-2025b", "Etc/UTC", &artifacts);
     var prepared = try f.LogicalPrepared.initSemantics(t.allocator, "SELECT TIME_BUCKET(ts,1000000,'Etc/UTC') AS bucket FROM events", "events", input, @splat(19), null, .transit, &.{.{ .timezone = rules }});

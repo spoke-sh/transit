@@ -118,7 +118,3 @@ pub fn bind(self: *const Self, allocator: std.mem.Allocator, name: []const u8, s
     defer allocator.free(bytes);
     return f.TableDmlCodec.decode(allocator, schema, try f.TableDmlCodec.encode(allocator, plan, bytes));
 }
-
-test {
-    _ = @import("table_parameters_test.zig");
-}

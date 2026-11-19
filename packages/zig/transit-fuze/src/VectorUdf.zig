@@ -4,9 +4,9 @@
 //! column batches without round-tripping through `128 KiB` `Station` actor
 //! mailboxes (`D5`, `P3`).
 const std = @import("std");
-const Types = @import("Types.zig");
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
-const OperatorTraits = @import("OperatorTraits.zig");
+const OperatorTraits = @import("transit_sql_frontend").OperatorTraits;
 
 pub const definition = "transit.fuze.vector-udf.v1.2026-10-30";
 pub const max_udf_params: usize = 8;

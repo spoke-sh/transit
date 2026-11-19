@@ -169,7 +169,3 @@ pub fn sameKey(schema: s.Schema, left: []const Cell, right: []const Cell) !bool 
     }
     return true;
 }
-
-test {
-    _ = @import("table_row_test.zig");
-}

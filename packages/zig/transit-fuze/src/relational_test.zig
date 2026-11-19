@@ -1,7 +1,7 @@
 const std = @import("std");
-const r = @import("Relational.zig");
-const table = @import("TableSchema.zig");
-const types = @import("Types.zig");
+const r = @import("transit_sql_frontend").Relational;
+const table = @import("transit_sql_frontend").TableSchema;
+const types = @import("transit_sql_frontend").Types;
 const testing = std.testing;
 const columns = [_]table.Column{
     .{ .id = 1, .name = "key", .type = .int64 },
@@ -72,8 +72,8 @@ test "relational null routing and canonical checked arithmetic match independent
     const parsed = try std.json.parseFromSlice(Fixture, testing.allocator, @embedFile("fixtures/relational.json"), .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     for (parsed.value.nulls) |sample| {
-        const left: @import("RelationalValues.zig").Value = if (sample.left) |integer| .{ .integer = integer } else null;
-        const right: @import("RelationalValues.zig").Value = if (sample.right) |integer| .{ .integer = integer } else null;
+        const left: @import("transit_sql_frontend").RelationalValues.Value = if (sample.left) |integer| .{ .integer = integer } else null;
+        const right: @import("transit_sql_frontend").RelationalValues.Value = if (sample.right) |integer| .{ .integer = integer } else null;
         try testing.expectEqual(sample.join, try r.joinMatches(left, right, columns[0]));
         const order: std.math.Order = if (sample.order < 0) .lt else if (sample.order > 0) .gt else .eq;
         try testing.expectEqual(order, try r.groupOrder(left, right, columns[0]));

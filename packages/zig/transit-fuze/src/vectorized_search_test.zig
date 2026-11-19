@@ -1,15 +1,15 @@
 const std = @import("std");
 const bitmap = @import("transit_bitmap");
 const memory = @import("transit_memory");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 const GermanString = @import("GermanString.zig");
 const HybridSearch = @import("HybridSearch.zig");
 const SearchOracle = @import("SearchOracle.zig");
 const TSearchSegment = @import("TSearchSegment.zig");
-const Types = @import("Types.zig");
-const Values = @import("Values.zig");
+const Types = @import("transit_sql_frontend").Types;
+const Values = @import("transit_sql_frontend").Values;
 const VectorizedSearch = @import("VectorizedSearch.zig");
-const VectorMetric = @import("VectorMetric.zig");
+const VectorMetric = @import("transit_sql_frontend").VectorMetric;
 
 test "P4: selectSearchAccessPath verifies segmenter_digest, collation, positions_enabled and .ready state" {
     const digest_unicode = SearchOracle.computeSegmenterDigest(.unicode_word_v1, .utf8_binary, &.{});

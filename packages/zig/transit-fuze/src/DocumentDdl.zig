@@ -2,12 +2,12 @@
 //! Catalog binding, authorization, staging and execution are separate.
 const std = @import("std");
 const p = @import("transit_protocol");
-const sql = @import("Sql.zig");
-const Parser = @import("SqlTyped.zig");
-const TableDdl = @import("TableDdl.zig");
-const Schema = @import("TableSchema.zig");
-const Reference = @import("SqlReference.zig");
-const PerfectHash = @import("PerfectHash.zig");
+const sql = @import("transit_sql_frontend").Sql;
+const Parser = @import("transit_sql_frontend").SqlTyped;
+const TableDdl = @import("transit_sql_frontend").TableDdl;
+const Schema = @import("transit_sql_frontend").TableSchema;
+const Reference = @import("transit_sql_frontend").SqlReference;
+const PerfectHash = @import("transit_sql_frontend").PerfectHash;
 
 pub const Profile = p.DocumentDeclaration.Profile;
 

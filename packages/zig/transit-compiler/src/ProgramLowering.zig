@@ -1,7 +1,7 @@
 //! Lower pure functions, ordered guards and inline atomic procedures into
 //! canonical public-data Queue program SQL before Fuze binding and erasure.
 const std = @import("std");
-const f = @import("transit_fuze");
+const f = @import("transit_sql_frontend");
 const p = @import("transit_protocol");
 const s = @import("Syntax.zig");
 const Graph = @import("Graph.zig");

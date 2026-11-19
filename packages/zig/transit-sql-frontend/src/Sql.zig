@@ -14,7 +14,7 @@ pub const Column = struct { qualifier: ?m.Name = null, name: m.Name, offset: ?us
 pub const Binding = @import("SqlBinding.zig");
 pub const ProjectionItem = struct { column: Column, alias: ?m.Name = null };
 /// All null means star. Explicit names form a contiguous bounded prefix.
-pub const Projection = [f.Unified.max_columns]?ProjectionItem;
+pub const Projection = [@import("Finite.zig").max_source_columns]?ProjectionItem;
 pub const Selection = union(enum) { rows: Projection, count, sum: Column, count_values: Column };
 pub const Text = struct {
     bytes: [max_literal_bytes]u8 = @splat(0),
@@ -26,8 +26,8 @@ pub const Text = struct {
 pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Text, binary: Text };
 pub const PredicateAtom = union(enum) {
     all,
-    state: struct { column: Column, value: f.Unified.State },
-    compare: struct { column: Column, op: f.Unified.Plan.Comparison, literal: Literal },
+    state: struct { column: Column, value: @import("Scalar.zig").State },
+    compare: struct { column: Column, op: @import("Finite.zig").Comparison, literal: Literal },
 };
 pub const PredicateProgram = @import("SqlPredicate.zig");
 pub const Predicate = union(enum) {
@@ -630,7 +630,7 @@ const Parser = struct {
         if (self.assistance) |h| h.predicate_column = col;
         if (self.word("IS")) {
             try self.advance();
-            const value: f.Unified.State = if (self.word("NULL")) .null else if (self.word("MISSING")) .missing else if (self.word("TYPE_ERROR")) .type_error else if (self.word("VALUE")) .value else if (self.word("CONFLICT")) .conflict else return error.UnsupportedConstruct;
+            const value: @import("Scalar.zig").State = if (self.word("NULL")) .null else if (self.word("MISSING")) .missing else if (self.word("TYPE_ERROR")) .type_error else if (self.word("VALUE")) .value else if (self.word("CONFLICT")) .conflict else return error.UnsupportedConstruct;
             try self.advance();
             if (self.assistance) |h| h.predicate_column = null;
             return .{ .state = .{ .column = col, .value = value } };
@@ -638,7 +638,7 @@ const Parser = struct {
         if (self.token.tag == .cursor) if (self.assistance) |h| {
             for ([_]Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| h.symbol(tag);
         };
-        const op: f.Unified.Plan.Comparison = switch (self.token.tag) {
+        const op: @import("Finite.zig").Comparison = switch (self.token.tag) {
             .eq => .eq,
             .ne => .ne,
             .lt => .lt,

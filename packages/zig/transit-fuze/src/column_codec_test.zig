@@ -1,9 +1,9 @@
 const std = @import("std");
 const t = std.testing;
-const s = @import("TableSchema.zig");
-const v = @import("Values.zig");
+const s = @import("transit_sql_frontend").TableSchema;
+const v = @import("transit_sql_frontend").Values;
 const p = @import("PhysicalCodecs.zig");
-const c = @import("Collation.zig");
+const c = @import("transit_sql_frontend").Collation;
 
 fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]u8 {
     const out = try allocator.alloc(u8, bytes.len / 2);

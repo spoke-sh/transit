@@ -1,8 +1,8 @@
 //! Owned, canonical relational plans. Full immutable Table schemas accompany
 //! the existing prepared identity bytes; decoding never resolves live names.
 const std = @import("std");
-const r = @import("Relational.zig");
-const table = @import("TableSchema.zig");
+const r = @import("transit_sql_frontend").Relational;
+const table = @import("transit_sql_frontend").TableSchema;
 const native = @import("transit_protocol").Growth;
 pub const max_bytes = 39 + r.max_sources * (4 + table.max_bytes) + r.max_plan_bytes;
 pub const Owned = struct {
@@ -167,8 +167,8 @@ fn having(arena: std.mem.Allocator, reader: *std.Io.Reader) !r.Having {
     }
     return .{ .instructions = instructions };
 }
-fn literal(arena: std.mem.Allocator, reader: *std.Io.Reader) !@import("RelationalValues.zig").Value {
-    const value = (try @import("RelationalValues.zig").read(reader)) orelse return null;
+fn literal(arena: std.mem.Allocator, reader: *std.Io.Reader) !@import("transit_sql_frontend").RelationalValues.Value {
+    const value = (try @import("transit_sql_frontend").RelationalValues.read(reader)) orelse return null;
     return switch (value) {
         .text => |bytes| .{ .text = try arena.dupe(u8, bytes) },
         .binary => |bytes| .{ .binary = try arena.dupe(u8, bytes) },

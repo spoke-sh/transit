@@ -3,7 +3,7 @@
 const std = @import("std");
 const batch = @import("Batch.zig");
 const logical = @import("LogicalQuery.zig");
-const types = @import("Types.zig");
+const types = @import("transit_sql_frontend").Types;
 const Cell = types.Values.Cell;
 const RowAllocator = @import("RowAllocator.zig");
 
@@ -236,7 +236,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
                 self.physical.selection[self.physical.selected] = i;
                 self.physical.selected += 1;
                 if (plan.scalars.instructions.len == 0 and plan.aggregate == .count_values) {
-                    self.value_count = @import("Finite.zig").countState(self.value_count, self.physical.columns[plan.projection[0]].states[i]) catch |err| {
+                    self.value_count = @import("transit_sql_frontend").Finite.countState(self.value_count, self.physical.columns[plan.projection[0]].states[i]) catch |err| {
                         self.capture(.count, plan.projection[0], i, null);
                         return err;
                     };
@@ -334,7 +334,7 @@ pub fn Execution(comptime Scan: type, comptime verification: logical.Verificatio
         fn captureState(self: *Self, operation: @FieldType(logical.Failure, "operation"), column: u8, state: types.State, instruction: ?u8) void {
             const plan = self.physical.plan;
             const field = plan.inputField(column) catch return;
-            const typed = @import("FileValueDiagnostic.zig").init(.{}, field.type, null);
+            const typed = @import("transit_sql_frontend").FileValueDiagnostic.init(.{}, field.type, null);
             var detail: logical.Failure = .{
                 .operation = operation,
                 .row = self.scanned,

@@ -1,0 +1,12 @@
+.{
+    .name = .transit_sql_frontend,
+    .fingerprint = 0x478a3e479565d17,
+    .version = "0.0.1",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{
+        .transit_memory = .{ .path = "../transit-memory" },
+        .transit_protocol = .{ .path = "../transit-protocol" },
+        .transit_spatial = .{ .path = "../transit-spatial" },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

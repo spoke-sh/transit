@@ -4,8 +4,8 @@
 //! equivalence (`D4`, `P5`, `A3`).
 const std = @import("std");
 const AnalyticalSql = @import("AnalyticalSql.zig");
-const Collation = @import("Collation.zig");
-const Types = @import("Types.zig");
+const Collation = @import("transit_sql_frontend").Collation;
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 
 pub const definition = "transit.fuze.delta-zset.v1.2026-10-30";

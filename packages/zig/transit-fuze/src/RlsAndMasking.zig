@@ -14,10 +14,10 @@
 //!    on surviving rows **before** user projections, `WHERE` filters, or `ORDER BY`
 //!    comparators inspect them.
 const std = @import("std");
-const Types = @import("Types.zig");
+const Types = @import("transit_sql_frontend").Types;
 const v = Types.Values;
 const GermanString = @import("GermanString.zig");
-const Collation = @import("Collation.zig");
+const Collation = @import("transit_sql_frontend").Collation;
 
 pub const magic_rlm1: u32 = 0x524C4D31; // "RLM1"
 pub const contract_id = "transit.fuze.rls-masking.v1";
