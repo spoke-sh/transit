@@ -150,8 +150,11 @@ def main():
         evidence.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(preparation, evidence / "preparation.json")
         shutil.copytree(logs, evidence / "preparation")
-        if (checkout / ".cache/verification").exists():
-            shutil.copytree(checkout / ".cache/verification", evidence / "verification")
+        # Upstream source proofs keep their own evidence root. Retain it before
+        # removing the clean checkout, alongside Transit-owned runtime proofs.
+        for proof_root in (checkout / ".cache/verification", checkout / "third_party/transitc/.cache/verification"):
+            if proof_root.exists():
+                shutil.copytree(proof_root, evidence / "verification", dirs_exist_ok=True)
         if (checkout / ".cache/checks").exists():
             shutil.copytree(checkout / ".cache/checks", evidence / "checks")
         if (checkout / ".cache/native-artifacts").exists():
