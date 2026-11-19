@@ -39,7 +39,7 @@ def clean_runner():
         executable.write_text(f"#!{sys.executable}\n" + '''import json, os, sys
 from pathlib import Path
 assert not any(key.startswith("TRANSIT_") for key in os.environ)
-assert os.environ["ZIG_LOCAL_PKG_DIR"] == str(Path.cwd() / ".cache/ci-zig/p")
+assert os.environ["ZIG_LOCAL_PKG_DIR"] == "zig-pkg"
 with open(os.environ["CI_CLEAN_RECORD"], "a") as log:
     log.write(json.dumps(sys.argv[1:]) + "\\n")
 if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in sys.argv):
@@ -57,7 +57,8 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
         executable.chmod(0o755)
         record = root / "commands.jsonl"
         env = os.environ | {"PATH": str(root) + os.pathsep + os.environ["PATH"],
-                            "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied"}
+                            "CI_CLEAN_RECORD": str(record), "TRANSIT_FIXTURE_LEAK": "denied",
+                            "ZIG_LOCAL_PKG_DIR": "/unavailable/inherited-packages"}
         for lane, exit_code in (("formal", 0), ("installation-ui", 0),
                                 *((lane, 0) for lane in SUITE["tiers"]["sdks"]), ("sdks", 0), ("formal", 23),
                                 ("check::fast", 0), ("check::contracts", 0), ("check::contracts", 24),

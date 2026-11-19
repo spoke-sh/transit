@@ -117,8 +117,11 @@ def main():
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("TRANSIT_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT", "CI_NATIVE_BUNDLE_DIR")}
         # Zig 0.17 keeps fetched packages separately from its compiler cache.
-        # Share one owned package directory across this clone's nested builds.
-        env["ZIG_LOCAL_PKG_DIR"] = str(checkout / ".cache/ci-zig/p")
+        # Keep this relative: the pinned Zig rejects path dependencies nested in
+        # a fetched package when its package directory is absolute. Each nested
+        # build owns its package directory; verified downloads still share Zig's
+        # global cache. No working-checkout package directory is inherited.
+        env["ZIG_LOCAL_PKG_DIR"] = "zig-pkg"
         # A concurrent package build can retain a read lock on the same flake's
         # evaluation database until compilation finishes. This isolated preflight
         # must not wait behind that unrelated build. Store/substitute and compiler
