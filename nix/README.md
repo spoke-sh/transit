@@ -452,9 +452,9 @@ Those SDKs are cached only in the bindings cache group; these lanes install the 
 binding's workspace dependencies. This keeps new language qualification from
 expanding the other lanes or serializing their checks.
 
-The [hosted workflow](../.github/workflows/ci.yml) gives core 90 minutes,
-installation-ui (including browser proofs) 120 minutes, storage-query and
-interfaces 150 minutes each, each SDK lane 360 minutes, and launchers 45 minutes. These are
+The [hosted workflow](../.github/workflows/ci.yml) gives core 120 minutes,
+installation-ui 120 minutes, browser 90 minutes, storage-query and
+interfaces 150 minutes each, each SDK lane 360 minutes, and launchers 90 minutes. These are
 finite failure limits, not measured feedback budgets. A larger cap does not
 qualify a slower run or change any accepted operation's deadline.
 

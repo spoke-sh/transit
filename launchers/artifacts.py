@@ -7,6 +7,9 @@ import shutil
 
 from common import ROOT, DEFINITION, run, write
 
+# Match the hosted ReleaseSafe runtime preparation ceiling; runtime startup,
+# readiness and recovery deadlines remain separate per-operation bounds.
+BUILD_TIMEOUT = 2400
 ROLES = {"node": "transit", "counter": "example-counter",
          "board": "transit-board", "controller": "transit-runtime-controller"}
 
@@ -51,7 +54,7 @@ class Artifacts:
             # The composed runtime embeds SQL TLS. An explicit musl target
             # alone does not replace the development shell's shared OpenSSL.
             argv = ["nix", "develop", str(ROOT) + "#release-checks", "--command", *argv]
-        run(argv, cwd=ROOT, timeout=900)
+        run(argv, cwd=ROOT, timeout=BUILD_TIMEOUT, own_session=True)
         result = {}
         for name in set(names):
             source = prefix / "bin" / name
@@ -117,7 +120,7 @@ class Artifacts:
     def controller_image(self, context, artifact):
         # Nix's closure supplies the CLI and its loader on the target platform.
         # The controller itself is static; external CLI remains upstream Go.
-        outputs = json.loads(run(["nix", "build", ".#kubectl-ate", "--no-link", "--json"], cwd=ROOT, capture=True, timeout=900))
+        outputs = json.loads(run(["nix", "build", ".#kubectl-ate", "--no-link", "--json"], cwd=ROOT, capture=True, timeout=900, own_session=True))
         package = outputs[0]["outputs"]["out"]
         closure = run(["nix-store", "--query", "--requisites", package], capture=True).splitlines()
         for entry in closure:

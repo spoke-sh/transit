@@ -217,6 +217,7 @@ def main():
     release_workflow()
     workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text())
     console_latency_workflow(workflow['jobs']['console-latency'])
+    assert SUITE["workers"]["launchers"]["timeout"] == 90
     strategy = workflow["jobs"]["checks"]["strategy"]
     assert strategy["matrix"] == "${{ fromJSON(needs.plan.outputs.runtime_matrix) }}"
     assert strategy["max-parallel"] == SUITE["selection"]["max_parallel"]
