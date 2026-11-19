@@ -93,11 +93,20 @@ when a dependency's read grant is revoked; it does not reveal guarded values.
 
 `DirectQueue.apply` composes durable enqueue, exact original claims, fenced
 settlements, bounded claim waits and pages with current catalog declarations and native
-grants. Its host supplies one serialized, bounded resident slot and trusted time;
+grants. Its host supplies bounded resident slots, disposable stripe `RecoveryState`
+hints (re-verified against WAL frame hashes and materialized Queue barriers before
+skipping cold replay) and trusted time;
 neither the time capability nor request authorization is retained. Queue work
 uses the common operation namespace, so an identity cannot be reused for another
 partition, intent or data kind. Claim receipt inspection and pages require
 current read and acquire privileges; settlements require settle privileges.
+
+`DirectTransactionSession` and `DirectCatalog` also support bounded
+multi-statement staging (`stage_batch`) and execution (`batch`) of 1 to 16 mixed
+Table, KV and Stream/Queue writes under one shared workspace publication and
+publication-fence epoch. Sequential evaluation stops at the first provisional
+statement rejection, records deterministic per-statement completions, and
+replays idempotently after a lost reply.
 Pages retain the original schema and payload while reporting current lease state
 separately. `DirectQueueResponse` validates that attribution, observation basis,
 row identities, byte budgets and exact cursor advance. The signed `queue` action

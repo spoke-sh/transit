@@ -9,6 +9,79 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Batched transactional Station comparison and 12-profile Stream/Queue baseline — 2026-11-18
+
+At clean committed source `8dc5df3e1d88f527add7e02755658dacb909665b`
+(`dirty: false`, shared definition
+`06091bff7096eeaceb3fc0d62bc0aa0d1bc184b20c3b275df74e8c93bf8b13e5`), the
+batched private transactional Station runner and the complete 12-profile
+[Stream/Queue baseline](../../../tests/performance/storage/log_runtime.md) pass
+sequential isolated ReleaseSafe runs with three warmups, twenty measured
+iterations and independent restart readback on the 48-logical-CPU Linux host.
+
+### Batched transactional Station comparison
+
+The private runner stages and executes its buffered KV mutations, replay Stream
+entry, output Queue intent and input Queue ACK in one `write_batch` transaction
+publication, derives `actor.control` KV revisions without post-write readback,
+reuses workspace `TableReader` schemas across same-basis reads, and pairs with
+stripe `StreamPartition`/`QueuePartition` `RecoveryState` hints and two-slot
+resident Stream/Queue owner pools. All 23 turns and both `SIGKILL` restarts pass
+with principal replacement (`1018`) and zero recovery handler calls:
+
+| Run | Source | Median | p95 | Range | Client allocations | Client remaps | Peak live client bytes |
+| --- | --- | ---: | ---: | --- | ---: | ---: | ---: |
+| Private runner, compact client (Nov 12) | `b24c048d2` | 12,015.7 ms | 19,272.0 ms | 4.53–20.22 s | 27,836 | 10,289 | 18,389,712 |
+| Native control (Nov 18) | `8dc5df3e1` | 70.1 ms | 93.6 ms | 58.3–99.3 ms | 745 | 918 | — |
+| Private runner, batched turn publication (Nov 18) | `8dc5df3e1` | 6,018.2 ms | 8,355.6 ms | 2.99–8.67 s | 11,543 | 1,620 | 13,829,735 |
+
+Across twenty measured turns, median turn latency drops by **49.9%** (~2.0×
+faster), p95 drops by **56.6%** (~2.3× faster), client allocation count drops by
+**58.5%**, remaps drop by **84.3%**, acquired backing bytes drop from
+`257,360,870` to `177,157,180` (**-31.2%**), and peak live client bytes drop by
+**24.8%** against the unchanged 64 MiB ceiling (node lifetime peak RSS
+`209,006,592` bytes). First-five and last-five measured medians improve from
+`5.84 s → 18.48 s` at `b24c048d2` to `3.43 s → 8.12 s` at `8dc5df3e1`; a
+residual upward slope remains under the fixture's 1-resident-page native cache
+and uncheckpointed coordination/catalog WAL growth, so zero steady-state
+allocation and public-cutover latency parity remain open follow-ups.
+
+Local report digests at `8dc5df3e1`:
+
+- `.cache/performance/station-transaction-batched/report.json`: SHA-256 `70c2e64df445b22908c4813b176014e463bb0076f9b33278d2234d805a0c0e44` (`measure.jsonl` SHA-256 `79d2e08ec6a1dfb0acc6d4d0216868cfbec336fb1c26a8dadc6d57de2fe2c72c`)
+- `.cache/performance/station-turn-control/report.json`: SHA-256 `90053798d9479e8eaa6780f0b211502d631473a9a739fad6c481a92681b8a252`
+
+### Complete 12-profile Stream and Queue baseline
+
+At the same clean `8dc5df3e1` revision, `just test::log-runtime-baseline`
+completes all six core hot profiles (`1`–`6`) and all six extended profiles
+(`7`–`12`: sealed `.tseg` segment reads, consumer-group offset commits, delayed
+visibility, concurrent wait wakeups, expired-lease reclaim and two-worker
+concurrent `key_fifo` load) with 20 measured iterations, verified `owner_budgets`
+and full post-`SIGTERM` restart readback (`.cache/performance/log-baseline-complete/report.json`
+SHA-256 `96c39df0aaa1931d07f654a9967064c474d374946a474ddf76829ff30d7a26a5`):
+
+| Profile | Mode & shape | Primary action p50 / p95 (ms) | Read / settle p50 / p95 (ms) | HTTP calls | Node peak RSS (MiB) |
+| --- | --- | --- | --- | ---: | ---: |
+| 1 | `hot` Stream, batch 1 | `append` 33.32 / 37.23; `consume` 41.49 / 47.11 | `page` 5.86 / 6.46 | 92 | 77.2 |
+| 2 | `hot` Stream, batch 128 | `append` 53.17 / 57.84; `consume` 56.22 / 62.18 | `page` 13.76 / 16.28 | 92 | 86.9 |
+| 3 | `hot` Queue, batch 1 | `enqueue` 18.18 / 21.47; `claim` 16.51 / 25.69 | `page` 4.88 / 5.99; `settle` 25.35 / 42.12 | 92 | 110.9 |
+| 4 | `hot` Queue, batch 128, unordered | `enqueue` 280.49 / 417.74; `claim` 264.02 / 629.86 | `page` 13.92 / 19.89; `settle` 19.70 / 63.66 | 3,335 | 134.4 |
+| 5 | `hot` Queue, batch 128, `key_fifo` 64 keys | `enqueue` 317.24 / 494.94; `claim` 259.42 / 438.22 | `page` 13.35 / 20.79; `settle` 20.95 / 63.07 | 3,335 | 136.8 |
+| 6 | `hot` Queue, batch 128, `key_fifo` 1 key | `enqueue` 181.77 / 211.08; `claim` 99.45 / 129.29 | `page` 5.51 / 6.16; `settle` 99.88 / 131.45 | 8,855 | 138.9 |
+| 7 | `sealed_segment` Stream, batch 128 (`.tseg`) | `consume` 41.46 / 46.21 | `cursor` 3.98 / 4.94; `page` 14.71 / 18.72 | 69 | 60.7 |
+| 8 | `consumer_group` Stream, batch 1 | `append` 35.61 / 41.13; `offset` 36.65 / 39.84 | `consume` 42.66 / 48.37; `page` 6.33 / 7.09 | 117 | 91.1 |
+| 9 | `delayed_visibility` Queue, batch 1 (+60 ms) | `enqueue` 15.87 / 17.24; `wait` 59.50 / 63.94 | `page` 4.90 / 5.83; `settle` 24.22 / 31.95 | 115 | 111.9 |
+| 10 | `wait_wakeup` Queue, batch 1 | `wait` 37.31 / 43.78 | `page` 4.72 / 5.50; `settle` 24.01 / 33.50 | 69 | 128.7 |
+| 11 | `lease_expiry` Queue, batch 1 (reclaim) | `claim` 17.67 / 25.06 | `page` 6.75 / 9.02; `settle` 17.94 / 26.31 | 69 | 68.8 |
+| 12 | `concurrent_load` Queue, batch 2, 2 workers | `enqueue` 26.87 / 39.64; `claim` 25.51 / 37.95 | `page` 11.27 / 20.78; `settle` 43.52 / 62.75 | 161 | 130.6 |
+
+Profile 12 bounds concurrency to two simultaneous consumer workers within the
+bare `native-authority-fixture`'s four-lane HTTP data admission ceiling so
+post-response telemetry epilogues cannot trigger `503 HttpCapacity` without
+client retries. Neither campaign evicts OS page caches, spans multiple physical
+hosts or measures server-side heap allocations or physical disk sync counts.
+
 ## Private transactional Station comparison — 2026-11-12
 
 The [retained comparison](../../../tests/evidence/station-transactions-2026-11-12/README.md)

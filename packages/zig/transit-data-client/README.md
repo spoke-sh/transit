@@ -22,7 +22,9 @@ close cancellation and remaining boundaries.
 `SqlRecovery` persists the SQL executor's original attempt before dispatch and
 keeps receipt-storage errors separate from verified command outcomes. `KVRecovery`
 saves direct KV mutations before dispatch and observes their original receipts
-through the context. See the
+through the context. `QueueClaimRelease` saves explicit Queue claim payload-read
+releases before dispatch and observes or resumes their original release receipts
+independently of lease `ACK`/`NACK` settlement. See the
 [recovery guide](docs/recovery.md) for ownership, atomic publication, original-token
 observation and qualification limits.
 
@@ -35,9 +37,13 @@ execution use the same neutral helpers. Their service-owned command and
 continuation records remain their persistence owners.
 
 Call `Context.callTransaction(handle, transaction, action)` with `begin`,
-`acquire`, `write`, `savepoint`, `advance`, `inspect`, `settle` or native `recover`.
+`acquire`, `write`, `write_batch`, `savepoint`, `advance`, `inspect`, `settle` or native `recover`.
 Writes accept prepared Table work, a KV mutation, or Stream/Queue work and its
-optional payload. The API selects the next statement from the current workspace,
+optional payload. `write_batch` stages and executes 1 to 16 mixed Table, KV and
+Stream/Queue writes in one `stage_batch` request, one durable `StagedBatch`
+checkpoint and one `batch` workspace publication, stopping at the first
+provisional statement rejection while preserving deterministic per-statement
+sequence numbers and idempotent lost-reply replay. The API selects the next statement from the current workspace,
 stages it, checkpoints the exact request, executes it and checkpoints completion.
 It refuses new work while a saved statement/control is unresolved or settlement
 has begun. Savepoints use the same sequence, persistence and bounded-resume rules.

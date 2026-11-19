@@ -184,7 +184,7 @@ outlives its transaction. Keep one active borrower per adapter.
 `create(initial_state)` durably retains the current definition, exact Begin and
 settlement operation, then returns an owned transaction. Repeating creation loads
 existing progress; it never resets an original. `load(key)` restores the original
-and pending statement/savepoint or settlement command. Keys bind the transaction
+and pending single statement, `StagedBatch` slice, savepoint or settlement command. Keys bind the transaction
 token and full connection. Changed selection, operations or content under the
 same key conflict. No endpoint or credential is stored.
 
@@ -192,7 +192,30 @@ Each journal update checks the context's previous progress and the loaded store
 revision. A stale context or adapter cannot overwrite later progress, including
 after another context reloads that adapter. Publication failure can leave the old or new complete
 record; reload before proceeding. Leave capacity for both the immutable original
-and the largest pending request. Saving a record does not establish service
+and the largest pending request or `StagedBatch`. Saving a record does not establish service
 acceptance, and loading one grants no permission. Use the context to advance the
 saved request or explicitly settle its original operation; neither construction
 nor loading starts a recovery loop. Completion never automatically forgets work.
+
+## Queue claim-read release adapter
+
+`QueueClaimRelease` composes `Context.callQueue` with `DirectQueueClient.Saved`
+over `LocalRecoveryStore` to close a settled Queue claim's payload-read pin
+without conflating payload retention with lease `ACK`/`NACK` settlement or local
+buffer cleanup. Initialize it with an allocator and `LocalRecoveryStore`; keep
+one active borrower per adapter and ensure the store outlives the adapter.
+
+`execute(context, handle, output, release, admission)` validates the connection
+and `QueueRead.Release`, persists and synchronizes the canonical saved release
+under `key(release.operation)` before dispatch, then submits the release. A
+pre-send persistence refusal dispatches nothing. `Execution` separates the
+arena-owned `outcome`, the saved `attempt` and any post-outcome
+`persistence_failure` so receipt-storage errors never mask an accepted release.
+
+`observe(context, handle, output, key, admission)` inspects the original
+operation through the control lane without resubmitting a mutation, validates any
+returned `ReleaseReceipt` against the saved claim and operation identity, and
+records the receipt with revision checking. `resumeSaved` re-executes the exact
+saved `QueueRead.Release` under current authorization when observation remains
+unresolved. Once released, subsequent claim payload page reads fail with
+`QueryExpired` while original claim and settlement receipts remain inspectable.

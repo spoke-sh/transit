@@ -24,16 +24,20 @@ delivery/Station controller ownership ([#460](https://github.com/spoke-sh/transi
 standalone `transit-node` retirement ([#463](https://github.com/spoke-sh/transit/pull/463)),
 [M13 serving separation](13-declarative-serving-and-reactive-dataflows.md)
 ([#464](https://github.com/spoke-sh/transit/pull/464)) and Ursula removal with
-MinIO S3 tiering ([#467](https://github.com/spoke-sh/transit/pull/467)). It
-orders the remaining closeout across two parallelizable tracks—Track 1 (`A`–`F`:
-log/GC baselines, shared multi-statement batching, claim `release` closure and
-17-KV-write/turn elimination, authenticated calls/replies, timers/names/supervision,
+MinIO S3 tiering ([#467](https://github.com/spoke-sh/transit/pull/467)). With
+Units `A` and `B` delivered at `8dc5df3e1` (12-profile
+[Stream/Queue baseline](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18),
+actor/DLQ/GC pressure schedule, shared 1–16 statement `stage_batch`/`batch`
+writes, `QueueClaimRelease` / `Runner.releaseClaimRead`, and a 49.9% median /
+56.6% p95 private Station turn-latency reduction to `6,018.2 ms` / `8,355.6 ms`),
+it orders the remaining closeout across two parallelizable tracks—Track 1 (`C`–`F`:
+authenticated calls/replies, timers/names/supervision,
 connector/Query/courier migration, and public 11-SDK/example/Board cutover with
 legacy `GenServer`/`Turn` deletion) and Track 2 (`G`: single-WAL Table
 token/commit composition, `TRUNCATE TABLE`, and `19 ms` `INSERT` / `10–20 ms`
 warm `SELECT` targets)—followed by single-revision qualification (`H`). Its
-remaining estimate is 13–18 review units and 14.5–25.5 direct engineer-weeks
-(~18–32 with contingency), excluding implementing M7's `DocumentPartition`
+remaining estimate is 11–15 review units and 12–21.5 direct engineer-weeks
+(~15–27 with contingency), excluding implementing M7's `DocumentPartition`
 (`C4`/`C5`/`C7`) itself. M6 remains **In Progress**.
 
 The [private Station implementation plan, 2026-11-11](station-transaction-implementation.md)

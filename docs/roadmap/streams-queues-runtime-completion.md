@@ -52,10 +52,14 @@ source-attributed evidence. Milestone 6 remains **In Progress**.
 
 ## How much work remains
 
-Plan for **13–18 review units** and **14.5–25.5 engineer-weeks of direct work**
-(**roughly 18–32 engineer-weeks** allowing ~25% for integration, fault-schedule
-debugging and performance tuning), down from the November 12 estimate of 15–21
-review units and 19–32 direct engineer-weeks. These are engineering planning
+With **Units A and B** delivered on this slice (`8dc5df3e1`, cutting private
+transactional Station turn latency from `12,015.7 ms` median / `19,272.0 ms` p95
+to `6,018.2 ms` / `8,355.6 ms` and completing all 12 `log-runtime-baseline`
+profiles plus actor/DLQ/GC pressure checks), plan for **11–15 remaining review
+units** and **12–21.5 engineer-weeks of direct work** (**roughly 15–27
+engineer-weeks** allowing ~25% for integration, fault-schedule debugging and
+performance tuning), down from the initial 13–18 review units / 14.5–25.5 direct
+engineer-weeks at `c1f2680d9` (and 15–21 / 19–32 on November 12). These are engineering planning
 ranges, not measured velocity, and they **exclude** implementing
 [Milestone 7](07-document-storage-and-station-decoupling.md)'s
 `DocumentPartition` (`C4`/`C5`/`C7`) itself.
@@ -63,10 +67,10 @@ ranges, not measured velocity, and they **exclude** implementing
 Remaining work splits into **two local tracks that can run in parallel**, plus
 one external prerequisite before legacy `Station` persistence can be deleted:
 
-1. **Track 1 — Transactional `Station` completion and consumer cutover (Units A → B → C → D → E → F, 10–14 review units, 10.5–18.5 engineer-weeks):**
-   Complete the log/GC/actor-population baselines (`A`), eliminate per-statement
-   control-KV and RPC amplification in the shared transaction/runner path (`B`),
-   add durable calls/replies (`C`) and timers/names/supervision (`D`) over
+1. **Track 1 — Transactional `Station` completion and consumer cutover (Units C → D → E → F remaining after delivered A & B, 8–11 review units, 8–14.5 engineer-weeks):**
+   With the 12-profile log/GC/actor-population baselines (`A`) and shared
+   multi-statement batching, claim `release` closure and ~2× turn-cost reduction
+   (`B`) in place, add durable calls/replies (`C`) and timers/names/supervision (`D`) over
    declared data, migrate HTTP/gRPC/Flight connectors and retire native outbox
    courier polling (`E`), and cut over public Station bindings, all 11 SDKs,
    examples and Board inspection while deleting legacy `GenServer`/`Turn`
@@ -204,17 +208,17 @@ Nix/Just harness, synchronous local disk durability, no automatic binary
 conversion of pre-cutover installations, and reuse of delivered storage and
 catalog owners.
 
-| Unit | Track | Deliverable | Review units | Engineer-weeks | Entry gate |
+| Unit | Track | Deliverable | Review units | Engineer-weeks | Status / Entry gate |
 | --- | --- | --- | ---: | ---: | --- |
-| **A** | 1 | Complete 6-profile + extended log baselines, actor/GC pressure proof and frozen removal matrix | 1 | 1–1.5 | Current `main` |
-| **B** | 1 | Finish shared multi-statement batching, claim `release` closure and turn-cost optimization (`B.3`–`B.4`) | 1–2 | 1.5–2.5 | `A` baseline controls |
-| **C** | 1 | Authenticated durable calls, actor-origin correlation and reply waits (`Batch 6a`) | 1–2 | 2–3 | `B` shared batching API |
-| **D** | 1 | Durable timers, conditional `Registry` names and `Supervisor` state over server-owned services (`Batch 6b`) | 2 | 2–3.5 | `B` (can overlap `C` contract work) |
-| **E** | 1 | Connector (`HTTP`/`gRPC`/`Flight`/`Exchange`) migration, retained Query consumers and courier retirement (`Batch 7a`) | 2–3 | 2.5–4 | `B` (`C`/`D` for actor-triggered effects) |
+| **A** | 1 | Complete 12-profile log baselines, actor/DLQ/GC pressure proof and frozen removal matrix | — | — | **Delivered (`8dc5df3e1`)** ([evidence](../history/qualification/performance.md#batched-transactional-station-comparison-and-12-profile-streamqueue-baseline--2026-11-18)) |
+| **B** | 1 | Shared multi-statement batching (`stage_batch`/`batch`), claim `release` closure and ~2× turn-cost reduction (`B.3`–`B.4`) | — | — | **Delivered (`8dc5df3e1`)** ([transactions](../history/qualification/transactions.md#shared-multi-statement-batching-and-claim-read-closure--2026-11-18)) |
+| **C** | 1 | Authenticated durable calls, actor-origin correlation and reply waits (`Batch 6a`) | 1–2 | 2–3 | Unblocked (`B` delivered) |
+| **D** | 1 | Durable timers, conditional `Registry` names and `Supervisor` state over server-owned services (`Batch 6b`) | 2 | 2–3.5 | Unblocked (`B` delivered; can overlap `C`) |
+| **E** | 1 | Connector (`HTTP`/`gRPC`/`Flight`/`Exchange`) migration, retained Query consumers and courier retirement (`Batch 7a`) | 2–3 | 2.5–4 | Unblocked (`C`/`D` for actor-triggered effects) |
 | **F** | 1 | Public `Station`/ABI/11-SDK/example/Board cutover and legacy `GenServer`/`Turn` deletion (`Batch 7b`) | 3–4 | 3.5–5.5 | `C`, `D`, `E` + **M7 `C4`/`C5`/`C7`** |
 | **G** | 2 (parallel) | Account-wide single-WAL Table token/commit composition, `TRUNCATE TABLE` and `19 ms` / `10–20 ms` latency (`Batch 8 / R9`) | 2–3 | 2.5–4.5 | Independent (coordinate with M8) |
 | **H** | Closeout | Single-revision full-lane, deployment/MinIO and baseline qualification + handbook promotion (`Batch 9 / R10`) | 1 | 1.5–2.5 | `F` and `G` complete |
-| **Total** | | **Remaining direct work before ~25% contingency** | **13–18** | **14.5–25.5** | **~18–32 EW with contingency** |
+| **Total** | | **Remaining direct work (`C`–`H`) before ~25% contingency** | **11–15** | **12–21.5** | **~15–27 EW with contingency** |
 
 ---
 
