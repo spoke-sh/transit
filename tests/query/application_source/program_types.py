@@ -217,6 +217,23 @@ def lean_examples(cases_):
             f'#print axioms {distinct_name}',
         ]
         names.update((shared_name, distinct_name))
+        iso_name = f'{label}_schema_isolated'
+        ref_ok_name = f'{label}_ref_fk_ok'
+        ref_bad_col_name = f'{label}_ref_fk_unexported_col'
+        ref_no_write_name = f'{label}_ref_no_write'
+        lines += [
+            f'theorem {iso_name} : ∀ obj, obj ∈ bindSchemaObjects "tenant_alpha" ["environments", "secrets"] → '
+            f'obj ∉ bindSchemaObjects "tenant_beta" ["environments", "secrets"] := by decide',
+            f'#print axioms {iso_name}',
+            f'def {label}RefCap : TableExport {label}Type := .referenceOnly "tenant_alpha.environments" ["id"]',
+            f'theorem {ref_ok_name} : TableExport.admitForeignKey {label}RefCap ["id"] {label}Type = true := by decide',
+            f'#print axioms {ref_ok_name}',
+            f'theorem {ref_bad_col_name} : TableExport.admitForeignKey {label}RefCap ["secret_col"] {label}Type = false := by decide',
+            f'#print axioms {ref_bad_col_name}',
+            f'theorem {ref_no_write_name} : TableExport.admitWrite {label}RefCap (.literal {label}LeftVal : Expr [] {label}Type) = none := rfl',
+            f'#print axioms {ref_no_write_name}',
+        ]
+        names.update((iso_name, ref_ok_name, ref_bad_col_name, ref_no_write_name))
     return '\n'.join(lines) + '\n', names
 
 
@@ -552,4 +569,75 @@ def run(driver, destination, must_fail):
         same('SourceDomainMismatch', output.get('compile_error'))
         assert 'product' not in output
 
-    return len(outputs) + len(h_outputs) + len(d_outputs), controls
+    schema_ref_cases = [
+        {
+            'name': 'schema-ref-positive',
+            'source': (
+                "CREATE DOMAIN EnvId AS UUID IDENTITY 'example.env-id'; "
+                "EXPORT MODULE tenancy_mod(schema SCHEMA_BINDING, env_ty TYPE) AS BEGIN "
+                "BIND SCHEMA tenancy TO schema; CREATE SCHEMA tenancy; "
+                "CREATE PUBLIC TABLE tenancy.environments (id $env_ty PRIMARY KEY, code TEXT NOT NULL); "
+                "CREATE PUBLIC TABLE tenancy.secrets (id UUID PRIMARY KEY); "
+                "EXPORT REFERENCE TABLE tenancy.environments(id); END; "
+                "EXPORT MODULE net_mod(schema SCHEMA_BINDING, env_ty TYPE, tenancy MODULE OF tenancy_mod) AS BEGIN "
+                "BIND SCHEMA networking TO schema; USE MODULE tenancy; CREATE SCHEMA networking; "
+                "CREATE PUBLIC TABLE networking.networks (id UUID PRIMARY KEY, env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED); END; "
+                "CREATE TARGET default AS BEGIN "
+                "LET t1 = USE MODULE tenancy_mod(schema => SCHEMA_BINDING('tenant_alpha'), env_ty => TYPE EnvId); "
+                "LET n1 = USE MODULE net_mod(schema => SCHEMA_BINDING('net_alpha'), env_ty => TYPE EnvId, tenancy => t1); "
+                "LET t2 = USE MODULE tenancy_mod(schema => SCHEMA_BINDING('tenant_beta'), env_ty => TYPE EnvId); "
+                "LET n2 = USE MODULE net_mod(schema => SCHEMA_BINDING('net_beta'), env_ty => TYPE EnvId, tenancy => t2); "
+                "END;"
+            ),
+            'compile': 'build',
+        }
+    ]
+    sr_outputs = execute(driver, schema_ref_cases, destination, 'schema-ref-products')
+    assert 'product' in sr_outputs[0], sr_outputs[0]
+    sr_sql = [s['sql'] for s in sr_outputs[0]['product']['steps']]
+    assert 'CREATE SCHEMA "tenant_alpha"' in sr_sql and 'CREATE SCHEMA "tenant_beta"' in sr_sql, sr_sql
+    assert any('REFERENCES "tenant_alpha" . ENVIRONMENTS' in s for s in sr_sql), sr_sql
+    assert any('REFERENCES "tenant_beta" . ENVIRONMENTS' in s for s in sr_sql), sr_sql
+
+    schema_ref_refusals = [
+        (
+            'ref-export-select-escalation',
+            schema_ref_cases[0]['source'].replace(
+                "CREATE PUBLIC TABLE networking.networks (id UUID PRIMARY KEY, env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED);",
+                "SELECT id FROM tenancy.environments;",
+            ),
+            'ReferenceOnlyTableAccess',
+        ),
+        (
+            'ref-export-unexported-column',
+            schema_ref_cases[0]['source'].replace(
+                "env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED",
+                "code TEXT NOT NULL REFERENCES tenancy.environments(code) ON DELETE RESTRICT NOT ENFORCED",
+            ),
+            'ReferenceOnlyTableAccess',
+        ),
+        (
+            'unexported-module-table',
+            schema_ref_cases[0]['source'].replace(
+                "CREATE PUBLIC TABLE networking.networks (id UUID PRIMARY KEY, env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED);",
+                "SELECT id FROM tenancy.secrets;",
+            ),
+            'UnexportedModuleResource',
+        ),
+        (
+            'fk-domain-mismatch',
+            schema_ref_cases[0]['source'].replace(
+                "env_id $env_ty NOT NULL REFERENCES tenancy.environments(id)",
+                "env_id UUID NOT NULL REFERENCES tenancy.environments(id)",
+            ),
+            'SourceDomainMismatch',
+        ),
+    ]
+    for (_, _, want_err), output in zip(
+        schema_ref_refusals,
+        execute(driver, [dict(name=name, source=src, compile='build') for name, src, _ in schema_ref_refusals], destination, 'schema-ref-refusals'),
+    ):
+        same(want_err, output.get('compile_error'))
+        assert 'product' not in output
+
+    return len(outputs) + len(h_outputs) + len(d_outputs) + len(sr_outputs), controls

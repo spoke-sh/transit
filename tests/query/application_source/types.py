@@ -27,6 +27,8 @@ THEOREMS = {
     'procedure_inline_atomic',
     'procedure_return_substitution',
     'module_instance_dag_sharing',
+    'schema_binding_isolation',
+    'reference_export_non_escalation',
 }
 DOMAINS = {'machine': 'example.machine-id', 'site': 'example.site-id'}
 

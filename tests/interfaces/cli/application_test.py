@@ -264,6 +264,188 @@ def workspace_test_journey(cli, parent):
     shutil.rmtree(ws)
 
 
+def multi_schema_test_journey(cli, parent):
+    ws = parent / 'multi-schema-tests'
+    source(ws, 'build.transit', (
+        "IMPORT MODULE app FROM './app/build.transit';\n"
+        "EXPORT TARGET tests = app.tests;\n"
+    ))
+    source(ws, 'app/types.transit', (
+        "CREATE PUBLIC DOMAIN EnvId AS UUID IDENTITY 'ms.env-id';\n"
+        "CREATE PUBLIC FUNCTION format_tag(meta ROW(region TEXT, active BOOLEAN)) RETURNS TEXT AS BEGIN\n"
+        "  RETURN CASE WHEN meta.active THEN meta.region ELSE 'disabled' END;\n"
+        "END;\n"
+    ))
+    source(ws, 'app/tenancy/state.transit', (
+        "CREATE SCHEMA tenancy;\n"
+        "CREATE PUBLIC TABLE tenancy.environments (\n"
+        "  id $env_ty PRIMARY KEY,\n"
+        "  tenant_code TEXT NOT NULL,\n"
+        "  active BOOLEAN NOT NULL,\n"
+        "  secret_note TEXT NOT NULL\n"
+        ");\n"
+        "INSERT INTO tenancy.environments VALUES ($seed_env, 'acme', TRUE, 'sealed');\n"
+    ))
+    source(ws, 'app/tenancy/guards.transit', (
+        "IMPORT types FROM '../types.transit';\n"
+        "CREATE GUARD tenancy.require_scope(scope ROW(expected_tenant TEXT, actual_tenant TEXT, active BOOLEAN)) AS\n"
+        "  REQUIRE scope.active ELSE 'InactiveEnvironment',\n"
+        "  REQUIRE scope.actual_tenant = scope.expected_tenant ELSE 'TenantMismatch';\n"
+        "CREATE GUARD tenancy.require_environment(env_id types.EnvId, expected_tenant TEXT) AS BEGIN\n"
+        "  LET found = SELECT tenant_code, active FROM tenancy.environments WHERE id = env_id;\n"
+        "  REQUIRE found IS NOT NULL ELSE 'MissingEnvironment';\n"
+        "  CHECK GUARD tenancy.require_scope(ROW(expected_tenant, found.tenant_code, found.active));\n"
+        "END;\n"
+    ))
+    source(ws, 'app/tenancy/build.transit', (
+        "IMPORT MODULE types FROM '../types.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE, seed_env types.EnvId) AS BEGIN\n"
+        "  BIND SCHEMA tenancy TO schema;\n"
+        "  USE MODULE types;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './guards.transit';\n"
+        "  EXPORT REFERENCE TABLE tenancy.environments(id, tenant_code);\n"
+        "  EXPORT GUARD tenancy.require_environment;\n"
+        "END;\n"
+    ))
+    source(ws, 'app/networking/state.transit', (
+        "CREATE SCHEMA networking;\n"
+        "CREATE PUBLIC TABLE networking.networks (\n"
+        "  id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  cidr TEXT NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC TABLE networking.attachments (\n"
+        "  net_id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL,\n"
+        "  tag TEXT NOT NULL\n"
+        ");\n"
+    ))
+    source(ws, 'app/networking/procedures.transit', (
+        "IMPORT types FROM '../types.transit';\n"
+        "CREATE PROCEDURE networking.attach_consumer(net_id BIGINT, env_id types.EnvId, meta ROW(region TEXT, active BOOLEAN)) RETURNS TEXT AS BEGIN ATOMIC\n"
+        "  LET net = SELECT cidr FROM networking.networks WHERE id = net_id;\n"
+        "  REQUIRE net IS NOT NULL ELSE 'MissingNetwork';\n"
+        "  LET tag = types.format_tag(meta);\n"
+        "  INSERT INTO networking.attachments VALUES (net_id, env_id, tag) ON CONFLICT (net_id) DO ASSERT SAME ROW;\n"
+        "  RETURN tag;\n"
+        "END;\n"
+    ))
+    source(ws, 'app/networking/build.transit', (
+        "IMPORT MODULE types FROM '../types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "EXPORT MODULE application(schema SCHEMA_BINDING, env_ty TYPE, tenancy MODULE OF tenancy_build.application) AS BEGIN\n"
+        "  BIND SCHEMA networking TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  DECLARE FROM './state.transit';\n"
+        "  DECLARE FROM './procedures.transit';\n"
+        "  EXPORT TABLE networking.networks;\n"
+        "  EXPORT PROCEDURE networking.attach_consumer;\n"
+        "END;\n"
+    ))
+    source(ws, 'app/deployments/flow.transit', (
+        "CREATE SCHEMA deployments;\n"
+        "CREATE PUBLIC TABLE deployments.releases (\n"
+        "  id BIGINT PRIMARY KEY,\n"
+        "  env_id $env_ty NOT NULL REFERENCES tenancy.environments(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  net_id BIGINT NOT NULL REFERENCES networking.networks(id) ON DELETE RESTRICT NOT ENFORCED,\n"
+        "  deployed_at TIMESTAMPTZ NOT NULL,\n"
+        "  digest BINARY NOT NULL,\n"
+        "  tag TEXT NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC QUEUE deployments.requests (\n"
+        "  id BIGINT NOT NULL,\n"
+        "  env_id $env_ty NOT NULL,\n"
+        "  tenant_code TEXT NOT NULL,\n"
+        "  net_id BIGINT NOT NULL,\n"
+        "  region TEXT NOT NULL,\n"
+        "  deployed_at TIMESTAMPTZ NOT NULL,\n"
+        "  digest BINARY NOT NULL\n"
+        ");\n"
+        "CREATE PUBLIC STREAM deployments.events (id BIGINT NOT NULL, tag TEXT NOT NULL);\n"
+        "CREATE PUBLIC DATAFLOW deployments.provision FROM QUEUE deployments.requests AS req AS BEGIN\n"
+        "  CHECK GUARD tenancy.require_environment(req.env_id, req.tenant_code);\n"
+        "  BEGIN ATOMIC\n"
+        "    LET tag = CALL networking.attach_consumer(req.net_id, req.env_id, ROW(req.region, TRUE));\n"
+        "    INSERT INTO deployments.releases VALUES (req.id, req.env_id, req.net_id, req.deployed_at, req.digest, tag) ON CONFLICT (id) DO ASSERT SAME ROW;\n"
+        "    PRODUCE INTO deployments.events VALUES (req.id, tag);\n"
+        "  END;\n"
+        "END;\n"
+        "AUTHORIZE DATAFLOW deployments.provision AS ROLE CURRENT_ROLE;\n"
+        "ACTIVATE DATAFLOW deployments.provision;\n"
+    ))
+    source(ws, 'app/deployments/build.transit', (
+        "IMPORT MODULE types FROM '../types.transit';\n"
+        "IMPORT MODULE tenancy_build FROM '../tenancy/build.transit';\n"
+        "IMPORT MODULE networking_build FROM '../networking/build.transit';\n"
+        "EXPORT MODULE application(\n"
+        "  schema SCHEMA_BINDING,\n"
+        "  env_ty TYPE,\n"
+        "  tenancy MODULE OF tenancy_build.application,\n"
+        "  networking MODULE OF networking_build.application\n"
+        ") AS BEGIN\n"
+        "  BIND SCHEMA deployments TO schema;\n"
+        "  USE MODULE types;\n"
+        "  USE MODULE tenancy;\n"
+        "  USE MODULE networking;\n"
+        "  DECLARE FROM './flow.transit';\n"
+        "  EXPORT TABLE deployments.releases;\n"
+        "  EXPORT QUEUE deployments.requests;\n"
+        "  EXPORT STREAM deployments.events;\n"
+        "END;\n"
+    ))
+    env_uuid = '550e8400-e29b-41d4-a716-446655440000'
+    suite_text = (
+        "IMPORT MODULE types FROM './types.transit';\n"
+        "CREATE MODULE AddNetwork(tbl TABLE(id BIGINT PRIMARY KEY, env_id types.EnvId NOT NULL, cidr TEXT NOT NULL), id BIGINT, env_id types.EnvId, cidr TEXT) AS BEGIN\n"
+        "  ASSERT COMMAND (INSERT INTO $tbl VALUES ($id, $env_id, $cidr)) MATCHED 1 CHANGED 1;\n"
+        "END;\n"
+        "CREATE MODULE SendDeploy(q QUEUE(id BIGINT NOT NULL, env_id types.EnvId NOT NULL, tenant_code TEXT NOT NULL, net_id BIGINT NOT NULL, region TEXT NOT NULL, deployed_at TIMESTAMPTZ NOT NULL, digest BINARY NOT NULL), id BIGINT, env_id types.EnvId, tenant_code TEXT, net_id BIGINT, region TEXT) AS BEGIN\n"
+        "  ENQUEUE INTO $q VALUES ($id, $env_id, $tenant_code, $net_id, $region, TIMESTAMP '2026-07-04T09:30:00Z', X'DEADBEEF');\n"
+        "END;\n"
+        "TEST 'multi-schema reference exports and typed domains execute in isolated host' USING MODULES (platform) AS BEGIN\n"
+        f"  USE AddNetwork(networks, 7, types.EnvId(UUID '{env_uuid}'), '10.1.0.0/16');\n"
+        f"  USE SendDeploy(requests, 901, types.EnvId(UUID '{env_uuid}'), 'acme', 7, 'eu-central-1');\n"
+        f"  USE SendDeploy(requests, 902, types.EnvId(UUID '{env_uuid}'), 'wrong-tenant', 7, 'eu-central-1');\n"
+        "  ASSERT WORKFLOW NAME 'deployments.provision' COMPLETED 1 REFUSED 1 WITHIN 1000 OBSERVATIONS;\n"
+        "  ASSERT ROWS (SELECT id, env_id, net_id, deployed_at, digest, tag FROM deployments.releases) EQUAL (\n"
+        f"    (901, UUID '{env_uuid}', 7, TIMESTAMP '2026-07-04T09:30:00Z', X'DEADBEEF', 'eu-central-1')\n"
+        "  );\n"
+        "  ASSERT ROWS (CONSUME id, tag FROM deployments.events) EQUAL ((901, 'eu-central-1'));\n"
+        "END;\n"
+    )
+    source(ws, 'app/multi_schema.test.transit', suite_text)
+    source(ws, 'app/build.transit', (
+        "IMPORT MODULE types FROM './types.transit';\n"
+        "IMPORT MODULE tenancy FROM './tenancy/build.transit';\n"
+        "IMPORT MODULE networking FROM './networking/build.transit';\n"
+        "IMPORT MODULE deployments FROM './deployments/build.transit';\n"
+        "EXPORT MODULE application() AS BEGIN\n"
+        f"  LET t = USE MODULE tenancy.application(schema => SCHEMA_BINDING('tenancy'), env_ty => TYPE types.EnvId, seed_env => types.EnvId(UUID '{env_uuid}'));\n"
+        "  LET n = USE MODULE networking.application(schema => SCHEMA_BINDING('networking'), env_ty => TYPE types.EnvId, tenancy => t);\n"
+        "  LET d = USE MODULE deployments.application(schema => SCHEMA_BINDING('deployments'), env_ty => TYPE types.EnvId, tenancy => t, networking => n);\n"
+        "  EXPORT REFERENCE TABLE t.environments(id) AS environments;\n"
+        "  EXPORT TABLE n.networks AS networks;\n"
+        "  EXPORT TABLE d.releases AS releases;\n"
+        "  EXPORT QUEUE d.requests AS requests;\n"
+        "  EXPORT STREAM d.events AS events;\n"
+        "END;\n"
+        "LET control = USE MODULE application();\n"
+        "EXPORT TARGET tests AS TESTS OF control USING SUITES ('./multi_schema.test.transit');\n"
+    ))
+    report = invoke(cli, ws, timeout=180)
+    assert report['target'] == 'tests' and report['complete'], report
+    assert [case['status'] for case in report['cases']] == ['passed'], report
+
+    # Test cases also respect EXPORT REFERENCE TABLE encapsulation and cannot read tenancy.environments directly.
+    source(ws, 'app/multi_schema.test.transit',
+           suite_text.replace("END;\n", "  SELECT id FROM tenancy.environments;\nEND;\n"))
+    refused = invoke(cli, ws, expected=1)
+    assert refused['code'] == 'application.source.import' and refused['outcome'] == 'not_submitted', refused
+    shutil.rmtree(ws)
+
+
 def main():
     cli = Path(sys.argv[1]).resolve()
     with tempfile.TemporaryDirectory(prefix='transit-application-test-') as temporary:
@@ -471,6 +653,7 @@ def main():
         shutil.rmtree(project)
         shutil.rmtree(remote)
         workspace_test_journey(cli, root)
+        multi_schema_test_journey(cli, root)
         installed_oracle(cli, oracle)
     print('Application tests: offline isolation, typed rows, counts, refusals, child/remote targets and failure coverage passed')
 

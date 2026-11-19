@@ -547,3 +547,114 @@ theorem module_instance_dag_sharing (env : Env context)
       exact Nat.noConfusion h_zero
 
 #print axioms module_instance_dag_sharing
+
+/- A fifth fragment models schema-bound module specialization (`BIND SCHEMA`) and
+   reference-only table exports (`EXPORT REFERENCE TABLE`). -/
+structure QualifiedObject where
+  schema : String
+  name : String
+  deriving DecidableEq, Repr
+
+def bindSchemaObjects (schema : String) (localNames : List String) : List QualifiedObject :=
+  localNames.map (fun name => ⟨schema, name⟩)
+
+def bindSchemaWrite (schema : String) (localName : String) (expr : Expr (parameter :: context) type) :
+    Write (parameter :: context) :=
+  .insert ⟨schema ++ "." ++ localName⟩ expr
+
+/-- Specializing a schema-bound module under distinct concrete schema bindings
+    produces strictly disjoint qualified object identities while preserving
+    nominal domain substitution on every specialized write. -/
+theorem schema_binding_isolation (env : Env context) (arg : Value parameter)
+    (s1 s2 : String) (h_distinct : s1 ≠ s2)
+    (localNames : List String) (localTable : String)
+    (expr : Expr (parameter :: context) type) :
+    ((Write.substitute arg (bindSchemaWrite s1 localTable expr)).eval env =
+      (bindSchemaWrite s1 localTable expr).eval (extend arg env)) ∧
+    (∀ obj, obj ∈ bindSchemaObjects s1 localNames → obj ∉ bindSchemaObjects s2 localNames) := by
+  have mem_schema : ∀ {s : String} {names : List String} {obj : QualifiedObject},
+      obj ∈ bindSchemaObjects s names → obj.schema = s := by
+    intro s names obj hmem
+    induction names with
+    | nil => cases hmem
+    | cons _ _ ih =>
+      cases hmem with
+      | head => rfl
+      | tail _ htl => exact ih htl
+  constructor
+  · simp only [bindSchemaWrite, Write.substitute, Write.eval, nominal_substitution]
+  · intro obj h1 h2
+    exact h_distinct ((mem_schema h1).symm.trans (mem_schema h2))
+
+inductive TableExport (keyType : SourceType) where
+  | full (table : Table keyType) (columns : List String)
+  | referenceOnly (binding : String) (columns : List String)
+
+def allExported (cols : List String) : List String → Bool
+  | [] => true
+  | col :: rest => decide (col ∈ cols) && allExported cols rest
+
+private theorem allExported_iff (cols requested : List String) :
+    allExported cols requested = true ↔ (∀ col, col ∈ requested → col ∈ cols) := by
+  induction requested with
+  | nil =>
+    constructor
+    · intro _ _ h; cases h
+    · intro _; rfl
+  | cons hd tl ih =>
+    constructor
+    · intro h col hmem
+      cases hAnd : decide (hd ∈ cols) with
+      | false =>
+        change (decide (hd ∈ cols) && allExported cols tl) = true at h
+        rw [hAnd] at h
+        cases h
+      | true =>
+        change (decide (hd ∈ cols) && allExported cols tl) = true at h
+        rw [hAnd] at h
+        cases hmem with
+        | head => exact of_decide_eq_true hAnd
+        | tail _ htl => exact ih.mp h col htl
+    · intro hall
+      change (decide (hd ∈ cols) && allExported cols tl) = true
+      rw [decide_eq_true (hall hd (.head tl)), ih.mpr (fun c hc => hall c (.tail hd hc))]
+      rfl
+
+def TableExport.admitForeignKey (cap : TableExport keyType)
+    (requestedCols : List String) (childType : SourceType) : Bool :=
+  let cols := match cap with
+    | .full _ c => c
+    | .referenceOnly _ c => c
+  decide (childType = keyType) && allExported cols requestedCols
+
+def TableExport.admitWrite (cap : TableExport keyType)
+    (expr : Expr context keyType) : Option (Write context) :=
+  match cap with
+  | .full table _ => some (.insert table expr)
+  | .referenceOnly _ _ => none
+
+/-- A reference-only table export (`EXPORT REFERENCE TABLE`) admits foreign-key
+    references iff the child column matches the exact nominal source type and all
+    referenced columns were exported, while never escalating into a write capability. -/
+theorem reference_export_non_escalation (binding : String) (columns requestedCols : List String)
+    (keyType childType : SourceType) (expr : Expr context keyType) :
+    TableExport.admitWrite (.referenceOnly (keyType := keyType) binding columns) expr = none ∧
+    (TableExport.admitForeignKey (.referenceOnly (keyType := keyType) binding columns) requestedCols childType = true ↔
+      (childType = keyType ∧ ∀ col, col ∈ requestedCols → col ∈ columns)) := by
+  constructor
+  · rfl
+  · constructor
+    · intro h
+      change (decide (childType = keyType) && allExported columns requestedCols) = true at h
+      cases hType : decide (childType = keyType) with
+      | false => rw [hType] at h; cases h
+      | true =>
+        rw [hType] at h
+        exact ⟨of_decide_eq_true hType, (allExported_iff columns requestedCols).mp h⟩
+    · intro ⟨hType, hCols⟩
+      change (decide (childType = keyType) && allExported columns requestedCols) = true
+      rw [decide_eq_true hType, (allExported_iff columns requestedCols).mpr hCols]
+      rfl
+
+#print axioms schema_binding_isolation
+#print axioms reference_export_non_escalation
