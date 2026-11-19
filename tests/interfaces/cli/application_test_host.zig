@@ -5,6 +5,8 @@ const lib = @import("transit_test");
 const g = lib.service;
 const p = g.catalog.protocol;
 const w = g.catalog.DirectTableProtocol;
+const contract = @import("transit_test_protocol");
+const location: p.Diagnostic.Location = .{ .offset = .init(0), .length = .init(0), .line = .init(1), .byte_column = .init(1) };
 
 fn require(value: bool) !void {
     if (!value) return error.ApplicationHostProofFailed;
@@ -97,20 +99,24 @@ const LostReply = struct {
         const batch = try read.nextBatch(32);
         try require(batch.complete and batch.len == 1);
         var encoded: [1024]u8 = undefined;
-        const row = try @import("transit_compiler").Test.rowBytes(batch.rows[0].?, prepared.native.output.?.type, &encoded);
+        const row = try @import("transit_test_protocol").Assertions.rowBytes(batch.rows[0].?, prepared.native.output.?.type, &encoded);
         try require(row.len > 0);
         return true;
     }
 };
 const WorkflowAuthority = struct {
     fn run(_: *anyopaque, context: host.Context) !bool {
-        const compiler = @import("transit_compiler");
-        var diagnostic: ?p.Diagnostic = null;
-        const source = "CREATE TEST TARGET tests AS BEGIN TEST 'workflow authority' USING MODULES () AS BEGIN CREATE PUBLIC QUEUE input (id BIGINT NOT NULL); CREATE PUBLIC DATAFLOW process FROM QUEUE input AS request AS BEGIN REQUIRE TRUE ELSE 'No'; END; AUTHORIZE DATAFLOW process AS ROLE CURRENT_ROLE; RETIRE DATAFLOW process; ASSERT WORKFLOW NAME 'process' COMPLETED 0 REFUSED 0 WITHIN 1000 OBSERVATIONS; END; END;";
-        const product = try compiler.compile(context.session.allocator, &.{.{ .path = "build.transit", .text = source }}, .{ .mode = .test_suite, .target = "tests", .compiler_revision = "workflow-authority-proof" }, &diagnostic);
-        defer product.deinit();
+        const case: contract.Wire.Executable = .{
+            .steps = &.{
+                .{ .sql = "CREATE QUEUE INPUT ( ID BIGINT NOT NULL )" },
+                .{ .sql = "CREATE DATAFLOW PROCESS FROM QUEUE INPUT AS REQUEST AS BEGIN REQUIRE TRUE ELSE 'No' ; END" },
+                .{ .sql = "AUTHORIZE DATAFLOW PROCESS AS ROLE CURRENT_ROLE" },
+                .{ .sql = "RETIRE DATAFLOW PROCESS" },
+            },
+            .actions = &.{ .{ .step = 0, .expectation = .complete, .location = location }, .{ .step = 1, .expectation = .complete, .location = location }, .{ .step = 2, .expectation = .complete, .location = location }, .{ .step = 3, .expectation = .complete, .location = location }, .{ .expectation = .{ .workflow = .{ .name = "process", .completed = 0, .refused = 0, .observations = 1000 } }, .location = location } },
+        };
         var runner: lib.Runner = .{ .allocator = context.session.allocator, .session = context.session };
-        try require((try runner.run(product.cases[0])).passed);
+        try require((try runner.run(case)).passed);
         // Quiesce the explicitly retired program before changing inspection
         // grants, so this schedule isolates disclosure from executor fencing.
         const declared = (try g.ManagedOperations.program(context.session, try .init("process"))) orelse return error.MissingWorkflow;
@@ -126,111 +132,10 @@ const WorkflowAuthority = struct {
         const owner = try context.authority.authorize(.{ .create_role = .{ .name = try .init("workflow_owner") } });
         _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = owner } });
         _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.inspect | g.catalog.KVAuthority.read } });
-        var case = product.cases[0];
-        case.actions = case.actions[case.actions.len - 1 ..];
-        try require((try runner.run(case)).passed);
-        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.KVAuthority.read } });
-        if (runner.run(case)) |_| return error.RevokedWorkflowPassed else |err| try denied(context.session, err);
-        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = context.role } });
-        const input = try context.session.table.call(.{ .log_lookup = .{ .namespace = 1, .name = "input" } });
-        const dependency = g.catalog.TableAuthority.reference(input.value.result.log_lookup.?.declaration.properties.authorization);
-        input.deinit();
-        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = dependency, .owner = owner } });
-        _ = try context.authority.authorize(.{ .grant = .{ .object = dependency, .grantee = context.role, .privileges = g.catalog.LogAuthority.inspect } });
-        try require((try runner.run(case)).passed);
-        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = dependency, .grantee = context.role, .privileges = g.catalog.LogAuthority.inspect } });
-        if (runner.run(case)) |_| return error.RevokedWorkflowDependencyPassed else |err| try denied(context.session, err);
-        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = dependency, .owner = context.role } });
-        return true;
-    }
-};
-const QueueAuthority = struct {
-    fn run(_: *anyopaque, context: host.Context) !bool {
-        const compiler = @import("transit_compiler");
-        const session = context.session;
-        var diagnostic: ?p.Diagnostic = null;
-        const source = "CREATE TARGET default AS BEGIN CREATE PUBLIC QUEUE requests (id BIGINT NOT NULL); ENQUEUE INTO requests VALUES (7); END;";
-        const product = try compiler.compile(session.allocator, &.{.{ .path = "build.transit", .text = source }}, .{ .compiler_revision = "queue-authority-proof" }, &diagnostic);
-        defer product.deinit();
-        _ = try write(session, product.steps[0].sql);
-        const lookup = try session.table.call(.{ .log_lookup = .{ .namespace = 1, .name = "requests" } });
-        const object = g.catalog.TableAuthority.reference(lookup.value.result.log_lookup.?.declaration.properties.authorization);
-        lookup.deinit();
-        const owner = try context.authority.authorize(.{ .create_role = .{ .name = try .init("queue_owner") } });
-        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = owner } });
-        const privileges = g.catalog.LogAuthority.inspect | g.catalog.LogAuthority.append;
-        _ = try context.authority.authorize(.{ .grant = .{ .object = object, .grantee = context.role, .privileges = privileges } });
-        try session.begin();
-        defer session.end();
-        const prepared = try session.prepare(product.steps[1].sql);
-        defer session.destroy(prepared);
-        // The build and SQL preparation both precede revocation. Neither is an
-        // authority lease: submitting the frozen emitted append must still fail.
-        _ = try context.authority.authorize(.{ .revoke_privileges = .{ .object = object, .grantee = context.role, .privileges = g.catalog.LogAuthority.append } });
-        if (session.write(prepared, &.{})) |_| return error.RevokedQueueAppendPassed else |err| try denied(session, err);
-        _ = try context.authority.authorize(.{ .transfer_object = .{ .object = object, .owner = context.role } });
-        return true;
-    }
-};
-const Fault = struct {
-    mode: enum { dropped, duplicate, reordered, terminal, timeout, memory },
-    endpoint: g.wire.LocalEndpoint = undefined,
-    injected: bool = false,
-    fn invoke(raw: *anyopaque, invocation: *g.wire.LocalEndpoint.Invocation) !void {
-        const self: *@This() = @ptrCast(@alignCast(raw));
-        if (self.mode == .timeout and invocation.isRequest(w.Request)) {
-            const request = try invocation.requestPtr(w.Request);
-            if (request.action == .commit_saved) {
-                self.injected = true;
-                return error.AuthorityTimeout;
-            }
-        }
-        try self.endpoint.invoke(self.endpoint.context, invocation);
-        if (!invocation.isRequest(w.Request) or self.injected) return;
-        const response: *w.Response = @ptrCast(@alignCast(invocation.output));
-        if (response.result != .page or response.result.page.rows.len < 2) return;
-        const page = &response.result.page;
-        self.injected = true;
-        switch (self.mode) {
-            .dropped => return error.TestLostRead,
-            .terminal => page.next = null,
-            .duplicate, .reordered => {
-                const rows = try invocation.allocator.dupe(w.Binary, page.rows);
-                if (self.mode == .duplicate) rows[1] = rows[0] else std.mem.swap(w.Binary, &rows[0], &rows[1]);
-                page.rows = rows;
-            },
-            else => unreachable,
-        }
-    }
-    fn run(raw: *anyopaque, context: host.Context) !bool {
-        const self: *@This() = @ptrCast(@alignCast(raw));
-        if (self.mode == .memory) {
-            const bytes = try context.session.allocator.alloc(u8, 256 * 1024 * 1024);
-            defer context.session.allocator.free(bytes);
-            return error.MemoryCapNotEnforced;
-        }
-        const compiler = @import("transit_compiler");
-        var diagnostic: ?p.Diagnostic = null;
-        const source = if (self.mode == .timeout)
-            "CREATE TEST TARGET tests AS BEGIN TEST 'timeout' USING MODULES () AS BEGIN ASSERT STATEMENT (INSERT INTO items VALUES (1)) FAILS WITH 'duplicate_key'; END; END;"
-        else
-            "CREATE TEST TARGET tests AS BEGIN TEST 'read' USING MODULES () AS BEGIN SELECT * FROM items; END; END;";
-        // Compile the real test product with its own setup, then run only its
-        // body against the same setup established through the ordinary session.
-        const setup = "CREATE PUBLIC TABLE items(id BIGINT PRIMARY KEY);";
-        // Catalog setup belongs inside the case so its ordinary compiler can
-        // bind the statement, but is executed before fault injection below.
-        const text = try std.mem.replaceOwned(u8, context.session.allocator, source, "USING MODULES () AS BEGIN ", "USING MODULES () AS BEGIN " ++ setup);
-        defer context.session.allocator.free(text);
-        const product = try compiler.compile(context.session.allocator, &.{.{ .path = "build.transit", .text = text }}, .{ .mode = .test_suite, .target = "tests", .compiler_revision = "fault-proof" }, &diagnostic);
-        defer product.deinit();
-        _ = try write(context.session, "CREATE TABLE items(id BIGINT PRIMARY KEY)");
-        _ = try write(context.session, "INSERT INTO items VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9)");
-        self.endpoint = context.endpoint;
-        context.session.wire.local = .{ .context = self, .invoke = invoke };
-        defer context.session.wire.local = context.endpoint;
-        var case = product.cases[0];
-        case.actions = case.actions[1..];
+        const case: contract.Wire.Executable = .{
+            .steps = &.{.{ .sql = if (self.mode == .timeout) "INSERT INTO items VALUES (1)" else "SELECT * FROM items" }},
+            .actions = &.{.{ .step = 0, .expectation = if (self.mode == .timeout) .{ .refusal = .duplicate_key } else .complete, .location = location }},
+        };
         var runner: lib.Runner = .{ .allocator = context.session.allocator, .session = context.session };
         if (runner.run(case)) |_| return error.FaultPassed else |err| {
             try require(self.injected);

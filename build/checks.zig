@@ -135,7 +135,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .root_source_file = b.path("apps/transit-cli/Support.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_workspace", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_workspace") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     });
     cli_support.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const file_capture = test_modules.get(.operations_file_capture);
@@ -992,8 +992,7 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
-        .{ .name = "transit_workspace", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_workspace") },
-        .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
+        .{ .name = "transit_test_protocol", .module = b.dependency("transit_test_protocol", .{ .target = target, .optimize = optimize }).module("transit_test_protocol") },
         .{ .name = "transit_test", .module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") },
     } });
     lifecycle_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
@@ -1235,34 +1234,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
     b.step("test-server-scenarios", "Verify installed SQL, Dataflow and webhook effect journeys with latency ceilings").dependOn(&scenario_test.step);
     const application_tests = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") }));
     b.step("test-application-runner", "Verify typed isolated application assertions").dependOn(&application_tests.step);
-    const application_compiler = b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") }));
-    b.step("test-application-compiler", "Verify bounded typed module compilation and emission equivalence").dependOn(&application_compiler.step);
-    const source_grammar_driver = b.addExecutable(.{ .name = "transit-source-grammar-driver", .root_module = b.createModule(.{
-        .root_source_file = b.path("third_party/transitc/tests/query/application_source/driver.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
-            .{ .name = "transit_protocol", .module = protocol.module("transit_protocol") },
-            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
-        },
-    }) });
-    const source_grammar = b.addSystemCommand(&.{ "python3", "-B" });
-    source_grammar.addFileArg(b.path("tests/runner/launch.py"));
-    source_grammar.addFileArg(b.path("tests/query/application_source/verify.py"));
-    source_grammar.addArtifactArg(source_grammar_driver);
-    source_grammar.has_side_effects = true;
-    source_grammar.stdio = .inherit;
-    b.step("test-application-source-grammar", "Compare independent source grammar, ASTs, formatter and compiled products").dependOn(&source_grammar.step);
-    const source_types = b.addSystemCommand(&.{ "python3", "-B" });
-    source_types.addFileArg(b.path("tests/runner/launch.py"));
-    source_types.addFileArg(b.path("tests/query/application_source/types.py"));
-    source_types.addArtifactArg(source_grammar_driver);
-    source_types.has_side_effects = true;
-    source_types.stdio = .inherit;
-    b.step("test-application-source-types", "Check nominal source laws and independent typed action correspondence").dependOn(&source_types.step);
-    const source_grammar_install = b.addInstallArtifact(source_grammar_driver, .{});
-    b.step("source-grammar-driver", "Build private source syntax/product projection").dependOn(&source_grammar_install.step);
     const application_host = b.addExecutable(.{ .name = "application-test-host", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/application_test_host.zig"),
         .target = target,
@@ -1270,27 +1241,13 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .imports = &.{
             .{ .name = "transit_cli_role", .module = transit_cli.root_module },
             .{ .name = "transit_test", .module = b.dependency("transit_test", .{ .target = target, .optimize = optimize }).module("transit_test") },
-            .{ .name = "transit_compiler", .module = b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_compiler") },
+            .{ .name = "transit_test_protocol", .module = b.dependency("transit_test_protocol", .{ .target = target, .optimize = optimize }).module("transit_test_protocol") },
         },
     }) });
     application_host.root_module.link_libc = true;
     const application_host_run = b.addRunArtifact(application_host);
     application_host_run.has_side_effects = true;
     b.step("test-application-test-host", "Qualify local test authority and original outcomes").dependOn(&application_host_run.step);
-    const table_application_test = b.addSystemCommand(&.{ "python3", "-B" });
-    table_application_test.addFileArg(b.path("tests/runner/launch.py"));
-    table_application_test.addFileArg(b.path("tests/interfaces/cli/application_test.py"));
-    table_application_test.addArtifactArg(transit_cli);
-    table_application_test.has_side_effects = true;
-    table_application_test.stdio = .inherit;
-    b.step("test-application-test", "Qualify isolated offline Table tests").dependOn(&table_application_test.step);
-    const application_build = b.addSystemCommand(&.{ "python3", "-B" });
-    application_build.addFileArg(b.path("tests/runner/launch.py"));
-    application_build.addFileArg(b.path("tests/interfaces/cli/application_build.py"));
-    application_build.addArtifactArg(transit_cli);
-    application_build.has_side_effects = true;
-    application_build.stdio = .inherit;
-    b.step("test-application-build", "Qualify locked offline builds and source-free SQL execution").dependOn(&application_build.step);
     const migrate_lifecycle_test = b.addSystemCommand(&.{ "python3", "-B" });
     const application_program = b.addExecutable(.{ .name = "transit-application-program-oracle", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/interfaces/cli/application_program.zig"),
@@ -2095,7 +2052,6 @@ pub fn register(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.b
         .link_libc = true,
         .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_sql_service", .module = sql_gateway.module("transit_sql_service") }, .{ .name = "transit_sql_client", .module = sql_client.module("transit_sql_client") }, .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") } },
     }) });
-    configuration_probe.root_module.addImport("transit_workspace", b.dependency("transit_compiler", .{ .target = target, .optimize = optimize }).module("transit_workspace"));
     configuration_probe.root_module.linkSystemLibrary("crypto", .{ .use_pkg_config = .force, .preferred_link_mode = if (target.result.abi.isMusl()) .static else .dynamic });
     const sql_wire_gateway = b.addSystemCommand(&.{ "python3", "-B" });
     const sql_wire_build = b.step("test-sql-wire-build", "Install SQL proof binaries for measurements after compilation finishes");

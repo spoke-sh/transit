@@ -20,7 +20,7 @@ then consumes that compiler boundary.
 
 The first implementation PR covers the source/build contracts, recursive module
 composition, locked dependencies, a bounded working catalog, canonical SQL
-emission and `transit build` for an explicitly supported Table workload. It is a
+emission and `transitc build` for an explicitly supported Table workload. It is a
 vertical subset of M12 P0, P1 and P3. Subsequent slices add the abstractions,
 runtime encapsulation, migration synthesis and test language required to finish
 M12. The original first-slice proposal did not change the milestone's status or
@@ -77,7 +77,7 @@ SQL access. Reject requests for runtime-private storage or privileged procedure
 expansion until M12's catalog ownership/enforcement contract exists. Importing a
 module or possessing generated SQL grants no privileges.
 
-`transit build` has default/named targets, check-only compilation and frozen
+`transitc build` has default/named targets, check-only compilation and frozen
 offline resolution. Dependency fetching/updating is an explicit tooling action;
 build evaluation never fetches implicitly. The exact CLI options and source
 syntax are settled in the first contract commit, before adapters are added.
@@ -92,7 +92,7 @@ and extend [TRANSIT_CLI_V1](../../contracts/TRANSIT_CLI_V1.md) and the
 test roots from executable statement roots. Runtime entry points must reject
 source-only forms. Preserve the existing `transit-app` interface compiler.
 
-The proposed shared library is `packages/zig/transit-compiler`, with its own
+The proposed shared library is `transitc/packages/transitc-compiler`, with its own
 manifest, public module, README and checks. It owns graph composition, evaluation,
 the working catalog and emission, using public Fuze/Catalog/SQL compiler APIs.
 Fuze keeps pure syntax, types and expression lowering; Catalog keeps durable
@@ -150,7 +150,7 @@ semantics required to run the SQL.
 | 4. Bind and evaluate typed modules | Implement interfaces, type/value/module arguments, exports, constructors, hygienic scopes and explicit instance bindings in the shared compiler. | Repeated instances, higher-order composition and terminating recursion work. Wrong interfaces, private imports, conflicting instances, capture and every budget exhaustion fail at attributable source sites. |
 | 5. Check the supported working catalog | Stage declarations and bind dependent statements using existing schema, literal, constraint and query semantics. Keep proposed definitions separate from accepted objects and live grants. | Cross-file type/name/constraint failures reject; supported programs bind without a server. Private runtime storage, Queue/COMMAND programs, unsupported profiles and missing target capabilities reject without output. |
 | 6. Emit and verify canonical SQL | Format the checked expansion with shared typed rules, then independently reparse/rebind it through ordinary compiler owners. Compare logical schemas, typed plans and operation order under the same explicit basis. | Hand-expanded and generated programs agree; identifier quoting, literals, NULL/cell-state and collation behavior survive. Output bytes are deterministic. Reparse success without semantic equivalence is a failure. |
-| 7. Expose build targets and artifacts | Wire `transit build`, check-only and named targets into the CLI. Add cache identity/invalidation and bounded atomic output publication. | Compiler/contract/source/dependency/option/binding changes invalidate affected entries. Interrupted or failed builds leave no artifact marked complete; an older successful output remains distinguishable. JSON/human diagnostics share owner evidence. |
+| 7. Expose build targets and artifacts | Wire `transitc build`, check-only and named targets into the CLI. Add cache identity/invalidation and bounded atomic output publication. | Compiler/contract/source/dependency/option/binding changes invalidate affected entries. Interrupted or failed builds leave no artifact marked complete; an older successful output remains distinguishable. JSON/human diagnostics share owner evidence. |
 | 8. Qualify the caller journey and document it | Execute emitted SQL through the public SQL client/console with source packages absent. Publish supported syntax, limits and commands with the public owners. | Complete typed results and command counts match a hand-expanded oracle; revoked rights fail at execution. Path relocation keeps bindings stable. Real failure/recovery and allocation tests pass before PR submission. |
 
 The contract commit must also decide whether any shared diagnostic or persisted
@@ -222,7 +222,7 @@ they are not exit claims for this slice.
 | --- | --- |
 | Module abstractions and full static checks, M12 P1–P3 | Expand PROFILE, pure FUNCTION and GUARD through the same graph/emitter. Add whole-program type, five-state, capability/operation settlement, secret-flow and activation-order checks. Protected wrappers such as BEARER remain protected values, not blanket declassification. Every early exit, failure path and loop needs analysis. Add PROCEDURE only after runtime module ownership and current-caller enforcement survive SQL lowering; preserve one enclosing transaction and forbid external effects inside it. |
 | Migration capacity and evolution, M12 P0/P4 | Implement 1 MiB migration files and 256 steps across client, wire, planner, retained ledger and result envelopes after auditing aggregate/escaped message and record bounds. Then add explicit-basis catalog diffing, additive changes and conditional replacement with drain/pin/idle semantics. Refuse ambiguous/destructive transformations. Reuse DirectMigration and original receipts; never rewrite applied SQL or silently split a version. |
-| Declarative testing, M12 P5 | Add `transit test` and test grammar over the production graph/emitter. Start with the supported Table fixture, then use real runtime owners for command/Queue execution as they qualify. Test clocks, identities, sink/observation mocks and crash schedules stay runner-owned. Unknown effects remain unknown; simulation does not establish remote idempotency or physical durability. |
+| Declarative testing, M12 P5 | Add `transitc test` and test grammar over the production graph/emitter. Start with the supported Table fixture, then use real runtime owners for command/Queue execution as they qualify. Test clocks, identities, sink/observation mocks and crash schedules stay runner-owned. Unknown effects remain unknown; simulation does not establish remote idempotency or physical durability. |
 | Expanded Platform qualification, M12 P6 and #430 | Convert the frozen seven-file application into the six domain modules, replacing cross-module storage writes with exported procedures/views. Add runtime capabilities only after their ordinary SQL owners qualify. Execute generated SQL without source access, verify explicit-basis migrations and compare all domain outcomes. Finish ingress, response handoff, browser authority, deadlines and installation/publication through #430 and their owning milestones. |
 
 The test runner can begin once the first emitter and supported execution fixture
@@ -235,7 +235,7 @@ substitutes for the other.
 - Approve one first implementation PR for the bounded recursive build path and
   its ordinary-SQL execution proof, with the logical commits above.
 - Keep private runtime storage/procedures, full Platform execution, migration
-  synthesis and `transit test` in the explicit following slices.
+  synthesis and `transitc test` in the explicit following slices.
 - Use M12 as the sequencing owner; retain #430 for unfinished runtime integration
   and preserve the earlier foundation's source-attributed evidence.
 

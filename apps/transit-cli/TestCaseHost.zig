@@ -1,7 +1,8 @@
 //! Private compiled-case entry point used by transitc. No source is evaluated here.
 const std = @import("std");
-const workspace = @import("transit_workspace");
-const Wire = workspace.TestHostProtocol;
+const contract = @import("transit_test_protocol");
+const Wire = contract.Wire;
+const Files = @import("TestFiles.zig");
 const Native = @import("TestHost.zig");
 const p = @import("transit_test").service.catalog.protocol;
 
@@ -18,14 +19,14 @@ pub fn run(original: std.process.Init, path: []const u8) !void {
     const a = arena.allocator();
     const directory = try std.Io.Dir.cwd().openDir(init.io, path, .{ .iterate = true, .follow_symlinks = false });
     defer directory.close(init.io);
-    const bytes = try workspace.Sources.read(a, init.io, directory, "case.json", Wire.max_request_bytes);
+    const bytes = try Files.read(a, init.io, directory, "case.json", Wire.max_request_bytes);
     const request = try p.Json.parseFromSlice(Wire.Request, a, bytes);
     const case = try Wire.executable(a, request.value);
     // Reject the full request before constructing a native owner or credentials.
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
     var observed: Native.Observation = .{};
-    var detail: @import("transit_compiler").Test.Detail = .{};
+    var detail: contract.Assertions.Detail = .{};
     var cause: ?[]const u8 = null;
     const deadline = @import("transit_test").service.wire.Deadline.init(init.io, request.value.milliseconds, null);
     const passed = Native.runDetailed(init, directory, path, case, deadline, &observed, &detail) catch |err| failed: {
@@ -34,11 +35,11 @@ pub fn run(original: std.process.Init, path: []const u8) !void {
     };
     const response: Wire.Response = .{
         .definition = Wire.definition,
-        .source_definition = workspace.Sources.definition,
+        .source_definition = Wire.source_definition,
         .request_digest = digest,
         .identity = request.value.identity,
         .sql_digest = request.value.sql_digest,
-        .runtime = .{ .revision = @import("build_version").revision, .executable_digest = try workspace.Build.executableDigest(init.io, a) },
+        .runtime = .{ .revision = @import("build_version").revision, .executable_digest = try Files.executableDigest(init.io, a) },
         .complete = cause == null,
         .passed = passed,
         .error_code = cause,

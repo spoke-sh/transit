@@ -7,9 +7,9 @@ query engine, and durable execution runtime.** It's written in Zig and provides
 [SDKs for a wide range of languages](docs/handbook/reference/sdks.md).
 
 The [application source compiler](docs/handbook/reference/applications.md#application-source-builds)
-composes typed `.transit` modules through `build.transit`. `transit build` emits
+composes typed `.transit` modules through `build.transit`. `transitc build` emits
 ordinary executable SQL for public Tables, Streams, Queues and Queue programs;
-`transit test` runs isolated Table and Queue program cases through
+`transitc test` runs isolated Table and Queue program cases through
 the same compiler and local database owners. Broader application runtime forms,
 migration synthesis and workflow simulation remain planned.
 

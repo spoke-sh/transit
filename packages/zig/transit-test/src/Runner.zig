@@ -2,7 +2,7 @@
 //! here. Session owns preparation, acceptance, settlement, rows and disclosure.
 const std = @import("std");
 const g = @import("transit_sql_service");
-const t = @import("transit_compiler").Test;
+const t = @import("transit_test_protocol").Assertions;
 const Self = @This();
 allocator: std.mem.Allocator,
 session: *g.Session,

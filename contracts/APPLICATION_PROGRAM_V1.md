@@ -68,7 +68,7 @@ saved-record limits apply together. The installed host rejects effects,
 protected values/responses, response pages, handoffs and deadlines. Explicit
 transactions, database-wire/remote gateway admission, Queue program migrations
 and definition replacement are unsupported. The
-[source compiler](../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs) emits this public
+[source compiler](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs) emits this public
 Queue profile, including checked source-domain annotations that erase to scalar
 SQL. This runtime interface consumes executable lowered SQL and requires no
 source repository or type sidecar.

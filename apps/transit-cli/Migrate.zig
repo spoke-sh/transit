@@ -19,7 +19,7 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
     defer runtime.destroy();
     var init = original;
     init.io = runtime.io();
-    diagnostic.style = @import("transit_workspace").Style.detect(init);
+    diagnostic.style = @import("Style.zig").detect(init);
 
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();

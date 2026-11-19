@@ -41,7 +41,7 @@ fixture checks accepted input, refusal before mutation and refusal after a stage
 insert inside an atomic block. Nominal program columns, symbolic program
 declarations, protected effects, migrations and replacement remain outside this
 increment. Current syntax and limits belong to the
-[public Queue source profile](../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs).
+[public Queue source profile](https://github.com/spoke-sh/transitc/blob/main/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs).
 
 ## Current implementation and gaps
 
@@ -55,11 +55,11 @@ increment. Current syntax and limits belong to the
 | Tests and proofs | Isolated Table tests through real local owners; typed rows/counts/refusals; source grammar comparisons and three scoped Lean laws | Subject/grant and clock controls, workflow assertions, scripted effects/observations, replay sweeps and temporal/native correspondence |
 
 The implementation anchors are
-[WorkingCatalog](../../third_party/transitc/packages/transitc-compiler/src/WorkingCatalog.zig),
-[Compiler](../../third_party/transitc/packages/transitc-compiler/src/Compiler.zig),
-[SourceTypes](../../third_party/transitc/packages/transitc-compiler/src/SourceTypes.zig),
-[TypedOperands](../../third_party/transitc/packages/transitc-compiler/src/TypedOperands.zig),
-[build resolution](../../third_party/transitc/packages/transitc-workspace/src/BuildSources.zig), and
+[WorkingCatalog](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/WorkingCatalog.zig),
+[Compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/Compiler.zig),
+[SourceTypes](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/SourceTypes.zig),
+[TypedOperands](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/src/TypedOperands.zig),
+[build resolution](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-workspace/src/BuildSources.zig), and
 [the test runner](../../packages/zig/transit-test/README.md).
 The [installed Queue contract](../../contracts/APPLICATION_PROGRAM_V1.md#installed-sql-profile)
 is narrower than its typed runtime components. Do not infer installed support
@@ -99,7 +99,7 @@ this plan's baseline.
 
 | Owner | Required handoff |
 | --- | --- |
-| [Source contract](../../contracts/APPLICATION_SOURCE_V1.md), [grammar](../../third_party/transitc/contracts/application-source/README.md), `transit-compiler` | Syntax, stages, typed bindings, deterministic evaluation, diagnostics, SQL equivalence and source-only rejection at runtime entry points |
+| [Source contract](../../contracts/APPLICATION_SOURCE_V1.md), [grammar](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/README.md), `transitc-compiler` | Syntax, stages, typed bindings, deterministic evaluation, diagnostics, SQL equivalence and source-only rejection at runtime entry points |
 | [Fuze](../../packages/zig/transit-fuze/README.md), [application programs](../../contracts/APPLICATION_PROGRAM_V1.md) | Pure typed expressions, resource descriptors, ordered instructions, cardinality and runtime refusals; factor pure APIs without reversing Fuze/Catalog dependencies |
 | [Catalog definitions](../../contracts/CATALOG_DEFINITIONS_V1.md), [catalog](../../contracts/DECLARATIVE_CATALOG_V1.md), M5–M7/M10 | Stable definitions, current policy, exact dependencies and native transactions; qualify each Document profile explicitly rather than assuming all Document work is complete |
 | [M14 SQL/dataflow work](dataflow-sql-implementation.md), [SOURCE/SINK](../../contracts/SOURCE_V1.md) | Installed publication/control, program migration binding, protected host composition and observable progress; M12 must not duplicate service discovery or invocation recovery |

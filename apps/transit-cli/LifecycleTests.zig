@@ -2,9 +2,7 @@
 test {
     _ = @import("server/DirectoryPublication.zig");
     _ = @import("Options.zig");
-    _ = @import("transit_workspace").Options;
-    _ = @import("transit_workspace").Report;
-    _ = @import("transit_workspace").EnvelopeDiagnostic;
+    _ = @import("EnvelopeDiagnostic.zig");
     _ = @import("Undo.zig");
     _ = @import("EditorState.zig");
     _ = @import("SqlInput.zig");
@@ -13,7 +11,7 @@ test {
     _ = @import("Results.zig");
     _ = @import("ResultJson.zig");
     _ = @import("Output.zig");
-    _ = @import("transit_workspace").Style;
+    _ = @import("Style.zig");
     _ = @import("server/Gateway.zig");
     _ = @import("server/Config.zig");
     _ = @import("server/ArtifactHash.zig");

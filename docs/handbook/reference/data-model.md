@@ -90,7 +90,7 @@ creating data, starting a worker or granting access.
 The [planned source language](applications.md#planned-source-language-and-build-model)
 extends this declaration model with recursively composable `.transit` SQL modules.
 `build.transit` uses the same dialect to compose local and repository dependencies;
-the proposed `transit build` and `transit test` share that graph and lower its
+the proposed `transitc build` and `transitc test` share that graph and lower its
 database program to executable `.sql`. Source modules and build targets remain
 distinct from catalog schemas, durable object identities and deployed instances.
 Statement execution, migration application and computation activation keep their

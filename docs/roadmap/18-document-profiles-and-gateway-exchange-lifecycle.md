@@ -218,7 +218,7 @@ flowchart LR
      `/AcroForm` fields through a deterministic **Spatial Layout & Span
      Segmenter** ($\kappa$) into addressable `(page_no, bbox, span)` columns.
 
-4. **Build the shared suite of zero-allocation SIMD structural scanners and `transit build` AOT grammar specialization.**
+4. **Build the shared suite of zero-allocation SIMD structural scanners and `transitc build` AOT grammar specialization.**
    Apply the execution rules from
    [Milestone 15](15-data-structures-and-performance.md),
    [Milestone 16](16-vectorized-strings-and-search.md) and
@@ -236,7 +236,7 @@ flowchart LR
      schema tags, `EDI` X12/EDIFACT segment IDs, `LDAP` OIDs, `PDF` dictionary
      `/Name` keys) at `comptime`, and seal per-segment perfect hash directories
      for custom document keys at `.tseg` flush time.
-   - **Ahead-of-Time (`transit build`) grammar & shredder compilation:** Extend
+   - **Ahead-of-Time (`transitc build`) grammar & shredder compilation:** Extend
      [Milestone 17's](17-data-centric-compilation-and-specialization.md) AOT Zig
      compiler so declared XML/OOXML schemas, EDI transaction-set guides, LDAP
      schemas or protocol contracts compile ahead of time into branchless Zig

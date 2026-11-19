@@ -1,5 +1,5 @@
 const std = @import("std");
-const Self = @import("transit_workspace").Style;
+const Self = @import("Style.zig");
 const fuze = @import("transit_query").fuze;
 test "diagnostic colors use original context after redaction and clipping" {
     for ([_][]const u8{

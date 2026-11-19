@@ -7,4 +7,4 @@ pub const SqlInput = @import("SqlInput.zig");
 pub const Files = @import("server/Files.zig");
 pub const Config = @import("server/Config.zig");
 pub const AuthorizationProfile = @import("server/AuthorizationProfile.zig");
-pub const Style = @import("transit_workspace").Style;
+pub const Style = @import("Style.zig");

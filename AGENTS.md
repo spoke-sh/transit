@@ -328,7 +328,7 @@ and [Milestone 12](docs/roadmap/12-application-modules-compilation-and-testing.m
 This is architectural direction, not a claim that the grammar or commands exist.
 
 - Treat `.transit` as a higher-order Transit SQL dialect and `build.transit` as
-  a program in that same language. `transit build` and `transit test` share its
+  a program in that same language. `transitc build` and `transitc test` share its
   recursively composed module graph and emit/exercise executable `.sql` through
   ordinary statement owners. Build evaluation, publication, migration application
   and runtime activation remain separate operations.
@@ -587,7 +587,7 @@ operator, or AOT query compiler already exists in current builds.
   compile latency via `comptime` fused superinstruction dispatch ("Flying Start")
   and tier up mid-query at a `Batch` morsel boundary to Copy-and-Patch machine
   stencils only when the runtime morsel CPU tick/row counter crosses a threshold
-  (no runtime LLVM dependency), while extending `transit build` targets to compile declared
+  (no runtime LLVM dependency), while extending `transitc build` targets to compile declared
   application queries, views and Zig UDFs ahead of time into schema-monomorphized
   Zig modules.
 

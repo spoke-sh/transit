@@ -21,12 +21,13 @@
         ]
       },
       {
-        "id": "transitc-source-pin",
+        "id": "compiler-dependency-direction",
         "phase": "tooling",
         "command": [
           "python3",
           "-B",
-          "tasks/transitc.py"
+          "tests/runner/launch.py",
+          "tests/runner/compiler_boundary.py"
         ]
       },
       {
@@ -681,17 +682,6 @@
           "-B",
           "tests/runner/launch.py",
           "tests/interfaces/sql_wire/type_inventory.py"
-        ]
-      },
-      {
-        "id": "application-source-proof-inventory",
-        "phase": "tooling",
-        "command": [
-          "python3",
-          "-B",
-          "tests/runner/launch.py",
-          "tests/query/application_source/types.py",
-          "--check-inventory"
         ]
       },
       {

@@ -34,7 +34,7 @@ Start from [query mechanisms](../handbook/internals/query-engine.md),
 [`transit-fuze`](../../packages/zig/transit-fuze/README.md) and the
 [planned source-to-SQL boundary](../handbook/internals/query-engine.md#planned-source-to-sql-compilation).
 M12 owns `.transit`, `build.transit`, dependency resolution and executable SQL
-emission. This milestone adds optional AOT outputs to that same `transit build`
+emission. This milestone adds optional AOT outputs to that same `transitc build`
 graph and preserves correspondence with its SQL; it introduces no separate
 module system or Station dependency for database compilation.
 
@@ -103,7 +103,7 @@ accounting as the reference interpreter.
      (Copy-and-Patch compilation in $< 50\,\mu\text{s}$ into a bounded W^X slab),
      so short OLTP queries finish instantly while long analytical scans run at
      full compiled speed.
-4. **Deliver Ahead-of-Time (AOT) Zig compilation through `transit build` targets.**
+4. **Deliver Ahead-of-Time (AOT) Zig compilation through `transitc build` targets.**
    Extend M12's shared build graph with AOT outputs for schemas, named queries,
    maintained views, streams and functions. Consume the same typed semantics as
    emitted `.sql`, preserving that inspectable SQL output and exact definition
@@ -135,7 +135,7 @@ accounting as the reference interpreter.
 | Data-centric push fusion + vectorized morsels (HyPer + CedarDB + VectorWise synthesis) | Register pressure, L1d/L2 cache misses, ~10-instruction directory-tagged join probe filtering, LLC miss hiding via `@prefetch` on hash joins (TPC-H Q3, Q9 and JOB), arithmetic/aggregation throughput (TPC-H Q1, Q6, Q18) and exact ordered-failure-frontier preservation |
 | Per-row-group dense non-null specialization | Branch misprediction reduction (`perf` branch-misses), throughput on clean (`null_count == 0`) versus dirty/nullable `.tseg` blocks, and zero regression when falling back on overflow or five-state errors |
 | Ad-hoc SQL specialization: Fused Superinstructions + Adaptive Morsel Tier-Up (Flying Start / Copy-and-Patch stencil JIT) | Tier-0/1 startup latency ($0\,\mu\text{s}$), stencil tier-up latency ($\le 50\text{–}100\,\mu\text{s}$), morsel threshold calibration, W^X security/sandbox compliance, cross-platform support (`x86_64-linux`, `aarch64-linux`, `aarch64-macos`) and binary size impact |
-| AOT application query/view compilation (`transit build`) | Equivalence with emitted SQL, end-to-end latency and throughput versus ad-hoc SQL plans, UDF inlining speedup, build-time compilation budget, and catalog definition-digest verification on schema evolution |
+| AOT application query/view compilation (`transitc build`) | Equivalence with emitted SQL, end-to-end latency and throughput versus ad-hoc SQL plans, UDF inlining speedup, build-time compilation budget, and catalog definition-digest verification on schema evolution |
 | Projection-specialized storage decoders and wire serializers | End-to-end query throughput across `.tseg` scans into `transit-sql-client`, Flight SQL and PostgreSQL binary clients; allocation/copy counts |
 
 [HyPer's data-centric query compilation](https://www.vldb.org/pvldb/vol4/p539-neumann.pdf)

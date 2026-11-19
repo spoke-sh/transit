@@ -12,14 +12,14 @@ direct catalog without reading `.transitrc` startup files. Table and finite
 dataflow declarations share SQL operation owners and retain original identities
 for recovery. See the [migration workflow](../../docs/handbook/reference/cli.md#application-sql-migrations).
 
-`transit build` compiles typed application modules offline into executable SQL
+`transitc build` compiles typed application modules offline into executable SQL
 and provenance, with Zig-style source diagnostics and `--color auto|off|on` on
 stderr. Explicit-basis migration targets publish reviewed Table CREATE/ADD
 SQL, immutable history and a successor basis; they never apply it. Explicit `--fetch` prepares pinned dependencies; normal builds
 verify frozen content without network access. See the
 [application source build reference](../../docs/handbook/reference/cli.md#application-source-builds).
 
-`transit test` compiles the same source graph and runs explicit Table and public
+`transitc test` compiles the same source graph and runs explicit Table and public
 Queue-program cases in
 private local databases, reporting compile and assertion failures with source
 spans, notes and `--color auto|off|on` on stderr. It uses real SQL session and authorization owners without
@@ -102,13 +102,11 @@ escaped before terminal rendering. These diagnostics go to stderr.
 
 ## Compiler ownership
 
-`transit build` and `transit test` consume the
-[exact transitc snapshot](../../third_party/transitc/upstream.json) through the
-[compiler adapter](../../packages/zig/transit-compiler/README.md). Source capture,
-locks, publication, test orchestration and diagnostics belong to transitc's
-workspace package. Migration application and isolated database test hosting
-remain here. Standalone `transitc test` sends compiled cases through the bounded
-[test-host contract](../../third_party/transitc/contracts/TEST_HOST_V1.md), using
-the same native host as this command. Its private process entry point accepts no
-source or existing installation configuration. The CLI
-preserves its existing commands, definition identity and immutable SQL history.
+Source build and test commands live in [transitc](https://github.com/spoke-sh/transitc):
+use `transitc build` and `transitc test`. Transit is its upstream dependency and
+contains no compiler snapshot, source resolver or suite orchestrator.
+
+This CLI owns runtime server, console and migration operations. Its private
+[compiled-case host](../../contracts/TEST_HOST_V1.md) accepts bounded SQL and typed
+expectations from transitc, then executes them through ordinary native owners in
+fresh disposable databases. It accepts no source or existing installation settings.

@@ -6,11 +6,7 @@ pub const ApplicationTestHost = @import("TestHost.zig");
 pub fn main(init: std.process.Init) !void {
     var diagnostic: Diagnostic = .{};
     dispatch(init, &diagnostic) catch |err| {
-        if (err == error.TestSuiteFailed) std.process.exit(1);
-        if (std.mem.eql(u8, diagnostic.command, "transit build") or std.mem.eql(u8, diagnostic.command, "transit test")) {
-            diagnostic.style = @import("transit_workspace").Style.resolve(init, diagnostic.color_mode);
-        }
-        if (diagnostic.machine) @import("Build.zig").emitFailure(init.io, &diagnostic, err) catch {} else diagnostic.emit(init.io, err);
+        diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted => 130,
             error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge, error.MigrationTargetMismatch => 2,
@@ -25,7 +21,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
-    if (args.len == 3 and std.mem.eql(u8, args[1], @import("transit_workspace").TestHostProtocol.argument)) return @import("TestCaseHost.zig").run(init, args[2]);
+    if (args.len == 3 and std.mem.eql(u8, args[1], @import("transit_test_protocol").Wire.argument)) return @import("TestCaseHost.zig").run(init, args[2]);
     const runtime = @import("RuntimeRole.zig");
     if (args.len > 0) {
         if (runtime.fromExecutableName(args[0])) |role| return runtime.run(init, role);
@@ -40,8 +36,6 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         .console => @import("Console.zig").run(init, options, diagnostic),
         .server => @import("server/Server.zig").run(init, options, diagnostic),
         .migrate => @import("Migrate.zig").run(init, options, diagnostic),
-        .build => @import("Build.zig").run(init, options.build, diagnostic),
-        .@"test" => @import("Test.zig").run(init, options.build, diagnostic),
         .help => unreachable,
     };
 }

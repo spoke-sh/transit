@@ -50,8 +50,6 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
     (path / "result.json").write_text('{"fixture": true}\\n')
     Path(".cache/verification").mkdir()
     Path(".cache/verification/proof.json").write_text('{"fixture": true}\\n')
-    Path("third_party/transitc/.cache/verification/source").mkdir(parents=True)
-    Path("third_party/transitc/.cache/verification/source/proof.json").write_text('{"upstream": true}\\n')
     Path(".cache/native-artifacts/fixture").mkdir(parents=True)
     Path(".cache/native-artifacts/fixture/record.json").write_text('{"fixture": true}\\n')
     sys.exit(int(os.environ.get("CI_CLEAN_EXIT", "0")))
@@ -102,7 +100,6 @@ if "tests/runner/ci.py" in sys.argv or any(arg.startswith("check::") for arg in 
                 reports = [p for p in reports if json.loads(p.read_text())["selection"] == lane]
                 assert len(reports) == 1
                 assert (reports[0].parent / "verification/proof.json").is_file()
-                assert json.loads((reports[0].parent / "verification/source/proof.json").read_text()) == {"upstream": True}
                 assert (reports[0].parent / "native-artifacts/fixture/record.json").is_file()
                 result_directory = "checks" if check_scope else "."
                 assert (reports[0].parent / result_directory / "runs/fixture/task.log").read_text() == "automatic output"
@@ -293,7 +290,7 @@ def main():
     for row in workers:
         assert row["shell"] == SUITE["environments"][row["lane"]]["shell"]
     assert profile(SUITE, "formal") == {"shell": "ci-formal", "prepare": [["just", "transit-board::install"]]}
-    assert LANES["formal"] == ["test::sql-rewrites", "test::application-source-types", "test::model-delivery", "test::queue-lease-transaction-model",
+    assert LANES["formal"] == ["test::sql-rewrites", "test::model-delivery", "test::queue-lease-transaction-model",
                                "test::wal-model", "test::resident-owner-cache-model", "test::transaction-decision-model",
                                "test::storage-lifecycle-model", "test::transaction-workspace-model", "test::model",
                                "test::console-model", "test::statement-result-model", "test::table-transaction-model",

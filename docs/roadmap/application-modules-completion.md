@@ -41,7 +41,7 @@ The review should settle five choices:
 ## Delivered basis and remaining work
 
 The [source contract](../../contracts/APPLICATION_SOURCE_V1.md),
-[compiler](../../packages/zig/transit-compiler/README.md),
+[compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/README.md),
 [test runner](../../packages/zig/transit-test/README.md) and
 [migration contract](../../contracts/MIGRATION_V1.md) define the current profiles.
 The table distinguishes implementation at the review basis from evidence at an
@@ -88,7 +88,7 @@ compiler product through ordinary SQL sessions and real local database owners.
 
 | Owner | Planned work | Boundary to preserve |
 | --- | --- | --- |
-| [transit-compiler](../../packages/zig/transit-compiler/README.md) | Syntax, SourceTypes, ProgramAnnotations/ProgramLowering, WorkingCatalog, proposed CatalogDiff, source maps and diagnostics | Typed holes and hygienic lowering; no text substitution authority or runtime interpreter |
+| [transitc-compiler](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-compiler/README.md) | Syntax, SourceTypes, ProgramAnnotations/ProgramLowering, WorkingCatalog, proposed CatalogDiff, source maps and diagnostics | Typed holes and hygienic lowering; no text substitution authority or runtime interpreter |
 | [transit-fuze](../../packages/zig/transit-fuze/README.md) | Shared scalar, Table/log/program binding and incremental framing | Logical types, cell states, collations and physical codecs remain separate |
 | [transit-catalog](../../packages/zig/transit-catalog/README.md) and SQL service | Definition dependencies, fingerprints, migration receipts, runtime permissions and conditional publication | Current rights, stable object identities and original accepted work remain authoritative |
 | [transit-cli](../../apps/transit-cli/README.md) and transit-test | Confined source/basis loading, artifact writing, test controls and reports | Fetch, build, apply and activation stay separate; test controls cannot enter deployable SQL |
@@ -200,7 +200,7 @@ forms and admit each through its shared SQL type owner.
 
 **Owners:** `Syntax`, `SourceTypes`, `ProgramAnnotations`, `ProgramLowering`,
 `WorkingCatalog`, Fuze scalar/program binders and
-[TypedTarget.lean](../../third_party/transitc/contracts/application-source/TypedTarget.lean).
+[TypedTarget.lean](https://github.com/spoke-sh/transitc/blob/main/contracts/application-source/TypedTarget.lean).
 
 **Exit:** synthetic Case 1 runs over actual Queue/Table/Stream values; wrong
 nominal IDs, malformed tags, missing arms, absent/multiple lookup rows, unsafe
@@ -260,7 +260,7 @@ M7; publication/transport declarations depend on M13. Activation and grants appe
 only when explicitly requested and authorized by their ordinary owners.
 
 **Owners:** proposed `transit-compiler/CatalogDiff`, WorkingCatalog,
-[BuildSources](../../third_party/transitc/packages/transitc-workspace/src/BuildSources.zig),
+[BuildSources](https://github.com/spoke-sh/transitc/blob/main/packages/transitc-workspace/src/BuildSources.zig),
 [MigrationClient](../../packages/zig/transit-sql-client/src/MigrationClient.zig),
 [MigrationRunner](../../packages/zig/transit-sql-service/src/MigrationRunner.zig)
 and DirectMigration.

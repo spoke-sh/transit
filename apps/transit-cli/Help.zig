@@ -9,8 +9,6 @@ pub const root =
     \\  server    Run a local server
     \\  console   Open an SQL console
     \\  migrate   Plan, apply and verify application schema migrations
-    \\  build     Compile application modules to executable SQL
-    \\  test      Run isolated Table and Queue program tests
     \\
     \\Options:
     \\  --help     Show this help
@@ -73,38 +71,5 @@ pub const migrate =
     \\  --allow-grants       Allow GRANT/REVOKE/ROLE statements in migrations
     \\  --format table|json  Output format (default: table)
     \\  --help               Show this help
-    \\
-;
-
-pub const build =
-    \\Compile typed modules or explicit-basis Table migrations offline without applying SQL.
-    \\
-    \\Usage: transit build [-f FILE] [--target NAME] [--out DIRECTORY] [--check] [--fetch] [--override NAME=DIRECTORY] [--format text|json] [--color auto|off|on] [--help]
-    \\
-    \\Options:
-    \\  -f FILE                    Build entry file (default: build.transit)
-    \\  --target NAME              Build target (default: default)
-    \\  --out DIRECTORY            Publish artifacts to a new directory
-    \\  --check                    Validate and verify SQL without publishing artifacts
-    \\  --fetch                    Fetch pinned repositories and write transit.lock
-    \\  --override NAME=DIRECTORY  Use a local dependency directory (repeatable)
-    \\  --format text|json         Output format (default: text)
-    \\  --color auto|off|on        Colorize human diagnostics (default: auto)
-    \\  --help                     Show this help
-    \\
-;
-
-pub const @"test" =
-    \\Run Table and Queue program tests in fresh local databases.
-    \\
-    \\Usage: transit test [-f FILE] [--target NAME] [--override NAME=DIRECTORY] [--format text|json] [--color auto|off|on] [--help]
-    \\
-    \\Options:
-    \\  -f FILE                    Build entry file (default: build.transit)
-    \\  --target NAME              Test target (default: tests)
-    \\  --override NAME=DIRECTORY  Use a local dependency directory (repeatable)
-    \\  --format text|json         Output format (default: text)
-    \\  --color auto|off|on        Colorize human diagnostics (default: auto)
-    \\  --help                     Show this help
     \\
 ;

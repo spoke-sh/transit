@@ -20,7 +20,7 @@ import tempfile
 MANIFEST = ROOT / 'contracts/diagnostics/inventory.json'
 PACKAGES = (
     'transit-memory', 'transit-bitmap', 'transit-io', 'transit-data-client',
-    'transit-fuze', 'transit-sql-frontend', 'transit-test', 'transit-spatial', 'transit-query', 'transit-query-direct', 'transit-catalog', 'transit-station-app',
+    'transit-fuze', 'transit-sql-frontend', 'transit-test', 'transit-test-protocol', 'transit-spatial', 'transit-query', 'transit-query-direct', 'transit-catalog', 'transit-station-app',
     'transit-serving', 'transit-serving-http', 'transit-flight', 'transit-board-api',
     'transit-document', 'transit-document-profiles', 'transit-station-bindings', 'transit-station-document', 'transit-station',
     'transit-station-http', 'transit-station-grpc', 'transit-station-flight',
@@ -31,7 +31,7 @@ PACKAGES = (
 APPS = ('transit-cli', 'transit-board', 'transit-flight-gateway', 'transit-station-host',
         'transit-station-http-worker', 'transit-station-grpc-worker', 'transit-sql-gateway',
         'transit-serving-client')
-GRAMMARS = ('contracts/sql/TransitExtensions.g4', 'contracts/application/Application.g4', 'third_party/transitc/contracts/application-source/TransitSource.g4')
+GRAMMARS = ('contracts/sql/TransitExtensions.g4', 'contracts/application/Application.g4')
 TOKEN = re.compile(r'''//[^\n]*|/\*.*?\*/|\\\\[^\n]*|@?"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[A-Za-z_][A-Za-z_0-9]*|[^\s]''', re.S)
 
 
@@ -214,7 +214,6 @@ def grammar(text):
 
 def inventory(root=ROOT):
     directories = [root / 'packages/zig' / p / 'src' for p in PACKAGES]
-    directories += [root / 'third_party/transitc/packages' / p / 'src' for p in ('transitc-compiler', 'transitc-workspace')]
     directories += [root / 'apps' / p for p in APPS]
     sources = {}
     for directory in directories:
@@ -277,8 +276,6 @@ const Callback = *const fn (u64) anyerror!void;
         root = Path(directory)
         for package in PACKAGES:
             (root / 'packages/zig' / package / 'src').mkdir(parents=True)
-        for package in ('transitc-compiler', 'transitc-workspace'):
-            (root / 'third_party/transitc/packages' / package / 'src').mkdir(parents=True)
         for app in APPS:
             (root / 'apps' / app).mkdir(parents=True)
         for path in GRAMMARS:

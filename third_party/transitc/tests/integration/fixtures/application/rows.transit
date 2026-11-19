@@ -1,4 +1,0 @@
-CREATE PUBLIC MODULE Rows(name IDENTIFIER, initial BIGINT) AS BEGIN
-  CREATE PUBLIC TABLE $name (id BIGINT PRIMARY KEY, value TEXT);
-  INSERT INTO $name VALUES ($initial, 'initial');
-END;
