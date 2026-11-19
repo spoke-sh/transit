@@ -20,12 +20,18 @@ from storage.tables.direct_table_maintenance import process_usage
 
 
 PROFILES = (
-    dict(id=1, kind='stream', batch=1, keys=0, claim=1),
-    dict(id=2, kind='stream', batch=128, keys=0, claim=16),
-    dict(id=3, kind='queue', batch=1, keys=0, claim=1),
-    dict(id=4, kind='queue', batch=128, keys=0, claim=16),
-    dict(id=5, kind='queue', batch=128, keys=64, claim=16),
-    dict(id=6, kind='queue', batch=128, keys=1, claim=16),
+    dict(id=1, kind='stream', batch=1, keys=0, claim=1, mode='hot', workers=1),
+    dict(id=2, kind='stream', batch=128, keys=0, claim=16, mode='hot', workers=1),
+    dict(id=3, kind='queue', batch=1, keys=0, claim=1, mode='hot', workers=1),
+    dict(id=4, kind='queue', batch=128, keys=0, claim=16, mode='hot', workers=1),
+    dict(id=5, kind='queue', batch=128, keys=64, claim=16, mode='hot', workers=1),
+    dict(id=6, kind='queue', batch=128, keys=1, claim=16, mode='hot', workers=1),
+    dict(id=7, kind='stream', batch=128, keys=0, claim=16, mode='sealed_segment', workers=1),
+    dict(id=8, kind='stream', batch=1, keys=0, claim=1, mode='consumer_group', workers=1),
+    dict(id=9, kind='queue', batch=1, keys=0, claim=1, mode='delayed_visibility', workers=1),
+    dict(id=10, kind='queue', batch=1, keys=0, claim=1, mode='wait_wakeup', workers=1),
+    dict(id=11, kind='queue', batch=1, keys=0, claim=1, mode='lease_expiry', workers=1),
+    dict(id=12, kind='queue', batch=2, keys=64, claim=1, mode='concurrent_load', workers=2),
 )
 
 
@@ -71,7 +77,7 @@ def validate(records, profile, recovery):
         elif event == 'recovery_step':
             serial = record['serial']
             require(serial in attempts and serial not in completed, 'Unmatched recovery progress')
-            require(attempts[serial]['action'] in ('operation', 'observe', 'cursor', 'page', 'group'), 'Mutation replay is forbidden')
+            require(attempts[serial]['action'] in ('operation', 'observe', 'cursor', 'page', 'group', 'current_time'), 'Mutation replay is forbidden')
             recovery_steps[serial] += 1
             require(record['http_call'] == recovery_steps[serial], 'Missing recovery attempt')
         elif event == 'sample':
@@ -129,10 +135,34 @@ def validate(records, profile, recovery):
         require(sorted(readback.pop(stage, [])) == list(offsets), f'{stage}: missing, duplicate or foreign rows')
     require(not readback, 'Unexpected readback phase')
     if not recovery:
-        append = 'append' if profile['kind'] == 'stream' else 'enqueue'
-        require(len(measured[append]) == profile['repeat'], 'Wrong append denominator')
-        if profile['kind'] == 'queue':
-            require(len(measured['settle']) == profile['repeat'] * profile['batch'], 'Missing ACK sample')
+        mode = profile.get('mode', 'hot')
+        if mode == 'hot':
+            append = 'append' if profile['kind'] == 'stream' else 'enqueue'
+            require(len(measured[append]) == profile['repeat'], 'Wrong append denominator')
+            if profile['kind'] == 'queue':
+                require(len(measured['settle']) == profile['repeat'] * profile['batch'], 'Missing ACK sample')
+        elif mode == 'sealed_segment':
+            require(len(measured['consume']) == profile['repeat'] and len(measured['page']) == profile['repeat'],
+                    'Wrong sealed segment read denominator')
+        elif mode == 'consumer_group':
+            require(len(measured['append']) == profile['repeat'] and len(measured['offset']) == profile['repeat'],
+                    'Wrong consumer group denominator')
+        elif mode == 'delayed_visibility':
+            require(len(measured['enqueue']) == profile['repeat'] and len(measured['wait']) == profile['repeat'] and
+                    len(measured['settle']) == profile['repeat'], 'Wrong delayed visibility denominator')
+        elif mode == 'wait_wakeup':
+            require(len(measured['wait']) == profile['repeat'] and len(measured['settle']) == profile['repeat'],
+                    'Wrong wait wakeup denominator')
+        elif mode == 'lease_expiry':
+            require(len(measured['claim']) == profile['repeat'] and len(measured['settle']) == profile['repeat'],
+                    'Wrong lease expiry denominator')
+        elif mode == 'concurrent_load':
+            workers = profile.get('workers', 2)
+            require(len(measured['enqueue']) == profile['repeat'] and
+                    len(measured['claim']) == profile['repeat'] * workers and
+                    len(measured['settle']) == profile['repeat'] * workers, 'Wrong concurrent load denominator')
+        else:
+            raise ValueError(f'Unknown benchmark mode: {mode}')
     return dict(passed=True, attempts=len(attempts), successful=len(completed), refused=0, failed=0, unknown=0,
                 http_calls=sum(record['http_calls'] for record in completed.values()),
                 recovery_steps=sum(recovery_steps.values()),
@@ -163,6 +193,52 @@ def incomplete(records):
                 refused=refused, failed=failed, unknown=unknown)
 
 
+def prepare_profile(caller, url, root, profile_path, profile, destination, restart):
+    mode = profile.get('mode', 'hot')
+    if mode not in ('sealed_segment', 'lease_expiry'):
+        return None
+    prefix = destination / f"{profile['id']:02d}-prepare"
+    prep_info = dict(mode=mode)
+    with (destination / 'diagnostics.log').open('ab') as console:
+        execution = capture([caller, url, 'log-baseline-prepare', str(profile_path)],
+                            cwd=ROOT, log=prefix.with_suffix('.stderr'),
+                            result=prep_info, capture_stdout=True, console=console)
+    execution.check_returncode()
+    if mode == 'sealed_segment':
+        existing = {path.resolve() for path in (root / 'native').rglob('*.tseg')}
+        restart(maintenance=True, flush=True)
+        deadline = time.monotonic() + 60
+        sealed = []
+        while True:
+            candidates = [path for path in (root / 'native').rglob('*.tseg') if path.resolve() not in existing]
+            if candidates:
+                sealed = candidates
+                break
+            require(time.monotonic() < deadline, 'Stream segment sealing did not converge')
+            time.sleep(0.1)
+        for segment in sealed:
+            raw = segment.read_bytes()
+            require(raw[:8] == b'TSEG\x01\0\0\0' and raw[-4:] == b'TSEG', 'Invalid sealed segment magic')
+        restart(maintenance=False, flush=False)
+        prep_info['sealed_segments'] = len(sealed)
+    elif mode == 'lease_expiry':
+        restart(maintenance=True, flush=False)
+        deadline = time.monotonic() + 180
+        time.sleep(20.1)
+        probes = 0
+        while True:
+            probes += 1
+            probe_result = subprocess.run([caller, url, 'log-baseline-expiry-ready', str(profile_path)],
+                                          cwd=ROOT, timeout=30, capture_output=True, text=True, check=True)
+            if json.loads(probe_result.stdout)['ready']:
+                break
+            require(time.monotonic() < deadline, 'Initial Queue leases did not expire within clock envelope')
+            time.sleep(1.0)
+        restart(maintenance=False, flush=False)
+        prep_info['expiry_probes'] = probes
+    return prep_info
+
+
 def exercise(node, caller, root, profile_path, url, settings_path, restart, owner):
     settings = json.loads(Path(settings_path).read_text())
     destination = Path(settings['output'])
@@ -180,8 +256,12 @@ def exercise(node, caller, root, profile_path, url, settings_path, restart, owne
         item = dict(profile=profile, phases=[], completed=False)
         report['profiles'].append(item)
         write_json(destination / 'report.json', report)
+        preparation = prepare_profile(caller, url, root, profile_path, profile, destination, restart)
+        if preparation is not None:
+            item['preparation'] = preparation
+            write_json(destination / 'report.json', report)
         for phase in ('measure', 'recover'):
-            stopped = restart() if phase == 'recover' else None
+            stopped = restart(maintenance=False, flush=False) if phase == 'recover' else None
             prefix = destination / f"{profile['id']:02d}-{phase}"
             result = dict(phase=phase, completed=False)
             if stopped is not None:
@@ -223,7 +303,7 @@ def exercise(node, caller, root, profile_path, url, settings_path, restart, owne
                 write_json(destination / 'report.json', report)
         item['completed'] = True
         write_json(destination / 'report.json', report)
-        print(f"Log baseline profile {profile['id']}: {profile['kind']}, batch {profile['batch']}, {profile['repeat']} samples and restart readback passed.", flush=True)
+        print(f"Log baseline profile {profile['id']} ({profile.get('mode', 'hot')}): {profile['kind']}, batch {profile['batch']}, {profile['repeat']} samples and restart readback passed.", flush=True)
     report['completed'] = True
     write_json(destination / 'report.json', report)
 
@@ -235,24 +315,27 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--repeat', type=int, default=20)
     parser.add_argument('--warmup', type=int, default=3)
-    parser.add_argument('--profiles', type=int, nargs='+', choices=range(1, 7), default=list(range(1, 7)))
+    parser.add_argument('--profiles', type=int, nargs='+', choices=range(1, 13), default=list(range(1, 13)))
     args = parser.parse_args()
     require(1 <= args.repeat <= 100 and 0 <= args.warmup <= 10, 'Invalid sample budget')
     require(len(set(args.profiles)) == len(args.profiles), 'Repeated profile')
     destination = args.output.resolve()
     destination.mkdir(parents=True, exist_ok=False)
+    selected = [dict(profile, repeat=args.repeat, warmup=args.warmup) for profile in PROFILES if profile['id'] in args.profiles]
     report = dict(version=1, source=provenance(ROOT), completed=False, profiles=[],
                   source_diff_sha256=hashlib.sha256(subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=ROOT)).hexdigest(),
                   machine=dict(platform=platform.platform(), cpu_count=os.cpu_count(), affinity=sorted(os.sched_getaffinity(0)), load=os.getloadavg()),
-                  method=dict(payload_bytes=128, worker_count=1, offered_load='sequential',
-                              storage='local disk TWAL1 and object store', cache='warm process; no OS cache eviction',
+                  method=dict(payload_bytes=128, worker_count=max(p['workers'] for p in selected),
+                              offered_load='sequential and 2-worker concurrent Queue consumer profile within the 4-lane native fixture ceiling',
+                              storage='local disk TWAL1 and object store (with sealed .tseg read profile)',
+                              cache='warm process for hot profiles; fresh post-seal process for sealed_segment profile; no OS cache eviction',
                               lease_ms=60000, native_resident_pages=1, active_leases=64, waiters=64, timer_steps=64,
                               owner_budget_source='compiled catalog/log defaults used by the fixture host; per-phase owner_budgets',
                               retention='unlimited', client_timeout_ms=30000,
                               allocation_scope='public client, transport and output arena; per call after output reset',
                               storage_iops='unmeasured', server_allocations='unmeasured', cpu_cycles='unmeasured',
                               client_process_peak_rss='unmeasured', node_peak_rss='process lifetime high-water mark',
-                              excludes=['offered-load concurrency', 'sealed/cold reads', 'consumer groups', 'delays', 'wait wakeups', 'lease expiry']),
+                              excludes=['cold OS page-cache eviction', 'multi-host network latency', 'Station handler turn composition']),
                   drivers=[identity(ROOT / path) for path in ('tests/performance/storage/log_runtime.py', 'tests/performance/storage/log_runtime.zig', 'tests/storage/tables/direct_table_service.py', 'tests/interfaces/native/direct_table_client.zig')])
     write_json(destination / 'report.json', report)
     with tempfile.TemporaryDirectory(prefix='transit-log-baseline-binaries-', dir='/var/tmp') as frozen:
@@ -262,8 +345,7 @@ def main():
             shutil.copy2(source.resolve(), target)
             binaries.append(target)
         report['binaries'] = [identity(path) for path in binaries]
-        settings = dict(output=str(destination), report=report,
-                        profiles=[dict(profile, repeat=args.repeat, warmup=args.warmup) for profile in PROFILES if profile['id'] in args.profiles])
+        settings = dict(output=str(destination), report=report, profiles=selected)
         settings_path = destination / 'settings.json'
         write_json(settings_path, settings)
         from storage.tables.direct_table_service import run

@@ -711,7 +711,13 @@ pub fn main(init: std.process.Init) !void {
             };
             return;
         }
-        if (std.mem.eql(u8, args[2], "log-baseline-measure") or std.mem.eql(u8, args[2], "log-baseline-recover")) {
+        if (std.mem.eql(u8, args[2], "log-baseline-prepare")) {
+            try @import("fixture_log_runtime").prepare(init, client, profile.role, args[3], &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "log-baseline-expiry-ready")) {
+            try @import("fixture_log_runtime").expiryReady(init, client, args[3], &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "log-baseline-measure") or std.mem.eql(u8, args[2], "log-baseline-recover")) {
             try @import("fixture_log_runtime").execute(init, client, profile.role, args[3], std.mem.eql(u8, args[2], "log-baseline-recover"), &output.interface);
             return output.interface.flush();
         } else if (std.mem.startsWith(u8, args[2], "log-baseline-inspect-")) {

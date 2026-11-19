@@ -144,6 +144,45 @@ class Reports(unittest.TestCase):
         result = driver.incomplete(records)
         self.assertEqual(dict(passed=False, attempts=5, successful=1, refused=1, failed=1, unknown=2), result)
 
+    def test_extended_profile_denominators_are_enforced(self):
+        counts = sample()[0][1]['backing']
+        stream_limits = sample()[0][3]['limits']
+        queue_limits = dict(stream_limits,
+                            queue_candidate_objects=8,
+                            queue_candidate_resident_bytes=1024 * 1024,
+                            queue_deadline_rows=64,
+                            queue_visibility_rows=64,
+                            queue_affinity_rows=64)
+        cases = (
+            (6, ('consume', 'page'), (1, 1)),
+            (7, ('append', 'offset'), (1, 1)),
+            (8, ('enqueue', 'wait', 'settle'), (1, 1, 1)),
+            (9, ('wait', 'settle'), (1, 1)),
+            (10, ('claim', 'settle'), (1, 1)),
+            (11, ('enqueue', 'claim', 'settle'), (1, 2, 2)),
+        )
+        for index, actions, multiplicities in cases:
+            profile = dict(driver.PROFILES[index], warmup=0, repeat=1)
+            records = []
+            serial = 0
+            for action, count in zip(actions, multiplicities):
+                for _ in range(count):
+                    serial += 1
+                    records.append(dict(event='attempt', profile=profile['id'], serial=serial, stage='measured', action=action))
+                    records.append(dict(event='sample', profile=profile['id'], serial=serial, stage='measured',
+                                        action=action, http_calls=1, ns=19, backing=copy.deepcopy(counts)))
+            offsets = list(range(profile['batch']))
+            records.append(dict(event='readback', profile=profile['id'], stage='measured',
+                                offsets=offsets, sha256=driver.oracle(offsets)))
+            records.append(dict(event='owner_budgets', profile=profile['id'],
+                                limits=copy.deepcopy(stream_limits if profile['kind'] == 'stream' else queue_limits)))
+            records.append(dict(event='complete', profile=profile['id'], recovery=False, build_mode='safe'))
+            verified = driver.validate(records, profile, False)
+            self.assertEqual(sum(multiplicities), verified['successful'])
+            missing = [item for item in records if not (item.get('serial') == serial and item['event'] in ('attempt', 'sample'))]
+            with self.assertRaises(ValueError):
+                driver.validate(missing, profile, False)
+
 
 if __name__ == '__main__':
     unittest.main()
