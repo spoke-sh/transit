@@ -2,7 +2,8 @@
 
 The offline Transit language compiler. It composes typed `.transit` modules,
 verifies emitted SQL, resolves exact dependencies and publishes SQL/provenance or
-migration proposals. Runtime execution remains in [Transit](https://github.com/spoke-sh/transit).
+migration proposals. `transitc test` compiles and runs isolated application suites
+using a compatible [Transit](https://github.com/spoke-sh/transit) database host.
 
 Consumers can use the packaged executable without installing a Zig toolchain:
 
@@ -25,16 +26,18 @@ zig build
 zig build run -- build --help
 just check
 just test
+just test-command
 just test-integration
 ```
 
 The flake pins the same Zig **0.17.0-dev.2267+48abf1a34** toolchain and Nix inputs
 as the source repository, including its Linux loader fixes. See
 [toolchain notes](nix/README.md). An optional `.envrc` supports direnv.
-The default shell also provides the upstream `transit` executable pinned to
-`e7434306334e3692c6f3e123cba0d278fa412196`, plus Python for integration tests.
-No sibling checkout is required. The upstream package is a development/test
-dependency; it is not part of the packaged transitc executable's runtime closure.
+The default shell provides an exactly pinned Transit test host and a separate
+frozen comparison binary at `e7434306334e3692c6f3e123cba0d278fa412196`, plus
+Python for integration tests. No sibling checkout is required. The Nix package
+includes the compatible test host in its runtime closure; ordinary compilation
+does not start it. See [application testing](docs/handbook/guides/testing.md).
 
 ```sh
 nix develop .#docs --command just docs-install

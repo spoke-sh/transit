@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
     const options = b.addOptions();
     options.addOption([]const u8, "version", "0.0.0-dev");
     options.addOption([]const u8, "revision", b.option([]const u8, "revision", "Compiler Git revision for provenance") orelse "development");
+    options.addOption([]const u8, "test_runtime", b.option([]const u8, "test-runtime", "Transit executable providing the compiled-case test host") orelse b.graph.environ_map.get("TRANSIT_TEST_RUNTIME") orelse "transit");
     const cli = b.addExecutable(.{ .name = "transitc", .root_module = b.createModule(.{
         .root_source_file = b.path("apps/transitc-cli/src/main.zig"),
         .target = target,

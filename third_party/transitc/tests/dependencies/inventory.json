@@ -99,6 +99,21 @@
       ],
       "packages/transitc-workspace/src/Style.zig": [
         "transit_sql_frontend"
+      ],
+      "packages/transitc-workspace/src/Test.zig": [
+        "transit_compiler",
+        "transit_memory",
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/TestHostProtocol.zig": [
+        "transit_compiler",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-workspace/src/TestProcessHost.zig": [
+        "transit_compiler",
+        "transit_memory",
+        "transit_protocol"
       ]
     }
   }

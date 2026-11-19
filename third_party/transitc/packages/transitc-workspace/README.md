@@ -20,4 +20,10 @@ Run `zig build test` here and root `just test-workspace`. The workspace suite
 exercises actual subprocesses, offline socket refusal, locks, hashes, overrides,
 path confinement, diagnostics, corrupted artifacts, interrupted publication and
 immutable migration histories. Its seccomp controls currently require Linux.
-Runtime host tests remain with Transit.
+`Test` owns suite compilation, deadlines, case scheduling, cleanup and reports.
+`TestProcessHost` sends compiled cases to an explicitly selected Transit executable
+through the bounded [test-host contract](../../contracts/TEST_HOST_V1.md).
+The pure compiler does not import process or database code. Transit also embeds
+this orchestration with its native adapter; database execution stays with Transit.
+Run `just test-command` for the full runtime-owned application schedule through
+`transitc test` and negative controls for the compiled-case boundary.

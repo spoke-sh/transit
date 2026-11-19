@@ -14,21 +14,25 @@ fetch: bool = false,
 json: bool = false,
 color: ColorMode = .auto,
 help: bool = false,
+runtime: ?[]const u8 = null,
 overrides: [255]Override = undefined,
 overrides_len: usize = 0,
 pub fn parse(args: []const []const u8, diagnostic: anytype) !Self {
     return parseMode(args, diagnostic, false);
 }
 pub fn parseMode(args: []const []const u8, diagnostic: anytype, testing: bool) !Self {
-    diagnostic.command = if (testing) "transit test" else "transit build";
-    diagnostic.help = if (testing) "transit test --help" else "transit build --help";
+    return parseCommand(args, diagnostic, testing, "transit");
+}
+pub fn parseCommand(args: []const []const u8, diagnostic: anytype, testing: bool, comptime tool: []const u8) !Self {
+    diagnostic.command = if (testing) tool ++ " test" else tool ++ " build";
+    diagnostic.help = if (testing) tool ++ " test --help" else tool ++ " build --help";
     for (args, 0..) |arg, index| if (std.mem.eql(u8, arg, "--format") and index + 1 < args.len and std.mem.eql(u8, args[index + 1], "json")) {
         diagnostic.machine = true;
     };
     var result: Self = .{ .target = if (testing) "tests" else "default" };
     var seen: u16 = 0;
     var index: usize = 0;
-    const names = [_][]const u8{ "-f", "--target", "--out", "--check", "--fetch", "--format", "--help", "--override", "--color" };
+    const names = [_][]const u8{ "-f", "--target", "--out", "--check", "--fetch", "--format", "--help", "--override", "--color", "--runtime" };
     while (index < args.len) : (index += 1) {
         const selected = for (names, 0..) |name, n| {
             if (std.mem.eql(u8, name, args[index])) break n;
@@ -37,7 +41,8 @@ pub fn parseMode(args: []const []const u8, diagnostic: anytype, testing: bool) !
             return diagnostic.invalidArgument(if (testing) "unknown test option" else "unknown build option");
         };
         diagnostic.atArgument(index + 2, names[selected]);
-        if (testing and (selected == 2 or selected == 3 or selected == 4)) return diagnostic.invalidOption("is not supported by transit test");
+        if (testing and (selected == 2 or selected == 3 or selected == 4)) return diagnostic.invalidOption("is not supported by " ++ tool ++ " test");
+        if (selected == 9 and (!testing or !std.mem.eql(u8, tool, "transitc"))) return diagnostic.invalidOption("is only supported by transitc test");
         const mask = @as(u16, 1) << @intCast(selected);
         if (selected != 7 and seen & mask != 0) return diagnostic.invalidOption("can only be specified once");
         seen |= mask;
@@ -76,6 +81,7 @@ pub fn parseMode(args: []const []const u8, diagnostic: anytype, testing: bool) !
                         result.color = std.meta.stringToEnum(ColorMode, value) orelse return diagnostic.invalidOption("must be auto, off or on");
                         diagnostic.color_mode = result.color;
                     },
+                    9 => result.runtime = value,
                     else => unreachable,
                 }
             },

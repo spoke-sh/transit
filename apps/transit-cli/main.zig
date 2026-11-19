@@ -25,6 +25,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
+    if (args.len == 3 and std.mem.eql(u8, args[1], @import("transit_workspace").TestHostProtocol.argument)) return @import("TestCaseHost.zig").run(init, args[2]);
     const runtime = @import("RuntimeRole.zig");
     if (args.len > 0) {
         if (runtime.fromExecutableName(args[0])) |role| return runtime.run(init, role);

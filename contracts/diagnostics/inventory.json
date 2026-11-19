@@ -1223,6 +1223,7 @@
         "Options.zig",
         "RuntimeRole.zig",
         "Test.zig",
+        "TestCaseHost.zig",
         "TestHost.zig",
         "build_version",
         "server/Gateway.zig",
@@ -49927,6 +49928,7 @@
       "error_sets": {},
       "error_returns": {
         "parse()": "<inferred>",
+        "parseCommand()": "<inferred>",
         "parseMode()": "<inferred>"
       },
       "open_error_set_uses": 0,
@@ -50180,7 +50182,10 @@
         "BuildSources.zig",
         "Diagnostic.zig",
         "EnvelopeDiagnostic.zig",
-        "Style.zig"
+        "Style.zig",
+        "Test.zig",
+        "TestHostProtocol.zig",
+        "TestProcessHost.zig"
       ]
     }
   },

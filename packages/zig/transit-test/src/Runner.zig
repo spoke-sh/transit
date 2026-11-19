@@ -14,7 +14,7 @@ pub const Failure = t.Failure;
 pub const Detail = t.Detail;
 pub const Outcome = struct { passed: bool, actions: usize, failure: ?Failure = null };
 
-pub fn run(self: *Self, case: t.Case) !Outcome {
+pub fn run(self: *Self, case: anytype) !Outcome {
     const buffer = try self.allocator.alloc(u8, g.fuze.Types.Codec.max_bytes);
     defer self.allocator.free(buffer);
     for (case.actions, 0..) |action, index| {

@@ -3,7 +3,12 @@
 Source compilation is owned by [transitc](https://github.com/spoke-sh/transitc).
 Transit's build and test commands consume an exact pinned snapshot with the same
 SQL frontend and protocol types as the runtime. Source capture and compilation
-remain offline; runtime test execution and migration application stay with Transit.
+remain offline. `transitc test` owns source compilation, suite orchestration and
+reports; a compatible Transit host executes its compiled cases in fresh private
+databases. Transit's existing test command embeds the same orchestration and host.
+Migration application stays with Transit. See the
+[transitc testing guide](https://github.com/spoke-sh/transitc/blob/main/docs/handbook/guides/testing.md)
+for standalone usage.
 
 An installed application, a published interface and a data migration are separate
 objects. Installing new code does not authorize new operations, publish a UI or

@@ -6,7 +6,10 @@ and typed expectations. This library owns neither a SQL interpreter nor storage.
 The [application source contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 owns syntax, selection, limits and completion semantics.
 
-`Runner.run` borrows a compiler case and an initialized SQL `Session`. It executes
+`Runner.run` borrows compiled steps/expectations and an initialized SQL `Session`.
+Its structural case interface accepts either the pure compiler product or a
+validated [compiled-case request](../../../third_party/transitc/contracts/TEST_HOST_V1.md).
+Source resolution and suite orchestration live in transitc. The runner executes
 setup and assertions through normal preparation and durable settlement, consumes
 complete typed results, and closes readers on every exit. Exact canonical row
 bytes form a bounded multiset, preserving duplicate counts and NULL without

@@ -10,7 +10,9 @@ The embedded profile injects Transit's canonical SQL frontend, protocol and memo
 modules into both libraries. It never resolves transitc's standalone shared-source
 pin or development flake. Thus runtime test products and SQL values retain the
 same Zig type identity. `transit build` and `transit test` keep their invocation
-contracts; the runtime test host remains in Transit.
+contracts through shared orchestration. Standalone `transitc test` owns source
+resolution, compilation, case scheduling and reports, while the runtime test host
+remains in Transit behind the [compiled-case contract](../../../third_party/transitc/contracts/TEST_HOST_V1.md).
 
 Run `zig build test` here. It executes the upstream compiler/workspace tests with
 this repository's shared modules. Cross-component build/test and source verification

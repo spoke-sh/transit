@@ -43,6 +43,26 @@ def main():
                 assert (output / 'migrations/0001-tables.sql').read_text() == expected_sql
         print(f'PASS handbook {page}: exact source and published {name} artifacts')
 
+    page = ROOT / 'docs/handbook/guides/testing.md'
+    block = re.findall(r'^```sql\n(.*?)^```', page.read_text(), re.M | re.S)[0]
+    assert (ROOT / 'examples/tests/build.transit').read_text() == block
+    with tempfile.TemporaryDirectory(prefix='transitc-test-example-') as temporary:
+        root = Path(temporary)
+        source = root / 'build.transit'
+        source.write_text(block)
+        for expected_status, expected_ok in [(0, True), (1, False)]:
+            result = subprocess.run([str(compiler), 'test', '--format', 'json'], cwd=root,
+                                    capture_output=True, text=True, timeout=120)
+            assert result.returncode == expected_status, result
+            report = json.loads(result.stdout)
+            assert report['complete'] is True and report['ok'] is expected_ok, report
+            assert len(report['cases']) == 2 and report['cases'][1]['status'] == 'passed', report
+            assert report['cases'][0]['status'] == ('passed' if expected_ok else 'failed'), report
+            if not expected_ok:
+                assert report['cases'][0]['observation']['failure'] == 'rows', report
+            source.write_text(block.replace("((7, 'ready'))", "((8, 'ready'))"))
+    print('PASS handbook testing: exact source, isolated cases and deliberate assertion failure')
+
 
 if __name__ == '__main__':
     main()

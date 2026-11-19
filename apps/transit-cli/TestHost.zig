@@ -21,28 +21,30 @@ pub const Context = struct {
     endpoint: g.wire.LocalEndpoint,
 };
 pub const Action = struct { context: *anyopaque, call: *const fn (*anyopaque, Context) anyerror!bool, resources: ?*Resources = null };
-const CaseAction = struct {
-    case: @import("transit_compiler").Test.Case,
-    observed: *Observation,
-    detail: ?*testlib.Runner.Detail = null,
-    fn call(raw: *anyopaque, context: Context) !bool {
-        const self: *@This() = @ptrCast(@alignCast(raw));
-        var runner: testlib.Runner = .{ .allocator = context.session.allocator, .session = context.session };
-        defer {
-            self.observed.rows = runner.rows;
-            self.observed.bytes = runner.bytes;
-            self.observed.operation = context.session.operation;
-            if (self.detail) |out_detail| out_detail.* = runner.detail;
+fn CaseAction(comptime Case: type) type {
+    return struct {
+        case: Case,
+        observed: *Observation,
+        detail: ?*testlib.Runner.Detail = null,
+        fn call(raw: *anyopaque, context: Context) !bool {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            var runner: testlib.Runner = .{ .allocator = context.session.allocator, .session = context.session };
+            defer {
+                self.observed.rows = runner.rows;
+                self.observed.bytes = runner.bytes;
+                self.observed.operation = context.session.operation;
+                if (self.detail) |out_detail| out_detail.* = runner.detail;
+            }
+            const result = runner.run(self.case) catch |err| {
+                self.observed.actions = runner.action + 1;
+                return err;
+            };
+            self.observed.actions = result.actions;
+            self.observed.failure = result.failure;
+            return result.passed;
         }
-        const result = runner.run(self.case) catch |err| {
-            self.observed.actions = runner.action + 1;
-            return err;
-        };
-        self.observed.actions = result.actions;
-        self.observed.failure = result.failure;
-        return result.passed;
-    }
-};
+    };
+}
 const PublicationWatcher = struct {
     io: std.Io,
     changes: *g.wire.LocalEndpoint.Changes,
@@ -83,12 +85,12 @@ const Worker = struct {
         }
     }
 };
-pub fn run(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: @import("transit_compiler").Test.Case, deadline: g.wire.Deadline, observed: *Observation) !bool {
+pub fn run(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: anytype, deadline: g.wire.Deadline, observed: *Observation) !bool {
     return runDetailed(init, directory, path, case, deadline, observed, null);
 }
-pub fn runDetailed(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: @import("transit_compiler").Test.Case, deadline: g.wire.Deadline, observed: *Observation, detail: ?*testlib.Runner.Detail) !bool {
-    var action: CaseAction = .{ .case = case, .observed = observed, .detail = detail };
-    return runAction(init, directory, path, deadline, .{ .context = &action, .call = CaseAction.call, .resources = &observed.resources });
+pub fn runDetailed(init: std.process.Init, directory: std.Io.Dir, path: []const u8, case: anytype, deadline: g.wire.Deadline, observed: *Observation, detail: ?*testlib.Runner.Detail) !bool {
+    var action: CaseAction(@TypeOf(case)) = .{ .case = case, .observed = observed, .detail = detail };
+    return runAction(init, directory, path, deadline, .{ .context = &action, .call = @TypeOf(action).call, .resources = &observed.resources });
 }
 /// Embedding seam for the real host qualification binary. The CLI exposes only
 /// compiler cases; source input cannot install callbacks or acquire root keys.

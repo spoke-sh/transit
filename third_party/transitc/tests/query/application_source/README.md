@@ -13,7 +13,7 @@ formatter idempotence and equivalent ordered SQL/schema/plan/test results.
 Only source spans/digests and source-derived test identity may differ after
 formatting; literals, bindings, actions, expected typed bytes and counts remain.
 
-Run `just test::application-source-grammar` inside `nix develop`. The task uses
+Run `just test-grammar` inside `nix develop`. The task uses
 the existing pinned SQL tools; those tools are absent from the installed runtime
 dependency graph. Generation, compiled projection and comparison have separate
 failure outcomes. Every run retains its inputs, outputs, seed, source/tool/binary
@@ -40,16 +40,17 @@ and source-expression parentheses. It does not bind a catalog or execute tests.
 
 ## Typed-target laws and correspondence
 
-`types.py` drives `just test::application-source-types` with the repository-pinned
+`types.py` drives `just test-types` with the repository-pinned
 Lean 4 tool. [TypedTarget.lean](../../../contracts/application-source/TypedTarget.lean)
 models exact scalar/domain types, typed de Bruijn variables, checked total variant
 arm tables, ordered inserts into explicitly typed Table bindings, five-state
 pure function expressions, ordered guard checks and single-decision atomic
-procedure steps. Its eleven laws cover nominal substitution, exhaustive selection,
+procedure steps. Its fourteen laws cover nominal substitution, exhaustive selection,
 specialization preservation, domain-preserving record projection, program
 substitution, ordered event erasure, five-state pure function substitution,
 lexical guard-sequence refusal preservation, guard-reordering non-equivalence
-and hygienic inline atomic procedure rollback and returning values. The program and procedure
+hygienic inline atomic procedure rollback and returning values, module-instance
+DAG sharing, schema-binding isolation and reference-export non-escalation. The program and procedure
 fragments model typed scalar guards/writes and explicit acquisition/read/atomic
 markers; physical typing, nullability and well-formed execution remain premises,
 not proved runtime behavior.
@@ -60,18 +61,20 @@ authority, liveness or effect claim follows from these laws.
 
 Sixteen independent descriptors vary constructor, signed/equal raw values, arm
 order and explicit Table names. They generate source and Lean examples against
-independent expected actions. Ninety-six finite Lean checks cover constructor
-selection, source and specialized interpretations, eight explicit nominal
-program traces and forty helper function/guard-order/procedure outcomes; the
-production driver separately exposes checked column/domain/operand records and
+independent expected actions. The 136 finite Lean equalities cover constructor
+selection, source and specialized interpretations, nominal programs, helper/guard/
+procedure outcomes and module-sharing traces. The production driver separately
+exposes checked column/domain/operand records and
 ordinary SQL. A scalar SQL fingerprint cannot detect a swapped domain, so both
 projections are required. The compiler also reparses its emitted SQL through
-ordinary Fuze owners. Native rows/counts, restart and revocation belong to the
+the authoritative shared SQL frontend. Native rows/counts, restart and revocation belong to the
 real CLI fixture schedules.
 
 `program_types.py` supplies eight independent nominal program cases and eight
 independent helper/guard/procedure cases varying domain identity, signed hole
-values and guard placement/order. Checked expression/binding nodes, source
+values and guard placement/order, four module-instance diamond cases and one
+multi-schema/reference case: 21 program comparisons in total. Checked
+expression/binding nodes, source
 offsets, physical types, nullability, record fields, domains, complete ordered
 event sequences, write-expression associations and hand-authored ordinary SQL
 are compared, alongside explicit compiler refusals for domain mismatch, Table
@@ -82,7 +85,7 @@ finite fragment complements the larger installed
 Negative controls erase/swap domains, move/swap guards, inject nested atomics,
 omit boundaries and alter SQL.
 
-The task audits exact theorem/output inventories. Nine named laws permit only
+The task audits exact theorem/output inventories. Thirteen named laws permit only
 `propext`; exhaustive selection and its finite uses also permit `Quot.sound`,
 inherited from Lean's list filter/count lemmas. These
 are standard logical axioms, not assumed application/compiler properties.

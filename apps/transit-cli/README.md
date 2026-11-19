@@ -102,9 +102,13 @@ escaped before terminal rendering. These diagnostics go to stderr.
 
 ## Compiler ownership
 
-`transit build` and the source-compilation portion of `transit test` consume the
+`transit build` and `transit test` consume the
 [exact transitc snapshot](../../third_party/transitc/upstream.json) through the
 [compiler adapter](../../packages/zig/transit-compiler/README.md). Source capture,
-locks, publication and diagnostics belong to transitc's workspace package.
-Migration application and isolated runtime test hosting remain here. The CLI
+locks, publication, test orchestration and diagnostics belong to transitc's
+workspace package. Migration application and isolated database test hosting
+remain here. Standalone `transitc test` sends compiled cases through the bounded
+[test-host contract](../../third_party/transitc/contracts/TEST_HOST_V1.md), using
+the same native host as this command. Its private process entry point accepts no
+source or existing installation configuration. The CLI
 preserves its existing commands, definition identity and immutable SQL history.

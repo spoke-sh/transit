@@ -5,6 +5,7 @@ const help =
     \\transitc — the Transit language compiler
     \\
     \\Usage: transitc build [options]
+    \\       transitc test [options]
     \\       transitc --help | --version
     \\
     \\Compile .transit source into verified SQL without connecting to a database.
@@ -19,9 +20,11 @@ const help =
     \\  --format text|json      Diagnostic and result format (default: text)
     \\  --color auto|off|on     Human diagnostic color (default: auto)
     \\  --help                  Show this help
+    \\  --runtime FILE          Transit test host executable (test only)
     \\
     \\Ordinary builds resolve dependencies offline. Only --fetch accesses repositories.
-    \\SQL execution and runtime test hosting remain in Transit.
+    \\Tests compile the complete suite, then run isolated cases through the Transit host.
+    \\Test options exclude --out, --check and --fetch; the default test target is tests.
     \\
 ;
 pub fn main(init: std.process.Init) !void {
@@ -29,15 +32,20 @@ pub fn main(init: std.process.Init) !void {
     if (args.len == 1 or (args.len == 2 and (std.mem.eql(u8, args[1], "--help") or std.mem.eql(u8, args[1], "-h")))) return std.Io.File.stdout().writeStreamingAll(init.io, help);
     if (args.len == 2 and std.mem.eql(u8, args[1], "--version")) return std.Io.File.stdout().writeStreamingAll(init.io, "transitc " ++ version.version ++ " (" ++ version.revision ++ ")\n");
     var diagnostic: workspace.Diagnostic = .{};
-    if (args.len < 2 or !std.mem.eql(u8, args[1], "build")) {
+    const testing = args.len >= 2 and std.mem.eql(u8, args[1], "test");
+    if (args.len < 2 or (!testing and !std.mem.eql(u8, args[1], "build"))) {
         try std.Io.File.stderr().writeStreamingAll(init.io, "transitc: unsupported command; use transitc --help\n");
         std.process.exit(2);
     }
-    const options = workspace.Options.parse(args[2..], &diagnostic) catch |err| return fail(init.io, &diagnostic, err);
+    const options = workspace.Options.parseCommand(args[2..], &diagnostic, testing, "transitc") catch |err| return fail(init.io, &diagnostic, err);
     if (options.help) return std.Io.File.stdout().writeStreamingAll(init.io, help);
-    workspace.Build.run(init, options, &diagnostic, version.revision) catch |err| return fail(init.io, &diagnostic, err);
+    if (testing) {
+        var host: workspace.TestProcessHost = .{ .executable = options.runtime orelse init.environ_map.get("TRANSIT_TEST_RUNTIME") orelse version.test_runtime };
+        workspace.Test.run(init, options, &diagnostic, version.revision, &host) catch |err| return fail(init.io, &diagnostic, err);
+    } else workspace.Build.run(init, options, &diagnostic, version.revision) catch |err| return fail(init.io, &diagnostic, err);
 }
 fn fail(io: std.Io, diagnostic: *workspace.Diagnostic, err: anyerror) void {
+    if (err == error.TestSuiteFailed) std.process.exit(1);
     if (diagnostic.machine) {
         workspace.Build.emitFailure(io, diagnostic, err) catch {};
     } else if (!diagnostic.emitted) {
