@@ -7,7 +7,7 @@ sibling checkout, downloads during tests, or running server are needed.
 The seven-case upstream baseline is `checks.<system>.integration` in the flake.
 Parity has its own flake check; source-free SQL execution runs through the
 development shell and CI outside the Nix build sandbox. `nix flake check`
-runs it in the sandbox, including in CI. To run only this check on x86_64 Linux:
+runs the baseline and parity checks in the sandbox, including in CI. To run only this check on x86_64 Linux:
 
 ```sh
 nix build .#checks.x86_64-linux.integration --no-link --print-build-logs
@@ -61,13 +61,13 @@ correspondence respectively. Each evidence category keeps its premises.
 
 ## Upstream identity and updates
 
-The current upstream pin is
+The frozen comparison pin is
 [`e7434306334e3692c6f3e123cba0d278fa412196`](https://github.com/spoke-sh/transit/tree/e7434306334e3692c6f3e123cba0d278fa412196).
 The fixture retains its original attribution above. The
 [extraction inventory](../../docs/roadmap/README.md) records the source changes
 since that original basis; these seven tests do not cover every new language feature.
 
-`flake.nix` names the exact GitHub revision and `flake.lock` records its content
+The `transit-baseline` input in `flake.nix` names the exact GitHub revision and `flake.lock` records its content
 hash. `TRANSIT_UPSTREAM_BIN` and `TRANSIT_UPSTREAM_REVISION` are exported by the
 default shell; the runner verifies the executable's reported revision before
 running any tests. Nix checks pass these inputs explicitly.
@@ -111,3 +111,27 @@ fixture helpers come from the pinned flake source, with writable proof evidence
 under this repository. Failed installations remain available for investigation.
 This is separate from compile-only parity and does not qualify every runtime
 feature or native host platform.
+
+## Standalone application tests
+
+Run `just test-command` to exercise `transitc test`. The separate `transit` input
+pins the compatible compiled-case host at
+`8a968ec39dcdb5cbb80287d0b033c615b137c674`. `test_command.py` runs that source's
+complete application-test schedule through transitc, including Table/Queue
+assertions, multi-schema programs, offline resolution, failure lifecycle,
+resource limits and cleanup. It also checks the actual runtime revision and
+executable digest in every available suite report. The runtime's installed-SQL
+oracle remains independent of the compiler CLI.
+
+`test_host_boundary.py` executes captured compiled cases after deleting source,
+checks real passing and failing row assertions, and rejects foreign definitions,
+corrupt SQL, invalid actions, schemas and budgets. Fake hosts exercise malformed,
+incomplete, mismatched, oversized and changing-identity replies, stderr, crashes,
+missing executables and timeouts. Child processes must be joined and owned case
+state removed on every handled path. This complements the runtime's native host
+fault/authority tests; it does not replace them.
+
+The CLI uses its build-time host default even when the runtime schedule denies
+PATH and configuration. A source build should set `-Dtest-runtime=FILE` or build
+inside the default shell. A runtime override must be compatible and is reported;
+it does not establish qualification for another runtime or storage profile.

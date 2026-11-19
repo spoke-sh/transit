@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/spoke-sh/transitc",
-  "revision": "b211f53eeb354505752770379f00fd67151fa3c8",
+  "revision": "cd85d0d02f101308c6d0928bb9be5c46e57d06f8",
   "paths": [
     "build.zig",
     "build.zig.zon",
@@ -117,7 +117,7 @@
     "tests/fixtures/application-typed-targets/routing.transit": "084db372b2db47208b5140408ed9eb2e6db62cf784b3faf5eed6b0e2abb53729",
     "tests/fixtures/application-typed-targets/rows.transit": "dff07aaf23b82ba884c0860f630890aac31651528c8356c599f36eb276baee6f",
     "tests/fixtures/application-typed-targets/types.transit": "8ddaac164176c3e5bc7459ae8bde7b20dd4a6b0a34237d58350ef98f41e26590",
-    "tests/integration/README.md": "f28479387911746a8d8b0dd54d076b90bf57c83714aa0262ce31a0a6da4f71d1",
+    "tests/integration/README.md": "c1f0c7dcfddf21bf4bc9a7931da4acbe98b10d6e55c5fb14b8b04c4433ee37a0",
     "tests/integration/execute_sql.py": "7762bb605655a92dffa11dcad93786b703dab00be990661f3c398d30d87532dc",
     "tests/integration/fixtures/application/build.transit": "d116bfcaf9a28e2998ff489ff3a5a7066da91fe50b7a407eac53af17f3ae4610",
     "tests/integration/fixtures/application/rows.transit": "e78d563cec6e68c3dad76339dd440aae3886226be59b7fc5db6bd946a0805da5",
