@@ -4,7 +4,9 @@ Run `nix develop --command just test-integration` from the repository root.
 The shell provides the upstream `transit` package and Python; no pip dependencies,
 sibling checkout, downloads during tests, or running server are needed.
 
-The same suite is `checks.<system>.integration` in the flake. `nix flake check`
+The seven-case upstream baseline is `checks.<system>.integration` in the flake.
+Parity has its own flake check; source-free SQL execution runs through the
+development shell and CI outside the Nix build sandbox. `nix flake check`
 runs it in the sandbox, including in CI. To run only this check on x86_64 Linux:
 
 ```sh
