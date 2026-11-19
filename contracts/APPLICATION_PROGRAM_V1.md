@@ -148,8 +148,14 @@ invocation. The low-level caller selects the partition; automatic service
 scheduling currently requires a single-partition input Queue. Response settlement
 remains required integration work.
 
-The compiler accepts one `CREATE DATAFLOW name FROM QUEUE name AS input`
-declaration. A block contains immutable `LET` bindings, TRUE-only `REQUIRE`,
+The compiler accepts one `CREATE DATAFLOW [schema.]name FROM QUEUE [schema.]name AS input`
+declaration. Program, Queue, Table, KV, row Document, Stream and Sink operands
+accept optional `schema.object` qualification, retained in `ApplicationProgram`
+and `ApplicationBinding` so cross-schema dependencies resolve against each
+resource's target namespace within the same catalog and common serializable
+transaction. Expression literals additionally admit typed `UUID '...'`,
+`TIMESTAMP '...'` / `TIMESTAMPTZ '...'` and `X'...'` binary hex literals, plus
+positional `ROW(...)` record construction. A block contains immutable `LET` bindings, TRUE-only `REQUIRE`,
 `IF ... THEN ... ELSE ... END IF`, `BEGIN ATOMIC`, conditional KV writes,
 Table insertion with exact row assertion, Stream/Queue append, response handoff
 and response operations. A sink invocation requires an explicit effect identity,

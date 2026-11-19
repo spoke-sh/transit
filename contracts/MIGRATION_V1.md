@@ -82,7 +82,8 @@ remain unsupported until their ordinary execution owners exist. The former
 | `service` | `execute_statement` | Ordinary SQL preparation and shared statement operation dispatcher |
 
 Table schema and finite Table dataflow adapters plan against ordered working
-schemas, including Tables declared earlier in the same file or an earlier
+schemas (`(schema, table)` keys across `public` and explicit `CREATE SCHEMA`
+namespaces), including schemas and Tables declared earlier in the same file or an earlier
 version. Other statement owners require their dependencies to exist when ordinary
 preparation runs. Planning neither creates objects nor executes queries. Applying
 read statements consumes bounded batches, validates terminal completion and

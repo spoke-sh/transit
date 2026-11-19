@@ -9,6 +9,44 @@ do not define current interfaces or qualify later changes. Commands and then-ope
 work describe their recorded source; use the [task reference](../../../tasks/README.md)
 and [test index](../../../tests/README.md) for current navigation.
 
+## Multi-schema modules, reference table exports and UUID/TIMESTAMPTZ/BINARY scalars — 2026-11-18
+
+This increment delivers Unit `D.1` (`EXPORT REFERENCE TABLE`), multi-schema `C.1`
+Table migrations, multi-schema SQL/Dataflow execution and admitted `UUID`,
+`TIMESTAMPTZ` and `BINARY` application scalars for
+[Milestone 12](../../roadmap/application-modules-completion.md) at implementation
+revision `65a776797` (branched from `main` at `c1f2680d9`, replacing the shared
+current v1 definition with
+`f311e893f8d2f4c21f426790172fadfebe7eb2364615eb1566c09f11d39bb0bb` across
+persisted multi-schema catalog, program and migration envelopes).
+
+`CREATE/DROP SCHEMA`, `SHOW SCHEMAS`, `SET SCHEMA`, schema-qualified Table/KV/Document/Queue/Stream/Dataflow
+DDL/DML/queries, cross-schema `BEGIN ATOMIC` Dataflows, catalog-tracked
+`REFERENCES ... NOT ENFORCED` foreign-key dependency guards (preventing `DROP TABLE`
+and `DROP SCHEMA RESTRICT` while child tables exist), `BIND SCHEMA` module
+specialization, `EXPORT REFERENCE TABLE <schema>.<table>(<cols>) [AS <alias>]`
+capability separation (`ReferenceOnlyTableAccess`, `UnexportedModuleResource`),
+`ROW(...)` helper parameters, comma-separated `CREATE GUARD ... AS REQUIRE ..., REQUIRE ...;`
+bodies, and shorthand `EXPORT TARGET ... AS MIGRATIONS OF <instance> [FROM <basis>]`
+targets execute end to end. Enforced runtime foreign-key checks remain explicitly
+refused unless `NOT ENFORCED` is written (`UnsupportedConstruct` with a dedicated
+compiler note), and `CREATE DOCUMENT`, `CREATE KV`, `CREATE INDEX`, `CREATE SEQUENCE`
+and `CREATE VIEW` inside `.transit` remain explicitly refused until their owning
+Milestone 12 slices land. Probing `spoke-sh/platform` read-only with the built
+`transit` binary clears `apps/platform/build.transit` and `apps/platform/shared/types.transit`
+and advances into `apps/platform/auth/state.transit:3:8` (`CREATE DOCUMENT auth.signin_policy`),
+preserving the four-level `referenced by:` workspace import trace.
+
+### Focused source, compiler, SQL and CLI evidence at `65a776797`
+
+| Check | Result |
+| --- | --- |
+| Scoped Lean 4 proof & correspondence (`just test::application-source-types`) | Passed 14 Lean laws (adding `schema_binding_isolation` and `reference_export_non_escalation` with audited axioms `<= {'propext'}`), 136 finite equalities, 16 typed/SQL and 21 program/multi-schema comparisons, 4 refusals and 21 negative controls. |
+| Independent ANTLR/Zig source grammar (`just test::application-source-grammar`) | Passed 192 source cases, 134 formatter round trips and 10 negative controls. |
+| Compiler and runner unit suites (`just test::application-compiler`, `just test::application-runner`) | Passed all compiler unit tests (including `BIND SCHEMA` specialization, `EXPORT REFERENCE TABLE` capability refusals, `UUID`/`TIMESTAMPTZ`/`BINARY` domains, `ROW(...)` helpers and multi-schema `CatalogDiff` topological ordering) and test-runner suites. |
+| Offline CLI build, 6-schema migration & cross-schema Dataflow (`just test::application-build`) | Passed 6-schema (`tenancy`, `networking`, `deployments`, `operations`, `billing`, `ingress`) v1→v2 `CatalogDiff` synthesis, `transit migrate apply`/`verify`, live `DROP TABLE`/`DROP SCHEMA RESTRICT` foreign-key protection, 8-participant cross-schema `BEGIN ATOMIC` completion/refusal and all existing SQL oracles. |
+| Isolated CLI tests & host controls (`just test::application-test`, `just test::application-test-host`) | Passed 4-schema isolated test execution over `UUID`/`TIMESTAMPTZ`/`BINARY` domains, `ROW(...)` helper calls, `EXPORT REFERENCE TABLE` encapsulation refusal in test suites and host fault/revocation controls. |
+
 ## Workspace delegation, module-instance DAGs and fragment composition — 2026-11-18
 
 This increment delivers Layer 1 of workspace composition for

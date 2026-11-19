@@ -13658,7 +13658,7 @@
         "MutationOutsideAtomic": 1,
         "OutOfMemory": 1,
         "ProcedureHasNoResult": 1,
-        "ProgramTypeMismatch": 3,
+        "ProgramTypeMismatch": 7,
         "RecursiveSourceCall": 5,
         "ReferenceOnlyTableAccess": 7,
         "RuntimePrivateOrUnsupportedDeclaration": 1,
@@ -13750,7 +13750,7 @@
       },
       "open_error_set_uses": 10,
       "propagation": {
-        "try": 434,
+        "try": 442,
         "catch": 26
       },
       "imports": [
@@ -39067,7 +39067,7 @@
         "GatewayCatalogDenied": 1,
         "GatewayConnectionCapacity": 4,
         "GatewayCredentialChanged": 1,
-        "GatewayDatabaseDenied": 6,
+        "GatewayDatabaseDenied": 7,
         "GatewayDeadline": 6,
         "GatewayDenied": 5,
         "GatewayWaitCancelled": 1,
@@ -39688,7 +39688,8 @@
         "catch": 0
       },
       "imports": [
-        "root.zig"
+        "root.zig",
+        "std"
       ]
     },
     "packages/zig/transit-sql-service/src/root.zig": {
@@ -39764,7 +39765,7 @@
     },
     "packages/zig/transit-sql/src/DatabaseAccount.zig": {
       "errors": {
-        "GatewayCatalogDenied": 2,
+        "GatewayCatalogDenied": 3,
         "InvalidGatewayConfiguration": 7,
         "InvalidSqlOperationReference": 1
       },

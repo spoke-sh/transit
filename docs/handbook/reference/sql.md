@@ -292,8 +292,11 @@ Unquoted ASCII names fold to lowercase. Double-quoted names preserve case but
 must satisfy Fuze's identifier rules. A column qualifier must match the declared
 source, its explicit `AS` alias, or the restricted derived-table alias in its own
 scope. The read compiler binds an explicitly supplied source; the console catalog
-route resolves the current Table before binding. Schema-qualified names remain
-unsupported. Keywords are case-insensitive.
+route resolves the current Table (in the session's default schema or an explicit
+`schema.table` namespace) before binding. Schema-qualified `schema.object` names
+are supported across catalog DDL (`CREATE/ALTER/DROP SCHEMA`, `CREATE/ALTER/DROP TABLE`,
+`CREATE STREAM/QUEUE`, `CREATE DATAFLOW`), DML, finite queries, relational joins
+and inspection statements (`SHOW`/`DESCRIBE`/`EXPLAIN`). Keywords are case-insensitive.
 
 Literals include signed decimal int64, `TRUE`, `FALSE`, `NULL`, UTF-8 strings
 with doubled single quotes and binary hex such as `'\x00ff'::bytea`. Backslashes
