@@ -848,11 +848,14 @@ fn selectWorkloadDatabase(host: *g.Session, reference: g.catalog.DirectWorkloadI
     const database = for (host.account.databases) |candidate| {
         const b = candidate.binding;
         if (b.resource == connection.scope.resource and b.catalog == connection.scope.catalog and b.owner == connection.audience and b.namespace == reference.namespace and b.role == connection.role) break candidate.name;
+    } else for (host.account.databases) |candidate| {
+        const b = candidate.binding;
+        if (b.resource == connection.scope.resource and b.catalog == connection.scope.catalog and b.owner == connection.audience and b.role == connection.role) break candidate.name;
     } else return error.GatewayDatabaseDenied;
     if (!std.mem.eql(u8, host.database, database) or host.source != null) {
         try host.selectDatabase(database);
     }
-    if (reference.namespace != host.namespace) return error.SqlOperationBindingChanged;
+    if (!std.meta.eql(reference.connection, host.table.connection) or reference.namespace == 0) return error.SqlOperationBindingChanged;
 }
 fn lookupWorkloadReference(host: *g.Session, id: u64) !g.catalog.DirectWorkloadIntent.Reference {
     var reader = try host.observer.source();
@@ -878,8 +881,18 @@ fn selectOperation(host: *g.Session, ref: g.SessionOperations.Reference) !void {
         break :blk for (host.account.databases) |database| {
             const candidate = database.binding;
             if (candidate.resource == item.resource and candidate.catalog == item.catalog and candidate.owner == item.owner and candidate.namespace == item.namespace and candidate.role == item.selectedRole()) break candidate;
+        } else for (host.account.databases) |database| {
+            const candidate = database.binding;
+            if (candidate.resource == item.resource and candidate.catalog == item.catalog and candidate.owner == item.owner and candidate.role == item.selectedRole()) break candidate;
         } else return error.GatewayDatabaseDenied;
-    } else (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
+    } else blk: {
+        const ext = (try g.SessionOperations.external(host.runtime.execution, &reader, ref.id)).binding();
+        break :blk for (host.account.databases) |database| {
+            if (std.meta.eql(database.binding, ext)) break database.binding;
+        } else for (host.account.databases) |database| {
+            if (g.DatabaseAccount.sameCatalog(database.binding, ext)) break database.binding;
+        } else return error.GatewayDatabaseDenied;
+    };
     const database = for (host.account.databases) |database| {
         if (std.meta.eql(database.binding, binding)) break database.name;
     } else return error.GatewayDatabaseDenied;

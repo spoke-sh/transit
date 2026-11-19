@@ -1590,6 +1590,36 @@ fn inlineHelperCall(self: *Self, caller_env: *Env, tokens: []const s.Token, i: *
                         field_vars[f_idx] = .{ .name = f_param.name, .emitted = f_hygienic };
                     }
                     try row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+                } else if (arg_tokens.len == 1 and arg_tokens[0].kind == .word and blk: {
+                    const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+                    for (caller_env.row_vars) |rv| if (std.ascii.eqlIgnoreCase(arg_ident, rv.original)) break :blk true;
+                    break :blk false;
+                }) {
+                    const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+                    const caller_rv = for (caller_env.row_vars) |rv| {
+                        if (std.ascii.eqlIgnoreCase(arg_ident, rv.original)) break rv;
+                    } else unreachable;
+                    if (caller_rv.fields.len != fields.len) {
+                        self.setError(caller_env, arg_offset);
+                        self.compiler.context = .{ .name = param.name };
+                        return error.ProgramTypeMismatch;
+                    }
+                    const field_vars = try self.scratch.alloc(RowFieldVar, fields.len);
+                    for (fields, caller_rv.fields, 0..) |f_param, c_field, f_idx| {
+                        if (!std.mem.eql(u8, f_param.name, c_field.name)) {
+                            self.setError(caller_env, arg_offset);
+                            self.compiler.context = .{ .name = param.name };
+                            return error.ProgramTypeMismatch;
+                        }
+                        const expected_f = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, f_param.kind);
+                        try self.obligations.append(self.output, .{
+                            .target = .{ .binding = c_field.emitted },
+                            .expected = expected_f,
+                            .name = f_param.name,
+                        });
+                        field_vars[f_idx] = .{ .name = f_param.name, .emitted = c_field.emitted };
+                    }
+                    try row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
                 } else {
                     const expected_row = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, param.kind);
                     const hygienic = try self.freshHygienic(param.name);
@@ -2030,6 +2060,33 @@ fn expandFunctionCall(self: *Self, caller_env: *const Env, resolved_callee: Reso
             try fn_row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
             fn_params[p_idx] = .{ .name = "", .expected = expected, .closure = closure, .hoisted = null };
             continue;
+        }
+        if (param.kind == .row and arg_tokens.len == 1 and arg_tokens[0].kind == .word) {
+            const arg_ident = caller_text[arg_tokens[0].start..arg_tokens[0].end];
+            for (caller_env.row_vars) |caller_rv| if (std.ascii.eqlIgnoreCase(arg_ident, caller_rv.original)) {
+                if (caller_rv.fields.len != param.kind.row.len) {
+                    self.setError(caller_env, arg_offset);
+                    return error.ProgramTypeMismatch;
+                }
+                const field_vars = try self.scratch.alloc(RowFieldVar, param.kind.row.len);
+                for (param.kind.row, caller_rv.fields, 0..) |f_param, c_field, f_idx| {
+                    if (!std.mem.eql(u8, f_param.name, c_field.name)) {
+                        self.setError(caller_env, arg_offset);
+                        return error.ProgramTypeMismatch;
+                    }
+                    const expected_f = try parameterExpected(self.scratch, self.output, self.compiler.graph, callee_ref.file, f_param.kind);
+                    try self.obligations.append(self.output, .{
+                        .target = .{ .binding = c_field.emitted },
+                        .expected = expected_f,
+                        .name = f_param.name,
+                    });
+                    field_vars[f_idx] = .{ .name = f_param.name, .emitted = c_field.emitted };
+                }
+                try fn_row_vars.append(self.scratch, .{ .original = param.name, .fields = field_vars });
+                fn_params[p_idx] = .{ .name = "", .expected = expected, .closure = closure, .hoisted = null };
+                break;
+            };
+            if (fn_row_vars.items.len > 0 and std.mem.eql(u8, fn_row_vars.items[fn_row_vars.items.len - 1].original, param.name)) continue;
         }
         var hoisted_name: ?[]const u8 = null;
         if (effective_uses > 1 and closureIsImpure(self.compiler.graph, closure, 0)) {

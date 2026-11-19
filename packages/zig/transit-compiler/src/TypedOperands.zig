@@ -34,6 +34,9 @@ fn at(self: *Self, span: Span) ?types.Value {
     };
     return null;
 }
+fn fullSpan(qualifier_span: ?Span, leaf_span: Span) Span {
+    return .{ .start = if (qualifier_span) |qs| qs.start else leaf_span.start, .end = leaf_span.end };
+}
 fn target(self: *Self, span: Span, table: *const types.Table) !void {
     if (self.at(span)) |value| switch (value) {
         .table, .stream, .queue => |resource| if (resource != table) return error.SourceTableBindingMismatch,
@@ -286,7 +289,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
         checked_table = table;
         if (!std.mem.eql(u8, @tagName(table.kind), @tagName(selected.kind))) return error.SourceTypeMismatch;
         self.context.* = .{ .name = table.name };
-        try self.target(selected.source.span, table);
+        try self.target(fullSpan(selected.source.qualifier_span, selected.source.span), table);
         var prepared = try f.LogAppendSql.Prepared.init(a, sql, table.schema, .transit, null);
         defer prepared.deinit();
         try self.insert(prepared.template.syntax.action.insert, table);
@@ -298,7 +301,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
         checked_table = table;
         if (table.kind != .stream) return error.SourceTypeMismatch;
         self.context.* = .{ .name = table.name };
-        try self.target(selected.span, table);
+        try self.target(fullSpan(selected.qualifier_span, selected.span), table);
         var prepared = try f.LogConsumeSql.Prepared.init(a, sql, table.schema, .transit, null);
         defer prepared.deinit();
         try self.consume(table, &prepared);
@@ -308,7 +311,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
         const table = try catalog.findQualified(input.subject.qualifier, input.subject.name);
         try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
-        try self.target(input.subject.span, table);
+        try self.target(fullSpan(input.subject.qualifier_span, input.subject.span), table);
         const nominal_projection = try self.selection(input.selection, table, input.qualifier);
         // Raw derived projections keep ordinary semantics; carrying annotations
         // through a derived alias needs an explicit typed projection contract.
@@ -326,7 +329,7 @@ pub fn check(a: std.mem.Allocator, output: std.mem.Allocator, graph: Graph, cata
         const table = try catalog.findQualified(input.subject.schema_name, input.subject.name);
         try checkResourceAccess(owner, bindings, table, self.context);
         checked_table = table;
-        try self.target(input.subject_span, table);
+        try self.target(fullSpan(input.subject.qualifier_span, input.subject_span), table);
         switch (input.action) {
             .insert => |input_| try self.insert(input_, table),
             .update => |assignments| for (assignments) |assignment| {
