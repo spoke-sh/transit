@@ -16,10 +16,10 @@ color: ColorMode = .auto,
 help: bool = false,
 overrides: [255]Override = undefined,
 overrides_len: usize = 0,
-pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Self {
+pub fn parse(args: []const []const u8, diagnostic: anytype) !Self {
     return parseMode(args, diagnostic, false);
 }
-pub fn parseMode(args: []const []const u8, diagnostic: *Diagnostic, testing: bool) !Self {
+pub fn parseMode(args: []const []const u8, diagnostic: anytype, testing: bool) !Self {
     diagnostic.command = if (testing) "transit test" else "transit build";
     diagnostic.help = if (testing) "transit test --help" else "transit build --help";
     for (args, 0..) |arg, index| if (std.mem.eql(u8, arg, "--format") and index + 1 < args.len and std.mem.eql(u8, args[index + 1], "json")) {

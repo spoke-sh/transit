@@ -1,18 +1,23 @@
+//! Compose the exact upstream compiler package with Transit's canonical types.
 const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const module = b.addModule("transit_compiler", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-        .imports = &.{
-            .{ .name = "transit_sql_frontend", .module = b.dependency("transit_sql_frontend", .{ .target = target, .optimize = optimize }).module("transit_sql_frontend") },
-            .{ .name = "transit_memory", .module = b.dependency("transit_memory", .{ .target = target, .optimize = optimize }).module("transit_memory") },
-            .{ .name = "transit_protocol", .module = b.dependency("transit_protocol", .{ .target = target, .optimize = optimize }).module("transit_protocol") },
-        },
-    });
-    const tests = b.addTest(.{ .root_module = module });
-    b.step("test", "Check recursive source compilation and SQL equivalence").dependOn(&b.addRunArtifact(tests).step);
-    b.step("check", "Compile source compiler tests").dependOn(&tests.step);
+    const upstream = b.dependency("transitc", .{ .target = target, .optimize = optimize, .embedded = true });
+    const compiler = upstream.module("transitc_compiler");
+    const workspace = upstream.module("transitc_workspace");
+    inline for (.{ "transit_sql_frontend", "transit_protocol", "transit_memory" }) |name| {
+        const module = b.dependency(name, .{ .target = target, .optimize = optimize }).module(name);
+        compiler.addImport(name, module);
+        workspace.addImport(name, module);
+    }
+    b.modules.put(b.allocator, "transit_compiler", compiler) catch @panic("out of memory");
+    b.modules.put(b.allocator, "transit_workspace", workspace) catch @panic("out of memory");
+    const check = b.step("check", "Compile the pinned compiler and workspace tests");
+    const run = b.step("test", "Run the pinned compiler and workspace tests with Transit types");
+    for ([_]*std.Build.Module{ compiler, workspace }) |module| {
+        const tests = b.addTest(.{ .root_module = module });
+        check.dependOn(&tests.step);
+        run.dependOn(&b.addRunArtifact(tests).step);
+    }
 }

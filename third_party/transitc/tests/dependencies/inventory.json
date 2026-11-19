@@ -1,0 +1,105 @@
+{
+  "transitc-compiler": {
+    "allowed_imports": [
+      "transit_memory",
+      "transit_protocol",
+      "transit_sql_frontend"
+    ],
+    "external_imports": {
+      "packages/transitc-compiler/src/CatalogDiff.zig": [
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/Compiler.zig": [
+        "transit_memory",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/ProgramAnnotations.zig": [
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/ProgramCheck.zig": [
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/ProgramLowering.zig": [
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/SourceDiagnostic.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-compiler/src/SourceTypes.zig": [
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/Syntax.zig": [
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/Template.zig": [
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/Test.zig": [
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/TypedOperands.zig": [
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/WorkingCatalog.zig": [
+        "transit_protocol",
+        "transit_sql_frontend"
+      ],
+      "packages/transitc-compiler/src/migration_test.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-compiler/src/program_test.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-compiler/src/resource_test.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-compiler/src/source_test.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-compiler/src/tests.zig": [
+        "transit_protocol"
+      ]
+    }
+  },
+  "transitc-workspace": {
+    "allowed_imports": [
+      "transit_compiler",
+      "transit_memory",
+      "transit_protocol",
+      "transit_sql_frontend"
+    ],
+    "external_imports": {
+      "packages/transitc-workspace/src/Build.zig": [
+        "transit_compiler",
+        "transit_memory",
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/BuildMigration.zig": [
+        "transit_compiler",
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/BuildReport.zig": [
+        "transit_compiler",
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/BuildSources.zig": [
+        "transit_compiler",
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/Diagnostic.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/EnvelopeDiagnostic.zig": [
+        "transit_protocol"
+      ],
+      "packages/transitc-workspace/src/Style.zig": [
+        "transit_sql_frontend"
+      ]
+    }
+  }
+}

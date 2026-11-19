@@ -5704,17 +5704,17 @@
       "id": "application-source",
       "profile": "Pure application source compilation and offline CLI capture, resolution and artifact publication; imported owner failures retain context at their boundary",
       "owners": [
-        "packages/zig/transit-compiler/src/*.zig",
-        "apps/transit-cli/BuildSources.zig",
-        "apps/transit-cli/Build.zig",
-        "apps/transit-cli/BuildMigration.zig"
+        "third_party/transitc/packages/transitc-compiler/src/*.zig",
+        "third_party/transitc/packages/transitc-workspace/src/BuildSources.zig",
+        "third_party/transitc/packages/transitc-workspace/src/Build.zig",
+        "third_party/transitc/packages/transitc-workspace/src/BuildMigration.zig"
       ],
       "exclude": [
-        "packages/zig/transit-compiler/src/SourceDiagnostic.zig"
+        "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig"
       ],
-      "registry": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+      "registry": "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig",
       "registry_kind": "source_family",
-      "projection": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+      "projection": "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig",
       "shared_codes": true,
       "stage": "input, parse, bind, compile or output, retained from the failing owner",
       "outcome": "not_submitted",
@@ -5725,31 +5725,31 @@
       "propagation": "Unknown imported I/O/allocation failures retain their original native cause and best known context. Input/cache/output owners specialize the family and stage before unwinding. Runtime test failures do not use this boundary.",
       "tests": [
         {
-          "source": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig",
           "name": "source failures retain actionable families and escaped paths without invented locations"
         },
         {
-          "source": "packages/zig/transit-compiler/src/SourceDiagnostic.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig",
           "name": "source diagnostic families validate within the shared envelope bounds"
         },
         {
-          "source": "packages/zig/transit-compiler/src/tests.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/tests.zig",
           "name": "unselected recursive checking validates bodies and preserves call diagnostics"
         },
         {
-          "source": "apps/transit-cli/EnvelopeDiagnostic.zig",
+          "source": "third_party/transitc/packages/transitc-workspace/src/EnvelopeDiagnostic.zig",
           "name": "source diagnostics show primary and related filenames with safe terminal text"
         },
         {
-          "source": "packages/zig/transit-compiler/src/resource_test.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/resource_test.zig",
           "name": "nominal log checks cover literal names identifier holes metadata and omitted fields"
         },
         {
-          "source": "packages/zig/transit-compiler/src/migration_test.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/migration_test.zig",
           "name": "migration basis rejects changed history foreign definitions duplicates and stale versions"
         },
         {
-          "source": "packages/zig/transit-compiler/src/program_test.zig",
+          "source": "third_party/transitc/packages/transitc-compiler/src/program_test.zig",
           "name": "returning procedures refuse missing early void mismatched and escaping results"
         }
       ],

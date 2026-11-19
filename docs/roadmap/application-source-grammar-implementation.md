@@ -31,8 +31,8 @@ implementation if main advances.
 | Owner | Existing behavior and implication for this slice |
 | --- | --- |
 | [Application source contract](../../contracts/APPLICATION_SOURCE_V1.md) | Defines the bounded module/build/test language and explicitly records the missing ANTLR reference. Extend this owner; do not use the interface/UI contract as a source-language specification. |
-| [Syntax](../../packages/zig/transit-compiler/src/Syntax.zig) | Public source AST and parser cover imports, dependencies, interfaces, modules, targets, expressions, conditionals, tests and assertions. SQL bodies and expected rows retain token slices; the parser is not a whole-program semantic checker. |
-| [Graph](../../packages/zig/transit-compiler/src/Graph.zig), [Compiler](../../packages/zig/transit-compiler/src/Compiler.zig), [WorkingCatalog](../../packages/zig/transit-compiler/src/WorkingCatalog.zig), [Test](../../packages/zig/transit-compiler/src/Test.zig) | Resolve/evaluate the graph, substitute typed operands, prepare Table statements, construct test plans and independently reparse emitted SQL. Preserve these production owners and their limits. |
+| [Syntax](../../third_party/transitc/packages/transitc-compiler/src/Syntax.zig) | Public source AST and parser cover imports, dependencies, interfaces, modules, targets, expressions, conditionals, tests and assertions. SQL bodies and expected rows retain token slices; the parser is not a whole-program semantic checker. |
+| [Graph](../../third_party/transitc/packages/transitc-compiler/src/Graph.zig), [Compiler](../../third_party/transitc/packages/transitc-compiler/src/Compiler.zig), [WorkingCatalog](../../third_party/transitc/packages/transitc-compiler/src/WorkingCatalog.zig), [Test](../../third_party/transitc/packages/transitc-compiler/src/Test.zig) | Resolve/evaluate the graph, substitute typed operands, prepare Table statements, construct test plans and independently reparse emitted SQL. Preserve these production owners and their limits. |
 | [SqlInput](../../packages/zig/transit-sql-frontend/src/SqlInput.zig), [SqlScript](../../packages/zig/transit-sql-frontend/src/SqlScript.zig) | Shared byte-based scanning and compound framing precede source parsing. Changes can affect console/migration/runtime consumers and expand required regression gates. |
 | [SQL grammar](../../contracts/sql/TransitExtensions.g4), [independent SQL adapter](../../tests/query/sql/reference.py) | Reusable syntax, pinned ANTLR generation, strict errors and ambiguity detection exist. SQL has broader syntax than the executable source profile. Reuse rules without importing broader runtime support by implication. |
 | [Application interface grammar](../../contracts/application/Application.g4), [its proof](../../tests/interfaces/installation/application_grammar.py) | Cover interface/UI declarations and model round-trips, not modules/builds/tests. Preserve their separate grammar, task and scope. |
@@ -42,7 +42,7 @@ implementation if main advances.
 
 Include:
 
-- A dedicated `contracts/application-source/TransitSource.g4`, README and
+- A dedicated `third_party/transitc/contracts/application-source/TransitSource.g4`, README and
   independently authored positive/negative corpus for the delivered profile.
 - Explicit source lexical rules, precedence, block boundaries, typed SQL holes,
   build/test stage rules and source-location conventions.

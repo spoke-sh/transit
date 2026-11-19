@@ -11,4 +11,4 @@ They retain their exact upstream bytes. The earlier three-file application
 program fixtures remain independent regressions.
 
 See [the source contract](../../../contracts/APPLICATION_SOURCE_V1.md) and
-[implementation plan](../../../docs/roadmap/application-build-implementation.md).
+[implementation plan](https://github.com/spoke-sh/transit/blob/e7434306334e3692c6f3e123cba0d278fa412196/docs/roadmap/application-build-implementation.md).

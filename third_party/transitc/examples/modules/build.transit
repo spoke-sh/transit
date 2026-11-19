@@ -1,0 +1,5 @@
+IMPORT rows FROM 'rows.transit';
+CREATE TARGET default AS BEGIN
+  USE rows.Rows(NAME 'items', 7);
+  SELECT * FROM items;
+END;

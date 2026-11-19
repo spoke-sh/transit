@@ -48,10 +48,10 @@ the later command, authorization, observation and effect machinery.
 
 | Existing owner | Implication for this slice |
 | --- | --- |
-| [Source contract](../../contracts/APPLICATION_SOURCE_V1.md), [source grammar](../../contracts/application-source/README.md) | Extend the current source language and its independent oracle together. Source forms remain separate from ordinary SQL and interface/UI entry points. |
-| [Syntax](../../packages/zig/transit-compiler/src/Syntax.zig), [Graph](../../packages/zig/transit-compiler/src/Graph.zig) | Parameters currently cover three scalar kinds, identifiers, scalar types and module constructors. Public imports do not yet expose nominal types or instantiated resource exports. |
-| [Compiler](../../packages/zig/transit-compiler/src/Compiler.zig), [WorkingCatalog](../../packages/zig/transit-compiler/src/WorkingCatalog.zig) | Evaluation emits SQL while checking proposed schemas. Scalar emission alone loses nominal distinctions; introduce a checked representation before that erasure. |
-| [Table source profile](../../contracts/APPLICATION_SOURCE_V1.md#executable-target) | Ordinary Table DDL/DML and single-Table queries are available. Runtime-private Tables, foreign-key resolution, procedures and command workflows remain outside this compiler profile. |
+| [Source contract](../../contracts/APPLICATION_SOURCE_V1.md), [source grammar](../../third_party/transitc/contracts/application-source/README.md) | Extend the current source language and its independent oracle together. Source forms remain separate from ordinary SQL and interface/UI entry points. |
+| [Syntax](../../third_party/transitc/packages/transitc-compiler/src/Syntax.zig), [Graph](../../third_party/transitc/packages/transitc-compiler/src/Graph.zig) | Parameters currently cover three scalar kinds, identifiers, scalar types and module constructors. Public imports do not yet expose nominal types or instantiated resource exports. |
+| [Compiler](../../third_party/transitc/packages/transitc-compiler/src/Compiler.zig), [WorkingCatalog](../../third_party/transitc/packages/transitc-compiler/src/WorkingCatalog.zig) | Evaluation emits SQL while checking proposed schemas. Scalar emission alone loses nominal distinctions; introduce a checked representation before that erasure. |
+| [Table source profile](../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#executable-target) | Ordinary Table DDL/DML and single-Table queries are available. Runtime-private Tables, foreign-key resolution, procedures and command workflows remain outside this compiler profile. |
 | [Table test runner](../../packages/zig/transit-test/README.md), [CLI proofs](../../tests/interfaces/cli/application_test.py) | Reuse isolated real database owners, complete typed results and authoritative command counts. Do not add a second evaluator or mock database. |
 | [Existing Lean checks](../../tests/query/sql/rewrites.py), [verification limits](../handbook/reference/verification.md) | Reuse pinned tools, exact theorem inventories and axiom auditing. Add source-specific semantics and correspondence tests; existing SQL theorems do not prove this compiler. |
 
@@ -250,7 +250,7 @@ cutover with explicit rejection fixtures, never a fallback decoder or v2 label.
 ## Formal evidence and independent comparisons
 
 Place the source semantics in a proposed
-`contracts/application-source/TypedTarget.lean`, with a dedicated bounded
+`third_party/transitc/contracts/application-source/TypedTarget.lean`, with a dedicated bounded
 verification driver and task. Reuse the repository's pinned Lean tool and axiom
 audit discipline without coupling new source laws to the SQL rewrite inventory.
 

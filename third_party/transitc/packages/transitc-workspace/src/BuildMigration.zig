@@ -2,7 +2,7 @@
 const std = @import("std");
 const c = @import("transit_compiler");
 const d = c.CatalogDiff;
-const p = @import("transit_query").protocol;
+const p = @import("transit_protocol");
 const Sources = @import("BuildSources.zig");
 pub const Prepared = struct { result: d.Result, basis: []const u8, prior_digest: ?[32]u8, input_digest: [32]u8 };
 pub fn prepare(a: std.mem.Allocator, io: std.Io, root: std.Io.Dir, product: *const c.Product, compiler: []const u8, context: *c.SourceDiagnostic.Context) !Prepared {

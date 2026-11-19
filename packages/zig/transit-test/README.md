@@ -3,7 +3,7 @@
 Bounded application assertions over the ordinary SQL session owner. The pure
 [compiler](../transit-compiler/README.md) supplies canonical SQL, source locations
 and typed expectations. This library owns neither a SQL interpreter nor storage.
-The [application source contract](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+The [application source contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 owns syntax, selection, limits and completion semantics.
 
 `Runner.run` borrows a compiler case and an initialized SQL `Session`. It executes
@@ -14,7 +14,7 @@ retaining borrowed cells across batches. Command counts and refusal reasons come
 from verified owner outcomes. No write is replayed to obtain a convenient result.
 
 Public Queue programs execute through the managed SQL owner. A
-[WORKFLOW assertion](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
+[WORKFLOW assertion](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 observes exact recorded completed/refused counts under the
 same frozen declaration, current authorization and a bounded polling budget.
 Activation alone cannot satisfy it. Stream row assertions retain normal result

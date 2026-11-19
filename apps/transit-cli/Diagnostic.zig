@@ -4,8 +4,8 @@ const Self = @This();
 command: []const u8 = "transit",
 emitted: bool = false,
 machine: bool = false,
-color_mode: @import("Style.zig").Mode = .auto,
-style: @import("Style.zig") = .{},
+color_mode: @import("transit_workspace").Style.Mode = .auto,
+style: @import("transit_workspace").Style = .{},
 envelope: ?@import("transit_query").protocol.Diagnostic = null,
 input: ?@import("InputPosition.zig") = null,
 sql: ?@import("transit_query").fuze.SqlDiagnostic = null,
@@ -202,11 +202,11 @@ fn renderFailure(self: Self, out: *std.Io.Writer, err: anyerror) !void {
                     error.SqlOperationPartial, error.SqlOperationRejected, error.ConsoleInterrupted => if (self.summary) |summary| try out.print("{s}.\n", .{summary}),
                     else => {},
                 }
-                try @import("EnvelopeDiagnostic.zig").renderConsole(value, out);
+                try @import("transit_workspace").EnvelopeDiagnostic.renderConsole(value, out);
                 if (self.next) |next| try out.print("\n{s}\n", .{next});
                 return;
             }
-            return @import("EnvelopeDiagnostic.zig").render(value, out);
+            return @import("transit_workspace").EnvelopeDiagnostic.render(value, out);
         } else |_| {}
     }
     if (self.sql) |original| {

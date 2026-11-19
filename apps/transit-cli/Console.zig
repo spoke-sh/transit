@@ -64,7 +64,7 @@ pub fn run(original: std.process.Init, options: Options.Options, diagnostic: *Di
     defer runtime.destroy();
     var init = original;
     init.io = runtime.io();
-    diagnostic.style = @import("Style.zig").detect(init);
+    diagnostic.style = @import("transit_workspace").Style.detect(init);
     var preferences = try Preferences.load(init, options, diagnostic);
     while (try connection(init, options, preferences, diagnostic)) |next| preferences = next;
 }

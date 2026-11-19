@@ -21,6 +21,15 @@
         ]
       },
       {
+        "id": "transitc-source-pin",
+        "phase": "tooling",
+        "command": [
+          "python3",
+          "-B",
+          "tasks/transitc.py"
+        ]
+      },
+      {
         "id": "package-versions",
         "phase": "tooling",
         "command": [

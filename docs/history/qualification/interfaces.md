@@ -3524,7 +3524,7 @@ choose credentials, connect to a deployment, or request workflow replay.
 Implementation basis: `01a191687`, following main `91be427a8`, on Linux x86_64 with
 the pinned Zig `0.17.0-dev.2267+48abf1a34` toolchain and native definition
 `21c39637d8759314a25a34e71943f6b19ceae32bf0aa02650385b5c035a00288`.
-The owning current profile is [isolated Table tests](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
+The owning current profile is [isolated Table tests](https://github.com/spoke-sh/transit/blob/e7434306334e3692c6f3e123cba0d278fa412196/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests).
 
 The CLI proof runs with socket/connect/io_uring denial, no executable search
 path and unusable ambient deployment configuration. It checks repeatable source

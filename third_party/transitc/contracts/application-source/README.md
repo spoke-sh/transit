@@ -7,7 +7,7 @@ domains, closed variants, pure functions, ordered guards, inline atomic
 procedures, typed resource exports, targets and test controls are compile-time
 forms, not ordinary runtime SQL.
 
-The grammar imports [TransitExtensions.g4](../sql/TransitExtensions.g4) with the
+The grammar imports [TransitExtensions.g4](https://github.com/spoke-sh/transit/blob/e7434306334e3692c6f3e123cba0d278fa412196/contracts/sql/TransitExtensions.g4) with the
 same pinned ANTLR 4.13.2 tools. Source overrides add typed holes and narrow the
 statement root to Table/Stream/Queue creation, literal mutations and log appends,
 and finite single-Table queries. Recursive logical types and literals remain available; compile-time

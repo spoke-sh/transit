@@ -240,83 +240,11 @@
       ]
     },
     "apps/transit-cli/Build.zig": {
-      "errors": {
-        "BuildArtifactMismatch": 4,
-        "BuildProvenanceLimit": 1,
-        "BuildToolingMemoryLimit": 1,
-        "CompilerArtifactChanged": 2,
-        "CompilerArtifactLimit": 1,
-        "FileNotFound": 1,
-        "InvalidBuildOutput": 1,
-        "InvalidSourcePath": 1,
-        "MissingBuildEntry": 1,
-        "OutOfMemory": 1,
-        "PathAlreadyExists": 2
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "emitFailure()": "<inferred>",
-        "executableDigest()": "<inferred>",
-        "execute()": "<inferred>",
-        "publish()": "<inferred>",
-        "report()": "<inferred>",
-        "run()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 47,
-        "catch": 9
-      },
-      "imports": [
-        "BuildMigration.zig",
-        "BuildOptions.zig",
-        "BuildReport.zig",
-        "BuildSources.zig",
-        "Diagnostic.zig",
-        "Style.zig",
-        "build_version",
-        "server/ArtifactHash.zig",
-        "std",
-        "transit_compiler",
-        "transit_memory",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/BuildMigration.zig": {
-      "errors": {
-        "IncompatibleMigrationBasis": 1,
-        "InvalidMigrationBasis": 1,
-        "InvalidMigrationBasisPath": 3,
-        "MigrationBasisMismatch": 4,
-        "MigrationHistoryLimit": 2,
-        "OutOfMemory": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "component()": "<inferred>",
-        "prepare()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 12,
-        "catch": 1
-      },
-      "imports": [
-        "BuildSources.zig",
-        "std",
-        "transit_compiler",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/BuildOptions.zig": {
       "errors": {},
       "outcomes": {},
       "error_sets": {},
       "error_returns": {
-        "parse()": "<inferred>",
-        "parseMode()": "<inferred>"
+        "run()": "<inferred>"
       },
       "open_error_set_uses": 0,
       "propagation": {
@@ -325,133 +253,9 @@
       },
       "imports": [
         "Diagnostic.zig",
-        "Style.zig",
-        "std"
-      ]
-    },
-    "apps/transit-cli/BuildReport.zig": {
-      "errors": {},
-      "outcomes": {
-        "CaseView.status": [
-          "passed",
-          "failed",
-          "not_run"
-        ],
-        "Mode": [
-          "build",
-          "test_suite"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "renderFailure()": "<inferred>",
-        "renderTestSuiteFailure()": "<inferred>",
-        "writeExcerpt()": "<inferred>",
-        "writeLocation()": "<inferred>",
-        "writePackagePath()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 210,
-        "catch": 22
-      },
-      "imports": [
-        "BuildOptions.zig",
-        "BuildSources.zig",
-        "EnvelopeDiagnostic.zig",
-        "Style.zig",
+        "build_version",
         "std",
-        "transit_compiler",
-        "transit_query",
-        "transit_test"
-      ]
-    },
-    "apps/transit-cli/BuildSources.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "BuildSyncFailed": 1,
-        "ConflictingDependency": 1,
-        "DependencyLimit": 2,
-        "EmptySourcePackage": 1,
-        "ExcludedSourcePath": 2,
-        "FetchWithOverride": 1,
-        "FileNotFound": 3,
-        "IncompatibleSourceDefinition": 1,
-        "InvalidRepositoryTree": 3,
-        "InvalidSourceDigest": 2,
-        "InvalidSourceEncoding": 1,
-        "InvalidSourceLock": 1,
-        "InvalidSourcePath": 2,
-        "MissingBuildEntry": 1,
-        "MissingSource": 4,
-        "MissingSourceLock": 1,
-        "PathAlreadyExists": 3,
-        "ReadFailed": 1,
-        "RepositoryFetchFailed": 1,
-        "RepositoryOutputLimit": 1,
-        "RepositoryRevisionMismatch": 1,
-        "ReservedPackageName": 1,
-        "SourceBytesLimit": 2,
-        "SourceDepthLimit": 3,
-        "SourceDigestMismatch": 4,
-        "SourceFileBytesLimit": 2,
-        "SourceFileLimit": 2,
-        "SourceLockLimit": 1,
-        "SourceReadFailed": 1,
-        "SourceReadLimit": 2,
-        "SourceTreeEntryLimit": 3,
-        "StaleSourceLock": 2,
-        "UndeclaredOverride": 1,
-        "UnsupportedRepositoryTransport": 1,
-        "UnsupportedSourceFileKind": 12
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "add()": "<inferred>",
-        "atomicFile()": "<inferred>",
-        "cacheBase()": "<inferred>",
-        "checkImport()": "<inferred>",
-        "checkLocalPath()": "<inferred>",
-        "checkRelativeLinks()": "<inferred>",
-        "digestBytes()": "<inferred>",
-        "fetchDirectory()": "anyerror",
-        "fetchEntry()": "anyerror",
-        "fetchTree()": "<inferred>",
-        "finish()": "<inferred>",
-        "git()": "<inferred>",
-        "identities()": "<inferred>",
-        "load()": "<inferred>",
-        "loadCached()": "<inferred>",
-        "loadEntry()": "<inferred>",
-        "loadLock()": "<inferred>",
-        "openCache()": "<inferred>",
-        "openRoot()": "<inferred>",
-        "read()": "<inferred>",
-        "readDirectory()": "anyerror",
-        "readEntry()": "anyerror",
-        "readTree()": "anyerror",
-        "readWithKind()": "<inferred>",
-        "resolve()": "<inferred>",
-        "storeCache()": "<inferred>",
-        "syncDirectory()": "<inferred>",
-        "temporaryDirectory()": "<inferred>",
-        "treeHex()": "<inferred>",
-        "visitLocalPath()": "anyerror",
-        "visitSource()": "anyerror",
-        "visitStatements()": "anyerror",
-        "writeFile()": "<inferred>"
-      },
-      "open_error_set_uses": 9,
-      "propagation": {
-        "try": 113,
-        "catch": 30
-      },
-      "imports": [
-        "BuildOptions.zig",
-        "std",
-        "transit_compiler",
-        "transit_query"
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/ConfigurationProbe.zig": {
@@ -572,14 +376,14 @@
         "Show.zig",
         "Signals.zig",
         "SqlInput.zig",
-        "Style.zig",
         "Terminal.zig",
         "Timing.zig",
         "server/Config.zig",
         "std",
         "transit_io",
         "transit_query",
-        "transit_sql_client"
+        "transit_sql_client",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/ConsoleHelp.zig": {
@@ -699,12 +503,11 @@
         "catch": 7
       },
       "imports": [
-        "EnvelopeDiagnostic.zig",
         "InputPosition.zig",
-        "Style.zig",
         "Timing.zig",
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/EditorState.zig": {
@@ -775,27 +578,6 @@
       },
       "imports": [
         "Undo.zig",
-        "std",
-        "transit_query"
-      ]
-    },
-    "apps/transit-cli/EnvelopeDiagnostic.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "escaped()": "<inferred>",
-        "location()": "<inferred>",
-        "render()": "<inferred>",
-        "renderConsole()": "<inferred>",
-        "renderFor()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 48,
-        "catch": 0
-      },
-      "imports": [
         "std",
         "transit_query"
       ]
@@ -935,10 +717,10 @@
         "Console.zig",
         "Diagnostic.zig",
         "Options.zig",
-        "Style.zig",
         "std",
         "transit_io",
-        "transit_sql_client"
+        "transit_sql_client",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/Options.zig": {
@@ -973,11 +755,11 @@
         "catch": 2
       },
       "imports": [
-        "BuildOptions.zig",
         "Diagnostic.zig",
         "Help.zig",
         "std",
-        "transit_sql_client"
+        "transit_sql_client",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/Output.zig": {
@@ -1242,43 +1024,20 @@
         "transit_query"
       ]
     },
-    "apps/transit-cli/Style.zig": {
+    "apps/transit-cli/StyleRuntimeTest.zig": {
       "errors": {},
-      "outcomes": {
-        "Color": [
-          "plain",
-          "word",
-          "literal",
-          "number",
-          "comment",
-          "failure",
-          "category",
-          "emphasis",
-          "note",
-          "span"
-        ],
-        "Mode": [
-          "auto",
-          "off",
-          "on"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
-      "error_returns": {
-        "hint()": "<inferred>",
-        "source()": "<inferred>",
-        "sql()": "<inferred>",
-        "text()": "<inferred>",
-        "write()": "<inferred>"
-      },
+      "error_returns": {},
       "open_error_set_uses": 0,
       "propagation": {
-        "try": 17,
-        "catch": 5
+        "try": 0,
+        "catch": 0
       },
       "imports": [
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/Support.zig": {
@@ -1297,10 +1056,10 @@
         "Settings.zig",
         "Signals.zig",
         "SqlInput.zig",
-        "Style.zig",
         "server/AuthorizationProfile.zig",
         "server/Config.zig",
-        "server/Files.zig"
+        "server/Files.zig",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/Terminal.zig": {
@@ -1368,10 +1127,10 @@
         "History.zig",
         "Output.zig",
         "Signals.zig",
-        "Style.zig",
         "Undo.zig",
         "std",
-        "transit_query"
+        "transit_query",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/Timing.zig": {
@@ -1463,14 +1222,14 @@
         "Migrate.zig",
         "Options.zig",
         "RuntimeRole.zig",
-        "Style.zig",
         "Test.zig",
         "TestHost.zig",
         "build_version",
         "server/Gateway.zig",
         "server/Process.zig",
         "server/Server.zig",
-        "std"
+        "std",
+        "transit_workspace"
       ]
     },
     "apps/transit-cli/server/Applications.zig": {
@@ -13251,1241 +13010,6 @@
         "std",
         "transit_memory",
         "transit_observability",
-        "transit_protocol"
-      ]
-    },
-    "packages/zig/transit-compiler/src/CatalogDiff.zig": {
-      "errors": {
-        "DuplicateMigrationBinding": 4,
-        "IncompatibleMigrationBasis": 1,
-        "InvalidMigrationBasis": 5,
-        "InvalidMigrationVersion": 3,
-        "MigrationBasisMismatch": 20,
-        "MigrationHistoryChanged": 1,
-        "MigrationHistoryLimit": 4,
-        "MigrationNamespaceMismatch": 1,
-        "MigrationStepLimit": 4,
-        "MigrationTransformRequired": 8,
-        "MigrationVersionOrder": 1,
-        "MissingMigrationBasis": 1,
-        "MissingMigrationTarget": 1,
-        "OutOfMemory": 7,
-        "UnknownBuildTable": 1,
-        "UnsupportedMigrationDefinition": 5,
-        "UnsupportedMigrationHistory": 7
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "FkResolver.lookup()": "<inferred>",
-        "FkResolver.lookupQualified()": "<inferred>",
-        "build()": "<inferred>",
-        "create()": "<inferred>",
-        "equivalent()": "<inferred>",
-        "fileName()": "<inferred>",
-        "parseCreateSchema()": "<inferred>",
-        "replay()": "<inferred>",
-        "statement()": "<inferred>",
-        "table()": "<inferred>",
-        "writeQuotedIdent()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 56,
-        "catch": 9
-      },
-      "imports": [
-        "Compiler.zig",
-        "SourceDiagnostic.zig",
-        "TypedOperands.zig",
-        "std",
-        "transit_protocol",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/Compiler.zig": {
-      "errors": {
-        "BuildEmissionMismatch": 1,
-        "BuildMemoryLimit": 3,
-        "BuildOutputLimit": 2,
-        "BuildStatementLimit": 3,
-        "BuildWorkLimit": 2,
-        "ConflictingModuleInstance": 1,
-        "DuplicateSourceMatchArm": 1,
-        "DuplicateSourceName": 13,
-        "DuplicateTestCase": 1,
-        "EmptyBuildTarget": 1,
-        "EmptyTestCase": 1,
-        "EmptyTestTarget": 1,
-        "ExportOutsideModule": 4,
-        "ForeignTableExport": 8,
-        "InvalidBuildBudget": 1,
-        "InvalidCatalogName": 2,
-        "InvalidCompilerIdentity": 1,
-        "InvalidDataflowTransition": 1,
-        "InvalidInstanceName": 1,
-        "InvalidMigrationBasisPath": 1,
-        "InvalidModuleInterface": 1,
-        "InvalidParameterType": 1,
-        "InvalidSourceName": 1,
-        "InvalidSourceOperand": 6,
-        "InvalidSourceSyntax": 1,
-        "MissingBuildEntry": 1,
-        "MissingSourceTarget": 3,
-        "ModuleInterfaceMismatch": 8,
-        "ModuleIsNotSqlOperand": 1,
-        "NestedTestCase": 1,
-        "NonExhaustiveSourceMatch": 1,
-        "NotModuleConstructor": 6,
-        "OutOfMemory": 6,
-        "ReferenceOnlyTableAccess": 7,
-        "RuntimePrivateOrUnsupportedDeclaration": 1,
-        "SourceArgumentCount": 4,
-        "SourceBytesLimit": 2,
-        "SourceDepthLimit": 11,
-        "SourceExportLimit": 4,
-        "SourceFileLimit": 1,
-        "SourceImportCycle": 2,
-        "SourceTypeMismatch": 47,
-        "TestActionLimit": 2,
-        "TestAssertionOutsideCase": 2,
-        "TestCaseLimit": 1,
-        "TestCommandRequired": 1,
-        "TestInBuildTarget": 1,
-        "TestMutationRequired": 1,
-        "TestObservationLimit": 1,
-        "TestResultBytesLimit": 1,
-        "TestRowsLimit": 1,
-        "TestRowsRequired": 1,
-        "TestStatementOutsideCase": 1,
-        "UnknownBuildProgram": 1,
-        "UnknownColumn": 1,
-        "UnknownSourceExport": 3,
-        "UnknownSourceOperand": 3,
-        "UnknownSourceSymbol": 4,
-        "UnsupportedRecursiveExports": 1,
-        "UnsupportedSourceDeclaration": 6,
-        "UnsupportedSymbolicProgram": 2,
-        "UnsupportedSymbolicSchema": 2,
-        "UnsupportedTestOption": 1,
-        "WrongSourceTargetKind": 3
-      },
-      "outcomes": {
-        "Options.mode": [
-          "build",
-          "test_suite"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "BoundedBuffer.print()": "<inferred>",
-        "BoundedBuffer.writeAll()": "<inferred>",
-        "BoundedBuffer.writeByte()": "<inferred>",
-        "Step.jsonStringify()": "std . Io . Writer . Error",
-        "argument()": "<inferred>",
-        "argumentDepth()": "anyerror",
-        "assertion()": "<inferred>",
-        "body()": "anyerror",
-        "bodyInline()": "anyerror",
-        "checkBody()": "<inferred>",
-        "checkTargetComposition()": "<inferred>",
-        "compile()": "<inferred>",
-        "compileInner()": "<inferred>",
-        "construct()": "<inferred>",
-        "declareFrom()": "anyerror",
-        "emit()": "<inferred>",
-        "emitStatement()": "<inferred>",
-        "evaluateTargetComposition()": "<inferred>",
-        "expand()": "<inferred>",
-        "expression()": "anyerror",
-        "fork()": "<inferred>",
-        "freshBinding()": "<inferred>",
-        "invoke()": "anyerror",
-        "match()": "<inferred>",
-        "mergeInstanceSchemas()": "<inferred>",
-        "mergeModuleExport()": "<inferred>",
-        "projectField()": "<inferred>",
-        "quoted()": "<inferred>",
-        "reference()": "<inferred>",
-        "resolve()": "<inferred>",
-        "resolveExportedHelper()": "<inferred>",
-        "resolveTarget()": "<inferred>",
-        "run()": "<inferred>",
-        "sameParameterKind()": "anyerror",
-        "selectTargetName()": "<inferred>",
-        "signature()": "anyerror",
-        "testCase()": "<inferred>",
-        "tick()": "<inferred>",
-        "useModule()": "<inferred>",
-        "validateDefaults()": "<inferred>",
-        "validateInterfaces()": "<inferred>",
-        "validateParameterKind()": "anyerror",
-        "verify()": "<inferred>",
-        "workflow()": "<inferred>",
-        "writeValue()": "<inferred>"
-      },
-      "open_error_set_uses": 10,
-      "propagation": {
-        "try": 241,
-        "catch": 29
-      },
-      "imports": [
-        "Graph.zig",
-        "ProgramAnnotations.zig",
-        "ProgramCheck.zig",
-        "ProgramLowering.zig",
-        "ResourceOperands.zig",
-        "SourceDiagnostic.zig",
-        "SourceTypes.zig",
-        "Syntax.zig",
-        "Test.zig",
-        "TypedOperands.zig",
-        "WorkingCatalog.zig",
-        "std",
-        "transit_memory",
-        "transit_protocol",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/Format.zig": {
-      "errors": {
-        "SourceDepthLimit": 4
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "body()": "anyerror",
-        "call()": "<inferred>",
-        "callDepth()": "anyerror",
-        "definition()": "<inferred>",
-        "expr()": "anyerror",
-        "indent()": "<inferred>",
-        "kind()": "anyerror",
-        "migrationClause()": "<inferred>",
-        "name()": "<inferred>",
-        "statement()": "anyerror",
-        "string()": "<inferred>",
-        "template()": "<inferred>",
-        "write()": "<inferred>"
-      },
-      "open_error_set_uses": 5,
-      "propagation": {
-        "try": 237,
-        "catch": 0
-      },
-      "imports": [
-        "Syntax.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-compiler/src/Graph.zig": {
-      "errors": {
-        "ConflictingDependency": 1,
-        "DuplicateDependency": 1,
-        "DuplicateSourceFile": 2,
-        "DuplicateSourceName": 7,
-        "ExcludedSourcePath": 3,
-        "InvalidPackageName": 2,
-        "InvalidRepository": 2,
-        "InvalidRepositoryRevision": 2,
-        "InvalidSourceName": 1,
-        "InvalidSourcePath": 9,
-        "MissingSource": 7,
-        "PrivateSourceSymbol": 1,
-        "RepositoryCredentialsForbidden": 1,
-        "ReservedPackageName": 1,
-        "SourceBytesLimit": 2,
-        "SourceDependencyCycle": 2,
-        "SourceDependencyLimit": 1,
-        "SourceDepthLimit": 8,
-        "SourceFileLimit": 1,
-        "SourceImportCycle": 4,
-        "UndeclaredDependency": 2,
-        "UnknownImport": 1,
-        "UnknownSourceSymbol": 3,
-        "UnsupportedRepositoryTransport": 1,
-        "UnsupportedSourceDeclaration": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "importPath()": "<inferred>",
-        "imported()": "<inferred>",
-        "init()": "<inferred>",
-        "initReported()": "<inferred>",
-        "localFile()": "<inferred>",
-        "resolve()": "<inferred>",
-        "resolvePackageSubpath()": "<inferred>",
-        "resolveReported()": "<inferred>",
-        "resolveSourcePath()": "<inferred>",
-        "resolveSubpath()": "<inferred>",
-        "resolveWorkspaceSubpath()": "<inferred>",
-        "selectedPath()": "<inferred>",
-        "treeDigest()": "<inferred>",
-        "validPackage()": "<inferred>",
-        "validPath()": "<inferred>",
-        "validateDependency()": "<inferred>",
-        "visit()": "anyerror",
-        "visitFragmentStatements()": "anyerror",
-        "visitFragments()": "anyerror",
-        "visitPackage()": "anyerror"
-      },
-      "open_error_set_uses": 4,
-      "propagation": {
-        "try": 26,
-        "catch": 10
-      },
-      "imports": [
-        "SourceDiagnostic.zig",
-        "Syntax.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-compiler/src/ProgramAnnotations.zig": {
-      "errors": {
-        "ApplicationHostUnavailable": 2,
-        "BuildEmissionMismatch": 1,
-        "BuildWorkLimit": 1,
-        "InvalidSourceOperand": 3,
-        "ProgramTooDeep": 1,
-        "ProgramTypeMismatch": 4,
-        "SourceDomainMismatch": 3,
-        "SourceTypeMismatch": 1,
-        "UnsupportedNominalOperation": 1
-      },
-      "outcomes": {
-        "Event.kind": [
-          "acquire",
-          "let",
-          "read",
-          "require",
-          "atomic_begin",
-          "atomic_end",
-          "branch_begin",
-          "branch_else",
-          "branch_end",
-          "insert",
-          "append",
-          "failure_begin",
-          "failure_end"
-        ],
-        "Expected": [
-          "scalar",
-          "row"
-        ],
-        "Obligation.target": [
-          "binding",
-          "span"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "agree()": "<inferred>",
-        "block()": "anyerror",
-        "check()": "<inferred>",
-        "checkExpected()": "anyerror",
-        "checkObligation()": "<inferred>",
-        "condition()": "<inferred>",
-        "convertNested()": "anyerror",
-        "event()": "<inferred>",
-        "expression()": "anyerror",
-        "node()": "<inferred>",
-        "ordinary()": "<inferred>",
-        "physical()": "<inferred>",
-        "project()": "anyerror",
-        "record()": "<inferred>",
-        "select()": "<inferred>",
-        "tick()": "<inferred>",
-        "write()": "<inferred>"
-      },
-      "open_error_set_uses": 5,
-      "propagation": {
-        "try": 85,
-        "catch": 0
-      },
-      "imports": [
-        "Graph.zig",
-        "SourceDiagnostic.zig",
-        "SourceTypes.zig",
-        "TypedOperands.zig",
-        "WorkingCatalog.zig",
-        "std",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/ProgramCheck.zig": {
-      "errors": {
-        "ApplicationHostUnavailable": 3,
-        "DuplicateProgramResource": 1,
-        "InvalidCatalogName": 2,
-        "ProgramTooComplex": 1,
-        "SourceTypeMismatch": 1,
-        "UnsupportedBuildProgramDependency": 1,
-        "UnsupportedProgramPartitioning": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "analyze()": "<inferred>",
-        "block()": "anyerror",
-        "check()": "<inferred>",
-        "resource()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 25,
-        "catch": 0
-      },
-      "imports": [
-        "Graph.zig",
-        "SourceTypes.zig",
-        "WorkingCatalog.zig",
-        "std",
-        "transit_protocol",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/ProgramLowering.zig": {
-      "errors": {
-        "BuildStatementLimit": 1,
-        "DuplicateProgramVariable": 3,
-        "ImpureSourceFunction": 4,
-        "InvalidParameterType": 13,
-        "InvalidQueuePredicate": 1,
-        "InvalidSourceName": 1,
-        "InvalidSourceOperand": 3,
-        "InvalidSourceSyntax": 8,
-        "MutationOutsideAtomic": 1,
-        "OutOfMemory": 1,
-        "ProcedureHasNoResult": 1,
-        "ProgramTypeMismatch": 7,
-        "RecursiveSourceCall": 5,
-        "ReferenceOnlyTableAccess": 7,
-        "RuntimePrivateOrUnsupportedDeclaration": 1,
-        "SourceArgumentCount": 2,
-        "SourceDepthLimit": 8,
-        "SourceParameterLimit": 1,
-        "SourceTypeMismatch": 37,
-        "UnexpectedProcedureReturn": 3,
-        "UnknownProgramField": 1,
-        "UnknownProgramResource": 2,
-        "UnknownProgramVariable": 1,
-        "UnknownSourceExport": 3,
-        "UnknownSourceOperand": 3,
-        "UnsupportedLogOperand": 1,
-        "UnsupportedNominalColumn": 1,
-        "UnsupportedProgramInstruction": 1
-      },
-      "outcomes": {
-        "Env.mode": [
-          "dataflow",
-          "function",
-          "guard",
-          "procedure"
-        ],
-        "ResourceOperandRole": [
-          "identifier",
-          "table",
-          "stream",
-          "queue"
-        ],
-        "builtinPurity().<enum>": [
-          "pure",
-          "impure",
-          "unknown"
-        ],
-        "builtinPurity().<enum>#2": [
-          "pure",
-          "impure"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "applyHoist()": "<inferred>",
-        "buildHelperRowParam()": "anyerror",
-        "buildSyntheticTable()": "<inferred>",
-        "consumeSemicolon()": "<inferred>",
-        "decodeProgramName()": "<inferred>",
-        "emitFixed()": "<inferred>",
-        "emitHoistedLet()": "<inferred>",
-        "emitOriginalToken()": "<inferred>",
-        "emitParamClosure()": "<inferred>",
-        "emitQualifiedName()": "<inferred>",
-        "emitQuotedIdentifier()": "<inferred>",
-        "emitQuotedRaw()": "<inferred>",
-        "emitResourceOperand()": "<inferred>",
-        "emitTableRef()": "<inferred>",
-        "emitValueHole()": "<inferred>",
-        "emitWordToken()": "<inferred>",
-        "expandFunctionCall()": "anyerror",
-        "freshHygienic()": "<inferred>",
-        "inlineHelperCall()": "anyerror",
-        "lowerArguments()": "anyerror",
-        "lowerBlock()": "anyerror",
-        "lowerExpression()": "anyerror",
-        "lowerGuardProgram()": "anyerror",
-        "lowerPrimary()": "anyerror",
-        "lowerProgram()": "<inferred>",
-        "parameterExpected()": "<inferred>",
-        "parameterScalar()": "<inferred>",
-        "parseCalleeRef()": "<inferred>",
-        "requireEmitSymbol()": "<inferred>",
-        "requireEmitWord()": "<inferred>",
-        "resolveBoundHelper()": "<inferred>",
-        "resolveLocalFunction()": "<inferred>",
-        "resolveQualifiedFunction()": "<inferred>",
-        "resolveResourceArgument()": "<inferred>",
-        "sliceCallArguments()": "<inferred>",
-        "unwrapCore()": "<inferred>",
-        "validateAll()": "<inferred>",
-        "validateFragmentBodies()": "<inferred>",
-        "validateFragmentCallGraph()": "<inferred>",
-        "validateHelperBody()": "<inferred>",
-        "validateHelperBody().check_fn.run()": "<inferred>",
-        "validateHelperRowFields()": "anyerror",
-        "validateSignatureColumns()": "<inferred>",
-        "validateUnusedQueueArg()": "<inferred>",
-        "validateUnusedQueueArg().run_check.run()": "<inferred>",
-        "visitCallGraph()": "anyerror"
-      },
-      "open_error_set_uses": 10,
-      "propagation": {
-        "try": 442,
-        "catch": 26
-      },
-      "imports": [
-        "Compiler.zig",
-        "Graph.zig",
-        "ProgramAnnotations.zig",
-        "ProgramCheck.zig",
-        "SourceTypes.zig",
-        "Syntax.zig",
-        "TypedOperands.zig",
-        "WorkingCatalog.zig",
-        "std",
-        "transit_protocol",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/ResourceOperands.zig": {
-      "errors": {
-        "ReferenceOnlyTableAccess": 2,
-        "SourceTypeMismatch": 5,
-        "UnknownSourceOperand": 1,
-        "UnsupportedLogOperand": 1
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "check()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "SourceTypes.zig",
-        "Template.zig",
-        "TypedOperands.zig",
-        "std"
-      ]
-    },
-    "packages/zig/transit-compiler/src/SourceDiagnostic.zig": {
-      "errors": {
-        "AccessDenied": 1,
-        "BuildArtifactMismatch": 1,
-        "BuildOutputExists": 1,
-        "ConflictingDependency": 1,
-        "ConflictingModuleInstance": 1,
-        "DuplicateDependency": 1,
-        "DuplicateDomainIdentity": 1,
-        "DuplicateProgramField": 2,
-        "DuplicateProgramResource": 2,
-        "DuplicateProgramVariable": 2,
-        "DuplicateSourceMatchArm": 1,
-        "DuplicateSourceName": 1,
-        "DuplicateTestCase": 1,
-        "EmptyBuildTarget": 1,
-        "EmptyTestCase": 1,
-        "EmptyTestTarget": 1,
-        "ExcludedSourcePath": 1,
-        "ExportOutsideModule": 1,
-        "FileNotFound": 1,
-        "ForeignTableExport": 1,
-        "ImpureSourceFunction": 2,
-        "IncompatibleSourceDefinition": 1,
-        "InvalidCatalogName": 1,
-        "InvalidDomainIdentity": 1,
-        "InvalidInstanceName": 1,
-        "InvalidQueuePredicate": 2,
-        "InvalidRepositoryRevision": 1,
-        "InvalidRowWidth": 1,
-        "InvalidSourceDigest": 1,
-        "InvalidSourceEncoding": 1,
-        "InvalidSourceLock": 1,
-        "InvalidSourceName": 1,
-        "InvalidSourcePath": 1,
-        "InvalidTestCount": 1,
-        "InvalidTestName": 1,
-        "InvalidTestStatement": 1,
-        "InvalidUtf8": 1,
-        "InvalidVariantConstructor": 1,
-        "IsDir": 1,
-        "LiteralOutOfRange": 1,
-        "MigrationBasisMismatch": 1,
-        "MigrationHistoryChanged": 1,
-        "MigrationNamespaceMismatch": 1,
-        "MigrationTransformRequired": 2,
-        "MigrationVersionOrder": 1,
-        "MissingBuildEntry": 1,
-        "MissingMigrationBasis": 1,
-        "MissingMigrationTarget": 1,
-        "MissingProcedureReturn": 2,
-        "MissingRequiredField": 2,
-        "MissingSource": 1,
-        "MissingSourceLock": 1,
-        "MissingSourceTarget": 1,
-        "ModuleInterfaceMismatch": 1,
-        "MutationInsideGuard": 2,
-        "MutationOutsideAtomic": 1,
-        "NestedAtomicProgram": 1,
-        "NestedTestCase": 1,
-        "NonExhaustiveSourceMatch": 1,
-        "NotDir": 1,
-        "NotModuleConstructor": 1,
-        "NotSourceDomain": 1,
-        "NullNotAllowed": 2,
-        "NullablePrimaryKey": 1,
-        "OutOfMemory": 2,
-        "Overflow": 1,
-        "PathAlreadyExists": 1,
-        "PermissionDenied": 1,
-        "PrivateSourceSymbol": 1,
-        "ProcedureHasNoResult": 2,
-        "ProcedureOutsideAtomic": 2,
-        "ProgramArgumentMismatch": 1,
-        "ProgramTooComplex": 2,
-        "ProgramTooDeep": 2,
-        "ProgramTypeMismatch": 1,
-        "RecursiveSourceCall": 2,
-        "ReferenceOnlyTableAccess": 2,
-        "RepositoryCredentialsForbidden": 1,
-        "RepositoryRevisionMismatch": 1,
-        "RuntimePrivateOrUnsupportedDeclaration": 1,
-        "SourceArgumentCount": 1,
-        "SourceDependencyCycle": 1,
-        "SourceDigestMismatch": 1,
-        "SourceDomainMismatch": 1,
-        "SourceImportCycle": 1,
-        "SourceTypeMismatch": 1,
-        "StaleSourceLock": 1,
-        "SymLinkLoop": 1,
-        "TableInterfaceMismatch": 1,
-        "TestAssertionOutsideCase": 1,
-        "TestCommandRequired": 1,
-        "TestInBuildTarget": 1,
-        "TestMutationRequired": 1,
-        "TestRowsRequired": 1,
-        "TestStatementOutsideCase": 1,
-        "UnbalancedSqlBlock": 1,
-        "UndeclaredDependency": 1,
-        "UndeclaredOverride": 1,
-        "UnexpectedProcedureReturn": 2,
-        "UnexportedModuleResource": 2,
-        "UnknownBuildProgram": 1,
-        "UnknownBuildSchema": 1,
-        "UnknownBuildTable": 1,
-        "UnknownColumn": 2,
-        "UnknownImport": 1,
-        "UnknownProgramField": 2,
-        "UnknownProgramResource": 2,
-        "UnknownProgramVariable": 2,
-        "UnknownSourceExport": 1,
-        "UnknownSourceOperand": 1,
-        "UnknownSourceSymbol": 1,
-        "UnknownVariantConstructor": 1,
-        "UnsupportedMigrationDefinition": 1,
-        "UnsupportedMigrationHistory": 1,
-        "UnsupportedNominalColumn": 2,
-        "UnsupportedNominalOperation": 2,
-        "UnsupportedRepositoryTransport": 1,
-        "UnsupportedSourceFileKind": 1,
-        "UnsupportedTestOption": 1,
-        "UnterminatedSqlToken": 1,
-        "WrongSourceTargetKind": 1
-      },
-      "outcomes": {
-        "Family": [
-          "entry",
-          "file_kind",
-          "path",
-          "encoding",
-          "syntax",
-          "import",
-          "target",
-          "domain",
-          "type",
-          "dependency",
-          "capability",
-          "limit",
-          "io",
-          "output",
-          "migration",
-          "internal"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 5,
-      "propagation": {
-        "try": 0,
-        "catch": 19
-      },
-      "imports": [
-        "std",
-        "transit_protocol"
-      ]
-    },
-    "packages/zig/transit-compiler/src/SourceTypes.zig": {
-      "errors": {
-        "BuildWorkLimit": 2,
-        "DuplicateDomainIdentity": 1,
-        "InvalidDomainIdentity": 1,
-        "InvalidVariantConstructor": 2,
-        "NotSourceDomain": 1,
-        "SourceDepthLimit": 1,
-        "SourceTypeMismatch": 1,
-        "TableInterfaceMismatch": 4,
-        "UnknownVariantConstructor": 1,
-        "UnsupportedVariantField": 1
-      },
-      "outcomes": {
-        "HelperKind": [
-          "function",
-          "guard",
-          "procedure"
-        ],
-        "Primitive": [
-          "integer",
-          "text",
-          "boolean",
-          "uuid",
-          "timestamptz",
-          "binary"
-        ],
-        "ResourceKind": [
-          "table",
-          "stream",
-          "queue"
-        ],
-        "Value": [
-          "integer",
-          "text",
-          "boolean",
-          "uuid",
-          "timestamptz",
-          "binary",
-          "identifier",
-          "schema_binding",
-          "type",
-          "module",
-          "helper",
-          "nominal",
-          "variant",
-          "row",
-          "table",
-          "reference_table",
-          "stream",
-          "queue",
-          "instance",
-          "symbolic"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "Value.primitive()": "<inferred>",
-        "constructor()": "<inferred>",
-        "domain()": "<inferred>",
-        "field()": "<inferred>",
-        "hashValue()": "<inferred>",
-        "resolve()": "<inferred>",
-        "signature()": "<inferred>",
-        "validate()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 19,
-        "catch": 0
-      },
-      "imports": [
-        "Graph.zig",
-        "SourceDiagnostic.zig",
-        "Syntax.zig",
-        "std",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/Syntax.zig": {
-      "errors": {
-        "DuplicateSourceName": 8,
-        "ImpureSourceFunction": 1,
-        "InvalidDomainIdentity": 1,
-        "InvalidMigrationVersion": 1,
-        "InvalidSourceName": 2,
-        "InvalidSourceSyntax": 26,
-        "InvalidTestCount": 3,
-        "InvalidTestName": 2,
-        "InvalidTestStatement": 1,
-        "MutationInsideGuard": 1,
-        "NullablePrimaryKey": 1,
-        "Overflow": 1,
-        "ProcedureOutsideAtomic": 1,
-        "RuntimePrivateOrUnsupportedDeclaration": 1,
-        "SourceConstructorLimit": 2,
-        "SourceDepthLimit": 4,
-        "SourceParameterLimit": 9,
-        "UnsupportedSourceDeclaration": 1,
-        "UnsupportedSourceType": 1,
-        "UnsupportedTestAssertion": 2,
-        "UnsupportedTestRefusal": 1
-      },
-      "outcomes": {
-        "Assertion.expected": [
-          "rows",
-          "command",
-          "refusal"
-        ],
-        "Assertion.expected.refusal": [
-          "duplicate_key",
-          "check_violation"
-        ],
-        "Binary": [
-          "add",
-          "subtract",
-          "multiply",
-          "equal",
-          "not_equal",
-          "less",
-          "less_equal",
-          "greater",
-          "greater_equal",
-          "and_",
-          "or_"
-        ],
-        "CaseModule": [
-          "call",
-          "reference"
-        ],
-        "Definition.kind": [
-          "module",
-          "interface",
-          "target",
-          "migration_target",
-          "test_target",
-          "target_alias",
-          "test_suite",
-          "domain",
-          "variant",
-          "function",
-          "guard",
-          "procedure"
-        ],
-        "ExportKind": [
-          "function",
-          "guard",
-          "procedure",
-          "view",
-          "dataflow",
-          "profile"
-        ],
-        "Expr.value": [
-          "integer",
-          "text",
-          "boolean",
-          "uuid",
-          "timestamptz",
-          "bytes",
-          "identifier",
-          "schema_binding",
-          "type",
-          "named_type",
-          "reference",
-          "construct",
-          "row",
-          "binary",
-          "unary"
-        ],
-        "Kind": [
-          "integer",
-          "text",
-          "boolean",
-          "uuid",
-          "timestamptz",
-          "binary",
-          "identifier",
-          "type",
-          "schema_binding",
-          "module",
-          "module_of",
-          "row",
-          "named",
-          "table",
-          "stream",
-          "queue"
-        ],
-        "ScalarType": [
-          "bigint",
-          "text",
-          "boolean",
-          "uuid",
-          "timestamptz",
-          "binary"
-        ],
-        "Statement.value": [
-          "use",
-          "use_module",
-          "declare_from",
-          "bind_schema",
-          "table_export",
-          "log_export",
-          "symbol_export",
-          "reference_export",
-          "match",
-          "conditional",
-          "sql",
-          "test_case",
-          "assertion",
-          "workflow"
-        ],
-        "Statement.value.log_export.kind": [
-          "stream",
-          "queue"
-        ],
-        "SuiteRef": [
-          "symbol",
-          "path"
-        ],
-        "TypeRef": [
-          "scalar",
-          "named"
-        ],
-        "parseBody().stop": [
-          "end",
-          "conditional",
-          "arm"
-        ],
-        "parseStatement().kind": [
-          "table",
-          "stream",
-          "queue"
-        ],
-        "parseStatement().kind#2": [
-          "rows",
-          "command",
-          "refusal"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "callAfterName()": "<inferred>",
-        "count()": "<inferred>",
-        "decodeString()": "<inferred>",
-        "expression()": "anyerror",
-        "identifier()": "<inferred>",
-        "parenthesized()": "<inferred>",
-        "parse()": "<inferred>",
-        "parseBody()": "anyerror",
-        "parseCall()": "<inferred>",
-        "parseCreateDefinition()": "<inferred>",
-        "parseExportTarget()": "<inferred>",
-        "parseMigrationClause()": "<inferred>",
-        "parseName()": "<inferred>",
-        "parseParameters()": "anyerror",
-        "parseReported()": "<inferred>",
-        "parseRowFields()": "<inferred>",
-        "parseStatement()": "anyerror",
-        "parseTwoPartName()": "<inferred>",
-        "require()": "<inferred>",
-        "requireArrow()": "<inferred>",
-        "scalarType()": "<inferred>",
-        "string()": "<inferred>",
-        "tableSignature()": "<inferred>",
-        "template()": "<inferred>",
-        "typeRef()": "<inferred>"
-      },
-      "open_error_set_uses": 4,
-      "propagation": {
-        "try": 295,
-        "catch": 9
-      },
-      "imports": [
-        "SourceDiagnostic.zig",
-        "Template.zig",
-        "std",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/Template.zig": {
-      "errors": {
-        "ImpureSourceFunction": 1,
-        "InvalidSourceName": 3,
-        "InvalidSourceOperand": 1,
-        "InvalidSourceTemplate": 1,
-        "MissingProcedureReturn": 1,
-        "MutationInsideGuard": 5,
-        "MutationOutsideAtomic": 4,
-        "NestedAtomicProgram": 1,
-        "RuntimePrivateOrUnsupportedDeclaration": 3,
-        "SourceDepthLimit": 1,
-        "UnexpectedProcedureReturn": 1,
-        "UnsupportedBuildStatement": 2,
-        "UnsupportedProgramInstruction": 1
-      },
-      "outcomes": {
-        "BlockMode": [
-          "dataflow",
-          "function",
-          "guard",
-          "procedure"
-        ],
-        "HelperKind": [
-          "function",
-          "guard",
-          "procedure"
-        ],
-        "Kind": [
-          "create",
-          "create_schema",
-          "insert",
-          "update",
-          "delete",
-          "select",
-          "rows",
-          "create_stream",
-          "create_queue",
-          "produce",
-          "enqueue",
-          "consume",
-          "program",
-          "control",
-          "function_body",
-          "guard_body",
-          "guard_requires",
-          "procedure_body"
-        ],
-        "Role": [
-          "identifier",
-          "type",
-          "value",
-          "operand",
-          "table",
-          "stream",
-          "queue"
-        ],
-        "dataType().<enum>": [
-          "fields",
-          "list",
-          "array",
-          "map",
-          "range",
-          "vector",
-          "double",
-          "character"
-        ]
-      },
-      "error_sets": {
-        "invalid().<error>": [
-          "InvalidSourceTemplate"
-        ]
-      },
-      "error_returns": {
-        "cast()": "<inferred>",
-        "check()": "<inferred>",
-        "comparison()": "<inferred>",
-        "conjunction()": "<inferred>",
-        "dataType()": "anyerror",
-        "enter()": "<inferred>",
-        "foreignKey()": "<inferred>",
-        "helperName()": "<inferred>",
-        "hole()": "<inferred>",
-        "literal()": "anyerror",
-        "name()": "<inferred>",
-        "negation()": "anyerror",
-        "nullable()": "<inferred>",
-        "parse()": "<inferred>",
-        "parseGuardRequiresReported()": "<inferred>",
-        "parseHelper()": "<inferred>",
-        "parseHelperReported()": "<inferred>",
-        "parseReported()": "<inferred>",
-        "predicate()": "anyerror",
-        "program()": "<inferred>",
-        "programArguments()": "anyerror",
-        "programBlock()": "anyerror",
-        "programExpression()": "anyerror",
-        "programName()": "<inferred>",
-        "programPrimary()": "anyerror",
-        "qualifiedName()": "<inferred>",
-        "reference()": "<inferred>",
-        "referencesClause()": "<inferred>",
-        "require()": "<inferred>",
-        "resourceName()": "<inferred>",
-        "rows()": "<inferred>",
-        "scalar()": "anyerror",
-        "select()": "<inferred>",
-        "selection()": "<inferred>",
-        "sourceWordName()": "<inferred>",
-        "statement()": "<inferred>",
-        "string()": "<inferred>",
-        "tableElement()": "<inferred>",
-        "timeZone()": "<inferred>",
-        "unsigned()": "<inferred>"
-      },
-      "open_error_set_uses": 9,
-      "propagation": {
-        "try": 290,
-        "catch": 7
-      },
-      "imports": [
-        "SourceDiagnostic.zig",
-        "std",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/TypedOperands.zig": {
-      "errors": {
-        "InvalidRowWidth": 1,
-        "InvalidSourceOperand": 3,
-        "InvalidSourceTypeOperand": 1,
-        "ReferenceOnlyTableAccess": 3,
-        "SourceDomainMismatch": 3,
-        "SourceTableBindingMismatch": 1,
-        "SourceTypeMismatch": 4,
-        "UnexportedModuleResource": 2,
-        "UnsupportedBuildStatement": 2,
-        "UnsupportedLogOperand": 1,
-        "UnsupportedNominalColumn": 2,
-        "UnsupportedNominalOperation": 4
-      },
-      "outcomes": {
-        "Operand.role": [
-          "assignment",
-          "predicate"
-        ]
-      },
-      "error_sets": {},
-      "error_returns": {
-        "check()": "<inferred>",
-        "checkReferenceAccess()": "<inferred>",
-        "checkResourceAccess()": "<inferred>",
-        "consume()": "<inferred>",
-        "declaration()": "<inferred>",
-        "insert()": "<inferred>",
-        "parameters()": "<inferred>",
-        "predicate()": "<inferred>",
-        "scalar()": "<inferred>",
-        "selection()": "<inferred>",
-        "target()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 70,
-        "catch": 0
-      },
-      "imports": [
-        "Graph.zig",
-        "ProgramAnnotations.zig",
-        "SourceDiagnostic.zig",
-        "SourceTypes.zig",
-        "WorkingCatalog.zig",
-        "std",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/WorkingCatalog.zig": {
-      "errors": {
-        "ConflictingModuleInstance": 3,
-        "InvalidSourceTypeOperand": 1,
-        "SourceTypeMismatch": 4,
-        "UnboundBuildParameter": 3,
-        "UnknownBuildProgram": 1,
-        "UnknownBuildSchema": 1,
-        "UnknownBuildTable": 1,
-        "UnsupportedBuildLogConfiguration": 1,
-        "UnsupportedBuildProgramControl": 1,
-        "UnsupportedBuildStatement": 6
-      },
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "FkContext.lookup()": "<inferred>",
-        "FkContext.lookupQualified()": "<inferred>",
-        "check()": "<inferred>",
-        "createLog()": "<inferred>",
-        "find()": "<inferred>",
-        "findQualified()": "<inferred>",
-        "findResource()": "<inferred>",
-        "findResourceQualified()": "<inferred>",
-        "querySchema()": "<inferred>",
-        "requireSchema()": "<inferred>",
-        "unused()": "<inferred>",
-        "verifyTypeOperands()": "<inferred>"
-      },
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 78,
-        "catch": 1
-      },
-      "imports": [
-        "Graph.zig",
-        "ProgramCheck.zig",
-        "SourceDiagnostic.zig",
-        "SourceTypes.zig",
-        "TypedOperands.zig",
-        "std",
-        "transit_protocol",
-        "transit_sql_frontend"
-      ]
-    },
-    "packages/zig/transit-compiler/src/root.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {},
-      "open_error_set_uses": 0,
-      "propagation": {
-        "try": 0,
-        "catch": 0
-      },
-      "imports": [
-        "CatalogDiff.zig",
-        "Compiler.zig",
-        "Format.zig",
-        "Graph.zig",
-        "SourceDiagnostic.zig",
-        "Syntax.zig",
-        "Test.zig"
-      ]
-    },
-    "packages/zig/transit-compiler/src/tests.zig": {
-      "errors": {},
-      "outcomes": {},
-      "error_sets": {},
-      "error_returns": {
-        "allocationFailure()": "<inferred>",
-        "allocationTestSuite()": "<inferred>",
-        "one()": "<inferred>",
-        "refuses()": "<inferred>",
-        "typedAllocationFailure()": "<inferred>"
-      },
-      "open_error_set_uses": 1,
-      "propagation": {
-        "try": 7,
-        "catch": 0
-      },
-      "imports": [
-        "root.zig",
-        "std",
         "transit_protocol"
       ]
     },
@@ -49689,16 +48213,7 @@
         "TestRowsLimit": 2,
         "TestUnexpectedStatementOwner": 1
       },
-      "outcomes": {
-        "Failure": [
-          "rows",
-          "counts",
-          "expected_refusal",
-          "refusal_reason",
-          "workflow_counts",
-          "workflow_progress"
-        ]
-      },
+      "outcomes": {},
       "error_sets": {},
       "error_returns": {
         "Bag.init()": "<inferred>",
@@ -50100,6 +48615,1572 @@
         "std",
         "testkit",
         "x509"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/CatalogDiff.zig": {
+      "errors": {
+        "DuplicateMigrationBinding": 4,
+        "IncompatibleMigrationBasis": 1,
+        "InvalidMigrationBasis": 5,
+        "InvalidMigrationVersion": 3,
+        "MigrationBasisMismatch": 20,
+        "MigrationHistoryChanged": 1,
+        "MigrationHistoryLimit": 4,
+        "MigrationNamespaceMismatch": 1,
+        "MigrationStepLimit": 4,
+        "MigrationTransformRequired": 8,
+        "MigrationVersionOrder": 1,
+        "MissingMigrationBasis": 1,
+        "MissingMigrationTarget": 1,
+        "OutOfMemory": 7,
+        "UnknownBuildTable": 1,
+        "UnsupportedMigrationDefinition": 5,
+        "UnsupportedMigrationHistory": 7
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "FkResolver.lookup()": "<inferred>",
+        "FkResolver.lookupQualified()": "<inferred>",
+        "build()": "<inferred>",
+        "create()": "<inferred>",
+        "equivalent()": "<inferred>",
+        "fileName()": "<inferred>",
+        "parseCreateSchema()": "<inferred>",
+        "replay()": "<inferred>",
+        "statement()": "<inferred>",
+        "table()": "<inferred>",
+        "writeQuotedIdent()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 56,
+        "catch": 9
+      },
+      "imports": [
+        "Compiler.zig",
+        "SourceDiagnostic.zig",
+        "TypedOperands.zig",
+        "std",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/Compiler.zig": {
+      "errors": {
+        "BuildEmissionMismatch": 1,
+        "BuildMemoryLimit": 3,
+        "BuildOutputLimit": 2,
+        "BuildStatementLimit": 3,
+        "BuildWorkLimit": 2,
+        "ConflictingModuleInstance": 1,
+        "DuplicateSourceMatchArm": 1,
+        "DuplicateSourceName": 13,
+        "DuplicateTestCase": 1,
+        "EmptyBuildTarget": 1,
+        "EmptyTestCase": 1,
+        "EmptyTestTarget": 1,
+        "ExportOutsideModule": 4,
+        "ForeignTableExport": 8,
+        "InvalidBuildBudget": 1,
+        "InvalidCatalogName": 2,
+        "InvalidCompilerIdentity": 1,
+        "InvalidDataflowTransition": 1,
+        "InvalidInstanceName": 1,
+        "InvalidMigrationBasisPath": 1,
+        "InvalidModuleInterface": 1,
+        "InvalidParameterType": 1,
+        "InvalidSourceName": 1,
+        "InvalidSourceOperand": 6,
+        "InvalidSourceSyntax": 1,
+        "MissingBuildEntry": 1,
+        "MissingSourceTarget": 3,
+        "ModuleInterfaceMismatch": 8,
+        "ModuleIsNotSqlOperand": 1,
+        "NestedTestCase": 1,
+        "NonExhaustiveSourceMatch": 1,
+        "NotModuleConstructor": 6,
+        "OutOfMemory": 6,
+        "ReferenceOnlyTableAccess": 7,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceArgumentCount": 4,
+        "SourceBytesLimit": 2,
+        "SourceDepthLimit": 11,
+        "SourceExportLimit": 4,
+        "SourceFileLimit": 1,
+        "SourceImportCycle": 2,
+        "SourceTypeMismatch": 47,
+        "TestActionLimit": 2,
+        "TestAssertionOutsideCase": 2,
+        "TestCaseLimit": 1,
+        "TestCommandRequired": 1,
+        "TestInBuildTarget": 1,
+        "TestMutationRequired": 1,
+        "TestObservationLimit": 1,
+        "TestResultBytesLimit": 1,
+        "TestRowsLimit": 1,
+        "TestRowsRequired": 1,
+        "TestStatementOutsideCase": 1,
+        "UnknownBuildProgram": 1,
+        "UnknownColumn": 1,
+        "UnknownSourceExport": 3,
+        "UnknownSourceOperand": 3,
+        "UnknownSourceSymbol": 4,
+        "UnsupportedRecursiveExports": 1,
+        "UnsupportedSourceDeclaration": 6,
+        "UnsupportedSymbolicProgram": 2,
+        "UnsupportedSymbolicSchema": 2,
+        "UnsupportedTestOption": 1,
+        "WrongSourceTargetKind": 3
+      },
+      "outcomes": {
+        "Options.mode": [
+          "build",
+          "test_suite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "BoundedBuffer.print()": "<inferred>",
+        "BoundedBuffer.writeAll()": "<inferred>",
+        "BoundedBuffer.writeByte()": "<inferred>",
+        "Step.jsonStringify()": "std . Io . Writer . Error",
+        "argument()": "<inferred>",
+        "argumentDepth()": "anyerror",
+        "assertion()": "<inferred>",
+        "body()": "anyerror",
+        "bodyInline()": "anyerror",
+        "checkBody()": "<inferred>",
+        "checkTargetComposition()": "<inferred>",
+        "compile()": "<inferred>",
+        "compileInner()": "<inferred>",
+        "construct()": "<inferred>",
+        "declareFrom()": "anyerror",
+        "emit()": "<inferred>",
+        "emitStatement()": "<inferred>",
+        "evaluateTargetComposition()": "<inferred>",
+        "expand()": "<inferred>",
+        "expression()": "anyerror",
+        "fork()": "<inferred>",
+        "freshBinding()": "<inferred>",
+        "invoke()": "anyerror",
+        "match()": "<inferred>",
+        "mergeInstanceSchemas()": "<inferred>",
+        "mergeModuleExport()": "<inferred>",
+        "projectField()": "<inferred>",
+        "quoted()": "<inferred>",
+        "reference()": "<inferred>",
+        "resolve()": "<inferred>",
+        "resolveExportedHelper()": "<inferred>",
+        "resolveTarget()": "<inferred>",
+        "run()": "<inferred>",
+        "sameParameterKind()": "anyerror",
+        "selectTargetName()": "<inferred>",
+        "signature()": "anyerror",
+        "testCase()": "<inferred>",
+        "tick()": "<inferred>",
+        "useModule()": "<inferred>",
+        "validateDefaults()": "<inferred>",
+        "validateInterfaces()": "<inferred>",
+        "validateParameterKind()": "anyerror",
+        "verify()": "<inferred>",
+        "workflow()": "<inferred>",
+        "writeValue()": "<inferred>"
+      },
+      "open_error_set_uses": 10,
+      "propagation": {
+        "try": 241,
+        "catch": 29
+      },
+      "imports": [
+        "Graph.zig",
+        "ProgramAnnotations.zig",
+        "ProgramCheck.zig",
+        "ProgramLowering.zig",
+        "ResourceOperands.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "Syntax.zig",
+        "Test.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_memory",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/Format.zig": {
+      "errors": {
+        "SourceDepthLimit": 4
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "body()": "anyerror",
+        "call()": "<inferred>",
+        "callDepth()": "anyerror",
+        "definition()": "<inferred>",
+        "expr()": "anyerror",
+        "indent()": "<inferred>",
+        "kind()": "anyerror",
+        "migrationClause()": "<inferred>",
+        "name()": "<inferred>",
+        "statement()": "anyerror",
+        "string()": "<inferred>",
+        "template()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 237,
+        "catch": 0
+      },
+      "imports": [
+        "Syntax.zig",
+        "std"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/Graph.zig": {
+      "errors": {
+        "ConflictingDependency": 1,
+        "DuplicateDependency": 1,
+        "DuplicateSourceFile": 2,
+        "DuplicateSourceName": 7,
+        "ExcludedSourcePath": 3,
+        "InvalidPackageName": 2,
+        "InvalidRepository": 2,
+        "InvalidRepositoryRevision": 2,
+        "InvalidSourceName": 1,
+        "InvalidSourcePath": 9,
+        "MissingSource": 7,
+        "PrivateSourceSymbol": 1,
+        "RepositoryCredentialsForbidden": 1,
+        "ReservedPackageName": 1,
+        "SourceBytesLimit": 2,
+        "SourceDependencyCycle": 2,
+        "SourceDependencyLimit": 1,
+        "SourceDepthLimit": 8,
+        "SourceFileLimit": 1,
+        "SourceImportCycle": 4,
+        "UndeclaredDependency": 2,
+        "UnknownImport": 1,
+        "UnknownSourceSymbol": 3,
+        "UnsupportedRepositoryTransport": 1,
+        "UnsupportedSourceDeclaration": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "importPath()": "<inferred>",
+        "imported()": "<inferred>",
+        "init()": "<inferred>",
+        "initReported()": "<inferred>",
+        "localFile()": "<inferred>",
+        "resolve()": "<inferred>",
+        "resolvePackageSubpath()": "<inferred>",
+        "resolveReported()": "<inferred>",
+        "resolveSourcePath()": "<inferred>",
+        "resolveSubpath()": "<inferred>",
+        "resolveWorkspaceSubpath()": "<inferred>",
+        "selectedPath()": "<inferred>",
+        "treeDigest()": "<inferred>",
+        "validPackage()": "<inferred>",
+        "validPath()": "<inferred>",
+        "validateDependency()": "<inferred>",
+        "visit()": "anyerror",
+        "visitFragmentStatements()": "anyerror",
+        "visitFragments()": "anyerror",
+        "visitPackage()": "anyerror"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 26,
+        "catch": 10
+      },
+      "imports": [
+        "SourceDiagnostic.zig",
+        "Syntax.zig",
+        "std"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/ProgramAnnotations.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 2,
+        "BuildEmissionMismatch": 1,
+        "BuildWorkLimit": 1,
+        "InvalidSourceOperand": 3,
+        "ProgramTooDeep": 1,
+        "ProgramTypeMismatch": 4,
+        "SourceDomainMismatch": 3,
+        "SourceTypeMismatch": 1,
+        "UnsupportedNominalOperation": 1
+      },
+      "outcomes": {
+        "Event.kind": [
+          "acquire",
+          "let",
+          "read",
+          "require",
+          "atomic_begin",
+          "atomic_end",
+          "branch_begin",
+          "branch_else",
+          "branch_end",
+          "insert",
+          "append",
+          "failure_begin",
+          "failure_end"
+        ],
+        "Expected": [
+          "scalar",
+          "row"
+        ],
+        "Obligation.target": [
+          "binding",
+          "span"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "agree()": "<inferred>",
+        "block()": "anyerror",
+        "check()": "<inferred>",
+        "checkExpected()": "anyerror",
+        "checkObligation()": "<inferred>",
+        "condition()": "<inferred>",
+        "convertNested()": "anyerror",
+        "event()": "<inferred>",
+        "expression()": "anyerror",
+        "node()": "<inferred>",
+        "ordinary()": "<inferred>",
+        "physical()": "<inferred>",
+        "project()": "anyerror",
+        "record()": "<inferred>",
+        "select()": "<inferred>",
+        "tick()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 85,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/ProgramCheck.zig": {
+      "errors": {
+        "ApplicationHostUnavailable": 3,
+        "DuplicateProgramResource": 1,
+        "InvalidCatalogName": 2,
+        "ProgramTooComplex": 1,
+        "SourceTypeMismatch": 1,
+        "UnsupportedBuildProgramDependency": 1,
+        "UnsupportedProgramPartitioning": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "analyze()": "<inferred>",
+        "block()": "anyerror",
+        "check()": "<inferred>",
+        "resource()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 25,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceTypes.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/ProgramLowering.zig": {
+      "errors": {
+        "BuildStatementLimit": 1,
+        "DuplicateProgramVariable": 3,
+        "ImpureSourceFunction": 4,
+        "InvalidParameterType": 13,
+        "InvalidQueuePredicate": 1,
+        "InvalidSourceName": 1,
+        "InvalidSourceOperand": 3,
+        "InvalidSourceSyntax": 8,
+        "MutationOutsideAtomic": 1,
+        "OutOfMemory": 1,
+        "ProcedureHasNoResult": 1,
+        "ProgramTypeMismatch": 7,
+        "RecursiveSourceCall": 5,
+        "ReferenceOnlyTableAccess": 7,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceArgumentCount": 2,
+        "SourceDepthLimit": 8,
+        "SourceParameterLimit": 1,
+        "SourceTypeMismatch": 37,
+        "UnexpectedProcedureReturn": 3,
+        "UnknownProgramField": 1,
+        "UnknownProgramResource": 2,
+        "UnknownProgramVariable": 1,
+        "UnknownSourceExport": 3,
+        "UnknownSourceOperand": 3,
+        "UnsupportedLogOperand": 1,
+        "UnsupportedNominalColumn": 1,
+        "UnsupportedProgramInstruction": 1
+      },
+      "outcomes": {
+        "Env.mode": [
+          "dataflow",
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "ResourceOperandRole": [
+          "identifier",
+          "table",
+          "stream",
+          "queue"
+        ],
+        "builtinPurity().<enum>": [
+          "pure",
+          "impure",
+          "unknown"
+        ],
+        "builtinPurity().<enum>#2": [
+          "pure",
+          "impure"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "applyHoist()": "<inferred>",
+        "buildHelperRowParam()": "anyerror",
+        "buildSyntheticTable()": "<inferred>",
+        "consumeSemicolon()": "<inferred>",
+        "decodeProgramName()": "<inferred>",
+        "emitFixed()": "<inferred>",
+        "emitHoistedLet()": "<inferred>",
+        "emitOriginalToken()": "<inferred>",
+        "emitParamClosure()": "<inferred>",
+        "emitQualifiedName()": "<inferred>",
+        "emitQuotedIdentifier()": "<inferred>",
+        "emitQuotedRaw()": "<inferred>",
+        "emitResourceOperand()": "<inferred>",
+        "emitTableRef()": "<inferred>",
+        "emitValueHole()": "<inferred>",
+        "emitWordToken()": "<inferred>",
+        "expandFunctionCall()": "anyerror",
+        "freshHygienic()": "<inferred>",
+        "inlineHelperCall()": "anyerror",
+        "lowerArguments()": "anyerror",
+        "lowerBlock()": "anyerror",
+        "lowerExpression()": "anyerror",
+        "lowerGuardProgram()": "anyerror",
+        "lowerPrimary()": "anyerror",
+        "lowerProgram()": "<inferred>",
+        "parameterExpected()": "<inferred>",
+        "parameterScalar()": "<inferred>",
+        "parseCalleeRef()": "<inferred>",
+        "requireEmitSymbol()": "<inferred>",
+        "requireEmitWord()": "<inferred>",
+        "resolveBoundHelper()": "<inferred>",
+        "resolveLocalFunction()": "<inferred>",
+        "resolveQualifiedFunction()": "<inferred>",
+        "resolveResourceArgument()": "<inferred>",
+        "sliceCallArguments()": "<inferred>",
+        "unwrapCore()": "<inferred>",
+        "validateAll()": "<inferred>",
+        "validateFragmentBodies()": "<inferred>",
+        "validateFragmentCallGraph()": "<inferred>",
+        "validateHelperBody()": "<inferred>",
+        "validateHelperBody().check_fn.run()": "<inferred>",
+        "validateHelperRowFields()": "anyerror",
+        "validateSignatureColumns()": "<inferred>",
+        "validateUnusedQueueArg()": "<inferred>",
+        "validateUnusedQueueArg().run_check.run()": "<inferred>",
+        "visitCallGraph()": "anyerror"
+      },
+      "open_error_set_uses": 10,
+      "propagation": {
+        "try": 442,
+        "catch": 26
+      },
+      "imports": [
+        "Compiler.zig",
+        "Graph.zig",
+        "ProgramAnnotations.zig",
+        "ProgramCheck.zig",
+        "SourceTypes.zig",
+        "Syntax.zig",
+        "TypedOperands.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/ResourceOperands.zig": {
+      "errors": {
+        "ReferenceOnlyTableAccess": 2,
+        "SourceTypeMismatch": 5,
+        "UnknownSourceOperand": 1,
+        "UnsupportedLogOperand": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "SourceTypes.zig",
+        "Template.zig",
+        "TypedOperands.zig",
+        "std"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/SourceDiagnostic.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "BuildArtifactMismatch": 1,
+        "BuildOutputExists": 1,
+        "ConflictingDependency": 1,
+        "ConflictingModuleInstance": 1,
+        "DuplicateDependency": 1,
+        "DuplicateDomainIdentity": 1,
+        "DuplicateProgramField": 2,
+        "DuplicateProgramResource": 2,
+        "DuplicateProgramVariable": 2,
+        "DuplicateSourceMatchArm": 1,
+        "DuplicateSourceName": 1,
+        "DuplicateTestCase": 1,
+        "EmptyBuildTarget": 1,
+        "EmptyTestCase": 1,
+        "EmptyTestTarget": 1,
+        "ExcludedSourcePath": 1,
+        "ExportOutsideModule": 1,
+        "FileNotFound": 1,
+        "ForeignTableExport": 1,
+        "ImpureSourceFunction": 2,
+        "IncompatibleSourceDefinition": 1,
+        "InvalidCatalogName": 1,
+        "InvalidDomainIdentity": 1,
+        "InvalidInstanceName": 1,
+        "InvalidQueuePredicate": 2,
+        "InvalidRepositoryRevision": 1,
+        "InvalidRowWidth": 1,
+        "InvalidSourceDigest": 1,
+        "InvalidSourceEncoding": 1,
+        "InvalidSourceLock": 1,
+        "InvalidSourceName": 1,
+        "InvalidSourcePath": 1,
+        "InvalidTestCount": 1,
+        "InvalidTestName": 1,
+        "InvalidTestStatement": 1,
+        "InvalidUtf8": 1,
+        "InvalidVariantConstructor": 1,
+        "IsDir": 1,
+        "LiteralOutOfRange": 1,
+        "MigrationBasisMismatch": 1,
+        "MigrationHistoryChanged": 1,
+        "MigrationNamespaceMismatch": 1,
+        "MigrationTransformRequired": 2,
+        "MigrationVersionOrder": 1,
+        "MissingBuildEntry": 1,
+        "MissingMigrationBasis": 1,
+        "MissingMigrationTarget": 1,
+        "MissingProcedureReturn": 2,
+        "MissingRequiredField": 2,
+        "MissingSource": 1,
+        "MissingSourceLock": 1,
+        "MissingSourceTarget": 1,
+        "ModuleInterfaceMismatch": 1,
+        "MutationInsideGuard": 2,
+        "MutationOutsideAtomic": 1,
+        "NestedAtomicProgram": 1,
+        "NestedTestCase": 1,
+        "NonExhaustiveSourceMatch": 1,
+        "NotDir": 1,
+        "NotModuleConstructor": 1,
+        "NotSourceDomain": 1,
+        "NullNotAllowed": 2,
+        "NullablePrimaryKey": 1,
+        "OutOfMemory": 2,
+        "Overflow": 1,
+        "PathAlreadyExists": 1,
+        "PermissionDenied": 1,
+        "PrivateSourceSymbol": 1,
+        "ProcedureHasNoResult": 2,
+        "ProcedureOutsideAtomic": 2,
+        "ProgramArgumentMismatch": 1,
+        "ProgramTooComplex": 2,
+        "ProgramTooDeep": 2,
+        "ProgramTypeMismatch": 1,
+        "RecursiveSourceCall": 2,
+        "ReferenceOnlyTableAccess": 2,
+        "RepositoryCredentialsForbidden": 1,
+        "RepositoryRevisionMismatch": 1,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceArgumentCount": 1,
+        "SourceDependencyCycle": 1,
+        "SourceDigestMismatch": 1,
+        "SourceDomainMismatch": 1,
+        "SourceImportCycle": 1,
+        "SourceTypeMismatch": 1,
+        "StaleSourceLock": 1,
+        "SymLinkLoop": 1,
+        "TableInterfaceMismatch": 1,
+        "TestAssertionOutsideCase": 1,
+        "TestCommandRequired": 1,
+        "TestInBuildTarget": 1,
+        "TestMutationRequired": 1,
+        "TestRowsRequired": 1,
+        "TestStatementOutsideCase": 1,
+        "UnbalancedSqlBlock": 1,
+        "UndeclaredDependency": 1,
+        "UndeclaredOverride": 1,
+        "UnexpectedProcedureReturn": 2,
+        "UnexportedModuleResource": 2,
+        "UnknownBuildProgram": 1,
+        "UnknownBuildSchema": 1,
+        "UnknownBuildTable": 1,
+        "UnknownColumn": 2,
+        "UnknownImport": 1,
+        "UnknownProgramField": 2,
+        "UnknownProgramResource": 2,
+        "UnknownProgramVariable": 2,
+        "UnknownSourceExport": 1,
+        "UnknownSourceOperand": 1,
+        "UnknownSourceSymbol": 1,
+        "UnknownVariantConstructor": 1,
+        "UnsupportedMigrationDefinition": 1,
+        "UnsupportedMigrationHistory": 1,
+        "UnsupportedNominalColumn": 2,
+        "UnsupportedNominalOperation": 2,
+        "UnsupportedRepositoryTransport": 1,
+        "UnsupportedSourceFileKind": 1,
+        "UnsupportedTestOption": 1,
+        "UnterminatedSqlToken": 1,
+        "WrongSourceTargetKind": 1
+      },
+      "outcomes": {
+        "Family": [
+          "entry",
+          "file_kind",
+          "path",
+          "encoding",
+          "syntax",
+          "import",
+          "target",
+          "domain",
+          "type",
+          "dependency",
+          "capability",
+          "limit",
+          "io",
+          "output",
+          "migration",
+          "internal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 5,
+      "propagation": {
+        "try": 0,
+        "catch": 19
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/SourceTypes.zig": {
+      "errors": {
+        "BuildWorkLimit": 2,
+        "DuplicateDomainIdentity": 1,
+        "InvalidDomainIdentity": 1,
+        "InvalidVariantConstructor": 2,
+        "NotSourceDomain": 1,
+        "SourceDepthLimit": 1,
+        "SourceTypeMismatch": 1,
+        "TableInterfaceMismatch": 4,
+        "UnknownVariantConstructor": 1,
+        "UnsupportedVariantField": 1
+      },
+      "outcomes": {
+        "HelperKind": [
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "Primitive": [
+          "integer",
+          "text",
+          "boolean",
+          "uuid",
+          "timestamptz",
+          "binary"
+        ],
+        "ResourceKind": [
+          "table",
+          "stream",
+          "queue"
+        ],
+        "Value": [
+          "integer",
+          "text",
+          "boolean",
+          "uuid",
+          "timestamptz",
+          "binary",
+          "identifier",
+          "schema_binding",
+          "type",
+          "module",
+          "helper",
+          "nominal",
+          "variant",
+          "row",
+          "table",
+          "reference_table",
+          "stream",
+          "queue",
+          "instance",
+          "symbolic"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "Value.primitive()": "<inferred>",
+        "constructor()": "<inferred>",
+        "domain()": "<inferred>",
+        "field()": "<inferred>",
+        "hashValue()": "<inferred>",
+        "resolve()": "<inferred>",
+        "signature()": "<inferred>",
+        "validate()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 19,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "SourceDiagnostic.zig",
+        "Syntax.zig",
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/Syntax.zig": {
+      "errors": {
+        "DuplicateSourceName": 8,
+        "ImpureSourceFunction": 1,
+        "InvalidDomainIdentity": 1,
+        "InvalidMigrationVersion": 1,
+        "InvalidSourceName": 2,
+        "InvalidSourceSyntax": 26,
+        "InvalidTestCount": 3,
+        "InvalidTestName": 2,
+        "InvalidTestStatement": 1,
+        "MutationInsideGuard": 1,
+        "NullablePrimaryKey": 1,
+        "Overflow": 1,
+        "ProcedureOutsideAtomic": 1,
+        "RuntimePrivateOrUnsupportedDeclaration": 1,
+        "SourceConstructorLimit": 2,
+        "SourceDepthLimit": 4,
+        "SourceParameterLimit": 9,
+        "UnsupportedSourceDeclaration": 1,
+        "UnsupportedSourceType": 1,
+        "UnsupportedTestAssertion": 2,
+        "UnsupportedTestRefusal": 1
+      },
+      "outcomes": {
+        "Assertion.expected": [
+          "rows",
+          "command",
+          "refusal"
+        ],
+        "Assertion.expected.refusal": [
+          "duplicate_key",
+          "check_violation"
+        ],
+        "Binary": [
+          "add",
+          "subtract",
+          "multiply",
+          "equal",
+          "not_equal",
+          "less",
+          "less_equal",
+          "greater",
+          "greater_equal",
+          "and_",
+          "or_"
+        ],
+        "CaseModule": [
+          "call",
+          "reference"
+        ],
+        "Definition.kind": [
+          "module",
+          "interface",
+          "target",
+          "migration_target",
+          "test_target",
+          "target_alias",
+          "test_suite",
+          "domain",
+          "variant",
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "ExportKind": [
+          "function",
+          "guard",
+          "procedure",
+          "view",
+          "dataflow",
+          "profile"
+        ],
+        "Expr.value": [
+          "integer",
+          "text",
+          "boolean",
+          "uuid",
+          "timestamptz",
+          "bytes",
+          "identifier",
+          "schema_binding",
+          "type",
+          "named_type",
+          "reference",
+          "construct",
+          "row",
+          "binary",
+          "unary"
+        ],
+        "Kind": [
+          "integer",
+          "text",
+          "boolean",
+          "uuid",
+          "timestamptz",
+          "binary",
+          "identifier",
+          "type",
+          "schema_binding",
+          "module",
+          "module_of",
+          "row",
+          "named",
+          "table",
+          "stream",
+          "queue"
+        ],
+        "ScalarType": [
+          "bigint",
+          "text",
+          "boolean",
+          "uuid",
+          "timestamptz",
+          "binary"
+        ],
+        "Statement.value": [
+          "use",
+          "use_module",
+          "declare_from",
+          "bind_schema",
+          "table_export",
+          "log_export",
+          "symbol_export",
+          "reference_export",
+          "match",
+          "conditional",
+          "sql",
+          "test_case",
+          "assertion",
+          "workflow"
+        ],
+        "Statement.value.log_export.kind": [
+          "stream",
+          "queue"
+        ],
+        "SuiteRef": [
+          "symbol",
+          "path"
+        ],
+        "TypeRef": [
+          "scalar",
+          "named"
+        ],
+        "parseBody().stop": [
+          "end",
+          "conditional",
+          "arm"
+        ],
+        "parseStatement().kind": [
+          "table",
+          "stream",
+          "queue"
+        ],
+        "parseStatement().kind#2": [
+          "rows",
+          "command",
+          "refusal"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "callAfterName()": "<inferred>",
+        "count()": "<inferred>",
+        "decodeString()": "<inferred>",
+        "expression()": "anyerror",
+        "identifier()": "<inferred>",
+        "parenthesized()": "<inferred>",
+        "parse()": "<inferred>",
+        "parseBody()": "anyerror",
+        "parseCall()": "<inferred>",
+        "parseCreateDefinition()": "<inferred>",
+        "parseExportTarget()": "<inferred>",
+        "parseMigrationClause()": "<inferred>",
+        "parseName()": "<inferred>",
+        "parseParameters()": "anyerror",
+        "parseReported()": "<inferred>",
+        "parseRowFields()": "<inferred>",
+        "parseStatement()": "anyerror",
+        "parseTwoPartName()": "<inferred>",
+        "require()": "<inferred>",
+        "requireArrow()": "<inferred>",
+        "scalarType()": "<inferred>",
+        "string()": "<inferred>",
+        "tableSignature()": "<inferred>",
+        "template()": "<inferred>",
+        "typeRef()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 295,
+        "catch": 9
+      },
+      "imports": [
+        "SourceDiagnostic.zig",
+        "Template.zig",
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/Template.zig": {
+      "errors": {
+        "ImpureSourceFunction": 1,
+        "InvalidSourceName": 3,
+        "InvalidSourceOperand": 1,
+        "InvalidSourceTemplate": 1,
+        "MissingProcedureReturn": 1,
+        "MutationInsideGuard": 5,
+        "MutationOutsideAtomic": 4,
+        "NestedAtomicProgram": 1,
+        "RuntimePrivateOrUnsupportedDeclaration": 3,
+        "SourceDepthLimit": 1,
+        "UnexpectedProcedureReturn": 1,
+        "UnsupportedBuildStatement": 2,
+        "UnsupportedProgramInstruction": 1
+      },
+      "outcomes": {
+        "BlockMode": [
+          "dataflow",
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "HelperKind": [
+          "function",
+          "guard",
+          "procedure"
+        ],
+        "Kind": [
+          "create",
+          "create_schema",
+          "insert",
+          "update",
+          "delete",
+          "select",
+          "rows",
+          "create_stream",
+          "create_queue",
+          "produce",
+          "enqueue",
+          "consume",
+          "program",
+          "control",
+          "function_body",
+          "guard_body",
+          "guard_requires",
+          "procedure_body"
+        ],
+        "Role": [
+          "identifier",
+          "type",
+          "value",
+          "operand",
+          "table",
+          "stream",
+          "queue"
+        ],
+        "dataType().<enum>": [
+          "fields",
+          "list",
+          "array",
+          "map",
+          "range",
+          "vector",
+          "double",
+          "character"
+        ]
+      },
+      "error_sets": {
+        "invalid().<error>": [
+          "InvalidSourceTemplate"
+        ]
+      },
+      "error_returns": {
+        "cast()": "<inferred>",
+        "check()": "<inferred>",
+        "comparison()": "<inferred>",
+        "conjunction()": "<inferred>",
+        "dataType()": "anyerror",
+        "enter()": "<inferred>",
+        "foreignKey()": "<inferred>",
+        "helperName()": "<inferred>",
+        "hole()": "<inferred>",
+        "literal()": "anyerror",
+        "name()": "<inferred>",
+        "negation()": "anyerror",
+        "nullable()": "<inferred>",
+        "parse()": "<inferred>",
+        "parseGuardRequiresReported()": "<inferred>",
+        "parseHelper()": "<inferred>",
+        "parseHelperReported()": "<inferred>",
+        "parseReported()": "<inferred>",
+        "predicate()": "anyerror",
+        "program()": "<inferred>",
+        "programArguments()": "anyerror",
+        "programBlock()": "anyerror",
+        "programExpression()": "anyerror",
+        "programName()": "<inferred>",
+        "programPrimary()": "anyerror",
+        "qualifiedName()": "<inferred>",
+        "reference()": "<inferred>",
+        "referencesClause()": "<inferred>",
+        "require()": "<inferred>",
+        "resourceName()": "<inferred>",
+        "rows()": "<inferred>",
+        "scalar()": "anyerror",
+        "select()": "<inferred>",
+        "selection()": "<inferred>",
+        "sourceWordName()": "<inferred>",
+        "statement()": "<inferred>",
+        "string()": "<inferred>",
+        "tableElement()": "<inferred>",
+        "timeZone()": "<inferred>",
+        "unsigned()": "<inferred>"
+      },
+      "open_error_set_uses": 9,
+      "propagation": {
+        "try": 290,
+        "catch": 7
+      },
+      "imports": [
+        "SourceDiagnostic.zig",
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/TypedOperands.zig": {
+      "errors": {
+        "InvalidRowWidth": 1,
+        "InvalidSourceOperand": 3,
+        "InvalidSourceTypeOperand": 1,
+        "ReferenceOnlyTableAccess": 3,
+        "SourceDomainMismatch": 3,
+        "SourceTableBindingMismatch": 1,
+        "SourceTypeMismatch": 4,
+        "UnexportedModuleResource": 2,
+        "UnsupportedBuildStatement": 2,
+        "UnsupportedLogOperand": 1,
+        "UnsupportedNominalColumn": 2,
+        "UnsupportedNominalOperation": 4
+      },
+      "outcomes": {
+        "Operand.role": [
+          "assignment",
+          "predicate"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "check()": "<inferred>",
+        "checkReferenceAccess()": "<inferred>",
+        "checkResourceAccess()": "<inferred>",
+        "consume()": "<inferred>",
+        "declaration()": "<inferred>",
+        "insert()": "<inferred>",
+        "parameters()": "<inferred>",
+        "predicate()": "<inferred>",
+        "scalar()": "<inferred>",
+        "selection()": "<inferred>",
+        "target()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 70,
+        "catch": 0
+      },
+      "imports": [
+        "Graph.zig",
+        "ProgramAnnotations.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "WorkingCatalog.zig",
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/WorkingCatalog.zig": {
+      "errors": {
+        "ConflictingModuleInstance": 3,
+        "InvalidSourceTypeOperand": 1,
+        "SourceTypeMismatch": 4,
+        "UnboundBuildParameter": 3,
+        "UnknownBuildProgram": 1,
+        "UnknownBuildSchema": 1,
+        "UnknownBuildTable": 1,
+        "UnsupportedBuildLogConfiguration": 1,
+        "UnsupportedBuildProgramControl": 1,
+        "UnsupportedBuildStatement": 6
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "FkContext.lookup()": "<inferred>",
+        "FkContext.lookupQualified()": "<inferred>",
+        "check()": "<inferred>",
+        "createLog()": "<inferred>",
+        "find()": "<inferred>",
+        "findQualified()": "<inferred>",
+        "findResource()": "<inferred>",
+        "findResourceQualified()": "<inferred>",
+        "querySchema()": "<inferred>",
+        "requireSchema()": "<inferred>",
+        "unused()": "<inferred>",
+        "verifyTypeOperands()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 78,
+        "catch": 1
+      },
+      "imports": [
+        "Graph.zig",
+        "ProgramCheck.zig",
+        "SourceDiagnostic.zig",
+        "SourceTypes.zig",
+        "TypedOperands.zig",
+        "std",
+        "transit_protocol",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "CatalogDiff.zig",
+        "Compiler.zig",
+        "Format.zig",
+        "Graph.zig",
+        "SourceDiagnostic.zig",
+        "Syntax.zig",
+        "Test.zig"
+      ]
+    },
+    "third_party/transitc/packages/transitc-compiler/src/tests.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "allocationFailure()": "<inferred>",
+        "allocationTestSuite()": "<inferred>",
+        "one()": "<inferred>",
+        "refuses()": "<inferred>",
+        "typedAllocationFailure()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 7,
+        "catch": 0
+      },
+      "imports": [
+        "root.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/Build.zig": {
+      "errors": {
+        "BuildArtifactMismatch": 4,
+        "BuildProvenanceLimit": 1,
+        "BuildToolingMemoryLimit": 1,
+        "CompilerArtifactChanged": 2,
+        "CompilerArtifactLimit": 1,
+        "FileNotFound": 1,
+        "InvalidBuildOutput": 1,
+        "InvalidSourcePath": 1,
+        "MissingBuildEntry": 1,
+        "OutOfMemory": 1,
+        "PathAlreadyExists": 2
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "emitFailure()": "<inferred>",
+        "executableDigest()": "<inferred>",
+        "execute()": "<inferred>",
+        "publish()": "<inferred>",
+        "report()": "<inferred>",
+        "run()": "<inferred>"
+      },
+      "open_error_set_uses": 1,
+      "propagation": {
+        "try": 45,
+        "catch": 9
+      },
+      "imports": [
+        "BuildMigration.zig",
+        "BuildOptions.zig",
+        "BuildReport.zig",
+        "BuildSources.zig",
+        "Diagnostic.zig",
+        "Style.zig",
+        "std",
+        "transit_compiler",
+        "transit_memory",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/BuildMigration.zig": {
+      "errors": {
+        "IncompatibleMigrationBasis": 1,
+        "InvalidMigrationBasis": 1,
+        "InvalidMigrationBasisPath": 3,
+        "MigrationBasisMismatch": 4,
+        "MigrationHistoryLimit": 2,
+        "OutOfMemory": 1
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "component()": "<inferred>",
+        "prepare()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 12,
+        "catch": 1
+      },
+      "imports": [
+        "BuildSources.zig",
+        "std",
+        "transit_compiler",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/BuildOptions.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "parse()": "<inferred>",
+        "parseMode()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Diagnostic.zig",
+        "Style.zig",
+        "std"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/BuildReport.zig": {
+      "errors": {},
+      "outcomes": {
+        "CaseView.status": [
+          "passed",
+          "failed",
+          "not_run"
+        ],
+        "Mode": [
+          "build",
+          "test_suite"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "renderFailure()": "<inferred>",
+        "renderTestSuiteFailure()": "<inferred>",
+        "writeExcerpt()": "<inferred>",
+        "writeLocation()": "<inferred>",
+        "writePackagePath()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 210,
+        "catch": 22
+      },
+      "imports": [
+        "BuildOptions.zig",
+        "BuildSources.zig",
+        "EnvelopeDiagnostic.zig",
+        "Style.zig",
+        "std",
+        "transit_compiler",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/BuildSources.zig": {
+      "errors": {
+        "AccessDenied": 1,
+        "BuildSyncFailed": 1,
+        "ConflictingDependency": 1,
+        "DependencyLimit": 2,
+        "EmptySourcePackage": 1,
+        "ExcludedSourcePath": 2,
+        "FetchWithOverride": 1,
+        "FileNotFound": 3,
+        "IncompatibleSourceDefinition": 1,
+        "InvalidRepositoryTree": 3,
+        "InvalidSourceDigest": 2,
+        "InvalidSourceEncoding": 1,
+        "InvalidSourceLock": 1,
+        "InvalidSourcePath": 2,
+        "MissingBuildEntry": 1,
+        "MissingSource": 4,
+        "MissingSourceLock": 1,
+        "PathAlreadyExists": 3,
+        "ReadFailed": 1,
+        "RepositoryFetchFailed": 1,
+        "RepositoryOutputLimit": 1,
+        "RepositoryRevisionMismatch": 1,
+        "ReservedPackageName": 1,
+        "SourceBytesLimit": 2,
+        "SourceDepthLimit": 3,
+        "SourceDigestMismatch": 4,
+        "SourceFileBytesLimit": 2,
+        "SourceFileLimit": 2,
+        "SourceLockLimit": 1,
+        "SourceReadFailed": 1,
+        "SourceReadLimit": 2,
+        "SourceTreeEntryLimit": 3,
+        "StaleSourceLock": 2,
+        "UndeclaredOverride": 1,
+        "UnsupportedRepositoryTransport": 1,
+        "UnsupportedSourceFileKind": 12
+      },
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "add()": "<inferred>",
+        "atomicFile()": "<inferred>",
+        "cacheBase()": "<inferred>",
+        "checkImport()": "<inferred>",
+        "checkLocalPath()": "<inferred>",
+        "checkRelativeLinks()": "<inferred>",
+        "digestBytes()": "<inferred>",
+        "fetchDirectory()": "anyerror",
+        "fetchEntry()": "anyerror",
+        "fetchTree()": "<inferred>",
+        "finish()": "<inferred>",
+        "git()": "<inferred>",
+        "identities()": "<inferred>",
+        "load()": "<inferred>",
+        "loadCached()": "<inferred>",
+        "loadEntry()": "<inferred>",
+        "loadLock()": "<inferred>",
+        "openCache()": "<inferred>",
+        "openRoot()": "<inferred>",
+        "read()": "<inferred>",
+        "readDirectory()": "anyerror",
+        "readEntry()": "anyerror",
+        "readTree()": "anyerror",
+        "readWithKind()": "<inferred>",
+        "resolve()": "<inferred>",
+        "storeCache()": "<inferred>",
+        "syncDirectory()": "<inferred>",
+        "temporaryDirectory()": "<inferred>",
+        "treeHex()": "<inferred>",
+        "visitLocalPath()": "anyerror",
+        "visitSource()": "anyerror",
+        "visitStatements()": "anyerror",
+        "writeFile()": "<inferred>"
+      },
+      "open_error_set_uses": 9,
+      "propagation": {
+        "try": 113,
+        "catch": 30
+      },
+      "imports": [
+        "BuildOptions.zig",
+        "std",
+        "transit_compiler",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/Diagnostic.zig": {
+      "errors": {
+        "InvalidInvocation": 3
+      },
+      "outcomes": {
+        "presentation": [
+          "invocation",
+          "option",
+          "argument"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "invalidArgument()": "anyerror",
+        "invalidInvocation()": "anyerror",
+        "invalidOption()": "anyerror",
+        "render()": "<inferred>"
+      },
+      "open_error_set_uses": 4,
+      "propagation": {
+        "try": 5,
+        "catch": 0
+      },
+      "imports": [
+        "Style.zig",
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/EnvelopeDiagnostic.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {
+        "escaped()": "<inferred>",
+        "location()": "<inferred>",
+        "render()": "<inferred>",
+        "renderConsole()": "<inferred>",
+        "renderFor()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 48,
+        "catch": 0
+      },
+      "imports": [
+        "std",
+        "transit_protocol"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/Style.zig": {
+      "errors": {},
+      "outcomes": {
+        "Color": [
+          "plain",
+          "word",
+          "literal",
+          "number",
+          "comment",
+          "failure",
+          "category",
+          "emphasis",
+          "note",
+          "span"
+        ],
+        "Mode": [
+          "auto",
+          "off",
+          "on"
+        ],
+        "write().<enum>": [
+          "summary",
+          "category",
+          "cause",
+          "location",
+          "expected",
+          "marker",
+          "hint"
+        ]
+      },
+      "error_sets": {},
+      "error_returns": {
+        "hint()": "<inferred>",
+        "source()": "<inferred>",
+        "sql()": "<inferred>",
+        "text()": "<inferred>",
+        "write()": "<inferred>"
+      },
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 17,
+        "catch": 5
+      },
+      "imports": [
+        "std",
+        "transit_sql_frontend"
+      ]
+    },
+    "third_party/transitc/packages/transitc-workspace/src/root.zig": {
+      "errors": {},
+      "outcomes": {},
+      "error_sets": {},
+      "error_returns": {},
+      "open_error_set_uses": 0,
+      "propagation": {
+        "try": 0,
+        "catch": 0
+      },
+      "imports": [
+        "Build.zig",
+        "BuildMigration.zig",
+        "BuildOptions.zig",
+        "BuildReport.zig",
+        "BuildSources.zig",
+        "Diagnostic.zig",
+        "EnvelopeDiagnostic.zig",
+        "Style.zig"
       ]
     }
   },
@@ -50531,7 +50612,7 @@
       "LINE_COMMENT": "'--' ~ [ \\ r \\ n ] * - > skip",
       "WS": "[ \\ t \\ r \\ n ] + - > skip"
     },
-    "contracts/application-source/TransitSource.g4": {
+    "third_party/transitc/contracts/application-source/TransitSource.g4": {
       "sourceFile": "( SEMI | sourceImport | dependency | defaultTarget | definition | sourceStatement ) * EOF",
       "sourceImport": "IMPORT ( MODULE FROM | MODULE sourceName FROM | sourceNameWithoutModule FROM ) ( PACKAGE sourceName FILE ) ? STRING SEMI",
       "dependency": "DEPENDENCY sourceName FROM STRING REVISION STRING ( SUBDIRECTORY STRING ) ? SEMI",

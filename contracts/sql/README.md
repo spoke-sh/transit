@@ -5,7 +5,7 @@ INTERFACE`, `CREATE TARGET`, `CREATE TEST TARGET`, `TEST` and runner assertions)
 [application source contract](../APPLICATION_SOURCE_V1.md) and `transit-compiler`.
 They are not executable SQL statements or additions to the runtime ANTLR root.
 Their emitted Table SQL uses the existing typed owners described here. The
-independent [source grammar](../application-source/README.md) imports this SQL
+independent [source grammar](../../third_party/transitc/contracts/application-source/README.md) imports this SQL
 reference with a distinct source root and typed-hole rules; it adds no runtime
 statements to this root. The shared `SqlScript.Compiler` framer admits 1 MiB application source files and 2 MiB
 migration files, with 1 MiB executable statements framed incrementally without heap allocation.

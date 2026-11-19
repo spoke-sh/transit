@@ -2,8 +2,7 @@
 //! All caller paths, identifiers and source lines are terminal-escaped before styling.
 const std = @import("std");
 const c = @import("transit_compiler");
-const testlib = @import("transit_test");
-const p = @import("transit_query").protocol;
+const p = @import("transit_protocol");
 const Style = @import("Style.zig");
 const Options = @import("BuildOptions.zig");
 const Sources = @import("BuildSources.zig");
@@ -26,8 +25,8 @@ pub const CaseView = struct {
     location: p.Diagnostic.Location,
     action_location: ?p.Diagnostic.Location = null,
     error_code: ?[]const u8 = null,
-    failure: ?testlib.Runner.Failure = null,
-    detail: testlib.Runner.Detail = .{},
+    failure: ?c.Test.Failure = null,
+    detail: c.Test.Detail = .{},
 };
 
 const Connectors = struct {
@@ -71,9 +70,9 @@ pub fn renderFailure(
     try style.text(out, .failure, "failure");
     try out.writeByte('\n');
 
-    const fact_path = findFactText(envelope, .actual_source);
+    const fact_path = findFactText(&envelope, .actual_source);
     const fact_path_truncated = findFactTruncated(envelope, .actual_source);
-    const fact_kind = findFactText(envelope, .source_kind);
+    const fact_kind = findFactText(&envelope, .source_kind);
 
     var headline_buf: [384]u8 = undefined;
     const headline = buildHeadline(&headline_buf, envelope, report, if (envelope.location == null) fact_kind else null);
@@ -436,7 +435,7 @@ fn formatTestFailure(buf: *[320]u8, item: CaseView) []const u8 {
     return "test case failed";
 }
 
-fn findFactText(envelope: p.Diagnostic, field: p.Diagnostic.Field) ?[]const u8 {
+fn findFactText(envelope: *const p.Diagnostic, field: p.Diagnostic.Field) ?[]const u8 {
     for (&envelope.facts) |*slot| if (slot.*) |*fact| {
         if (fact.field == field and fact.value != null and fact.value.? == .text) return fact.value.?.text.slice();
     };

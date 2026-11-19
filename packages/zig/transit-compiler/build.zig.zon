@@ -4,9 +4,10 @@
     .fingerprint = 0x49b5559be35cc52f,
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
     .dependencies = .{
+        .transitc = .{ .path = "../../../third_party/transitc" },
         .transit_sql_frontend = .{ .path = "../transit-sql-frontend" },
         .transit_memory = .{ .path = "../transit-memory" },
         .transit_protocol = .{ .path = "../transit-protocol" },
     },
-    .paths = .{ "build.zig", "build.zig.zon", "src" },
+    .paths = .{ "build.zig", "build.zig.zon", "README.md" },
 }

@@ -1,0 +1,5 @@
+CREATE TARGET default AS BEGIN
+  CREATE PUBLIC TABLE items (id BIGINT PRIMARY KEY, label TEXT);
+  INSERT INTO items VALUES (7, 'ready');
+  SELECT * FROM items;
+END;

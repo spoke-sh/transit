@@ -106,7 +106,7 @@ Review the generated SQL, then use `transit migrate plan --dir OUTPUT/migrations
 --database DATABASE --schema SCHEMA --out plan.json` and apply that saved plan.
 Database/schema bindings in source describe the comparison; the explicit migrate
 assertions check the live destination. Source and sidecars are not needed for
-apply or recovery. See [Table migration targets](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+apply or recovery. See [Table migration targets](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 for syntax, exact bounds and unsupported transforms.
 
 Failures render the failing build or test step, workspace/cache-resolved source

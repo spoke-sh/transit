@@ -200,7 +200,7 @@ forms and admit each through its shared SQL type owner.
 
 **Owners:** `Syntax`, `SourceTypes`, `ProgramAnnotations`, `ProgramLowering`,
 `WorkingCatalog`, Fuze scalar/program binders and
-[TypedTarget.lean](../../contracts/application-source/TypedTarget.lean).
+[TypedTarget.lean](../../third_party/transitc/contracts/application-source/TypedTarget.lean).
 
 **Exit:** synthetic Case 1 runs over actual Queue/Table/Stream values; wrong
 nominal IDs, malformed tags, missing arms, absent/multiple lookup rows, unsafe
@@ -260,7 +260,7 @@ M7; publication/transport declarations depend on M13. Activation and grants appe
 only when explicitly requested and authorized by their ordinary owners.
 
 **Owners:** proposed `transit-compiler/CatalogDiff`, WorkingCatalog,
-[BuildSources](../../apps/transit-cli/BuildSources.zig),
+[BuildSources](../../third_party/transitc/packages/transitc-workspace/src/BuildSources.zig),
 [MigrationClient](../../packages/zig/transit-sql-client/src/MigrationClient.zig),
 [MigrationRunner](../../packages/zig/transit-sql-service/src/MigrationRunner.zig)
 and DirectMigration.

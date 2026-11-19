@@ -5,7 +5,7 @@ const testlib = @import("transit_test");
 const g = testlib.service;
 const p = g.catalog.protocol;
 const node = @import("transit_node_role");
-const Sources = @import("BuildSources.zig");
+const Sources = @import("transit_workspace").Sources;
 const telemetry = g.wire.observability.telemetry;
 const bootstrap = testlib.Bootstrap;
 pub const Resources = struct { memory_peak_bytes: usize = 0, storage_reserved_bytes: u64 = 0 };

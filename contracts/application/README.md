@@ -11,7 +11,7 @@ query compilation belong to `transit-station-app` and Fuze. The broader
 
 This grammar covers interface/UI declarations, not the `.transit` module,
 build or test language defined by [Application source v1](../APPLICATION_SOURCE_V1.md).
-That source profile has its own [ANTLR grammar and correspondence checks](../application-source/README.md)
+That source profile has its own [ANTLR grammar and correspondence checks](../../third_party/transitc/contracts/application-source/README.md)
 against the production Zig parser. Its syntax and formatter evidence remain
 separate from this interface/UI profile.
 

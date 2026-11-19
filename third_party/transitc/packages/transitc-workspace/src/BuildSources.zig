@@ -1,7 +1,7 @@
 //! Explicit repository resolution and immutable source capture; never called by evaluation.
 const std = @import("std");
 const c = @import("transit_compiler");
-const p = @import("transit_query").protocol;
+const p = @import("transit_protocol");
 const Self = @This();
 pub const Override = @import("BuildOptions.zig").Override;
 pub const Pin = struct { name: []const u8, repository: []const u8, revision: []const u8, subdirectory: []const u8, digest: []const u8 };

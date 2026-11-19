@@ -99,3 +99,12 @@ each count once, while blank lines/comments do not. Earlier effects remain
 committed. SQL embedded in `.execute` input retains its own local coordinates;
 the enclosing script command is reported separately. Paths are bounded and
 escaped before terminal rendering. These diagnostics go to stderr.
+
+## Compiler ownership
+
+`transit build` and the source-compilation portion of `transit test` consume the
+[exact transitc snapshot](../../third_party/transitc/upstream.json) through the
+[compiler adapter](../../packages/zig/transit-compiler/README.md). Source capture,
+locks, publication and diagnostics belong to transitc's workspace package.
+Migration application and isolated runtime test hosting remain here. The CLI
+preserves its existing commands, definition identity and immutable SQL history.

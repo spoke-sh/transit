@@ -3,12 +3,12 @@ const std = @import("std");
 const c = @import("transit_compiler");
 const testlib = @import("transit_test");
 const p = testlib.service.catalog.protocol;
-const Sources = @import("BuildSources.zig");
-const Options = @import("BuildOptions.zig");
+const Sources = @import("transit_workspace").Sources;
+const Options = @import("transit_workspace").Options;
 const Diagnostic = @import("Diagnostic.zig");
 const Host = @import("TestHost.zig");
-const BuildReport = @import("BuildReport.zig");
-const Style = @import("Style.zig");
+const BuildReport = @import("transit_workspace").Report;
+const Style = @import("transit_workspace").Style;
 const version = @import("build_version");
 const CaseReport = struct {
     name: []const u8,
@@ -147,7 +147,7 @@ fn execute(init: std.process.Init, a: std.mem.Allocator, scratch: std.mem.Alloca
         const buffer = try a.alloc(u8, 1024 * 1024);
         var writer: std.Io.Writer = .fixed(buffer);
         if (ok and complete) {
-            const renderer = @import("EnvelopeDiagnostic.zig");
+            const renderer = @import("transit_workspace").EnvelopeDiagnostic;
             for (reports) |report| {
                 try diagnostic.style.text(&writer, .span, "passed:");
                 try writer.writeByte(' ');

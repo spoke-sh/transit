@@ -1,5 +1,10 @@
 # Application installation, definitions and migration
 
+Source compilation is owned by [transitc](https://github.com/spoke-sh/transitc).
+Transit's build and test commands consume an exact pinned snapshot with the same
+SQL frontend and protocol types as the runtime. Source capture and compilation
+remain offline; runtime test execution and migration application stay with Transit.
+
 An installed application, a published interface and a data migration are separate
 objects. Installing new code does not authorize new operations, publish a UI or
 transform durable data. Use the [first application guide](../guides/applications.md)
@@ -49,7 +54,7 @@ build identity. The [build CLI](cli.md#application-source-builds) and
 [source contract](../../../contracts/APPLICATION_SOURCE_V1.md) define syntax,
 resolution, artifacts, diagnostics and resource limits.
 
-The [source grammar](../../../contracts/application-source/README.md) formalizes
+The [source grammar](../../../third_party/transitc/contracts/application-source/README.md) formalizes
 these forms separately from runtime SQL and interface/UI declarations. Complete
 resource-template and expected-row syntax is checked in every body, including unused
 modules and unselected branches. Name resolution, types, target placement and
@@ -69,9 +74,9 @@ through `EXPORT TABLE $name AS rows;`. A parameter such as
 Assignments and equality predicates preserve the column's nominal type even
 when SQL uses a literal Table name. Final SQL contains ordinary scalar values;
 direct SQL retains its ordinary type and authorization rules. The
-[source specialization contract](../../../contracts/APPLICATION_SOURCE_V1.md#typed-source-specialization)
+[source specialization contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#typed-source-specialization)
 owns exact syntax, symbolic-checking limits and proof premises. The
-[synthetic example](../../../tests/fixtures/application-typed-targets/README.md)
+[synthetic example](../../../third_party/transitc/tests/fixtures/application-typed-targets/README.md)
 shows both resource kinds with raw ID `7` and isolated Table tests.
 
 `STREAM(...)` and `QUEUE(...)` parameters and matching exports preserve distinct
@@ -96,7 +101,7 @@ hygienically renamed bindings and writes into the caller's single atomic
 transaction decision. A `RETURNS type` procedure ends with one top-level
 `RETURN expression;`; returned values retain their nominal types and remain
 scoped to the caller's atomic block. Arguments and returns evaluate once. Building emits SQL and never activates it. The
-[program source profile](../../../contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
+[program source profile](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#public-queue-programs)
 defines exact supported instructions, helper restrictions, schemas and limits.
 Nominal Queue, Stream and Table fields retain their source types through LET,
 pure function calls, record projections, nullable one-record lookups, ordered
@@ -118,7 +123,7 @@ additions (including `NOT ENFORCED` foreign keys) against an explicit offline ba
 `FOR DATABASE ... SCHEMA ... VERSION ... NAME ...` (or shorthand `VERSION '<ver>-<name>'`) bindings and optional
 `INTO '<path>'` metadata. Builds preserve immutable SQL history, refuse destructive or ambiguous changes,
 and publish a reviewable `migrations/` directory without applying it. The
-[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+[source contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 defines the syntax and limits. Broader migration kinds and view/serving
 extensions remain planned. The existing
 interface-definition compiler and installation APIs below retain their scope.
@@ -157,7 +162,7 @@ server configuration or containers. The runner uses real grants, storage and
 current disclosure checks, then closes sessions and deletes each owned database.
 Passing requires complete assertions and successful cleanup. The
 [test CLI](cli.md#application-table-tests) owns invocation and reporting; the
-[source contract](../../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+[source contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 owns syntax and exact limits. Subject/grant controls, virtual clocks, effects,
 HTTP simulation and workflow replay remain unsupported source features.
 
@@ -168,11 +173,11 @@ have a pending acquisition for their next input; this assertion does not establi
 Queue emptiness or program idleness.
 It does not treat activation as completion or replay input. Follow it with Table
 and `CONSUME` row assertions to check state and Stream output. Exhausted polling
-or session budgets fail. The [Queue source fixture](../../../tests/fixtures/application-queue-programs/README.md),
-[nominal lookup fixture](../../../tests/fixtures/application-typed-queue/README.md)
-and [modular helper fixture](../../../tests/fixtures/application-modular-programs/README.md)
+or session budgets fail. The [Queue source fixture](../../../third_party/transitc/tests/fixtures/application-queue-programs/README.md),
+[nominal lookup fixture](../../../third_party/transitc/tests/fixtures/application-typed-queue/README.md)
+and [modular helper fixture](../../../third_party/transitc/tests/fixtures/application-modular-programs/README.md)
 illustrate success, ordered guard refusal, post-call atomic rollback and isolation; the
-[test contract](../../../contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
+[test contract](../../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#queue-program-tests)
 defines observation limits and scope.
 
 ## Planned source language and build model

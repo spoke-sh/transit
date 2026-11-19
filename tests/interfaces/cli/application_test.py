@@ -452,7 +452,7 @@ def main():
         root = Path(temporary)
         source_diagnostics(cli, root, 'test')
         programs = root / 'queue-programs'
-        shutil.copytree(ROOT / 'tests/fixtures/application-queue-programs', programs)
+        shutil.copytree(ROOT / 'third_party/transitc/tests/fixtures/application-queue-programs', programs)
         program_report = invoke(cli, programs)
         assert program_report['complete'] and [case['status'] for case in program_report['cases']] == ['passed', 'passed'], program_report
         assert [case['observation']['rows'] for case in program_report['cases']] == [2, 0], program_report
@@ -478,7 +478,7 @@ def main():
         assert incomplete['cases'][0]['status'] == 'failed' and incomplete['cases'][0]['observation']['failure'] == 'workflow_progress', incomplete
         source(programs, 'build.transit', program_source)
         typed_queue = root / 'typed-queue'
-        shutil.copytree(ROOT / 'tests/fixtures/application-typed-queue', typed_queue)
+        shutil.copytree(ROOT / 'third_party/transitc/tests/fixtures/application-typed-queue', typed_queue)
         # Five isolated cases retain the CLI's 30-second per-case budget. The
         # process watchdog covers their aggregate execution and joined cleanup.
         report = invoke(cli, typed_queue, timeout=180)
@@ -490,7 +490,7 @@ def main():
         assert refused['code'] == 'application.source.domain' and refused['outcome'] == 'not_submitted' and 'cases' not in refused, refused
         assert not (typed_queue / '.transit').exists()
         modular = root / 'modular-programs'
-        shutil.copytree(ROOT / 'tests/fixtures/application-modular-programs', modular)
+        shutil.copytree(ROOT / 'third_party/transitc/tests/fixtures/application-modular-programs', modular)
         modular_report = invoke(cli, modular, timeout=240)
         assert modular_report['complete'] and [case['status'] for case in modular_report['cases']] == ['passed'] * 6, modular_report
         assert [case['observation']['rows'] for case in modular_report['cases']] == [2, 0, 0, 0, 0, 1], modular_report
@@ -522,7 +522,7 @@ def main():
             source(modular, filename, original_text)
         shutil.rmtree(modular)
         typed = root / 'typed-targets'
-        shutil.copytree(ROOT / 'tests/fixtures/application-typed-targets', typed)
+        shutil.copytree(ROOT / 'third_party/transitc/tests/fixtures/application-typed-targets', typed)
         typed_report = invoke(cli, typed)
         assert typed_report['complete'] and [case['status'] for case in typed_report['cases']] == ['passed', 'passed']
         assert [case['observation']['rows'] for case in typed_report['cases']] == [2, 1]
@@ -532,7 +532,7 @@ def main():
         assert refused['outcome'] == 'not_submitted' and 'cases' not in refused
         assert not (typed / '.transit').exists()
         project = root / 'project'
-        shutil.copytree(ROOT / 'tests/fixtures/application-tests', project)
+        shutil.copytree(ROOT / 'third_party/transitc/tests/fixtures/application-tests', project)
         oracle = (project / 'expected.sql').read_text()
         first = invoke(cli, project)
         repeat = invoke(cli, project)

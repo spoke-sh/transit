@@ -1,6 +1,6 @@
 //! Human projection of typed evidence. All owner/caller text is terminal inert.
 const std = @import("std");
-const d = @import("transit_query").protocol.Diagnostic;
+const d = @import("transit_protocol").Diagnostic;
 
 pub fn escaped(out: *std.Io.Writer, bytes: []const u8) !void {
     for (bytes) |byte| switch (byte) {

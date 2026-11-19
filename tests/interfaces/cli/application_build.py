@@ -225,7 +225,7 @@ def compiler_journey(cli, root):
         cli_build(cli, root, *args, expected=2)
     control = subprocess.run([sys.executable, '-c', 'import socket; socket.socket()'], capture_output=True, preexec_fn=offline)
     assert control.returncode != 0 and b'Function not implemented' in control.stderr, control
-    corpus = REPO / 'tests/fixtures/application-build'
+    corpus = REPO / 'third_party/transitc/tests/fixtures/application-build'
     project = root / 'project'
     project.mkdir()
     for name in ('build.transit', 'rows.transit'):
@@ -402,7 +402,7 @@ def compiler_journey(cli, root):
 
 
 def typed_journey(cli, root):
-    fixture = REPO / 'tests/fixtures/application-typed-targets'
+    fixture = REPO / 'third_party/transitc/tests/fixtures/application-typed-targets'
     project = root / 'typed-project'
     shutil.copytree(fixture, project)
     checked = cli_build(cli, project, '--check')
@@ -430,7 +430,7 @@ def typed_journey(cli, root):
 
 
 def queue_journey(cli, root):
-    fixture = REPO / 'tests/fixtures/application-queue-programs'
+    fixture = REPO / 'third_party/transitc/tests/fixtures/application-queue-programs'
     project = root / 'queue-project'
     shutil.copytree(fixture, project)
     checked = cli_build(cli, project, '--check')
@@ -453,7 +453,7 @@ def queue_journey(cli, root):
 
 
 def typed_queue_journey(cli, root):
-    fixture = REPO / 'tests/fixtures/application-typed-queue'
+    fixture = REPO / 'third_party/transitc/tests/fixtures/application-typed-queue'
     project = root / 'typed-queue-project'
     shutil.copytree(fixture, project)
     checked = cli_build(cli, project, '--check')
@@ -501,7 +501,7 @@ def typed_queue_journey(cli, root):
 
 
 def modular_programs_journey(cli, root):
-    fixture = REPO / 'tests/fixtures/application-modular-programs'
+    fixture = REPO / 'third_party/transitc/tests/fixtures/application-modular-programs'
     project = root / 'modular-programs-project'
     shutil.copytree(fixture, project)
     checked = cli_build(cli, project, '--check')
@@ -1617,13 +1617,13 @@ def main():
         print('Application build: generated modular Queue fixture', flush=True)
         generated += execute_modular_programs(cli, modular_sql)
         print('Application build: independent ordinary SQL oracle', flush=True)
-        oracle = execute_program(cli, (REPO / 'tests/fixtures/application-build/expected.sql').read_text(),
-                                 (REPO / 'tests/fixtures/application-typed-targets/expected.sql').read_text(),
-                                 (REPO / 'tests/fixtures/application-queue-programs/expected.sql').read_text())
+        oracle = execute_program(cli, (REPO / 'third_party/transitc/tests/fixtures/application-build/expected.sql').read_text(),
+                                 (REPO / 'third_party/transitc/tests/fixtures/application-typed-targets/expected.sql').read_text(),
+                                 (REPO / 'third_party/transitc/tests/fixtures/application-queue-programs/expected.sql').read_text())
         print('Application build: independent typed Queue SQL oracle', flush=True)
-        oracle += execute_typed_queue(cli, (REPO / 'tests/fixtures/application-typed-queue/expected.sql').read_text())
+        oracle += execute_typed_queue(cli, (REPO / 'third_party/transitc/tests/fixtures/application-typed-queue/expected.sql').read_text())
         print('Application build: independent modular Queue SQL oracle', flush=True)
-        oracle += execute_modular_programs(cli, (REPO / 'tests/fixtures/application-modular-programs/oracle.sql').read_text())
+        oracle += execute_modular_programs(cli, (REPO / 'third_party/transitc/tests/fixtures/application-modular-programs/oracle.sql').read_text())
         # Both sessions decode verified terminal coverage. Compare logical rows;
         # durable IDs/observation cuts legitimately differ between installations.
         def logical(outcomes):

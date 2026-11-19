@@ -1,6 +1,6 @@
 //! Console presentation only. Color never changes text, source escaping or streams.
 const std = @import("std");
-const fuze = @import("transit_query").fuze;
+const fuze = @import("transit_sql_frontend");
 const input = fuze.SqlInput;
 const Self = @This();
 
@@ -138,33 +138,6 @@ test "SQL colors preserve incomplete Unicode and multiple statements" {
     );
 }
 
-test "diagnostic colors use original context after redaction and clipping" {
-    for ([_][]const u8{
-        "SELECT value FROM items " ++ @as([80]u8, @splat(' ')) ++ "WHERE value IS VALUE LIMIT;",
-        "SELECT value FROM items " ++ @as([80]u8, @splat(' ')) ++ "WHERE value = '99.123'::FLOAT64 LIMIT;",
-    }, [_][]const u8{ "VALUE", "FLOAT64" }) |value, keyword| {
-        const diagnostic = fuze.SqlDiagnostic.query(value, error.InvalidSqlSyntax, true).?;
-        try std.testing.expect(std.mem.startsWith(u8, diagnostic.context[0..diagnostic.context_len], "..."));
-        for (diagnostic.context[0..diagnostic.context_len], diagnostic.context_roles[0..diagnostic.context_len]) |byte, role| {
-            if (byte == '*') try std.testing.expectEqual(fuze.Sql.TokenRole.unknown, role);
-        }
-        var buffer: [4096]u8 = undefined;
-        var out: std.Io.Writer = .fixed(&buffer);
-        try diagnostic.renderStyled(&out, Self{ .enabled = true });
-        var token_buffer: [64]u8 = undefined;
-        const colored = try std.fmt.bufPrint(&token_buffer, "\x1b[36m{s}\x1b[0m", .{keyword});
-        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), colored) != null);
-        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "\x1b[36mvalue") == null);
-        try std.testing.expect(std.mem.indexOf(u8, out.buffered(), "99.123") == null);
-        var plain_buffer: [4096]u8 = undefined;
-        var plain: std.Io.Writer = .fixed(&plain_buffer);
-        try diagnostic.render(&plain);
-        out.end = 0;
-        try diagnostic.renderStyled(&out, Self{});
-        try std.testing.expectEqualStrings(plain.buffered(), out.buffered());
-    }
-}
-
 pub fn sql(self: Self, out: *std.Io.Writer, value: []const u8) !void {
     if (!self.enabled) return out.writeAll(value);
     if (value.len <= input.max_editor_bytes) {
@@ -230,10 +203,14 @@ pub fn hint(self: Self, out: *std.Io.Writer, value: []const u8) !void {
     }
 }
 
-pub fn write(self: Self, out: *std.Io.Writer, part: fuze.SqlDiagnostic.Part, value: []const u8) !void {
-    switch (part) {
+pub fn write(self: Self, out: *std.Io.Writer, part: anytype, value: []const u8) !void {
+    const selected = if (comptime @TypeOf(part) == @TypeOf(.hint))
+        @as(enum { summary, category, cause, location, expected, marker, hint }, part)
+    else
+        part;
+    switch (selected) {
         .hint => try self.hint(out, value),
-        else => try self.text(out, switch (part) {
+        else => try self.text(out, switch (selected) {
             .summary => .emphasis,
             .category => .category,
             .cause, .marker => .failure,

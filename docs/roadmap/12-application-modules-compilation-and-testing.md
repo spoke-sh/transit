@@ -61,7 +61,7 @@ definition path. Current interface compiler behavior remains unchanged until tha
 cutover, and ordinary serving does not depend on completing this entire toolchain.
 
 **Grammar baseline:** the source compiler now has a dedicated
-[ANTLR reference and correspondence corpus](../../contracts/application-source/README.md)
+[ANTLR reference and correspondence corpus](../../third_party/transitc/contracts/application-source/README.md)
 for `.transit` modules, builds and tests, alongside its Zig parser. The existing
 [SQL grammar](../../contracts/sql/TransitExtensions.g4) and
 [application interface grammar](../../contracts/application/Application.g4)
@@ -573,7 +573,7 @@ Source syntax and the typed core belong to
      space. Define deterministic declaration ordering independent of filesystem
      enumeration, and reject output that exceeds the target's statement limits.
 4. **Formalize the source grammar and continuously compare parsers:**
-   - Add `contracts/application-source/TransitSource.g4` with an owning README
+   - Add `third_party/transitc/contracts/application-source/TransitSource.g4` with an owning README
      and independent positive/negative corpus. This is a planned path, distinct
      from `contracts/application/Application.g4`. First cover every delivered
      import, dependency, interface, module, target, typed operand, expression,
@@ -725,9 +725,9 @@ Source syntax and the typed core belong to
 
 ### `P4` — Desired-state-to-migration synthesizer, schema/definition diffing and `CREATE OR REPLACE` lifecycle
 
-**Owners:** [`packages/zig/transit-compiler/src/CatalogDiff.zig`](../../packages/zig/transit-compiler/src/CatalogDiff.zig), [`apps/transit-cli/BuildMigration.zig`](../../apps/transit-cli/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
+**Owners:** [`third_party/transitc/packages/transitc-compiler/src/CatalogDiff.zig`](../../third_party/transitc/packages/transitc-compiler/src/CatalogDiff.zig), [`third_party/transitc/packages/transitc-workspace/src/BuildMigration.zig`](../../third_party/transitc/packages/transitc-workspace/src/BuildMigration.zig), [`contracts/MIGRATION_V1.md`](../../contracts/MIGRATION_V1.md), [`packages/zig/transit-catalog/src/DirectMigration.zig`](../../packages/zig/transit-catalog/src/DirectMigration.zig), [`packages/zig/transit-catalog/src/DirectDefinition.zig`](../../packages/zig/transit-catalog/src/DirectDefinition.zig), [`packages/zig/transit-sql-service/src/MigrationRunner.zig`](../../packages/zig/transit-sql-service/src/MigrationRunner.zig).
 
-The delivered [Table migration profile](../../contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
+The delivered [Table migration profile](../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets)
 implements unchanged/new Tables and safe trailing `ADD COLUMN` changes against
 an explicit offline basis. `CREATE MIGRATION TARGET` publishes complete desired
 SQL, a successor basis, provenance and verified immutable SQL history. The
@@ -780,7 +780,7 @@ replacement policies remain required to complete P4.
 
 **Owners:** [`packages/zig/transit-compiler/`](../../packages/zig/transit-compiler), [`packages/zig/transit-test/`](../../packages/zig/transit-test), [`packages/zig/transit-sql-service/`](../../packages/zig/transit-sql-service), [`apps/transit-cli/`](../../apps/transit-cli).
 
-The [isolated Table profile](../../contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
+The [isolated Table profile](../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#isolated-table-tests)
 delivers item 1 for the existing compiler subset and typed row/count/refusal
 assertions from item 3. The controls, broader SQL and replay schedules below
 remain required to complete P5.

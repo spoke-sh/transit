@@ -70,11 +70,11 @@ Those results qualify that source; this extension requires its own checks.
 
 | Owner at this basis | Implemented behavior | Extension needed here |
 | --- | --- | --- |
-| [SourceTypes](../../packages/zig/transit-compiler/src/SourceTypes.zig) | Nominal scalar identities; exact Table/Stream/Queue signatures and exports; domain-aware binding hashes | Reuse these identities for log schemas and program expressions; retain kind and exact resource binding |
-| [TypedOperands](../../packages/zig/transit-compiler/src/TypedOperands.zig) | Table column annotations, same-domain assignments/predicates, checked operands before scalar erasure | Share annotation rules with logs; keep literal names and IDENTIFIER arguments subject to the same checks |
-| [ResourceOperands](../../packages/zig/transit-compiler/src/ResourceOperands.zig) | Checks hole kinds; rejects nominal log types/values and symbolic log values; returns an empty operand projection | Bind actual log columns, predicates and values before erasure; produce meaningful checked evidence |
-| [ProgramCheck](../../packages/zig/transit-compiler/src/ProgramCheck.zig) | Binds ordered public-data programs through Fuze and compares instructions/resource schemas; rejects every nominal dependency | Check source annotations across the existing instruction tree while retaining ordinary Fuze binding |
-| [Compiler](../../packages/zig/transit-compiler/src/Compiler.zig), [WorkingCatalog](../../packages/zig/transit-compiler/src/WorkingCatalog.zig) | Typed expansion, proposed resources, independent SQL rebind and atomic product publication | Retain source-site/type associations through log/program checking; preserve the independent scalar verification pass |
+| [SourceTypes](../../third_party/transitc/packages/transitc-compiler/src/SourceTypes.zig) | Nominal scalar identities; exact Table/Stream/Queue signatures and exports; domain-aware binding hashes | Reuse these identities for log schemas and program expressions; retain kind and exact resource binding |
+| [TypedOperands](../../third_party/transitc/packages/transitc-compiler/src/TypedOperands.zig) | Table column annotations, same-domain assignments/predicates, checked operands before scalar erasure | Share annotation rules with logs; keep literal names and IDENTIFIER arguments subject to the same checks |
+| [ResourceOperands](../../third_party/transitc/packages/transitc-compiler/src/ResourceOperands.zig) | Checks hole kinds; rejects nominal log types/values and symbolic log values; returns an empty operand projection | Bind actual log columns, predicates and values before erasure; produce meaningful checked evidence |
+| [ProgramCheck](../../third_party/transitc/packages/transitc-compiler/src/ProgramCheck.zig) | Binds ordered public-data programs through Fuze and compares instructions/resource schemas; rejects every nominal dependency | Check source annotations across the existing instruction tree while retaining ordinary Fuze binding |
+| [Compiler](../../third_party/transitc/packages/transitc-compiler/src/Compiler.zig), [WorkingCatalog](../../third_party/transitc/packages/transitc-compiler/src/WorkingCatalog.zig) | Typed expansion, proposed resources, independent SQL rebind and atomic product publication | Retain source-site/type associations through log/program checking; preserve the independent scalar verification pass |
 | [ApplicationProgramTypes](../../packages/zig/transit-sql-frontend/src/ApplicationProgramTypes.zig) | Physical types, lexical scopes, nullable reads, resource uses and host requirements | Remains the runtime semantic owner; no second physical type system or execution engine |
 | [Source verification](../../tests/query/application_source/README.md), [test runner](../../packages/zig/transit-test/README.md) | Independent grammar/type comparisons and real isolated SQL execution | Extend the checked projection, corpus and installed fixtures for the new domain paths |
 
@@ -94,16 +94,16 @@ a dependency, a filesystem layout or the selected target.
 
 The source audit identifies three separate causes:
 
-- [BuildSources.readTree](../../apps/transit-cli/BuildSources.zig) walks every
+- [BuildSources.readTree](../../third_party/transitc/packages/transitc-workspace/src/BuildSources.zig) walks every
   directory except `.git` and `.transit`. It rejects symlinks and special entries
   before applying the `.transit` filename filter. Thus unrelated environment or
   package-manager links can block both commands. The Git fetch path also rejects
   unsupported modes before filtering source filenames.
-- [Build.run](../../apps/transit-cli/Build.zig) and
+- [Build.run](../../third_party/transitc/packages/transitc-workspace/src/Build.zig) and
   [Test.run](../../apps/transit-cli/Test.zig) fall back to
   `Compiler.project(error, null, null, null)` when an owner supplies no diagnostic.
   Filesystem failures therefore lose the path and receive the compile stage.
-- [EnvelopeDiagnostic](../../apps/transit-cli/EnvelopeDiagnostic.zig) does not
+- [EnvelopeDiagnostic](../../third_party/transitc/packages/transitc-workspace/src/EnvelopeDiagnostic.zig) does not
   render the envelope's primary location, even when one is present. Related
   location facts print coordinates without their source filename. The generic
   `correct_input` sentence cannot replace an actionable explanation.
@@ -196,7 +196,7 @@ Fix the unnecessary discovery failure as well as its wording. Proposed rules:
    link traversal, automatic deletion, or automatic dependency fetching is allowed.
 
 These are proposed changes to
-[source selection](../../contracts/APPLICATION_SOURCE_V1.md#resolution-and-locks),
+[source selection](../../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#resolution-and-locks),
 not existing behavior. Update that contract and the local/fetched parity tests
 together. Review source-format/cache identity: a package whose selected source
 set changes must not reuse an old product or silently rewrite its lock. Frozen
@@ -334,8 +334,8 @@ build products even when erased SQL bytes remain equal.
 ## End-to-end fixture and acceptance
 
 Add a public synthetic typed Queue fixture alongside the
-[existing untyped Queue fixture](../../tests/fixtures/application-queue-programs/README.md)
-and [compile-time typed-target fixture](../../tests/fixtures/application-typed-targets/README.md).
+[existing untyped Queue fixture](../../third_party/transitc/tests/fixtures/application-queue-programs/README.md)
+and [compile-time typed-target fixture](../../third_party/transitc/tests/fixtures/application-typed-targets/README.md).
 Retain both existing fixtures and their independent oracles.
 
 The new fixture declares `RequestId`, `MachineId` and `SiteId`, with deliberately

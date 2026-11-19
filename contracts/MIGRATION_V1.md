@@ -19,7 +19,7 @@ schema inspection or recovery through `Station` actor turns (`GenServer`,
 
 Source `CREATE MIGRATION TARGET` builds can synthesize new Tables and safe
 trailing column additions from an explicit offline basis. The
-[source contract](APPLICATION_SOURCE_V1.md#table-migration-targets) owns this
+[source contract](../third_party/transitc/contracts/APPLICATION_SOURCE_V1.md#table-migration-targets) owns this
 bounded profile. Builds publish ordinary immutable SQL; this ledger remains the
 only apply/resume authority. Live reconciliation checks CHECK descriptors and
 column interpretation rules in addition to the legacy logical fingerprint.
