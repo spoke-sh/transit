@@ -22,12 +22,15 @@ pub const Environment = struct {
 pub const Owners = union(enum) { stream: s.StreamPartition, queue: s.QueuePartition };
 definition: c.DirectLog.Definition,
 owner: Owners,
+stream_recovery: ?*?s.StreamPartition.RecoveryState = null,
+queue_recovery: ?*?s.QueuePartition.RecoveryState = null,
 
 /// The caller has already checked the catalog identity and its current rights.
 /// Recovery does not consult a current clock, authenticate old cursor keys or
 /// remove an unresolved preparation barrier.
 pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, definition: c.DirectLog.Definition, ordinal: u32, guard_value: s.PublicationGuard, options: Options) !Self {
     const initial = try definition.genesis(ordinal);
+    const object_id = definition.stored.declaration.interpretation.object.object;
     var result: Self = .{ .definition = definition, .owner = undefined };
     switch (definition.kind()) {
         .stream => {
@@ -35,6 +38,7 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, definition:
             configured.clock = null;
             configured.transaction_control = true;
             configured.control = .{ .log = catalog.store.log, .objects = catalog.store.objects };
+            result.stream_recovery = catalog.streamRecoverySlot(object_id);
             result.owner = .{ .stream = try s.StreamPartition.open(allocator, catalog.data_log, catalog.data_objects, initial, guard_value, configured) };
         },
         .queue => {
@@ -42,25 +46,60 @@ pub fn open(allocator: std.mem.Allocator, catalog: *c.DirectCatalog, definition:
             configured.clock = null;
             configured.transaction_control = true;
             configured.control = .{ .log = catalog.store.log, .objects = catalog.store.objects };
+            result.queue_recovery = catalog.queueRecoverySlot(object_id);
             result.owner = .{ .queue = try s.QueuePartition.open(allocator, catalog.data_log, catalog.data_objects, initial, guard_value, configured) };
         },
     }
-    errdefer result.deinit();
+    errdefer {
+        result.stream_recovery = null;
+        result.queue_recovery = null;
+        result.deinit();
+    }
     switch (result.owner) {
-        inline else => |*owner_value| {
-            while (!(try owner_value.recoverStep(guard_value, 256)).complete) {}
+        .stream => |*owner_value| {
+            const prior: ?s.StreamPartition.RecoveryState = if (result.stream_recovery) |slot|
+                if (slot.*) |known| (if (std.meta.eql(known.root.initialization, initial)) known else null) else null
+            else
+                null;
+            var first = true;
+            while (!(try owner_value.recoverStepSince(guard_value, 256, if (first) prior else null)).complete) : (first = false) {}
             // This temporary owner has finished replay, with no scratch borrows.
             // Evaluation installs a separately metered decode arena; retaining
             // replay scratch alongside it can exhaust the transaction budget.
-            const owner = if (@TypeOf(owner_value.*) == s.QueuePartition) &owner_value.owner else owner_value;
-            _ = owner.scratch.reset(.free_all);
+            _ = owner_value.scratch.reset(.free_all);
+        },
+        .queue => |*owner_value| {
+            const prior: ?s.QueuePartition.RecoveryState = if (result.queue_recovery) |slot|
+                if (slot.*) |known| (if (std.meta.eql(known.root.initialization, initial)) known else null) else null
+            else
+                null;
+            var first = true;
+            while (!(try owner_value.recoverStepSince(guard_value, 256, if (first) prior else null)).complete) : (first = false) {}
+            _ = owner_value.owner.scratch.reset(.free_all);
         },
     }
     return result;
 }
 pub fn deinit(self: *Self) void {
     switch (self.owner) {
-        inline else => |*owner| owner.deinit() catch unreachable,
+        .stream => |*owner| {
+            if (self.stream_recovery) |slot| {
+                if (owner.recoveryState()) |known| {
+                    if (slot.* == null or !std.meta.eql(slot.*.?.root.initialization, known.root.initialization) or slot.*.?.root.next_lsn <= known.root.next_lsn)
+                        slot.* = known;
+                } else |_| {}
+            }
+            owner.deinit() catch unreachable;
+        },
+        .queue => |*owner| {
+            if (self.queue_recovery) |slot| {
+                if (owner.recoveryState()) |known| {
+                    if (slot.* == null or !std.meta.eql(slot.*.?.root.initialization, known.root.initialization) or slot.*.?.root.next_lsn <= known.root.next_lsn)
+                        slot.* = known;
+                } else |_| {}
+            }
+            owner.deinit() catch unreachable;
+        },
     }
     self.* = undefined;
 }

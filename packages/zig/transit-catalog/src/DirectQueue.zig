@@ -202,10 +202,21 @@ fn applyOriginal(scratch: std.mem.Allocator, output: std.mem.Allocator, catalog:
         slot.* = .{ .initialization = initial, .owner = try Queue.open(catalog.allocator, catalog.data_log, catalog.data_objects, initial, current.guard, owned_options) };
     }
     const owner = &slot.*.?.owner;
+    const recovery_slot = catalog.queueRecoverySlot(request.target().interpretation.object.object);
+    defer if (recovery_slot) |q_slot| {
+        if (owner.recoveryState()) |known| {
+            if (q_slot.* == null or !std.meta.eql(q_slot.*.?.root.initialization, known.root.initialization) or q_slot.*.?.root.next_lsn <= known.root.next_lsn)
+                q_slot.* = known;
+        } else |_| {}
+    };
     owner.owner.options.clock = environment.clock;
     defer owner.owner.options.clock = null;
     if (!owner.owner.ready or try owner.owner.log.tail(initial.partition) != owner.owner.root.next_lsn) {
-        const recovered = try owner.recoverStep(current.guard, environment.recovery_steps);
+        const prior: ?Queue.RecoveryState = if (recovery_slot) |q_slot|
+            if (q_slot.*) |known| (if (std.meta.eql(known.root.initialization, initial)) known else null) else null
+        else
+            null;
+        const recovered = try owner.recoverStepSince(current.guard, environment.recovery_steps, prior);
         if (!recovered.complete) return .{ .recovering = recovered };
     }
     var selected = request;

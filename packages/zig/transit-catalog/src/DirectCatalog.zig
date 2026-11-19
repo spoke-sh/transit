@@ -46,6 +46,10 @@ pub const Options = struct {
     /// Optional disposable prefix array indexed by `object % len`, used when
     /// the caller holds exclusive directory access across all Table stripes.
     table_recoveries: ?[]?P.RecoveryState = null,
+    stream_recovery: ?*?s.StreamPartition.RecoveryState = null,
+    stream_recoveries: ?[]?s.StreamPartition.RecoveryState = null,
+    queue_recovery: ?*?s.QueuePartition.RecoveryState = null,
+    queue_recoveries: ?[]?s.QueuePartition.RecoveryState = null,
     /// Optional bounded live-owner slot. The host serializes borrowing, binds
     /// its provider/allocator lifetime and destroys it before storage replacement.
     table_owner: ?*?CachedTable = null,
@@ -5277,6 +5281,18 @@ fn transactionView(self: *Self, object: d.Object) !View {
 
 fn transactionLogView(self: *Self, definition: L.Definition, ordinal: u32, guard_value: P.Guard) !c.DirectTransactionLog {
     return c.DirectTransactionLog.open(self.allocator, self, definition, ordinal, guard_value, self.options.logs);
+}
+
+pub fn streamRecoverySlot(self: *const Self, object: u64) ?*?s.StreamPartition.RecoveryState {
+    if (self.options.stream_recovery) |slot| return slot;
+    if (self.options.stream_recoveries) |slots| return &slots[@intCast(object % slots.len)];
+    return null;
+}
+
+pub fn queueRecoverySlot(self: *const Self, object: u64) ?*?s.QueuePartition.RecoveryState {
+    if (self.options.queue_recovery) |slot| return slot;
+    if (self.options.queue_recoveries) |slots| return &slots[@intCast(object % slots.len)];
+    return null;
 }
 
 fn publishTransactionControl(self: *Self, progress: *c.DirectClientToken.Progress, control: *TransactionControl.State, guard_value: P.Guard) !void {

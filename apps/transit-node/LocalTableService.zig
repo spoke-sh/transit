@@ -34,7 +34,11 @@ pub const Resident = struct {
     table: ?D.CachedTable = null,
     extra_tables: [3]?D.CachedTable = @splat(null),
     stream: ?c.DirectStream.Cached = null,
+    extra_streams: [3]?c.DirectStream.Cached = @splat(null),
     queue: ?c.DirectQueue.Cached = null,
+    extra_queues: [3]?c.DirectQueue.Cached = @splat(null),
+    next_extra_stream: u2 = 0,
+    next_extra_queue: u2 = 0,
 
     // Cold initialization must not reserve a full catalog on every I/O worker's
     // hot request stack, including requests that already have a resident owner.
@@ -62,8 +66,28 @@ pub const Resident = struct {
     pub fn hasObject(self: *const Resident, object: u64) bool {
         if (self.hasTable(object)) return true;
         if (self.stream) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
+        for (self.extra_streams) |slot| if (slot) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
         if (self.queue) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
+        for (self.extra_queues) |slot| if (slot) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object) return true;
         return false;
+    }
+    pub fn streamSlot(self: *Resident, object: u64, ordinal: u32) *?c.DirectStream.Cached {
+        if (self.stream) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object and cached.initialization.ordinal == ordinal) return &self.stream;
+        for (&self.extra_streams) |*slot| if (slot.*) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object and cached.initialization.ordinal == ordinal) return slot;
+        if (self.stream == null) return &self.stream;
+        for (&self.extra_streams) |*slot| if (slot.* == null) return slot;
+        const victim = self.next_extra_stream % self.extra_streams.len;
+        self.next_extra_stream +%= 1;
+        return &self.extra_streams[victim];
+    }
+    pub fn queueSlot(self: *Resident, object: u64, ordinal: u32) *?c.DirectQueue.Cached {
+        if (self.queue) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object and cached.initialization.ordinal == ordinal) return &self.queue;
+        for (&self.extra_queues) |*slot| if (slot.*) |cached| if (cached.initialization.declared.declaration.interpretation.object.object == object and cached.initialization.ordinal == ordinal) return slot;
+        if (self.queue == null) return &self.queue;
+        for (&self.extra_queues) |*slot| if (slot.* == null) return slot;
+        const victim = self.next_extra_queue % self.extra_queues.len;
+        self.next_extra_queue +%= 1;
+        return &self.extra_queues[victim];
     }
     pub fn hasTableName(self: *const Resident, namespace: u64, name: []const u8) bool {
         if (self.table) |cached| if (cached.namespace == namespace and cached.name != null and std.mem.eql(u8, cached.name.?.slice(), name)) return true;
@@ -72,7 +96,9 @@ pub const Resident = struct {
     }
     pub fn destroy(self: *Resident) void {
         if (self.queue) |*cached| cached.deinit();
+        for (&self.extra_queues) |*slot| if (slot.*) |*cached| cached.deinit();
         if (self.stream) |*cached| cached.deinit();
+        for (&self.extra_streams) |*slot| if (slot.*) |*cached| cached.deinit();
         if (self.table) |*cached| cached.table.deinit();
         for (&self.extra_tables) |*slot| if (slot.*) |*cached| cached.table.deinit();
         self.catalog.deinit();
@@ -101,6 +127,10 @@ pub fn executeResultRef(self: *Self, comptime format: Output, arena: *std.heap.A
     errdefer {
         if (self.options.table_recovery) |slot| slot.* = null;
         if (self.options.table_recoveries) |slots| @memset(slots, null);
+        if (self.options.stream_recovery) |slot| slot.* = null;
+        if (self.options.stream_recoveries) |slots| @memset(slots, null);
+        if (self.options.queue_recovery) |slot| slot.* = null;
+        if (self.options.queue_recoveries) |slots| @memset(slots, null);
     }
     const allocator = arena.allocator();
     try request.validate(allocator);
@@ -139,6 +169,10 @@ pub fn executeResultRef(self: *Self, comptime format: Output, arena: *std.heap.A
     const catalog = if (self.resident) |resident| blk: {
         resident.catalog.options.table_recovery = self.options.table_recovery;
         resident.catalog.options.table_recoveries = self.options.table_recoveries;
+        resident.catalog.options.stream_recovery = self.options.stream_recovery;
+        resident.catalog.options.stream_recoveries = self.options.stream_recoveries;
+        resident.catalog.options.queue_recovery = self.options.queue_recovery;
+        resident.catalog.options.queue_recoveries = self.options.queue_recoveries;
         try resident.catalog.store.refreshSince(if (self.recovery_state) |prior| prior.* else null);
         break :blk &resident.catalog;
     } else blk: {
@@ -230,7 +264,8 @@ fn executeStream(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy
     var authority: c.storage.LogRead.Authority = undefined;
     self.streamAuthority(&authority);
     defer std.crypto.secureZero(u8, &authority.secret);
-    return c.DirectStream.apply(scratch.allocator(), output, catalog, &resident.stream, catalog.options.logs.stream, .{
+    const target_partition = request.target();
+    return c.DirectStream.apply(scratch.allocator(), output, catalog, resident.streamSlot(target_partition.interpretation.object.object, target_partition.partition), catalog.options.logs.stream, .{
         .authority = authority,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
@@ -259,7 +294,7 @@ fn executeCaptureRead(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, p
     var authority: c.storage.LogRead.Authority = undefined;
     self.streamAuthority(&authority);
     defer std.crypto.secureZero(u8, &authority.secret);
-    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, &resident.stream, catalog.options.logs.stream, .{
+    return c.DirectSourceRead.apply(scratch.allocator(), output, catalog, resident.streamSlot(request.reference().destination.object.object, 0), catalog.options.logs.stream, .{
         .authority = authority,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
         .waiting = self.waiting,
@@ -290,7 +325,8 @@ fn executeQueue(raw: *anyopaque, output: std.mem.Allocator, catalog: *D, policy:
     const resident = self.resident orelse return self.executeQueueCold(output, catalog, policy, request);
     var scratch: std.heap.ArenaAllocator = .init(catalog.allocator);
     defer scratch.deinit();
-    return c.DirectQueue.apply(scratch.allocator(), output, catalog, &resident.queue, catalog.options.logs.queue, .{
+    const target_partition = request.target();
+    return c.DirectQueue.apply(scratch.allocator(), output, catalog, resident.queueSlot(target_partition.interpretation.object.object, target_partition.partition), catalog.options.logs.queue, .{
         .waiting = self.waiting,
         .clock = if (self.engine.clock != null) .{ .context = self, .read = streamTime } else null,
     }, request, policy);
