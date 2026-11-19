@@ -1,18 +1,22 @@
 """Reference startup refuses lost/replaced history before infrastructure mutation."""
 from runner.paths import ROOT
 import json
+import os
 from pathlib import Path
+import signal
 import sys
 import subprocess
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(ROOT / "launchers"))
+from artifacts import Artifacts, BUILD_TIMEOUT
 from kubernetes import Reference, infrastructure
 from station_reference import StationReference
-from common import Installation
+from common import Installation, run as common_run
 from native_client import ClientError
 
 
@@ -211,6 +215,79 @@ class ReadObservationTest(unittest.TestCase):
                     Installation.native_query(installation, {"capabilities": {}})
                 factory.return_value.call.assert_called_once()
             sleep.assert_not_called()
+
+
+class ArtifactBuildTest(unittest.TestCase):
+    def test_native_build_uses_preparation_budget_and_owned_session(self):
+        self.assertEqual(BUILD_TIMEOUT, 2400)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifacts = Artifacts(SimpleNamespace(profile="local", name="proof"))
+            artifacts.path = root
+
+            def fake_run(argv, **kwargs):
+                if argv[0] in ("zig", "nix"):
+                    prefix = Path(argv[argv.index("--prefix") + 1])
+                    binary = prefix / "bin/transit"
+                    binary.parent.mkdir(parents=True, exist_ok=True)
+                    binary.write_bytes(b"transit-binary")
+                    return None
+                if argv[0] == "readelf":
+                    return "ELF Header"
+                raise AssertionError(argv)
+
+            with patch("artifacts.run", side_effect=fake_run) as mocked:
+                artifacts.native(["transit"])
+                self.assertEqual(mocked.call_args.kwargs,
+                                 {"cwd": ROOT, "timeout": 2400, "own_session": True})
+                mocked.reset_mock()
+                artifacts.native(["transit"], target="x86_64-linux-musl")
+                build_call = mocked.call_args_list[0]
+                self.assertEqual(build_call.args[0][:4],
+                                 ["nix", "develop", str(ROOT) + "#release-checks", "--command"])
+                self.assertEqual(build_call.kwargs,
+                                 {"cwd": ROOT, "timeout": 2400, "own_session": True})
+
+    def test_owned_session_timeout_terminates_grandchild_processes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pid_file = Path(directory) / "grandchild.pid"
+            script = (
+                "import pathlib, subprocess, sys, time\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                "pathlib.Path(sys.argv[1]).write_text(str(child.pid))\n"
+                "time.sleep(60)\n"
+            )
+
+            def cleanup_grandchild():
+                if pid_file.exists():
+                    try:
+                        os.kill(int(pid_file.read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+            self.addCleanup(cleanup_grandchild)
+            with self.assertRaises(subprocess.TimeoutExpired):
+                common_run([sys.executable, "-c", script, str(pid_file)],
+                           timeout=0.5, own_session=True)
+            self.assertTrue(pid_file.exists())
+            grandchild_pid = int(pid_file.read_text())
+            deadline = time.monotonic() + 5
+            while True:
+                try:
+                    os.kill(grandchild_pid, 0)
+                except ProcessLookupError:
+                    break
+                self.assertLess(time.monotonic(), deadline, "Grandchild survived session termination")
+                time.sleep(0.02)
+
+    def test_owned_session_preserves_output_and_exit_errors(self):
+        output = common_run([sys.executable, "-c", "print('ready')"],
+                            capture=True, timeout=5, own_session=True)
+        self.assertEqual(output, "ready\n")
+        with self.assertRaises(subprocess.CalledProcessError) as failed:
+            common_run([sys.executable, "-c", "import sys; sys.exit(17)"],
+                       capture=True, timeout=5, own_session=True)
+        self.assertEqual(failed.exception.returncode, 17)
 
 
 if __name__ == "__main__":

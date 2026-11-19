@@ -644,7 +644,7 @@
     },
     "launchers": {
       "cache": "experience",
-      "timeout": 45
+      "timeout": 90
     },
     "sdks-conformance": {
       "cache": "bindings",

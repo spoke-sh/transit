@@ -128,6 +128,7 @@ def exercise(profile, name=None, base=None, existing=False):
 
     try:
         if not existing:
+            installation.artifacts.initialize()
             invoke("up", "--example", "station", "--base-port", str(installation.base_port), "--detach")
         await_value(lambda: total() == 12, "Initial direct Table operations did not complete")
         records = installation.records()

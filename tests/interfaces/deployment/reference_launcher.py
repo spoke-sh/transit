@@ -41,6 +41,7 @@ def run():
         return json.loads(launcher.kube("get", "secret", "board-credentials", "-o", "json", capture=True))["data"]
 
     try:
+        installation.artifacts.initialize()
         invoke("up")
         original_secret = board_secret()
         assert set(original_secret) == {"seed"}

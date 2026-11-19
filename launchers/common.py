@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import signal
 import socket
 import subprocess
 import time
@@ -34,11 +35,34 @@ def read_json(response, limit=256 * 1024):
     return json.loads(data)
 
 
-def run(argv, *, capture=False, timeout=60, **kwargs):
-    result = subprocess.run(list(map(str, argv)), check=True, text=True,
-                            stdout=subprocess.PIPE if capture else None,
-                            timeout=timeout, **kwargs)
-    return result.stdout if capture else None
+def run(argv, *, capture=False, timeout=60, own_session=False, **kwargs):
+    args = list(map(str, argv))
+    if not own_session:
+        result = subprocess.run(args, check=True, text=True,
+                                stdout=subprocess.PIPE if capture else None,
+                                timeout=timeout, **kwargs)
+        return result.stdout if capture else None
+    with subprocess.Popen(args, text=True, stdout=subprocess.PIPE if capture else None,
+                          start_new_session=True, **kwargs) as process:
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            stdout, stderr = process.communicate()
+            raise subprocess.TimeoutExpired(args, timeout, output=stdout, stderr=stderr) from error
+        except BaseException:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            process.wait()
+            raise
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, args, output=stdout, stderr=stderr)
+        return stdout if capture else None
 
 
 def write(path, value):

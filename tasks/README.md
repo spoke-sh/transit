@@ -282,7 +282,7 @@ and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
 Hosted execution caps are 120 minutes for core, 150 each for storage-query and
-the three interface lanes, 120 for installation-ui, 90 for browser, 45 for launchers,
+the three interface lanes, 120 for installation-ui, 90 for browser, 90 for launchers,
 and 360 for each SDK lane. These are execution ceilings, not feedback targets.
 The authorization budget record (archived)
 records the measured basis: the complete core lane takes 27.91 minutes before
@@ -299,10 +299,20 @@ The [hosted launcher run](https://github.com/spoke-sh/transit/actions/runs/40967
 takes 27 minutes including setup, Debug build smoke checks and ReleaseSafe
 launcher qualification. The [nightly launcher attempt](https://github.com/spoke-sh/transit/actions/runs/40967294752/job/123775175169)
 reaches 28 minutes before its first cold launcher build exceeds the startup
-invocation's ten-minute limit. Launcher proofs prepare artifacts before starting
-runtime deadlines; the 45-minute outer cap includes that compilation and setup
-even when a nominal cache-reuse run misses its dependencies. It does not extend
-startup, readiness or recovery deadlines.
+invocation's ten-minute limit. A later [nightly launcher run at `70dc36d57`](https://github.com/spoke-sh/transit/actions/runs/44567204457/job/135727485256)
+passes `test::build` in 364.38 seconds on an Azure-hosted runner, then expires
+at the former 900-second native build limit while compiling `example-counter`,
+`transit`, `transit-board` and `transit-client-host` in `ReleaseSafe`; the same
+cold four-target build takes 572.77 wall seconds (1,015.73 CPU seconds, 7.58 GiB
+max RSS) locally and `launchers::local::test` takes 621.07–741.01 seconds on
+AWS-hosted runners ([135730990230](https://github.com/spoke-sh/transit/actions/runs/44568203901/job/135730990230),
+[134453168092](https://github.com/spoke-sh/transit/actions/runs/44195618748/job/134453168092)).
+Launcher proofs prepare artifacts under the 40-minute native build cap before
+starting runtime deadlines, and terminate the entire compiler process group on
+timeout or interruption; the 90-minute outer cap includes setup, `test::build`,
+ReleaseSafe compilation and launcher scenarios even when a nominal cache-reuse
+run misses its dependencies. It does not extend startup, readiness or recovery
+deadlines.
 
 The [hosted core inventory record](../docs/history/qualification/runtime.md#hosted-core-execution-cap--2026-10-26)
 adds a current lower bound: its first 23 of 28 tasks pass in 54.60 minutes,
